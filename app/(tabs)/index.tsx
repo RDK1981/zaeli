@@ -1,98 +1,41 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView } from 'react-native'
 
 export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.label}>ZAELI</Text>
+        <Text style={styles.greeting}>Good morning,</Text>
+        <Text style={styles.name}>Sarah.</Text>
+        <Text style={styles.subtitle}>Here's what's ahead today</Text>
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>📅  Today's Events</Text>
+        <Text style={styles.empty}>No events yet</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>✅  Chores</Text>
+        <Text style={styles.empty}>No chores assigned yet</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>🛒  Shopping List</Text>
+        <Text style={styles.empty}>Your list is empty</Text>
+      </View>
+    </ScrollView>
+  )
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+  container: { flex: 1, backgroundColor: '#0A0F1E' },
+  header: { padding: 32, paddingTop: 72, marginBottom: 8 },
+  label: { fontSize: 11, fontWeight: '700', letterSpacing: 2.5, color: '#4A90D9', marginBottom: 16, fontFamily: 'DMSans_400Regular' },
+  greeting: { fontSize: 32, color: '#FFFFFF', marginBottom: 0, lineHeight: 40, fontFamily: 'DMSans_300Light' },
+  name: { fontSize: 38, color: '#4A90D9', fontFamily: 'DMSerifDisplay_400Regular', marginBottom: 12 },
+  subtitle: { fontSize: 15, color: 'rgba(255,255,255,0.45)', fontFamily: 'DMSans_300Light' },
+  card: { backgroundColor: '#141929', marginHorizontal: 16, marginBottom: 10, borderRadius: 18, padding: 22, borderWidth: 1, borderColor: 'rgba(74,144,217,0.12)' },
+  cardTitle: { fontSize: 15, color: '#FFFFFF', marginBottom: 10, fontFamily: 'DMSans_700Bold' },
+  empty: { fontSize: 13, color: 'rgba(255,255,255,0.3)', fontFamily: 'DMSans_300Light' },
+})
