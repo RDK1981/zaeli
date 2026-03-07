@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
+import { router } from 'expo-router'
 
 export default function HomeScreen() {
   return (
@@ -9,6 +10,10 @@ export default function HomeScreen() {
         <Text style={styles.name}>Sarah.</Text>
         <Text style={styles.subtitle}>Here's what's ahead today</Text>
       </View>
+
+      <TouchableOpacity style={styles.testBtn} onPress={() => router.push('/onboarding')}>
+        <Text style={styles.testBtnText}>→ Preview onboarding</Text>
+      </TouchableOpacity>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>📅  Today's Events</Text>
@@ -35,6 +40,8 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 32, color: '#FFFFFF', marginBottom: 0, lineHeight: 40, fontFamily: 'DMSans_300Light' },
   name: { fontSize: 38, color: '#4A90D9', fontFamily: 'DMSerifDisplay_400Regular', marginBottom: 12 },
   subtitle: { fontSize: 15, color: 'rgba(255,255,255,0.45)', fontFamily: 'DMSans_300Light' },
+  testBtn: { marginHorizontal: 16, marginBottom: 16, backgroundColor: 'rgba(74,144,217,0.1)', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'rgba(74,144,217,0.25)' },
+  testBtnText: { color: '#4A90D9', fontSize: 14, fontFamily: 'DMSans_400Regular' },
   card: { backgroundColor: '#141929', marginHorizontal: 16, marginBottom: 10, borderRadius: 18, padding: 22, borderWidth: 1, borderColor: 'rgba(74,144,217,0.12)' },
   cardTitle: { fontSize: 15, color: '#FFFFFF', marginBottom: 10, fontFamily: 'DMSans_700Bold' },
   empty: { fontSize: 13, color: 'rgba(255,255,255,0.3)', fontFamily: 'DMSans_300Light' },
