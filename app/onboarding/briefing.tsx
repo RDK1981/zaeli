@@ -1,5 +1,11 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { router } from 'expo-router'
+
+const EVENTS = [
+  { time: '3:30pm', title: 'Jack · Soccer training Chermside', color: '#4A90D9' },
+  { time: '5:00pm', title: 'Emma · Science project due', color: '#E8922A' },
+  { time: '7:00pm', title: 'Family · Dad\'s birthday dinner', color: '#1E8A5E' },
+]
 
 export default function BriefingScreen() {
   return (
@@ -10,54 +16,31 @@ export default function BriefingScreen() {
         ))}
       </View>
 
-      <Text style={styles.step}>YOUR FIRST BRIEFING</Text>
-      <Text style={styles.title}>Here's what's{'\n'}<Text style={styles.accent}>ahead, Sarah</Text></Text>
+      <Text style={styles.step}>STEP 4 OF 8</Text>
+      <Text style={styles.title}>Here's what's{'\n'}ahead, <Text style={styles.accent}>Sarah</Text></Text>
+      <Text style={styles.sub}>Your first Zaeli briefing — based on your real week.</Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>THIS WEEK</Text>
-
-        <View style={styles.event}>
-          <View style={[styles.dot2, { backgroundColor: '#4A90D9' }]} />
-          <View>
-            <Text style={styles.eventWho}>JACK · TOMORROW</Text>
-            <Text style={styles.eventTitle}>Soccer training — Chermside</Text>
-            <Text style={styles.eventDetail}>4:00pm · Leave by 3:25pm</Text>
+        <Text style={styles.cardBadge}>✦ TOMORROW'S BRIEFING</Text>
+        {EVENTS.map((e, i) => (
+          <View key={i} style={styles.event}>
+            <View style={[styles.dot2, { backgroundColor: e.color }]} />
+            <View>
+              <Text style={styles.eventTitle}>{e.title}</Text>
+              <Text style={styles.eventTime}>{e.time}</Text>
+            </View>
           </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.event}>
-          <View style={[styles.dot2, { backgroundColor: '#E8922A' }]} />
-          <View>
-            <Text style={styles.eventWho}>EMMA · THURSDAY</Text>
-            <Text style={styles.eventTitle}>Science project due</Text>
-            <Text style={styles.eventDetail}>Year 4 · Mrs Campbell</Text>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.event}>
-          <View style={[styles.dot2, { backgroundColor: '#1E8A5E' }]} />
-          <View>
-            <Text style={styles.eventWho}>FAMILY · SATURDAY</Text>
-            <Text style={styles.eventTitle}>Dad's birthday dinner</Text>
-            <Text style={styles.eventDetail}>7:00pm · Restaurant booked ✓</Text>
-          </View>
-        </View>
+        ))}
+        <Text style={styles.cardClose}>Big day tomorrow — you've got everything covered.</Text>
       </View>
 
-      <View style={styles.askCard}>
-        <Text style={styles.askText}>"Want me to send a briefing like this every morning?"</Text>
-        <View style={styles.askBtns}>
-          <TouchableOpacity style={styles.yesBtn} onPress={() => router.push('/onboarding/time')}>
-            <Text style={styles.yesBtnText}>Yes please</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.maybeBtn} onPress={() => router.push('/onboarding/time')}>
-            <Text style={styles.maybeBtnText}>Maybe later</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={styles.bottom}>
+        <TouchableOpacity style={styles.btn} onPress={() => router.push('/onboarding/time')}>
+          <Text style={styles.btnText}>Yes please →</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/onboarding/time')}>
+          <Text style={styles.skip}>Maybe later</Text>
+        </TouchableOpacity>
       </View>
     </View>
   )
@@ -69,21 +52,18 @@ const styles = StyleSheet.create({
   dot: { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(74,144,217,0.2)' },
   dotActive: { backgroundColor: '#4A90D9' },
   step: { fontSize: 11, letterSpacing: 1.5, color: '#4A90D9', marginBottom: 12, fontFamily: 'DMSans_700Bold' },
-  title: { fontSize: 36, color: '#FFFFFF', fontFamily: 'DMSans_300Light', lineHeight: 42, marginBottom: 24 },
-  accent: { color: '#4A90D9', fontStyle: 'italic' },
-  card: { backgroundColor: '#141929', borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(74,144,217,0.1)' },
-  cardLabel: { fontSize: 10, letterSpacing: 1.5, color: 'rgba(255,255,255,0.3)', marginBottom: 16, fontFamily: 'DMSans_700Bold' },
-  event: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', paddingVertical: 8 },
-  dot2: { width: 8, height: 8, borderRadius: 4, marginTop: 5, flexShrink: 0 },
-  eventWho: { fontSize: 10, letterSpacing: 1.2, color: 'rgba(255,255,255,0.35)', marginBottom: 3, fontFamily: 'DMSans_700Bold' },
-  eventTitle: { fontSize: 15, color: '#FFFFFF', fontFamily: 'DMSans_700Bold', marginBottom: 2 },
-  eventDetail: { fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'DMSans_400Regular' },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: 4 },
-  askCard: { backgroundColor: '#141929', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: 'rgba(74,144,217,0.1)' },
-  askText: { fontSize: 14, color: 'rgba(255,255,255,0.6)', fontFamily: 'DMSans_400Regular', fontStyle: 'italic', lineHeight: 22, marginBottom: 16 },
-  askBtns: { flexDirection: 'row', gap: 10 },
-  yesBtn: { flex: 1, backgroundColor: '#4A90D9', borderRadius: 12, padding: 14, alignItems: 'center' },
-  yesBtnText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'DMSans_700Bold' },
-  maybeBtn: { flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 12, padding: 14, alignItems: 'center' },
-  maybeBtnText: { color: 'rgba(255,255,255,0.4)', fontSize: 14, fontFamily: 'DMSans_400Regular' },
+  title: { fontSize: 36, color: '#FFFFFF', fontFamily: 'DMSans_300Light', lineHeight: 42, marginBottom: 8 },
+  accent: { color: '#4A90D9', fontFamily: 'DMSerifDisplay_400Regular' },
+  sub: { fontSize: 14, color: 'rgba(255,255,255,0.4)', fontFamily: 'DMSans_300Light', marginBottom: 28 },
+  card: { backgroundColor: '#141929', borderRadius: 16, padding: 20, borderWidth: 1, borderColor: 'rgba(74,144,217,0.15)', flex: 1 },
+  cardBadge: { fontSize: 10, letterSpacing: 1.5, color: '#4A90D9', fontFamily: 'DMSans_700Bold', marginBottom: 16 },
+  event: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
+  dot2: { width: 8, height: 8, borderRadius: 4, marginTop: 4, flexShrink: 0 },
+  eventTitle: { fontSize: 14, color: '#FFFFFF', fontFamily: 'DMSans_400Regular' },
+  eventTime: { fontSize: 12, color: 'rgba(255,255,255,0.35)', fontFamily: 'DMSans_400Regular', marginTop: 2 },
+  cardClose: { fontSize: 13, color: 'rgba(255,255,255,0.35)', fontFamily: 'DMSans_400Regular', fontStyle: 'italic', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingTop: 14, marginTop: 4 },
+  bottom: { position: 'absolute', bottom: 48, left: 32, right: 32, gap: 12 },
+  btn: { backgroundColor: '#4A90D9', borderRadius: 16, padding: 18, alignItems: 'center' },
+  btnText: { color: '#FFFFFF', fontSize: 16, fontFamily: 'DMSans_700Bold' },
+  skip: { textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 14, fontFamily: 'DMSans_400Regular' },
 })

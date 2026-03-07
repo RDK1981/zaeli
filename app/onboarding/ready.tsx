@@ -35,7 +35,7 @@ export default function ReadyScreen() {
       </View>
 
       <TouchableOpacity style={styles.btn} onPress={() => router.replace('/(tabs)')}>
-        <Text style={styles.btnText}>Open dashboard →</Text>
+        <Text style={styles.btnText}>Let's go →</Text>
       </TouchableOpacity>
     </View>
   )
