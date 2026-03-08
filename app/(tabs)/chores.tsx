@@ -5,6 +5,7 @@ import {
   Alert,
   Animated,
   Dimensions,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -192,12 +193,281 @@ function MissionCard({ mission, completed, onComplete }: {
   );
 }
 
+function ParentView({ tasks, members, completedIds, completions, onAddTask, onEditTask, onDeleteTask, onResetTask }: {
+  tasks: Mission[]; members: any[]; completedIds: Set<string>; completions: any[];
+  onAddTask: () => void; onEditTask: (m: Mission) => void;
+  onDeleteTask: (id: string) => void; onResetTask: (id: string) => void;
+}) {
+  const [tab, setTab] = useState<'tasks' | 'members' | 'reports'>('tasks');
+  const today = new Date().toISOString().split('T')[0];
+
+  const getWeekDates = () => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - 6 + i);
+    return d.toISOString().split('T')[0];
+  });
+
+  const getMemberName = (id: string) => members.find(m => m.id === id)?.name || 'Everyone';
+  const getMemberColour = (id: string) => members.find(m => m.id === id)?.colour || COLORS.blue;
+  const getMemberAvatar = (id: string) => members.find(m => m.id === id)?.avatar || '👤';
+
+  const weekDates = getWeekDates();
+  const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  return (
+    <View style={{ flex: 1 }}>
+      {/* Header */}
+      <View style={styles.parentHeader}>
+        <Text style={styles.parentTitle}>👤 Parent Dashboard</Text>
+        {tab === 'tasks' && (
+          <TouchableOpacity style={styles.addBtn} onPress={onAddTask}>
+            <Text style={styles.addBtnText}>+ Add Task</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Sub tabs */}
+      <View style={styles.parentTabs}>
+        {(['tasks','members','reports'] as const).map(t => (
+          <TouchableOpacity key={t} style={[styles.parentTab, tab === t && styles.parentTabActive]} onPress={() => setTab(t)}>
+            <Text style={[styles.parentTabTxt, tab === t && styles.parentTabTxtActive]}>
+              {t === 'tasks' ? '⚡ Tasks' : t === 'members' ? '👥 Members' : '📊 Reports'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+
+        {/* ── TASKS TAB ── */}
+        {tab === 'tasks' && (
+          <View style={{ gap: 10 }}>
+            {tasks.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>⚡</Text>
+                <Text style={styles.emptyTitle}>No Tasks yet</Text>
+                <Text style={styles.emptySubtitle}>Tap + Add Task to get started</Text>
+              </View>
+            ) : tasks.map(mission => {
+              const done = completedIds.has(mission.id);
+              const memberColour = getMemberColour(mission.assigned_to);
+              return (
+                <View key={mission.id} style={[styles.parentTaskCard, done && { borderColor: COLORS.green + '60' }]}>
+                  <View style={styles.parentTaskLeft}>
+                    <View style={[styles.parentTaskIcon, { backgroundColor: memberColour + '22' }]}>
+                      <Text style={{ fontSize: 20 }}>{mission.icon || '⭐'}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={[styles.parentTaskTitle, done && { textDecorationLine: 'line-through', color: COLORS.text3 }]}>
+                          {mission.title}
+                        </Text>
+                        {done && <Text style={{ fontSize: 14 }}>✅</Text>}
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                        <Text style={[styles.parentTaskMeta, { color: memberColour }]}>
+                          {getMemberAvatar(mission.assigned_to)} {getMemberName(mission.assigned_to)}
+                        </Text>
+                        <Text style={styles.parentTaskMeta}>· {mission.frequency} · ⭐ {mission.points}pts</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View style={styles.parentTaskActions}>
+                    {done && (
+                      <TouchableOpacity style={styles.resetBtn} onPress={() => onResetTask(mission.id)}>
+                        <Text style={styles.resetBtnTxt}>↩️</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={styles.editBtn} onPress={() => onEditTask(mission)}>
+                      <Text style={styles.editBtnTxt}>✏️</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.deleteTaskBtn} onPress={() => {
+                      Alert.alert('Delete task?', 'This will remove the task and all its history.', [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Delete', style: 'destructive', onPress: () => onDeleteTask(mission.id) }
+                      ]);
+                    }}>
+                      <Text style={styles.deleteTaskBtnTxt}>🗑</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ── MEMBERS TAB ── */}
+        {tab === 'members' && (
+          <View style={{ gap: 16 }}>
+            {members.map(member => {
+              const memberTasks = tasks.filter(t => t.assigned_to === member.id);
+              const memberDone = memberTasks.filter(t => completedIds.has(t.id)).length;
+              const pct = memberTasks.length > 0 ? Math.round((memberDone / memberTasks.length) * 100) : 0;
+              const colour = member.colour || COLORS.blue;
+              return (
+                <View key={member.id} style={styles.memberReportCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                    <View style={[styles.memberReportAvatar, { backgroundColor: colour + '22', borderColor: colour }]}>
+                      <Text style={{ fontSize: 24 }}>{member.avatar || '👤'}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.memberReportName}>{member.name}</Text>
+                      <Text style={styles.memberReportSub}>{memberDone}/{memberTasks.length} tasks today · {pct}%</Text>
+                    </View>
+                    <View style={[styles.memberPctBadge, { backgroundColor: colour + '22', borderColor: colour }]}>
+                      <Text style={[styles.memberPctTxt, { color: colour }]}>{pct}%</Text>
+                    </View>
+                  </View>
+                  {/* Progress bar */}
+                  <View style={styles.memberProgressBg}>
+                    <View style={[styles.memberProgressFill, { width: `${pct}%` as any, backgroundColor: colour }]} />
+                  </View>
+                  {/* Their tasks */}
+                  <View style={{ marginTop: 12, gap: 6 }}>
+                    {memberTasks.length === 0
+                      ? <Text style={{ fontSize: 13, color: COLORS.text3 }}>No tasks assigned</Text>
+                      : memberTasks.map(t => (
+                        <View key={t.id} style={styles.memberTaskRow}>
+                          <Text style={{ fontSize: 16 }}>{t.icon || '⭐'}</Text>
+                          <Text style={[styles.memberTaskTitle, completedIds.has(t.id) && { textDecorationLine: 'line-through', color: COLORS.text3 }]}>
+                            {t.title}
+                          </Text>
+                          {completedIds.has(t.id)
+                            ? <Text style={{ fontSize: 14, marginLeft: 'auto' }}>✅</Text>
+                            : <TouchableOpacity style={{ marginLeft: 'auto' }} onPress={() => onResetTask(t.id)}>
+                                <Text style={{ fontSize: 12, color: COLORS.orange, fontWeight: '600' }}>Reset</Text>
+                              </TouchableOpacity>
+                          }
+                        </View>
+                      ))
+                    }
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ── REPORTS TAB ── */}
+        {tab === 'reports' && (
+          <View style={{ gap: 16 }}>
+            <Text style={styles.reportTitle}>📊 This Week</Text>
+            {/* Weekly chart per member */}
+            {members.map(member => {
+              const colour = member.colour || COLORS.blue;
+              const memberTaskIds = tasks.filter(t => t.assigned_to === member.id).map(t => t.id);
+              const weekBars = weekDates.map(date => {
+                const done = completions.filter(c =>
+                  c.period_start === date && c.status === 'completed' && memberTaskIds.includes(c.mission_id)
+                ).length;
+                const total = memberTaskIds.length;
+                return { date, done, total, pct: total > 0 ? done / total : 0 };
+              });
+              const weekTotal = weekBars.reduce((s, b) => s + b.done, 0);
+              const weekPossible = weekBars.reduce((s, b) => s + b.total, 0);
+              return (
+                <View key={member.id} style={styles.reportCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                    <Text style={{ fontSize: 24 }}>{member.avatar || '👤'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reportMemberName}>{member.name}</Text>
+                      <Text style={styles.reportMemberSub}>{weekTotal}/{weekPossible} tasks completed this week</Text>
+                    </View>
+                    <View style={[styles.reportBadge, { backgroundColor: colour + '22', borderColor: colour }]}>
+                      <Text style={[styles.reportBadgeTxt, { color: colour }]}>
+                        {weekPossible > 0 ? Math.round((weekTotal / weekPossible) * 100) : 0}%
+                      </Text>
+                    </View>
+                  </View>
+                  {/* Bar chart */}
+                  <View style={styles.barChart}>
+                    {weekBars.map((bar, i) => {
+                      const d = new Date(bar.date);
+                      const isToday = bar.date === today;
+                      return (
+                        <View key={i} style={styles.barCol}>
+                          <View style={styles.barTrack}>
+                            <View style={[styles.barFill, {
+                              height: `${Math.max(bar.pct * 100, bar.done > 0 ? 10 : 0)}%` as any,
+                              backgroundColor: isToday ? colour : colour + '88',
+                            }]} />
+                          </View>
+                          <Text style={[styles.barLabel, isToday && { color: colour, fontWeight: '700' }]}>
+                            {DAY_SHORT[d.getDay()]}
+                          </Text>
+                          <Text style={styles.barCount}>{bar.done}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })}
+
+            {/* Missed tasks this week */}
+            <View style={styles.reportCard}>
+              <Text style={styles.reportTitle}>⚠️ Missed This Week</Text>
+              {(() => {
+                const missed: any[] = [];
+                weekDates.forEach(date => {
+                  tasks.forEach(task => {
+                    if (task.frequency === 'daily') {
+                      const done = completions.some(c => c.mission_id === task.id && c.period_start === date && c.status === 'completed');
+                      const d = new Date(date);
+                      const isToday = date === today;
+                      if (!done && !isToday) missed.push({ task, date });
+                    }
+                  });
+                });
+                if (missed.length === 0) return <Text style={{ color: COLORS.green, fontSize: 14, fontWeight: '600' }}>🎉 No missed tasks this week!</Text>;
+                return missed.slice(0, 10).map((m, i) => (
+                  <View key={i} style={styles.missedRow}>
+                    <Text style={{ fontSize: 16 }}>{m.task.icon || '⭐'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.missedTitle}>{m.task.title}</Text>
+                      <Text style={styles.missedDate}>{new Date(m.date).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: getMemberColour(m.task.assigned_to) }}>
+                      {getMemberAvatar(m.task.assigned_to)} {getMemberName(m.task.assigned_to)}
+                    </Text>
+                  </View>
+                ));
+              })()}
+            </View>
+          </View>
+        )}
+
+      </ScrollView>
+    </View>
+  );
+}
+
 export default function TasksScreen() {
   const [view, setView] = useState<'child' | 'parent'>('child');
   const [Tasks, setTasks] = useState<Mission[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [loading, setLoading] = useState(true);
   const [confettiVisible, setConfettiVisible] = useState(false);
+  const [gifUrl, setGifUrl] = useState('');
+  const [gifVisible, setGifVisible] = useState(false);
+
+  const fetchGif = async () => {
+    try {
+      const key = process.env.EXPO_PUBLIC_GIPHY_API_KEY;
+      console.log('Giphy key:', key);
+      const terms = ['congratulations','hooray','you did it','happy dance','nailed it'];
+      const q = terms[Math.floor(Math.random() * terms.length)];
+      const res = await fetch(`https://api.giphy.com/v1/gifs/random?api_key=${key}&tag=${encodeURIComponent(q)}&rating=g`);
+      const data = await res.json();
+      console.log('Giphy response:', JSON.stringify(data).slice(0, 200));
+      const url = data?.data?.images?.fixed_height?.url || data?.data?.images?.original?.url;
+      if (url) { setGifUrl(url); setGifVisible(true); }
+      else { setGifUrl('https://media.giphy.com/media/3o7TKnxjcvNWIXSGaA/giphy.gif'); setGifVisible(true); }
+    } catch (e) {
+      console.log('Giphy error:', e);
+      setGifUrl('https://media.giphy.com/media/3o7TKnxjcvNWIXSGaA/giphy.gif');
+      setGifVisible(true);
+    }
+  };
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [totalPoints, setTotalPoints] = useState(0);
   const [streak, setStreak] = useState(0);
@@ -210,6 +480,8 @@ export default function TasksScreen() {
     icon: '⭐',
   });
   const [newReward, setNewReward] = useState({ title: '', points_cost: '100' });
+  const [members, setMembers] = useState<any[]>([]);
+  const [allCompletions, setAllCompletions] = useState<any[]>([]);
   const [showTemplates, setShowTemplates] = useState(true);
 
   const streakScale = useRef(new Animated.Value(1)).current;
@@ -219,7 +491,7 @@ export default function TasksScreen() {
   const loadData = async () => {
     setLoading(true);
     const [TasksRes, rewardsRes, completionsRes] = await Promise.all([
-      supabase.from('Tasks').select('*').eq('family_id', DUMMY_FAMILY_ID),
+      supabase.from('missions').select('*').eq('family_id', DUMMY_FAMILY_ID),
       supabase.from('rewards').select('*').eq('family_id', DUMMY_FAMILY_ID),
       supabase.from('mission_completions').select('*').eq('member_id', DUMMY_MEMBER_ID),
     ]);
@@ -266,7 +538,7 @@ export default function TasksScreen() {
     ]).start();
 
     setConfettiVisible(true);
-
+    fetchGif();
     const today = new Date().toISOString().split('T')[0];
     await supabase.from('mission_completions').insert({
       mission_id: mission.id,
@@ -291,7 +563,7 @@ export default function TasksScreen() {
 
   const addMission = async () => {
     if (!newMission.title.trim()) return;
-    const { error } = await supabase.from('Tasks').insert({
+    const { error } = await supabase.from('missions').insert({
       family_id: DUMMY_FAMILY_ID,
       assigned_to: DUMMY_MEMBER_ID,
       title: newMission.title.trim(),
@@ -308,11 +580,21 @@ export default function TasksScreen() {
     }
   };
 
+  const resetTask = async (missionId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    await supabase.from('mission_completions')
+      .delete()
+      .eq('mission_id', missionId)
+      .eq('member_id', DUMMY_MEMBER_ID)
+      .eq('period_start', today);
+    setCompletedIds(prev => { const next = new Set(prev); next.delete(missionId); return next; });
+  };
+
   const deleteMission = async (id: string) => {
-    Alert.alert('Delete mission?', 'This will remove the mission and all its history.', [
+    Alert.alert('Delete task?', 'This will remove the task and all its history.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        await supabase.from('Tasks').delete().eq('id', id);
+        await supabase.from('missions').delete().eq('id', id);
         loadData();
       }},
     ]);
@@ -387,6 +669,20 @@ export default function TasksScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar style="light" />
       <Confetti visible={confettiVisible} onDone={() => setConfettiVisible(false)} />
+      <Modal visible={gifVisible} transparent animationType="fade">
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center' }}
+          activeOpacity={1} onPress={() => setGifVisible(false)}>
+          <View style={{ backgroundColor: COLORS.card, borderRadius: 20, padding: 16, alignItems: 'center', gap: 12, marginHorizontal: 32 }}>
+            <Text style={{ fontSize: 24 }}>🎉</Text>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text }}>Task Complete!</Text>
+            {gifUrl ? (
+              <Image source={{ uri: gifUrl }} style={{ width: 260, height: 180, borderRadius: 12 }} resizeMode="cover" />
+            ) : null}
+            <Text style={{ fontSize: 13, color: COLORS.text3 }}>Tap anywhere to close</Text>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
       <View style={styles.viewToggle}>
         <TouchableOpacity
@@ -510,87 +806,25 @@ export default function TasksScreen() {
         </ScrollView>
 
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.parentTitle}>Tasks</Text>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>All Tasks</Text>
-              <TouchableOpacity style={styles.addBtn} onPress={() => openAddModal()}>
-                <Text style={styles.addBtnText}>+ Add</Text>
-              </TouchableOpacity>
-            </View>
-            {Tasks.length === 0 ? (
-              <View style={[styles.emptyState, { marginTop: 8 }]}>
-                <Text style={styles.emptyIcon}>⚡</Text>
-                <Text style={styles.emptyTitle}>No Tasks yet</Text>
-                <Text style={styles.emptySubtitle}>Add your first mission below</Text>
-              </View>
-            ) : (
-              Tasks.map(mission => (
-                <View key={mission.id} style={styles.parentMissionRow}>
-                  <View style={styles.parentMissionIcon}>
-                    <Text style={{ fontSize: 20 }}>{mission.icon || '⭐'}</Text>
-                  </View>
-                  <View style={styles.parentMissionInfo}>
-                    <Text style={styles.parentMissionTitle}>{mission.title}</Text>
-                    <Text style={styles.parentMissionMeta}>{mission.frequency} · {mission.points} pts</Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => openAddModal({
-                      title: mission.title,
-                      points: String(mission.points),
-                      frequency: mission.frequency,
-                      icon: mission.icon,
-                    })}
-                    style={styles.duplicateBtn}
-                  >
-                    <Text style={styles.duplicateBtnText}>⧉</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => deleteMission(mission.id)} style={styles.deleteBtn}>
-                    <Text style={styles.deleteBtnText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Rewards</Text>
-              <TouchableOpacity style={styles.addBtn} onPress={() => setAddRewardModal(true)}>
-                <Text style={styles.addBtnText}>+ Add</Text>
-              </TouchableOpacity>
-            </View>
-            {rewards.length === 0 ? (
-              <View style={[styles.emptyState, { marginTop: 8 }]}>
-                <Text style={styles.emptyIcon}>🎁</Text>
-                <Text style={styles.emptyTitle}>No rewards yet</Text>
-                <Text style={styles.emptySubtitle}>Add something to motivate the kids</Text>
-              </View>
-            ) : (
-              rewards.map(reward => (
-                <View key={reward.id} style={styles.rewardRow}>
-                  <Text style={styles.rewardRowIcon}>🎁</Text>
-                  <View style={styles.rewardRowInfo}>
-                    <Text style={styles.rewardRowTitle}>{reward.title}</Text>
-                    <Text style={styles.rewardRowPts}>⭐ {reward.points_cost} points</Text>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-          <View style={{ height: 32 }} />
-        </ScrollView>
+        <ParentView
+          tasks={Tasks}
+          members={members}
+          completedIds={completedIds}
+          completions={allCompletions}
+          onAddTask={() => openAddModal()}
+          onEditTask={(m) => openAddModal({ title: m.title, points: String(m.points), frequency: m.frequency, icon: m.icon })}
+          onDeleteTask={deleteMission}
+          onResetTask={resetTask}
+        />
       )}
 
-      {/* Add Mission Modal */}
+      {/* Add Task Modal */}
       <Modal visible={addMissionModal} transparent animationType="slide">
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={styles.modalOverlay}>
             <ScrollView style={styles.modalCard} showsVerticalScrollIndicator={false}>
               <Text style={styles.modalTitle}>
-                {newMission.title ? 'Edit & Add Mission' : 'New Mission'}
+                {newMission.title ? 'Edit Task' : 'New Task'}
               </Text>
 
               {/* Templates */}
@@ -617,7 +851,7 @@ export default function TasksScreen() {
                 </>
               )}
 
-              <Text style={styles.modalLabel}>Mission name</Text>
+              <Text style={styles.modalLabel}>Task name</Text>
               <TextInput
                 style={styles.modalInput}
                 value={newMission.title}
@@ -665,7 +899,7 @@ export default function TasksScreen() {
                   <Text style={styles.modalCancelText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.modalSave} onPress={addMission}>
-                  <Text style={styles.modalSaveText}>Add Mission</Text>
+                  <Text style={styles.modalSaveText}>Add Task</Text>
                 </TouchableOpacity>
               </View>
               <View style={{ height: 20 }} />
@@ -772,7 +1006,50 @@ const styles = StyleSheet.create({
   missionTickDone: { backgroundColor: COLORS.green, borderColor: COLORS.green },
   missionTickIcon: { fontSize: 14, color: '#fff', fontWeight: '700' },
   missionTickEmpty: { fontSize: 14 },
-  parentTitle: { fontSize: 32, fontWeight: '700', color: COLORS.text, letterSpacing: -0.5, marginBottom: 16 },
+  parentTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text, letterSpacing: -0.5 },
+  parentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12 },
+  parentTabs: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, backgroundColor: COLORS.card, borderRadius: 12, padding: 3, borderWidth: 1.5, borderColor: COLORS.border },
+  parentTab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
+  parentTabActive: { backgroundColor: COLORS.blue },
+  parentTabTxt: { fontSize: 12, fontWeight: '600', color: COLORS.text2 },
+  parentTabTxtActive: { color: '#fff', fontWeight: '700' },
+  parentTaskCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: 16, padding: 14, gap: 10 },
+  parentTaskLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  parentTaskIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  parentTaskTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  parentTaskMeta: { fontSize: 12, color: COLORS.text2 },
+  parentTaskActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  resetBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.orangeLight, alignItems: 'center', justifyContent: 'center' },
+  resetBtnTxt: { fontSize: 16 },
+  editBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.blueLight, alignItems: 'center', justifyContent: 'center' },
+  editBtnTxt: { fontSize: 16 },
+  deleteTaskBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: COLORS.redLight, alignItems: 'center', justifyContent: 'center' },
+  deleteTaskBtnTxt: { fontSize: 16 },
+  memberReportCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1.5, borderColor: COLORS.border },
+  memberReportAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
+  memberReportName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  memberReportSub: { fontSize: 12, color: COLORS.text2, marginTop: 2 },
+  memberPctBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1.5 },
+  memberPctTxt: { fontSize: 14, fontWeight: '700' },
+  memberProgressBg: { height: 8, backgroundColor: COLORS.border, borderRadius: 4 },
+  memberProgressFill: { height: 8, borderRadius: 4 },
+  memberTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  memberTaskTitle: { fontSize: 13, color: COLORS.text, fontWeight: '500' },
+  reportCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1.5, borderColor: COLORS.border },
+  reportTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
+  reportMemberName: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  reportMemberSub: { fontSize: 12, color: COLORS.text2, marginTop: 2 },
+  reportBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1.5 },
+  reportBadgeTxt: { fontSize: 14, fontWeight: '700' },
+  barChart: { flexDirection: 'row', gap: 6, height: 100, alignItems: 'flex-end' },
+  barCol: { flex: 1, alignItems: 'center', gap: 4 },
+  barTrack: { flex: 1, width: '100%', backgroundColor: COLORS.border, borderRadius: 6, justifyContent: 'flex-end', overflow: 'hidden' },
+  barFill: { width: '100%', borderRadius: 6 },
+  barLabel: { fontSize: 10, color: COLORS.text3, fontWeight: '500' },
+  barCount: { fontSize: 10, color: COLORS.text3 },
+  missedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  missedTitle: { fontSize: 13, fontWeight: '600', color: COLORS.text },
+  missedDate: { fontSize: 11, color: COLORS.text2, marginTop: 2 },
   parentMissionRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderWidth: 1.5, borderColor: COLORS.border, borderRadius: 14, padding: 14, marginBottom: 8, gap: 12 },
   parentMissionIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.card2, alignItems: 'center', justifyContent: 'center' },
   parentMissionInfo: { flex: 1 },
@@ -814,3 +1091,4 @@ const styles = StyleSheet.create({
   modalSave: { flex: 2, backgroundColor: COLORS.blue, borderRadius: 14, padding: 15, alignItems: 'center' },
   modalSaveText: { fontSize: 15, color: '#fff', fontWeight: '700' },
 });
+
