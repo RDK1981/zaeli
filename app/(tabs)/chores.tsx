@@ -1,21 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
+  ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
-  Modal,
-  TextInput,
-  Alert,
-  ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { supabase } from '../../lib/supabase';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -192,9 +192,9 @@ function MissionCard({ mission, completed, onComplete }: {
   );
 }
 
-export default function MissionsScreen() {
+export default function TasksScreen() {
   const [view, setView] = useState<'child' | 'parent'>('child');
-  const [missions, setMissions] = useState<Mission[]>([]);
+  const [Tasks, setTasks] = useState<Mission[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [loading, setLoading] = useState(true);
   const [confettiVisible, setConfettiVisible] = useState(false);
@@ -218,13 +218,13 @@ export default function MissionsScreen() {
 
   const loadData = async () => {
     setLoading(true);
-    const [missionsRes, rewardsRes, completionsRes] = await Promise.all([
-      supabase.from('missions').select('*').eq('family_id', DUMMY_FAMILY_ID),
+    const [TasksRes, rewardsRes, completionsRes] = await Promise.all([
+      supabase.from('Tasks').select('*').eq('family_id', DUMMY_FAMILY_ID),
       supabase.from('rewards').select('*').eq('family_id', DUMMY_FAMILY_ID),
       supabase.from('mission_completions').select('*').eq('member_id', DUMMY_MEMBER_ID),
     ]);
 
-    if (missionsRes.data) setMissions(missionsRes.data);
+    if (TasksRes.data) setTasks(TasksRes.data);
     if (rewardsRes.data) setRewards(rewardsRes.data);
 
     if (completionsRes.data) {
@@ -291,7 +291,7 @@ export default function MissionsScreen() {
 
   const addMission = async () => {
     if (!newMission.title.trim()) return;
-    const { error } = await supabase.from('missions').insert({
+    const { error } = await supabase.from('Tasks').insert({
       family_id: DUMMY_FAMILY_ID,
       assigned_to: DUMMY_MEMBER_ID,
       title: newMission.title.trim(),
@@ -312,7 +312,7 @@ export default function MissionsScreen() {
     Alert.alert('Delete mission?', 'This will remove the mission and all its history.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        await supabase.from('missions').delete().eq('id', id);
+        await supabase.from('Tasks').delete().eq('id', id);
         loadData();
       }},
     ]);
@@ -366,13 +366,13 @@ export default function MissionsScreen() {
     ? Math.min((totalPoints / nextReward.points_cost) * 100, 100)
     : 100;
 
-  // TODAY count = all missions completed today vs all missions (not just daily)
+  // TODAY count = all Tasks completed today vs all Tasks (not just daily)
   const todayCompletedCount = completedIds.size;
-  const totalMissionCount = missions.length;
+  const totalMissionCount = Tasks.length;
 
-  const todayMissions = missions.filter(m => m.frequency === 'daily');
-  const weeklyMissions = missions.filter(m => m.frequency === 'weekly');
-  const onceMissions = missions.filter(m => m.frequency === 'once');
+  const todayTasks = Tasks.filter(m => m.frequency === 'daily');
+  const weeklyTasks = Tasks.filter(m => m.frequency === 'weekly');
+  const onceTasks = Tasks.filter(m => m.frequency === 'once');
 
   if (loading) {
     return (
@@ -393,7 +393,7 @@ export default function MissionsScreen() {
           style={[styles.toggleBtn, view === 'child' && styles.toggleBtnActive]}
           onPress={() => setView('child')}
         >
-          <Text style={[styles.toggleBtnText, view === 'child' && styles.toggleBtnTextActive]}>⭐ My Missions</Text>
+          <Text style={[styles.toggleBtnText, view === 'child' && styles.toggleBtnTextActive]}>⭐ My Tasks</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.toggleBtn, view === 'parent' && styles.toggleBtnActive]}
@@ -472,38 +472,38 @@ export default function MissionsScreen() {
             )}
           </View>
 
-          {todayMissions.length > 0 && (
+          {todayTasks.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>🔁 Daily</Text>
-              {todayMissions.map(mission => (
+              {todayTasks.map(mission => (
                 <MissionCard key={mission.id} mission={mission} completed={completedIds.has(mission.id)} onComplete={() => completeMission(mission)} />
               ))}
             </View>
           )}
 
-          {weeklyMissions.length > 0 && (
+          {weeklyTasks.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>📅 Weekly</Text>
-              {weeklyMissions.map(mission => (
+              {weeklyTasks.map(mission => (
                 <MissionCard key={mission.id} mission={mission} completed={completedIds.has(mission.id)} onComplete={() => completeMission(mission)} />
               ))}
             </View>
           )}
 
-          {onceMissions.length > 0 && (
+          {onceTasks.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>1️⃣ One-off</Text>
-              {onceMissions.map(mission => (
+              {onceTasks.map(mission => (
                 <MissionCard key={mission.id} mission={mission} completed={completedIds.has(mission.id)} onComplete={() => completeMission(mission)} />
               ))}
             </View>
           )}
 
-          {missions.length === 0 && (
+          {Tasks.length === 0 && (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>⚡</Text>
-              <Text style={styles.emptyTitle}>No missions yet</Text>
-              <Text style={styles.emptySubtitle}>Ask a parent to add some missions for you</Text>
+              <Text style={styles.emptyTitle}>No Tasks yet</Text>
+              <Text style={styles.emptySubtitle}>Ask a parent to add some Tasks for you</Text>
             </View>
           )}
           <View style={{ height: 32 }} />
@@ -511,23 +511,23 @@ export default function MissionsScreen() {
 
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.parentTitle}>Missions</Text>
+          <Text style={styles.parentTitle}>Tasks</Text>
 
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>All Missions</Text>
+              <Text style={styles.sectionTitle}>All Tasks</Text>
               <TouchableOpacity style={styles.addBtn} onPress={() => openAddModal()}>
                 <Text style={styles.addBtnText}>+ Add</Text>
               </TouchableOpacity>
             </View>
-            {missions.length === 0 ? (
+            {Tasks.length === 0 ? (
               <View style={[styles.emptyState, { marginTop: 8 }]}>
                 <Text style={styles.emptyIcon}>⚡</Text>
-                <Text style={styles.emptyTitle}>No missions yet</Text>
+                <Text style={styles.emptyTitle}>No Tasks yet</Text>
                 <Text style={styles.emptySubtitle}>Add your first mission below</Text>
               </View>
             ) : (
-              missions.map(mission => (
+              Tasks.map(mission => (
                 <View key={mission.id} style={styles.parentMissionRow}>
                   <View style={styles.parentMissionIcon}>
                     <Text style={{ fontSize: 20 }}>{mission.icon || '⭐'}</Text>
