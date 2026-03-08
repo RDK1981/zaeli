@@ -824,7 +824,7 @@ const styles = StyleSheet.create({
   fab: { position: 'absolute', bottom: 24, right: 20, width: 52, height: 52, borderRadius: 26, backgroundColor: COLORS.blue, alignItems: 'center', justifyContent: 'center', shadowColor: COLORS.blue, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
   fabIcon: { fontSize: 22 },
 
-  chatSafe: { flex: 1, backgroundColor: COLORS.bg },
+  chatSafe: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 14 },
   chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   chatBack: { paddingVertical: 4, paddingHorizontal: 8 },
   chatBackText: { fontSize: 16, color: COLORS.blue, fontWeight: '500' },
