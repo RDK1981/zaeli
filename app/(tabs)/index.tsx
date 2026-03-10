@@ -287,15 +287,17 @@ export default function HomeScreen() {
   };
 
   const generateCard = async (evs:any[], mis:any[], m:any) => {
+    const fallback = `Here's your day, ${DUMMY_MEMBER_NAME} — ${evs.length > 0 ? `you've got ${evs.length} thing${evs.length>1?'s':''} on` : 'nothing locked in yet'}${m ? ` and ${m.title} for dinner` : ''}. Want to talk it through?`;
     try {
       const memoryCtx = await buildMemoryContext(DUMMY_FAMILY_ID);
       const ctx = `Today:${dateStr}. Events:${JSON.stringify(evs)}. Kids tasks:${JSON.stringify(mis)}. Tonight:${m?.title||'not planned'}. Member:${DUMMY_MEMBER_NAME}.${memoryCtx}`;
       const text = await generateBriefingInsight(ctx, 'home', 'mum');
-      if (text) {
-        setBriefingCard(text);
-        Animated.timing(cardFade,{toValue:1,duration:400,useNativeDriver:true}).start();
-      }
-    } catch { /* silently skip */ }
+      setBriefingCard(text || fallback);
+      Animated.timing(cardFade,{toValue:1,duration:400,useNativeDriver:true}).start();
+    } catch {
+      setBriefingCard(fallback);
+      Animated.timing(cardFade,{toValue:1,duration:400,useNativeDriver:true}).start();
+    }
   };
 
   const nextEvent = events[0];
