@@ -1,0 +1,669 @@
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { supabase } from '../../lib/supabase';
+
+// ── CONSTANTS ─────────────────────────────────────────────────────────
+const DUMMY_FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
+const DUMMY_MEMBER_NAME = 'Natalie';
+const LATITUDE          = -27.4698;
+const LONGITUDE         = 153.0251;
+
+// ── PALETTE ───────────────────────────────────────────────────────────
+const C = {
+  heroTop:  '#0057FF',
+  heroBot:  '#0044CC',
+  bg:       '#F7F7F7',
+  card:     '#FFFFFF',
+  card2:    '#F0F0F0',
+  border:   '#E0E0E0',
+  text:     '#0A0A0A',
+  text2:    'rgba(0,0,0,0.50)',
+  text3:    'rgba(0,0,0,0.28)',
+  blue:     '#0057FF',
+  yellow:   '#FFE500',
+  magenta:  '#E0007C',
+  green:    '#00C97A',
+  orange:   '#FF8C00',
+  orb:      '#FFE500',
+  orbRing:  'rgba(255,229,0,0.45)',
+};
+
+const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function getGreeting(hour: number) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+const WMO: Record<number,{label:string}> = {
+  0:{label:'Clear'},1:{label:'Mostly clear'},2:{label:'Partly cloudy'},
+  3:{label:'Overcast'},45:{label:'Foggy'},51:{label:'Drizzle'},
+  61:{label:'Rain'},65:{label:'Heavy rain'},80:{label:'Showers'},95:{label:'Thunderstorm'},
+};
+
+// ── WEATHER ICON ──────────────────────────────────────────────────────
+function WeatherIcon({ code }: { code: number }) {
+  const spinAnim = useRef(new Animated.Value(0)).current;
+  const bobAnim  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(Animated.timing(spinAnim,{ toValue:1,duration:8000,easing:Easing.linear,useNativeDriver:true })).start();
+    Animated.loop(Animated.sequence([
+      Animated.timing(bobAnim,{ toValue:-3,duration:2000,easing:Easing.inOut(Easing.sin),useNativeDriver:true }),
+      Animated.timing(bobAnim,{ toValue:3, duration:2000,easing:Easing.inOut(Easing.sin),useNativeDriver:true }),
+    ])).start();
+  }, []);
+
+  const spin    = spinAnim.interpolate({ inputRange:[0,1], outputRange:['0deg','360deg'] });
+  const isSunny = code <= 1;
+  const isRainy = code >= 51 && code <= 80;
+
+  if (isSunny) return (
+    <View style={wx.container}>
+      <Animated.View style={[wx.raysWrap,{ transform:[{rotate:spin}] }]}>
+        {[0,45,90,135].map(d => <View key={d} style={[wx.ray,{transform:[{rotate:`${d}deg`}]}]} />)}
+      </Animated.View>
+      <View style={wx.sunCore} />
+    </View>
+  );
+  if (isRainy) return (
+    <Animated.View style={[wx.container,{ transform:[{translateY:bobAnim}] }]}>
+      <View style={wx.cloudMain}/><View style={wx.cloudPuff1}/>
+      <View style={[wx.rainDrop,{left:4,top:22}]}/><View style={[wx.rainDrop,{left:12,top:26}]}/><View style={[wx.rainDrop,{left:20,top:22}]}/>
+    </Animated.View>
+  );
+  return (
+    <Animated.View style={[wx.container,{ transform:[{translateY:bobAnim}] }]}>
+      <View style={wx.cloudMain}/><View style={wx.cloudPuff1}/><View style={wx.cloudPuff2}/>
+    </Animated.View>
+  );
+}
+const wx = StyleSheet.create({
+  container:  { width:32,height:32,alignItems:'center',justifyContent:'center',position:'relative' },
+  raysWrap:   { position:'absolute',width:32,height:32,alignItems:'center',justifyContent:'center' },
+  ray:        { position:'absolute',width:2,height:10,backgroundColor:'rgba(255,229,0,0.9)',borderRadius:1,top:0 },
+  sunCore:    { width:14,height:14,borderRadius:7,backgroundColor:'#FFE500' },
+  cloudMain:  { position:'absolute',bottom:4,left:2,width:24,height:12,backgroundColor:'rgba(255,255,255,0.85)',borderRadius:6 },
+  cloudPuff1: { position:'absolute',bottom:10,left:6,width:14,height:14,backgroundColor:'rgba(255,255,255,0.85)',borderRadius:7 },
+  cloudPuff2: { position:'absolute',bottom:10,left:14,width:10,height:10,backgroundColor:'rgba(255,255,255,0.75)',borderRadius:5 },
+  rainDrop:   { position:'absolute',width:2,height:6,backgroundColor:'rgba(150,200,255,0.9)',borderRadius:1 },
+});
+
+// ── WORD-BY-WORD BRIEFING ─────────────────────────────────────────────
+function WordByWordText({ text, style }: { text:string; style?:any }) {
+  const words   = text.split(' ');
+  const anims   = useRef(words.map(() => new Animated.Value(0))).current;
+  const started = useRef(false);
+  useEffect(() => {
+    if (!text || started.current) return;
+    started.current = true;
+    Animated.stagger(60, words.map((_,i) =>
+      Animated.timing(anims[i],{ toValue:1,duration:180,delay:i*60,useNativeDriver:true })
+    )).start();
+  }, [text]);
+  return (
+    <Text style={style}>
+      {words.map((w,i) => (
+        <Animated.Text key={i} style={{ opacity:anims[i], transform:[{translateY:anims[i].interpolate({inputRange:[0,1],outputRange:[6,0]})}] }}>
+          {w}{i<words.length-1?' ':''}
+        </Animated.Text>
+      ))}
+    </Text>
+  );
+}
+
+// ── GREETING EMOJI ────────────────────────────────────────────────────
+const EMOJI_CYCLE = ['👋','❤️','🎉','✨','😄','👏','🔥'];
+function GreetingEmoji() {
+  const dropAnim  = useRef(new Animated.Value(-20)).current;
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.spring(dropAnim,{ toValue:0,friction:5,tension:80,useNativeDriver:true }),
+        Animated.timing(fadeAnim,{ toValue:1,duration:300,useNativeDriver:true }),
+      ]).start();
+    }, 600);
+    Animated.loop(Animated.sequence([
+      Animated.timing(floatAnim,{ toValue:-5,duration:1800,easing:Easing.inOut(Easing.sin),useNativeDriver:true }),
+      Animated.timing(floatAnim,{ toValue:0, duration:1800,easing:Easing.inOut(Easing.sin),useNativeDriver:true }),
+    ])).start();
+  }, []);
+
+  const handleTap = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim,{ toValue:1.4,duration:120,easing:Easing.out(Easing.quad),useNativeDriver:true }),
+      Animated.spring(scaleAnim,{ toValue:1,friction:4,tension:120,useNativeDriver:true }),
+    ]).start();
+    setIdx(p => (p+1) % EMOJI_CYCLE.length);
+  };
+
+  return (
+    <TouchableOpacity onPress={handleTap} activeOpacity={1}>
+      <Animated.Text style={{ fontSize:42,lineHeight:52,opacity:fadeAnim,transform:[{translateY:dropAnim},{translateY:floatAnim},{scale:scaleAnim}] }}>
+        {EMOJI_CYCLE[idx]}
+      </Animated.Text>
+    </TouchableOpacity>
+  );
+}
+
+// ── TYPING DOT ────────────────────────────────────────────────────────
+function TypingDot({ delay }: { delay:number }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(Animated.sequence([
+      Animated.delay(delay),
+      Animated.timing(anim,{ toValue:-5,duration:300,useNativeDriver:true }),
+      Animated.timing(anim,{ toValue:0, duration:300,useNativeDriver:true }),
+      Animated.delay(600),
+    ])).start();
+  }, []);
+  return <Animated.View style={{ width:7,height:7,borderRadius:3.5,backgroundColor:'rgba(0,0,0,0.28)',transform:[{translateY:anim}] }} />;
+}
+
+// ── ZAELI CHAT MODAL ──────────────────────────────────────────────────
+function ChatScreen({ visible, onClose }: { visible:boolean; onClose:()=>void }) {
+  const [messages, setMessages] = useState<{role:string;content:string}[]>([]);
+  const [input, setInput]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const scrollRef               = useRef<ScrollView>(null);
+  const SUGGESTIONS = ["What's on today?","Who's cooking tonight?","Help me plan the week","Any clashes this week?"];
+
+  const sendMessage = async (text?: string) => {
+    const msg = text || input.trim();
+    if (!msg) return;
+    setInput(''); Keyboard.dismiss();
+    const userMsg = { role:'user', content:msg };
+    const newMsgs = [...messages, userMsg];
+    setMessages(newMsgs); setLoading(true);
+    try {
+      const [evRes, miRes, memRes] = await Promise.all([
+        supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(20),
+        supabase.from('missions').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(20),
+        supabase.from('family_members').select('*').eq('family_id',DUMMY_FAMILY_ID),
+      ]);
+      const ctx = `Family: ${JSON.stringify(memRes.data)}. Events: ${JSON.stringify(evRes.data)}. Tasks: ${JSON.stringify(miRes.data)}. Today: ${new Date().toDateString()}.`;
+      const res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({ model:'claude-sonnet-4-20250514',max_tokens:1000,system:`You are Zaeli, a warm smart family assistant. ${ctx} Be concise, friendly, helpful.`,messages:newMsgs }),
+      });
+      const data = await res.json();
+      const reply = data.content?.[0]?.text || 'Sorry, something went wrong.';
+      setMessages([...newMsgs,{ role:'assistant', content:reply }]);
+    } catch {
+      setMessages([...newMsgs,{ role:'assistant', content:"I'm having trouble connecting right now. Try again in a moment!" }]);
+    } finally {
+      setLoading(false);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 100);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={{ flex:1, backgroundColor:'#F7F7F7' }}>
+        {/* Header */}
+        <View style={ch.hdr}>
+          <View style={ch.av}>
+            <Text style={{ fontSize:20, color:'#fff' }}>✦</Text>
+          </View>
+          <View style={{ flex:1 }}>
+            <Text style={ch.name}>z<Text style={{ color:'#E0007C' }}>a</Text>el<Text style={{ color:'#E0007C' }}>i</Text></Text>
+            <Text style={ch.status}>● Online · Knows your whole family</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} style={ch.closeBtn}>
+            <Text style={ch.closeX}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Context chips */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={ch.ctxBar} contentContainerStyle={{ paddingHorizontal:16, gap:6 }}>
+          {['Everything','Calendar','Shopping','Kids','Meals','Notes','To-Do'].map((c,i) => (
+            <View key={c} style={[ch.ctxChip, i===0 && ch.ctxChipOn]}>
+              <Text style={[ch.ctxChipTxt, i===0 && ch.ctxChipTxtOn]}>{c}</Text>
+            </View>
+          ))}
+        </ScrollView>
+
+        {/* Messages */}
+        <ScrollView ref={scrollRef} style={{ flex:1 }} contentContainerStyle={{ padding:16, gap:12 }}>
+          {messages.length === 0 && (
+            <View style={{ alignItems:'center', paddingTop:40, gap:8 }}>
+              <View style={[ch.av, { width:56, height:56 }]}>
+                <Text style={{ fontSize:26, color:'#fff' }}>✦</Text>
+              </View>
+              <Text style={{ fontSize:22, fontWeight:'700', color:'#0A0A0A', marginTop:8 }}>
+                Hi {DUMMY_MEMBER_NAME}! 👋
+              </Text>
+              <Text style={{ fontSize:13, color:'rgba(0,0,0,0.5)', textAlign:'center', maxWidth:260, lineHeight:20 }}>
+                Ask me anything about your family's day, week, shopping, meals or kids.
+              </Text>
+            </View>
+          )}
+          {messages.map((m,i) => (
+            <View key={i} style={[ch.row, m.role==='user' && ch.rowRight]}>
+              {m.role==='assistant' && <View style={ch.av}><Text style={{ fontSize:14, color:'#fff' }}>✦</Text></View>}
+              <View style={[ch.bubble, m.role==='user' ? ch.bubbleUser : ch.bubbleAI]}>
+                <Text style={[ch.bubbleTxt, m.role==='user' && { color:'#fff' }]}>{m.content}</Text>
+              </View>
+            </View>
+          ))}
+          {loading && (
+            <View style={ch.row}>
+              <View style={ch.av}><Text style={{ fontSize:14, color:'#fff' }}>✦</Text></View>
+              <View style={ch.bubbleAI}>
+                <View style={{ flexDirection:'row', gap:4, padding:4 }}>
+                  {[0,1,2].map(i => <TypingDot key={i} delay={i*200} />)}
+                </View>
+              </View>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Hints */}
+        {messages.length === 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal:16, gap:8, paddingBottom:8 }}>
+            {SUGGESTIONS.map(s => (
+              <TouchableOpacity key={s} style={ch.hint} onPress={() => sendMessage(s)}>
+                <Text style={ch.hintTxt}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {/* Input */}
+        <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':'height'}>
+          <View style={ch.inputWrap}>
+            <View style={ch.inputBox}>
+              <TextInput
+                style={ch.input}
+                value={input}
+                onChangeText={setInput}
+                placeholder="Ask Zaeli anything…"
+                placeholderTextColor="rgba(0,0,0,0.28)"
+                onSubmitEditing={() => sendMessage()}
+                returnKeyType="send"
+              />
+              <TouchableOpacity style={ch.sendBtn} onPress={() => sendMessage()}>
+                <Text style={{ color:'#fff', fontSize:16 }}>↑</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+const ch = StyleSheet.create({
+  hdr:          { flexDirection:'row', alignItems:'center', gap:12, padding:16, backgroundColor:'#FFFFFF', borderBottomWidth:1, borderBottomColor:'#E0E0E0' },
+  av:           { width:44,height:44,borderRadius:14,backgroundColor:'#0057FF',alignItems:'center',justifyContent:'center' },
+  name:         { fontSize:18, fontWeight:'700', color:'#0A0A0A' },
+  status:       { fontSize:12, color:'#00C97A', fontWeight:'600', marginTop:2 },
+  closeBtn:     { width:36,height:36,borderRadius:18,backgroundColor:'#F0F0F0',alignItems:'center',justifyContent:'center' },
+  closeX:       { fontSize:14, color:'rgba(0,0,0,0.5)', fontWeight:'600' },
+  ctxBar:       { borderBottomWidth:1, borderBottomColor:'#E0E0E0', paddingVertical:8, maxHeight:48, flexGrow:0 },
+  ctxChip:      { paddingHorizontal:12,paddingVertical:5,borderRadius:20,backgroundColor:'#FFFFFF',borderWidth:1.5,borderColor:'#E0E0E0' },
+  ctxChipOn:    { backgroundColor:'#0057FF', borderColor:'#0057FF' },
+  ctxChipTxt:   { fontSize:11, fontWeight:'600', color:'rgba(0,0,0,0.5)' },
+  ctxChipTxtOn: { color:'#fff' },
+  row:          { flexDirection:'row', gap:10, alignItems:'flex-end' },
+  rowRight:     { flexDirection:'row-reverse' },
+  bubble:       { maxWidth:'78%', padding:12, borderRadius:18 },
+  bubbleAI:     { backgroundColor:'#FFFFFF', borderRadius:4, shadowColor:'#000', shadowOpacity:0.06, shadowRadius:8, shadowOffset:{width:0,height:2} },
+  bubbleUser:   { backgroundColor:'#0057FF', borderTopRightRadius:4 },
+  bubbleTxt:    { fontSize:14, color:'#0A0A0A', lineHeight:22 },
+  hint:         { paddingHorizontal:14,paddingVertical:7,borderRadius:20,backgroundColor:'#FFFFFF',borderWidth:1.5,borderColor:'#E0E0E0' },
+  hintTxt:      { fontSize:12, fontWeight:'500', color:'rgba(0,0,0,0.5)' },
+  inputWrap:    { padding:12, paddingBottom:16, backgroundColor:'#FFFFFF', borderTopWidth:1, borderTopColor:'#E0E0E0' },
+  inputBox:     { flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#F7F7F7', borderRadius:18, borderWidth:1.5, borderColor:'#E0E0E0', paddingHorizontal:14, paddingVertical:8 },
+  input:        { flex:1, fontSize:15, color:'#0A0A0A' },
+  sendBtn:      { width:38,height:38,borderRadius:12,backgroundColor:'#0057FF',alignItems:'center',justifyContent:'center' },
+});
+
+// ── MAIN HOME SCREEN ──────────────────────────────────────────────────
+export default function HomeScreen() {
+  const now   = new Date();
+  const hour  = now.getHours();
+  const today = `${DAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]}`;
+
+  const [weather,      setWeather]      = useState<{ temp:number; code:number; label:string } | null>(null);
+  const [briefing,     setBriefing]     = useState('');
+  const [events,       setEvents]       = useState<any[]>([]);
+  const [missions,     setMissions]     = useState<any[]>([]);
+  const [shopping,     setShopping]     = useState<any[]>([]);
+  const [meal,         setMeal]         = useState<any | null>(null);
+  const [todos,        setTodos]        = useState<any[]>([]);
+  const [chatOpen,     setChatOpen]     = useState(false);
+  const [loadingBrief, setLoadingBrief] = useState(false);
+
+  const heroAnim  = useRef(new Animated.Value(0)).current;
+  const cardsAnim = useRef(new Animated.Value(0)).current;
+  const focusAnim = useRef(new Animated.Value(0)).current;
+  const orbScale  = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(heroAnim,  { toValue:1, duration:500, easing:Easing.out(Easing.quad), useNativeDriver:true }),
+      Animated.timing(cardsAnim, { toValue:1, duration:400, easing:Easing.out(Easing.quad), useNativeDriver:true }),
+      Animated.timing(focusAnim, { toValue:1, duration:400, easing:Easing.out(Easing.quad), useNativeDriver:true }),
+    ]).start();
+    Animated.loop(Animated.sequence([
+      Animated.timing(orbScale,{ toValue:1.08,duration:1800,easing:Easing.inOut(Easing.sin),useNativeDriver:true }),
+      Animated.timing(orbScale,{ toValue:1,   duration:1800,easing:Easing.inOut(Easing.sin),useNativeDriver:true }),
+    ])).start();
+    fetchWeather();
+    fetchData();
+  }, []);
+
+  const fetchWeather = async () => {
+    try {
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LATITUDE}&longitude=${LONGITUDE}&current_weather=true`);
+      const d = await r.json();
+      const cw = d.current_weather;
+      setWeather({ temp:Math.round(cw.temperature), code:cw.weathercode, label:(WMO[cw.weathercode]||{label:'Clear'}).label });
+    } catch { setWeather({ temp:22, code:0, label:'Clear' }); }
+  };
+
+  const fetchData = async () => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const [evRes, miRes, shRes, mlRes, tdRes] = await Promise.all([
+        supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).gte('start_time', todayStr).limit(5),
+        supabase.from('missions').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('completed_today',false).limit(8),
+        supabase.from('shopping_items').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('checked',false).limit(5),
+        supabase.from('meal_plans').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('day_key', todayStr).limit(1),
+        supabase.from('todos').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('status','active').order('priority',{ ascending:false }).limit(4),
+      ]);
+      setEvents(evRes.data || []);
+      setMissions(miRes.data || []);
+      setShopping(shRes.data || []);
+      setMeal(mlRes.data?.[0] || null);
+      setTodos(tdRes.data || []);
+      generateBriefing(evRes.data||[], miRes.data||[], mlRes.data?.[0]||null);
+    } catch(e) { console.log('fetchData error', e); }
+  };
+
+  const generateBriefing = async (evs:any[], mis:any[], m:any) => {
+    setLoadingBrief(true);
+    try {
+      const ctx = `Today is ${today}. Events: ${evs.map(e=>`${e.title} at ${e.start_time}`).join(', ')||'none'}. Kids tasks remaining: ${mis.length}. Tonight's dinner: ${m?.title||'not planned'}.`;
+      const res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:150,
+          system:"You are Zaeli, a warm family assistant. Write a single friendly sentence (max 20 words) summarising the family's day. Be specific, warm, helpful. No emojis.",
+          messages:[{ role:'user', content:ctx }]
+        }),
+      });
+      const data = await res.json();
+      setBriefing(data.content?.[0]?.text || '');
+    } catch { setBriefing('Have a great day ahead!'); }
+    finally   { setLoadingBrief(false); }
+  };
+
+  const nextEvent = events[0];
+  const jobsDone  = missions.filter((m:any) => m.completed_today).length;
+  const jobsTotal = missions.length + jobsDone;
+
+  const priorityColour = (p:string) => p==='high' ? '#E0007C' : p==='low' ? 'rgba(0,0,0,0.28)' : '#0057FF';
+  const priorityLabel  = (p:string) => p==='high' ? 'urgent' : p==='low' ? 'later' : 'soon';
+
+  return (
+    <SafeAreaView style={{ flex:1, backgroundColor:'#0057FF' }}>
+      <StatusBar style="light" />
+      <ChatScreen visible={chatOpen} onClose={() => setChatOpen(false)} />
+
+      <ScrollView style={{ flex:1 }} bounces showsVerticalScrollIndicator={false}>
+
+        {/* ── HERO ── */}
+        <Animated.View style={[s.hero, {
+          opacity: heroAnim,
+          transform:[{ translateY: heroAnim.interpolate({ inputRange:[0,1], outputRange:[-20,0] }) }]
+        }]}>
+
+          {/* Logo */}
+          <View style={s.logoRow}>
+            <View style={s.logoMark}>
+              <Text style={s.logoStar}>✦</Text>
+            </View>
+            <Text style={s.logoWord}>
+              z<Text style={{ color:'#E0007C' }}>a</Text>el<Text style={{ color:'#E0007C' }}>i</Text>
+            </Text>
+          </View>
+
+          {/* Greeting */}
+          <View style={s.greetRow}>
+            <View style={{ flex:1 }}>
+              <Text style={s.greetLabel}>{getGreeting(hour)}</Text>
+              <Text style={s.greetName}>{DUMMY_MEMBER_NAME}.</Text>
+            </View>
+            <View style={{ alignItems:'center', gap:4 }}>
+              {weather ? (
+                <>
+                  <WeatherIcon code={weather.code} />
+                  <Text style={s.tempText}>{weather.temp}°</Text>
+                </>
+              ) : (
+                <GreetingEmoji />
+              )}
+            </View>
+          </View>
+
+          {/* Briefing */}
+          <View style={s.briefRow}>
+            {loadingBrief ? (
+              <ActivityIndicator size="small" color="rgba(255,255,255,0.5)" />
+            ) : briefing ? (
+              <WordByWordText text={briefing} style={s.briefText} />
+            ) : (
+              <Text style={s.briefText}>Loading your day…</Text>
+            )}
+          </View>
+
+          {/* Ask Zaeli strip */}
+          <TouchableOpacity style={s.askStrip} onPress={() => setChatOpen(true)} activeOpacity={0.85}>
+            <View style={s.askIcon}>
+              <Text style={{ fontSize:16, color:'#fff' }}>✦</Text>
+            </View>
+            <View style={{ flex:1 }}>
+              <Text style={s.askTxt}>Ask Zaeli anything</Text>
+              <Text style={s.askSub}>Your family AI — always ready</Text>
+            </View>
+            <Animated.View style={[s.orb, { transform:[{ scale:orbScale }] }]} />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* ── CONTENT ── */}
+        <View style={s.content}>
+
+          {/* 4 Tiles */}
+          <Animated.View style={[s.tilesGrid, {
+            opacity: cardsAnim,
+            transform:[{ translateY: cardsAnim.interpolate({ inputRange:[0,1], outputRange:[16,0] }) }]
+          }]}>
+            {/* NEXT UP */}
+            <View style={[s.tile, { borderTopColor:'#E0007C' }]}>
+              <Text style={s.tileEmoji}>📅</Text>
+              <Text style={s.tileLbl}>NEXT UP</Text>
+              {nextEvent ? (
+                <>
+                  <Text style={s.tileVal} numberOfLines={1}>{nextEvent.title}</Text>
+                  <Text style={s.tileSub}>{nextEvent.start_time?.slice(11,16) || 'Today'}</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={s.tileVal}>Free day</Text>
+                  <Text style={s.tileSub}>Nothing scheduled</Text>
+                </>
+              )}
+            </View>
+
+            {/* KIDS TODAY */}
+            <View style={[s.tile, { borderTopColor:'#00C97A' }]}>
+              <Text style={s.tileEmoji}>🌟</Text>
+              <Text style={s.tileLbl}>KIDS TODAY</Text>
+              <Text style={s.tileVal}>{jobsDone} of {jobsTotal || 8}</Text>
+              <Text style={s.tileSub}>jobs done</Text>
+            </View>
+
+            {/* SHOPPING */}
+            <View style={[s.tile, { borderTopColor:'#B8A400' }]}>
+              <Text style={s.tileEmoji}>🛒</Text>
+              <Text style={s.tileLbl}>SHOPPING</Text>
+              <Text style={s.tileVal}>{shopping.length || 0} items</Text>
+              <Text style={s.tileSub}>{shopping.length > 0 ? 'Shop run needed' : 'All good!'}</Text>
+            </View>
+
+            {/* TONIGHT */}
+            <View style={[s.tile, { borderTopColor:'#FF8C00' }]}>
+              <Text style={s.tileEmoji}>🍽</Text>
+              <Text style={s.tileLbl}>TONIGHT</Text>
+              {meal ? (
+                <>
+                  <Text style={s.tileVal} numberOfLines={1}>{meal.emoji || '🍽'} {meal.title}</Text>
+                  <Text style={s.tileSub}>{meal.prep_mins || 30} min</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={s.tileVal}>Not planned</Text>
+                  <Text style={[s.tileSub, { color:'#FF8C00' }]}>Tap to plan</Text>
+                </>
+              )}
+            </View>
+          </Animated.View>
+
+          {/* Today's Focus */}
+          <Animated.View style={{
+            opacity: focusAnim,
+            transform:[{ translateY: focusAnim.interpolate({ inputRange:[0,1], outputRange:[16,0] }) }]
+          }}>
+            <View style={s.focusHeader}>
+              <Text style={s.sectionTitle}>Today's Focus</Text>
+              <TouchableOpacity>
+                <Text style={s.sectionAction}>+ Add</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={s.focusList}>
+              {todos.length > 0 ? todos.map((t:any, i:number) => (
+                <View key={t.id || i} style={s.focusItem}>
+                  <View style={[s.focusDot, { backgroundColor: priorityColour(t.priority) }]} />
+                  <Text style={s.focusText} numberOfLines={2}>{t.title}</Text>
+                  <View style={[s.priorityPill, { backgroundColor: priorityColour(t.priority) + '18' }]}>
+                    <Text style={[s.priorityTxt, { color: priorityColour(t.priority) }]}>{priorityLabel(t.priority)}</Text>
+                  </View>
+                </View>
+              )) : (
+                <>
+                  <View style={s.focusItem}>
+                    <View style={[s.focusDot, { backgroundColor:'#E0007C' }]} />
+                    <Text style={s.focusText}>Call school re: excursion forms</Text>
+                    <View style={[s.priorityPill, { backgroundColor:'#E0007C18' }]}>
+                      <Text style={[s.priorityTxt, { color:'#E0007C' }]}>urgent</Text>
+                    </View>
+                  </View>
+                  <View style={s.focusItem}>
+                    <View style={[s.focusDot, { backgroundColor:'#0057FF' }]} />
+                    <Text style={s.focusText}>Book dentist appointment</Text>
+                    <View style={[s.priorityPill, { backgroundColor:'#0057FF18' }]}>
+                      <Text style={[s.priorityTxt, { color:'#0057FF' }]}>soon</Text>
+                    </View>
+                  </View>
+                  <View style={s.focusItem}>
+                    <View style={[s.focusDot, { backgroundColor:'#FF8C00' }]} />
+                    <Text style={s.focusText}>Pick up dry cleaning</Text>
+                    <View style={[s.priorityPill, { backgroundColor:'#FF8C0018' }]}>
+                      <Text style={[s.priorityTxt, { color:'#FF8C00' }]}>today</Text>
+                    </View>
+                  </View>
+                  <View style={[s.focusItem, { opacity:0.45 }]}>
+                    <View style={[s.focusDot, { backgroundColor:'#00C97A' }]} />
+                    <Text style={[s.focusText, { textDecorationLine:'line-through', color:'rgba(0,0,0,0.5)' }]}>Renew car rego</Text>
+                    <Text style={{ fontSize:11, color:'#00C97A', fontWeight:'600' }}>Done ✓</Text>
+                  </View>
+                </>
+              )}
+            </View>
+          </Animated.View>
+
+          {/* Date badge */}
+          <View style={s.dateBadge}>
+            <Text style={s.dateTxt}>{today}</Text>
+          </View>
+
+          <View style={{ height:100 }} />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ── STYLES ────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  hero:         { backgroundColor:'#0057FF', paddingHorizontal:22, paddingTop:8, paddingBottom:20 },
+  logoRow:      { flexDirection:'row', alignItems:'center', gap:8, marginBottom:18 },
+  logoMark:     { width:34,height:34,borderRadius:10,backgroundColor:'#0057FF',alignItems:'center',justifyContent:'center',
+                  borderWidth:1.5,borderColor:'rgba(255,255,255,0.3)',
+                  shadowColor:'#FFE500',shadowOpacity:0.3,shadowRadius:8,shadowOffset:{width:0,height:0} },
+  logoStar:     { fontSize:18, color:'#fff' },
+  logoWord:     { fontSize:22, fontWeight:'700', color:'#fff', letterSpacing:-0.5 },
+  greetRow:     { flexDirection:'row', alignItems:'flex-start', gap:12, marginBottom:10 },
+  greetLabel:   { fontSize:11, fontWeight:'700', textTransform:'uppercase', letterSpacing:1.5, color:'rgba(255,255,255,0.55)', marginBottom:2 },
+  greetName:    { fontSize:44, fontWeight:'800', color:'#fff', letterSpacing:-2, lineHeight:50 },
+  tempText:     { fontSize:13, fontWeight:'600', color:'rgba(255,255,255,0.7)' },
+  briefRow:     { minHeight:22, marginBottom:16 },
+  briefText:    { fontSize:14, color:'rgba(255,255,255,0.82)', lineHeight:22 },
+  askStrip:     { backgroundColor:'#E0007C', borderRadius:16, padding:14, flexDirection:'row', alignItems:'center', gap:12,
+                  shadowColor:'#E0007C', shadowOpacity:0.35, shadowRadius:16, shadowOffset:{width:0,height:4} },
+  askIcon:      { width:34,height:34,borderRadius:10,backgroundColor:'rgba(255,255,255,0.2)',alignItems:'center',justifyContent:'center' },
+  askTxt:       { fontSize:14, fontWeight:'700', color:'#fff' },
+  askSub:       { fontSize:11, color:'rgba(255,255,255,0.7)', marginTop:2 },
+  orb:          { width:16,height:16,borderRadius:8,backgroundColor:'#FFE500',
+                  shadowColor:'#FFE500',shadowOpacity:0.6,shadowRadius:8,shadowOffset:{width:0,height:0} },
+  content:      { backgroundColor:'#F7F7F7', borderTopLeftRadius:24, borderTopRightRadius:24, marginTop:-1, paddingTop:20 },
+  tilesGrid:    { flexDirection:'row', flexWrap:'wrap', gap:10, paddingHorizontal:18, marginBottom:22 },
+  tile:         { width:'47%', backgroundColor:'#FFFFFF', borderRadius:16, padding:16,
+                  borderWidth:1.5, borderColor:'#E0E0E0', borderTopWidth:3,
+                  shadowColor:'#000', shadowOpacity:0.04, shadowRadius:8, shadowOffset:{width:0,height:2} },
+  tileEmoji:    { fontSize:22, marginBottom:8 },
+  tileLbl:      { fontSize:9, fontWeight:'700', textTransform:'uppercase', letterSpacing:1, color:'rgba(0,0,0,0.28)', marginBottom:4 },
+  tileVal:      { fontSize:19, fontWeight:'700', color:'#0A0A0A', lineHeight:22 },
+  tileSub:      { fontSize:11, color:'rgba(0,0,0,0.5)', marginTop:3 },
+  focusHeader:  { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:18, marginBottom:10 },
+  sectionTitle: { fontSize:15, fontWeight:'700', color:'#0A0A0A' },
+  sectionAction:{ fontSize:13, fontWeight:'600', color:'#0057FF' },
+  focusList:    { paddingHorizontal:18, gap:8 },
+  focusItem:    { backgroundColor:'#FFFFFF', borderRadius:13, borderWidth:1.5, borderColor:'#E0E0E0',
+                  padding:12, flexDirection:'row', alignItems:'center', gap:10,
+                  shadowColor:'#000', shadowOpacity:0.03, shadowRadius:6, shadowOffset:{width:0,height:1} },
+  focusDot:     { width:10, height:10, borderRadius:5, flexShrink:0 },
+  focusText:    { flex:1, fontSize:13, fontWeight:'500', color:'#0A0A0A' },
+  priorityPill: { borderRadius:20, paddingHorizontal:8, paddingVertical:2, flexShrink:0 },
+  priorityTxt:  { fontSize:10, fontWeight:'700' },
+  dateBadge:    { alignItems:'center', marginTop:20 },
+  dateTxt:      { fontSize:11, fontWeight:'600', color:'rgba(0,0,0,0.28)', letterSpacing:0.5 },
+});
