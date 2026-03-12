@@ -2,22 +2,43 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, Platform, ScrollView,
-  StyleSheet, Text, TouchableOpacity, View, useWindowDimensions,
+  Animated, Easing,
+  ScrollView,
+  StyleSheet, Text, TouchableOpacity, View, useWindowDimensions
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Line, Path, Polyline, Rect } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { buildMemoryContext } from '../../lib/zaeli-memory';
+import { HamburgerButton, NavMenu } from '../components/NavMenu';
+
+// ── SVG ICONS (matching zaeli-chat) ─────────────────────────
+function IcoMic({ color = 'rgba(0,0,0,0.45)' }: { color?: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24">
+      <Rect x="9" y="2" width="6" height="11" rx="3" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M5 10a7 7 0 0014 0" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Line x1="12" y1="19" x2="12" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
+      <Line x1="8" y1="23" x2="16" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
+    </Svg>
+  );
+}
+function IcoSend() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 24 24">
+      <Line x1="12" y1="19" x2="12" y2="5" stroke="#fff" strokeWidth={2.5} strokeLinecap="round"/>
+      <Polyline points="5 12 12 5 19 12" stroke="#fff" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
 
 const DUMMY_FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
-const DUMMY_MEMBER_NAME = 'Natalie';
+const DUMMY_MEMBER_NAME = 'Anna';
 const LATITUDE          = -27.4698;
 const LONGITUDE         = 153.0251;
 const DAYS_SHORT   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const WMO: Record<number,string> = {0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',51:'🌦',61:'🌧',65:'🌧',80:'🌦',95:'⛈'};
 
-// ── TIME-FRAME & DINNER LOGIC ──────────────────────────────────
 function getTimeFrame(h:number):'morning'|'afternoon'|'evening'|'night' {
   if(h>=6&&h<12) return 'morning';
   if(h>=12&&h<17) return 'afternoon';
@@ -40,23 +61,6 @@ function fmtRadarTime(startTime:string):string {
   return `${hh===0?12:hh>12?hh-12:hh}:${String(mm).padStart(2,'0')} ${hh>=12?'pm':'am'}`;
 }
 
-// ── ANIMATED WEATHER ICON ──────────────────────────────────────
-function WeatherIcon({icon}:{icon:string}) {
-  const float=useRef(new Animated.Value(0)).current;
-  const spin=useRef(new Animated.Value(0)).current;
-  const isSun=icon==='☀️';
-  useEffect(()=>{
-    Animated.loop(Animated.sequence([
-      Animated.timing(float,{toValue:-4,duration:1800,easing:Easing.inOut(Easing.sin),useNativeDriver:true}),
-      Animated.timing(float,{toValue:0,duration:1800,easing:Easing.inOut(Easing.sin),useNativeDriver:true}),
-    ])).start();
-    if(isSun) Animated.loop(Animated.timing(spin,{toValue:1,duration:8000,easing:Easing.linear,useNativeDriver:true})).start();
-  },[]);
-  const rotate=spin.interpolate({inputRange:[0,1],outputRange:['0deg','360deg']});
-  return <Animated.Text style={[s.weatherIcon,{transform:isSun?[{translateY:float},{rotate}]:[{translateY:float}]}]}>{icon}</Animated.Text>;
-}
-
-// ── TYPING DOTS (loading state) ────────────────────────────────
 function TypingDot({delay}:{delay:number}) {
   const a=useRef(new Animated.Value(0)).current;
   useEffect(()=>{
@@ -70,7 +74,6 @@ function TypingDot({delay}:{delay:number}) {
   return <Animated.View style={{width:7,height:7,borderRadius:3.5,backgroundColor:'rgba(0,0,0,0.2)',transform:[{translateY:a}]}}/>;
 }
 
-// ── PULSING AVATAR ─────────────────────────────────────────────
 function PulsingAvatar({size=30}:{size?:number}) {
   const scale=useRef(new Animated.Value(1)).current;
   const opacity=useRef(new Animated.Value(0.55)).current;
@@ -98,33 +101,6 @@ function PulsingAvatar({size=30}:{size?:number}) {
   );
 }
 
-// ── STREAMING BRIEF TEXT (typewriter effect) ───────────────────
-function StreamingBriefText({text,style,boldStyle}:{text:string;style?:any;boldStyle?:any}) {
-  const [displayed,setDisplayed]=useState('');
-  const [cursor,setCursor]=useState(true);
-  useEffect(()=>{
-    if(!text){setDisplayed('');return;}
-    setDisplayed('');
-    setCursor(true);
-    let i=0;
-    const iv=setInterval(()=>{
-      i++;
-      setDisplayed(text.slice(0,i));
-      if(i>=text.length){clearInterval(iv);setTimeout(()=>setCursor(false),1200);}
-    },18);
-    return ()=>clearInterval(iv);
-  },[text]);
-  // Render with bold support
-  const parts=displayed.split(/\*\*(.*?)\*\*/g);
-  return (
-    <Text style={style}>
-      {parts.map((p,i)=>i%2===1?<Text key={i} style={boldStyle}>{p}</Text>:<Text key={i}>{p}</Text>)}
-      {cursor&&displayed.length<(text?.length??0)&&<Text style={{color:'rgba(0,0,0,0.35)'}}>{'▋'}</Text>}
-    </Text>
-  );
-}
-
-// ── ONE ANIMATED SENTENCE — mounts fresh each time ──
 function AnimSentence({sentence,delay,isLast,sentenceStyle,sentenceLastStyle,boldStyle}:{
   sentence:string;delay:number;isLast:boolean;
   sentenceStyle:any;sentenceLastStyle:any;boldStyle:any;
@@ -143,15 +119,11 @@ function AnimSentence({sentence,delay,isLast,sentenceStyle,sentenceLastStyle,bol
   const parts=sentence.split(/\*\*(.*?)\*\*/g);
   return (
     <Animated.Text style={[isLast?sentenceLastStyle:sentenceStyle,{opacity,transform:[{translateY:slide}]}]}>
-      {parts.map((p,j)=>j%2===1
-        ?<Text key={j} style={boldStyle}>{p}</Text>
-        :<Text key={j}>{p}</Text>
-      )}
+      {parts.map((p,j)=>j%2===1?<Text key={j} style={boldStyle}>{p}</Text>:<Text key={j}>{p}</Text>)}
     </Animated.Text>
   );
 }
 
-// ── ANIMATED BRIEF SENTENCES — remounts each child when text changes ──
 function AnimatedBriefSentences({text,sentenceStyle,sentenceLastStyle,boldStyle}:{
   text:string;sentenceStyle:any;sentenceLastStyle:any;boldStyle:any;
 }) {
@@ -160,20 +132,12 @@ function AnimatedBriefSentences({text,sentenceStyle,sentenceLastStyle,boldStyle}
   return (
     <>
       {sentences.map((sentence,i)=>(
-        <AnimSentence
-          key={`${text.slice(0,20)}-${i}`}
-          sentence={sentence}
-          delay={i*230}
-          isLast={i===sentences.length-1}
-          sentenceStyle={sentenceStyle}
-          sentenceLastStyle={sentenceLastStyle}
-          boldStyle={boldStyle}
-        />
+        <AnimSentence key={`${text.slice(0,20)}-${i}`} sentence={sentence} delay={i*230} isLast={i===sentences.length-1}
+          sentenceStyle={sentenceStyle} sentenceLastStyle={sentenceLastStyle} boldStyle={boldStyle}/>
       ))}
     </>
   );
 }
-
 
 function RadarRow({barColor,icon,title,meta,badge,badgeBg,badgeColor,isReminder,onDismiss}:{
   barColor:string;icon:string;title:string;meta:string;
@@ -200,10 +164,10 @@ function RadarRow({barColor,icon,title,meta,badge,badgeBg,badgeColor,isReminder,
   );
 }
 
-// ── MAIN SCREEN ────────────────────────────────────────────────
 export default function HomeScreen() {
   const insets=useSafeAreaInsets();
   const router=useRouter();
+  const [menuOpen,setMenuOpen]=useState(false);
 
   const now=new Date();
   const hour=now.getHours();
@@ -217,7 +181,6 @@ export default function HomeScreen() {
   const tomorrowStr=`${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth()+1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`;
   const timeFrame=getTimeFrame(hour);
 
-  const [weather,setWeather]=useState<{temp:number;icon:string}|null>(null);
   const [events,setEvents]=useState<any[]>([]);
   const [todos,setTodos]=useState<any[]>([]);
   const [reminders,setReminders]=useState<any[]>([]);
@@ -251,7 +214,6 @@ export default function HomeScreen() {
         Animated.timing(bodySlide,{toValue:0,duration:350,easing:Easing.out(Easing.quad),useNativeDriver:true}),
       ]),
     ]).start();
-    fetchWeather();
     fetchData();
     const sub=supabase.channel('home-todos')
       .on('postgres_changes',{event:'*',schema:'public',table:'todos',filter:`family_id=eq.${DUMMY_FAMILY_ID}`},
@@ -265,20 +227,10 @@ export default function HomeScreen() {
     if(elapsed>30*60*1000&&!cardDismissed) fetchData();
   },[cardDismissed]));
 
-  const fetchWeather=async()=>{
-    try{
-      const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LATITUDE}&longitude=${LONGITUDE}&current_weather=true`);
-      const d=await r.json();
-      setWeather({temp:Math.round(d.current_weather.temperature),icon:WMO[d.current_weather.weathercode]||'🌤'});
-    }catch{setWeather({temp:22,icon:'🌤'});}
-  };
-
   const fetchData=async()=>{
     try{
-      // Compute yesterday for callback context
       const yesterdayDate=new Date(now); yesterdayDate.setDate(now.getDate()-1);
       const yesterdayStr=`${yesterdayDate.getFullYear()}-${String(yesterdayDate.getMonth()+1).padStart(2,'0')}-${String(yesterdayDate.getDate()).padStart(2,'0')}`;
-
       const[evR,pastEvR,shR,mlR,tmR,tdR,doneR,ystMlR]=await Promise.all([
         supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).gte('date',localDateStr).order('date').order('start_time').limit(15),
         supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).gte('date',yesterdayStr).lt('date',localDateStr).order('start_time',{ascending:true}).limit(5),
@@ -289,51 +241,26 @@ export default function HomeScreen() {
         supabase.from('todos').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('status','done').order('created_at',{ascending:false}).limit(3),
         supabase.from('meal_plans').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',yesterdayStr).limit(1),
       ]);
-      const evs=evR.data||[];
-      const pastEvs=pastEvR.data||[];
-      const tdos=tdR.data||[];
-      const doneTodos=doneR.data||[];
-      const tm=mlR.data?.[0]||null;
-      const tmr=tmR.data?.[0]||null;
-      const ystMeal=ystMlR.data?.[0]||null;
-
-      // FIX #6: Reminders detection — check event_type field OR notes OR title
-      // "Test 1" was being filtered as a calendar event because its title doesn't say "reminder"
-      // Now we check event_type column first, then fall back to title/notes heuristic
+      const evs=evR.data||[]; const pastEvs=pastEvR.data||[]; const tdos=tdR.data||[];
+      const doneTodos=doneR.data||[]; const tm=mlR.data?.[0]||null; const tmr=tmR.data?.[0]||null;
+      const ystMeal=ystMlR.data?.[0]||null; const sh=shR.data||[];
       const cals=evs.filter((e:any)=>{
         const type=(e.event_type||'').toLowerCase();
-        if(type==='reminder') return false;
-        if(type&&type!=='reminder') return true;
-        // No event_type — fall back to title/notes heuristic
-        const titleLower=(e.title||'').toLowerCase();
-        const notesLower=(e.notes||'').toLowerCase();
-        return !notesLower.includes('reminder')&&!titleLower.includes('reminder');
+        return type !== 'reminder'; // everything that isn't explicitly typed as a reminder is a calendar event
       });
       const rems=evs.filter((e:any)=>{
         const type=(e.event_type||'').toLowerCase();
-        if(type==='reminder') return true;
-        if(type&&type!=='reminder') return false;
-        const titleLower=(e.title||'').toLowerCase();
-        const notesLower=(e.notes||'').toLowerCase();
-        return notesLower.includes('reminder')||titleLower.includes('reminder');
+        return type === 'reminder';
       });
-
-      const sh=shR.data||[];
-      setEvents(cals);
-      setReminders(rems);
-      setShopping(sh);
-      setTodayMeal(tm);
-      setTomorrowMeal(tmr);
-      setTodos(tdos);
+      setEvents(cals); setReminders(rems); setShopping(sh);
+      setTodayMeal(tm); setTomorrowMeal(tmr); setTodos(tdos);
       generateBrief(evs,tdos,tm,tmr,sh,pastEvs,doneTodos,ystMeal);
       lastBriefAt.current=Date.now();
     }catch(e){console.log('fetchData:',e);}
   };
 
   const generateBrief=async(evs:any[],tdos:any[],tm:any,tmr:any,sh:any[]=[],pastEvs:any[]=[],doneTodos:any[]=[],ystMeal:any=null)=>{
-    setLoadingBrief(true);
-    // Reset streaming text so typewriter re-runs on each generation
-    setBriefText('');
+    setLoadingBrief(true); setBriefText('');
     const fallbacks:Record<string,{text:string;cta:string}>={
       morning:{text:`Right, let's have a look at your morning.\nNothing alarming on the radar — which is actually a lovely way to start.\nWant me to cast an eye over the week and flag anything worth knowing about?`,cta:"Yes, take a look"},
       afternoon:{text:`Hope the morning treated you well.\nAfternoon's looking fairly civilised from where I'm standing.\nWant me to check what's still on the list and sort anything before the evening rush?`,cta:"Yes, let's sort it"},
@@ -345,82 +272,55 @@ export default function HomeScreen() {
       const memCtx=await buildMemoryContext(DUMMY_FAMILY_ID);
       const dinnerRule=getDinnerInstruction(hour,tm,tmr);
       const urgentTodos=tdos.filter((t:any)=>t.priority==='high'||t.priority==='urgent');
+      const systemPrompt=`You are Zaeli — warm, brilliant, completely magnetic. Think Anne Hathaway energy: funny, caring, utterly charming. Australian warmth — real and unpretentious. You are the switched-on sister who has quietly already sorted three things before anyone noticed there was a problem.
 
-      const systemPrompt=`You are Zaeli — warm, brilliant, and completely magnetic. Think Anne Hathaway energy: funny, glamorous, caring, utterly charming. Australian warmth — real and unpretentious, never performative. You are the switched-on sister who lights up every room and has quietly already sorted three things before anyone else noticed there was a problem. Families brag about you to their neighbours. That is the bar.
+You are writing ${DUMMY_MEMBER_NAME}'s home screen brief. Max 4 sentences, minimum 2. NEVER start with "I".
 
-You are writing the home screen brief for ${DUMMY_MEMBER_NAME}. This is the first thing she sees when she opens the app. It should make her smile before she's finished reading it. It should make her feel seen, supported, and like someone brilliant has quietly got her back.
+SENTENCE 1 — CALLBACK (if something notable happened recently): One warm, alive sentence referencing a past event, completed task, or yesterday's dinner. Make it feel like you noticed and remembered — not a recap, a connection. Examples: "Hope the tacos went down well last night!" / "Great that the school registration's done — one less thing." SKIP this sentence entirely if nothing notable is in the data.
 
-You are a HELPER and SUPPORTER first. You notice things warmly — you never nag, never alarm, never demand. When something needs attention, you offer to handle it like a brilliant friend would: lightly, specifically, with a wink.
+SENTENCE 2 — WHAT'S COMING: The single most important upcoming event or deadline. Specific: name, time, person. Never generic.
 
-── BRIEF STRUCTURE (max 4 sentences, minimum 2) ──
+SENTENCE 3 — WHAT'S QUIETLY SLIPPING: 1-2 things that are overdue or at risk of being forgotten. Deliver like a friend flagging it over coffee — noticed, not nagging.
 
-SENTENCE 1 — CALLBACK (optional but powerful):
-Reference something real that just happened or was in the data. A meal, an event, a completed task. One warm, alive sentence that proves you were paying attention — not a status report, a human moment.
-GREAT: "Hope the lasagne went down a treat last night!" / "So glad Jack's soccer registration is finally ticked off — that one had been lurking." / "Hope Poppy had the best time at dance tonight."
-AVOID: "I see you completed 2 tasks." (robotic) / "You had pasta." (just stating facts) / "Good morning!" (that's a greeting, not a callback)
-If there is genuinely nothing recent to reference — SKIP and open with sentence 2. Do not fabricate.
+SENTENCE 4 — THE OFFER: One warm specific question offering one concrete thing Zaeli can do right now. This drives the CTA button.
 
-SENTENCE 2 — WHAT'S COMING THAT MATTERS:
-The single most important upcoming event or deadline. Be specific: name, time, person. Warm and light — she's in capable hands.
-GREAT: "Poppy's swimming lesson is at **4pm** today — plenty of time." / "Big one tomorrow — **accountant call at 9am**."
-AVOID: "You have a meeting." / "There are some upcoming events." / vague generalities.
+TIME RULES — critical, never violate:
+- ALWAYS use 12-hour time with AM/PM (e.g. "11:00 pm", "9:30 am"). NEVER write times in 24-hour format (never "23:00", never "21:00").
+- The current time is ${timeStr}. Be AWARE of this. If an event's scheduled time has already passed today, do NOT mention it as upcoming — acknowledge it is done or skip it entirely.
+- If it is after 9:00 pm, do not suggest tonight's dinner — it is too late. Reference tomorrow's dinner only if relevant.
+- If it is after 11:00 pm, do not mention any events for tonight — they are either done or it is too late to care.
 
-SENTENCE 3 — WHAT'S QUIETLY SLIPPING:
-1–2 things that are overdue, at risk, or quietly being forgotten. This is where you earn deep trust — you noticed so she didn't have to. Deliver it like a brilliant friend flagging it over coffee, not a productivity app issuing a warning.
-GREAT: "The school excursion slip has been sitting there a little while — worth a quick signature today." / "**Calling Mum** has been on the list since Monday — she'd love to hear from you."
-AVOID: "You have overdue tasks." / "Several things need attention." / anything that sounds like a task manager.
+TONE RULES:
+- Never nag. Never say "you need to" or "you should" or "don't forget"
+- Bold key info **like this** — names, times, deadlines only. Max 3 bold elements.
+- Never sound like a push notification or task manager
+- Warmth, spark, and genuine wit — not efficiency-speak. This brief should feel just as alive as a conversation.
+- Never be vague — "a few things need attention" is not acceptable. Name them.
 
-SENTENCE 4 — THE OFFER (always ends the brief):
-One warm, specific question offering concrete help — right now, effortlessly. This is the offer, not a CTA.
-GREAT: "Want me to sort dinner ideas while you have your coffee?" / "Want me to draft that school note so it's ready to send?" / "Shall I help knock these two off the list before the morning rush?"
-AVOID: Anything sequential, demanding, or that sounds like a checklist.
+CAPABILITY: Can draft messages/notes. CANNOT make calls or send messages.
+DINNER RULE: ${dinnerRule}
+TIME: ${timeStr} on ${dateStr}. Frame: ${timeFrame}.
+CTA: Button label = natural short answer to your offer question. Max 4 words.
 
-── TONE ──
-- Warm, alive, a little sparkly. Like a message from someone you genuinely love hearing from.
-- Her cheekiness surfaces occasionally — a slightly grand word, a deadpan aside, a light mock-formality. Use it once if the moment genuinely calls for it. Never forced.
-- Bold key info **like this**: names, times, specific items. Max 3 bolds.
-- Never start with "I".
-- Never nag. Never alarm. Never list problems — offer solutions.
-- Never vague. "A few things need attention" is not Zaeli.
-- No hollow filler. Every word earns its place.
-
-── CAPABILITY RULES — CRITICAL ──
-- Zaeli CAN: draft messages, emails, notes, texts, suggest dinner ideas, add to shopping lists, find calendar gaps, draft letters or school notes.
-- Zaeli CANNOT make phone calls. NEVER say "I'll call..." or "calling the school". NEVER show [initiating call...]. This is not possible.
-- Zaeli CANNOT send messages autonomously. She drafts them for the user to send.
-- If something requires a phone call, offer to draft a message or help the user know what to say instead.
-
-── DINNER RULE ──
-${dinnerRule}
-
-── TIME ──
-${timeStr} on ${dateStr}. Frame: ${timeFrame}. Tomorrow: ${tomorrowStr}.
-
-── CTA LABEL ──
-The button label is the natural answer to the question you just asked. Max 4 words. Human and warm.
-"Want me to sort dinner ideas?" → "Yes please, sort it"
-"Want me to draft that school note?" → "Draft it for me"
-"Shall I help knock these off?" → "Yes, let's do it"
-"Want me to check what's needed?" → "Let's sort the week"
-Fallback: "Let's talk it through"
-
-── DISMISSED SIGN-OFF ──
-1–2 sentences. Zaeli warmly steps back, references 1–2 specific things from the brief she just wrote, leaves the door open. Like a friend saying "no worries — shout if you need me to sort X or Y!"
-GREAT: "No worries! Shout if you need help drafting that school note or sorting dinner tomorrow — I've got you! 💛"
-AVOID: "Still here if you need me." (too generic)
-
-RESPOND WITH JSON ONLY — no markdown, no backticks, no preamble:
-{"brief":"full brief text with sentences separated by newlines","cta":"button label","signoff":"dismissed card text"}`;
-
-      const ctx=`Family member: ${DUMMY_MEMBER_NAME}. Today: ${localDateStr} (${dateStr}). Tomorrow: ${tomorrowStr}. Current time: ${timeStr}.
-RECENT PAST EVENTS (last 24h — use for callback sentence): ${pastEvs.length>0?JSON.stringify(pastEvs):'none'}.
-RECENTLY COMPLETED TASKS (use for callback sentence): ${doneTodos.length>0?JSON.stringify(doneTodos):'none'}.
-YESTERDAY'S DINNER (ideal callback if present): ${ystMeal?ystMeal.title:'none'}.
-Upcoming events today+future: ${JSON.stringify(evs.slice(0,6))}.
+RESPOND WITH JSON ONLY — no markdown, no backticks:
+{"brief":"sentences separated by newlines","cta":"button label","signoff":"1 warm sentence stepping back, references 1 specific thing from the brief"}`;
+      // Format event times as 12-hour AM/PM so model never outputs 24-hour times
+      const fmt12 = (iso:string) => {
+        if(!iso) return '';
+        const tp = iso.replace('T',' ').split(' ')[1]||'';
+        const [hh,mm] = tp.split(':').map(Number);
+        if(isNaN(hh)) return iso;
+        return `${hh===0?12:hh>12?hh-12:hh}:${String(mm).padStart(2,'0')} ${hh>=12?'pm':'am'}`;
+      };
+      const fmtEv = (e:any) => ({ ...e, start_time: fmt12(e.start_time), end_time: fmt12(e.end_time) });
+      const ctx=`Family: ${DUMMY_MEMBER_NAME}. Today: ${localDateStr} (${dateStr}). Tomorrow: ${tomorrowStr}. Time: ${timeStr}.
+Recent past events: ${pastEvs.length>0?JSON.stringify(pastEvs.map(fmtEv)):'none'}.
+Completed tasks: ${doneTodos.length>0?JSON.stringify(doneTodos):'none'}.
+Yesterday's dinner: ${ystMeal?ystMeal.title:'none'}.
+Upcoming events: ${JSON.stringify(evs.slice(0,6).map(fmtEv))}.
 Urgent todos: ${JSON.stringify(urgentTodos.slice(0,4))}.
-All active todos: ${JSON.stringify(tdos.slice(0,5))}.
-Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not planned'}. Shopping items pending: ${sh.length}.${memCtx}`;
-
+Active todos: ${JSON.stringify(tdos.slice(0,5))}.
+Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not planned'}. Shopping items: ${sh.length}.${memCtx}`;
       const res=await fetch('https://api.anthropic.com/v1/messages',{
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -435,110 +335,111 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
           Animated.timing(cardFade,{toValue:1,duration:400,useNativeDriver:true}).start();
           setBriefCta(parsed.cta||"Let's talk it through");
           setBriefSignoff(parsed.signoff||'');
-          // Small delay so card fades in before typewriter starts
-          setTimeout(()=>setBriefText(parsed.brief),200);
-          return;
+          setTimeout(()=>setBriefText(parsed.brief),200); return;
         }
       }catch{
-        if(raw){
-          Animated.timing(cardFade,{toValue:1,duration:400,useNativeDriver:true}).start();
-          setBriefCta("Let's talk it through");
-          setTimeout(()=>setBriefText(raw),200);
-          return;
-        }
+        if(raw){ Animated.timing(cardFade,{toValue:1,duration:400,useNativeDriver:true}).start(); setBriefCta("Let's talk it through"); setTimeout(()=>setBriefText(raw),200); return; }
       }
       Animated.timing(cardFade,{toValue:1,duration:400,useNativeDriver:true}).start();
-      setBriefCta(fallback.cta);
-      setTimeout(()=>setBriefText(fallback.text),200);
+      setBriefCta(fallback.cta); setTimeout(()=>setBriefText(fallback.text),200);
     }catch(e){
       console.log('generateBrief:',e);
       Animated.timing(cardFade,{toValue:1,duration:400,useNativeDriver:true}).start();
-      setBriefCta(fallback.cta);
-      setTimeout(()=>setBriefText(fallback.text),200);
+      setBriefCta(fallback.cta); setTimeout(()=>setBriefText(fallback.text),200);
     }finally{setLoadingBrief(false);}
   };
 
   const handleDismiss=()=>{
     Animated.timing(cardFade,{toValue:0,duration:300,useNativeDriver:true}).start(()=>{
-      setCardDismissed(true);
-      setShowRelaxed(true);
+      setCardDismissed(true); setShowRelaxed(true);
       Animated.timing(relaxedFade,{toValue:1,duration:350,useNativeDriver:true}).start();
     });
   };
   const handleDismissReminder=(id:string)=>setDismissedReminders(prev=>new Set([...prev,id]));
-  const openChat=(channel='General',seed?:string)=>router.push({
-    pathname:'/(tabs)/zaeli-chat',
-    params:{channel,returnTo:'/(tabs)/',seedMessage:seed||''},
-  });
+  const openChat=(channel='General',seed?:string)=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel,returnTo:'/(tabs)/',seedMessage:seed||''}});
 
-  const TAB_H=Platform.OS==='ios'?82:64;
   const {width:screenWidth}=useWindowDimensions();
-  // Exact square tile: full width minus horizontal padding on both sides, minus gap between tiles, divided by 2
   const TILE_PAD=18; const TILE_GAP=12;
   const tileSize=Math.floor((screenWidth-TILE_PAD*2-TILE_GAP)/2);
+  const tileHeight=Math.floor(tileSize*0.82); // ~82% of width — matches HTML proportions
   const urgentCount=todos.filter((t:any)=>t.priority==='high'||t.priority==='urgent').length;
-  const visibleReminders=reminders.filter((r:any)=>!dismissedReminders.has(r.id));
-  const radarEvents=events.filter((e:any)=>(e.date||'')>=localDateStr).slice(0,3);
+  const visibleRemindersRaw=reminders.filter((r:any)=>!dismissedReminders.has(r.id));
+  const seenReminderTitles=new Set<string>();
+  const visibleReminders:any[]=[];
+  for(const r of visibleRemindersRaw){
+    const key=(r.title||'').toLowerCase().trim();
+    if(!seenReminderTitles.has(key)){seenReminderTitles.add(key);visibleReminders.push(r);}
+  }
+  // Deduplicate recurring events — show only the next occurrence per title
+  const radarEventsRaw=events.filter((e:any)=>(e.date||'')>=localDateStr);
+  const seenTitles=new Set<string>();
+  const radarEvents:any[]=[];
+  for(const e of radarEventsRaw){
+    const key=(e.title||'').toLowerCase().trim();
+    if(!seenTitles.has(key)){seenTitles.add(key);radarEvents.push(e);}
+    if(radarEvents.length>=3) break;
+  }
   const radarTodos=todos.filter((t:any)=>t.priority==='high'||t.priority==='urgent').slice(0,2);
   const mealDisplay=(timeFrame==='night'||hour>=21)?tomorrowMeal:todayMeal;
   const mealLabel=(timeFrame==='night'||hour>=21)?'Tomorrow':'Tonight';
 
+  // Bottom padding for sticky ask bar
+  const ASK_BAR_H = 64;
+  const bottomPad = insets.bottom + ASK_BAR_H + 16;
+
   return (
     <SafeAreaView style={{flex:1,backgroundColor:'#0057FF'}} edges={['top']}>
       <StatusBar style="light"/>
-      <ScrollView style={{flex:1}} showsVerticalScrollIndicator={false} bounces>
+      <NavMenu visible={menuOpen} onClose={()=>setMenuOpen(false)}/>
 
-        {/* ── HERO ── */}
+      {/* ── SCROLLABLE CONTENT ── */}
+      <ScrollView
+        style={{flex:1,backgroundColor:'#0057FF'}}
+        showsVerticalScrollIndicator={false}
+        bounces
+        contentContainerStyle={{paddingBottom: bottomPad}}
+      >
+        {/* HERO */}
         <Animated.View style={[s.hero,{opacity:heroFade,transform:[{translateY:heroSlide}]}]}>
-          <View style={s.heroOrbOuter}/>
-          <View style={s.heroOrbInner}/>
-          <View style={s.heroOrb2}/>
-          {/* Logo + weather row */}
+          <View style={s.heroOrbOuter}/><View style={s.heroOrbInner}/><View style={s.heroOrb2}/>
+
+          {/* Top row: logo | date pill + hamburger */}
           <View style={s.topRow}>
             <View style={s.logoWrap}>
               <View style={s.logoMark}><Text style={{fontSize:22,color:'#fff'}}>{'\u2726'}</Text></View>
               <Text style={s.logoWord}>{'z'}<Text style={{color:'#FFE500'}}>{'a'}</Text>{'el'}<Text style={{color:'#FFE500'}}>{'i'}</Text></Text>
             </View>
-            {weather&&(
-              <View style={s.weatherWrap}>
-                <WeatherIcon icon={weather.icon}/>
-                <Text style={s.weatherTemp}>{weather.temp}{'\u00B0'}C</Text>
-                <Text style={s.weatherDate}>{dateStr}</Text>
+            <View style={s.topRight}>
+              <View style={s.datePill}>
+                <View style={s.liveDotPill}/>
+                <Text style={s.datePillTxt}>{dateStr}</Text>
               </View>
-            )}
+              <HamburgerButton onPress={()=>setMenuOpen(true)}/>
+            </View>
           </View>
-          {/* Greeting — matches original V6 spacing */}
+
+          {/* Greeting — restored original sizing from before the nav change */}
           <Text style={s.greetLine}>{getGreeting(hour)}</Text>
           <Text style={s.nameLine}>{DUMMY_MEMBER_NAME} <Text style={s.nameIcon}>{getGreetingIcon(hour)}</Text></Text>
 
-          {/* ── ZAELI BRIEF CARD — inside hero, white, fully rounded ── */}
+          {/* Brief card */}
           {!cardDismissed?(
             <Animated.View style={[s.zaeliCard,{opacity:cardFade}]}>
               <View style={s.zaeliHead}>
                 <PulsingAvatar size={28}/>
-                <Text style={s.zaeliName}>
-                  {'Z'}<Text style={{color:'#E0007C'}}>{'a'}</Text>{'el'}<Text style={{color:'#E0007C'}}>{'i'}</Text>
-                </Text>
-                <View style={s.liveDot}/>
+                <Text style={s.zaeliName}>{'Z'}<Text style={{color:'#E0007C'}}>{'a'}</Text>{'el'}<Text style={{color:'#E0007C'}}>{'i'}</Text></Text>
+                <View style={s.cardLiveDot}/>
                 <Text style={s.zaeliTime}>{timeStr}</Text>
               </View>
               {loadingBrief?(
                 <View style={s.loadingRow}>
                   <Text style={s.loadingTxt}>Zaeli is thinking</Text>
-                  <View style={{flexDirection:'row',gap:3,alignItems:'center'}}>
-                    {[0,1,2].map(i=><TypingDot key={i} delay={i*200}/>)}
-                  </View>
+                  <View style={{flexDirection:'row',gap:3,alignItems:'center'}}>{[0,1,2].map(i=><TypingDot key={i} delay={i*200}/>)}</View>
                 </View>
               ):(
                 <>
-                  {/* Sentence-per-line rendering with stagger animation */}
                   <View style={s.briefWrap}>
-                    <AnimatedBriefSentences
-                      text={briefText||'Loading your day\u2026'}
-                      sentenceStyle={s.briefSentence}
-                      sentenceLastStyle={s.briefSentenceLast}
-                      boldStyle={{fontFamily:'Poppins_700Bold',color:'#0A0A0A'}}
-                    />
+                    <AnimatedBriefSentences text={briefText||'Loading your day\u2026'} sentenceStyle={s.briefSentence} sentenceLastStyle={s.briefSentenceLast} boldStyle={{fontFamily:'Poppins_700Bold',color:'#0A0A0A'}}/>
                   </View>
                   <View style={s.zaeliActions}>
                     <TouchableOpacity style={s.ctaPrimary} onPress={()=>openChat('General',briefText)} activeOpacity={0.85}>
@@ -555,9 +456,7 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
             <Animated.View style={[s.relaxedCard,{opacity:relaxedFade}]}>
               <View style={s.relaxedInner}>
                 <View style={s.relaxedAvatar}><Text style={{fontSize:13,color:'#0057FF'}}>{'\u2726'}</Text></View>
-                <Text style={s.relaxedSignoff}>
-                  {briefSignoff||"No worries! I'm here whenever you need me. 💛"}
-                </Text>
+                <Text style={s.relaxedSignoff}>{briefSignoff||"No worries! I'm here whenever you need me. 💛"}</Text>
               </View>
               <TouchableOpacity style={s.relaxedBtn} onPress={()=>openChat('General',briefText)} activeOpacity={0.85}>
                 <Text style={s.relaxedBtnTxt}>{"Let's chat \u2726"}</Text>
@@ -566,179 +465,150 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
           ):null}
         </Animated.View>
 
-        {/* ── BODY ── */}
+        {/* BODY */}
         <Animated.View style={[s.body,{opacity:bodyFade,transform:[{translateY:bodySlide}]}]}>
 
-          {/* ── FOUR TILES — 2×2 grid ── */}
+          {/* Tiles 2×2 */}
           <View style={s.tilesGrid}>
-            {/* Top left: Next Up */}
-            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileSize}]} onPress={()=>router.push('/(tabs)/calendar')} activeOpacity={0.8}>
+            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push('/(tabs)/calendar')} activeOpacity={0.8}>
               <Text style={s.tileIcon}>{'📅'}</Text>
-              <Text style={s.tileLabel}>NEXT UP</Text>
-              {radarEvents.length>0?(
-                <>
-                  <Text style={s.tileVal} numberOfLines={2}>{radarEvents[0].title}</Text>
-                  <Text style={s.tileSub}>{fmtRadarTime(radarEvents[0].start_time)||'Today'}</Text>
-                </>
-              ):(
-                <>
-                  <Text style={s.tileVal}>All clear</Text>
-                  <Text style={s.tileSub}>nothing scheduled</Text>
-                </>
-              )}
+              <View style={s.tileBottom}>
+                <Text style={s.tileLabel}>NEXT UP</Text>
+                {radarEvents.length>0?(<><Text style={s.tileVal} numberOfLines={2}>{radarEvents[0].title}</Text><Text style={s.tileSub}>{fmtRadarTime(radarEvents[0].start_time)||'Today'}</Text></>):(<><Text style={s.tileVal}>All clear</Text><Text style={s.tileSub}>nothing scheduled</Text></>)}
+              </View>
             </TouchableOpacity>
-            {/* Top right: Tonight/Tomorrow meal */}
-            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileSize}]} onPress={()=>router.push('/(tabs)/mealplanner')} activeOpacity={0.8}>
-              <Text style={s.tileIcon}>{'🍽️'}</Text>
-              <Text style={s.tileLabel}>{mealLabel.toUpperCase()}</Text>
-              <Text style={[s.tileVal,!mealDisplay&&s.tileValWarn]} numberOfLines={2}>{mealDisplay?mealDisplay.title:'Not planned'}</Text>
-              <Text style={[s.tileSub,!mealDisplay&&s.tileSubCta]}>{mealDisplay?'planned \u2713':'Tap to sort \u2192'}</Text>
+            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push('/(tabs)/mealplanner')} activeOpacity={0.8}>
+              <Text style={s.tileIcon}>{'🍽'}</Text>
+              <View style={s.tileBottom}>
+                <Text style={s.tileLabel}>{mealLabel.toUpperCase()}</Text>
+                <Text style={[s.tileVal,!mealDisplay&&s.tileValWarn]} numberOfLines={2}>{mealDisplay?mealDisplay.title:'Not planned'}</Text>
+                <Text style={[s.tileSub,!mealDisplay&&s.tileSubCta]}>{mealDisplay?'planned \u2713':'Tap to sort \u2192'}</Text>
+              </View>
             </TouchableOpacity>
-            {/* Bottom left: Shopping */}
-            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileSize}]} onPress={()=>router.push('/(tabs)/shopping')} activeOpacity={0.8}>
+            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push('/(tabs)/shopping')} activeOpacity={0.8}>
               <Text style={s.tileIcon}>{'🛒'}</Text>
-              <Text style={s.tileLabel}>SHOPPING</Text>
-              <Text style={[s.tileVal,shopping.length>0&&s.tileValWarn]}>{shopping.length>0?`${shopping.length} item${shopping.length>1?'s':''}`:'All clear'}</Text>
-              <Text style={[s.tileSub,shopping.length>0&&s.tileSubCta]}>{shopping.length>0?'run needed':'nothing pending'}</Text>
+              <View style={s.tileBottom}>
+                <Text style={s.tileLabel}>SHOPPING</Text>
+                <Text style={[s.tileVal,shopping.length>0&&s.tileValWarn]}>{shopping.length>0?`${shopping.length} item${shopping.length>1?'s':''}`:'All clear'}</Text>
+                <Text style={[s.tileSub,shopping.length>0&&s.tileSubCta]}>{shopping.length>0?'Woolies run needed':'nothing pending'}</Text>
+              </View>
             </TouchableOpacity>
-            {/* Bottom right: To-do */}
-            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileSize}]} onPress={()=>router.push({pathname:'/(tabs)/more',params:{initialPage:'todo'}})} activeOpacity={0.8}>
+            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push({pathname:'/(tabs)/more',params:{initialPage:'todo'}})} activeOpacity={0.8}>
               {urgentCount>0&&<View style={s.tilePip}/>}
               <Text style={s.tileIcon}>{'✅'}</Text>
-              <Text style={s.tileLabel}>TO-DO</Text>
-              <Text style={[s.tileVal,urgentCount>0&&s.tileValWarn]}>{urgentCount>0?`${urgentCount} urgent`:todos.length>0?`${todos.length} items`:'All clear'}</Text>
-              <Text style={s.tileSub}>{todos.length>0?`${todos.length} total`:'nice work \uD83C\uDF89'}</Text>
+              <View style={s.tileBottom}>
+                <Text style={s.tileLabel}>TO-DOS</Text>
+                <Text style={[s.tileVal,urgentCount>0&&s.tileValWarn]}>{urgentCount>0?`${urgentCount} urgent`:todos.length>0?`${todos.length} items`:'All clear'}</Text>
+                <Text style={s.tileSub}>{todos.length>0?`${todos.length} total`:'nice work \uD83C\uDF89'}</Text>
+              </View>
             </TouchableOpacity>
           </View>
 
-          {/* ── ON THE RADAR — FIX #7: larger headers, more generous row spacing ── */}
+          {/* On the radar */}
           <View style={s.radarSection}>
             <View style={s.radarHead}>
               <Text style={s.radarTitle}>On the radar</Text>
-              <TouchableOpacity onPress={()=>router.push('/(tabs)/calendar')}>
-                <Text style={s.radarLink}>See all</Text>
-              </TouchableOpacity>
+              <TouchableOpacity onPress={()=>router.push('/(tabs)/calendar')}><Text style={s.radarLink}>See all</Text></TouchableOpacity>
             </View>
             <View style={s.radarBand}>
-
-              {/* Coming up — calendar events */}
-              {radarEvents.length>0&&(
-                <>
-                  <View style={s.radarSection2Hdr}>
-                    <Text style={s.radarSection2Label}>Coming up</Text>
-                  </View>
-                  {radarEvents.map((e:any)=>{
-                    const t=fmtRadarTime(e.start_time);
-                    const isToday=e.date===localDateStr;
-                    const isTmrw=e.date===tomorrowStr;
-                    const dayLabel=isToday?'Today':isTmrw?'Tomorrow':e.date;
-                    return <RadarRow key={e.id} barColor="#0057FF" icon="📅" title={e.title} meta={`${dayLabel}${t?' \u00B7 '+t:''}`} badge={t||'Soon'} badgeBg="rgba(0,87,255,0.08)" badgeColor="#0057FF"/>;
-                  })}
-                </>
-              )}
-
-              {/* Reminders — dismissable */}
-              {visibleReminders.length>0&&(
-                <>
-                  {radarEvents.length===0&&(
-                    <View style={s.radarSection2Hdr}><Text style={s.radarSection2Label}>Coming up</Text></View>
-                  )}
-                  {visibleReminders.slice(0,4).map((r:any)=>{
-                    const t=fmtRadarTime(r.start_time);
-                    const isToday=r.date===localDateStr;
-                    return (
-                      <TouchableOpacity key={r.id} activeOpacity={0.8} onPress={()=>router.push('/(tabs)/calendar')}>
-                        <RadarRow barColor="#FF8C00" icon="🔔" title={r.title} meta={`Reminder \u00B7 ${isToday?'today':'tomorrow'}${t?' '+t:''}`} badge={t||'Today'} badgeBg="rgba(255,140,0,0.10)" badgeColor="#FF8C00" isReminder onDismiss={()=>handleDismissReminder(r.id)}/>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </>
-              )}
-
-              {/* Needs attention — urgent todos */}
-              {radarTodos.length>0&&(
-                <>
-                  <View style={s.radarSection2Hdr}><Text style={s.radarSection2Label}>Needs attention</Text></View>
-                  {radarTodos.map((t:any)=>(
-                    <TouchableOpacity key={t.id} onPress={()=>router.push({pathname:'/(tabs)/more',params:{initialPage:'todo'}})} activeOpacity={0.8}>
-                      <RadarRow barColor="#E0007C" icon="📋" title={t.title} meta={t.due_label||'Overdue'} badge="urgent" badgeBg="rgba(224,0,124,0.08)" badgeColor="#E0007C"/>
+              {radarEvents.length>0&&(<>
+                <View style={s.radarSection2Hdr}><Text style={s.radarSection2Label}>Coming up</Text></View>
+                {radarEvents.map((e:any)=>{
+                  const t=fmtRadarTime(e.start_time); const isToday=e.date===localDateStr; const isTmrw=e.date===tomorrowStr;
+                  const dayLabel=isToday?'Today':isTmrw?'Tomorrow':e.date;
+                  return (
+                    <TouchableOpacity key={e.id} activeOpacity={0.8} onPress={()=>router.push('/(tabs)/calendar')}>
+                      <RadarRow barColor="#0057FF" icon="📅" title={e.title} meta={`${dayLabel}${t?' \u00B7 '+t:''}`} badge={t||'Soon'} badgeBg="rgba(0,87,255,0.08)" badgeColor="#0057FF"/>
                     </TouchableOpacity>
-                  ))}
-                </>
-              )}
-
+                  );
+                })}
+              </>)}
+              {visibleReminders.length>0&&(<>
+                {radarEvents.length===0&&<View style={s.radarSection2Hdr}><Text style={s.radarSection2Label}>Coming up</Text></View>}
+                {visibleReminders.slice(0,4).map((r:any)=>{
+                  const t=fmtRadarTime(r.start_time); const isToday=r.date===localDateStr;
+                  return (<TouchableOpacity key={r.id} activeOpacity={0.8} onPress={()=>router.push('/(tabs)/calendar')}>
+                    <RadarRow barColor="#FF8C00" icon="🔔" title={r.title} meta={`Reminder \u00B7 ${isToday?'today':'tomorrow'}${t?' '+t:''}`} badge={t||'Today'} badgeBg="rgba(255,140,0,0.10)" badgeColor="#FF8C00" isReminder onDismiss={()=>handleDismissReminder(r.id)}/>
+                  </TouchableOpacity>);
+                })}
+              </>)}
+              {radarTodos.length>0&&(<>
+                <View style={s.radarSection2Hdr}><Text style={s.radarSection2Label}>Needs attention</Text></View>
+                {radarTodos.map((t:any)=>(
+                  <TouchableOpacity key={t.id} onPress={()=>router.push({pathname:'/(tabs)/more',params:{initialPage:'todo'}})} activeOpacity={0.8}>
+                    <RadarRow barColor="#E0007C" icon="📋" title={t.title} meta={t.due_label||'Overdue'} badge="urgent" badgeBg="rgba(224,0,124,0.08)" badgeColor="#E0007C"/>
+                  </TouchableOpacity>
+                ))}
+              </>)}
               {radarEvents.length===0&&visibleReminders.length===0&&radarTodos.length===0&&(
                 <View style={s.radarEmpty}><Text style={s.radarEmptyTxt}>All clear — nothing urgent on the radar {'\u2728'}</Text></View>
               )}
             </View>
           </View>
 
-          {/* ── ASK ZAELI BAR — FIX #8: no extra space below, just tab clearance ── */}
-          <TouchableOpacity style={s.askBar} onPress={()=>openChat('General')} activeOpacity={0.85}>
-            <View style={s.askAvatar}><Text style={{fontSize:13,color:'#fff'}}>{'\u2726'}</Text></View>
-            <Text style={s.askText}>Ask Zaeli anything...</Text>
-            <View style={s.askSend}><Text style={{fontSize:17,color:'#fff',lineHeight:20}}>{'\u2191'}</Text></View>
-          </TouchableOpacity>
-
-          <View style={{height:TAB_H+insets.bottom+12}}/>
         </Animated.View>
       </ScrollView>
+
+      {/* ── ASK ZAELI BAR — sticky at bottom ── */}
+      <View style={[s.askBarWrap,{paddingBottom: insets.bottom + 4}]}>
+        <TouchableOpacity style={s.askBar} onPress={()=>openChat('General')} activeOpacity={0.85}>
+          <View style={s.askDiamondWrap}>
+            <Text style={s.askDiamond}>{'\u2726'}</Text>
+          </View>
+          <Text style={s.askText}>Ask Zaeli anything...</Text>
+          <TouchableOpacity style={s.askMic} onPress={()=>{}} activeOpacity={0.7}>
+            <IcoMic/>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.askSend} onPress={()=>openChat('General')} activeOpacity={0.85}>
+            <IcoSend/>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+
     </SafeAreaView>
   );
 }
 
-// ── STYLES ─────────────────────────────────────────────────────
 const s=StyleSheet.create({
-  // ── HERO
-  hero:{backgroundColor:'#0057FF',paddingHorizontal:18,paddingTop:6,paddingBottom:20,overflow:'hidden'},
-  // Orb glow — two rings layered to simulate radial gradient
+  // HERO
+  hero:{backgroundColor:'#0057FF',paddingHorizontal:18,paddingTop:6,paddingBottom:20},
   heroOrbOuter:{position:'absolute',right:-70,top:-70,width:270,height:270,borderRadius:135,backgroundColor:'rgba(255,255,255,0.12)'},
   heroOrbInner:{position:'absolute',right:-30,top:-30,width:190,height:190,borderRadius:95,backgroundColor:'rgba(255,255,255,0.22)'},
   heroOrb2:{position:'absolute',right:32,top:68,width:105,height:105,borderRadius:52,backgroundColor:'rgba(255,255,255,0.14)'},
-  topRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start',marginBottom:4},
+
+  topRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:4},
   logoWrap:{flexDirection:'row',alignItems:'center',gap:8},
   logoMark:{width:44,height:44,backgroundColor:'rgba(255,255,255,0.2)',borderRadius:14,alignItems:'center',justifyContent:'center'},
   logoWord:{fontFamily:'DMSerifDisplay_400Regular',fontSize:30,color:'#fff',letterSpacing:-0.5},
-  weatherWrap:{alignItems:'flex-end',gap:2},
-  weatherIcon:{fontSize:30},
-  weatherTemp:{fontSize:15,fontFamily:'Poppins_600SemiBold',color:'rgba(255,255,255,0.85)'},
-  weatherDate:{fontSize:12,fontFamily:'Poppins_400Regular',color:'rgba(255,255,255,0.55)'},
-  greetLine:{fontFamily:'DMSerifDisplay_400Regular',fontSize:34,color:'rgba(255,255,255,0.75)',letterSpacing:-0.5,lineHeight:38,marginBottom:0},
-  nameLine:{fontFamily:'DMSerifDisplay_400Regular',fontSize:44,color:'#fff',letterSpacing:-1.5,lineHeight:50,marginBottom:18},
+  topRight:{flexDirection:'row',alignItems:'center',gap:10},
+  datePill:{flexDirection:'row',alignItems:'center',gap:6,backgroundColor:'rgba(255,255,255,0.12)',borderWidth:1,borderColor:'rgba(255,255,255,0.16)',borderRadius:20,paddingHorizontal:12,paddingVertical:5},
+  liveDotPill:{width:6,height:6,borderRadius:3,backgroundColor:'#00C97A'},
+  datePillTxt:{fontFamily:'Poppins_600SemiBold',fontSize:12,color:'rgba(255,255,255,0.8)'},
+
+  // Greeting — restored to original pre-nav sizing
+  greetLine:{fontFamily:'DMSerifDisplay_400Regular',fontSize:24,color:'rgba(255,255,255,0.72)',letterSpacing:-0.5,lineHeight:28,marginTop:14,marginBottom:0},
+  nameLine:{fontFamily:'DMSerifDisplay_400Regular',fontSize:36,color:'#fff',letterSpacing:-1.5,lineHeight:42,marginBottom:18},
   nameIcon:{fontSize:32},
 
-  // ── BODY
-  body:{backgroundColor:'#F7F7F7'},
+  // BODY
+  body:{backgroundColor:'#F7F7F7',flex:1,minHeight:600},
 
-  // ── ZAELI BRIEF CARD — white, fully rounded, floats inside hero with gap below
-  zaeliWrap:{paddingHorizontal:18},
-  zaeliCard:{
-    backgroundColor:'#fff',
-    borderRadius:22,
-    shadowColor:'#000',shadowOpacity:0.10,shadowRadius:20,shadowOffset:{width:0,height:4},
-    elevation:4,
-    paddingHorizontal:16,paddingTop:14,paddingBottom:16,
-    marginBottom:20,
-  },
+  // Brief card
+  zaeliCard:{backgroundColor:'#fff',borderRadius:22,shadowColor:'#000',shadowOpacity:0.10,shadowRadius:20,shadowOffset:{width:0,height:4},elevation:4,paddingHorizontal:16,paddingTop:14,paddingBottom:16,marginBottom:20},
   zaeliHead:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:12},
   zaeliName:{fontFamily:'DMSerifDisplay_400Regular',fontSize:16,color:'#0A0A0A'},
-  liveDot:{width:6,height:6,borderRadius:3,backgroundColor:'#00C97A',marginLeft:1},
+  cardLiveDot:{width:6,height:6,borderRadius:3,backgroundColor:'#00C97A',marginLeft:1},
   zaeliTime:{marginLeft:'auto' as any,fontFamily:'Poppins_400Regular',fontSize:11,color:'rgba(0,0,0,0.3)'},
-  // Each sentence rendered as its own block — see SentenceBrief component
   briefSentence:{fontFamily:'Poppins_400Regular',fontSize:14,color:'#1A1A2E',lineHeight:22,marginBottom:7},
   briefSentenceLast:{fontFamily:'Poppins_400Regular',fontSize:14,color:'#1A1A2E',lineHeight:22,marginBottom:0},
   briefWrap:{marginBottom:16},
   loadingRow:{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:10},
   loadingTxt:{fontFamily:'Poppins_400Regular',fontSize:13,color:'rgba(0,0,0,0.38)'},
-
-  // CTA buttons
   zaeliActions:{flexDirection:'row',gap:10},
   ctaPrimary:{flex:1,backgroundColor:'#E0007C',borderRadius:14,paddingVertical:13,alignItems:'center',justifyContent:'center'},
   ctaPrimaryTxt:{fontFamily:'Poppins_600SemiBold',fontSize:13,color:'#fff',textAlign:'center'},
   ctaGhost:{flex:1,backgroundColor:'rgba(0,0,0,0.055)',borderRadius:14,paddingVertical:13,alignItems:'center',justifyContent:'center',borderWidth:1.5,borderColor:'rgba(0,0,0,0.09)'},
   ctaGhostTxt:{fontFamily:'Poppins_500Medium',fontSize:13,color:'rgba(0,0,0,0.45)',textAlign:'center'},
-
-  // Relaxed card
   relaxedCard:{backgroundColor:'#fff',borderRadius:22,paddingHorizontal:16,paddingTop:14,paddingBottom:14,marginBottom:20,shadowColor:'#000',shadowOpacity:0.06,shadowRadius:12,shadowOffset:{width:0,height:3},elevation:2,gap:12},
   relaxedInner:{flexDirection:'row',alignItems:'flex-start',gap:10},
   relaxedAvatar:{width:28,height:28,borderRadius:9,backgroundColor:'#E8ECFF',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1},
@@ -746,35 +616,32 @@ const s=StyleSheet.create({
   relaxedBtn:{backgroundColor:'rgba(0,87,255,0.08)',borderRadius:13,paddingVertical:12,alignItems:'center',justifyContent:'center'},
   relaxedBtnTxt:{fontFamily:'Poppins_600SemiBold',fontSize:13,color:'#0057FF',textAlign:'center' as any},
 
-  // ── FOUR TILES — 2×2 grid
+  // Tiles
   tilesGrid:{flexDirection:'row',flexWrap:'wrap',gap:12,paddingHorizontal:18,paddingTop:20},
-  tile:{backgroundColor:'#fff',borderRadius:18,paddingHorizontal:14,paddingVertical:16,borderWidth:1.5,borderColor:'rgba(0,0,0,0.06)',shadowColor:'#000',shadowOpacity:0.04,shadowRadius:8,shadowOffset:{width:0,height:2},elevation:1,position:'relative',overflow:'hidden',justifyContent:'flex-end'},
+  tile:{backgroundColor:'#fff',borderRadius:18,paddingHorizontal:14,paddingVertical:14,borderWidth:1.5,borderColor:'rgba(0,0,0,0.06)',shadowColor:'#000',shadowOpacity:0.04,shadowRadius:8,shadowOffset:{width:0,height:2},elevation:1,position:'relative',overflow:'hidden',justifyContent:'space-between'},
   tilePip:{position:'absolute',top:10,right:10,width:8,height:8,borderRadius:4,backgroundColor:'#E0007C'},
-  tileIcon:{fontSize:28,marginBottom:6},
-  tileLabel:{fontFamily:'Poppins_700Bold',fontSize:10,letterSpacing:1.2,textTransform:'uppercase',color:'rgba(0,0,0,0.28)',marginBottom:6},
-  tileVal:{fontFamily:'Poppins_700Bold',fontSize:20,color:'#0A0A0A',lineHeight:26},
+  tileIcon:{fontSize:26},
+  tileBottom:{gap:4},
+  tileLabel:{fontFamily:'Poppins_700Bold',fontSize:10,letterSpacing:1.2,textTransform:'uppercase',color:'rgba(0,0,0,0.28)',marginTop:10},
+  tileVal:{fontFamily:'Poppins_700Bold',fontSize:19,color:'#0A0A0A',lineHeight:24},
   tileValWarn:{color:'#E0007C'},
-  tileSub:{fontFamily:'Poppins_400Regular',fontSize:12,color:'rgba(0,0,0,0.38)',marginTop:4},
+  tileSub:{fontFamily:'Poppins_400Regular',fontSize:12,color:'rgba(0,0,0,0.38)'},
   tileSubCta:{color:'#0057FF',fontFamily:'Poppins_600SemiBold'},
 
-  // ── ON THE RADAR — FIX #7: bigger headers and more generous spacing
-  radarSection:{paddingHorizontal:18,paddingTop:20},
+  // Radar
+  radarSection:{paddingHorizontal:18,paddingTop:20,paddingBottom:24},
   radarHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:12},
-  radarTitle:{fontFamily:'Poppins_700Bold',fontSize:16,color:'#0A0A0A'},   // was 12, now 16
+  radarTitle:{fontFamily:'Poppins_700Bold',fontSize:16,color:'#0A0A0A'},
   radarLink:{fontFamily:'Poppins_600SemiBold',fontSize:13,color:'#0057FF'},
   radarBand:{backgroundColor:'#fff',borderRadius:20,overflow:'hidden',borderWidth:1.5,borderColor:'rgba(0,0,0,0.06)',shadowColor:'#000',shadowOpacity:0.04,shadowRadius:8,shadowOffset:{width:0,height:2},elevation:1},
-
-  // Section sub-headers — matched to calendar slbl
   radarSection2Hdr:{paddingHorizontal:16,paddingTop:14,paddingBottom:6},
   radarSection2Label:{fontFamily:'Poppins_700Bold',fontSize:10,letterSpacing:1.5,textTransform:'uppercase',color:'rgba(0,0,0,0.28)'},
-
-  // Radar rows — matched to calendar day view (eventItem/evName/evMeta)
   radarRow:{flexDirection:'row',alignItems:'center',gap:14,paddingHorizontal:16,paddingVertical:14,borderBottomWidth:1,borderBottomColor:'rgba(0,0,0,0.05)'},
   radarBar:{width:3,borderRadius:2,alignSelf:'stretch',minHeight:36,flexShrink:0},
   radarIcon:{fontSize:18,width:26,textAlign:'center' as any},
   radarContent:{flex:1,minWidth:0},
-  radarRowTitle:{fontFamily:'Poppins_600SemiBold',fontSize:14,color:'#0A0A0A',lineHeight:20},  // matches evName exactly
-  radarMeta:{fontFamily:'Poppins_400Regular',fontSize:11,color:'rgba(0,0,0,0.50)',marginTop:2},  // matches evMeta exactly
+  radarRowTitle:{fontFamily:'Poppins_600SemiBold',fontSize:14,color:'#0A0A0A',lineHeight:20},
+  radarMeta:{fontFamily:'Poppins_400Regular',fontSize:11,color:'rgba(0,0,0,0.50)',marginTop:2},
   radarBadge:{borderRadius:100,paddingHorizontal:10,paddingVertical:4,flexShrink:0},
   radarBadgeTxt:{fontFamily:'Poppins_700Bold',fontSize:11},
   dismissBtn:{width:24,height:24,borderRadius:12,backgroundColor:'rgba(0,0,0,0.07)',alignItems:'center',justifyContent:'center',flexShrink:0},
@@ -782,9 +649,16 @@ const s=StyleSheet.create({
   radarEmpty:{padding:22,alignItems:'center'},
   radarEmptyTxt:{fontFamily:'Poppins_400Regular',fontSize:14,color:'rgba(0,0,0,0.35)',textAlign:'center' as any},
 
-  // ── ASK ZAELI BAR — FIX #8: tight bottom clearance, no extra whitespace
-  askBar:{marginHorizontal:18,marginTop:14,marginBottom:0,backgroundColor:'#fff',borderRadius:18,paddingVertical:12,paddingHorizontal:12,flexDirection:'row',alignItems:'center',gap:10,borderWidth:1.5,borderColor:'rgba(0,87,255,0.18)',shadowColor:'#0057FF',shadowOpacity:0.07,shadowRadius:16,shadowOffset:{width:0,height:2},elevation:2},
-  askAvatar:{width:32,height:32,borderRadius:10,backgroundColor:'#0057FF',alignItems:'center',justifyContent:'center',flexShrink:0},
-  askText:{flex:1,fontFamily:'Poppins_400Regular',fontSize:14,color:'rgba(0,0,0,0.28)'},
-  askSend:{width:32,height:32,borderRadius:10,backgroundColor:'#0057FF',alignItems:'center',justifyContent:'center',flexShrink:0},
+  askBarWrap:{
+    position:'absolute', bottom:0, left:0, right:0,
+    paddingHorizontal:16, paddingTop:10,
+    backgroundColor:'#F7F7F7',
+    borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.07)',
+  },
+  askBar:{backgroundColor:'#fff',borderRadius:22,paddingVertical:11,paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1.5,borderColor:'rgba(0,0,0,0.10)',shadowColor:'#000',shadowOpacity:0.06,shadowRadius:12,shadowOffset:{width:0,height:2},elevation:2},
+  askDiamondWrap:{width:20,alignItems:'center',justifyContent:'center'},
+  askDiamond:{fontSize:15,color:'#0057FF'},
+  askText:{flex:1,fontFamily:'Poppins_400Regular',fontSize:15,color:'rgba(0,0,0,0.28)'},
+  askMic:{width:36,height:36,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,0.06)',borderRadius:11,flexShrink:0},
+  askSend:{width:36,height:36,borderRadius:11,backgroundColor:'#0057FF',alignItems:'center',justifyContent:'center',flexShrink:0,shadowColor:'#0057FF',shadowOpacity:0.3,shadowRadius:6,shadowOffset:{width:0,height:2}},
 });

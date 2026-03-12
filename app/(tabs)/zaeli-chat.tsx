@@ -29,8 +29,7 @@ import { supabase } from '../../lib/supabase';
 import { buildMemoryContext, saveConversation } from '../../lib/zaeli-memory';
 
 const DUMMY_FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
-// TODO (pre-US launch): Replace hardcoded AEST offset with family.timezone from profile
-const DUMMY_MEMBER_NAME = 'Natalie';
+const DUMMY_MEMBER_NAME = 'Anna';
 
 const C = {
   blue:   '#0057FF', mag:    '#E0007C', ink:    '#0A0A0A',
@@ -40,9 +39,6 @@ const C = {
 };
 
 // ── SVG ICON COMPONENTS ──────────────────────────────────────
-// Matching the HTML mockup exactly: 12px SVGs inside 24px hit targets
-// stroke:rgba(0,0,0,0.28), strokeWidth:1.8, fill:none
-
 const ICON_SIZE = 15;
 const ICON_COLOR = 'rgba(0,0,0,0.28)';
 const ICON_STROKE = 1.8;
@@ -107,7 +103,6 @@ function IcoCheck({ color = C.green }: { color?: string }) {
   );
 }
 
-// Back arrow — larger, 20px to match HTML .back-b svg{width:20px;height:20px}
 function IcoBack() {
   return (
     <Svg width={20} height={20} viewBox="0 0 24 24">
@@ -116,7 +111,6 @@ function IcoBack() {
   );
 }
 
-// Microphone — matching HTML: rect + path for proper mic shape
 function IcoMic({ color = 'rgba(0,0,0,0.45)' }: { color?: string }) {
   return (
     <Svg width={18} height={18} viewBox="0 0 24 24">
@@ -128,7 +122,6 @@ function IcoMic({ color = 'rgba(0,0,0,0.45)' }: { color?: string }) {
   );
 }
 
-// Send arrow up
 function IcoSend() {
   return (
     <Svg width={16} height={16} viewBox="0 0 24 24">
@@ -138,7 +131,6 @@ function IcoSend() {
   );
 }
 
-// Chevron down for scroll btn
 function IcoDown() {
   return (
     <Svg width={11} height={11} viewBox="0 0 24 24">
@@ -238,28 +230,46 @@ const TOOL_DEFINITIONS = [
     input_schema:{ type:'object', properties:{ day_key:{type:'string',description:'YYYY-MM-DD'}, meal_type:{type:'string',enum:['breakfast','lunch','dinner','snack']}, title:{type:'string'}, notes:{type:'string'} }, required:['day_key','meal_type','title'] } },
   { name:'complete_todo', description:'Mark a task as complete',
     input_schema:{ type:'object', properties:{ title:{type:'string'} }, required:['title'] } },
+  { name:'update_calendar_event', description:'Update an existing calendar event — change time, date, duration, or title. Use this instead of adding a new event when the user wants to reschedule or edit.',
+    input_schema:{ type:'object', properties:{
+      search_title: { type:'string', description:'Title to search for (partial match ok)' },
+      new_title:    { type:'string', description:'New title if changing' },
+      new_start_time:{ type:'string', description:'New start time ISO 8601 local e.g. 2026-03-15T12:00:00' },
+      new_end_time:  { type:'string', description:'New end time ISO 8601 local' },
+      new_date:     { type:'string', description:'New date YYYY-MM-DD if moving to different day' },
+      new_notes:    { type:'string' },
+    }, required:['search_title'] } },
+  { name:'delete_calendar_event', description:'Delete a specific calendar event by title and optionally date',
+    input_schema:{ type:'object', properties:{
+      search_title: { type:'string', description:'Title to search for (partial match ok)' },
+      date:         { type:'string', description:'YYYY-MM-DD to narrow to specific occurrence — use this for recurring events' },
+    }, required:['search_title'] } },
+  { name:'add_recurring_event', description:'Add a recurring event (weekly, fortnightly, monthly) — books individual rows from today until end of current year',
+    input_schema:{ type:'object', properties:{
+      title:     { type:'string' },
+      frequency: { type:'string', enum:['weekly','fortnightly','monthly'], description:'How often the event repeats' },
+      start_time:{ type:'string', description:'ISO 8601 local time for first occurrence e.g. 2026-03-12T21:00:00' },
+      duration_minutes: { type:'number', description:'Duration in minutes, default 60' },
+      notes:     { type:'string' },
+    }, required:['title','frequency','start_time'] } },
 ];
 
 // ── TOOL EXECUTOR ─────────────────────────────────────────────
 async function executeTool(name: string, input: any): Promise<string> {
   try {
     if (name === 'add_calendar_event') {
-      // Strip any timezone suffix (Z or +HH:MM) before extracting date
       const localDt  = (input.start_time || '').replace('Z','').split('+')[0];
       const dateOnly = localDt.replace('T',' ').split(' ')[0] || new Date().toISOString().split('T')[0];
-      console.log('=== CHAT EVENT SAVE ===');
-      console.log('Raw input:', JSON.stringify(input));
-      console.log('localDt:', localDt, 'dateOnly:', dateOnly);
-      const { error } = await supabase.from('events').insert({ 
-        family_id:  DUMMY_FAMILY_ID, 
-        title:      input.title, 
+      const { error } = await supabase.from('events').insert({
+        family_id:  DUMMY_FAMILY_ID,
+        title:      input.title,
         date:       dateOnly,
         start_time: localDt,
-        end_time:   (input.end_time || input.start_time).replace('Z','').split('+')[0], 
-        notes:      input.notes || '' 
+        end_time:   (input.end_time || input.start_time).replace('Z','').split('+')[0],
+        notes:      input.notes || '',
+        timezone:   'Australia/Brisbane',  // ← timezone column added
       });
-      if (error) { console.log('Chat event insert error:', JSON.stringify(error)); throw error; }
-      console.log('=== CHAT EVENT SAVED OK ===');
+      if (error) throw error;
       return `✅ **${input.title}** added to the calendar.`;
     }
     if (name === 'add_shopping_item') {
@@ -285,6 +295,48 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (error) throw error;
       return `✅ **${input.title}** added to meal planner for ${input.day_key}.`;
     }
+    if (name === 'update_calendar_event') {
+      const { data } = await supabase.from('events').select('id,title,date,start_time,end_time')
+        .eq('family_id', DUMMY_FAMILY_ID)
+        .ilike('title', `%${input.search_title}%`)
+        .order('date')
+        .limit(5);
+      if (!data || data.length === 0) return `Couldn't find an event matching "${input.search_title}".`;
+      // Pick best match — prefer upcoming, or closest to provided date
+      const target = data[0];
+      const updates: any = {};
+      if (input.new_title)      updates.title      = input.new_title;
+      if (input.new_notes)      updates.notes      = input.new_notes;
+      if (input.new_start_time) updates.start_time = input.new_start_time.replace('Z','').split('+')[0];
+      if (input.new_end_time)   updates.end_time   = input.new_end_time.replace('Z','').split('+')[0];
+      if (input.new_date) {
+        updates.date = input.new_date;
+        // Shift start/end times to new date if only date changed
+        if (!input.new_start_time && target.start_time) {
+          const timePart = target.start_time.split('T')[1] || '12:00:00';
+          updates.start_time = `${input.new_date}T${timePart}`;
+        }
+        if (!input.new_end_time && target.end_time) {
+          const timePart = target.end_time.split('T')[1] || '13:00:00';
+          updates.end_time = `${input.new_date}T${timePart}`;
+        }
+      }
+      const { error } = await supabase.from('events').update(updates).eq('id', target.id);
+      if (error) throw error;
+      return `✅ **${input.new_title || target.title}** updated successfully.`;
+    }
+    if (name === 'delete_calendar_event') {
+      let query = supabase.from('events').select('id,title,date')
+        .eq('family_id', DUMMY_FAMILY_ID)
+        .ilike('title', `%${input.search_title}%`);
+      if (input.date) query = query.eq('date', input.date);
+      query = query.order('date').limit(1);
+      const { data } = await query;
+      if (!data || data.length === 0) return `Couldn't find an event matching "${input.search_title}"${input.date ? ` on ${input.date}` : ''}.`;
+      const { error } = await supabase.from('events').delete().eq('id', data[0].id);
+      if (error) throw error;
+      return `✅ **${data[0].title}** on ${data[0].date} deleted.`;
+    }
     if (name === 'complete_todo') {
       const { data } = await supabase.from('todos').select('id,title').eq('family_id',DUMMY_FAMILY_ID).eq('status','active').ilike('title',`%${input.title}%`).limit(1);
       if (data && data.length > 0) {
@@ -292,6 +344,61 @@ async function executeTool(name: string, input: any): Promise<string> {
         return `✅ Marked **${data[0].title}** as complete!`;
       }
       return `Couldn't find a task matching "${input.title}".`;
+    }
+    if (name === 'add_recurring_event') {
+      const localDt   = (input.start_time || '').replace('Z','').split('+')[0];
+      const durMins   = input.duration_minutes || 60;
+      const frequency = input.frequency || 'weekly';
+      // Step interval in days
+      const stepDays  = frequency === 'weekly' ? 7 : frequency === 'fortnightly' ? 14 : null;
+      const stepMonths = frequency === 'monthly' ? 1 : null;
+
+      // Parse first occurrence date/time
+      const firstDate = new Date(localDt);
+      const endOfYear = new Date(firstDate.getFullYear(), 11, 31, 23, 59, 59);
+
+      const rows: any[] = [];
+      let cur = new Date(firstDate);
+
+      while (cur <= endOfYear) {
+        const pad = (n: number) => String(n).padStart(2,'0');
+        const dateOnly  = `${cur.getFullYear()}-${pad(cur.getMonth()+1)}-${pad(cur.getDate())}`;
+        const startISO  = `${dateOnly}T${pad(cur.getHours())}:${pad(cur.getMinutes())}:00`;
+        const endDate   = new Date(cur.getTime() + durMins * 60000);
+        const endISO    = `${endDate.getFullYear()}-${pad(endDate.getMonth()+1)}-${pad(endDate.getDate())}T${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:00`;
+
+        rows.push({
+          family_id:  DUMMY_FAMILY_ID,
+          title:      input.title,
+          date:       dateOnly,
+          start_time: startISO,
+          end_time:   endISO,
+          notes:      input.notes || `Recurring ${frequency}`,
+          timezone:   'Australia/Brisbane',
+        });
+
+        // Advance to next occurrence
+        if (stepDays) {
+          cur = new Date(cur.getTime() + stepDays * 24 * 60 * 60 * 1000);
+        } else if (stepMonths) {
+          cur = new Date(cur);
+          cur.setMonth(cur.getMonth() + 1);
+        } else {
+          break;
+        }
+      }
+
+      // Bulk insert in batches of 50 to avoid request size limits
+      const BATCH = 50;
+      let insertedCount = 0;
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const { error } = await supabase.from('events').insert(rows.slice(i, i + BATCH));
+        if (error) throw error;
+        insertedCount += Math.min(BATCH, rows.length - i);
+      }
+
+      const endYearStr = `31 Dec ${firstDate.getFullYear()}`;
+      return `✅ **${input.title}** booked ${frequency} — **${insertedCount} occurrences** added through ${endYearStr}. I'll remind you near year-end to renew for next year.`;
     }
     return `Tool ${name} not yet implemented.`;
   } catch (e:any) {
@@ -301,10 +408,13 @@ async function executeTool(name: string, input: any): Promise<string> {
 }
 
 const CAPABILITY_RULES = `CRITICAL CAPABILITY RULES — never violate:
-- Zaeli CANNOT make phone calls. NEVER say "I'll call...", "calling the school/office/anyone", "I'm calling...", or show [initiating call...]. This is not possible.
+- Zaeli CANNOT make phone calls. NEVER say "I'll call...", "calling...", or show [initiating call...].
 - Zaeli CANNOT send messages, emails or texts autonomously. She can DRAFT them for the user to send.
-- Zaeli CAN take these autonomous actions only: add calendar events, add todos/tasks, add shopping items, add meal plans.
-- If something requires a call, offer to help the user know what to say or draft a message instead.`;
+- Zaeli CANNOT set phone reminders or notification alerts. Do NOT offer to "draft a reminder", "set a reminder", or "send a reminder" about calendar events — the calendar entry IS the reminder. Never use the word "reminder" when referring to a calendar event.
+- Zaeli CAN take these autonomous actions: add/update/delete calendar events, add todos/tasks, add shopping items, add meal plans.
+- EDITING EVENTS: When the user wants to reschedule, change time/duration, or rename an event — use update_calendar_event. NEVER add a new event and leave the old one. Always update in place.
+- RESCHEDULING: If user says "make it Saturday" or "change to 2 hours" — use update_calendar_event, not add_calendar_event.
+- If something requires a phone call, offer to help the user know what to say or draft a note/email instead.`;
 
 // ── CHANNEL CONFIG ───────────────────────────────────────────
 const CHANNELS: Record<string,{ icon:string; prompt:string; seeds:string[] }> = {
@@ -353,19 +463,30 @@ export default function ZaeliChatScreen() {
 
   useEffect(() => {
     if (seedMessage) {
+      setChannelMessages(prev => ({ ...prev, [activeCtx]: [] }));
+      setLoadedChans(prev => { const n = new Set(prev); n.delete(activeCtx); return n; });
       loadBriefContinuation(activeCtx, seedMessage);
+    } else if (loadedChans.has(activeCtx)) {
+      const opts = [
+        'Hey, back again! What else can I help with? 😊',
+        'Hey! What can I do for you? ✨',
+        "I'm here — what's on your mind?",
+        'Back! What do you need?',
+        'Hey, what else can I sort for you?',
+      ];
+      const note = opts[Math.floor(Math.random() * opts.length)];
+      addMsg(activeCtx, { role:'assistant', text: note, ts: new Date().toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase() });
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 100);
     } else {
       loadChannelGreeting(activeCtx);
     }
   }, []);
 
   useEffect(() => {
-    // Don't re-trigger greeting if seed already loaded this channel
     if (!loadedChans.has(activeCtx) && !seedMessage) loadChannelGreeting(activeCtx);
     else setTimeout(() => scrollRef.current?.scrollToEnd({ animated:false }), 50);
   }, [activeCtx]);
-
-  // ── BRIEF CONTINUATION — picks up where the home brief left off ──
+  // ── BRIEF CONTINUATION ────────────────────────────────────
   const loadBriefContinuation = async (channel: string, brief: string) => {
     setLoadedChans(prev => new Set([...prev, channel]));
     setLoading(true);
@@ -389,13 +510,15 @@ export default function ZaeliChatScreen() {
         headers:{ 'Content-Type':'application/json','x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
         body:JSON.stringify({
           model:'claude-sonnet-4-20250514', max_tokens:200,
-          system:`You are Zaeli — warm, brilliant, sparkling family assistant. Anne Hathaway energy. Australian warmth. You just showed ${DUMMY_MEMBER_NAME} her home screen brief and she tapped the primary button to get your help. You are continuing that conversation — do NOT re-introduce yourself, do NOT say good morning again, do NOT start from scratch. Pick up exactly where the brief left off. Acknowledge what she said yes to, and immediately start helping — warmly, specifically, with your signature spark. Use tools if you can take action right now (add to calendar, shopping list, todos — never send messages or make calls). Max 2 sentences to open, then get into it.
+          system:`You are Zaeli — warm, brilliant, sparkling family assistant. Anne Hathaway energy. Australian warmth. The user has opened the calendar to book a new event. Get straight into it — friendly, warm, and ask what they'd like to book. Keep it to 1-2 sentences max.
 
-CRITICAL CAPABILITY RULES — never violate these:
-- Zaeli CANNOT make phone calls. NEVER say "I'll call...", "calling the school", "I'm calling...", or show [initiating call...]. This is not a capability Zaeli has.
-- Zaeli CANNOT send messages or emails autonomously. She can DRAFT them for the user to send.
-- Zaeli CAN: add calendar events, todos, shopping items, meal plans. That's it for autonomous actions.
-- If something requires a phone call, offer to help the user know what to say, or draft a note/email instead.
+IMPORTANT DATE RULE: The seed message contains the exact date the user wants. Use THAT date — do not assume today's date.
+
+RECURRING EVENTS: If the user wants something weekly, fortnightly, or monthly — use add_recurring_event. This books all occurrences through 31 Dec of the current year. Proactively offer this for routines (bins, school pickup, sport, etc).
+
+EDITING EVENTS: If the user wants to change time/duration/date of an existing event — use update_calendar_event. Never create a duplicate. Never leave the old entry.
+
+${CAPABILITY_RULES}
 
 Context: ${ctx}`,
           messages:[{ role:'user', content:`Here is the brief I just showed her:\n\n${brief}\n\nShe tapped yes to get my help. Continue the conversation from here.` }],
@@ -470,9 +593,14 @@ Context: ${ctx}`,
       const ctx = `Family:${JSON.stringify(memR.data)}. Events:${JSON.stringify(evR.data)}. Tasks:${JSON.stringify(miR.data)}. Shopping:${JSON.stringify(shR.data)}. Today local date: ${localDateStr}. Current local time: ${localTimeStr}. Timezone: ${tzOffset}.${memCtx}`;
       const history = next.slice(-10).map(m => ({ role:m.role, content:m.content }));
 
-      const systemPrompt = `${CHANNELS[activeCtx].prompt} Be warm, specific, concise — 1-3 sentences unless more is needed. Bold key info with **word**. If the user asks for MULTIPLE things, use tools for ALL of them — do not stop after the first. CRITICAL: The user is in ${tzOffset}. Always generate start_time and end_time as LOCAL time in ISO 8601 format WITHOUT any timezone suffix — e.g. 2026-03-11T18:45:00 NOT 2026-03-11T08:45:00Z. Context: ${ctx}`;
+      const systemPrompt = `${CHANNELS[activeCtx].prompt} Be warm, specific, concise — 1-3 sentences unless more is needed. Bold key info with **word**. If the user asks for MULTIPLE things, use tools for ALL of them — do not stop after the first.
 
-      // Agentic loop — keep calling until no more tool_use
+EDITING RULES (critical): When the user wants to reschedule, change time, change duration, or rename an existing event — ALWAYS use update_calendar_event. Never add a duplicate. Never leave the original event. One event per booking.
+
+RECURRING EVENTS: If the user mentions anything weekly, fortnightly, or monthly — use add_recurring_event. This books all occurrences from the first date through 31 Dec of the current year.
+
+CRITICAL: The user is in ${tzOffset}. Always generate start_time/end_time as LOCAL time in ISO 8601 WITHOUT any timezone suffix — e.g. 2026-03-15T12:00:00. Context: ${ctx}`;
+
       let loopMessages = history.map((m: any) => ({ role: m.role, content: m.content }));
       let finalReply = '';
       const toolResults: string[] = [];
@@ -486,13 +614,11 @@ Context: ${ctx}`,
         const d = await res.json();
 
         if (d.stop_reason === 'tool_use') {
-          // Show any text Claude wrote before the tool call
           const textBlock = d.content.find((b:any) => b.type === 'text');
           if (textBlock?.text) {
             setMessages(prev => [...prev, { id:(Date.now()+turn).toString(), role:'assistant', content:textBlock.text, time:getTime() }]);
           }
 
-          // Execute ALL tool calls in this response (Claude may call multiple at once)
           const toolBlocks = d.content.filter((b:any) => b.type === 'tool_use');
           const toolResultContents: any[] = [];
 
@@ -503,14 +629,12 @@ Context: ${ctx}`,
             toolResultContents.push({ type:'tool_result', tool_use_id:toolBlock.id, content:result });
           }
 
-          // Append assistant turn + tool results to loop history and continue
           loopMessages = [...loopMessages,
             { role:'assistant', content: d.content },
             { role:'user',      content: toolResultContents },
           ];
 
         } else {
-          // No more tools — get final text reply
           finalReply = d.content?.[0]?.text || '';
           break;
         }
@@ -521,13 +645,11 @@ Context: ${ctx}`,
       }
       saveConversation(DUMMY_FAMILY_ID, msg, toolResults.join(' | ') || finalReply);
 
-      // Recipe detection on final reply
       for (const recipe of extractRecipes(finalReply)) {
         setMessages(prev => [...prev, { id:(Date.now()+15+Math.random()).toString(), role:'assistant',
           content:`💾 Want me to save **${recipe.title}** to your recipes?`, time:getTime(), recipeData:recipe }]);
       }
 
-      // Reminder detection
       try {
         const reminder = await detectReminderIntent(msg, finalReply, DUMMY_FAMILY_ID);
         if (reminder) {
@@ -551,7 +673,6 @@ Context: ${ctx}`,
 
   const retry = async () => {
     const lastUser = [...messages].reverse().find(m => m.role==='user');
-    // No user message yet — just refresh the greeting
     if (!lastUser) {
       setMessages([]);
       setLoadedChans(prev => { const s = new Set(prev); s.delete(activeCtx); return s; });
@@ -587,7 +708,6 @@ Context: ${ctx}`,
 
       {/* ── HEADER ── */}
       <View style={s.hdr}>
-        {/* Option B back button: 34×34 box, perfectly centred 20px SVG arrow */}
         <TouchableOpacity style={s.backBtn} onPress={() => router.push(returnTo as any)} activeOpacity={0.7}>
           <IcoBack/>
         </TouchableOpacity>
@@ -655,34 +775,24 @@ Context: ${ctx}`,
                   </View>
                 </View>
 
-                {/* ── Zaeli bubble actions: Play · Copy · Forward | 👍 👎 ↺ ── */}
                 {isZaeli && !m.isToolMsg && (
                   <View style={s.actRow}>
-                    {/* Play */}
                     <TouchableOpacity style={s.actBtn} onPress={()=>{}} activeOpacity={0.6}>
                       <IcoPlay/>
                     </TouchableOpacity>
-                    {/* Copy */}
                     <TouchableOpacity style={s.actBtn} onPress={()=>copyMessage(m.id,m.content)} activeOpacity={0.6}>
                       {isCopied ? <IcoCheck/> : <IcoCopy/>}
                     </TouchableOpacity>
-                    {/* Forward */}
                     <TouchableOpacity style={s.actBtn} onPress={()=>forwardMessage(m.content)} activeOpacity={0.6}>
                       <IcoForward/>
                     </TouchableOpacity>
-
-                    {/* Separator */}
                     <View style={s.actSep}/>
-
-                    {/* Thumbs up */}
                     <TouchableOpacity style={s.actBtn} onPress={()=>giveFeedback(m.id,'up')} activeOpacity={0.6}>
                       <IcoThumbUp color={fb==='up' ? C.blue : ICON_COLOR}/>
                     </TouchableOpacity>
-                    {/* Thumbs down */}
                     <TouchableOpacity style={s.actBtn} onPress={()=>giveFeedback(m.id,'down')} activeOpacity={0.6}>
                       <IcoThumbDown color={fb==='down' ? C.mag : ICON_COLOR}/>
                     </TouchableOpacity>
-                    {/* Retry — last message only */}
                     {isLast && (
                       <TouchableOpacity style={s.actBtn} onPress={retry} activeOpacity={0.6}>
                         <IcoRetry/>
@@ -691,7 +801,6 @@ Context: ${ctx}`,
                   </View>
                 )}
 
-                {/* ── User bubble actions: Copy · Forward ── */}
                 {!isZaeli && (
                   <View style={[s.actRow, {justifyContent:'flex-end'}]}>
                     <TouchableOpacity style={s.actBtn} onPress={()=>copyMessage(m.id,m.content)} activeOpacity={0.6}>
@@ -714,7 +823,6 @@ Context: ${ctx}`,
             );
           })}
 
-          {/* Typing indicator */}
           {loading && (
             <View style={s.bubbleRow}>
               <View style={s.bubbleAv}><Text style={s.bubbleAvStar}>✦</Text></View>
@@ -728,7 +836,6 @@ Context: ${ctx}`,
           )}
         </ScrollView>
 
-        {/* Scroll to bottom pill */}
         {showScrollBtn && (
           <TouchableOpacity style={s.scrollBtn} activeOpacity={0.8}
             onPress={()=>scrollRef.current?.scrollToEnd({animated:true})}>
@@ -747,11 +854,9 @@ Context: ${ctx}`,
               placeholder="Ask Zaeli anything…" placeholderTextColor={C.ink3} multiline
               returnKeyType="send" onSubmitEditing={()=>send()}
               onFocus={()=>{ setShowHints(false); setTimeout(()=>scrollRef.current?.scrollToEnd({animated:true}),350); }}/>
-            {/* Real SVG mic icon */}
             <TouchableOpacity style={s.micBtn} activeOpacity={0.7} onPress={()=>{}}>
               <IcoMic/>
             </TouchableOpacity>
-            {/* Send */}
             <TouchableOpacity style={[s.sendBtn, (!input.trim()||loading)&&{opacity:0.4}]}
               onPress={()=>send()} disabled={!input.trim()||loading} activeOpacity={0.8}>
               <IcoSend/>
@@ -777,7 +882,6 @@ Context: ${ctx}`,
 const s = StyleSheet.create({
   safe:    { flex:1, backgroundColor:'#fff' },
 
-  // Header — Option B back button: 34×34, centered, blue-tinted box
   hdr:      { flexDirection:'row', alignItems:'center', gap:12, paddingHorizontal:16, paddingVertical:12, backgroundColor:'#fff', borderBottomWidth:1, borderBottomColor:C.border },
   backBtn:  { width:34, height:34, alignItems:'center', justifyContent:'center', backgroundColor:'rgba(0,87,255,0.07)', borderRadius:11 },
   av:       { width:42, height:42, borderRadius:13, backgroundColor:C.blue, alignItems:'center', justifyContent:'center', shadowColor:C.blue, shadowOpacity:0.35, shadowRadius:10, shadowOffset:{width:0,height:4} },
@@ -785,18 +889,15 @@ const s = StyleSheet.create({
   hdrName:  { fontFamily:'DMSerifDisplay_400Regular', fontSize:24, color:C.ink, lineHeight:28 },
   hdrStatus:{ fontFamily:'Poppins_600SemiBold', fontSize:11, color:C.green },
 
-  // Channel bar
   ctxBar:       { backgroundColor:'rgba(0,87,255,0.04)', borderBottomWidth:1, borderBottomColor:C.border, flexGrow:0 },
   ctxChip:      { paddingHorizontal:11, paddingVertical:5, borderRadius:20, backgroundColor:'#fff', borderWidth:1.5, borderColor:'rgba(0,0,0,0.10)' },
   ctxChipOn:    { backgroundColor:C.blue, borderColor:C.blue },
   ctxChipTxt:   { fontFamily:'Poppins_600SemiBold', fontSize:11, color:C.ink2 },
   ctxChipTxtOn: { color:'#fff' },
 
-  // Chat
   chatScroll: { flex:1, backgroundColor:C.chatBg },
   dateSep:    { fontFamily:'Poppins_700Bold', fontSize:10, color:C.ink3, textTransform:'uppercase', letterSpacing:1.2, textAlign:'center', marginBottom:16 },
 
-  // Bubbles
   bubbleRow:      { flexDirection:'row', gap:9, alignItems:'flex-end' },
   bubbleRowRight: { flexDirection:'row-reverse' },
   bubbleAv:       { width:32, height:32, borderRadius:10, backgroundColor:C.blue, alignItems:'center', justifyContent:'center', flexShrink:0, shadowColor:C.blue, shadowOpacity:0.2, shadowRadius:6, shadowOffset:{width:0,height:2} },
@@ -810,22 +911,17 @@ const s = StyleSheet.create({
   recipeBtn:    { marginTop:6, marginLeft:41, alignSelf:'flex-start', backgroundColor:'rgba(0,87,255,0.07)', borderRadius:20, paddingHorizontal:12, paddingVertical:6, borderWidth:1, borderColor:'rgba(0,87,255,0.15)' },
   recipeBtnTxt: { fontFamily:'Poppins_600SemiBold', fontSize:12, color:C.blue },
 
-  // Action row — 30×30 hit targets, 15px SVG icons
   actRow: { flexDirection:'row', alignItems:'center', marginLeft:41, marginTop:3, marginBottom:8 },
   actBtn: { width:30, height:30, alignItems:'center', justifyContent:'center', borderRadius:8 },
-  // actIcon no longer used — all SVG components
   actSep: { width:1, height:10, backgroundColor:'rgba(0,0,0,0.10)', marginHorizontal:4 },
 
-  // Typing
   typingBubble: { backgroundColor:'rgba(0,87,255,0.05)', borderWidth:1.5, borderColor:'rgba(0,87,255,0.12)', borderRadius:4, borderTopRightRadius:18, borderBottomLeftRadius:18, borderBottomRightRadius:18, paddingHorizontal:14, paddingVertical:11 },
   typingLabel:  { fontFamily:'Poppins_700Bold', fontSize:10, textTransform:'uppercase', letterSpacing:1, color:C.blue, marginBottom:8 },
 
-  // Scroll to bottom
   scrollBtn: { position:'absolute', bottom:10, right:12, flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'#fff', borderRadius:20, paddingHorizontal:12, paddingVertical:6, borderWidth:1.5, borderColor:'rgba(0,0,0,0.08)', shadowColor:'#000', shadowOpacity:0.1, shadowRadius:8, shadowOffset:{width:0,height:2} },
   scrollDot: { width:7, height:7, borderRadius:4, backgroundColor:C.mag },
   scrollTxt: { fontFamily:'Poppins_700Bold', fontSize:11, color:C.blue },
 
-  // Input
   inputArea:  { backgroundColor:'#fff', borderTopWidth:1, borderTopColor:C.border, paddingHorizontal:14, paddingTop:10, paddingBottom:Platform.OS==='ios' ? 28 : 12 },
   inputBox:   { flexDirection:'row', alignItems:'center', gap:8, backgroundColor:C.bg, borderWidth:1.5, borderColor:'rgba(0,0,0,0.10)', borderRadius:18, paddingHorizontal:14, paddingVertical:10 },
   inputField: { flex:1, fontFamily:'Poppins_400Regular', fontSize:15, color:C.ink, maxHeight:100 },
