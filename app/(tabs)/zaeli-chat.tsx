@@ -220,8 +220,12 @@ function extractRecipes(text: string): { title: string; content: string }[] {
 const TOOL_DEFINITIONS = [
   { name:'add_calendar_event', description:'Add an event to the family calendar',
     input_schema:{ type:'object', properties:{ title:{type:'string'}, start_time:{type:'string',description:'ISO 8601'}, end_time:{type:'string'}, notes:{type:'string'} }, required:['title','start_time'] } },
-  { name:'add_shopping_item', description:'Add items to the shopping list',
-    input_schema:{ type:'object', properties:{ items:{ type:'array', items:{ type:'object', properties:{ name:{type:'string'}, category:{type:'string'} }, required:['name'] } } }, required:['items'] } },
+  { name:'add_shopping_item', description:'Add one or more items to the family shopping list. Always call this immediately when the user mentions items to buy — do not ask for confirmation first.',
+    input_schema:{ type:'object', properties:{ items:{ type:'array', items:{ type:'object', properties:{
+      name:{type:'string', description:'Item name e.g. "Full cream milk"'},
+      qty:{type:'string', description:'Quantity or size e.g. "2L", "×3", "500g" — optional'},
+      category:{type:'string', enum:['Fruit & Veg','Dairy & Eggs','Meat & Seafood','Bakery','Pantry','Frozen','Drinks','Snacks','Household','Other']}
+    }, required:['name'] } } }, required:['items'] } },
   { name:'add_todo', description:'Add a task for the family',
     input_schema:{ type:'object', properties:{ title:{type:'string'}, due_label:{type:'string'}, priority:{type:'string',enum:['high','medium','low']}, assignee:{type:'string'} }, required:['title'] } },
   { name:'save_recipe', description:'Save a recipe to the family collection',
@@ -273,10 +277,79 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `✅ **${input.title}** added to the calendar.`;
     }
     if (name === 'add_shopping_item') {
-      const rows = input.items.map((i:any) => ({ family_id:DUMMY_FAMILY_ID, name:i.name, category:i.category||'General', checked:false }));
-      const { error } = await supabase.from('shopping_items').insert(rows);
-      if (error) throw error;
-      return `✅ Added to shopping list: ${input.items.map((i:any)=>`**${i.name}**`).join(', ')}.`;
+      const validCats = ['Fruit & Veg','Dairy & Eggs','Meat & Seafood','Bakery','Pantry','Frozen','Drinks','Snacks','Household','Other'];
+
+      // Duplicate check — fetch existing unchecked items first
+      const { data: existing } = await supabase.from('shopping_items').select('name')
+        .eq('family_id', DUMMY_FAMILY_ID).eq('checked', false);
+      const existingNames: string[] = (existing || []).map((r:any) => r.name.toLowerCase().trim());
+
+      const fuzzy = (a: string, b: string) => {
+        const clean = (s: string) => s.toLowerCase()
+          .replace(/[^a-z0-9 ]/g, '')
+          .replace(/\b(x|pack|kg|g|ml|l|litre|brand|home|organic|fresh|free|range|whole|full|cream|reduced|fat|low|no|barista|original|light)\b/g, '')
+          .trim();
+        const ca = clean(a); const cb = clean(b);
+        if (!ca || !cb) return false;
+        if (ca === cb || ca.includes(cb) || cb.includes(ca)) return true;
+        const wa = new Set(ca.split(' ').filter((w:string) => w.length > 2));
+        const wb = cb.split(' ').filter((w:string) => w.length > 2);
+        return wb.filter((w:string) => wa.has(w)).length >= Math.min(2, Math.min(wa.size, wb.length));
+      };
+
+      const dupes: string[] = [];
+      const newRows: any[] = [];
+      for (const i of input.items) {
+        const isDupe = existingNames.some(e => fuzzy(e, i.name));
+        if (isDupe) dupes.push(i.name);
+        else newRows.push({
+          family_id: DUMMY_FAMILY_ID,
+          name: i.name, item: i.name,
+          category: validCats.includes(i.category) ? i.category : 'Other',
+          checked: false, completed: false,
+          meal_source: i.qty ? i.qty : null,
+        });
+      }
+
+      let result = '';
+      if (newRows.length > 0) {
+        console.log('🛒 INSERT rows:', JSON.stringify(newRows));
+        const { data: insData, error } = await supabase.from('shopping_items').insert(newRows).select();
+        console.log('🛒 INSERT result:', JSON.stringify(insData), 'error:', JSON.stringify(error));
+        if (error) return `❌ Failed to add items: ${error.message} (code: ${error.code})`;
+        result += `✅ Added: ${newRows.map((r:any)=>`**${r.name}**`).join(', ')}.`;
+
+        // Pantry nudge — check if any added items exist in pantry
+        try {
+          const addedNames = newRows.map((r:any) => r.name.toLowerCase());
+          const { data: pantryData } = await supabase
+            .from('pantry_items')
+            .select('name, stock')
+            .eq('family_id', DUMMY_FAMILY_ID);
+          if (pantryData && pantryData.length > 0) {
+            const inPantryGood = pantryData.filter((p:any) =>
+              addedNames.some((n:string) => p.name.toLowerCase().includes(n) || n.includes(p.name.toLowerCase())) &&
+              (p.stock === 'good' || p.stock === 'medium')
+            );
+            const inPantryLow = pantryData.filter((p:any) =>
+              addedNames.some((n:string) => p.name.toLowerCase().includes(n) || n.includes(p.name.toLowerCase())) &&
+              (p.stock === 'critical' || p.stock === 'low')
+            );
+            if (inPantryGood.length > 0) {
+              const names = inPantryGood.map((p:any) => `**${p.name}**`).join(', ');
+              result += `\n\nHeads up — looks like you've already got ${names} in the pantry.`;
+            }
+            if (inPantryLow.length > 0) {
+              const names = inPantryLow.map((p:any) => `**${p.name}**`).join(', ');
+              result += `\n\nGood timing on ${names} — looks like you're running low on that anyway.`;
+            }
+          }
+        } catch (e) { /* pantry check is best-effort, never block */ }
+      }
+      if (dupes.length > 0) {
+        result += `${newRows.length > 0 ? ' ' : ''}⚠️ Already on the list (skipped): ${dupes.map(d=>`**${d}**`).join(', ')}.`;
+      }
+      return result || '✅ Done.';
     }
     if (name === 'add_todo') {
       const { error } = await supabase.from('todos').insert({ family_id:DUMMY_FAMILY_ID, title:input.title, due_label:input.due_label||'', priority:input.priority||'medium', status:'active', assignee:input.assignee||null });
@@ -418,11 +491,16 @@ const CAPABILITY_RULES = `CRITICAL CAPABILITY RULES — never violate:
 
 // ── CHANNEL CONFIG ───────────────────────────────────────────
 const CHANNELS: Record<string,{ icon:string; prompt:string; seeds:string[] }> = {
-  General:  { icon:'✦',  prompt:`You are Zaeli, a warm family assistant. Help with anything. You can take real actions using tools: add events, tasks, shopping items, recipes and meals. When adding calendar events, use ISO 8601 format for start_time (e.g. 2026-03-11T18:45:00) and always include the date field as YYYY-MM-DD. Book immediately when you have enough info — do not ask unnecessary follow-up questions. ${CAPABILITY_RULES}`,
+  General:  { icon:'✦',  prompt:`You are Zaeli, a warm family assistant. Help with anything. You can take real actions using tools: add events, tasks, shopping items, recipes and meals. When adding calendar events, use ISO 8601 format for start_time (e.g. 2026-03-11T18:45:00) and always include the date field as YYYY-MM-DD. When the user mentions items to buy, call add_shopping_item IMMEDIATELY with all items — do not ask for confirmation first. Book and save immediately when you have enough info. ${CAPABILITY_RULES}`,
     seeds:["What's on this week?","Help me plan the weekend","Any reminders I should set?"] },
   Calendar: { icon:'📅', prompt:`You are Zaeli, focused on the family calendar. You can add events directly using the add_calendar_event tool. IMPORTANT: When the user gives you enough info to book (a title and rough time), use the tool immediately — do not ask follow-up questions first. Make reasonable assumptions for missing details (default 1hr duration, use today's date if no date given). Always use ISO 8601 format for start_time e.g. 2026-03-11T18:45:00. Confirm what you booked after. ${CAPABILITY_RULES}`,
     seeds:["Any clashes this week?","What's on this weekend?","Schedule something for me"] },
-  Shopping: { icon:'🛒', prompt:`You are Zaeli, focused on shopping. You can add items directly to the shopping list using tools. ${CAPABILITY_RULES}`,
+  Shopping: { icon:'🛒', prompt:`You are Zaeli, focused on shopping. CRITICAL RULES — never violate:
+1. When the user mentions ANY item to buy, call add_shopping_item IMMEDIATELY — do not ask for confirmation first.
+2. ALWAYS call the tool for every new item mentioned, even if it sounds similar to something discussed earlier in the conversation. Each item needs its own tool call result.
+3. NEVER tell the user an item is already on the list unless the tool explicitly returned a duplicate warning for that exact item in this response. Do not infer duplicates from conversation context.
+4. After the tool responds, report exactly what it said — added items and any duplicates it flagged. Do not add your own assumptions.
+${CAPABILITY_RULES}`,
     seeds:["What do we need this week?","Add milk and eggs","What am I missing for dinners?"] },
   Meals:    { icon:'🍽️', prompt:`You are Zaeli, focused on meal planning. You can save recipes and add meals to the planner using tools. ${CAPABILITY_RULES}`,
     seeds:["What should we have tonight?","Plan dinners for the week","Give me a quick Tuesday recipe"] },
@@ -457,7 +535,9 @@ export default function ZaeliChatScreen() {
     setChannelMessages(prev => {
       const cur = prev[activeCtx] || [];
       const next = typeof updater === 'function' ? updater(cur) : updater;
-      return { ...prev, [activeCtx]:next };
+      // Cap at 60 messages per channel to prevent memory bloat
+      const capped = next.length > 60 ? next.slice(next.length - 60) : next;
+      return { ...prev, [activeCtx]:capped };
     });
   };
 
@@ -475,7 +555,7 @@ export default function ZaeliChatScreen() {
         'Hey, what else can I sort for you?',
       ];
       const note = opts[Math.floor(Math.random() * opts.length)];
-      addMsg(activeCtx, { role:'assistant', text: note, ts: new Date().toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase() });
+      setChannelMessages(prev => ({ ...prev, [activeCtx]: [...(prev[activeCtx]||[]), { id:'re-'+Date.now(), role:'assistant', content:note, time:new Date().toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase() }] }));
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 100);
     } else {
       loadChannelGreeting(activeCtx);
@@ -625,7 +705,7 @@ CRITICAL: The user is in ${tzOffset}. Always generate start_time/end_time as LOC
           for (const toolBlock of toolBlocks) {
             const result = await executeTool(toolBlock.name, toolBlock.input);
             toolResults.push(result);
-            setMessages(prev => [...prev, { id:(Date.now()+turn+Math.random()).toString(), role:'assistant', content:result, time:getTime(), isToolMsg:true }]);
+            // Don't setMessages per tool — batched below with followUps
             toolResultContents.push({ type:'tool_result', tool_use_id:toolBlock.id, content:result });
           }
 
@@ -640,14 +720,22 @@ CRITICAL: The user is in ${tzOffset}. Always generate start_time/end_time as LOC
         }
       }
 
+      // Batch all follow-up messages into one state update to avoid cascade re-renders
+      const followUps: Message[] = [];
+
+      // Add tool result messages
+      toolResults.forEach((result, i) => {
+        followUps.push({ id:(Date.now()+i+Math.random()).toString(), role:'assistant', content:result, time:getTime(), isToolMsg:true });
+      });
+
       if (finalReply) {
-        setMessages(prev => [...prev, { id:(Date.now()+10).toString(), role:'assistant', content:finalReply, time:getTime() }]);
+        followUps.push({ id:(Date.now()+10).toString(), role:'assistant', content:finalReply, time:getTime() });
       }
       saveConversation(DUMMY_FAMILY_ID, msg, toolResults.join(' | ') || finalReply);
 
       for (const recipe of extractRecipes(finalReply)) {
-        setMessages(prev => [...prev, { id:(Date.now()+15+Math.random()).toString(), role:'assistant',
-          content:`💾 Want me to save **${recipe.title}** to your recipes?`, time:getTime(), recipeData:recipe }]);
+        followUps.push({ id:(Date.now()+15+Math.random()).toString(), role:'assistant',
+          content:`💾 Want me to save **${recipe.title}** to your recipes?`, time:getTime(), recipeData:recipe });
       }
 
       try {
@@ -657,12 +745,17 @@ CRITICAL: The user is in ${tzOffset}. Always generate start_time/end_time as LOC
           await supabase.from('todos').insert({ family_id:DUMMY_FAMILY_ID, title:reminder.title, priority:'high', status:'active',
             due_label:`Today at ${reminder.remindAt.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit',hour12:true})}`,
             reminder_time:reminder.remindAt.toISOString(), notif_id:notifId });
-          setMessages(prev => [...prev, { id:(Date.now()+20).toString(), role:'assistant', isToolMsg:true, time:getTime(),
+          followUps.push({ id:(Date.now()+20).toString(), role:'assistant', isToolMsg:true, time:getTime(),
             content: notifId
               ? `✅ Reminder set for **${reminder.remindAt.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit',hour12:true})}** — added to Today's Focus.`
-              : `📝 Added "${reminder.title}" to Today's Focus.` }]);
+              : `📝 Added "${reminder.title}" to Today's Focus.` });
         }
       } catch(e) { console.log('Reminder error:', e); }
+
+      // Single batched state update for all follow-up messages
+      if (followUps.length > 0) {
+        setMessages(prev => [...prev, ...followUps]);
+      }
     } catch {
       setMessages(prev => [...prev, { id:(Date.now()+1).toString(), role:'assistant', content:"I'm having trouble connecting. Please try again.", time:getTime() }]);
     } finally {
@@ -738,7 +831,7 @@ CRITICAL: The user is in ${tzOffset}. Always generate start_time/end_time as LOC
         <ScrollView ref={scrollRef} style={s.chatScroll}
           contentContainerStyle={{ padding:16, paddingBottom:24 }}
           showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled"
-          onContentSizeChange={()=>scrollRef.current?.scrollToEnd({animated:true})}
+          removeClippedSubviews={true}
           onScroll={e=>{
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
             setShowScrollBtn(contentSize.height - contentOffset.y - layoutMeasurement.height > 120);

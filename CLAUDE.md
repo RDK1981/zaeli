@@ -118,7 +118,7 @@ Hamburger menu
 - Brief card (blue, dismissible)
 - Ask Zaeli bar at bottom
 
-### Pantry tab ✅ built (March 13 2026)
+### Pantry tab ✅ built (March 13-14 2026)
 - Two scan cards: Scan Fridge / Scan Pantry (expo-image-picker → Claude vision)
 - Scan review screen: user confirms before any save
 - Scan logic: matching name → update stock only; new name → add; unseen items untouched
@@ -129,6 +129,8 @@ Hamburger menu
 - Delete only visible for parents (IS_PARENT = true for Anna/Richard)
 - Add manually button
 - Ask Zaeli bar at bottom (same as List tab)
+- **Scanning animation**: bottom sheet slides up with animated dots + 3-step progress ("Reading your photo…" → "Identifying items…" → "Almost done…")
+- **Pantry nudge**: Zaeli chat and manual add both check pantry and surface a soft note if item already stocked
 
 ### Receipts tab
 - Stub ("coming soon") with Ask Zaeli bar
@@ -145,6 +147,16 @@ create table if not exists pantry_items (
   created_at timestamptz default now()
 );
 ```
+
+---
+
+## Home Screen Updates (March 14 2026)
+- Brief card **always visible immediately** — `cardFade` starts at 1, no fade-in wait
+- Shows **"Zaeli is thinking…"** with animated dots while API call is in flight
+- **Typewriter animation** when text arrives: 18ms per char, blinking blue cursor
+- After typing completes: hands off to sentence-by-sentence fade animation
+- **Option C tiles** with coloured footer bar (screen name + → arrow)
+- Tile order: Calendar / Shopping (top), Meals / To-dos (bottom)
 
 ---
 
@@ -251,7 +263,17 @@ At 1,000 families: ~$200–300/month API cost.
 
 ---
 
-## Completed Screens / Features (as of March 13 2026)
+## Tile Colours (Home screen 2×2 grid)
+| Tile | Colour |
+|------|--------|
+| Calendar (top-left) | Magenta `#E0007C` |
+| Shopping (top-right) | Black `#0A0A0A` |
+| Meals (bottom-left) | Orange `#FF8C00` |
+| To-dos (bottom-right) | Gold `#B8A400` |
+
+---
+
+## Completed Screens / Features (as of March 14 2026)
 - ✅ `index.tsx` — Home with brief card, radar tiles, Ask Zaeli bar, NavMenu
 - ✅ `calendar.tsx` — Full calendar, Add/Edit event, Zaeli brief, dismissed card, hamburger
 - ✅ `shopping.tsx` — List tab, Pantry tab, Receipts stub, all with Ask Zaeli bar
@@ -261,12 +283,17 @@ At 1,000 families: ~$200–300/month API cost.
 - ✅ `_layout.tsx` — Tab layout (all tabs hidden from bar)
 - ✅ `lib/useProductScanner.ts` — pickImage, scanProduct, scanPantry, scanReceipt
 - ✅ `zaeli-brief-logic-spec.md` — Full brief logic specification
+- ✅ Pantry tab in shopping.tsx — scan, review, stock bars, insight card, nudge
+- ✅ index.tsx — Option C tiles, typewriter brief, instant card load
+- ✅ zaeli-chat.tsx — freeze fix, batched state, 60-msg cap, pantry nudge
+- ✅ Sticky toolbar on Shopping List tab (+ Add item always visible)
 
 ## Pending Screens
-- ⏳ `mealplanner.tsx` — next priority after API logging
+- ⏳ `mealplanner.tsx` — after Receipts tab
+- ⏳ Receipts tab (in shopping.tsx) ← IMMEDIATE NEXT
 - ⏳ Travel screen
 - ⏳ Kids hub (redesign brief pending)
-- ⏳ Receipts tab (in shopping.tsx)
+- ⏳ API usage logging (Supabase table + wrapper)
 
 ---
 

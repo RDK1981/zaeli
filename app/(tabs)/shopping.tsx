@@ -1,30 +1,23 @@
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold,
-  Poppins_700Bold, Poppins_800ExtraBold,
-  useFonts,
-} from '@expo-google-fonts/poppins';
-import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  Animated,
-  KeyboardAvoidingView,
-  Modal, Platform,
-  ScrollView,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+  View, Text, ScrollView, TouchableOpacity, TextInput,
+  Modal, Platform, KeyboardAvoidingView, Animated,
+  StyleSheet, Share, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import {
+  useFonts,
+  Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold,
+  Poppins_700Bold, Poppins_800ExtraBold,
+} from '@expo-google-fonts/poppins';
+import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
+import Svg, { Rect, Path, Line, Polyline, Circle } from 'react-native-svg';
+import { NavMenu, HamburgerButton } from '../components/NavMenu';
 import { supabase } from '../../lib/supabase';
-import { HamburgerButton, NavMenu } from '../components/NavMenu';
+import * as ImagePicker from 'expo-image-picker';
 
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 const DUMMY_USER_NAME = 'Anna';
@@ -172,6 +165,64 @@ function TypingDots() {
   );
 }
 
+// ── Scanning bottom sheet ────────────────────────────────────────────────────
+function ScanningSheet({ visible }: { visible: boolean }) {
+  const slideAnim = useRef(new Animated.Value(200)).current;
+  const [step, setStep] = useState(0);
+  const steps = ['Reading your photo…', 'Identifying items…', 'Almost done…'];
+  const dotAnims = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
+
+  useEffect(() => {
+    if (visible) {
+      setStep(0);
+      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+      // Step through messages
+      const t1 = setTimeout(() => setStep(1), 2000);
+      const t2 = setTimeout(() => setStep(2), 4500);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    } else {
+      Animated.timing(slideAnim, { toValue: 200, duration: 250, useNativeDriver: true }).start();
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    const makeSeq = (a: Animated.Value, delay: number) =>
+      Animated.loop(Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(a, { toValue: 1, duration: 350, useNativeDriver: true }),
+        Animated.timing(a, { toValue: 0, duration: 350, useNativeDriver: true }),
+        Animated.delay(700),
+      ]));
+    const anim = Animated.parallel(dotAnims.map((a, i) => makeSeq(a, i * 180)));
+    if (visible) anim.start();
+    return () => anim.stop();
+  }, [visible]);
+
+  if (!visible) return null;
+
+  return (
+    <View style={s.scanSheetOverlay} pointerEvents="none">
+      <Animated.View style={[s.scanSheet, { transform: [{ translateY: slideAnim }] }]}>
+        <View style={s.scanSheetHandle} />
+        <View style={s.scanSheetRow}>
+          <View style={s.scanSheetAv}>
+            <Text style={{ color: '#fff', fontSize: 15 }}>✦</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.scanSheetTitle}>Scanning…</Text>
+            <Text style={s.scanSheetStep}>{steps[step]}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center' }}>
+            {dotAnims.map((a, i) => (
+              <Animated.View key={i} style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.blue, opacity: a, transform: [{ translateY: a.interpolate({ inputRange: [0,1], outputRange: [0,-4] }) }] }} />
+            ))}
+          </View>
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
+
 // ── AI helpers ───────────────────────────────────────────────────────────────
 async function guessCategory(itemName: string): Promise<string> {
   const categories = ['Fruit & Veg', 'Dairy & Eggs', 'Meat & Seafood', 'Bakery', 'Pantry', 'Frozen', 'Drinks', 'Snacks', 'Household', 'Other'];
@@ -189,12 +240,17 @@ async function guessCategory(itemName: string): Promise<string> {
 
 async function scanPantryImage(base64: string): Promise<ScannedPantryItem[]> {
   try {
+    console.log('[scanPantryImage] Starting scan, base64 length:', base64?.length ?? 0);
+    if (!base64 || base64.length < 100) {
+      console.log('[scanPantryImage] base64 too short — image picker may not have returned data');
+      return [];
+    }
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'x-api-key': ANTHROPIC_API_KEY },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 600,
+        max_tokens: 1000,
         messages: [{
           role: 'user',
           content: [
@@ -207,19 +263,26 @@ For each item, estimate how much is left:
 - medium = roughly half
 - good = well stocked / full / new
 
-Respond ONLY as a JSON array, no markdown:
+Respond ONLY as a JSON array, no markdown, no preamble:
 [{"name":"Full cream milk","emoji":"🥛","stock":"low","quantity":"1L remaining"},...]
 
 Rules:
 - Use common household names (not brand names unless quantity matters)
 - If quantity is obvious (e.g. "2 apples left"), include it
 - If unclear, set quantity to null
-- Max 20 items` }
+- Max 20 items
+- If you cannot identify any food items, return []` }
           ]
         }],
       }),
     });
+    console.log('[scanPantryImage] API status:', res.status);
     const data = await res.json();
+    console.log('[scanPantryImage] API response:', JSON.stringify(data).slice(0, 300));
+    if (data?.error) {
+      console.log('[scanPantryImage] API error:', data.error.message);
+      return [];
+    }
     const raw = data?.content?.[0]?.text || '[]';
     return JSON.parse(raw.replace(/```json|```/g, '').trim()) as ScannedPantryItem[];
   } catch { return []; }
@@ -552,27 +615,30 @@ function AddPantryModal({ visible, onClose, onSaved }: {
   visible: boolean; onClose: () => void; onSaved: () => void;
 }) {
   const [name, setName]     = useState('');
-  const [emoji, setEmoji]   = useState('🛒');
   const [stock, setStock]   = useState<'critical' | 'low' | 'medium' | 'good'>('good');
   const [qty, setQty]       = useState('');
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    if (visible) { setName(''); setEmoji('🛒'); setStock('good'); setQty(''); setSaving(false); setTimeout(() => inputRef.current?.focus(), 350); }
+    if (visible) { setName(''); setStock('good'); setQty(''); setSaving(false); setTimeout(() => inputRef.current?.focus(), 350); }
   }, [visible]);
 
   const save = async () => {
     if (!name.trim()) return;
     setSaving(true);
-    try {
-      await supabase.from('pantry_items').insert({
-        family_id: DUMMY_FAMILY_ID, name: name.trim(), emoji, stock, quantity: qty.trim() || null,
-      });
-      onSaved();
-      onClose();
-    } catch (e) { console.log('Pantry add error:', e); }
+    const { error } = await supabase.from('pantry_items').insert({
+      family_id: DUMMY_FAMILY_ID, name: name.trim(), emoji: '🛒', stock, quantity: qty.trim() || null,
+    });
+    if (error) {
+      console.log('[AddPantryModal] insert error:', error.message);
+      Alert.alert('Could not save', error.message + '\n\nMake sure the pantry_items table exists in Supabase.');
+      setSaving(false);
+      return;
+    }
     setSaving(false);
+    onSaved();
+    onClose();
   };
 
   const stockOptions: Array<'critical' | 'low' | 'medium' | 'good'> = ['critical', 'low', 'medium', 'good'];
@@ -589,15 +655,9 @@ function AddPantryModal({ visible, onClose, onSaved }: {
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20, gap: 18 }} keyboardShouldPersistTaps="handled">
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={s.fieldBlock}>
-                <Text style={s.fieldLabel}>EMOJI</Text>
-                <TextInput style={[s.fieldInput, { width: 64, textAlign: 'center', fontSize: 24 }]} value={emoji} onChangeText={setEmoji} maxLength={2} />
-              </View>
-              <View style={[s.fieldBlock, { flex: 1 }]}>
-                <Text style={s.fieldLabel}>ITEM NAME</Text>
-                <TextInput ref={inputRef} style={s.fieldInput} placeholder="e.g. Milk, Eggs, Pasta" placeholderTextColor={C.ink3} value={name} onChangeText={setName} />
-              </View>
+            <View style={s.fieldBlock}>
+              <Text style={s.fieldLabel}>ITEM NAME</Text>
+              <TextInput ref={inputRef} style={s.fieldInput} placeholder="e.g. Milk, Eggs, Pasta" placeholderTextColor={C.ink3} value={name} onChangeText={setName} />
             </View>
             <View style={s.fieldBlock}>
               <Text style={s.fieldLabel}>QUANTITY (optional)</Text>
@@ -685,58 +745,65 @@ function PantryTab({ shoppingItems, onShoppingUpdate }: { shoppingItems: ShopIte
   // Image picker (uses expo-image-picker if available, fallback to base64 placeholder for testing)
   const handleScan = async (source: 'camera' | 'library') => {
     try {
-      let ImagePicker: any;
-      try { ImagePicker = require('expo-image-picker'); } catch { ImagePicker = null; }
-      if (!ImagePicker) { Alert.alert('Scanner not available', 'expo-image-picker is not installed.'); return; }
-
       const perm = source === 'camera'
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) { Alert.alert('Permission required', `Please allow ${source === 'camera' ? 'camera' : 'photo library'} access in Settings.`); return; }
+      if (!perm.granted) {
+        Alert.alert('Permission required', `Please allow ${source === 'camera' ? 'camera' : 'photo library'} access in Settings.`);
+        return;
+      }
 
       const result = source === 'camera'
-        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.7 })
-        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.7, mediaTypes: ImagePicker.MediaTypeOptions.Images });
+        ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.8, allowsEditing: false })
+        : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.8, mediaTypes: ImagePicker.MediaTypeOptions.Images });
 
-      if (result.canceled || !result.assets?.[0]?.base64) return;
+      console.log('[handleScan] result.canceled:', result.canceled, 'has base64:', !!result.assets?.[0]?.base64);
+
+      if (result.canceled) return;
+      if (!result.assets?.[0]?.base64) {
+        Alert.alert('Photo error', 'Could not read photo data. Please try again.');
+        return;
+      }
 
       setScanning(true);
-      const found = await scanPantryImage(result.assets[0].base64!);
+      const found = await scanPantryImage(result.assets[0].base64);
       setScanning(false);
 
-      if (!found.length) { Alert.alert('Nothing found', "Zaeli couldn't identify any items. Try a clearer photo with better lighting."); return; }
+      if (!found.length) {
+        Alert.alert('Nothing found', "Zaeli couldn't identify any items — the API may have returned an error. Check the console for details, or try a clearer photo.");
+        return;
+      }
       setScannedItems(found);
       setShowReview(true);
     } catch (e) {
       setScanning(false);
-      console.log('Scan error:', e);
-      Alert.alert('Scan failed', 'Something went wrong. Please try again.');
+      console.log('[handleScan] error:', e);
+      Alert.alert('Scan failed', String(e));
     }
   };
 
   const confirmScan = async (confirmed: ScannedPantryItem[]) => {
     setShowReview(false);
-    try {
-      for (const item of confirmed) {
-        const existing = items.find(e => e.name.toLowerCase() === item.name.toLowerCase());
-        if (existing) {
-          // Update stock only
-          await supabase.from('pantry_items').update({
-            stock: item.stock,
-            quantity: item.quantity,
-            emoji: item.emoji,
-          }).eq('id', existing.id);
-        } else {
-          // New item
-          await supabase.from('pantry_items').insert({
-            family_id: DUMMY_FAMILY_ID,
-            name: item.name, emoji: item.emoji,
-            stock: item.stock, quantity: item.quantity,
-          });
-        }
+    let anyError = false;
+    let lastError = 'Unknown error — check console';
+    for (const item of confirmed) {
+      const existing = items.find(e => e.name.toLowerCase() === item.name.toLowerCase());
+      if (existing) {
+        const { error } = await supabase.from('pantry_items').update({
+          stock: item.stock, quantity: item.quantity, emoji: item.emoji,
+        }).eq('id', existing.id);
+        if (error) { console.log('[confirmScan] update error:', error.message); anyError = true; lastError = error.message; }
+      } else {
+        const { error } = await supabase.from('pantry_items').insert({
+          family_id: DUMMY_FAMILY_ID,
+          name: item.name, emoji: item.emoji,
+          stock: item.stock, quantity: item.quantity,
+        });
+        if (error) { console.log('[confirmScan] insert error:', error.message); anyError = true; lastError = error.message; }
       }
-      await fetchItems();
-    } catch (e) { console.log('Confirm scan error:', e); }
+    }
+    if (anyError) Alert.alert('Save error', lastError);
+    await fetchItems();
   };
 
   // Split into sections
@@ -790,11 +857,13 @@ function PantryTab({ shoppingItems, onShoppingUpdate }: { shoppingItems: ShopIte
         <View style={s.pantryToolRow}>
           <TouchableOpacity style={[s.pantryScanCard, scanning && { opacity: 0.55 }]} onPress={() => handleScan('camera')} disabled={scanning} activeOpacity={0.8}>
             <IcoCamera color={C.ink2} />
-            <Text style={s.pantryScanLbl}>{scanning ? 'Scanning…' : 'Scan Fridge'}</Text>
+            <Text style={s.pantryScanLbl}>{scanning ? 'Scanning…' : 'Take Photo'}</Text>
+            <Text style={s.pantryScanSub}>Fridge or pantry</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.pantryScanCard, scanning && { opacity: 0.55 }]} onPress={() => handleScan('library')} disabled={scanning} activeOpacity={0.8}>
-            <Text style={{ fontSize: 22, marginBottom: 6 }}>🖼️</Text>
-            <Text style={s.pantryScanLbl}>Scan Pantry</Text>
+            <Text style={{ fontSize: 22, marginBottom: 2 }}>🖼️</Text>
+            <Text style={s.pantryScanLbl}>Upload Photo</Text>
+            <Text style={s.pantryScanSub}>From your camera roll</Text>
           </TouchableOpacity>
         </View>
 
@@ -854,6 +923,7 @@ function PantryTab({ shoppingItems, onShoppingUpdate }: { shoppingItems: ShopIte
         </TouchableOpacity>
       </View>
 
+      <ScanningSheet visible={scanning} />
       <PantryScanReviewModal
         visible={showReview}
         scanned={scannedItems}
@@ -877,8 +947,8 @@ function PantryTab({ shoppingItems, onShoppingUpdate }: { shoppingItems: ShopIte
 }
 
 // ── Add Item Flow ────────────────────────────────────────────────────────────
-function AddItemFlow({ visible, onClose, onSaved }: {
-  visible: boolean; onClose: () => void; onSaved: () => void;
+function AddItemFlow({ visible, onClose, onSaved, onNudge }: {
+  visible: boolean; onClose: () => void; onSaved: () => void; onNudge?: (name: string) => void;
 }) {
   const router = useRouter();
   const [step, setStep] = useState<'sheet' | 'form'>('sheet');
@@ -908,10 +978,23 @@ function AddItemFlow({ visible, onClose, onSaved }: {
       const category = await guessCategory(name.trim());
       const noteStr = [qty.trim(), note.trim()].filter(Boolean).join(' · ') || null;
       await supabase.from('shopping_items').insert({ family_id: DUMMY_FAMILY_ID, name: name.trim(), item: name.trim(), category, checked: false, completed: false, meal_source: noteStr });
+      checkPantryNudge(name.trim());
       setSavedCount(c => c + 1); resetForm(); onSaved();
       setTimeout(() => inputRef.current?.focus(), 100);
     } catch (e) { console.log('Save error:', e); }
     setSaving(false);
+  };
+
+  const checkPantryNudge = async (itemName: string) => {
+    try {
+      const { data } = await supabase.from('pantry_items').select('name, stock').eq('family_id', DUMMY_FAMILY_ID);
+      if (!data) return;
+      const match = data.find((p: any) =>
+        p.name.toLowerCase().includes(itemName.toLowerCase()) ||
+        itemName.toLowerCase().includes(p.name.toLowerCase())
+      );
+      if (match) onNudge?.(match.name);
+    } catch (e) { /* best-effort */ }
   };
 
   const saveAndClose = async () => {
@@ -921,6 +1004,7 @@ function AddItemFlow({ visible, onClose, onSaved }: {
       const category = await guessCategory(name.trim());
       const noteStr = [qty.trim(), note.trim()].filter(Boolean).join(' · ') || null;
       await supabase.from('shopping_items').insert({ family_id: DUMMY_FAMILY_ID, name: name.trim(), item: name.trim(), category, checked: false, completed: false, meal_source: noteStr });
+      checkPantryNudge(name.trim());
       onSaved(); onClose();
     } catch (e) { console.log('Save error:', e); }
     setSaving(false);
@@ -1116,6 +1200,7 @@ export default function ShoppingScreen() {
   const [loading, setLoading]       = useState(true);
   const [addVisible, setAddVisible] = useState(false);
   const [editItem, setEditItem]     = useState<ShopItem | null>(null);
+  const [nudgeItemName, setNudgeItemName] = useState<string | null>(null);
   const [viewMode, setViewMode]     = useState<'list' | 'aisle'>('list');
   const [showBrief, setShowBrief]   = useState(!briefDismissed);
   const [navOpen, setNavOpen]       = useState(false);
@@ -1234,49 +1319,60 @@ export default function ShoppingScreen() {
 
         {/* ── List tab ── */}
         {activeTab === 'list' && (
-          <ScrollView contentContainerStyle={{ paddingBottom: 110 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {showBrief && !loading && (
-              <ShoppingBriefCard itemCount={unchecked.length} onDismiss={() => setShowBrief(false)} />
-            )}
-            <View style={s.toolRow}>
-              <TouchableOpacity style={s.addBar} onPress={() => setAddVisible(true)} activeOpacity={0.7}>
-                <Text style={s.addBarPlus}>＋</Text>
-                <Text style={s.addBarTxt}>Add item…</Text>
-                <TouchableOpacity style={s.micBtn} onPress={() => {}} activeOpacity={0.7}>
-                  <IcoMic color="rgba(0,0,0,0.40)" />
+          <View style={{ flex: 1 }}>
+            {/* Sticky toolbar — always visible */}
+            <View style={s.stickyToolRow}>
+              {nudgeItemName && (
+                <View style={s.pantryNudgeBanner}>
+                  <Text style={s.pantryNudgeTxt}>✦  <Text style={{ fontFamily: 'Poppins_600SemiBold' }}>{nudgeItemName}</Text> is already in your pantry</Text>
+                </View>
+              )}
+              <View style={s.toolRow}>
+                <TouchableOpacity style={s.addBar} onPress={() => setAddVisible(true)} activeOpacity={0.7}>
+                  <Text style={s.addBarPlus}>＋</Text>
+                  <Text style={s.addBarTxt}>Add item…</Text>
+                  <TouchableOpacity style={s.micBtn} onPress={() => {}} activeOpacity={0.7}>
+                    <IcoMic color="rgba(0,0,0,0.40)" />
+                  </TouchableOpacity>
                 </TouchableOpacity>
-              </TouchableOpacity>
-              <View style={s.viewToggle}>
-                <TouchableOpacity style={[s.viewBtn, viewMode === 'list' && s.viewBtnOn]} onPress={() => setViewMode('list')} activeOpacity={0.8}>
-                  <Text style={[s.viewBtnTxt, viewMode === 'list' && s.viewBtnTxtOn]}>List</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[s.viewBtn, viewMode === 'aisle' && s.viewBtnOn]} onPress={() => setViewMode('aisle')} activeOpacity={0.8}>
-                  <Text style={[s.viewBtnTxt, viewMode === 'aisle' && s.viewBtnTxtOn]}>Aisle</Text>
-                </TouchableOpacity>
+                <View style={s.viewToggle}>
+                  <TouchableOpacity style={[s.viewBtn, viewMode === 'list' && s.viewBtnOn]} onPress={() => setViewMode('list')} activeOpacity={0.8}>
+                    <Text style={[s.viewBtnTxt, viewMode === 'list' && s.viewBtnTxtOn]}>List</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[s.viewBtn, viewMode === 'aisle' && s.viewBtnOn]} onPress={() => setViewMode('aisle')} activeOpacity={0.8}>
+                    <Text style={[s.viewBtnTxt, viewMode === 'aisle' && s.viewBtnTxtOn]}>Aisle</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-            {loading ? (
-              <Text style={s.emptyTxt}>Loading…</Text>
-            ) : items.length === 0 ? (
-              <View style={s.emptyState}>
-                <Text style={s.emptyEmoji}>🛒</Text>
-                <Text style={s.emptyTitle}>List is empty</Text>
-                <Text style={s.emptyBody}>Tap "Add item" above or ask Zaeli to build the list for you.</Text>
-              </View>
-            ) : viewMode === 'list' ? (
-              <>{renderItems(unchecked)}{renderPurchased()}</>
-            ) : (
-              <>
-                {Object.entries(byCategory).map(([cat, ci]) => (
-                  <View key={cat}>
-                    <Text style={s.sectionLbl}>{cat}</Text>
-                    {renderItems(ci)}
-                  </View>
-                ))}
-                {renderPurchased()}
-              </>
-            )}
-          </ScrollView>
+            {/* Scrollable content — brief card + list items */}
+            <ScrollView contentContainerStyle={{ paddingBottom: 110, paddingTop: 6 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {showBrief && !loading && (
+                <ShoppingBriefCard itemCount={unchecked.length} onDismiss={() => setShowBrief(false)} />
+              )}
+              {loading ? (
+                <Text style={s.emptyTxt}>Loading…</Text>
+              ) : items.length === 0 ? (
+                <View style={s.emptyState}>
+                  <Text style={s.emptyEmoji}>🛒</Text>
+                  <Text style={s.emptyTitle}>List is empty</Text>
+                  <Text style={s.emptyBody}>Tap "Add item" above or ask Zaeli to build the list for you.</Text>
+                </View>
+              ) : viewMode === 'list' ? (
+                <>{renderItems(unchecked)}{renderPurchased()}</>
+              ) : (
+                <>
+                  {Object.entries(byCategory).map(([cat, ci]) => (
+                    <View key={cat}>
+                      <Text style={s.sectionLbl}>{cat}</Text>
+                      {renderItems(ci)}
+                    </View>
+                  ))}
+                  {renderPurchased()}
+                </>
+              )}
+            </ScrollView>
+          </View>
         )}
 
         {/* ── Pantry tab ── */}
@@ -1314,7 +1410,7 @@ export default function ShoppingScreen() {
         )}
       </View>
 
-      <AddItemFlow visible={addVisible} onClose={() => setAddVisible(false)} onSaved={fetchItems} />
+      <AddItemFlow visible={addVisible} onClose={() => setAddVisible(false)} onSaved={fetchItems} onNudge={(name) => { setNudgeItemName(name); setTimeout(() => setNudgeItemName(null), 4000); }} />
       <EditItemModal item={editItem} visible={!!editItem} onClose={() => setEditItem(null)} onSaved={() => { setEditItem(null); fetchItems(); }} />
       <NavMenu visible={navOpen} onClose={() => setNavOpen(false)} />
     </View>
@@ -1352,6 +1448,7 @@ const s = StyleSheet.create({
   btnGhost:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.055)', borderRadius: 12, paddingVertical: 11, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.09)' },
   btnGhostTxt:    { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: C.ink2, textAlign: 'center' },
 
+  stickyToolRow:   { backgroundColor: C.bg, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)' },
   toolRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 8, marginBottom: 4 },
   addBar:         { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.border, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 10 },
   addBarPlus:     { fontSize: 15, color: C.blue, lineHeight: 20 },
@@ -1409,6 +1506,7 @@ const s = StyleSheet.create({
   pantryToolRow:        { flexDirection: 'row', gap: 10, marginHorizontal: 18, marginTop: 14, marginBottom: 4 },
   pantryScanCard:       { flex: 1, backgroundColor: C.card, borderRadius: 16, borderWidth: 1.5, borderColor: C.border, paddingVertical: 18, alignItems: 'center', justifyContent: 'center', gap: 8 },
   pantryScanLbl:        { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: C.ink2 },
+  pantryScanSub:        { fontFamily: 'Poppins_400Regular', fontSize: 11, color: C.ink3, marginTop: 1 },
 
   // Pantry — item rows (reference list-item style + stock bar)
   pantryRow:            { backgroundColor: C.card, borderRadius: 14, marginHorizontal: 18, marginBottom: 7, borderWidth: 1.5, borderColor: C.border, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10 },
@@ -1480,4 +1578,17 @@ const s = StyleSheet.create({
   saveMoreTxt:    { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: C.blue },
   saveDoneBtn:    { backgroundColor: C.blue, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   saveDoneTxt:    { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#fff' },
+
+  // Pantry nudge banner
+  pantryNudgeBanner: { marginHorizontal: 18, marginTop: 10, marginBottom: 2, backgroundColor: 'rgba(0,87,255,0.07)', borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(0,87,255,0.15)', paddingHorizontal: 14, paddingVertical: 10 },
+  pantryNudgeTxt:    { fontFamily: 'Poppins_400Regular', fontSize: 13, color: C.blue, lineHeight: 19 },
+
+  // Scanning sheet
+  scanSheetOverlay:  { position: 'absolute', bottom: 0, left: 0, right: 0, top: 0, justifyContent: 'flex-end', zIndex: 100 },
+  scanSheet:         { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 36, borderWidth: 1.5, borderColor: C.border, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 20, shadowOffset: { width: 0, height: -4 } },
+  scanSheetHandle:   { width: 36, height: 4, borderRadius: 2, backgroundColor: C.border, alignSelf: 'center', marginBottom: 16 },
+  scanSheetRow:      { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  scanSheetAv:       { width: 42, height: 42, borderRadius: 13, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  scanSheetTitle:    { fontFamily: 'Poppins_700Bold', fontSize: 16, color: C.ink, marginBottom: 3 },
+  scanSheetStep:     { fontFamily: 'Poppins_400Regular', fontSize: 13, color: C.ink2 },
 });

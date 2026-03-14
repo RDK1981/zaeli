@@ -3,7 +3,7 @@
  * app/(tabs)/calendar.tsx
  */
 
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -22,6 +22,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Line, Path, Polyline, Rect } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
+import { HamburgerButton, NavMenu } from '../components/NavMenu';
 
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 const ANTHROPIC_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
@@ -400,37 +401,376 @@ function RelaxedCard() {
   );
 }
 
-// ── ADD EVENT BOTTOM SHEET ────────────────────────────────────
-function AddEventSheet({ visible, onClose, onOpenManual, selectedDate }: {
-  visible: boolean; onClose: () => void; onOpenManual: () => void; selectedDate: Date;
+// ── ADD EVENT (sheet + form — single modal) ──────────────────
+const REPEAT_OPTIONS = ['Never','Every day','Every week','Every fortnight','Every month','Every year'];
+const ALERT_OPTIONS  = ['None','At time of event','5 min before','15 min before','30 min before','1 hour before','2 hours before','1 day before','1 week before'];
+
+function MiniCalPicker({ dateStr, onChange }: {
+  dateStr: string; onChange: (s: string) => void;
 }) {
-  const router    = useRouter();
-  const slideAnim = useRef(new Animated.Value(300)).current;
-  const fadeAnim  = useRef(new Animated.Value(0)).current;
-  const [rendered, setRendered] = useState(false);
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const [open, setOpen] = useState(false);
+  const [navDate, setNavDate] = useState(() => new Date(dateStr + 'T12:00:00'));
+
+  const calFirstDay = getFirstDayOfMonth(navDate.getFullYear(), navDate.getMonth());
+  const calDim      = getDaysInMonth(navDate.getFullYear(), navDate.getMonth());
+  const calPrevDim  = getDaysInMonth(navDate.getFullYear(), navDate.getMonth() - 1);
+  const cells: { day:number; cur:boolean; date:Date }[] = [];
+  for (let i = calFirstDay-1; i >= 0; i--)
+    cells.push({ day:calPrevDim-i, cur:false, date:new Date(navDate.getFullYear(), navDate.getMonth()-1, calPrevDim-i) });
+  for (let d = 1; d <= calDim; d++)
+    cells.push({ day:d, cur:true, date:new Date(navDate.getFullYear(), navDate.getMonth(), d) });
+  while (cells.length % 7 !== 0) {
+    const n = cells.length - calFirstDay - calDim + 1;
+    cells.push({ day:n, cur:false, date:new Date(navDate.getFullYear(), navDate.getMonth()+1, n) });
+  }
+
+  const display = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' });
+
+  return (
+    <>
+      <TouchableOpacity style={s.gcPill} onPress={() => setOpen(true)} activeOpacity={0.7}>
+        <Text style={[s.gcPillTxt, open && { color: C.mag }]}>{display}</Text>
+      </TouchableOpacity>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', alignItems:'center', padding:24 }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:20, width:'100%', padding:16,
+            shadowColor:'#000', shadowOpacity:0.15, shadowRadius:20, shadowOffset:{ width:0, height:8 } }}>
+            {/* Nav */}
+            <View style={s.miniCalNav}>
+              <TouchableOpacity style={s.miniCalArrBtn} onPress={() => setNavDate(d => { const n=new Date(d); n.setMonth(n.getMonth()-1); return n; })}>
+                <Text style={s.miniCalArr}>{'‹'}</Text>
+              </TouchableOpacity>
+              <Text style={s.miniCalLbl}>{MONTHS[navDate.getMonth()]} {navDate.getFullYear()}</Text>
+              <TouchableOpacity style={s.miniCalArrBtn} onPress={() => setNavDate(d => { const n=new Date(d); n.setMonth(n.getMonth()+1); return n; })}>
+                <Text style={s.miniCalArr}>{'›'}</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Grid */}
+            <View style={s.miniCalGrid}>
+              {DAYS_HDR.map((d,i) => <Text key={i} style={s.miniCalHdr}>{d}</Text>)}
+              {cells.map((cell,i) => {
+                const isSel = dateStr === toLocalDateStr(cell.date);
+                const isToday = toLocalDateStr(cell.date) === toLocalDateStr(new Date());
+                return (
+                  <TouchableOpacity key={i} style={s.miniCalDay}
+                    onPress={() => { onChange(toLocalDateStr(cell.date)); setOpen(false); }} activeOpacity={0.7}>
+                    <View style={[s.miniCalDayInner, isSel && { backgroundColor: C.mag }, isToday && !isSel && { backgroundColor: 'rgba(224,0,124,0.12)' }]}>
+                      <Text style={[s.miniCalDayTxt, !cell.cur && { color:C.ink3 }, isSel && { color:'#fff' }, isToday && !isSel && { color: C.mag, fontFamily:'Poppins_700Bold' }]}>{cell.day}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {/* Cancel */}
+            <TouchableOpacity onPress={() => setOpen(false)} style={{ alignItems:'center', paddingTop:12, paddingBottom:4 }} activeOpacity={0.7}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:C.ink2 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+// ── TIME PICKER MODAL ────────────────────────────────────────
+const ROW_H = 52;
+
+function SnapCol({ items, selected, onSelect, fmtItem }: {
+  items: (string|number)[];
+  selected: string|number;
+  onSelect: (v: string|number) => void;
+  fmtItem?: (v: string|number) => string;
+}) {
+  const scrollRef = useRef<ScrollView>(null);
+  const selIdx = items.indexOf(selected);
+
+  useEffect(() => {
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: selIdx * ROW_H, animated: false });
+    }, 50);
+  }, []);
+
+  return (
+    <View style={{ flex:1, height: ROW_H * 5, overflow:'hidden' }}>
+      {/* centre highlight */}
+      <View pointerEvents="none" style={{
+        position:'absolute', top: ROW_H * 2, left:4, right:4, height: ROW_H,
+        backgroundColor:'rgba(224,0,124,0.08)',
+        borderRadius:12,
+        borderTopWidth:1.5, borderBottomWidth:1.5,
+        borderColor:'rgba(224,0,124,0.20)',
+        zIndex:2,
+      }}/>
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ROW_H}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingVertical: ROW_H * 2 }}
+        onMomentumScrollEnd={e => {
+          const idx = Math.round(e.nativeEvent.contentOffset.y / ROW_H);
+          const clamped = Math.max(0, Math.min(idx, items.length - 1));
+          onSelect(items[clamped]);
+        }}
+        onScrollEndDrag={e => {
+          const idx = Math.round(e.nativeEvent.contentOffset.y / ROW_H);
+          const clamped = Math.max(0, Math.min(idx, items.length - 1));
+          onSelect(items[clamped]);
+        }}
+      >
+        {items.map((item, i) => {
+          const isSel = item === selected;
+          const label = fmtItem ? fmtItem(item) : (
+            typeof item === 'number' ? String(item).padStart(2,'0') : String(item).toUpperCase()
+          );
+          return (
+            <TouchableOpacity
+              key={i}
+              style={{ height: ROW_H, alignItems:'center', justifyContent:'center' }}
+              onPress={() => {
+                scrollRef.current?.scrollTo({ y: i * ROW_H, animated: true });
+                onSelect(item);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={{
+                fontFamily: isSel ? 'Poppins_700Bold' : 'Poppins_400Regular',
+                fontSize: isSel ? 26 : 18,
+                color: isSel ? C.ink : C.ink3,
+              }}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+function TimePickerModal({ visible, hour, minute, ampm, onConfirm, onClose }: {
+  visible: boolean;
+  hour: number; minute: number; ampm: 'am'|'pm';
+  onConfirm: (h:number, m:number, ap:'am'|'pm') => void;
+  onClose: () => void;
+}) {
+  const [h, setH] = useState(hour);
+  const [m, setM] = useState(minute);
+  const [ap, setAp] = useState<'am'|'pm'>(ampm);
+
+  useEffect(() => {
+    if (visible) { setH(hour); setM(minute); setAp(ampm); }
+  }, [visible]);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', alignItems:'center', padding:32 }}>
+        <View style={{ backgroundColor:'#fff', borderRadius:24, width:'100%', padding:24,
+          shadowColor:'#000', shadowOpacity:0.18, shadowRadius:24, shadowOffset:{ width:0, height:8 } }}>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:C.ink, textAlign:'center', marginBottom:16 }}>Select time</Text>
+          <View style={{ flexDirection:'row', alignItems:'center', gap:0 }}>
+            <SnapCol items={HOURS}            selected={h}  onSelect={v => setH(v as number)}/>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:28, color:C.ink3, paddingHorizontal:4, marginBottom:4 }}>:</Text>
+            <SnapCol items={MINUTES}          selected={m}  onSelect={v => setM(v as number)}/>
+            <View style={{ width:1, backgroundColor:C.border, alignSelf:'stretch', marginHorizontal:8, marginVertical:8 }}/>
+            <SnapCol items={['am','pm']}       selected={ap} onSelect={v => setAp(v as 'am'|'pm')}/>
+          </View>
+          <View style={{ flexDirection:'row', gap:12, marginTop:20 }}>
+            <TouchableOpacity style={{ flex:1, paddingVertical:14, borderRadius:14, borderWidth:1.5, borderColor:C.border, alignItems:'center' }}
+              onPress={onClose} activeOpacity={0.8}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:C.ink2 }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ flex:1, paddingVertical:14, borderRadius:14, backgroundColor:C.mag, alignItems:'center' }}
+              onPress={() => { onConfirm(h, m, ap); onClose(); }} activeOpacity={0.85}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' }}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function TimePill({ hour, minute, ampm, onHour, onMinute, onAmpm }: {
+  hour:number; minute:number; ampm:'am'|'pm';
+  onHour:(h:number)=>void; onMinute:(m:number)=>void; onAmpm:(a:'am'|'pm')=>void;
+}) {
+  const [open, setOpen] = useState(false);
+  const display = `${hour}:${String(minute).padStart(2,'0')} ${ampm.toUpperCase()}`;
+  return (
+    <>
+      <TouchableOpacity style={s.gcPill} onPress={() => setOpen(true)} activeOpacity={0.7}>
+        <Text style={[s.gcPillTxt, open && { color: C.mag }]}>{display}</Text>
+      </TouchableOpacity>
+      <TimePickerModal
+        visible={open}
+        hour={hour} minute={minute} ampm={ampm}
+        onConfirm={(h, m, ap) => { onHour(h); onMinute(m); onAmpm(ap); }}
+        onClose={() => setOpen(false)}
+      />
+    </>
+  );
+}
+
+function DropdownPicker({ options, value, onChange }: {
+  options: string[]; value: string; onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View>
+      <TouchableOpacity style={s.gcRowRight} onPress={() => setOpen(true)} activeOpacity={0.7}>
+        <Text style={s.gcRowRightTxt}>{value}</Text>
+        <Text style={{ color: C.ink3, fontSize: 14, marginLeft: 4 }}>{'⌄'}</Text>
+      </TouchableOpacity>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <TouchableOpacity style={{ flex:1, backgroundColor:'rgba(0,0,0,0.35)', justifyContent:'center', alignItems:'center', padding:32 }}
+          onPress={() => setOpen(false)} activeOpacity={1}>
+          <View style={{ backgroundColor:'#fff', borderRadius:18, width:'100%', overflow:'hidden',
+            shadowColor:'#000', shadowOpacity:0.15, shadowRadius:20, shadowOffset:{ width:0, height:8 } }}>
+            {options.map((opt, i) => (
+              <TouchableOpacity key={opt}
+                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
+                  paddingHorizontal:20, paddingVertical:16,
+                  borderBottomWidth: i < options.length-1 ? 1 : 0, borderBottomColor:C.border }}
+                onPress={() => { onChange(opt); setOpen(false); }} activeOpacity={0.7}>
+                <Text style={{ fontFamily: opt===value ? 'Poppins_600SemiBold' : 'Poppins_400Regular',
+                  fontSize:16, color: opt===value ? C.mag : C.ink }}>{opt}</Text>
+                {opt === value && <Text style={{ color: C.mag, fontSize: 16, fontFamily:'Poppins_700Bold' }}>{'✓'}</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
+function AddEventFlow({ visible, onClose, onSaved, selectedDate }: {
+  visible: boolean; onClose: () => void; onSaved: () => void; selectedDate: Date;
+}) {
+  const router = useRouter();
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  const todayStr = toLocalDateStr(new Date());
+
+  const [step,      setStep]      = useState<'sheet'|'form'>('sheet');
+  const [title,     setTitle]     = useState('');
+  const [location,  setLocation]  = useState('');
+  const [notes,     setNotes]     = useState('');
+  const [allDay,    setAllDay]    = useState(false);
+  const [startDate, setStartDate] = useState(toLocalDateStr(selectedDate));
+  const [endDate,   setEndDate]   = useState(toLocalDateStr(selectedDate));
+  const [startHour, setStartHour] = useState(9);
+  const [startMin,  setStartMin]  = useState(0);
+  const [startAmpm, setStartAmpm] = useState<'am'|'pm'>('am');
+  const [endHour,   setEndHour]   = useState(10);
+  const [endMin,    setEndMin]    = useState(0);
+  const [endAmpm,   setEndAmpm]   = useState<'am'|'pm'>('am');
+  const [repeat,    setRepeat]    = useState('Never');
+  const [alert,     setAlert]     = useState('None');
+  const [assignees, setAssignees] = useState<string[]>(['1']);
+  const [saving,    setSaving]    = useState(false);
+  const [tab,       setTab]       = useState<'details'|'people'>('details');
 
   useEffect(() => {
     if (visible) {
-      setRendered(true);
-      Animated.parallel([
-        Animated.timing(fadeAnim,  { toValue:1,   duration:250, useNativeDriver:true }),
-        Animated.timing(slideAnim, { toValue:0,   duration:300, easing:Easing.out(Easing.cubic), useNativeDriver:true }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(fadeAnim,  { toValue:0,   duration:200, useNativeDriver:true }),
-        Animated.timing(slideAnim, { toValue:300, duration:250, useNativeDriver:true }),
-      ]).start(() => setRendered(false));
+      setStep('sheet'); setTitle(''); setLocation(''); setNotes('');
+      setAllDay(false);
+      setStartDate(toLocalDateStr(selectedDate)); setEndDate(toLocalDateStr(selectedDate));
+      setStartHour(9); setStartMin(0); setStartAmpm('am');
+      setEndHour(10);  setEndMin(0);   setEndAmpm('am');
+      setRepeat('Never'); setAlert('None');
+      setAssignees(['1']); setSaving(false); setTab('details');
     }
   }, [visible]);
 
-  if (!rendered) return null;
+  const toggleAssignee = (id: string) =>
+    setAssignees(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const toH24 = (h: number, ap: 'am'|'pm') =>
+    ap === 'pm' ? (h===12 ? 12 : h+12) : (h===12 ? 0 : h);
+
+  const save = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      const pad   = (n: number) => String(n).padStart(2,'0');
+      const sh24  = toH24(startHour, startAmpm);
+      const eh24  = toH24(endHour, endAmpm);
+      // duration in minutes (handles multi-day via dates)
+      const startMs = new Date(startDate + 'T' + pad(sh24) + ':' + pad(startMin) + ':00').getTime();
+      const endMs   = new Date(endDate   + 'T' + pad(eh24) + ':' + pad(endMin)   + ':00').getTime();
+      const durMs   = endMs - startMs;
+
+      // build repeat dates — 52 weeks / 12 months max
+      const repeatDates: Date[] = [];
+      const base = new Date(startDate + 'T12:00:00');
+      const addDays  = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+      const addMonths= (d: Date, n: number) => { const r = new Date(d); r.setMonth(r.getMonth() + n); return r; };
+      if (repeat === 'Never') {
+        repeatDates.push(base);
+      } else if (repeat === 'Every day') {
+        for (let i = 0; i < 60; i++) repeatDates.push(addDays(base, i));
+      } else if (repeat === 'Every week') {
+        for (let i = 0; i < 52; i++) repeatDates.push(addDays(base, i * 7));
+      } else if (repeat === 'Every fortnight') {
+        for (let i = 0; i < 26; i++) repeatDates.push(addDays(base, i * 14));
+      } else if (repeat === 'Every month') {
+        for (let i = 0; i < 12; i++) repeatDates.push(addMonths(base, i));
+      } else if (repeat === 'Every year') {
+        for (let i = 0; i < 3; i++) repeatDates.push(addMonths(base, i * 12));
+      }
+
+      const toStr = (d: Date) =>
+        `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+      const rows = repeatDates.map(d => {
+        const dStr    = toStr(d);
+        const sTime   = allDay ? `${dStr}T00:00:00` : `${dStr}T${pad(sh24)}:${pad(startMin)}:00`;
+        const eMs     = new Date(sTime).getTime() + (allDay ? 0 : durMs);
+        const eDate   = new Date(eMs);
+        const eDStr   = toStr(eDate);
+        const eTime   = allDay ? `${eDStr}T23:59:00` : `${eDStr}T${pad(eDate.getHours())}:${pad(eDate.getMinutes())}:00`;
+        return {
+          family_id:   DUMMY_FAMILY_ID,
+          title:       title.trim(),
+          notes:       [notes.trim(), location.trim()].filter(Boolean).join(' | '),
+          date:        dStr,
+          start_time:  sTime,
+          end_time:    eTime,
+          timezone:    'Australia/Brisbane',
+          repeat_rule: repeat,
+          alert_rule:  alert,
+          assignees,
+        };
+      });
+
+      // insert in batches of 20 to avoid payload limits
+      for (let i = 0; i < rows.length; i += 20) {
+        const batch = rows.slice(i, i + 20);
+        let { error } = await supabase.from('events').insert(batch);
+        if (error && (error.message?.includes('assignees') || error.code === '42703')) {
+          const slim = batch.map(({ assignees: _a, ...r }) => r);
+          const r2 = await supabase.from('events').insert(slim);
+          error = r2.error;
+        }
+        if (error) { setSaving(false); return; }
+      }
+
+      lastBriefTime = null; cachedBriefText = null;
+      onSaved();
+    } catch (e: any) {
+      console.log('Save error:', e?.message);
+      setSaving(false);
+    }
+  };
 
   const dateLabel = selectedDate.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' });
 
   const openZaeli = () => {
     onClose();
-    const isoDate = selectedDate.toISOString().split('T')[0]; // YYYY-MM-DD
+    const isoDate = selectedDate.toISOString().split('T')[0];
     router.push({
       pathname: '/(tabs)/zaeli-chat',
       params: {
@@ -442,58 +782,151 @@ function AddEventSheet({ visible, onClose, onOpenManual, selectedDate }: {
   };
 
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose}>
-      {/* Backdrop */}
-      <Animated.View style={[s.sheetBackdrop, { opacity: fadeAnim }]}>
-        <TouchableOpacity style={{ flex:1 }} onPress={onClose} activeOpacity={1}/>
-      </Animated.View>
-
-      {/* Sheet */}
-      <Animated.View style={[s.sheet, { transform:[{ translateY: slideAnim }] }]}>
-        {/* Handle */}
-        <View style={s.sheetHandle}/>
-
-        {/* Header */}
-        <View style={s.sheetHdr}>
-          <View style={s.sheetAv}>
-            <Text style={{ fontSize:16, color:'#fff' }}>✦</Text>
+    <>
+      {/* ── SHEET MODAL: transparent overlay ── */}
+      <Modal visible={visible && step === 'sheet'} transparent animationType="slide" onRequestClose={onClose}>
+        <TouchableOpacity style={{ flex:1, backgroundColor:'rgba(0,0,0,0.4)' }} onPress={onClose} activeOpacity={1}/>
+        <View style={{ backgroundColor:'#fff', borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:14, paddingBottom:Platform.OS==='ios' ? 40 : 24, gap:16 }}>
+          <View style={{ width:36, height:4, borderRadius:2, backgroundColor:C.border, alignSelf:'center', marginBottom:4 }}/>
+          <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
+            <View style={s.sheetAv}><Text style={{ fontSize:16, color:'#fff' }}>✦</Text></View>
+            <View style={{ flex:1 }}>
+              <Text style={s.sheetTitle}>Add an event</Text>
+              <Text style={s.sheetSub}>{dateLabel}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={s.sheetClose} activeOpacity={0.7}>
+              <Text style={s.sheetCloseTxt}>✕</Text>
+            </TouchableOpacity>
           </View>
-          <View style={{ flex:1 }}>
-            <Text style={s.sheetTitle}>Add an event</Text>
-            <Text style={s.sheetSub}>{dateLabel}</Text>
+          <TouchableOpacity style={s.sheetPrimary} onPress={openZaeli} activeOpacity={0.85}>
+            <View style={s.sheetPrimaryIcon}><Text style={{ fontSize:18 }}>✦</Text></View>
+            <View style={{ flex:1 }}>
+              <Text style={s.sheetPrimaryTitle}>Ask Zaeli to add it</Text>
+              <Text style={s.sheetPrimaryDesc}>Just tell her what it is — she'll handle the details</Text>
+            </View>
+            <Text style={s.sheetPrimaryArrow}>→</Text>
+          </TouchableOpacity>
+          <View style={s.sheetDivider}>
+            <View style={s.sheetDividerLine}/>
+            <Text style={s.sheetDividerTxt}>or</Text>
+            <View style={s.sheetDividerLine}/>
           </View>
-          <TouchableOpacity onPress={onClose} style={s.sheetClose} activeOpacity={0.7}>
-            <Text style={s.sheetCloseTxt}>✕</Text>
+          <TouchableOpacity style={s.sheetSecondary} onPress={() => setStep('form')} activeOpacity={0.8}>
+            <Text style={s.sheetSecondaryTxt}>Fill in manually</Text>
           </TouchableOpacity>
         </View>
+      </Modal>
 
-        {/* Zaeli CTA — primary */}
-        <TouchableOpacity style={s.sheetPrimary} onPress={openZaeli} activeOpacity={0.85}>
-          <View style={s.sheetPrimaryIcon}>
-            <Text style={{ fontSize:18 }}>✦</Text>
-          </View>
-          <View style={{ flex:1 }}>
-            <Text style={s.sheetPrimaryTitle}>Ask Zaeli to add it</Text>
-            <Text style={s.sheetPrimaryDesc}>Just tell her what it is — she'll handle the details</Text>
-          </View>
-          <Text style={s.sheetPrimaryArrow}>→</Text>
-        </TouchableOpacity>
+      {/* ── FORM MODAL: full pageSheet ── */}
+      <Modal visible={visible && step === 'form'} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+        <SafeAreaView style={{ flex:1, backgroundColor:'#fff' }} edges={['top']}>
+          <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS==='ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
+            {/* Header */}
+            <View style={s.modalHdr}>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top:12,bottom:12,left:12,right:12 }}>
+                <Text style={s.modalCancel}>← Back</Text>
+              </TouchableOpacity>
+              <Text style={s.modalTitle}>New Event</Text>
+              <TouchableOpacity onPress={save} disabled={!title.trim() || saving}>
+                <Text style={[s.modalSave, (!title.trim()||saving) && { opacity:0.35 }]}>{saving ? 'Saving…' : 'Save'}</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Tabs */}
+            <View style={s.modalTabs}>
+              {(['details','people'] as const).map(t => (
+                <TouchableOpacity key={t} style={[s.modalTab, tab===t && s.modalTabOn]} onPress={() => setTab(t)} activeOpacity={0.8}>
+                  <Text style={[s.modalTabTxt, tab===t && s.modalTabTxtOn]}>{t==='details' ? 'Details' : 'People'}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-        {/* Divider */}
-        <View style={s.sheetDivider}>
-          <View style={s.sheetDividerLine}/>
-          <Text style={s.sheetDividerTxt}>or</Text>
-          <View style={s.sheetDividerLine}/>
-        </View>
+            <ScrollView contentContainerStyle={{ paddingBottom:48 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              {tab === 'details' ? (
+                <View>
+                  {/* Title + Location block */}
+                  <View style={s.gcBlock}>
+                    <TextInput style={s.gcTitleInput} value={title} onChangeText={setTitle}
+                      placeholder="Title" placeholderTextColor={C.ink3} autoFocus/>
+                    <View style={s.gcSep}/>
+                    <TextInput style={s.gcSubInput} value={location} onChangeText={setLocation}
+                      placeholder="Location or video call" placeholderTextColor={C.ink3}/>
+                  </View>
 
-        {/* Manual entry — secondary */}
-        <TouchableOpacity style={s.sheetSecondary} onPress={() => { onClose(); onOpenManual(); }} activeOpacity={0.8}>
-          <Text style={s.sheetSecondaryTxt}>Fill in manually</Text>
-        </TouchableOpacity>
+                  {/* Date / Time block */}
+                  <View style={s.gcBlock}>
+                    {/* All-day toggle */}
+                    <View style={s.gcRow}>
+                      <Text style={s.gcRowLbl}>All day</Text>
+                      <TouchableOpacity onPress={() => setAllDay(v => !v)} activeOpacity={0.8}>
+                        <View style={[s.gcToggle, allDay && s.gcToggleOn]}>
+                          <View style={[s.gcToggleThumb, allDay && s.gcToggleThumbOn]}/>
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={s.gcSep}/>
+                    {/* Start row */}
+                    <View style={s.gcRow}>
+                      <Text style={s.gcRowLbl}>Starts</Text>
+                      <View style={{ flexDirection:'row', gap:8, alignItems:'center' }}>
+                        <MiniCalPicker dateStr={startDate} onChange={d => { setStartDate(d); if (d > endDate) setEndDate(d); }}/>
+                        {!allDay && <TimePill hour={startHour} minute={startMin} ampm={startAmpm} onHour={setStartHour} onMinute={setStartMin} onAmpm={setStartAmpm}/>}
+                      </View>
+                    </View>
+                    <View style={s.gcSep}/>
+                    {/* End row */}
+                    <View style={s.gcRow}>
+                      <Text style={s.gcRowLbl}>Ends</Text>
+                      <View style={{ flexDirection:'row', gap:8, alignItems:'center' }}>
+                        <MiniCalPicker dateStr={endDate} onChange={d => { if (d >= startDate) setEndDate(d); }}/>
+                        {!allDay && <TimePill hour={endHour} minute={endMin} ampm={endAmpm} onHour={setEndHour} onMinute={setEndMin} onAmpm={setEndAmpm}/>}
+                      </View>
+                    </View>
+                  </View>
 
-        <View style={{ height: Platform.OS === 'ios' ? 28 : 12 }}/>
-      </Animated.View>
-    </Modal>
+                  {/* Repeat + Alert block */}
+                  <View style={s.gcBlock}>
+                    <View style={s.gcRow}>
+                      <Text style={s.gcRowLbl}>Repeat</Text>
+                      <DropdownPicker options={REPEAT_OPTIONS} value={repeat} onChange={setRepeat}/>
+                    </View>
+                    <View style={s.gcSep}/>
+                    <View style={s.gcRow}>
+                      <Text style={s.gcRowLbl}>Alert</Text>
+                      <DropdownPicker options={ALERT_OPTIONS} value={alert} onChange={setAlert}/>
+                    </View>
+                  </View>
+
+                  {/* Notes block */}
+                  <View style={s.gcBlock}>
+                    <TextInput style={s.gcSubInput} value={notes} onChangeText={setNotes}
+                      placeholder="Notes" placeholderTextColor={C.ink3}
+                      multiline numberOfLines={3} textAlignVertical="top"/>
+                  </View>
+                </View>
+              ) : (
+                /* People tab */
+                <View style={{ padding:20, gap:12 }}>
+                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:C.ink2, lineHeight:20 }}>Who is this event for?</Text>
+                  {FAMILY_MEMBERS.map(m => {
+                    const on = assignees.includes(m.id);
+                    return (
+                      <TouchableOpacity key={m.id} style={[s.memberRow, on && { borderColor:m.color+'40', backgroundColor:m.color+'08' }]}
+                        onPress={() => toggleAssignee(m.id)} activeOpacity={0.8}>
+                        <View style={[s.memberDot, { backgroundColor:m.color }]}/>
+                        <Text style={s.memberName}>{m.name}</Text>
+                        <View style={[s.memberCheck, on && { backgroundColor:m.color, borderColor:m.color }]}>
+                          {on && <Text style={{ color:'#fff', fontSize:12, fontFamily:'Poppins_700Bold' }}>{'✓'}</Text>}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+    </>
   );
 }
 
@@ -504,6 +937,10 @@ function EventDetailModal({ event, onClose, onDeleted }: {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  useEffect(() => {
+    if (event) { setDeleting(false); setConfirmDelete(false); }
+  }, [event?.id]);
 
   if (!event) return null;
 
@@ -538,28 +975,52 @@ function EventDetailModal({ event, onClose, onDeleted }: {
         </View>
         <ScrollView contentContainerStyle={{ padding:22, gap:18 }}>
           <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:C.ink, lineHeight:30 }}>{event.title}</Text>
+
+          {/* Date */}
           {event.date && (
             <View style={s.detailRow}>
               <Text style={s.detailIcon}>📅</Text>
-              <Text style={s.detailTxt}>{new Date(event.date+'T12:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</Text>
+              <View>
+                <Text style={s.detailTxt}>{new Date(event.date+'T12:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</Text>
+                {event.end_time && (() => {
+                  const endDate = event.end_time.split('T')[0];
+                  return endDate !== event.date
+                    ? <Text style={[s.detailTxt, { color:C.ink2 }]}>{'→ ' + new Date(endDate+'T12:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</Text>
+                    : null;
+                })()}
+              </View>
             </View>
           )}
+
+          {/* Time */}
           {event.start_time && (
             <View style={s.detailRow}>
               <Text style={s.detailIcon}>🕐</Text>
               <Text style={s.detailTxt}>{fmtTime(event.start_time)}{event.end_time ? ` → ${fmtTime(event.end_time)}` : ''}</Text>
             </View>
           )}
+
+          {/* Repeat */}
+          {event.repeat_rule && event.repeat_rule !== 'Never' && (
+            <View style={s.detailRow}>
+              <Text style={s.detailIcon}>🔁</Text>
+              <Text style={s.detailTxt}>{event.repeat_rule}</Text>
+            </View>
+          )}
+
+          {/* Alert */}
+          {event.alert_rule && event.alert_rule !== 'None' && (
+            <View style={s.detailRow}>
+              <Text style={s.detailIcon}>🔔</Text>
+              <Text style={s.detailTxt}>{event.alert_rule}</Text>
+            </View>
+          )}
+
+          {/* Notes */}
           {event.notes ? (
             <View style={s.detailRow}>
               <Text style={s.detailIcon}>📝</Text>
               <Text style={s.detailTxt}>{event.notes}</Text>
-            </View>
-          ) : null}
-          {event.timezone ? (
-            <View style={s.detailRow}>
-              <Text style={s.detailIcon}>🌏</Text>
-              <Text style={s.detailTxt}>{event.timezone}</Text>
             </View>
           ) : null}
 
@@ -595,217 +1056,6 @@ function EventDetailModal({ event, onClose, onDeleted }: {
 }
 
 // ── TIME PICKER ───────────────────────────────────────────────
-function TimePicker({ hour, minute, ampm, onHour, onMinute, onAmpm }: {
-  hour: number; minute: number; ampm: 'am'|'pm';
-  onHour: (h: number) => void; onMinute: (m: number) => void; onAmpm: (a: 'am'|'pm') => void;
-}) {
-  return (
-    <View style={s.timePicker}>
-      <ScrollView style={s.timeCol} showsVerticalScrollIndicator={false}>
-        {HOURS.map(h => (
-          <TouchableOpacity key={h} style={[s.timeCell, hour===h && s.timeCellOn]} onPress={() => onHour(h)} activeOpacity={0.7}>
-            <Text style={[s.timeCellTxt, hour===h && s.timeCellTxtOn]}>{h}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <Text style={s.timeColon}>{':'}</Text>
-      <ScrollView style={s.timeCol} showsVerticalScrollIndicator={false}>
-        {MINUTES.map(m => (
-          <TouchableOpacity key={m} style={[s.timeCell, minute===m && s.timeCellOn]} onPress={() => onMinute(m)} activeOpacity={0.7}>
-            <Text style={[s.timeCellTxt, minute===m && s.timeCellTxtOn]}>{String(m).padStart(2,'0')}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      <View style={s.ampmCol}>
-        {(['am','pm'] as const).map(a => (
-          <TouchableOpacity key={a} style={[s.timeCell, s.ampmCell, ampm===a && s.timeCellOn]} onPress={() => onAmpm(a)} activeOpacity={0.7}>
-            <Text style={[s.timeCellTxt, ampm===a && s.timeCellTxtOn]}>{a.toUpperCase()}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-// ── ADD EVENT MODAL (manual entry) ───────────────────────────
-function AddEventModal({ visible, onClose, onSaved, defaultDate }: {
-  visible: boolean; onClose: () => void; onSaved: () => void; defaultDate: Date;
-}) {
-  const toLocalDateStr = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
-  const [tab,       setTab]       = useState<'details'|'people'>('details');
-  const [title,     setTitle]     = useState('');
-  const [notes,     setNotes]     = useState('');
-  const [location,  setLocation]  = useState('');
-  const [dateStr,   setDateStr]   = useState(toLocalDateStr(defaultDate));
-  const [hour,      setHour]      = useState(9);
-  const [minute,    setMinute]    = useState(0);
-  const [ampm,      setAmpm]      = useState<'am'|'pm'>('am');
-  const [durIdx,    setDurIdx]    = useState(3);
-  const [assignees, setAssignees] = useState<string[]>(['1']);
-  const [saving,    setSaving]    = useState(false);
-  const [showCal,   setShowCal]   = useState(false);
-  const [calDate,   setCalDate]   = useState(defaultDate);
-
-  const toggleAssignee = (id: string) =>
-    setAssignees(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-
-  const calFirstDay = getFirstDayOfMonth(calDate.getFullYear(), calDate.getMonth());
-  const calDim      = getDaysInMonth(calDate.getFullYear(), calDate.getMonth());
-  const calPrevDim  = getDaysInMonth(calDate.getFullYear(), calDate.getMonth() - 1);
-  const calCells: { day:number; cur:boolean; date:Date }[] = [];
-  for (let i = calFirstDay-1; i >= 0; i--)
-    calCells.push({ day:calPrevDim-i, cur:false, date:new Date(calDate.getFullYear(), calDate.getMonth()-1, calPrevDim-i) });
-  for (let d = 1; d <= calDim; d++)
-    calCells.push({ day:d, cur:true, date:new Date(calDate.getFullYear(), calDate.getMonth(), d) });
-  while (calCells.length % 7 !== 0) {
-    const n = calCells.length - calFirstDay - calDim + 1;
-    calCells.push({ day:n, cur:false, date:new Date(calDate.getFullYear(), calDate.getMonth()+1, n) });
-  }
-
-  const save = async () => {
-    if (!title.trim()) return;
-    setSaving(true);
-    try {
-      const h24    = ampm === 'pm' ? (hour===12 ? 12 : hour+12) : (hour===12 ? 0 : hour);
-      const durMins = DURATION_MINS[durIdx];
-      const endH   = durMins===1439 ? 23 : Math.floor((h24*60+minute+durMins)/60) % 24;
-      const endM   = durMins===1439 ? 59  : (h24*60+minute+durMins) % 60;
-      const pad    = (n: number) => String(n).padStart(2,'0');
-      const payload: any = {
-        family_id:  DUMMY_FAMILY_ID,
-        title:      title.trim(),
-        notes:      [notes.trim(), location.trim()].filter(Boolean).join(' | '),
-        date:       dateStr,
-        start_time: `${dateStr}T${pad(h24)}:${pad(minute)}:00`,
-        end_time:   durMins===1439 ? `${dateStr}T23:59:00` : `${dateStr}T${pad(endH)}:${pad(endM)}:00`,
-        timezone:   'Australia/Brisbane',
-        assignees,
-      };
-      let { error } = await supabase.from('events').insert(payload);
-      if (error && (error.message?.includes('assignees') || error.code==='42703')) {
-        const { assignees:_a, ...slim } = payload;
-        const r2 = await supabase.from('events').insert(slim);
-        error = r2.error;
-      }
-      if (error) { setSaving(false); return; }
-      lastBriefTime = null; cachedBriefText = null;
-      setTitle(''); setNotes(''); setLocation('');
-      onSaved();
-    } catch (e: any) {
-      console.log('Save error:', e?.message);
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex:1, backgroundColor:'#fff' }} edges={['top']}>
-        <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS==='ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
-          <View style={s.modalHdr}>
-            <TouchableOpacity onPress={onClose}><Text style={s.modalCancel}>Cancel</Text></TouchableOpacity>
-            <Text style={s.modalTitle}>New Event</Text>
-            <TouchableOpacity onPress={save} disabled={!title.trim() || saving}>
-              <Text style={[s.modalSave, (!title.trim()||saving) && { opacity:0.35 }]}>{saving ? 'Saving...' : 'Save'}</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={s.modalTabs}>
-            {(['details','people'] as const).map(t => (
-              <TouchableOpacity key={t} style={[s.modalTab, tab===t && s.modalTabOn]} onPress={() => setTab(t)} activeOpacity={0.8}>
-                <Text style={[s.modalTabTxt, tab===t && s.modalTabTxtOn]}>{t==='details' ? 'Details' : 'People'}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <ScrollView contentContainerStyle={{ padding:20, paddingBottom:40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {tab === 'details' ? (
-              <View style={{ gap:16 }}>
-                <View style={s.formField}>
-                  <Text style={s.formLabel}>Title *</Text>
-                  <TextInput style={s.formInput} value={title} onChangeText={setTitle} placeholder="What is the event?" placeholderTextColor={C.ink3} autoFocus/>
-                </View>
-                <View style={s.formField}>
-                  <Text style={s.formLabel}>Notes</Text>
-                  <TextInput style={[s.formInput, { height:72, textAlignVertical:'top', paddingTop:12 }]} value={notes} onChangeText={setNotes} multiline placeholder="Details, reminders..." placeholderTextColor={C.ink3}/>
-                </View>
-                <View style={s.formField}>
-                  <Text style={s.formLabel}>Location</Text>
-                  <TextInput style={s.formInput} value={location} onChangeText={setLocation} placeholder="Address or place name" placeholderTextColor={C.ink3}/>
-                </View>
-                <View style={s.formField}>
-                  <Text style={s.formLabel}>Date</Text>
-                  <TouchableOpacity style={s.formInput} onPress={() => setShowCal(v => !v)} activeOpacity={0.8}>
-                    <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:C.ink }}>
-                      {new Date(dateStr+'T12:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                {showCal && (
-                  <View style={s.miniCal}>
-                    <View style={s.miniCalNav}>
-                      <TouchableOpacity style={s.miniCalArrBtn} onPress={() => setCalDate(d => { const n=new Date(d); n.setMonth(n.getMonth()-1); return n; })}>
-                        <Text style={s.miniCalArr}>{'<'}</Text>
-                      </TouchableOpacity>
-                      <Text style={s.miniCalLbl}>{MONTHS[calDate.getMonth()]} {calDate.getFullYear()}</Text>
-                      <TouchableOpacity style={s.miniCalArrBtn} onPress={() => setCalDate(d => { const n=new Date(d); n.setMonth(n.getMonth()+1); return n; })}>
-                        <Text style={s.miniCalArr}>{'>'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <View style={s.miniCalGrid}>
-                      {DAYS_HDR.map((d,i) => <Text key={i} style={s.miniCalHdr}>{d}</Text>)}
-                      {calCells.map((cell,i) => {
-                        const isSel = dateStr === toLocalDateStr(cell.date);
-                        return (
-                          <TouchableOpacity key={i} style={[s.miniCalDay, isSel && s.miniCalDaySel]}
-                            onPress={() => { setDateStr(toLocalDateStr(cell.date)); setShowCal(false); }} activeOpacity={0.7}>
-                            <Text style={[s.miniCalDayTxt, !cell.cur && { color:C.ink3 }, isSel && { color:'#fff' }]}>{cell.day}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-                <View style={s.formField}>
-                  <Text style={s.formLabel}>Time</Text>
-                  <TimePicker hour={hour} minute={minute} ampm={ampm} onHour={setHour} onMinute={setMinute} onAmpm={setAmpm}/>
-                </View>
-                <View style={s.formField}>
-                  <Text style={s.formLabel}>Duration</Text>
-                  <View style={s.durGrid}>
-                    {DURATION_OPTIONS.map((d,i) => (
-                      <TouchableOpacity key={i} style={[s.durChip, durIdx===i && s.durChipOn]} onPress={() => setDurIdx(i)} activeOpacity={0.8}>
-                        <Text style={[s.durChipTxt, durIdx===i && s.durChipTxtOn]}>{d}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              </View>
-            ) : (
-              <View style={{ gap:12 }}>
-                <Text style={s.formLabel}>Assign to</Text>
-                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:C.ink2, lineHeight:20 }}>Tick who this event is for.</Text>
-                {FAMILY_MEMBERS.map(m => {
-                  const on = assignees.includes(m.id);
-                  return (
-                    <TouchableOpacity key={m.id} style={[s.memberRow, on && { borderColor:m.color+'40', backgroundColor:m.color+'08' }]}
-                      onPress={() => toggleAssignee(m.id)} activeOpacity={0.8}>
-                      <View style={[s.memberDot, { backgroundColor:m.color }]}/>
-                      <Text style={s.memberName}>{m.name}</Text>
-                      <View style={[s.memberCheck, on && { backgroundColor:m.color, borderColor:m.color }]}>
-                        {on && <Text style={{ color:'#fff', fontSize:12, fontFamily:'Poppins_700Bold' }}>{'✓'}</Text>}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </Modal>
-  );
-}
-
 // ── MAIN SCREEN ───────────────────────────────────────────────
 export default function CalendarScreen() {
   const today  = new Date();
@@ -825,9 +1075,25 @@ export default function CalendarScreen() {
   const [todos,        setTodos]        = useState<any[]>([]);
   const [dismissed,    setDismissed]    = useState(briefDismissed);
   const [showRelaxed,  setShowRelaxed]  = useState(briefDismissed);
-  const [showSheet,    setShowSheet]    = useState(false);   // ← Zaeli-first sheet
-  const [showAddModal, setShowAddModal] = useState(false);   // ← manual fallback
+  const [menuOpen,     setMenuOpen]     = useState(false);
+  const [showSheet,    setShowSheet]    = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null); // ← event detail
+
+  // ── Deep-link: open specific event from home radar ──────────────────────────
+  const params = useLocalSearchParams<{ eventId?: string }>();
+  const handledEventId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const id = params.eventId;
+    if (!id || id === handledEventId.current) return;
+    // events may not be loaded yet — wait until they are
+    if (events.length === 0) return;
+    const found = events.find((e: any) => String(e.id) === String(id));
+    if (found) {
+      handledEventId.current = id;
+      setSelectedEvent(found);
+    }
+  }, [params.eventId, events]);
 
   const STRIP_BEFORE = 60;
   const PILL_W       = 56;
@@ -950,8 +1216,12 @@ export default function CalendarScreen() {
             <View style={s.logoStarBox}><Text style={s.logoStarTxt}>{'✦'}</Text></View>
             <Text style={s.logoWord}>{'z'}<Text style={{ color:C.yellow }}>{'a'}</Text>{'el'}<Text style={{ color:C.yellow }}>{'i'}</Text></Text>
           </View>
-          <Text style={s.heroTitle}>Calendar</Text>
+          <View style={s.heroRight}>
+            <Text style={s.heroTitle}>Calendar</Text>
+            <HamburgerButton onPress={() => setMenuOpen(true)}/>
+          </View>
         </View>
+        <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)}/>
         <View style={s.viewTog}>
           {(['day','week','month'] as const).map(v => (
             <TouchableOpacity key={v} style={[s.vt, view===v && s.vtOn]} onPress={() => setView(v)} activeOpacity={0.8}>
@@ -1094,20 +1364,12 @@ export default function CalendarScreen() {
         onDeleted={() => { setSelectedEvent(null); loadEvents(); }}
       />
 
-      {/* ── Zaeli-first sheet ── */}
-      <AddEventSheet
+      {/* ── Add event flow (sheet → form, single modal) ── */}
+      <AddEventFlow
         visible={showSheet}
         onClose={() => setShowSheet(false)}
-        onOpenManual={() => setShowAddModal(true)}
+        onSaved={() => { setShowSheet(false); loadEvents(); }}
         selectedDate={selectedDate}
-      />
-
-      {/* ── Manual entry modal (fallback) ── */}
-      <AddEventModal
-        visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSaved={() => { setShowAddModal(false); loadEvents(); }}
-        defaultDate={selectedDate}
       />
 
       {/* ── Ask Zaeli bar — sticky bottom ── */}
@@ -1142,6 +1404,7 @@ const s = StyleSheet.create({
   heroOrbInner: { position:'absolute', width:160, height:160, borderRadius:80, top:-20, right:20, backgroundColor:'rgba(255,255,255,0.08)' },
   heroOrb2:     { position:'absolute', width:100, height:100, borderRadius:50, bottom:10, left:-20, backgroundColor:'rgba(255,255,255,0.04)' },
   heroRow:      { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 },
+  heroRight:    { flexDirection:'row', alignItems:'center', gap:10 },
   logoMark:     { flexDirection:'row', alignItems:'center', gap:8 },
   logoStarBox:  { width:32, height:32, backgroundColor:'rgba(255,255,255,0.2)', borderRadius:10, alignItems:'center', justifyContent:'center' },
   logoStarTxt:  { fontSize:17, color:'#fff' },
@@ -1286,21 +1549,32 @@ const s = StyleSheet.create({
   miniCalArrBtn: { padding:4 },
   miniCalArr:    { fontSize:20, color:C.ink2, fontFamily:'Poppins_400Regular' },
   miniCalLbl:    { fontFamily:'Poppins_700Bold', fontSize:14, color:C.ink },
-  miniCalGrid:   { flexDirection:'row', flexWrap:'wrap' },
-  miniCalHdr:    { width:`${100/7}%` as any, textAlign:'center', fontFamily:'Poppins_700Bold', fontSize:9, color:C.ink3, paddingVertical:4 },
-  miniCalDay:    { width:`${100/7}%` as any, aspectRatio:1, alignItems:'center', justifyContent:'center', borderRadius:8 },
-  miniCalDaySel: { backgroundColor:C.mag },
-  miniCalDayTxt: { fontFamily:'Poppins_500Medium', fontSize:13, color:C.ink },
+  miniCalGrid:     { flexDirection:'row', flexWrap:'wrap' },
+  miniCalHdr:      { width:`${100/7}%` as any, textAlign:'center', fontFamily:'Poppins_700Bold', fontSize:9, color:C.ink3, paddingVertical:4 },
+  miniCalDay:      { width:`${100/7}%` as any, aspectRatio:1, alignItems:'center', justifyContent:'center' },
+  miniCalDayInner: { width:32, height:32, borderRadius:16, alignItems:'center', justifyContent:'center' },
+  miniCalDayTxt:   { fontFamily:'Poppins_500Medium', fontSize:13, color:C.ink },
 
-  timePicker: { flexDirection:'row', gap:6, backgroundColor:C.bg, borderRadius:12, padding:10, borderWidth:1.5, borderColor:C.border, height:160 },
-  timeCol:    { flex:1 },
-  ampmCol:    { justifyContent:'center', gap:6 },
-  timeCell:   { paddingVertical:9, paddingHorizontal:8, borderRadius:8, alignItems:'center', minWidth:44 },
-  timeCellOn: { backgroundColor:C.mag },
-  timeCellTxt:   { fontFamily:'Poppins_600SemiBold', fontSize:15, color:C.ink },
-  timeCellTxtOn: { color:'#fff' },
-  timeColon:  { fontFamily:'Poppins_700Bold', fontSize:22, color:C.ink2, alignSelf:'center', paddingHorizontal:2 },
-  ampmCell:   { paddingHorizontal:10 },
+  // time drum (gesture-based scroll shown below pill)
+  timeColon:    { fontFamily:'Poppins_700Bold', fontSize:26, color:C.ink3, marginBottom:0 },
+  // Google Calendar-style form
+  gcBlock:        { marginHorizontal:16, marginTop:14, backgroundColor:'#fff', borderRadius:16, borderWidth:1.5, borderColor:C.border, overflow:'hidden' },
+  gcRow:          { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:14 },
+  gcRowLbl:       { fontFamily:'Poppins_500Medium', fontSize:15, color:C.ink },
+  gcRowRight:     { flexDirection:'row', alignItems:'center' },
+  gcRowRightTxt:  { fontFamily:'Poppins_500Medium', fontSize:15, color:C.ink2 },
+  gcSep:          { height:1, backgroundColor:C.border, marginLeft:16 },
+  gcTitleInput:   { paddingHorizontal:16, paddingVertical:16, fontFamily:'Poppins_600SemiBold', fontSize:17, color:C.ink },
+  gcSubInput:     { paddingHorizontal:16, paddingVertical:14, fontFamily:'Poppins_400Regular', fontSize:15, color:C.ink },
+  gcPill:         { backgroundColor:C.bg, borderRadius:10, paddingHorizontal:12, paddingVertical:7, borderWidth:1.5, borderColor:C.border },
+  gcPillTxt:      { fontFamily:'Poppins_500Medium', fontSize:13, color:C.ink },
+  gcToggle:       { width:44, height:26, borderRadius:13, backgroundColor:C.border, justifyContent:'center', paddingHorizontal:2 },
+  gcToggleOn:     { backgroundColor:C.mag },
+  gcToggleThumb:  { width:22, height:22, borderRadius:11, backgroundColor:'#fff', shadowColor:'#000', shadowOpacity:0.15, shadowRadius:2, shadowOffset:{ width:0, height:1 } },
+  gcToggleThumbOn:{ transform:[{ translateX:18 }] },
+  dropdown:       { position:'absolute', right:0, top:36, backgroundColor:'#fff', borderRadius:14, borderWidth:1.5, borderColor:C.border, zIndex:100, minWidth:200, shadowColor:'#000', shadowOpacity:0.1, shadowRadius:12, shadowOffset:{ width:0, height:4 } },
+  dropdownItem:   { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:13, borderBottomWidth:1, borderBottomColor:C.border },
+  dropdownItemTxt:{ fontFamily:'Poppins_400Regular', fontSize:15, color:C.ink },
 
   durGrid:      { flexDirection:'row', flexWrap:'wrap', gap:8 },
   durChip:      { paddingHorizontal:14, paddingVertical:8, borderRadius:20, backgroundColor:C.card, borderWidth:1.5, borderColor:C.border },
