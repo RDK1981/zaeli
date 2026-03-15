@@ -213,27 +213,30 @@ function AnimatedBriefSentences({text,sentenceStyle,sentenceLastStyle,boldStyle}
   );
 }
 
-// ── TYPEWRITER BRIEF ─────────────────────────────────────────
+// ── BRIEF TEXT — fade in once fully ready, bold already applied ──────
 function TypewriterBrief({text,sentenceStyle,sentenceLastStyle,boldStyle}:{
   text:string;sentenceStyle:any;sentenceLastStyle:any;boldStyle:any;
 }) {
-  const [displayed,setDisplayed]=useState('');
-  const [done,setDone]=useState(false);
+  const fadeAnim=useRef(new Animated.Value(0)).current;
   useEffect(()=>{
-    if(!text){setDisplayed('');setDone(false);return;}
-    setDisplayed('');setDone(false);
-    let i=0;
-    const interval=setInterval(()=>{
-      i++;
-      setDisplayed(text.slice(0,i));
-      if(i>=text.length){clearInterval(interval);setDone(true);}
-    },18);
-    return ()=>clearInterval(interval);
+    if(!text) return;
+    fadeAnim.setValue(0);
+    Animated.timing(fadeAnim,{toValue:1,duration:500,easing:Easing.out(Easing.ease),useNativeDriver:true}).start();
   },[text]);
-  if(done){
-    return <AnimatedBriefSentences text={text} sentenceStyle={sentenceStyle} sentenceLastStyle={sentenceLastStyle} boldStyle={boldStyle}/>;
-  }
-  return <Text style={sentenceStyle}>{displayed}<Text style={{color:'#0057FF'}}>|</Text></Text>;
+  const sentences=text.split(/\n+/).filter(s=>s.trim().length>0);
+  return (
+    <Animated.View style={{opacity:fadeAnim}}>
+      {sentences.map((sentence,i)=>{
+        const isLast=i===sentences.length-1;
+        const parts=sentence.split(/\*\*(.*?)\*\*/g);
+        return (
+          <Text key={i} style={isLast?sentenceLastStyle:sentenceStyle}>
+            {parts.map((p,j)=>j%2===1?<Text key={j} style={boldStyle}>{p}</Text>:<Text key={j}>{p}</Text>)}
+          </Text>
+        );
+      })}
+    </Animated.View>
+  );
 }
 
 function RadarRow({barColor,icon,title,meta,badge,badgeBg,badgeColor,isReminder,onDismiss}:{
@@ -511,10 +514,10 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
           <View style={s.heroOrbOuter}/><View style={s.heroOrbInner}/><View style={s.heroOrb2}/>
 
           <View style={s.topRow}>
-            <View style={s.logoWrap}>
+            <TouchableOpacity style={s.logoWrap} onPress={()=>router.replace('/(tabs)/')} activeOpacity={0.75}>
               <View style={s.logoMark}><Text style={{fontSize:22,color:'#fff'}}>{'\u2726'}</Text></View>
               <Text style={s.logoWord}>{'z'}<Text style={{color:'#FFE500'}}>{'a'}</Text>{'el'}<Text style={{color:'#FFE500'}}>{'i'}</Text></Text>
-            </View>
+            </TouchableOpacity>
             <View style={s.topRight}>
               <View style={s.datePill}>
                 <View style={s.liveDotPill}/>
