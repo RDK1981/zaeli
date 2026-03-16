@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli · Meals — V3</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F7F7F7;--card:#fff;--ink:#0A0A0A;--ink2:rgba(0,0,0,.50);--ink3:rgba(0,0,0,.28);
+  --border:rgba(0,0,0,.07);--or:#FF8C00;--orL:rgba(255,140,0,.08);--orB:rgba(255,140,0,.22);
+  --bl:#0057FF;--blL:rgba(0,87,255,.08);--mag:#E0007C;--gr:#00C97A;--grL:rgba(0,201,122,.10);
+  --ye:#FFE500;--go:#B8A400;--pu:#9B6DD6;--red:#FF3B3B;--redL:rgba(255,59,59,.07);
+  --anna:#0057FF;--richard:#FF8C00;--poppy:#9B6DD6;--gab:#00B4D8;--duke:#4A90E2;
+}
+body{background:#111;font-family:'Poppins',sans-serif;padding:0 0 60px;}
+.page-hdr{position:sticky;top:0;z-index:200;background:#111;padding:14px 20px 10px;border-bottom:1px solid rgba(255,255,255,.06);}
+.page-title{font-size:10px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;}
+.nav-row{display:flex;gap:4px;flex-wrap:wrap;}
+.nb{flex-shrink:0;background:rgba(255,255,255,.07);border:none;color:rgba(255,255,255,.4);padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;transition:all .15s;white-space:nowrap;}
+.nb.on{background:#fff;color:#000;}
+.nb.grp{margin-left:8px;}
+.phone-wrap{padding:24px 20px;display:flex;justify-content:center;}
+.phone{width:375px;min-height:812px;background:var(--bg);border-radius:44px;overflow:hidden;box-shadow:0 48px 120px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.05);display:flex;flex-direction:column;position:relative;}
+.sb{display:flex;justify-content:space-between;padding:14px 28px 6px;font-size:11px;font-weight:500;color:rgba(255,255,255,.6);flex-shrink:0;}
+.sb.dk{color:var(--ink2);}
+.screen{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.screen.on{display:flex;}
+.scroll{flex:1;overflow-y:auto;scrollbar-width:none;}
+.scroll::-webkit-scrollbar{display:none;}
+
+/* hero */
+.hero{background:var(--or);padding:10px 20px 14px;flex-shrink:0;}
+.hero-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.logo{display:flex;align-items:center;gap:8px;}
+.logo-mark{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;}
+.logo-word{font-family:'DM Serif Display',serif;font-size:22px;color:#fff;letter-spacing:-.3px;}
+.logo-a{color:#FFE500;}
+.hero-title{font-family:'DM Serif Display',serif;font-size:28px;color:#fff;font-weight:400;}
+.hbtn{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.18);border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px;}
+.hline{width:14px;height:1.5px;background:#fff;border-radius:1px;}
+.stabs{display:flex;background:rgba(255,255,255,.15);border-radius:20px;padding:3px;gap:2px;}
+.st{flex:1;padding:7px 4px;border-radius:17px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.55);cursor:pointer;transition:all .2s;}
+.st.on{background:#fff;color:var(--ink);}
+
+/* zaeli card */
+.zcard{background:#fff;border-radius:18px;margin:12px 16px 4px;border:1.5px solid rgba(255,140,0,.15);box-shadow:0 4px 16px rgba(255,140,0,.08);flex-shrink:0;}
+.zcard-hdr{display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid rgba(255,140,0,.08);background:rgba(255,140,0,.03);border-radius:18px 18px 0 0;}
+.zav{width:28px;height:28px;border-radius:9px;background:var(--or);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;}
+.zname{font-family:'DM Serif Display',serif;font-size:15px;color:var(--ink);flex:1;}
+.zm{color:var(--mag);}
+.zdot{width:6px;height:6px;border-radius:50%;background:var(--gr);}
+.ztime{font-size:10px;color:var(--ink3);}
+.zmsg{font-size:13px;color:var(--ink);line-height:1.6;padding:12px 14px 10px;}
+.zb{font-weight:700;}
+.zbtns{display:flex;gap:8px;padding:0 14px 14px;}
+.zbp{flex:1;background:var(--or);color:#fff;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;}
+.zbg{flex:1;background:rgba(0,0,0,.055);color:var(--ink2);border:1.5px solid rgba(0,0,0,.09);border-radius:12px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;}
+
+/* day label + cook avatars */
+.day-sec{padding:14px 16px 0;}
+.day-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.day-lbl{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink3);}
+.day-lbl.tonight{color:var(--or);}
+.cook-row{display:flex;align-items:center;gap:5px;}
+.cook-av{width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;}
+.cook-name{font-size:10px;font-weight:600;color:var(--ink2);}
+.cook-add{width:20px;height:20px;border-radius:6px;background:rgba(0,0,0,.07);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink3);cursor:pointer;border:1.5px dashed rgba(0,0,0,.15);}
+
+/* meal card */
+.mc{background:#fff;border-radius:16px;border:1.5px solid var(--border);overflow:hidden;cursor:pointer;transition:transform .15s,box-shadow .15s;margin-bottom:10px;}
+.mc:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.08);}
+.mc.empty{border-style:dashed;border-color:rgba(0,0,0,.15);background:transparent;}
+.mc.kit{border-color:rgba(0,150,100,.25);}
+.mi{width:100%;height:110px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:48px;background:#f8f5f0;}
+.mi img{width:100%;height:100%;object-fit:cover;}
+.mb{padding:11px 13px 13px;}
+.badges{display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap;}
+.badge{display:inline-flex;align-items:center;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;}
+.b-lib{background:var(--blL);color:var(--bl);}
+.b-z{background:var(--orL);color:var(--or);}
+.b-fav{background:rgba(224,0,124,.08);color:var(--mag);}
+.b-kit{background:rgba(0,150,100,.08);color:#007a55;}
+.b-ok{background:var(--grL);color:var(--gr);}
+.b-miss{background:rgba(255,140,0,.1);color:var(--or);}
+.mn{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:3px;}
+.mm{font-size:11px;color:var(--ink2);display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+/* cook attribution on card */
+.mc-cook{display:flex;align-items:center;gap:5px;margin-bottom:8px;}
+.mc-av{width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;}
+.mc-cook-lbl{font-size:10px;color:var(--ink2);}
+.mact{display:flex;gap:7px;}
+.ma{flex:1;border-radius:10px;padding:8px 6px;text-align:center;font-size:11px;font-weight:600;border:none;cursor:pointer;font-family:'Poppins',sans-serif;}
+.ma-p{background:var(--or);color:#fff;}
+.ma-g{background:rgba(0,0,0,.055);color:var(--ink2);border:1.5px solid rgba(0,0,0,.09);}
+.ma-s{background:var(--grL);color:var(--gr);border:1.5px solid rgba(0,201,122,.2);}
+
+/* empty card */
+.ei{padding:16px;display:flex;align-items:center;gap:12px;}
+.eicon{width:40px;height:40px;border-radius:12px;background:var(--orL);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.elbl{font-size:13px;font-weight:600;color:var(--ink3);}
+.esub{font-size:11px;color:var(--ink3);margin-top:2px;}
+.eadd{margin-left:auto;background:var(--orL);border-radius:9px;padding:6px 12px;font-size:11px;font-weight:700;color:var(--or);border:1.5px solid var(--orB);cursor:pointer;font-family:'Poppins',sans-serif;flex-shrink:0;}
+
+/* kit card */
+.kit-top{background:rgba(0,150,100,.07);padding:10px 13px;display:flex;align-items:center;gap:8px;}
+.kit-icon{font-size:18px;}
+.kit-label{font-weight:700;font-size:12px;color:#007a55;}
+.kit-badge{background:#007a55;color:#fff;border-radius:4px;padding:2px 7px;font-size:9px;font-weight:700;}
+.kit-body{padding:10px 13px 13px;}
+.kit-name{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:3px;}
+.kit-meta{font-size:11px;color:var(--ink2);}
+
+/* back row */
+.back-row{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0;}
+.back-btn{width:32px;height:32px;border-radius:10px;background:var(--blL);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--bl);}
+.back-title{font-size:15px;font-weight:700;color:var(--ink);flex:1;}
+
+/* recipe detail */
+.rh{width:100%;height:200px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:64px;background:#f8f5f0;flex-shrink:0;}
+.rh img{width:100%;height:100%;object-fit:cover;}
+.rfav{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:11px;background:rgba(255,255,255,.9);border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;}
+.rc{padding:16px;}
+.rtitle{font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);margin-bottom:8px;}
+.rpills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;}
+.rp{border-radius:20px;padding:4px 11px;font-size:11px;font-weight:600;}
+.rp-or{background:var(--orL);color:var(--or);}
+.rp-gr{background:var(--grL);color:var(--gr);}
+.rp-bl{background:var(--blL);color:var(--bl);}
+
+/* cook assignment in detail */
+.cook-assign{background:#fff;border-radius:14px;border:1.5px solid var(--border);padding:12px 14px;margin-bottom:14px;}
+.ca-lbl{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin-bottom:10px;}
+.ca-members{display:flex;gap:8px;flex-wrap:wrap;}
+.cam{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;}
+.cam-av{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;border:2.5px solid transparent;transition:all .15s;}
+.cam-av.sel{border-color:#fff;box-shadow:0 0 0 2.5px var(--or);}
+.cam-name{font-size:9px;font-weight:600;color:var(--ink3);}
+.cam-name.sel{color:var(--ink);}
+
+/* ingredients */
+.pantry-banner{background:var(--grL);border:1.5px solid rgba(0,201,122,.2);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:9px;margin-bottom:14px;}
+.miss-banner{background:var(--orL);border:1.5px solid var(--orB);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:9px;margin-bottom:14px;}
+.pb-av{width:24px;height:24px;border-radius:7px;background:var(--gr);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex-shrink:0;}
+.mb-av{width:24px;height:24px;border-radius:7px;background:var(--or);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex-shrink:0;}
+.shdr{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin:14px 0 8px;}
+.ing-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.ir{display:flex;align-items:center;gap:10px;background:#fff;border-radius:11px;border:1.5px solid var(--border);padding:9px 11px;}
+.ie{font-size:18px;flex-shrink:0;}
+.in{font-size:13px;color:var(--ink);flex:1;}
+.iq{font-size:12px;color:var(--ink2);}
+.is{font-size:10px;font-weight:700;border-radius:5px;padding:2px 7px;}
+.is-ok{background:var(--grL);color:var(--gr);}
+.is-no{background:rgba(255,140,0,.1);color:var(--or);}
+.i-add{background:var(--orL);border:1.5px solid var(--orB);color:var(--or);border-radius:7px;padding:3px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap;margin-left:4px;}
+.big-btn{width:100%;border:none;border-radius:14px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;margin-bottom:8px;}
+.big-btn-or{background:var(--or);color:#fff;}
+.big-btn-g{background:rgba(0,0,0,.055);color:var(--ink2);border:1.5px solid rgba(0,0,0,.09);}
+.big-btn-gr{background:var(--gr);color:#fff;}
+
+/* job creation prompt */
+.job-prompt{background:#fff;border-radius:14px;border:1.5px solid rgba(155,127,212,.25);padding:14px;margin-bottom:14px;}
+.jp-hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.jp-av{width:26px;height:26px;border-radius:8px;background:var(--or);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex-shrink:0;}
+.jp-title{font-size:13px;font-weight:700;color:var(--ink);flex:1;}
+.jp-body{font-size:12px;color:var(--ink2);line-height:1.55;margin-bottom:12px;}
+.jp-points{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.jp-pts-lbl{font-size:12px;color:var(--ink2);flex:1;}
+.pts-row{display:flex;gap:6px;}
+.pts-opt{border-radius:8px;padding:5px 10px;font-size:11px;font-weight:700;border:1.5px solid rgba(0,0,0,.1);color:var(--ink2);cursor:pointer;background:#fff;}
+.pts-opt.on{background:var(--pu);color:#fff;border-color:var(--pu);}
+.pts-custom{display:none;margin-top:8px;align-items:center;gap:8px;}
+.pts-custom.show{display:flex;}
+.pts-custom input{width:80px;border:1.5px solid var(--pu);border-radius:8px;padding:5px 10px;font-size:13px;font-weight:700;color:var(--ink);font-family:'Poppins',sans-serif;text-align:center;}
+.pts-custom input:focus{outline:none;}
+.pts-custom-lbl{font-size:11px;color:var(--ink2);}
+.jp-btns{display:flex;gap:8px;}
+.jp-yes{flex:1;background:var(--pu);color:#fff;border:none;border-radius:10px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;}
+.jp-skip{flex:1;background:rgba(0,0,0,.055);color:var(--ink2);border:1.5px solid rgba(0,0,0,.09);border-radius:10px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;}
+
+/* add meal flow */
+.cap-opt{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:14px;border:1.5px solid rgba(0,0,0,.09);background:#fff;margin-bottom:9px;cursor:pointer;transition:background .15s;}
+.cap-opt:hover{background:var(--orL);}
+.co-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.co-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+.co-sub{font-size:11px;color:var(--ink2);}
+
+/* assign cook sheet (overlay) */
+.sheet-wrap{position:absolute;bottom:0;left:0;right:0;top:0;background:rgba(0,0,0,.4);display:flex;flex-direction:column;justify-content:flex-end;z-index:50;}
+.sheet{background:#fff;border-radius:24px 24px 0 0;padding:16px 20px 32px;}
+.sheet-handle{width:40px;height:4px;border-radius:2px;background:rgba(0,0,0,.12);margin:0 auto 16px;}
+.sheet-title{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px;}
+.sheet-sub{font-size:12px;color:var(--ink2);margin-bottom:18px;}
+.member-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:20px;}
+.mg-item{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;}
+.mg-av{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;border:2.5px solid transparent;transition:all .2s;}
+.mg-av.sel{box-shadow:0 0 0 2.5px #fff,0 0 0 4.5px var(--or);}
+.mg-name{font-size:10px;font-weight:600;color:var(--ink2);}
+.mg-name.sel{color:var(--ink);}
+.sheet-done{width:100%;background:var(--or);color:#fff;border:none;border-radius:14px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;}
+
+/* recipes */
+.search-wrap{padding:10px 16px 0;flex-shrink:0;}
+.sbar{background:#fff;border-radius:14px;border:1.5px solid rgba(0,0,0,.09);padding:10px 14px;display:flex;align-items:center;gap:9px;}
+.si{font-size:14px;color:var(--ink3);}
+.st2{flex:1;font-size:13px;color:var(--ink3);}
+.filter-row{display:flex;gap:6px;padding:8px 16px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
+.filter-row::-webkit-scrollbar{display:none;}
+.fc{flex-shrink:0;border-radius:20px;padding:5px 12px;font-size:11px;font-weight:600;border:1.5px solid rgba(0,0,0,.1);color:var(--ink2);background:#fff;cursor:pointer;}
+.fc.on{background:var(--or);color:#fff;border-color:var(--or);}
+.slbl{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink3);padding:6px 16px 4px;}
+.rrow{display:flex;align-items:center;background:#fff;border-radius:14px;border:1.5px solid var(--border);margin:0 16px 8px;overflow:hidden;cursor:pointer;transition:transform .15s;}
+.rrow:hover{transform:translateY(-1px);}
+.rri{width:72px;height:72px;display:flex;align-items:center;justify-content:center;font-size:30px;background:#f8f5f0;flex-shrink:0;overflow:hidden;}
+.rri img{width:72px;height:72px;object-fit:cover;}
+.rrb{flex:1;padding:10px 11px;}
+.rrn{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+.rrm{font-size:10px;color:var(--ink2);margin-bottom:4px;}
+.rrt{display:flex;gap:4px;flex-wrap:wrap;}
+.rtag{border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;}
+.rt-gr{background:var(--grL);color:var(--gr);}
+.rt-or{background:var(--orL);color:var(--or);}
+.rt-bl{background:var(--blL);color:var(--bl);}
+.rt-go{background:rgba(184,164,0,.1);color:var(--go);}
+.rt-pu{background:rgba(155,127,212,.1);color:var(--pu);}
+.radd{margin:auto 11px auto 0;background:var(--orL);border-radius:9px;padding:6px 11px;font-size:11px;font-weight:700;color:var(--or);border:1.5px solid var(--orB);cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap;flex-shrink:0;}
+.pi-banner{background:#fff;border-radius:14px;border:1.5px solid rgba(0,201,122,.2);margin:8px 16px 2px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;}
+.pi-av{width:26px;height:26px;border-radius:8px;background:var(--gr);display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;flex-shrink:0;}
+
+/* favourites */
+.fav-card{background:#fff;border-radius:14px;border:1.5px solid var(--border);margin:0 16px 8px;overflow:hidden;cursor:pointer;transition:transform .15s;}
+.fav-card:hover{transform:translateY(-1px);}
+.fi{width:100%;height:90px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:40px;background:#f8f5f0;}
+.fi img{width:100%;height:100%;object-fit:cover;}
+.fb{padding:10px 12px 12px;}
+.fn{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:3px;}
+.fm{font-size:11px;color:var(--ink2);margin-bottom:7px;}
+.fr{display:flex;align-items:center;justify-content:space-between;}
+.fadd{background:var(--orL);border:1.5px solid var(--orB);color:var(--or);border-radius:9px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;}
+.save-cta{background:var(--or);border-radius:16px;margin:12px 16px 4px;padding:14px 16px;display:flex;align-items:center;gap:12px;}
+
+/* review */
+.rev-img{width:100%;height:180px;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:64px;background:#f0f0f0;flex-shrink:0;}
+.rev-img img{width:100%;height:100%;object-fit:cover;}
+.rev-input{width:100%;border:1.5px solid rgba(0,0,0,.1);border-radius:12px;padding:11px 14px;font-size:15px;font-weight:700;color:var(--ink);background:#fff;font-family:'Poppins',sans-serif;margin-bottom:14px;}
+.rev-input:focus{outline:none;border-color:var(--or);}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.tpick{border-radius:20px;padding:5px 12px;font-size:11px;font-weight:600;border:1.5px solid rgba(0,0,0,.1);background:#fff;cursor:pointer;color:var(--ink2);}
+.tpick.on{background:var(--or);color:#fff;border-color:var(--or);}
+.ze-box{background:var(--orL);border:1.5px solid var(--orB);border-radius:12px;padding:11px 13px;margin-bottom:14px;}
+.ze-hdr{display:flex;align-items:center;gap:7px;margin-bottom:6px;}
+.ze-av{width:20px;height:20px;border-radius:6px;background:var(--or);display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;flex-shrink:0;}
+.ze-ttl{font-size:11px;font-weight:700;color:var(--or);}
+.rlbl{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin-bottom:5px;}
+
+/* chat + polls */
+.chat-hdr{background:#fff;border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.cbk{width:32px;height:32px;border-radius:10px;background:var(--blL);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--bl);}
+.cav{width:36px;height:36px;border-radius:11px;background:var(--or);display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;flex-shrink:0;}
+.cname{font-family:'DM Serif Display',serif;font-size:18px;color:var(--ink);flex:1;}
+.cstat{font-size:10px;font-weight:600;color:var(--gr);}
+.cbar{display:flex;gap:5px;padding:8px 14px;background:rgba(0,87,255,.03);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
+.cbar::-webkit-scrollbar{display:none;}
+.chan{padding:4px 10px;border-radius:14px;background:#fff;border:1px solid rgba(0,0,0,.1);font-size:10px;font-weight:600;color:var(--ink2);white-space:nowrap;cursor:pointer;}
+.chan.on{background:var(--or);border-color:var(--or);color:#fff;}
+.chat-body{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:#F4F6FA;scrollbar-width:none;}
+.chat-body::-webkit-scrollbar{display:none;}
+.brow{display:flex;gap:8px;align-items:flex-end;}
+.bav{width:26px;height:26px;border-radius:8px;background:var(--or);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex-shrink:0;}
+.bub{border-radius:4px 16px 16px 16px;padding:10px 13px;font-size:13px;line-height:1.55;max-width:80%;}
+.bz{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.07);}
+.bu{background:var(--or);color:#fff;border-radius:16px 4px 16px 16px;margin-left:auto;}
+.bt{background:rgba(0,201,122,.06);border:1px solid rgba(0,201,122,.2);color:var(--ink);}
+.poll{background:#fff;border-radius:14px;border:1.5px solid var(--orB);padding:12px 13px;max-width:88%;}
+.pq{font-size:12px;font-weight:700;color:var(--ink);margin-bottom:9px;}
+.popts{display:flex;flex-wrap:wrap;gap:6px;}
+.po{border-radius:9px;padding:6px 12px;font-size:11px;font-weight:600;border:1.5px solid var(--orB);color:var(--or);background:var(--orL);cursor:pointer;transition:all .15s;}
+.po.sel,.po:hover{background:var(--or);color:#fff;border-color:var(--or);}
+.sug-list{display:flex;flex-direction:column;gap:6px;max-width:90%;}
+.sug{background:#fff;border-radius:12px;border:1.5px solid var(--border);display:flex;align-items:center;overflow:hidden;cursor:pointer;transition:transform .15s;}
+.sug:hover{transform:translateX(2px);}
+.sug-img{width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:22px;background:#f8f5f0;flex-shrink:0;overflow:hidden;}
+.sug-img img{width:52px;height:52px;object-fit:cover;}
+.sug-body{flex:1;padding:8px 10px;}
+.sug-name{font-size:12px;font-weight:700;color:var(--ink);}
+.sug-meta{font-size:10px;color:var(--ink2);}
+.sug-add{padding:0 11px;font-size:13px;font-weight:700;color:var(--or);background:none;border:none;cursor:pointer;font-family:'Poppins',sans-serif;}
+.ci{padding:10px 14px 18px;background:#fff;border-top:1px solid var(--border);flex-shrink:0;}
+.ci-box{background:#F7F7F7;border-radius:20px;padding:10px 14px;display:flex;align-items:center;gap:8px;border:1.5px solid rgba(0,0,0,.1);}
+.ci-txt{flex:1;font-size:13px;color:var(--ink3);}
+.ci-send{width:32px;height:32px;border-radius:10px;background:var(--or);border:none;cursor:pointer;color:#fff;font-size:14px;flex-shrink:0;}
+
+/* capture */
+.cap-opt{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:14px;border:1.5px solid rgba(0,0,0,.09);background:#fff;margin-bottom:9px;cursor:pointer;transition:background .15s;}
+.cap-opt:hover{background:var(--orL);}
+
+/* ask bar */
+.ask{padding:8px 14px 18px;background:var(--bg);border-top:1px solid var(--border);flex-shrink:0;}
+.ask-bar{background:#fff;border-radius:20px;padding:10px 14px;display:flex;align-items:center;gap:8px;border:1.5px solid rgba(0,0,0,.1);}
+.ask-dia{font-size:14px;color:var(--or);}
+.ask-txt{flex:1;font-size:13px;color:var(--ink3);}
+.ask-send{width:32px;height:32px;border-radius:10px;background:var(--or);border:none;cursor:pointer;color:#fff;font-size:14px;flex-shrink:0;}
+.pb{height:80px;}
+</style>
+</head>
+<body>
+
+<div class="page-hdr">
+  <div class="page-title">Zaeli · Meals V3 — Cooking assignment + varied polls + dynamic ingredients</div>
+  <div class="nav-row">
+    <button class="nb on" onclick="go('dinners',this)">🍽 Dinners</button>
+    <button class="nb" onclick="go('assign',this)">👨‍👩‍👧 Assign Cook</button>
+    <button class="nb" onclick="go('detail',this)">📖 Meal Detail</button>
+    <button class="nb" onclick="go('detail-miss',this)">⚠️ Detail (missing items)</button>
+    <button class="nb" onclick="go('add-meal',this)">➕ Add a Dinner</button>
+    <button class="nb grp" onclick="go('chat-poll-1',this)">✦ Poll — Cuisine</button>
+    <button class="nb" onclick="go('chat-poll-2',this)">✦ Poll — Protein</button>
+    <button class="nb" onclick="go('chat-poll-3',this)">✦ Poll — Health</button>
+    <button class="nb" onclick="go('chat-poll-4',this)">✦ Poll — Family picks</button>
+    <button class="nb grp" onclick="go('recipes',this)">🔍 Recipes</button>
+    <button class="nb" onclick="go('favs',this)">❤️ Favourites</button>
+    <button class="nb" onclick="go('capture',this)">📸 Save Recipe</button>
+    <button class="nb" onclick="go('review',this)">✅ Review &amp; Save</button>
+  </div>
+</div>
+
+<div class="phone-wrap"><div class="phone">
+
+<!-- ═══ SCREEN 1 — DINNERS WEEK VIEW ═══ -->
+<div class="screen on" id="s-dinners">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero">
+    <div class="hero-row">
+      <div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div>
+      <div class="hero-title">Meals</div>
+      <div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
+    </div>
+    <div class="stabs">
+      <div class="st on">Dinners</div>
+      <div class="st" onclick="go('recipes',document.querySelectorAll('.nb')[10])">Recipes</div>
+      <div class="st" onclick="go('favs',document.querySelectorAll('.nb')[11])">Favourites</div>
+    </div>
+  </div>
+  <div class="zcard">
+    <div class="zcard-hdr">
+      <div class="zav">✦</div>
+      <div class="zname">Z<span class="zm">a</span>el<span class="zm">i</span></div>
+      <div class="zdot"></div><div class="ztime">9:41 am</div>
+    </div>
+    <div class="zmsg">Tonight's sorted — <span class="zb">pasta bake</span> and Anna's cooking. Friday and Sunday are still open. Want me to throw together some ideas?</div>
+    <div class="zbtns">
+      <button class="zbp" onclick="go('chat-poll-1',document.querySelectorAll('.nb')[5])">Yes, show me ideas</button>
+      <button class="zbg">All sorted</button>
+    </div>
+  </div>
+  <div class="scroll">
+
+    <!-- Tonight -->
+    <div class="day-sec">
+      <div class="day-hdr">
+        <div class="day-lbl tonight">Tonight · Wed 15</div>
+        <div class="cook-row">
+          <div class="cook-av" style="background:var(--anna);">A</div>
+          <div class="cook-name">Anna cooking</div>
+        </div>
+      </div>
+      <div class="mc" onclick="go('detail',document.querySelectorAll('.nb')[2])">
+        <div class="mi"><img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍝'"></div>
+        <div class="mb">
+          <div class="badges"><span class="badge b-lib">📚 Library</span><span class="badge b-ok">✓ All in pantry</span></div>
+          <div class="mn">Pasta Bake</div>
+          <div class="mm"><span>⏱ 25 min</span><span>Serves 4</span><span>⭐ 4.8</span></div>
+          <div class="mc-cook"><div class="mc-av" style="background:var(--anna);">A</div><span class="mc-cook-lbl">Anna · Tap to change</span></div>
+          <div class="mact">
+            <button class="ma ma-p" onclick="event.stopPropagation();go('detail',document.querySelectorAll('.nb')[2])">View recipe</button>
+            <button class="ma ma-g" onclick="event.stopPropagation()">Swap</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thursday — meal kit -->
+    <div class="day-sec">
+      <div class="day-hdr">
+        <div class="day-lbl">Tomorrow · Thu 16</div>
+        <div class="cook-row">
+          <div class="cook-av" style="background:var(--richard);">R</div>
+          <div class="cook-name">Richard cooking</div>
+        </div>
+      </div>
+      <div class="mc kit">
+        <div class="kit-top"><span class="kit-icon">📦</span><span class="kit-label">Meal Kit</span><span class="kit-badge">Ingredients included</span></div>
+        <div class="kit-body">
+          <div class="kit-name">Thai Beef Salad</div>
+          <div class="kit-meta">30 min · Ingredients arrive Thursday · No pantry sync</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Friday empty -->
+    <div class="day-sec">
+      <div class="day-hdr">
+        <div class="day-lbl">Fri 17</div>
+        <div class="cook-row"><div class="cook-add" onclick="go('assign',document.querySelectorAll('.nb')[1])">+</div><div class="cook-name" style="color:var(--ink3);">Assign cook</div></div>
+      </div>
+      <div class="mc empty" onclick="go('add-meal',document.querySelectorAll('.nb')[4])">
+        <div class="ei"><div class="eicon">🍽</div><div><div class="elbl">Friday's open</div><div class="esub">Ask Zaeli or browse recipes</div></div><button class="eadd">+ Add</button></div>
+      </div>
+    </div>
+
+    <!-- Saturday — Poppy helping -->
+    <div class="day-sec">
+      <div class="day-hdr">
+        <div class="day-lbl">Sat 18</div>
+        <div class="cook-row">
+          <div class="cook-av" style="background:var(--anna);">A</div>
+          <div class="cook-av" style="background:var(--poppy);">P</div>
+          <div class="cook-name">Anna + Poppy</div>
+        </div>
+      </div>
+      <div class="mc" onclick="go('detail',document.querySelectorAll('.nb')[2])">
+        <div class="mi"><img src="https://spoonacular.com/recipeImages/715538-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍗'"></div>
+        <div class="mb">
+          <div class="badges"><span class="badge b-fav">❤️ Favourite</span><span class="badge b-z">✦ Zaeli suggested</span></div>
+          <div class="mn">Honey Soy Chicken</div>
+          <div class="mm"><span>⏱ 25 min</span><span>Serves 4</span><span>⭐ 4.9</span></div>
+          <div class="mc-cook">
+            <div class="mc-av" style="background:var(--anna);">A</div>
+            <div class="mc-av" style="background:var(--poppy);">P</div>
+            <span class="mc-cook-lbl">Anna + Poppy · Tap to change</span>
+          </div>
+          <div class="mact">
+            <button class="ma ma-p" onclick="event.stopPropagation();go('detail',document.querySelectorAll('.nb')[2])">View recipe</button>
+            <button class="ma ma-s" onclick="event.stopPropagation()">🛒 Add missing</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sunday empty -->
+    <div class="day-sec">
+      <div class="day-hdr">
+        <div class="day-lbl">Sun 19</div>
+        <div class="cook-row"><div class="cook-add">+</div><div class="cook-name" style="color:var(--ink3);">Assign cook</div></div>
+      </div>
+      <div class="mc empty" onclick="go('add-meal',document.querySelectorAll('.nb')[4])">
+        <div class="ei"><div class="eicon">🍽</div><div><div class="elbl">Sunday's open</div><div class="esub">Tap to plan or ask Zaeli</div></div><button class="eadd">+ Add</button></div>
+      </div>
+    </div>
+
+    <!-- Monday — Richard + Duke -->
+    <div class="day-sec">
+      <div class="day-hdr">
+        <div class="day-lbl">Mon 20</div>
+        <div class="cook-row">
+          <div class="cook-av" style="background:var(--richard);">R</div>
+          <div class="cook-av" style="background:var(--duke);">D</div>
+          <div class="cook-name">Richard + Duke</div>
+        </div>
+      </div>
+      <div class="mc" onclick="go('detail-miss',document.querySelectorAll('.nb')[3])">
+        <div class="mi"><img src="https://spoonacular.com/recipeImages/716406-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🐟'"></div>
+        <div class="mb">
+          <div class="badges"><span class="badge b-lib">📚 Library</span><span class="badge b-miss">⚠️ 2 items needed</span></div>
+          <div class="mn">Lemon Baked Salmon</div>
+          <div class="mm"><span>⏱ 25 min</span><span>Serves 4</span></div>
+          <div class="mc-cook">
+            <div class="mc-av" style="background:var(--richard);">R</div>
+            <div class="mc-av" style="background:var(--duke);">D</div>
+            <span class="mc-cook-lbl">Richard + Duke · Tap to change</span>
+          </div>
+          <div class="mact">
+            <button class="ma ma-p" onclick="event.stopPropagation();go('detail-miss',document.querySelectorAll('.nb')[3])">View recipe</button>
+            <button class="ma ma-s" onclick="event.stopPropagation()">🛒 Add 2 items</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pb"></div>
+  </div>
+  <div class="ask"><div class="ask-bar"><span class="ask-dia">✦</span><span class="ask-txt">Ask Zaeli about meals…</span><button class="ask-send">↑</button></div></div>
+</div>
+
+<!-- ═══ SCREEN 2 — ASSIGN COOK SHEET ═══ -->
+<div class="screen" id="s-assign">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero">
+    <div class="hero-row">
+      <div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div>
+      <div class="hero-title">Meals</div>
+      <div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
+    </div>
+  </div>
+  <!-- simulated sheet overlay -->
+  <div style="flex:1;background:rgba(0,0,0,.35);display:flex;flex-direction:column;justify-content:flex-end;">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">Who's cooking Friday?</div>
+      <div class="sheet-sub">Select one or more family members — kids earn points for helping!</div>
+      <div class="member-grid">
+        <div class="mg-item" onclick="toggleMember(this)"><div class="mg-av" style="background:var(--anna);">A</div><div class="mg-name">Anna</div></div>
+        <div class="mg-item" onclick="toggleMember(this)"><div class="mg-av sel" style="background:var(--richard);">R</div><div class="mg-name sel">Richard</div></div>
+        <div class="mg-item" onclick="toggleMember(this)"><div class="mg-av" style="background:var(--poppy);">P</div><div class="mg-name">Poppy</div></div>
+        <div class="mg-item" onclick="toggleMember(this)"><div class="mg-av" style="background:var(--gab);">G</div><div class="mg-name">Gab</div></div>
+        <div class="mg-item" onclick="toggleMember(this)"><div class="mg-av" style="background:var(--duke);">D</div><div class="mg-name">Duke</div></div>
+      </div>
+      <!-- job prompt appears when a kid is selected -->
+      <div id="job-prompt" class="job-prompt">
+        <div class="jp-hdr"><div class="jp-av">✦</div><div class="jp-title">Add a cooking job for Richard?</div></div>
+        <div class="jp-body">I can add <strong>"Help cook dinner — Mon 20"</strong> to Richard's jobs list with points. He can tick it off when done.</div>
+        <div class="jp-points">
+          <span class="jp-pts-lbl">Points for this job:</span>
+          <div class="pts-row">
+            <div class="pts-opt" onclick="setPts(this)">15</div>
+            <div class="pts-opt on" onclick="setPts(this)">30</div>
+            <div class="pts-opt" onclick="setPts(this)">40</div>
+            <div class="pts-opt" onclick="setPts(this)">Custom</div>
+          </div>
+          <div class="pts-custom" id="custom-1"><input type="number" min="1" max="999" placeholder="e.g. 50"><span class="pts-custom-lbl">pts</span></div>
+        </div>
+        <div class="jp-btns">
+          <button class="jp-yes" onclick="go('dinners',document.querySelectorAll('.nb')[0])">✓ Add job + points</button>
+          <button class="jp-skip" onclick="go('dinners',document.querySelectorAll('.nb')[0])">Skip</button>
+        </div>
+      </div>
+      <button class="sheet-done" onclick="go('dinners',document.querySelectorAll('.nb')[0])">Done — assign cook</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 3 — MEAL DETAIL (all in pantry) ═══ -->
+<div class="screen" id="s-detail">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row">
+    <button class="back-btn" onclick="go('dinners',document.querySelectorAll('.nb')[0])">‹</button>
+    <div class="back-title">Recipe</div>
+    <button style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:22px;">❤️</button>
+  </div>
+  <div class="scroll">
+    <div class="rh"><img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="" onerror="this.style.display='none'"><button class="rfav">❤️</button></div>
+    <div class="rc">
+      <div class="rtitle">Pasta Bake</div>
+      <div class="rpills"><span class="rp rp-or">⏱ 25 min</span><span class="rp rp-gr">Serves 4</span><span class="rp rp-bl">Easy</span><span class="rp rp-or">Kids love</span></div>
+
+      <!-- cook assignment -->
+      <div class="cook-assign">
+        <div class="ca-lbl">Who's cooking tonight?</div>
+        <div class="ca-members">
+          <div class="cam"><div class="cam-av sel" style="background:var(--anna);" onclick="this.classList.toggle('sel');this.nextSibling.classList.toggle('sel')">A</div><div class="cam-name sel">Anna</div></div>
+          <div class="cam"><div class="cam-av" style="background:var(--richard);" onclick="this.classList.toggle('sel');this.nextSibling.classList.toggle('sel')">R</div><div class="cam-name">Richard</div></div>
+          <div class="cam"><div class="cam-av" style="background:var(--poppy);" onclick="this.classList.toggle('sel');this.nextSibling.classList.toggle('sel')">P</div><div class="cam-name">Poppy</div></div>
+          <div class="cam"><div class="cam-av" style="background:var(--gab);" onclick="this.classList.toggle('sel');this.nextSibling.classList.toggle('sel')">G</div><div class="cam-name">Gab</div></div>
+          <div class="cam"><div class="cam-av" style="background:var(--duke);" onclick="this.classList.toggle('sel');this.nextSibling.classList.toggle('sel')">D</div><div class="cam-name">Duke</div></div>
+        </div>
+      </div>
+
+      <div class="pantry-banner"><div class="pb-av">✦</div><div style="font-size:12px;color:var(--ink);line-height:1.4;flex:1"><strong>All ingredients in pantry</strong> — you're ready to cook. Nothing needed.</div></div>
+      <div class="shdr">Ingredients · Serves 4</div>
+      <div class="ing-list">
+        <div class="ir"><span class="ie">🍝</span><span class="in">Penne pasta</span><span class="iq">500g</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🍗</span><span class="in">Chicken thighs</span><span class="iq">500g</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🥫</span><span class="in">Tomato sauce</span><span class="iq">2 cans</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🧀</span><span class="in">Mozzarella</span><span class="iq">200g</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🧅</span><span class="in">Onion</span><span class="iq">1 large</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🧄</span><span class="in">Garlic</span><span class="iq">3 cloves</span><span class="is is-ok">In pantry</span></div>
+      </div>
+      <div class="shdr">Method</div>
+      <div style="font-size:13px;color:var(--ink2);line-height:1.7;margin-bottom:16px;">
+        <p style="margin-bottom:8px;">1. Preheat oven to 200°C. Cook pasta until al dente, drain and set aside.</p>
+        <p style="margin-bottom:8px;">2. Fry onion and garlic until soft, add chicken and cook through. Add tomato sauce and simmer 5 mins.</p>
+        <p>3. Combine pasta and sauce in a baking dish. Top with mozzarella and bake 20 mins until golden.</p>
+      </div>
+      <button class="big-btn big-btn-gr">✓ Nothing to add — all in pantry</button>
+      <button class="big-btn big-btn-g">Move to a different night</button>
+      <div class="pb"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 4 — MEAL DETAIL (missing items) ═══ -->
+<div class="screen" id="s-detail-miss">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row">
+    <button class="back-btn" onclick="go('dinners',document.querySelectorAll('.nb')[0])">‹</button>
+    <div class="back-title">Recipe</div>
+    <button style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:22px;">❤️</button>
+  </div>
+  <div class="scroll">
+    <div class="rh"><img src="https://spoonacular.com/recipeImages/716406-556x370.jpg" alt="" onerror="this.style.display='none'"><button class="rfav">❤️</button></div>
+    <div class="rc">
+      <div class="rtitle">Lemon Baked Salmon</div>
+      <div class="rpills"><span class="rp rp-or">⏱ 25 min</span><span class="rp rp-gr">Serves 4</span><span class="rp rp-bl">Healthy</span></div>
+
+      <!-- cook assignment — Richard + Duke selected -->
+      <div class="cook-assign">
+        <div class="ca-lbl">Who's cooking Monday?</div>
+        <div class="ca-members">
+          <div class="cam"><div class="cam-av" style="background:var(--anna);">A</div><div class="cam-name">Anna</div></div>
+          <div class="cam"><div class="cam-av sel" style="background:var(--richard);">R</div><div class="cam-name sel">Richard</div></div>
+          <div class="cam"><div class="cam-av" style="background:var(--poppy);">P</div><div class="cam-name">Poppy</div></div>
+          <div class="cam"><div class="cam-av" style="background:var(--gab);">G</div><div class="cam-name">Gab</div></div>
+          <div class="cam"><div class="cam-av sel" style="background:var(--duke);">D</div><div class="cam-name sel">Duke</div></div>
+        </div>
+      </div>
+
+      <!-- Duke job prompt -->
+      <div class="job-prompt">
+        <div class="jp-hdr"><div class="jp-av">✦</div><div class="jp-title">Add a cooking job for Duke?</div></div>
+        <div class="jp-body">I can add <strong>"Help cook dinner — Mon 20"</strong> to Duke's jobs list. He'll be able to tick it off and earn points.</div>
+        <div class="jp-points">
+          <span class="jp-pts-lbl">Suggested points (based on age):</span>
+          <div class="pts-row">
+            <div class="pts-opt" onclick="setPts(this)">15</div>
+            <div class="pts-opt on" onclick="setPts(this)">25</div>
+            <div class="pts-opt" onclick="setPts(this)">35</div>
+            <div class="pts-opt" onclick="setPts(this)">Custom</div>
+          </div>
+          <div class="pts-custom" id="custom-2"><input type="number" min="1" max="999" placeholder="e.g. 50"><span class="pts-custom-lbl">pts</span></div>
+        </div>
+        <div class="jp-btns">
+          <button class="jp-yes">✓ Add job for Duke</button>
+          <button class="jp-skip">Skip</button>
+        </div>
+      </div>
+
+      <div class="miss-banner"><div class="mb-av">⚠️</div><div style="font-size:12px;color:var(--ink);line-height:1.4;flex:1"><strong>2 ingredients missing</strong> — tap + List to add them to your shopping list</div></div>
+      <div class="shdr">Ingredients · Serves 4</div>
+      <div class="ing-list">
+        <div class="ir"><span class="ie">🐟</span><span class="in">Salmon fillets</span><span class="iq">4 pieces</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🍋</span><span class="in">Lemons</span><span class="iq">2 large</span><span class="is is-no">Need to buy</span><button class="i-add">+ List</button></div>
+        <div class="ir"><span class="ie">🧄</span><span class="in">Garlic</span><span class="iq">3 cloves</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🌿</span><span class="in">Fresh dill</span><span class="iq">Handful</span><span class="is is-no">Need to buy</span><button class="i-add">+ List</button></div>
+        <div class="ir"><span class="ie">🫒</span><span class="in">Olive oil</span><span class="iq">2 tbsp</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🧂</span><span class="in">Sea salt</span><span class="iq">To taste</span><span class="is is-ok">In pantry</span></div>
+      </div>
+      <button class="big-btn big-btn-or">🛒 Add 2 missing items to list</button>
+      <button class="big-btn big-btn-g">Move to a different night</button>
+      <div class="pb"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 5 — ADD A DINNER ═══ -->
+<div class="screen" id="s-add-meal">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row">
+    <button class="back-btn" onclick="go('dinners',document.querySelectorAll('.nb')[0])">‹</button>
+    <div class="back-title">Friday 17 March</div>
+  </div>
+  <div class="scroll">
+    <div style="padding:16px;display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:2px;">What's for dinner?</div>
+      <div style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:6px;">Pick how you'd like to add it.</div>
+      <div class="cap-opt" onclick="go('chat-poll-1',document.querySelectorAll('.nb')[5])">
+        <div style="width:40px;height:40px;border-radius:12px;background:var(--orL);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">✦</div>
+        <div style="flex:1"><div class="co-title">Ask Zaeli for ideas</div><div class="co-sub">She'll ask a couple of quick questions</div></div>
+        <div style="font-size:16px;color:var(--ink3);">→</div>
+      </div>
+      <div class="cap-opt" onclick="go('recipes',document.querySelectorAll('.nb')[10])">
+        <div style="width:40px;height:40px;border-radius:12px;background:var(--blL);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🔍</div>
+        <div style="flex:1"><div class="co-title">Browse recipes</div><div class="co-sub">Search 5,000+ with pantry matching</div></div>
+        <div style="font-size:16px;color:var(--ink3);">→</div>
+      </div>
+      <div class="cap-opt" onclick="go('favs',document.querySelectorAll('.nb')[11])">
+        <div style="width:40px;height:40px;border-radius:12px;background:rgba(224,0,124,.08);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">❤️</div>
+        <div style="flex:1"><div class="co-title">Pick from favourites</div><div class="co-sub">Your family's saved meals</div></div>
+        <div style="font-size:16px;color:var(--ink3);">→</div>
+      </div>
+      <div class="cap-opt">
+        <div style="width:40px;height:40px;border-radius:12px;background:rgba(0,150,100,.08);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📦</div>
+        <div style="flex:1"><div class="co-title">Meal kit night</div><div class="co-sub">Ingredients included — skips pantry sync</div></div>
+        <div style="font-size:16px;color:var(--ink3);">→</div>
+      </div>
+      <div class="cap-opt">
+        <div style="width:40px;height:40px;border-radius:12px;background:rgba(0,0,0,.04);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">✏️</div>
+        <div style="flex:1"><div class="co-title">Add manually</div><div class="co-sub">Just the name — no ingredients needed</div></div>
+        <div style="font-size:16px;color:var(--ink3);">→</div>
+      </div>
+      <div class="cap-opt">
+        <div style="width:40px;height:40px;border-radius:12px;background:var(--redL);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🍕</div>
+        <div style="flex:1"><div class="co-title">Takeaway / eating out</div><div class="co-sub">Mark the night as sorted</div></div>
+        <div style="font-size:16px;color:var(--ink3);">→</div>
+      </div>
+    </div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══ SCREENS 6–9 — ZAELI POLLS (4 variations) ═══ -->
+
+<!-- Poll 1: Cuisine -->
+<div class="screen" id="s-chat-poll-1">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="chat-hdr"><button class="cbk" onclick="go('dinners',document.querySelectorAll('.nb')[0])">‹</button><div class="cav">✦</div><div style="flex:1"><div class="cname">Z<span style="color:var(--mag)">a</span>el<span style="color:var(--mag)">i</span></div><div class="cstat">● Here for your family</div></div></div>
+  <div class="cbar"><div class="chan">✦ General</div><div class="chan">📅 Cal</div><div class="chan">🛒 Shop</div><div class="chan on">🍽 Meals</div></div>
+  <div class="chat-body">
+    <div class="brow"><div class="bav">✦</div><div class="bub bz">Friday and Sunday are both open. Want me to help sort some ideas? Quick questions first 😊</div></div>
+    <div style="display:flex;justify-content:flex-end"><div class="bub bu">Yes please</div></div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="poll"><div class="pq">How are you feeling about cooking this week?</div>
+        <div class="popts"><div class="po sel">Keep it simple</div><div class="po">Happy to cook properly</div><div class="po">Mix of both</div></div>
+      </div>
+    </div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="poll"><div class="pq">Any cuisine you're in the mood for?</div>
+        <div class="popts"><div class="po">Asian</div><div class="po sel">Italian</div><div class="po">Mexican</div><div class="po">Mediterranean</div><div class="po">Surprise me</div></div>
+      </div>
+    </div>
+    <div class="brow"><div class="bav">✦</div><div class="bub bt">✓ Simple Italian. Here are 3 ideas — tap to add to the plan.</div></div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="sug-list">
+        <div class="sug"><div class="sug-img"><img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍝'"></div><div class="sug-body"><div class="sug-name">Pasta Carbonara</div><div class="sug-meta">⏱ 20 min · ✓ All in pantry</div></div><button class="sug-add" onclick="go('dinners',document.querySelectorAll('.nb')[0])">+ Add</button></div>
+        <div class="sug"><div class="sug-img"><img src="https://spoonacular.com/recipeImages/644387-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍲'"></div><div class="sug-body"><div class="sug-name">Minestrone Soup</div><div class="sug-meta">⏱ 35 min · ✓ All in pantry</div></div><button class="sug-add">+ Add</button></div>
+        <div class="sug"><div class="sug-img"><img src="https://spoonacular.com/recipeImages/716406-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🐟'"></div><div class="sug-body"><div class="sug-name">Lemon Salmon</div><div class="sug-meta">⏱ 25 min · 2 items needed</div></div><button class="sug-add">+ Add</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="ci"><div class="ci-box"><span class="ci-txt">Ask Zaeli anything…</span><button class="ci-send">↑</button></div></div>
+</div>
+
+<!-- Poll 2: Protein -->
+<div class="screen" id="s-chat-poll-2">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="chat-hdr"><button class="cbk" onclick="go('dinners',document.querySelectorAll('.nb')[0])">‹</button><div class="cav">✦</div><div style="flex:1"><div class="cname">Z<span style="color:var(--mag)">a</span>el<span style="color:var(--mag)">i</span></div><div class="cstat">● Here for your family</div></div></div>
+  <div class="cbar"><div class="chan">✦ General</div><div class="chan">📅 Cal</div><div class="chan">🛒 Shop</div><div class="chan on">🍽 Meals</div></div>
+  <div class="chat-body">
+    <div class="brow"><div class="bav">✦</div><div class="bub bz">Let's sort those two open nights. What's the family feeling like eating this week?</div></div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="poll"><div class="pq">What protein sounds good?</div>
+        <div class="popts"><div class="po sel">Chicken</div><div class="po">Beef</div><div class="po">Fish</div><div class="po">Lamb</div><div class="po">Veggie</div></div>
+      </div>
+    </div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="poll"><div class="pq">How much time on Friday night?</div>
+        <div class="popts"><div class="po sel">Under 20 mins</div><div class="po">30 mins is fine</div><div class="po">Happy to spend time</div></div>
+      </div>
+    </div>
+    <div class="brow"><div class="bav">✦</div><div class="bub bt">✓ Quick chicken dishes it is. Here are some ideas.</div></div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="sug-list">
+        <div class="sug"><div class="sug-img"><img src="https://spoonacular.com/recipeImages/715538-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍗'"></div><div class="sug-body"><div class="sug-name">Honey Soy Chicken</div><div class="sug-meta">⏱ 20 min · ✓ All in pantry</div></div><button class="sug-add">+ Add</button></div>
+        <div class="sug"><div class="sug-img"><img src="https://spoonacular.com/recipeImages/665613-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🥢'"></div><div class="sug-body"><div class="sug-name">Chicken Stir-Fry</div><div class="sug-meta">⏱ 20 min · ✓ All in pantry</div></div><button class="sug-add">+ Add</button></div>
+        <div class="sug"><div class="sug-img" style="font-size:22px;">🍗</div><div class="sug-body"><div class="sug-name">Lemon Herb Chicken</div><div class="sug-meta">⏱ 25 min · 1 item needed</div></div><button class="sug-add">+ Add</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="ci"><div class="ci-box"><span class="ci-txt">Ask Zaeli anything…</span><button class="ci-send">↑</button></div></div>
+</div>
+
+<!-- Poll 3: Health / gut -->
+<div class="screen" id="s-chat-poll-3">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="chat-hdr"><button class="cbk" onclick="go('dinners',document.querySelectorAll('.nb')[0])">‹</button><div class="cav">✦</div><div style="flex:1"><div class="cname">Z<span style="color:var(--mag)">a</span>el<span style="color:var(--mag)">i</span></div><div class="cstat">● Here for your family</div></div></div>
+  <div class="cbar"><div class="chan">✦ General</div><div class="chan">📅 Cal</div><div class="chan">🛒 Shop</div><div class="chan on">🍽 Meals</div></div>
+  <div class="chat-body">
+    <div class="brow"><div class="bav">✦</div><div class="bub bz">How are we eating this week? I can lean into gut-friendly options or something more comforting — up to you 😊</div></div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="poll"><div class="pq">How are you feeling about food this week?</div>
+        <div class="popts"><div class="po sel">Gut friendly</div><div class="po">Light and fresh</div><div class="po">Comfort food</div><div class="po">No preference</div></div>
+      </div>
+    </div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="poll"><div class="pq">Any dietary needs this week?</div>
+        <div class="popts"><div class="po">Gluten free</div><div class="po sel">Low FODMAP</div><div class="po">Dairy free</div><div class="po">High protein</div><div class="po">No restrictions</div></div>
+      </div>
+    </div>
+    <div class="brow"><div class="bav">✦</div><div class="bub bt">✓ Gut-friendly, low FODMAP. Here are a few that fit perfectly — all from your favourites or pantry-ready.</div></div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="sug-list">
+        <div class="sug"><div class="sug-img" style="font-size:22px;">🌿</div><div class="sug-body"><div class="sug-name">Dr Joanna's Gut Soup</div><div class="sug-meta">⏱ 40 min · ❤️ Saved favourite</div></div><button class="sug-add">+ Add</button></div>
+        <div class="sug"><div class="sug-img"><img src="https://spoonacular.com/recipeImages/716406-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🐟'"></div><div class="sug-body"><div class="sug-name">Lemon Baked Salmon</div><div class="sug-meta">⏱ 25 min · Low FODMAP ✓</div></div><button class="sug-add">+ Add</button></div>
+        <div class="sug"><div class="sug-img" style="font-size:22px;">🥗</div><div class="sug-body"><div class="sug-name">Grilled Chicken Bowl</div><div class="sug-meta">⏱ 20 min · Gut friendly ✓</div></div><button class="sug-add">+ Add</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="ci"><div class="ci-box"><span class="ci-txt">Ask Zaeli anything…</span><button class="ci-send">↑</button></div></div>
+</div>
+
+<!-- Poll 4: Family picks / occasion -->
+<div class="screen" id="s-chat-poll-4">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="chat-hdr"><button class="cbk" onclick="go('dinners',document.querySelectorAll('.nb')[0])">‹</button><div class="cav">✦</div><div style="flex:1"><div class="cname">Z<span style="color:var(--mag)">a</span>el<span style="color:var(--mag)">i</span></div><div class="cstat">● Here for your family</div></div></div>
+  <div class="cbar"><div class="chan">✦ General</div><div class="chan">📅 Cal</div><div class="chan">🛒 Shop</div><div class="chan on">🍽 Meals</div></div>
+  <div class="chat-body">
+    <div class="brow"><div class="bav">✦</div><div class="bub bz">It's Friday — let the kids have some input! Who's picking tonight's dinner? 😄</div></div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="poll"><div class="pq">Who's choosing dinner tonight?</div>
+        <div class="popts"><div class="po">Anna</div><div class="po">Richard</div><div class="po sel">Poppy picks!</div><div class="po">Gab picks!</div><div class="po">Duke picks!</div></div>
+      </div>
+    </div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="poll"><div class="pq">Any special occasion this week?</div>
+        <div class="popts"><div class="po">Date night</div><div class="po">Guests coming</div><div class="po sel">Just the family</div><div class="po">Treat night</div></div>
+      </div>
+    </div>
+    <div class="brow"><div class="bav">✦</div><div class="bub bt">✓ Poppy's pick, family night. Based on what she usually loves — here are her top suggestions.</div></div>
+    <div class="brow"><div class="bav">✦</div>
+      <div class="sug-list">
+        <div class="sug"><div class="sug-img"><img src="https://spoonacular.com/recipeImages/715538-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍗'"></div><div class="sug-body"><div class="sug-name">Honey Soy Chicken</div><div class="sug-meta">⏱ 25 min · Poppy's favourite ❤️</div></div><button class="sug-add">+ Add</button></div>
+        <div class="sug"><div class="sug-img" style="font-size:22px;">🌮</div><div class="sug-body"><div class="sug-name">Beef Tacos</div><div class="sug-meta">⏱ 20 min · Kids love · 1 item needed</div></div><button class="sug-add">+ Add</button></div>
+        <div class="sug"><div class="sug-img"><img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍝'"></div><div class="sug-body"><div class="sug-name">Pasta Carbonara</div><div class="sug-meta">⏱ 20 min · ✓ All in pantry</div></div><button class="sug-add">+ Add</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="ci"><div class="ci-box"><span class="ci-txt">Ask Zaeli anything…</span><button class="ci-send">↑</button></div></div>
+</div>
+
+<!-- ═══ SCREEN 10 — RECIPES ═══ -->
+<div class="screen" id="s-recipes">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero">
+    <div class="hero-row"><div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div><div class="hero-title">Meals</div><div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div></div>
+    <div class="stabs"><div class="st" onclick="go('dinners',document.querySelectorAll('.nb')[0])">Dinners</div><div class="st on">Recipes</div><div class="st" onclick="go('favs',document.querySelectorAll('.nb')[11])">Favourites</div></div>
+  </div>
+  <div class="search-wrap"><div class="sbar"><span class="si">🔍</span><span class="st2">Search 5,000+ recipes…</span></div></div>
+  <div class="filter-row"><div class="fc on">All</div><div class="fc">Quick</div><div class="fc">Kids love</div><div class="fc">Gut friendly</div><div class="fc">From pantry</div><div class="fc">Gluten free</div></div>
+  <div class="scroll">
+    <div class="pi-banner"><div class="pi-av">✦</div><div style="font-size:12px;color:var(--ink);line-height:1.5;flex:1"><strong>3 meals you can cook tonight</strong> — using what's already in your pantry</div></div>
+    <div class="slbl">From your pantry</div>
+    <div class="rrow" onclick="go('detail',document.querySelectorAll('.nb')[2])"><div class="rri"><img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍝'"></div><div class="rrb"><div class="rrn">Pasta Carbonara</div><div class="rrm">⏱ 20 min · Serves 4 · ⭐ 4.8</div><div class="rrt"><span class="rtag rt-gr">✓ All in pantry</span><span class="rtag rt-bl">Quick</span></div></div><button class="radd" onclick="event.stopPropagation()">+ Plan</button></div>
+    <div class="rrow" onclick="go('detail',document.querySelectorAll('.nb')[2])"><div class="rri"><img src="https://spoonacular.com/recipeImages/715538-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍗'"></div><div class="rrb"><div class="rrn">Honey Soy Chicken</div><div class="rrm">⏱ 25 min · Serves 4 · ⭐ 4.9</div><div class="rrt"><span class="rtag rt-gr">✓ All in pantry</span><span class="rtag rt-go">Popular</span></div></div><button class="radd" onclick="event.stopPropagation()">+ Plan</button></div>
+    <div class="rrow" onclick="go('detail',document.querySelectorAll('.nb')[2])"><div class="rri"><img src="https://spoonacular.com/recipeImages/644387-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍲'"></div><div class="rrb"><div class="rrn">Minestrone Soup</div><div class="rrm">⏱ 35 min · Serves 6 · ⭐ 4.6</div><div class="rrt"><span class="rtag rt-gr">✓ All in pantry</span><span class="rtag rt-pu">Family</span></div></div><button class="radd" onclick="event.stopPropagation()">+ Plan</button></div>
+    <div class="slbl">Gut friendly picks</div>
+    <div class="rrow"><div class="rri" style="font-size:30px;">🌿</div><div class="rrb"><div class="rrn">Dr Joanna's Gut Soup</div><div class="rrm">⏱ 40 min · Serves 4 · ⭐ 4.7</div><div class="rrt"><span class="rtag rt-gr">Gut friendly</span><span class="rtag rt-bl">Low FODMAP</span></div></div><button class="radd">+ Plan</button></div>
+    <div class="rrow" onclick="go('detail-miss',document.querySelectorAll('.nb')[3])"><div class="rri"><img src="https://spoonacular.com/recipeImages/716406-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🐟'"></div><div class="rrb"><div class="rrn">Lemon Baked Salmon</div><div class="rrm">⏱ 25 min · Serves 4 · ⭐ 4.7</div><div class="rrt"><span class="rtag rt-or">2 items needed</span><span class="rtag rt-bl">Healthy</span></div></div><button class="radd" onclick="event.stopPropagation()">+ Plan</button></div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 11 — FAVOURITES ═══ -->
+<div class="screen" id="s-favs">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero">
+    <div class="hero-row"><div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div><div class="hero-title">Meals</div><div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div></div>
+    <div class="stabs"><div class="st" onclick="go('dinners',document.querySelectorAll('.nb')[0])">Dinners</div><div class="st" onclick="go('recipes',document.querySelectorAll('.nb')[10])">Recipes</div><div class="st on">Favourites</div></div>
+  </div>
+  <div class="scroll">
+    <div class="save-cta"><div style="font-size:26px">📸</div><div style="flex:1"><div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;">Save a recipe</div><div style="font-size:11px;color:rgba(255,255,255,.75);">Photo, URL, menu or recipe card</div></div><button onclick="go('capture',document.querySelectorAll('.nb')[12])" style="background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;">+ Save</button></div>
+    <div class="slbl">Your family favourites</div>
+    <div class="fav-card" onclick="go('detail',document.querySelectorAll('.nb')[2])"><div class="fi"><img src="https://spoonacular.com/recipeImages/715538-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍗'"></div><div class="fb"><div class="fn">Honey Soy Chicken</div><div class="fm">Last made 3 days ago · ⭐ Family favourite</div><div class="fr"><div style="display:flex;gap:5px;"><span class="rtag rt-go">Kids love</span><span class="rtag rt-bl">Quick</span></div><button class="fadd" onclick="event.stopPropagation()">+ Plan</button></div></div></div>
+    <div class="fav-card" onclick="go('detail',document.querySelectorAll('.nb')[2])"><div class="fi"><img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍝'"></div><div class="fb"><div class="fn">Pasta Bake</div><div class="fm">Last made 2 weeks ago</div><div class="fr"><div style="display:flex;gap:5px;"><span class="rtag rt-pu">Family</span><span class="rtag rt-go">Kids love</span></div><button class="fadd" onclick="event.stopPropagation()">+ Plan</button></div></div></div>
+    <div class="slbl">Saved from photos &amp; menus</div>
+    <div class="fav-card"><div class="fi" style="font-size:38px;background:#f0f4ff;">📸</div><div class="fb"><div class="fn">Mum's Slow Cooker Stew</div><div class="fm">Saved from handwritten recipe card</div><div class="fr"><div style="display:flex;gap:5px;"><span class="rtag rt-or">Slow cook</span><span class="rtag rt-pu">Comfort</span></div><button class="fadd">+ Plan</button></div></div></div>
+    <div class="fav-card"><div class="fi" style="font-size:38px;background:#f0fff4;">🌿</div><div class="fb"><div class="fn">Dr Joanna's Gut Soup</div><div class="fm">Saved from URL · drjoannafood.com</div><div class="fr"><div style="display:flex;gap:5px;"><span class="rtag rt-gr">Gut health</span><span class="rtag rt-bl">Low FODMAP</span></div><button class="fadd">+ Plan</button></div></div></div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 12 — SAVE A RECIPE ═══ -->
+<div class="screen" id="s-capture">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row"><button class="back-btn" onclick="go('favs',document.querySelectorAll('.nb')[11])">‹</button><div class="back-title">Save a Recipe</div></div>
+  <div class="scroll">
+    <div style="padding:16px;display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:2px;">How do you want to save it?</div>
+      <div style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:6px;">Zaeli reads the image or URL and pulls out the recipe automatically. You review before saving.</div>
+      <div class="cap-opt" onclick="go('review',document.querySelectorAll('.nb')[13])"><div style="width:40px;height:40px;border-radius:12px;background:var(--orL);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📷</div><div style="flex:1"><div class="co-title">Take a photo</div><div class="co-sub">Dish, menu, printed or handwritten recipe</div></div><div style="font-size:16px;color:var(--ink3);">→</div></div>
+      <div class="cap-opt" onclick="go('review',document.querySelectorAll('.nb')[13])"><div style="width:40px;height:40px;border-radius:12px;background:var(--blL);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🖼️</div><div style="flex:1"><div class="co-title">Upload a photo</div><div class="co-sub">Screenshot or camera roll</div></div><div style="font-size:16px;color:var(--ink3);">→</div></div>
+      <div class="cap-opt" onclick="go('review',document.querySelectorAll('.nb')[13])"><div style="width:40px;height:40px;border-radius:12px;background:var(--grL);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">🔗</div><div style="flex:1"><div class="co-title">Paste a URL</div><div class="co-sub">Any recipe website, blog or health chef</div></div><div style="font-size:16px;color:var(--ink3);">→</div></div>
+      <div class="cap-opt"><div style="width:40px;height:40px;border-radius:12px;background:rgba(155,127,212,.1);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">✦</div><div style="flex:1"><div class="co-title">Describe it to Zaeli</div><div class="co-sub">"That pasta we had in Rome last year"</div></div><div style="font-size:16px;color:var(--ink3);">→</div></div>
+    </div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 13 — REVIEW & SAVE ═══ -->
+<div class="screen" id="s-review">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row"><button class="back-btn" onclick="go('capture',document.querySelectorAll('.nb')[12])">‹</button><div class="back-title">Review Recipe</div><div style="font-size:11px;color:var(--ink3);margin-left:auto;">Step 2 of 2</div></div>
+  <div class="scroll">
+    <div class="rev-img"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Spaghetti_bolognese_%28hozinja%29.jpg/640px-Spaghetti_bolognese_%28hozinja%29.jpg" alt="" onerror="this.style.display='none'"></div>
+    <div style="padding:16px;">
+      <div class="ze-box"><div class="ze-hdr"><div class="ze-av">✦</div><div class="ze-ttl">Zaeli read this from your photo</div></div><div style="font-size:12px;color:var(--ink2);">Recipe card · Serves 4 · 8 ingredients · Method included</div></div>
+      <div class="rlbl">Recipe name</div>
+      <input class="rev-input" value="Mum's Bolognese" type="text">
+      <div class="rlbl">Tags</div>
+      <div class="tag-row"><div class="tpick on">Family</div><div class="tpick on">Kids love</div><div class="tpick">Quick</div><div class="tpick">Healthy</div><div class="tpick on">Comfort</div><div class="tpick">Gut health</div><div class="tpick">Low FODMAP</div><div class="tpick">Gluten free</div></div>
+      <div class="rlbl">Ingredients extracted</div>
+      <div class="ing-list">
+        <div class="ir"><span class="ie">🥩</span><span class="in">Beef mince</span><span class="iq">500g</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🍝</span><span class="in">Spaghetti</span><span class="iq">400g</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🥫</span><span class="in">Crushed tomatoes</span><span class="iq">2 cans</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🧅</span><span class="in">Brown onion</span><span class="iq">1 large</span><span class="is is-no">Need to buy</span><button class="i-add">+ List</button></div>
+        <div class="ir"><span class="ie">🧄</span><span class="in">Garlic</span><span class="iq">4 cloves</span><span class="is is-ok">In pantry</span></div>
+        <div class="ir"><span class="ie">🌿</span><span class="in">Fresh basil</span><span class="iq">Handful</span><span class="is is-no">Need to buy</span><button class="i-add">+ List</button></div>
+      </div>
+      <button class="big-btn big-btn-or" onclick="go('favs',document.querySelectorAll('.nb')[11])">✓ Save to Favourites</button>
+      <div class="pb"></div>
+    </div>
+  </div>
+</div>
+
+</div></div>
+
+<script>
+function go(id,btn){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  const s=document.getElementById('s-'+id);
+  if(s){s.classList.add('on');const sc=s.querySelector('.scroll');if(sc)sc.scrollTop=0;}
+  if(btn)btn.classList.add('on');
+}
+function toggleMember(el){
+  const av=el.querySelector('.mg-av');
+  const nm=el.querySelector('.mg-name');
+  av.classList.toggle('sel');
+  nm.classList.toggle('sel');
+}
+function setPts(el){
+  const row = el.parentNode;
+  row.querySelectorAll('.pts-opt').forEach(o=>o.classList.remove('on'));
+  el.classList.add('on');
+  // Find the sibling custom input div (next element after pts-row)
+  const customDiv = row.parentNode.querySelector('.pts-custom');
+  if(customDiv){
+    if(el.textContent === 'Custom'){
+      customDiv.classList.add('show');
+      customDiv.querySelector('input').focus();
+    } else {
+      customDiv.classList.remove('show');
+    }
+  }
+}
+document.querySelectorAll('.po').forEach(o=>{
+  o.addEventListener('click',function(){
+    this.parentNode.querySelectorAll('.po').forEach(p=>p.classList.remove('sel'));
+    this.classList.add('sel');
+  });
+});
+document.querySelectorAll('.tpick').forEach(t=>t.addEventListener('click',function(){this.classList.toggle('on');}));
+document.querySelectorAll('.fc').forEach(c=>c.addEventListener('click',function(){
+  document.querySelectorAll('.fc').forEach(x=>x.classList.remove('on'));
+  this.classList.add('on');
+}));
+document.querySelectorAll('.cam-av').forEach(av=>{
+  av.addEventListener('click',function(){
+    this.classList.toggle('sel');
+    this.nextElementSibling.classList.toggle('sel');
+  });
+});
+document.querySelectorAll('.i-add').forEach(btn=>{
+  btn.addEventListener('click',function(e){
+    e.stopPropagation();
+    this.textContent='✓ Added';
+    this.style.background='var(--grL)';
+    this.style.color='var(--gr)';
+    this.style.borderColor='rgba(0,201,122,.2)';
+  });
+});
+</script>
+</body>
+</html>

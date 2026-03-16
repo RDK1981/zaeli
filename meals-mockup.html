@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli · Meals Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F7F7F7;--card:#fff;--ink:#0A0A0A;--ink2:rgba(0,0,0,.50);--ink3:rgba(0,0,0,.28);
+  --border:rgba(0,0,0,.07);--orange:#FF8C00;--orangeL:rgba(255,140,0,.08);--orangeB:rgba(255,140,0,.22);
+  --blue:#0057FF;--blueL:rgba(0,87,255,.08);--mag:#E0007C;--green:#00C97A;--greenL:rgba(0,201,122,.10);
+  --yellow:#FFE500;--gold:#B8A400;--purple:#9B6DD6;--teal:#00B4D8;--red:#FF3B3B;--hf:#2e7d32;--hfL:#e8f5e9;
+}
+body{background:#111;font-family:'Poppins',sans-serif;padding:0 0 60px;min-height:100vh;}
+
+/* ── NAV ── */
+.page-hdr{position:sticky;top:0;z-index:200;background:#111;padding:14px 20px 10px;border-bottom:1px solid rgba(255,255,255,.06);}
+.page-title{font-size:10px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;}
+.nav-row{display:flex;gap:4px;flex-wrap:wrap;}
+.nb{flex-shrink:0;background:rgba(255,255,255,.07);border:none;color:rgba(255,255,255,.4);padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;transition:all .15s;white-space:nowrap;}
+.nb.on{background:#fff;color:#000;}
+.nb.grp{margin-left:8px;}
+
+/* ── PHONE ── */
+.phone-wrap{padding:24px 20px;display:flex;justify-content:center;}
+.phone{width:375px;min-height:812px;background:var(--bg);border-radius:44px;overflow:hidden;
+  box-shadow:0 48px 120px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.05);
+  display:flex;flex-direction:column;position:relative;}
+.sb{display:flex;justify-content:space-between;padding:14px 28px 6px;font-size:11px;font-weight:500;color:rgba(255,255,255,.6);flex-shrink:0;}
+.sb.dk{color:var(--ink2);}
+.screen{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.screen.on{display:flex;}
+.scroll{flex:1;overflow-y:auto;scrollbar-width:none;}
+.scroll::-webkit-scrollbar{display:none;}
+
+/* ── HERO ── */
+.hero{background:var(--orange);padding:10px 20px 14px;flex-shrink:0;}
+.hero-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.logo{display:flex;align-items:center;gap:8px;}
+.logo-mark{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;}
+.logo-word{font-family:'DM Serif Display',serif;font-size:22px;color:#fff;letter-spacing:-.3px;}
+.logo-a{color:#FFE500;}
+.hero-title{font-family:'DM Serif Display',serif;font-size:28px;color:#fff;font-weight:400;letter-spacing:-.5px;}
+.hbtn{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.18);border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px;}
+.hline{width:14px;height:1.5px;background:#fff;border-radius:1px;}
+.sub-tabs{display:flex;background:rgba(255,255,255,.15);border-radius:20px;padding:3px;gap:2px;}
+.st{flex:1;padding:7px 4px;border-radius:17px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.55);cursor:pointer;transition:all .2s;}
+.st.on{background:#fff;color:var(--ink);}
+
+/* ── ZAELI CARD ── */
+.zcard{background:#fff;border-radius:18px;margin:12px 16px 4px;border:1.5px solid rgba(255,140,0,.15);
+  box-shadow:0 4px 16px rgba(255,140,0,.08);flex-shrink:0;}
+.zcard-hdr{display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid rgba(255,140,0,.08);background:rgba(255,140,0,.03);border-radius:18px 18px 0 0;}
+.zav{width:28px;height:28px;border-radius:9px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;}
+.zname{font-family:'DM Serif Display',serif;font-size:15px;color:var(--ink);flex:1;}
+.zname-m{color:var(--mag);}
+.zdot{width:6px;height:6px;border-radius:50%;background:var(--green);}
+.ztime{font-size:10px;color:var(--ink3);}
+.zmsg{font-size:13px;color:var(--ink);line-height:1.6;padding:12px 14px 10px;}
+.zbold{font-weight:700;}
+.zbtns{display:flex;gap:8px;padding:0 14px 14px;}
+.zbtn-p{flex:1;background:var(--orange);color:#fff;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;}
+.zbtn-g{flex:1;background:rgba(0,0,0,.055);color:var(--ink2);border:1.5px solid rgba(0,0,0,.09);border-radius:12px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;}
+
+/* ── DAY SECTION ── */
+.day-section{padding:14px 16px 0;}
+.day-lbl{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink3);margin-bottom:8px;}
+.day-lbl.tonight{color:var(--orange);}
+
+/* ── MEAL CARD ── */
+.meal-card{background:#fff;border-radius:16px;border:1.5px solid var(--border);overflow:hidden;cursor:pointer;transition:transform .15s,box-shadow .15s;margin-bottom:10px;}
+.meal-card:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.08);}
+.meal-card.empty{border-style:dashed;border-color:rgba(0,0,0,.15);background:transparent;}
+.meal-card.hf-card{border-color:rgba(46,125,50,.25);}
+.meal-img{width:100%;height:120px;object-fit:cover;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:48px;}
+.meal-img img{width:100%;height:100%;object-fit:cover;}
+.meal-body{padding:11px 13px 13px;}
+.meal-badges{display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;}
+.badge{display:inline-flex;align-items:center;gap:3px;border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;}
+.badge-lib{background:var(--blueL);color:var(--blue);}
+.badge-zaeli{background:var(--orangeL);color:var(--orange);}
+.badge-fav{background:rgba(224,0,124,.08);color:var(--mag);}
+.badge-hf{background:var(--hfL);color:var(--hf);}
+.badge-ok{background:var(--greenL);color:var(--green);}
+.badge-miss{background:rgba(255,140,0,.1);color:var(--orange);}
+.meal-name{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:3px;}
+.meal-meta{font-size:11px;color:var(--ink2);display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+.meal-actions{display:flex;gap:7px;}
+.ma-btn{flex:1;border-radius:10px;padding:8px 6px;text-align:center;font-size:11px;font-weight:600;border:none;cursor:pointer;font-family:'Poppins',sans-serif;}
+.ma-p{background:var(--orange);color:#fff;}
+.ma-g{background:rgba(0,0,0,.055);color:var(--ink2);border:1.5px solid rgba(0,0,0,.09);}
+.ma-shop{background:var(--greenL);color:var(--green);border:1.5px solid rgba(0,201,122,.2);}
+
+/* empty meal card */
+.empty-inner{padding:16px;display:flex;align-items:center;gap:12px;}
+.empty-icon{width:40px;height:40px;border-radius:12px;background:var(--orangeL);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.empty-lbl{font-size:13px;font-weight:600;color:var(--ink3);}
+.empty-sub{font-size:11px;color:var(--ink3);margin-top:2px;}
+.empty-add{margin-left:auto;background:var(--orangeL);border-radius:9px;padding:6px 12px;font-size:11px;font-weight:700;color:var(--orange);border:1.5px solid var(--orangeB);cursor:pointer;font-family:'Poppins',sans-serif;}
+
+/* Hello Fresh card */
+.hf-top{background:var(--hfL);padding:10px 13px;display:flex;align-items:center;gap:8px;}
+.hf-logo{font-weight:700;font-size:12px;color:var(--hf);}
+.hf-badge{background:var(--hf);color:#fff;border-radius:4px;padding:2px 7px;font-size:9px;font-weight:700;}
+.hf-body{padding:10px 13px 13px;}
+.hf-name{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:3px;}
+.hf-meta{font-size:11px;color:var(--ink2);}
+
+/* ── RECIPE DETAIL ── */
+.back-row{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0;}
+.back-btn{width:32px;height:32px;border-radius:10px;background:var(--blueL);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--blue);}
+.back-title{font-size:15px;font-weight:700;color:var(--ink);}
+.recipe-hero{width:100%;height:200px;object-fit:cover;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:64px;flex-shrink:0;position:relative;}
+.recipe-hero img{width:100%;height:100%;object-fit:cover;}
+.recipe-fav{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:11px;background:rgba(255,255,255,.9);border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;}
+.recipe-content{padding:16px;}
+.recipe-title{font-family:'DM Serif Display',serif;font-size:24px;color:var(--ink);margin-bottom:8px;}
+.recipe-pills{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;}
+.rpill{border-radius:20px;padding:4px 11px;font-size:11px;font-weight:600;}
+.rpill-or{background:var(--orangeL);color:var(--orange);}
+.rpill-gr{background:var(--greenL);color:var(--green);}
+.rpill-bl{background:var(--blueL);color:var(--blue);}
+.pantry-banner{background:var(--greenL);border:1.5px solid rgba(0,201,122,.2);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:9px;margin-bottom:14px;}
+.pb-av{width:24px;height:24px;border-radius:7px;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex-shrink:0;}
+.pb-txt{font-size:12px;color:var(--ink);line-height:1.4;flex:1;}
+.section-hdr{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin:14px 0 8px;}
+.ingred-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
+.ing-row{display:flex;align-items:center;gap:10px;background:#fff;border-radius:11px;border:1.5px solid var(--border);padding:9px 11px;}
+.ing-emoji{font-size:18px;flex-shrink:0;}
+.ing-name{font-size:13px;color:var(--ink);flex:1;}
+.ing-qty{font-size:12px;color:var(--ink2);}
+.ing-status{font-size:10px;font-weight:700;border-radius:5px;padding:2px 7px;}
+.ing-ok{background:var(--greenL);color:var(--green);}
+.ing-miss{background:rgba(255,140,0,.1);color:var(--orange);}
+.add-shop-btn{width:100%;background:var(--orange);color:#fff;border:none;border-radius:14px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;margin-bottom:10px;}
+.add-plan-btn{width:100%;background:rgba(0,0,0,.055);color:var(--ink2);border:1.5px solid rgba(0,0,0,.09);border-radius:14px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;}
+
+/* ── RECIPES BROWSE ── */
+.search-wrap{padding:10px 16px;flex-shrink:0;}
+.search-bar{background:#fff;border-radius:14px;border:1.5px solid rgba(0,0,0,.09);padding:10px 14px;display:flex;align-items:center;gap:9px;}
+.search-icon{font-size:14px;color:var(--ink3);}
+.search-txt{flex:1;font-size:13px;color:var(--ink3);}
+.filter-row{display:flex;gap:6px;padding:0 16px 10px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
+.filter-row::-webkit-scrollbar{display:none;}
+.fchip{flex-shrink:0;border-radius:20px;padding:5px 12px;font-size:11px;font-weight:600;border:1.5px solid rgba(0,0,0,.1);color:var(--ink2);background:#fff;cursor:pointer;}
+.fchip.on{background:var(--orange);color:#fff;border-color:var(--orange);}
+.section-label{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink3);padding:8px 16px 6px;}
+.recipe-row{display:flex;align-items:center;gap:0;background:#fff;border-radius:14px;border:1.5px solid var(--border);margin:0 16px 8px;overflow:hidden;cursor:pointer;transition:transform .15s;}
+.recipe-row:hover{transform:translateY(-1px);}
+.rr-img{width:72px;height:72px;display:flex;align-items:center;justify-content:center;font-size:30px;background:#f8f5f0;flex-shrink:0;}
+.rr-img img{width:72px;height:72px;object-fit:cover;}
+.rr-body{flex:1;padding:10px 11px;}
+.rr-name{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+.rr-meta{font-size:10px;color:var(--ink2);margin-bottom:4px;}
+.rr-tags{display:flex;gap:4px;flex-wrap:wrap;}
+.rtag{border-radius:4px;padding:1px 6px;font-size:9px;font-weight:700;}
+.rtag-gr{background:var(--greenL);color:var(--green);}
+.rtag-or{background:var(--orangeL);color:var(--orange);}
+.rtag-bl{background:var(--blueL);color:var(--blue);}
+.rtag-pu{background:rgba(155,127,212,.1);color:var(--purple);}
+.rtag-go{background:rgba(184,164,0,.1);color:var(--gold);}
+.rr-add{margin:auto 11px auto 0;background:var(--orangeL);border-radius:9px;padding:6px 11px;font-size:11px;font-weight:700;color:var(--orange);border:1.5px solid var(--orangeB);cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap;flex-shrink:0;}
+
+/* pantry insight banner */
+.pantry-insight{background:#fff;border-radius:14px;border:1.5px solid rgba(0,201,122,.2);margin:0 16px 6px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;}
+.pi-av{width:26px;height:26px;border-radius:8px;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;flex-shrink:0;}
+.pi-txt{font-size:12px;color:var(--ink);line-height:1.5;flex:1;}
+.pi-bold{font-weight:700;}
+
+/* ── FAVOURITES ── */
+.fav-hero-card{background:linear-gradient(135deg,var(--orange),#e65c00);border-radius:16px;margin:12px 16px 4px;padding:16px;display:flex;align-items:center;gap:12px;}
+.fav-hero-av{width:40px;height:40px;border-radius:13px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:20px;}
+.fav-hero-txt{flex:1;}
+.fav-hero-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:2px;}
+.fav-hero-sub{font-size:11px;color:rgba(255,255,255,.75);}
+.fav-hero-btn{background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap;}
+.fav-card{background:#fff;border-radius:14px;border:1.5px solid var(--border);margin:0 16px 8px;overflow:hidden;cursor:pointer;transition:transform .15s;}
+.fav-card:hover{transform:translateY(-1px);}
+.fav-img{width:100%;height:100px;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:40px;background:#f8f5f0;}
+.fav-img img{width:100%;height:100%;object-fit:cover;}
+.fav-body{padding:10px 12px 12px;}
+.fav-name{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:3px;}
+.fav-meta{font-size:11px;color:var(--ink2);margin-bottom:7px;}
+.fav-row{display:flex;align-items:center;justify-content:space-between;}
+.fav-tags{display:flex;gap:5px;}
+.fav-add{background:var(--orangeL);border:1.5px solid var(--orangeB);color:var(--orange);border-radius:9px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;}
+
+/* ── CAPTURE SHEET ── */
+.sheet-overlay{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.4);top:0;display:flex;flex-direction:column;justify-content:flex-end;z-index:50;}
+.sheet{background:#fff;border-radius:24px 24px 0 0;padding:16px 20px 32px;}
+.sheet-handle{width:40px;height:4px;border-radius:2px;background:rgba(0,0,0,.12);margin:0 auto 16px;}
+.sheet-hdr{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+.sheet-av{width:42px;height:42px;border-radius:13px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;flex-shrink:0;}
+.sheet-title{font-size:16px;font-weight:700;color:var(--ink);}
+.sheet-sub{font-size:12px;color:var(--ink2);margin-top:2px;}
+.sheet-close{width:30px;height:30px;border-radius:9px;background:rgba(0,0,0,.06);border:none;cursor:pointer;font-size:13px;color:var(--ink2);margin-left:auto;}
+.sheet-option{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:14px;border:1.5px solid rgba(0,0,0,.09);background:#fff;margin-bottom:9px;cursor:pointer;transition:background .15s;}
+.sheet-option:hover{background:var(--orangeL);}
+.so-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.so-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+.so-sub{font-size:11px;color:var(--ink2);}
+.so-arrow{font-size:16px;color:var(--ink3);margin-left:auto;}
+
+/* ── REVIEW SCREEN ── */
+.review-img{width:100%;height:180px;object-fit:cover;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:64px;flex-shrink:0;}
+.review-img img{width:100%;height:100%;object-fit:cover;}
+.review-content{padding:16px;}
+.review-label{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin-bottom:5px;}
+.review-input{width:100%;border:1.5px solid rgba(0,0,0,.1);border-radius:12px;padding:11px 14px;font-size:15px;font-weight:700;color:var(--ink);background:#fff;font-family:'Poppins',sans-serif;margin-bottom:14px;}
+.review-input:focus{outline:none;border-color:var(--orange);}
+.tag-picker{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.tpick{border-radius:20px;padding:5px 12px;font-size:11px;font-weight:600;border:1.5px solid rgba(0,0,0,.1);background:#fff;cursor:pointer;color:var(--ink2);}
+.tpick.on{background:var(--orange);color:#fff;border-color:var(--orange);}
+.zaeli-extract{background:rgba(255,140,0,.05);border:1.5px solid rgba(255,140,0,.2);border-radius:12px;padding:11px 13px;margin-bottom:14px;}
+.ze-head{display:flex;align-items:center;gap:7px;margin-bottom:7px;}
+.ze-av{width:20px;height:20px;border-radius:6px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;flex-shrink:0;}
+.ze-title{font-size:11px;font-weight:700;color:var(--orange);}
+.ze-item{font-size:12px;color:var(--ink);line-height:1.5;}
+.save-btn{width:100%;background:var(--orange);color:#fff;border:none;border-radius:14px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;}
+
+/* ── LUNCHBOX ── */
+.child-strip{display:flex;gap:10px;padding:10px 16px;flex-shrink:0;}
+.child-av{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;}
+.cav{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;}
+.cav.ring{box-shadow:0 0 0 2.5px #fff,0 0 0 4.5px var(--orange);}
+.cname{font-size:9px;font-weight:600;color:var(--ink3);}
+.cname.act{color:var(--ink);}
+.lb-section{font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);padding:6px 16px 4px;}
+.lb-item{background:#fff;border-radius:13px;border:1.5px solid var(--border);margin:0 16px 6px;padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+.lb-emoji{font-size:20px;flex-shrink:0;}
+.lb-name{font-size:13px;font-weight:600;color:var(--ink);flex:1;}
+.lb-sub{font-size:10px;color:var(--ink3);}
+.lb-tag{font-size:9px;font-weight:700;border-radius:4px;padding:2px 6px;}
+.lb-fav{background:rgba(224,0,124,.08);color:var(--mag);}
+.lb-warn-item{background:rgba(255,140,0,.03);border-color:rgba(255,140,0,.3);}
+.lb-miss{font-size:10px;font-weight:700;color:var(--orange);}
+.lb-warn-banner{background:rgba(255,140,0,.07);border:1.5px solid rgba(255,140,0,.2);border-radius:12px;margin:0 16px 8px;padding:10px 12px;display:flex;align-items:center;gap:9px;}
+.lb-wb-icon{font-size:16px;}
+.lb-wb-txt{font-size:12px;color:var(--ink);line-height:1.4;flex:1;}
+.lb-wb-txt strong{font-weight:700;}
+
+/* ── CHAT / POLL ── */
+.chat-hdr{background:#fff;border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.chat-back{width:32px;height:32px;border-radius:10px;background:var(--blueL);border:none;cursor:pointer;font-size:16px;color:var(--blue);display:flex;align-items:center;justify-content:center;}
+.chat-av{width:36px;height:36px;border-radius:11px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;flex-shrink:0;}
+.chat-name{font-family:'DM Serif Display',serif;font-size:18px;color:var(--ink);flex:1;}
+.chat-status{font-size:10px;font-weight:600;color:var(--green);}
+.chan-bar{display:flex;gap:5px;padding:8px 14px;background:rgba(0,87,255,.03);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;flex-shrink:0;}
+.chan-bar::-webkit-scrollbar{display:none;}
+.chan{padding:4px 10px;border-radius:14px;background:#fff;border:1px solid rgba(0,0,0,.1);font-size:10px;font-weight:600;color:var(--ink2);white-space:nowrap;cursor:pointer;}
+.chan.on{background:var(--orange);border-color:var(--orange);color:#fff;}
+.chat-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:#F4F6FA;scrollbar-width:none;}
+.chat-scroll::-webkit-scrollbar{display:none;}
+.brow{display:flex;gap:8px;align-items:flex-end;}
+.bav{width:26px;height:26px;border-radius:8px;background:var(--orange);display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;flex-shrink:0;}
+.bubble{border-radius:4px 16px 16px 16px;padding:10px 13px;font-size:13px;line-height:1.55;max-width:78%;}
+.bz{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.07);}
+.bu{background:var(--orange);color:#fff;border-radius:16px 4px 16px 16px;margin-left:auto;}
+.bt{background:rgba(0,201,122,.06);border:1px solid rgba(0,201,122,.2);color:var(--ink);}
+.btime{font-size:9px;color:var(--ink3);margin-top:3px;padding-left:34px;}
+.poll-card{background:#fff;border-radius:14px;border:1.5px solid rgba(255,140,0,.2);padding:12px 13px;max-width:90%;}
+.poll-q{font-size:12px;font-weight:700;color:var(--ink);margin-bottom:9px;}
+.poll-opts{display:flex;flex-wrap:wrap;gap:6px;}
+.popt{border-radius:9px;padding:6px 12px;font-size:11px;font-weight:600;border:1.5px solid rgba(255,140,0,.25);color:var(--orange);background:rgba(255,140,0,.05);cursor:pointer;transition:all .15s;}
+.popt.sel,.popt:hover{background:var(--orange);color:#fff;border-color:var(--orange);}
+.suggestion-cards{display:flex;flex-direction:column;gap:6px;max-width:92%;}
+.sug-card{background:#fff;border-radius:12px;border:1.5px solid var(--border);display:flex;align-items:center;gap:0;overflow:hidden;cursor:pointer;transition:transform .15s;}
+.sug-card:hover{transform:translateX(2px);}
+.sug-img{width:52px;height:52px;display:flex;align-items:center;justify-content:center;font-size:22px;background:#f8f5f0;flex-shrink:0;}
+.sug-img img{width:52px;height:52px;object-fit:cover;}
+.sug-body{flex:1;padding:8px 10px;}
+.sug-name{font-size:12px;font-weight:700;color:var(--ink);}
+.sug-meta{font-size:10px;color:var(--ink2);}
+.sug-add{padding:0 11px;font-size:12px;font-weight:700;color:var(--orange);background:none;border:none;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap;}
+.chat-input{padding:10px 14px 18px;background:#fff;border-top:1px solid var(--border);flex-shrink:0;}
+.ci-box{background:#F7F7F7;border-radius:20px;padding:10px 14px;display:flex;align-items:center;gap:8px;border:1.5px solid rgba(0,0,0,.1);}
+.ci-txt{flex:1;font-size:13px;color:var(--ink3);}
+.ci-send{width:32px;height:32px;border-radius:10px;background:var(--orange);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-shrink:0;}
+
+/* ── ASK BAR ── */
+.ask-wrap{padding:8px 14px 18px;background:var(--bg);border-top:1px solid var(--border);flex-shrink:0;}
+.ask-bar{background:#fff;border-radius:20px;padding:10px 14px;display:flex;align-items:center;gap:8px;border:1.5px solid rgba(0,0,0,.1);}
+.ask-dia{font-size:14px;color:var(--orange);}
+.ask-txt{flex:1;font-size:13px;color:var(--ink3);}
+.ask-send{width:32px;height:32px;border-radius:10px;background:var(--orange);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;flex-shrink:0;}
+.pb{height:80px;}
+</style>
+</head>
+<body>
+
+<div class="page-hdr">
+  <div class="page-title">Zaeli · Meals Feature Mockup — V1</div>
+  <div class="nav-row">
+    <button class="nb on" onclick="go('dinners',this)">🍽 Dinners (Week)</button>
+    <button class="nb" onclick="go('recipe-detail',this)">📖 Meal Detail</button>
+    <button class="nb" onclick="go('chat-poll',this)">✦ Zaeli Chat + Polls</button>
+    <button class="nb grp" onclick="go('recipes',this)">🔍 Recipes</button>
+    <button class="nb" onclick="go('favourites',this)">❤️ Favourites</button>
+    <button class="nb" onclick="go('capture',this)">📸 Save a Recipe</button>
+    <button class="nb" onclick="go('review',this)">✅ Review &amp; Save</button>
+    <button class="nb grp" onclick="go('lunchbox',this)">🥡 Lunchbox</button>
+  </div>
+</div>
+
+<div class="phone-wrap">
+<div class="phone">
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCREEN 1 — DINNERS WEEK VIEW
+═══════════════════════════════════════════════════════════ -->
+<div class="screen on" id="s-dinners">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero">
+    <div class="hero-row">
+      <div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div>
+      <div class="hero-title">Meals</div>
+      <div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
+    </div>
+    <div class="sub-tabs">
+      <div class="st on">Dinners</div>
+      <div class="st" onclick="go('lunchbox',document.querySelectorAll('.nb')[7])">Lunchbox</div>
+      <div class="st" onclick="go('recipes',document.querySelectorAll('.nb')[3])">Recipes</div>
+      <div class="st" onclick="go('favourites',document.querySelectorAll('.nb')[4])">Favourites</div>
+    </div>
+  </div>
+  <!-- Zaeli brief -->
+  <div class="zcard">
+    <div class="zcard-hdr">
+      <div class="zav">✦</div>
+      <div class="zname">Z<span class="zname-m">a</span>el<span class="zname-m">i</span></div>
+      <div class="zdot"></div>
+      <div class="ztime">9:41 am</div>
+    </div>
+    <div class="zmsg">Tonight's sorted — <span class="zbold">pasta bake</span>. Nothing planned for Friday or Sunday yet. Want me to throw some ideas together?</div>
+    <div class="zbtns">
+      <button class="zbtn-p" onclick="go('chat-poll',document.querySelectorAll('.nb')[2])">Yes, show me ideas</button>
+      <button class="zbtn-g">All sorted</button>
+    </div>
+  </div>
+  <div class="scroll">
+    <!-- Tonight -->
+    <div class="day-section">
+      <div class="day-lbl tonight">Tonight · Wed 15</div>
+      <div class="meal-card" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+        <div class="meal-img"><img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="Pasta Bake" onerror="this.parentNode.innerHTML='🍝'"></div>
+        <div class="meal-body">
+          <div class="meal-badges"><span class="badge badge-lib">📚 From library</span><span class="badge badge-ok">✓ All ingredients</span></div>
+          <div class="meal-name">Pasta Bake</div>
+          <div class="meal-meta"><span>⏱ 25 min</span><span>👨‍👩‍👧 Serves 4</span><span>⭐ 4.8</span></div>
+          <div class="meal-actions">
+            <button class="ma-btn ma-p" onclick="event.stopPropagation();go('recipe-detail',document.querySelectorAll('.nb')[1])">View recipe</button>
+            <button class="ma-btn ma-g" onclick="event.stopPropagation()">Swap meal</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Tomorrow -->
+    <div class="day-section">
+      <div class="day-lbl">Tomorrow · Thu 16</div>
+      <div class="meal-card hf-card">
+        <div class="hf-top"><span style="font-size:18px">🥗</span><span class="hf-logo">Hello Fresh</span><span class="hf-badge">Ingredients included</span></div>
+        <div class="hf-body">
+          <div class="hf-name">Thai Beef Salad</div>
+          <div class="hf-meta">30 min · Serves 2 · No pantry sync needed</div>
+        </div>
+      </div>
+    </div>
+    <!-- Friday empty -->
+    <div class="day-section">
+      <div class="day-lbl">Fri 17</div>
+      <div class="meal-card empty" onclick="go('chat-poll',document.querySelectorAll('.nb')[2])">
+        <div class="empty-inner">
+          <div class="empty-icon">🍽</div>
+          <div><div class="empty-lbl">Friday's open</div><div class="empty-sub">Want a suggestion? Tap to ask Zaeli</div></div>
+          <button class="empty-add">+ Add</button>
+        </div>
+      </div>
+    </div>
+    <!-- Saturday -->
+    <div class="day-section">
+      <div class="day-lbl">Sat 18</div>
+      <div class="meal-card" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+        <div class="meal-img"><img src="https://spoonacular.com/recipeImages/715538-556x370.jpg" alt="Honey Soy Chicken" onerror="this.parentNode.innerHTML='🍗'"></div>
+        <div class="meal-body">
+          <div class="meal-badges"><span class="badge badge-fav">❤️ Favourite</span><span class="badge badge-zaeli">✦ Zaeli suggested</span></div>
+          <div class="meal-name">Honey Soy Chicken</div>
+          <div class="meal-meta"><span>⏱ 25 min</span><span>👨‍👩‍👧 Serves 4</span><span>⭐ 4.9</span></div>
+          <div class="meal-actions">
+            <button class="ma-btn ma-p" onclick="event.stopPropagation();go('recipe-detail',document.querySelectorAll('.nb')[1])">View recipe</button>
+            <button class="ma-btn ma-shop" onclick="event.stopPropagation()">🛒 Add to list</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Sunday empty -->
+    <div class="day-section">
+      <div class="day-lbl">Sun 19</div>
+      <div class="meal-card empty">
+        <div class="empty-inner">
+          <div class="empty-icon">🍽</div>
+          <div><div class="empty-lbl">Nothing planned</div><div class="empty-sub">Tap to add or ask Zaeli</div></div>
+          <button class="empty-add">+ Add</button>
+        </div>
+      </div>
+    </div>
+    <!-- Monday -->
+    <div class="day-section">
+      <div class="day-lbl">Mon 20</div>
+      <div class="meal-card" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+        <div class="meal-img"><img src="https://spoonacular.com/recipeImages/716406-556x370.jpg" alt="Lemon Salmon" onerror="this.parentNode.innerHTML='🐟'"></div>
+        <div class="meal-body">
+          <div class="meal-badges"><span class="badge badge-lib">📚 From library</span><span class="badge badge-miss">⚠️ 2 items needed</span></div>
+          <div class="meal-name">Lemon Baked Salmon</div>
+          <div class="meal-meta"><span>⏱ 25 min</span><span>👨‍👩‍👧 Serves 4</span></div>
+          <div class="meal-actions">
+            <button class="ma-btn ma-p" onclick="event.stopPropagation();go('recipe-detail',document.querySelectorAll('.nb')[1])">View recipe</button>
+            <button class="ma-btn ma-shop" onclick="event.stopPropagation()">🛒 Add missing</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Tuesday -->
+    <div class="day-section">
+      <div class="day-lbl">Tue 21</div>
+      <div class="meal-card empty">
+        <div class="empty-inner">
+          <div class="empty-icon">🍽</div>
+          <div><div class="empty-lbl">Nothing planned</div><div class="empty-sub">End of the week — add or ask Zaeli</div></div>
+          <button class="empty-add">+ Add</button>
+        </div>
+      </div>
+    </div>
+    <div class="pb"></div>
+  </div>
+  <div class="ask-wrap">
+    <div class="ask-bar">
+      <span class="ask-dia">✦</span>
+      <span class="ask-txt">Ask Zaeli about meals…</span>
+      <button class="ask-send">↑</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCREEN 2 — RECIPE DETAIL
+═══════════════════════════════════════════════════════════ -->
+<div class="screen" id="s-recipe-detail">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row">
+    <button class="back-btn" onclick="go('dinners',document.querySelectorAll('.nb')[0])">‹</button>
+    <div class="back-title">Recipe</div>
+    <button style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:22px;">❤️</button>
+  </div>
+  <div class="scroll">
+    <div class="recipe-hero">
+      <img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="Pasta Bake" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+      <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:64px;">🍝</div>
+      <button class="recipe-fav">❤️</button>
+    </div>
+    <div class="recipe-content">
+      <div class="recipe-title">Pasta Bake</div>
+      <div class="recipe-pills">
+        <span class="rpill rpill-or">⏱ 25 min</span>
+        <span class="rpill rpill-gr">Serves 4</span>
+        <span class="rpill rpill-bl">Easy</span>
+        <span class="rpill rpill-or">Kids love</span>
+      </div>
+      <div class="pantry-banner">
+        <div class="pb-av">✦</div>
+        <div class="pb-txt"><strong>All ingredients in your pantry</strong> — you're ready to cook tonight. Nothing needed from the shops.</div>
+      </div>
+      <div class="section-hdr">Ingredients · Serves 4</div>
+      <div class="ingred-list">
+        <div class="ing-row"><span class="ing-emoji">🍝</span><span class="ing-name">Penne pasta</span><span class="ing-qty">500g</span><span class="ing-status ing-ok">In pantry</span></div>
+        <div class="ing-row"><span class="ing-emoji">🍗</span><span class="ing-name">Chicken thighs</span><span class="ing-qty">500g</span><span class="ing-status ing-ok">In pantry</span></div>
+        <div class="ing-row"><span class="ing-emoji">🥫</span><span class="ing-name">Tomato sauce</span><span class="ing-qty">2 cans</span><span class="ing-status ing-ok">In pantry</span></div>
+        <div class="ing-row"><span class="ing-emoji">🧀</span><span class="ing-name">Mozzarella</span><span class="ing-qty">200g</span><span class="ing-status ing-ok">In pantry</span></div>
+        <div class="ing-row"><span class="ing-emoji">🧅</span><span class="ing-name">Onion</span><span class="ing-qty">1 large</span><span class="ing-status ing-ok">In pantry</span></div>
+        <div class="ing-row"><span class="ing-emoji">🧄</span><span class="ing-name">Garlic</span><span class="ing-qty">3 cloves</span><span class="ing-status ing-ok">In pantry</span></div>
+      </div>
+      <div class="section-hdr">Method</div>
+      <div style="font-size:13px;color:var(--ink2);line-height:1.7;margin-bottom:16px;">
+        <p style="margin-bottom:8px;">1. Preheat oven to 200°C. Cook pasta until al dente, drain and set aside.</p>
+        <p style="margin-bottom:8px;">2. Fry onion and garlic until soft, add chicken and cook through. Add tomato sauce and simmer 5 mins.</p>
+        <p style="margin-bottom:8px;">3. Combine pasta and sauce in a baking dish. Top with mozzarella and bake 20 mins until golden.</p>
+      </div>
+      <button class="add-shop-btn">🛒 All ingredients in pantry — nothing to add</button>
+      <button class="add-plan-btn" style="margin-top:8px;">📅 Add to this week's plan</button>
+      <div class="pb"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCREEN 3 — ZAELI CHAT + POLLS
+═══════════════════════════════════════════════════════════ -->
+<div class="screen" id="s-chat-poll">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="chat-hdr">
+    <button class="chat-back" onclick="go('dinners',document.querySelectorAll('.nb')[0])">‹</button>
+    <div class="chat-av">✦</div>
+    <div style="flex:1"><div class="chat-name">Z<span style="color:var(--mag)">a</span>el<span style="color:var(--mag)">i</span></div><div class="chat-status">● Here for your family</div></div>
+  </div>
+  <div class="chan-bar">
+    <div class="chan">✦ General</div>
+    <div class="chan">📅 Cal</div>
+    <div class="chan">🛒 Shop</div>
+    <div class="chan on">🍽 Meals</div>
+    <div class="chan">🌟 Kids</div>
+  </div>
+  <div class="chat-scroll">
+    <div class="brow">
+      <div class="bav">✦</div>
+      <div class="bubble bz">Want me to help sort some dinner ideas for the open nights? I'll ask a couple of quick questions 😊</div>
+    </div>
+    <div style="display:flex;justify-content:flex-end"><div class="bubble bu">Yes please!</div></div>
+    <div class="brow">
+      <div class="bav">✦</div>
+      <div class="poll-card">
+        <div class="poll-q">How are you feeling about cooking this week?</div>
+        <div class="poll-opts">
+          <div class="popt sel">Keep it simple</div>
+          <div class="popt">Happy to cook</div>
+          <div class="popt">Mix of both</div>
+        </div>
+      </div>
+    </div>
+    <div class="brow">
+      <div class="bav">✦</div>
+      <div class="poll-card">
+        <div class="poll-q">Anything you're in the mood for?</div>
+        <div class="poll-opts">
+          <div class="popt">Asian</div>
+          <div class="popt sel">Italian</div>
+          <div class="popt">BBQ</div>
+          <div class="popt">Comfort food</div>
+          <div class="popt">Surprise me</div>
+        </div>
+      </div>
+    </div>
+    <div class="brow">
+      <div class="bav">✦</div>
+      <div class="poll-card">
+        <div class="poll-q">Any nights you're out or getting takeaway?</div>
+        <div class="poll-opts">
+          <div class="popt">Fri</div>
+          <div class="popt sel">Sat</div>
+          <div class="popt">Sun</div>
+          <div class="popt">None</div>
+        </div>
+      </div>
+    </div>
+    <div class="brow">
+      <div class="bav">✦</div>
+      <div class="bubble bt">✓ Simple Italian week, Saturday out. Here are 3 ideas for Friday and Sunday — tap any to add straight to the plan.</div>
+    </div>
+    <div class="brow">
+      <div class="bav">✦</div>
+      <div class="suggestion-cards">
+        <div class="sug-card" onclick="go('dinners',document.querySelectorAll('.nb')[0])">
+          <div class="sug-img"><img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍝'"></div>
+          <div class="sug-body"><div class="sug-name">Pasta Carbonara</div><div class="sug-meta">⏱ 20 min · ✓ All in pantry</div></div>
+          <button class="sug-add">+ Add</button>
+        </div>
+        <div class="sug-card">
+          <div class="sug-img"><img src="https://spoonacular.com/recipeImages/716406-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🐟'"></div>
+          <div class="sug-body"><div class="sug-name">Lemon Baked Salmon</div><div class="sug-meta">⏱ 25 min · 2 items needed</div></div>
+          <button class="sug-add">+ Add</button>
+        </div>
+        <div class="sug-card">
+          <div class="sug-img"><img src="https://spoonacular.com/recipeImages/644387-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍲'"></div>
+          <div class="sug-body"><div class="sug-name">Minestrone Soup</div><div class="sug-meta">⏱ 35 min · ✓ All in pantry</div></div>
+          <button class="sug-add">+ Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="chat-input">
+    <div class="ci-box">
+      <span class="ci-txt">Ask Zaeli anything…</span>
+      <button class="ci-send">↑</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCREEN 4 — RECIPES BROWSE
+═══════════════════════════════════════════════════════════ -->
+<div class="screen" id="s-recipes">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero">
+    <div class="hero-row">
+      <div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div>
+      <div class="hero-title">Meals</div>
+      <div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
+    </div>
+    <div class="sub-tabs">
+      <div class="st" onclick="go('dinners',document.querySelectorAll('.nb')[0])">Dinners</div>
+      <div class="st" onclick="go('lunchbox',document.querySelectorAll('.nb')[7])">Lunchbox</div>
+      <div class="st on">Recipes</div>
+      <div class="st" onclick="go('favourites',document.querySelectorAll('.nb')[4])">Favourites</div>
+    </div>
+  </div>
+  <div class="search-wrap">
+    <div class="search-bar"><span class="search-icon">🔍</span><span class="search-txt">Search 5,000+ recipes…</span></div>
+  </div>
+  <div class="filter-row">
+    <div class="fchip on">All</div>
+    <div class="fchip">Quick</div>
+    <div class="fchip">Kids love</div>
+    <div class="fchip">From pantry</div>
+    <div class="fchip">Healthy</div>
+    <div class="fchip">Vegetarian</div>
+  </div>
+  <div class="scroll">
+    <div class="pantry-insight">
+      <div class="pi-av">✦</div>
+      <div class="pi-txt"><span class="pi-bold">3 meals you can cook tonight</span> using what's already in your pantry — no shopping needed</div>
+    </div>
+    <div class="section-label">From your pantry</div>
+    <div class="recipe-row" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+      <div class="rr-img"><img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍝'"></div>
+      <div class="rr-body">
+        <div class="rr-name">Pasta Carbonara</div>
+        <div class="rr-meta">⏱ 20 min · Serves 4 · ⭐ 4.8</div>
+        <div class="rr-tags"><span class="rtag rtag-gr">✓ All in pantry</span><span class="rtag rtag-bl">Quick</span></div>
+      </div>
+      <button class="rr-add" onclick="event.stopPropagation()">+ Plan</button>
+    </div>
+    <div class="recipe-row" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+      <div class="rr-img"><img src="https://spoonacular.com/recipeImages/715538-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍗'"></div>
+      <div class="rr-body">
+        <div class="rr-name">Honey Soy Chicken</div>
+        <div class="rr-meta">⏱ 25 min · Serves 4 · ⭐ 4.9</div>
+        <div class="rr-tags"><span class="rtag rtag-gr">✓ All in pantry</span><span class="rtag rtag-go">Popular</span></div>
+      </div>
+      <button class="rr-add" onclick="event.stopPropagation()">+ Plan</button>
+    </div>
+    <div class="recipe-row" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+      <div class="rr-img"><img src="https://spoonacular.com/recipeImages/644387-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍲'"></div>
+      <div class="rr-body">
+        <div class="rr-name">Minestrone Soup</div>
+        <div class="rr-meta">⏱ 35 min · Serves 6 · ⭐ 4.6</div>
+        <div class="rr-tags"><span class="rtag rtag-gr">✓ All in pantry</span><span class="rtag rtag-pu">Family</span></div>
+      </div>
+      <button class="rr-add" onclick="event.stopPropagation()">+ Plan</button>
+    </div>
+    <div class="section-label">Family favourites</div>
+    <div class="recipe-row" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+      <div class="rr-img"><img src="https://spoonacular.com/recipeImages/716406-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🐟'"></div>
+      <div class="rr-body">
+        <div class="rr-name">Lemon Baked Salmon</div>
+        <div class="rr-meta">⏱ 25 min · Serves 4 · ⭐ 4.7</div>
+        <div class="rr-tags"><span class="rtag rtag-or">2 items needed</span><span class="rtag rtag-bl">Healthy</span></div>
+      </div>
+      <button class="rr-add" onclick="event.stopPropagation()">+ Plan</button>
+    </div>
+    <div class="recipe-row" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+      <div class="rr-img"><img src="https://spoonacular.com/recipeImages/665613-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🥢'"></div>
+      <div class="rr-body">
+        <div class="rr-name">Chicken Stir-Fry</div>
+        <div class="rr-meta">⏱ 20 min · Serves 4 · ⭐ 4.5</div>
+        <div class="rr-tags"><span class="rtag rtag-bl">Quick</span><span class="rtag rtag-go">Kids love</span></div>
+      </div>
+      <button class="rr-add" onclick="event.stopPropagation()">+ Plan</button>
+    </div>
+    <div class="section-label">Trending this week</div>
+    <div class="recipe-row" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+      <div class="rr-img"><img src="https://spoonacular.com/recipeImages/632660-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🫕'"></div>
+      <div class="rr-body">
+        <div class="rr-name">Beef Tacos</div>
+        <div class="rr-meta">⏱ 20 min · Serves 4 · ⭐ 4.8</div>
+        <div class="rr-tags"><span class="rtag rtag-go">Kids love</span><span class="rtag rtag-bl">Quick</span></div>
+      </div>
+      <button class="rr-add" onclick="event.stopPropagation()">+ Plan</button>
+    </div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCREEN 5 — FAVOURITES
+═══════════════════════════════════════════════════════════ -->
+<div class="screen" id="s-favourites">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero">
+    <div class="hero-row">
+      <div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div>
+      <div class="hero-title">Meals</div>
+      <div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
+    </div>
+    <div class="sub-tabs">
+      <div class="st" onclick="go('dinners',document.querySelectorAll('.nb')[0])">Dinners</div>
+      <div class="st" onclick="go('lunchbox',document.querySelectorAll('.nb')[7])">Lunchbox</div>
+      <div class="st" onclick="go('recipes',document.querySelectorAll('.nb')[3])">Recipes</div>
+      <div class="st on">Favourites</div>
+    </div>
+  </div>
+  <div class="scroll">
+    <!-- Save a recipe CTA -->
+    <div style="background:var(--orange);border-radius:16px;margin:12px 16px 4px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+      <div style="font-size:28px">📸</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;">Save a recipe</div><div style="font-size:11px;color:rgba(255,255,255,.75);">Photo, URL, menu or recipe card</div></div>
+      <button onclick="go('capture',document.querySelectorAll('.nb')[5])" style="background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap;">+ Save</button>
+    </div>
+    <div class="section-label">Your family favourites</div>
+    <div class="fav-card" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+      <div class="fav-img"><img src="https://spoonacular.com/recipeImages/715538-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍗'"></div>
+      <div class="fav-body">
+        <div class="fav-name">Honey Soy Chicken</div>
+        <div class="fav-meta">Last made 3 days ago · ⭐ Family favourite</div>
+        <div class="fav-row">
+          <div class="fav-tags"><span class="rtag rtag-go">Kids love</span><span class="rtag rtag-bl">Quick</span></div>
+          <button class="fav-add" onclick="event.stopPropagation()">+ Plan</button>
+        </div>
+      </div>
+    </div>
+    <div class="fav-card" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+      <div class="fav-img"><img src="https://spoonacular.com/recipeImages/654959-556x370.jpg" alt="" onerror="this.parentNode.innerHTML='🍝'"></div>
+      <div class="fav-body">
+        <div class="fav-name">Pasta Bake</div>
+        <div class="fav-meta">Last made 2 weeks ago · Added from library</div>
+        <div class="fav-row">
+          <div class="fav-tags"><span class="rtag rtag-pu">Family</span><span class="rtag rtag-go">Kids love</span></div>
+          <button class="fav-add" onclick="event.stopPropagation()">+ Plan</button>
+        </div>
+      </div>
+    </div>
+    <div class="section-label">Saved from photos &amp; menus</div>
+    <div class="fav-card" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+      <div class="fav-img" style="background:#f0f4ff;font-size:40px">📸</div>
+      <div class="fav-body">
+        <div class="fav-name">Mum's Slow Cooker Stew</div>
+        <div class="fav-meta">Saved from photo · Handwritten recipe card</div>
+        <div class="fav-row">
+          <div class="fav-tags"><span class="rtag rtag-or">Slow cook</span><span class="rtag rtag-pu">Comfort</span></div>
+          <button class="fav-add" onclick="event.stopPropagation()">+ Plan</button>
+        </div>
+      </div>
+    </div>
+    <div class="fav-card" onclick="go('recipe-detail',document.querySelectorAll('.nb')[1])">
+      <div class="fav-img" style="background:#fff8f0;font-size:40px">🥗</div>
+      <div class="fav-body">
+        <div class="fav-name">Thai Beef Salad</div>
+        <div class="fav-meta">Saved from menu photo · Circa Bistro</div>
+        <div class="fav-row">
+          <div class="fav-tags"><span class="rtag rtag-bl">Healthy</span><span class="rtag rtag-or">Inspired by</span></div>
+          <button class="fav-add" onclick="event.stopPropagation()">+ Plan</button>
+        </div>
+      </div>
+    </div>
+    <div class="fav-card">
+      <div class="fav-img" style="background:#f0fff4;font-size:40px">🌿</div>
+      <div class="fav-body">
+        <div class="fav-name">Dr Joanna's Gut Soup</div>
+        <div class="fav-meta">Saved from URL · drjoannafood.com</div>
+        <div class="fav-row">
+          <div class="fav-tags"><span class="rtag rtag-gr">Gut health</span><span class="rtag rtag-bl">Low FODMAP</span></div>
+          <button class="fav-add">+ Plan</button>
+        </div>
+      </div>
+    </div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCREEN 6 — SAVE A RECIPE (capture sheet)
+═══════════════════════════════════════════════════════════ -->
+<div class="screen" id="s-capture">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero">
+    <div class="hero-row">
+      <div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div>
+      <div class="hero-title">Meals</div>
+      <div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
+    </div>
+    <div class="sub-tabs">
+      <div class="st" onclick="go('dinners',document.querySelectorAll('.nb')[0])">Dinners</div>
+      <div class="st" onclick="go('lunchbox',document.querySelectorAll('.nb')[7])">Lunchbox</div>
+      <div class="st" onclick="go('recipes',document.querySelectorAll('.nb')[3])">Recipes</div>
+      <div class="st on">Favourites</div>
+    </div>
+  </div>
+  <div class="scroll" style="position:relative;">
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px;">Save a recipe to Favourites</div>
+      <div style="font-size:13px;color:var(--ink2);line-height:1.6;margin-bottom:8px;">Zaeli reads the image or URL and extracts the recipe automatically. You'll review before saving.</div>
+
+      <div class="sheet-option" onclick="go('review',document.querySelectorAll('.nb')[6])">
+        <div class="so-icon" style="background:rgba(255,140,0,.1);">📷</div>
+        <div style="flex:1"><div class="so-title">Take a photo</div><div class="so-sub">Dish, menu, printed or handwritten recipe</div></div>
+        <div class="so-arrow">→</div>
+      </div>
+      <div class="sheet-option" onclick="go('review',document.querySelectorAll('.nb')[6])">
+        <div class="so-icon" style="background:rgba(0,87,255,.07);">🖼️</div>
+        <div style="flex:1"><div class="so-title">Upload a photo</div><div class="so-sub">Screenshot, camera roll, saved image</div></div>
+        <div class="so-arrow">→</div>
+      </div>
+      <div class="sheet-option" onclick="go('review',document.querySelectorAll('.nb')[6])">
+        <div class="so-icon" style="background:rgba(0,201,122,.08);">🔗</div>
+        <div style="flex:1"><div class="so-title">Paste a URL</div><div class="so-sub">Any recipe website, blog, or health chef</div></div>
+        <div class="so-arrow">→</div>
+      </div>
+      <div class="sheet-option" onclick="go('chat-poll',document.querySelectorAll('.nb')[2])">
+        <div class="so-icon" style="background:rgba(155,127,212,.1);">✦</div>
+        <div style="flex:1"><div class="so-title">Describe it to Zaeli</div><div class="so-sub">"Save that pasta we had in Rome last year"</div></div>
+        <div class="so-arrow">→</div>
+      </div>
+
+      <div style="background:rgba(0,201,122,.06);border:1.5px solid rgba(0,201,122,.2);border-radius:12px;padding:12px 14px;margin-top:4px;">
+        <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:4px;">✦ What Zaeli can read</div>
+        <div style="font-size:12px;color:var(--ink2);line-height:1.6;">Photos of dishes, printed recipes, handwritten cards, menu pages, recipe screenshots, and most cooking websites with structured recipe data.</div>
+      </div>
+    </div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCREEN 7 — REVIEW & SAVE
+═══════════════════════════════════════════════════════════ -->
+<div class="screen" id="s-review">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row">
+    <button class="back-btn" onclick="go('capture',document.querySelectorAll('.nb')[5])">‹</button>
+    <div class="back-title">Review Recipe</div>
+    <div style="font-size:11px;color:var(--ink3);margin-left:auto;">Step 2 of 2</div>
+  </div>
+  <div class="scroll">
+    <div class="review-img">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Spaghetti_bolognese_%28hozinja%29.jpg/640px-Spaghetti_bolognese_%28hozinja%29.jpg" alt="Recipe" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+      <div style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:64px;">🍝</div>
+    </div>
+    <div class="review-content">
+      <div class="zaeli-extract">
+        <div class="ze-head"><div class="ze-av">✦</div><div class="ze-title">Zaeli extracted this from your photo</div></div>
+        <div class="ze-item">Found: recipe card · Serves 4 · 8 ingredients · Method included</div>
+      </div>
+      <div class="review-label">Recipe name</div>
+      <input class="review-input" value="Mum's Bolognese" type="text">
+      <div class="review-label">Tags</div>
+      <div class="tag-picker">
+        <div class="tpick on">Family</div>
+        <div class="tpick on">Kids love</div>
+        <div class="tpick">Quick</div>
+        <div class="tpick">Healthy</div>
+        <div class="tpick on">Comfort</div>
+        <div class="tpick">Gut health</div>
+        <div class="tpick">Low FODMAP</div>
+      </div>
+      <div class="review-label">Ingredients extracted</div>
+      <div class="ingred-list">
+        <div class="ing-row"><span class="ing-emoji">🥩</span><span class="ing-name">Beef mince</span><span class="ing-qty">500g</span><span class="ing-status ing-ok">In pantry</span></div>
+        <div class="ing-row"><span class="ing-emoji">🍝</span><span class="ing-name">Spaghetti</span><span class="ing-qty">400g</span><span class="ing-status ing-ok">In pantry</span></div>
+        <div class="ing-row"><span class="ing-emoji">🥫</span><span class="ing-name">Crushed tomatoes</span><span class="ing-qty">2 cans</span><span class="ing-status ing-ok">In pantry</span></div>
+        <div class="ing-row"><span class="ing-emoji">🧅</span><span class="ing-name">Brown onion</span><span class="ing-qty">1 large</span><span class="ing-status ing-miss">Need to buy</span></div>
+        <div class="ing-row"><span class="ing-emoji">🧄</span><span class="ing-name">Garlic</span><span class="ing-qty">4 cloves</span><span class="ing-status ing-ok">In pantry</span></div>
+        <div class="ing-row"><span class="ing-emoji">🌿</span><span class="ing-name">Fresh basil</span><span class="ing-qty">Handful</span><span class="ing-status ing-miss">Need to buy</span></div>
+      </div>
+      <button class="save-btn" onclick="go('favourites',document.querySelectorAll('.nb')[4])">✓ Save to Favourites</button>
+      <div class="pb"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SCREEN 8 — LUNCHBOX
+═══════════════════════════════════════════════════════════ -->
+<div class="screen" id="s-lunchbox">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero">
+    <div class="hero-row">
+      <div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div>
+      <div class="hero-title">Meals</div>
+      <div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
+    </div>
+    <div class="sub-tabs">
+      <div class="st" onclick="go('dinners',document.querySelectorAll('.nb')[0])">Dinners</div>
+      <div class="st on">Lunchbox</div>
+      <div class="st" onclick="go('recipes',document.querySelectorAll('.nb')[3])">Recipes</div>
+      <div class="st" onclick="go('favourites',document.querySelectorAll('.nb')[4])">Favourites</div>
+    </div>
+  </div>
+  <div class="child-strip">
+    <div class="child-av"><div class="cav ring" style="background:var(--purple);">P</div><div class="cname act">Poppy</div></div>
+    <div class="child-av"><div class="cav" style="background:var(--teal);">G</div><div class="cname">Gab</div></div>
+    <div class="child-av"><div class="cav" style="background:#4A90E2;">D</div><div class="cname">Duke</div></div>
+  </div>
+  <div class="zcard" style="margin-top:0;">
+    <div class="zcard-hdr">
+      <div class="zav">✦</div>
+      <div class="zname">Z<span class="zname-m">a</span>el<span class="zname-m">i</span></div>
+      <div class="zdot"></div>
+      <div class="ztime">9:41 am</div>
+    </div>
+    <div class="zmsg">Poppy's favourites are pre-loaded. <span class="zbold">No fruit since Monday</span> — I've flagged it below and added blueberries from her usual picks.</div>
+  </div>
+  <div class="scroll">
+    <div class="lb-warn-banner">
+      <span class="lb-wb-icon">⚠️</span>
+      <div class="lb-wb-txt"><strong>3 days no fruit</strong> — blueberries are in stock, I've pre-selected them. Swap or confirm below.</div>
+    </div>
+    <div class="lb-section">Main</div>
+    <div class="lb-item">
+      <span class="lb-emoji">🥪</span>
+      <div style="flex:1"><div class="lb-name">Ham sandwich</div><div class="lb-sub">4× this month</div></div>
+      <span class="lb-tag lb-fav">❤️ favourite</span>
+    </div>
+    <div class="lb-section">Fruit</div>
+    <div class="lb-item" style="border-color:rgba(0,201,122,.3);background:rgba(0,201,122,.03);">
+      <span class="lb-emoji">🫐</span>
+      <div style="flex:1"><div class="lb-name">Blueberries</div><div class="lb-sub">✦ Zaeli added — 3 days no fruit</div></div>
+      <span style="font-size:10px;font-weight:700;color:var(--green);background:var(--greenL);border-radius:5px;padding:2px 7px;">In pantry</span>
+    </div>
+    <div class="lb-section">Snack</div>
+    <div class="lb-item">
+      <span class="lb-emoji">🌽</span>
+      <div style="flex:1"><div class="lb-name">Corn chips</div><div class="lb-sub">8× this month</div></div>
+      <span style="font-size:10px;font-weight:700;color:var(--green);background:var(--greenL);border-radius:5px;padding:2px 7px;">In pantry</span>
+    </div>
+    <div class="lb-section">Treat</div>
+    <div class="lb-item">
+      <span class="lb-emoji">🍫</span>
+      <div style="flex:1"><div class="lb-name">Cookie</div><div class="lb-sub">7× this month</div></div>
+      <span class="lb-tag lb-fav">❤️ favourite</span>
+    </div>
+    <div class="lb-section">Extra</div>
+    <div class="lb-item">
+      <span class="lb-emoji">🥒</span>
+      <div style="flex:1"><div class="lb-name">Cucumber</div><div class="lb-sub">11× — Poppy's #1 extra</div></div>
+      <span style="font-size:11px;">🏆</span>
+    </div>
+    <div style="margin:14px 16px;">
+      <button style="width:100%;background:var(--orange);color:#fff;border:none;border-radius:14px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;">Save Poppy's lunchbox →</button>
+    </div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+</div><!-- /phone -->
+</div><!-- /phone-wrap -->
+
+<script>
+function go(id, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('on'));
+  document.querySelectorAll('.nb').forEach(b => b.classList.remove('on'));
+  const s = document.getElementById('s-' + id);
+  if (s) { s.classList.add('on'); s.querySelector('.scroll') && (s.querySelector('.scroll').scrollTop = 0); }
+  if (btn) btn.classList.add('on');
+}
+// Poll tap interaction
+document.querySelectorAll('.popt').forEach(opt => {
+  opt.addEventListener('click', function() {
+    const siblings = this.parentNode.querySelectorAll('.popt');
+    siblings.forEach(s => s.classList.remove('sel'));
+    this.classList.add('sel');
+  });
+});
+// Tag picker interaction
+document.querySelectorAll('.tpick').forEach(t => {
+  t.addEventListener('click', function() { this.classList.toggle('on'); });
+});
+// Filter chip interaction
+document.querySelectorAll('.fchip').forEach(chip => {
+  chip.addEventListener('click', function() {
+    document.querySelectorAll('.fchip').forEach(c => c.classList.remove('on'));
+    this.classList.add('on');
+  });
+});
+</script>
+</body>
+</html>

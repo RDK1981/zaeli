@@ -209,8 +209,17 @@ function extractRecipes(text: string): { title: string; content: string }[] {
   const blocks = text.split(/\n(?=#{1,3}\s|\*\*[A-Z])/g);
   for (const block of blocks) {
     const m = block.match(/^#{1,3}\s+(.+)|^\*\*(.+?)\*\*/);
-    if (m && (block.includes('ingredient') || block.includes('cup') || block.includes('tbsp') || block.match(/\d+\s*(g|kg|ml|cup|tbsp|tsp)/i))) {
-      recipes.push({ title:(m[1]||m[2]).trim(), content:block.trim() });
+    if (!m) continue;
+    const title = (m[1]||m[2]).trim();
+    // Skip obvious non-recipe bold headers
+    if (/shopping|you.?d need|already on|add:|list:|ingredients?:/i.test(title)) continue;
+    // Skip short labels and anything ending in a colon (list headers)
+    if (title.endsWith(':') || title.length < 4) continue;
+    // Only trigger if block contains actual recipe structure (measurements + method indicators)
+    const hasMeasurements = /\d+\s*(g|kg|ml|L|cup|tbsp|tsp|oz|lb)/i.test(block);
+    const hasMethod = /\b(preheat|bake|cook|mix|stir|boil|fry|simmer|roast|whisk|combine|heat|add|season|serve)\b/i.test(block);
+    if (hasMeasurements && hasMethod) {
+      recipes.push({ title, content:block.trim() });
     }
   }
   return recipes;
@@ -489,7 +498,7 @@ const CAPABILITY_RULES = `CRITICAL CAPABILITY RULES — never violate:
 
 // ── CHANNEL CONFIG ───────────────────────────────────────────
 const CHANNELS: Record<string,{ icon:string; prompt:string; seeds:string[] }> = {
-  General:  { icon:'✦',  prompt:`You are Zaeli, a warm family assistant. Help with anything. You can take real actions using tools: add events, tasks, shopping items, recipes and meals. When adding calendar events, use ISO 8601 format for start_time (e.g. 2026-03-11T18:45:00) and always include the date field as YYYY-MM-DD. When the user mentions items to buy, call add_shopping_item IMMEDIATELY with all items — do not ask for confirmation first. Book and save immediately when you have enough info. ${CAPABILITY_RULES}`,
+  General:  { icon:'✦',  prompt:`You are Zaeli, a warm family assistant. Help with anything. You have access to the family's saved recipes, favourites, and saved venue menus — provided in context under SAVED RECIPES & FAVOURITES and SAVED MENUS. Use this data to answer questions about ingredients, dishes at saved venues, or meal ideas. You can take real actions using tools: add events, tasks, shopping items, recipes and meals. When adding calendar events, use ISO 8601 format for start_time (e.g. 2026-03-11T18:45:00) and always include the date field as YYYY-MM-DD. When the user mentions items to buy, call add_shopping_item IMMEDIATELY with all items — do not ask for confirmation first. Book and save immediately when you have enough info. ${CAPABILITY_RULES}`,
     seeds:["What's on this week?","Help me plan the weekend","Any reminders I should set?"] },
   Calendar: { icon:'📅', prompt:`You are Zaeli, focused on the family calendar. You can add events directly using the add_calendar_event tool. IMPORTANT: When the user gives you enough info to book (a title and rough time), use the tool immediately — do not ask follow-up questions first. Make reasonable assumptions for missing details (default 1hr duration, use today's date if no date given). Always use ISO 8601 format for start_time e.g. 2026-03-11T18:45:00. Confirm what you booked after. ${CAPABILITY_RULES}`,
     seeds:["Any clashes this week?","What's on this weekend?","Schedule something for me"] },
@@ -501,7 +510,7 @@ const CHANNELS: Record<string,{ icon:string; prompt:string; seeds:string[] }> = 
 5. After the tool responds, report exactly what it said. Do not add your own assumptions.
 ${CAPABILITY_RULES}`,
     seeds:["What do we need this week?","Add milk and eggs","What am I missing for dinners?"] },
-  Meals:    { icon:'🍽️', prompt:`You are Zaeli, focused on meal planning. You can save recipes and add meals to the planner using tools. ${CAPABILITY_RULES}`,
+  Meals:    { icon:'🍽️', prompt:`You are Zaeli, focused on meal planning for the family. You have full access to the family's saved recipes, favourites, and saved venue menus — they are provided in the context under SAVED RECIPES & FAVOURITES and SAVED MENUS. When asked about a dish from a saved menu (e.g. "what's in the X dish at The Depot Noosa?"), look it up in the SAVED MENUS context and answer from that data. When asked for ingredients or method for a saved recipe, look it up in SAVED RECIPES & FAVOURITES. If you cannot find it, say so clearly rather than guessing. You can also save recipes and add meals to the planner using tools. ${CAPABILITY_RULES}`,
     seeds:["What should we have tonight?","Plan dinners for the week","Give me a quick Tuesday recipe"] },
   Kids:     { icon:'🌟', prompt:`You are Zaeli, focused on the kids — tasks, activities, school and routines. You can add tasks and events using tools. ${CAPABILITY_RULES}`,
     seeds:["How are the kids tracking?","What jobs are left today?","Ideas for the weekend with kids"] },
@@ -648,18 +657,39 @@ export default function ZaeliChatScreen() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 100);
 
     try {
-      const [evR, miR, shR, memR] = await Promise.all([
+      const [evR, miR, shR, memR, recR, menuR, mealR] = await Promise.all([
         supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(20),
         supabase.from('missions').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(20),
         supabase.from('shopping_items').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(30),
         supabase.from('family_members').select('*').eq('family_id',DUMMY_FAMILY_ID),
+        supabase.from('recipes').select('id,name,tags,prep_mins,notes,source_type').eq('family_id',DUMMY_FAMILY_ID).order('created_at',{ascending:false}).limit(50),
+        supabase.from('menus').select('id,venue_name,venue_type,items').eq('family_id',DUMMY_FAMILY_ID).limit(20),
+        supabase.from('meal_plans').select('day_key,meal_name,meal_type,source,cook_ids,prep_mins').eq('family_id',DUMMY_FAMILY_ID).order('day_key',{ascending:true}).limit(14),
       ]);
       const memCtx = await buildMemoryContext(DUMMY_FAMILY_ID);
       const now        = new Date();
       const localDateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
       const localTimeStr = now.toLocaleTimeString('en-AU', { hour:'numeric', minute:'2-digit', hour12:true });
       const tzOffset   = 'UTC+10 (AEST, Sydney/Brisbane/Melbourne)';
-      const ctx = `Family:${JSON.stringify(memR.data)}. Events:${JSON.stringify(evR.data)}. Tasks:${JSON.stringify(miR.data)}. Shopping:${JSON.stringify(shR.data)}. Today local date: ${localDateStr}. Current local time: ${localTimeStr}. Timezone: ${tzOffset}.${memCtx}`;
+
+      // Format menus readably so Zaeli can answer questions about specific dishes
+      const menusFormatted=(menuR.data||[]).map((m:any)=>{
+        const dishes=(m.items||[]).map((d:any)=>`  - ${d.name}${d.description?': '+d.description:''}${d.price?' ('+d.price+')':''}${d.dietary?.length?' ['+d.dietary.join(',')+']':''}`).join('\n');
+        return `${m.venue_name} (${m.venue_type||'restaurant'}):\n${dishes||'  (no dishes extracted yet)'}`;
+      }).join('\n\n');
+
+      const ctx = `Family:${JSON.stringify(memR.data)}. Events:${JSON.stringify(evR.data)}. Tasks:${JSON.stringify(miR.data)}. Shopping:${JSON.stringify(shR.data)}. Today local date: ${localDateStr}. Current local time: ${localTimeStr}. Timezone: ${tzOffset}.
+
+MEAL PLAN (next 14 days):
+${JSON.stringify(mealR.data||[])}
+
+SAVED RECIPES & FAVOURITES (${(recR.data||[]).length} saved):
+${(recR.data||[]).map((r:any)=>`- ${r.name}${r.prep_mins?' ('+r.prep_mins+' min)':''}${r.tags?.length?' ['+r.tags.join(', ')+']':''}${r.notes?'\n  '+r.notes.substring(0,300):''}`).join('\n')}
+
+SAVED MENUS (${(menuR.data||[]).length} venues):
+${menusFormatted||'None saved yet'}
+
+${memCtx}`;
       const history = next.slice(-10).map(m => ({ role:m.role, content:m.content }));
 
       const systemPrompt = `${CHANNELS[activeCtx].prompt} Be warm, specific, concise — 1-3 sentences unless more is needed. Bold key info with **word**. If the user asks for MULTIPLE things, use tools for ALL of them — do not stop after the first.

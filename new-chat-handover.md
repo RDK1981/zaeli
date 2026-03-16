@@ -1,5 +1,5 @@
-## Zaeli App — New Chat Handover Brief
-*15 March 2026 — copy this entire message to start a new chat*
+# Zaeli App — New Chat Handover Brief
+*16 March 2026 — copy this entire message to start a new chat*
 
 ---
 
@@ -7,7 +7,7 @@ Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iO
 
 ---
 
-### Who you are talking to
+## Who you are talking to
 - My name is Richard. The app's logged-in user is Anna (my family: Anna, Richard, Poppy age 12, Gab age 10, Duke age 8)
 - I'm a beginner developer — always give me **full file rewrites** with easy copy-paste PowerShell commands, step by step
 - Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no `&&` chaining)
@@ -15,7 +15,7 @@ Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iO
 
 ---
 
-### Where to find everything
+## Where to find everything
 **Master brief (CLAUDE.md):** `C:\Users\richa\zaeli\CLAUDE.md` — full stack, colours, family members, coding rules, all screen statuses. Read this first.
 
 **Key constants:**
@@ -25,116 +25,95 @@ Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iO
 
 ---
 
-### What's been built (as of 15 March 2026)
+## What's been built (as of 16 March 2026)
 
 ✅ `index.tsx` — Home screen
-- Blue hero, brief card (thinking dots → fade in full bold text, no typewriter), tiles (Option C coloured footer bars), radar, Ask Zaeli bar
-- Brief text: no typewriter animation — shows "Zaeli is thinking…" until full response ready, then fades in with bold already applied
-- Logo taps → home on all screens
-
-✅ `calendar.tsx` — Full calendar, add/edit events, Zaeli brief, dismissed card, logo → home
-
-✅ `shopping.tsx` — Major update this session:
-- **List tab:** sticky toolbar (+ Add item + List/Aisle toggle), Recently Bought in MAGENTA (no strikethrough), ticking food items → auto-syncs to Pantry
-- **Pantry tab:** sticky toolbar with List/Aisle toggle, List mode (Running Low/Well Stocked), Aisle mode (grouped by food category via keyword matching), scan buttons detect receipt vs pantry photo automatically
-- **Spend tab** (was Receipts): monthly spend summary + receipt history, tap to expand items, "show all" for long receipts
-- Receipt scan → saves to `receipts` table + syncs to Pantry + adds to Recently Bought
-- Recently Bought re-add logic: Zaeli unchecks existing row instead of creating duplicate
-
-✅ `zaeli-chat.tsx` — Multi-channel chat, shopping duplicate check (active dupes skipped, recently bought dupes moved back to active list), pantry nudge, memory
-
+✅ `calendar.tsx` — Full calendar
+✅ `shopping.tsx` — Shopping (List + Pantry + Spend)
+✅ `zaeli-chat.tsx` — Multi-channel AI chat (updated this session — now includes recipes/menus/meal context)
 ✅ `more.tsx` — Hub + Settings + Permissions + To-dos
-
+✅ `mealplanner.tsx` — **Major build this session** (see below)
 ✅ `NavMenu.tsx` + `HamburgerButton`
-
-✅ `_layout.tsx` — Tab layout (all hidden, hamburger nav only)
-
-✅ `pantry_items` Supabase table — working
-
-✅ `receipts` Supabase table — created this session:
-```sql
-create table receipts (
-  id uuid default gen_random_uuid() primary key,
-  family_id uuid not null,
-  store text,
-  purchase_date date,
-  total_amount numeric(10,2),
-  item_count integer,
-  items jsonb,
-  raw_text text,
-  created_at timestamptz default now()
-);
-```
+✅ `_layout.tsx`
 
 ---
 
-### What we worked on in this session (15 March)
+## Supabase tables (all created and working)
+- `events`, `todos`, `shopping_items`, `pantry_items`, `meal_plans`, `family_members`, `receipts`, `missions`, `recipes`, `menus` ← new this session
 
-1. **Brief card animation fixed** — removed typewriter entirely. Now shows "Zaeli is thinking…" dots until API response, then fades in complete formatted text. No asterisk flash, no transition glitch.
-
-2. **Shopping logo → home** — full rewrite of shopping.tsx with TouchableOpacity on logo
-
-3. **Recently Bought behaviour redesigned:**
-   - Renamed from "Purchased" to "Recently Bought"
-   - Items show in MAGENTA (no strikethrough, no opacity) — functions as quick-reorder list
-   - Re-adding an item in Recently Bought: Zaeli unchecks existing row (no duplicate)
-   - Aisle mode applies to Recently Bought too, grouped by category
-
-4. **Pantry tab redesigned:**
-   - Sticky toolbar with + Add item and List/Aisle toggle (matches List tab)
-   - Aisle mode groups by food category (keyword matching)
-   - Scan buttons updated: "Fridge, pantry or receipt"
-
-5. **Receipt scanning built:**
-   - Auto-detects image type (receipt vs pantry scan)
-   - Receipt → saves to `receipts` table, syncs to Pantry (good stock), adds to Recently Bought
-   - Pantry scan → existing review flow
-
-6. **Spend tab built** (replaced "Coming soon" stub):
-   - Monthly spend card, receipt list with store/date/total
-   - Tap to expand, "show all" for receipts with many items
-
-7. **Food item tick → Pantry sync:**
-   - Ticking off a food category item on the shopping list auto-upserts to Pantry (stock=good)
-   - Household/Other categories do NOT sync
-
-8. **Kids homework helper — feature spec agreed:**
-   - Zaeli guides without giving answers (Socratic method)
-   - Tested with Grade 6 decimal addition
-   - Will be part of Kids Hub
+**Critical:** `meal_plans.planned_date` has `default current_date`. Always include `planned_date` in inserts.
 
 ---
 
-### Immediate next tasks (in priority order)
-1. **API usage logging** — Supabase table + wrapper on all API calls (per-family cost tracking)
-2. **Meal Planner screen** — connect to Supabase, replace dummy data
+## What we built this session (16 March — Chat 4, Meals Day)
+
+### mealplanner.tsx — complete overhaul
+
+**Dinners tab:**
+- 7-day rolling feed, blue Zaeli brief card (Shopping-style), blue relaxed card on dismiss
+- Meal cards with emoji icon (no images on overview), cook avatars, View · Move · 🗑 actions
+- Move night: 7-night picker with override warning
+- Add meal: 6 options all wired (Ask Zaeli / Browse / Favourites / Meal kit / Manual / Takeaway)
+- Cook assignment: family picker, kid job creation with custom points, saves to `todos`
+
+**Recipes tab:**
+- Client-side search + filter (All/Quick/Kids love/Gut friendly/GF/Dairy free)
+- Full RecipeDetailModal: ingredients with pantry status, method, add to plan → day picker → assign cook
+
+**Favourites tab:**
+- Family Picks / Saved Menus toggle
+- FavouriteDetailModal: fully editable (name, tags, ingredients, method, photo), Save button in header
+- Add to plan: day picker → assign cook (modals lifted outside parent for iOS stacking fix)
+- **Save a menu**: photo → Claude extracts venue name + all dishes → `menus` table
+- Saved Menus view: venue cards → dish list with editable venue name
+
+**Photo extraction:**
+- `getMediaType()` helper detects JPEG/PNG/WebP from base64 magic bytes — never hardcoded
+- `max_tokens:4096` (was 1500, was truncating JSON)
+- Single JSON object prompt (not array), triple-layer parse fallback
+- `quality:0.15` for camera to stay under 5MB API limit
+
+### zaeli-chat.tsx — context update
+- Now fetches `recipes`, `menus` (formatted as venue→dish list), `meal_plans` (14 days) on every send
+- Zaeli can answer questions about specific dishes at saved venues
+- `extractRecipes()` tightened — no longer fires on shopping list answers
+
+### meals-v4.html mockup — designed, pending implementation
+Three screens redesigned:
+- **Dinners:** blue brief card, no images, cleaner day/date layout
+- **Recipes:** Zaeli hero card leads — "Find me a recipe" + "Browse manually"
+- **Favourites:** purple Zaeli onboarding card explaining section, dismissable
+
+---
+
+## Immediate next tasks (in priority order)
+1. **Meals v4** — implement `meals-v4.html` mockup into `mealplanner.tsx` once Richard confirms design
+2. **API usage logging** — Supabase table + wrapper on all API calls
 3. **Travel screen** stub
-4. **Kids Hub redesign** — include homework helper
-5. **Test receipt scanning** with real photos and polish Spend tab
+4. **Kids Hub redesign** — homework helper feature
+5. **Lunchbox screen** — `lunchbox-v1.html` mockup already designed
 
 ---
 
-### Key design decisions (don't revisit without reason)
+## Key design decisions (don't revisit without reason)
 - No floating FAB anywhere
 - Hamburger menu only navigation
-- Tiles: Option C (coloured footer bar)
-- To-dos: Gold `#B8A400`
-- Logo on every screen taps → home
-- Brief: thinking dots → fade in (no typewriter)
-- Recently Bought: magenta text, no strikethrough
-- Receipt capture: lives in Pantry tab (not Spend tab)
-- Food items ticked off → auto-sync to Pantry
-- Household/Other → do NOT sync to Pantry
+- Meals brief card: **BLUE** (not orange) — matches Shopping
+- Ask Zaeli bar on Meals: **BLUE** send button
+- Meal overview: **NO images** — emoji icon + text only
+- Meal images only in detail modals
+- Save a recipe CTA: dark `#2C2C2E`
+- Favourite → Add to plan: day picker first (not auto-assign)
+- Cook assignment modal always outside parent Modal (iOS stacking fix)
+- `getMediaType()` always used for base64 images — never `image/jpeg` hardcoded
+- `planned_date` always in meal_plans inserts
 
 ---
 
-### Tech reminders
+## Tech reminders
 - Import paths from `app/(tabs)/`: `../../lib/supabase`, `../components/NavMenu`
 - SafeAreaView always `edges={['top']}`
-- Poppins font for all UI, DMSerifDisplay for hero titles only
+- Poppins for all UI, DMSerifDisplay for hero titles only
 - Always `npx expo start --clear` after copying files
 - PowerShell: no `&&` — use separate lines
-
----
-
-Please confirm you've read this and are ready to continue. First priority is **API usage logging**.
+- iOS: nested modals don't stack — always lift child modals outside parent `<Modal>`

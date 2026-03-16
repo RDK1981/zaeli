@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli · Lunchbox</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F7F7F7;--card:#fff;--ink:#0A0A0A;--ink2:rgba(0,0,0,.50);--ink3:rgba(0,0,0,.28);
+  --border:rgba(0,0,0,.07);
+  --teal:#00B8D4;--tealL:rgba(0,184,212,.08);--tealB:rgba(0,184,212,.22);--tealD:#007A8F;
+  --gr:#00C97A;--grL:rgba(0,201,122,.10);--or:#FF8C00;--orL:rgba(255,140,0,.08);--orB:rgba(255,140,0,.22);
+  --bl:#0057FF;--blL:rgba(0,87,255,.08);--mag:#E0007C;--ye:#FFE500;
+  --poppy:#9B6DD6;--gab:#00B4D8;--duke:#4A90E2;--red:#FF3B3B;--redL:rgba(255,59,59,.07);
+}
+body{background:#111;font-family:'Poppins',sans-serif;padding:0 0 60px;}
+
+/* ── NAV ── */
+.page-hdr{position:sticky;top:0;z-index:200;background:#111;padding:14px 20px 10px;border-bottom:1px solid rgba(255,255,255,.06);}
+.page-title{font-size:10px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;}
+.nav-row{display:flex;gap:4px;flex-wrap:wrap;}
+.nb{flex-shrink:0;background:rgba(255,255,255,.07);border:none;color:rgba(255,255,255,.4);padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;transition:all .15s;white-space:nowrap;}
+.nb.on{background:#fff;color:#000;}
+.nb.grp{margin-left:8px;}
+
+/* ── PHONE ── */
+.phone-wrap{padding:24px 20px;display:flex;justify-content:center;}
+.phone{width:375px;min-height:812px;background:var(--bg);border-radius:44px;overflow:hidden;
+  box-shadow:0 48px 120px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.05);
+  display:flex;flex-direction:column;position:relative;}
+.sb{display:flex;justify-content:space-between;padding:14px 28px 6px;font-size:11px;font-weight:500;color:rgba(255,255,255,.6);flex-shrink:0;}
+.sb.dk{color:var(--ink2);}
+.screen{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.screen.on{display:flex;}
+.scroll{flex:1;overflow-y:auto;scrollbar-width:none;}
+.scroll::-webkit-scrollbar{display:none;}
+
+/* ── HERO ── */
+.hero{background:var(--teal);padding:10px 20px 14px;flex-shrink:0;}
+.hero-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.logo{display:flex;align-items:center;gap:8px;cursor:pointer;}
+.logo-mark{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;}
+.logo-word{font-family:'DM Serif Display',serif;font-size:22px;color:#fff;letter-spacing:-.3px;}
+.logo-a{color:#FFE500;}
+.hero-title{font-family:'DM Serif Display',serif;font-size:28px;color:#fff;font-weight:400;}
+.hbtn{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.18);border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3.5px;}
+.hline{width:14px;height:1.5px;background:#fff;border-radius:1px;}
+
+/* ── CHILD TABS ── */
+.child-tabs{display:flex;background:rgba(255,255,255,.15);border-radius:20px;padding:3px;gap:2px;}
+.ct{flex:1;padding:7px 4px;border-radius:17px;text-align:center;font-size:11px;font-weight:600;color:rgba(255,255,255,.55);cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:5px;}
+.ct.on{background:#fff;color:var(--ink);}
+.ct-av{width:18px;height:18px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;}
+
+/* ── ZAELI CARD ── */
+.zcard{background:#fff;border-radius:18px;margin:12px 16px 4px;border:1.5px solid rgba(0,184,212,.15);box-shadow:0 4px 16px rgba(0,184,212,.08);flex-shrink:0;}
+.zcard-hdr{display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid rgba(0,184,212,.08);background:rgba(0,184,212,.03);border-radius:18px 18px 0 0;}
+.zav{width:28px;height:28px;border-radius:9px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;}
+.zname{font-family:'DM Serif Display',serif;font-size:15px;color:var(--ink);flex:1;}
+.zm{color:var(--mag);}
+.zdot{width:6px;height:6px;border-radius:50%;background:var(--gr);}
+.ztime{font-size:10px;color:var(--ink3);}
+.zmsg{font-size:13px;color:var(--ink);line-height:1.6;padding:12px 14px 10px;}
+.zb{font-weight:700;}
+.zbtns{display:flex;gap:8px;padding:0 14px 14px;}
+.zbp{flex:1;background:var(--teal);color:#fff;border:none;border-radius:12px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;}
+.zbg{flex:1;background:rgba(0,0,0,.055);color:var(--ink2);border:1.5px solid rgba(0,0,0,.09);border-radius:12px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;}
+
+/* ── WEEK STRIP ── */
+.week-strip{display:flex;gap:0;padding:0 16px 10px;flex-shrink:0;}
+.wd{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:6px 2px;border-radius:12px;transition:background .15s;}
+.wd:hover{background:rgba(255,255,255,.1);}
+.wd.today{background:rgba(255,255,255,.2);}
+.wd-name{font-size:8px;font-weight:700;color:rgba(255,255,255,.6);text-transform:uppercase;}
+.wd-num{font-size:13px;font-weight:700;color:#fff;}
+.wd-dot{width:5px;height:5px;border-radius:50%;}
+.wd-dot.done{background:#fff;}
+.wd-dot.empty{background:rgba(255,255,255,.3);}
+.wd-dot.tuck{background:#FFE500;}
+
+/* ── WARNING BANNER ── */
+.warn-banner{background:var(--orL);border:1.5px solid var(--orB);border-radius:12px;margin:4px 16px 2px;padding:10px 12px;display:flex;align-items:center;gap:9px;flex-shrink:0;}
+.wb-icon{font-size:16px;flex-shrink:0;}
+.wb-txt{font-size:12px;color:var(--ink);line-height:1.4;flex:1;}
+
+/* ── BOX PREVIEW CARD ── */
+.box-card{background:#fff;border-radius:16px;border:1.5px solid var(--border);margin:8px 16px;overflow:hidden;flex-shrink:0;}
+.bc-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border);}
+.bc-av{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;}
+.bc-name{font-size:14px;font-weight:700;color:var(--ink);flex:1;}
+.bc-status{font-size:10px;font-weight:700;border-radius:5px;padding:2px 8px;}
+.bc-ok{background:var(--grL);color:var(--gr);}
+.bc-warn{background:var(--orL);color:var(--or);}
+.bc-tuck{background:rgba(255,229,0,.15);color:#8a7000;}
+.bc-items{display:flex;gap:8px;padding:12px 14px;flex-wrap:wrap;}
+.bc-item{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:44px;}
+.bc-emoji{font-size:22px;}
+.bc-lbl{font-size:8px;font-weight:600;color:var(--ink2);text-align:center;max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bc-missing{font-size:8px;font-weight:700;color:var(--or);}
+.bc-footer{display:flex;gap:8px;padding:0 14px 12px;}
+.bc-edit{flex:1;background:rgba(0,184,212,.08);border:1.5px solid rgba(0,184,212,.2);color:var(--teal);border-radius:10px;padding:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;}
+.bc-save{flex:1;background:var(--teal);color:#fff;border:none;border-radius:10px;padding:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;}
+
+/* ── SORT ALL CTA ── */
+.sort-all-cta{background:var(--teal);border-radius:16px;margin:4px 16px 8px;padding:14px 16px;display:flex;align-items:center;gap:12px;cursor:pointer;flex-shrink:0;}
+.sa-icon{font-size:26px;flex-shrink:0;}
+.sa-title{font-size:13px;font-weight:700;color:#fff;margin-bottom:2px;}
+.sa-sub{font-size:11px;color:rgba(255,255,255,.75);}
+.sa-btn{background:rgba(255,255,255,.22);border:1.5px solid rgba(255,255,255,.35);color:#fff;border-radius:10px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;flex-shrink:0;white-space:nowrap;}
+
+/* ── SLOT BUILDER ── */
+.back-row{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0;}
+.back-btn{width:32px;height:32px;border-radius:10px;background:var(--tealL);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--teal);}
+.back-title{font-size:15px;font-weight:700;color:var(--ink);flex:1;}
+.step-row{display:flex;align-items:center;gap:0;padding:10px 16px;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0;}
+.step{display:flex;align-items:center;gap:6px;flex:1;}
+.step-num{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;background:rgba(0,0,0,.08);color:var(--ink3);}
+.step-num.active{background:var(--teal);color:#fff;}
+.step-num.done{background:var(--gr);color:#fff;}
+.step-lbl{font-size:11px;font-weight:600;color:var(--ink3);}
+.step-lbl.active{color:var(--ink);}
+.step-line{flex:1;height:1.5px;background:rgba(0,0,0,.08);margin:0 6px;}
+.slot-sec{margin:10px 16px 0;flex-shrink:0;}
+.slot-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+.slot-name{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);}
+.slot-warn{font-size:10px;font-weight:700;color:var(--or);display:flex;align-items:center;gap:4px;}
+.slot-items{display:flex;flex-direction:column;gap:5px;}
+.si-row{display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:9px 11px;cursor:pointer;transition:background .15s;}
+.si-row:hover{background:rgba(0,184,212,.03);}
+.si-row.selected{border-color:var(--teal);background:rgba(0,184,212,.04);}
+.si-row.warn-selected{border-color:var(--or);background:var(--orL);}
+.si-emoji{font-size:20px;flex-shrink:0;}
+.si-name{font-size:13px;font-weight:600;color:var(--ink);flex:1;}
+.si-meta{font-size:10px;color:var(--ink3);}
+.si-badge{font-size:9px;font-weight:700;border-radius:4px;padding:2px 6px;margin-left:auto;}
+.si-fav{background:rgba(224,0,124,.08);color:var(--mag);}
+.si-new{background:var(--tealL);color:var(--teal);}
+.si-avoid{background:var(--redL);color:var(--red);}
+.si-tick{width:20px;height:20px;border-radius:6px;border:1.5px solid rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;}
+.si-tick.on{background:var(--teal);border-color:var(--teal);color:#fff;}
+.si-shop{background:none;border:none;font-size:14px;cursor:pointer;flex-shrink:0;opacity:.5;}
+.si-shop:hover{opacity:1;}
+.more-link{font-size:12px;font-weight:600;color:var(--teal);padding:8px 2px;cursor:pointer;display:block;}
+
+/* ── PREVIEW ── */
+.preview-card{background:#fff;border-radius:16px;border:1.5px solid var(--border);margin:10px 16px;overflow:hidden;flex-shrink:0;}
+.prev-hdr{background:rgba(0,184,212,.05);border-bottom:1px solid rgba(0,184,212,.1);padding:12px 14px;display:flex;align-items:center;gap:10px;}
+.prev-av{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;}
+.prev-name{font-size:14px;font-weight:700;color:var(--ink);flex:1;}
+.prev-items{display:flex;gap:6px;padding:12px 14px;flex-wrap:wrap;}
+.prev-item{display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--bg);border-radius:10px;padding:8px;min-width:52px;cursor:pointer;border:1.5px solid transparent;transition:border .15s;}
+.prev-item:hover{border-color:var(--teal);}
+.prev-item.missing{background:var(--orL);border-color:var(--orB);}
+.prev-emoji{font-size:22px;}
+.prev-lbl{font-size:8px;font-weight:600;color:var(--ink2);text-align:center;}
+.prev-miss{font-size:8px;font-weight:700;color:var(--or);}
+.nutr-row{display:flex;gap:6px;padding:0 14px 12px;}
+.nutr{flex:1;text-align:center;padding:6px 4px;background:var(--bg);border-radius:8px;}
+.nutr-lbl{font-size:8px;font-weight:700;color:var(--ink3);display:block;margin-bottom:2px;}
+.nutr-val{font-size:11px;font-weight:700;}
+.nutr-ok{color:var(--gr);}
+.nutr-warn{color:var(--or);}
+
+/* ── ONBOARDING ── */
+.onboard-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;gap:16px;}
+.ob-icon{width:72px;height:72px;border-radius:22px;background:var(--tealL);display:flex;align-items:center;justify-content:center;font-size:34px;}
+.ob-title{font-size:20px;font-weight:700;color:var(--ink);}
+.ob-body{font-size:13px;color:var(--ink2);line-height:1.7;max-width:280px;}
+.ob-photo-btn{width:100%;background:var(--teal);color:#fff;border:none;border-radius:14px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;}
+.ob-manual{font-size:12px;font-weight:600;color:var(--teal);cursor:pointer;margin-top:4px;}
+.ob-zaeli{background:rgba(0,184,212,.06);border:1.5px solid rgba(0,184,212,.2);border-radius:12px;padding:10px 13px;display:flex;align-items:flex-start;gap:9px;text-align:left;}
+.ob-zav{width:22px;height:22px;border-radius:7px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;flex-shrink:0;}
+.ob-ztxt{font-size:12px;color:var(--ink);line-height:1.5;}
+
+/* ── POST LUNCH ── */
+.post-card{background:#fff;border-radius:16px;border:1.5px solid rgba(0,201,122,.2);margin:10px 16px;padding:14px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.post-icon{width:40px;height:40px;border-radius:12px;background:var(--grL);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.post-txt{flex:1;}
+.post-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+.post-sub{font-size:11px;color:var(--ink2);}
+.post-btn{background:var(--gr);color:#fff;border:none;border-radius:10px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;white-space:nowrap;flex-shrink:0;}
+.post-skip{font-size:11px;color:var(--ink3);cursor:pointer;font-weight:600;text-align:center;padding:4px;display:block;flex-shrink:0;}
+
+/* ── SORT ALL SCREEN ── */
+.all-child-card{background:#fff;border-radius:16px;border:1.5px solid var(--border);margin:8px 16px;overflow:hidden;flex-shrink:0;}
+.all-hdr{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--border);}
+.all-av{width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0;}
+.all-name{font-size:13px;font-weight:700;color:var(--ink);flex:1;}
+.all-status{font-size:10px;font-weight:700;border-radius:5px;padding:2px 7px;}
+.all-items{display:flex;gap:8px;padding:10px 14px;flex-wrap:wrap;}
+.all-item{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.all-emoji{font-size:20px;}
+.all-lbl{font-size:8px;font-weight:600;color:var(--ink3);max-width:44px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.all-edit{font-size:11px;font-weight:600;color:var(--teal);padding:6px 14px;display:block;border-top:1px solid var(--border);text-align:center;cursor:pointer;}
+.copy-banner{background:rgba(0,184,212,.06);border:1.5px solid rgba(0,184,212,.2);border-radius:12px;margin:4px 16px;padding:10px 13px;display:flex;align-items:center;gap:9px;flex-shrink:0;}
+.copy-av{width:22px;height:22px;border-radius:7px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;flex-shrink:0;}
+
+/* ── TUCK SHOP ── */
+.tuck-card{background:#fff;border-radius:16px;border:1.5px dashed rgba(184,164,0,.4);margin:8px 16px;padding:16px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.tuck-icon{width:40px;height:40px;border-radius:12px;background:rgba(255,229,0,.15);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.tuck-name{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+.tuck-sub{font-size:11px;color:var(--ink2);}
+.tuck-change{font-size:11px;font-weight:600;color:var(--ink3);cursor:pointer;}
+
+/* ── ASK BAR ── */
+.ask{padding:8px 14px 18px;background:var(--bg);border-top:1px solid var(--border);flex-shrink:0;}
+.ask-bar{background:#fff;border-radius:20px;padding:10px 14px;display:flex;align-items:center;gap:8px;border:1.5px solid rgba(0,0,0,.1);}
+.ask-dia{font-size:14px;color:var(--teal);}
+.ask-txt{flex:1;font-size:13px;color:var(--ink3);}
+.ask-send{width:32px;height:32px;border-radius:10px;background:var(--teal);border:none;cursor:pointer;color:#fff;font-size:14px;flex-shrink:0;}
+
+.slbl{font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink3);padding:8px 16px 4px;flex-shrink:0;}
+.pb{height:80px;}
+.big-btn{width:100%;border:none;border-radius:14px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;margin-bottom:8px;}
+.big-teal{background:var(--teal);color:#fff;}
+.big-g{background:rgba(0,0,0,.055);color:var(--ink2);border:1.5px solid rgba(0,0,0,.09);}
+</style>
+</head>
+<body>
+
+<div class="page-hdr">
+  <div class="page-title">Zaeli · Lunchbox — Standalone Section</div>
+  <div class="nav-row">
+    <button class="nb on" onclick="go('home',this)">🥡 Lunchbox Home</button>
+    <button class="nb" onclick="go('onboard',this)">👋 First Time Setup</button>
+    <button class="nb" onclick="go('build',this)">🥪 Build (Quick mode)</button>
+    <button class="nb" onclick="go('guided',this)">🔧 Build (Guided)</button>
+    <button class="nb grp" onclick="go('sort-all',this)">👨‍👩‍👧 Sort All 3 Kids</button>
+    <button class="nb" onclick="go('preview',this)">👀 Preview &amp; Save</button>
+    <button class="nb" onclick="go('post-lunch',this)">🍱 After School Scan</button>
+  </div>
+</div>
+
+<div class="phone-wrap"><div class="phone">
+
+<!-- ═══ SCREEN 1 — LUNCHBOX HOME ═══ -->
+<div class="screen on" id="s-home">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero">
+    <div class="hero-row">
+      <div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div>
+      <div class="hero-title">Lunchbox</div>
+      <div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
+    </div>
+    <!-- child tabs -->
+    <div class="child-tabs">
+      <div class="ct on" onclick="setChild('poppy')"><div class="ct-av" style="background:var(--poppy);">P</div>Poppy</div>
+      <div class="ct" onclick="setChild('gab')"><div class="ct-av" style="background:var(--gab);">G</div>Gab</div>
+      <div class="ct" onclick="setChild('duke')"><div class="ct-av" style="background:var(--duke);">D</div>Duke</div>
+    </div>
+  </div>
+  <!-- week strip -->
+  <div class="hero" style="padding:6px 20px 12px;background:var(--teal);">
+    <div class="week-strip">
+      <div class="wd"><span class="wd-name">Mon</span><span class="wd-num">13</span><div class="wd-dot done"></div></div>
+      <div class="wd"><span class="wd-name">Tue</span><span class="wd-num">14</span><div class="wd-dot done"></div></div>
+      <div class="wd today"><span class="wd-name">Wed</span><span class="wd-num">15</span><div class="wd-dot done"></div></div>
+      <div class="wd" onclick="go('build',document.querySelectorAll('.nb')[2])"><span class="wd-name">Thu</span><span class="wd-num">16</span><div class="wd-dot empty"></div></div>
+      <div class="wd"><span class="wd-name">Fri</span><span class="wd-num">17</span><div class="wd-dot tuck"></div></div>
+    </div>
+  </div>
+  <!-- zaeli brief -->
+  <div class="zcard">
+    <div class="zcard-hdr">
+      <div class="zav">✦</div>
+      <div class="zname">Z<span class="zm">a</span>el<span class="zm">i</span></div>
+      <div class="zdot"></div><div class="ztime">9:41 am</div>
+    </div>
+    <div class="zmsg">Poppy's box is saved for today. <span class="zb">No fruit since Monday</span> — I've pre-selected blueberries for tomorrow. Thursday still needs sorting. Friday is tuck shop day 🎉</div>
+    <div class="zbtns">
+      <button class="zbp" onclick="go('build',document.querySelectorAll('.nb')[2])">Sort Thursday</button>
+      <button class="zbg">All good</button>
+    </div>
+  </div>
+
+  <div class="scroll">
+    <!-- Sort all CTA -->
+    <div class="sort-all-cta" onclick="go('sort-all',document.querySelectorAll('.nb')[4])">
+      <div class="sa-icon">👨‍👩‍👧</div>
+      <div style="flex:1"><div class="sa-title">Sort all 3 kids at once</div><div class="sa-sub">Zaeli pre-fills — you just review and save</div></div>
+      <button class="sa-btn">Let's go</button>
+    </div>
+
+    <!-- Today's boxes -->
+    <div class="slbl">Today · Wed 15</div>
+    <!-- Poppy - done -->
+    <div class="box-card">
+      <div class="bc-hdr">
+        <div class="bc-av" style="background:var(--poppy);">P</div>
+        <div class="bc-name">Poppy</div>
+        <div class="bc-status bc-ok">✓ Saved</div>
+      </div>
+      <div class="bc-items">
+        <div class="bc-item"><span class="bc-emoji">🥪</span><span class="bc-lbl">Ham sand.</span></div>
+        <div class="bc-item"><span class="bc-emoji">🫐</span><span class="bc-lbl">Blueberries</span></div>
+        <div class="bc-item"><span class="bc-emoji">🌽</span><span class="bc-lbl">Corn chips</span></div>
+        <div class="bc-item"><span class="bc-emoji">🍫</span><span class="bc-lbl">Cookie</span></div>
+        <div class="bc-item"><span class="bc-emoji">🥒</span><span class="bc-lbl">Cucumber</span></div>
+      </div>
+      <div class="bc-footer">
+        <button class="bc-edit" onclick="go('build',document.querySelectorAll('.nb')[2])">Edit box</button>
+      </div>
+    </div>
+    <!-- Gab - done -->
+    <div class="box-card">
+      <div class="bc-hdr">
+        <div class="bc-av" style="background:var(--gab);">G</div>
+        <div class="bc-name">Gab</div>
+        <div class="bc-status bc-ok">✓ Saved</div>
+      </div>
+      <div class="bc-items">
+        <div class="bc-item"><span class="bc-emoji">🫓</span><span class="bc-lbl">Flatbread</span></div>
+        <div class="bc-item"><span class="bc-emoji">🍇</span><span class="bc-lbl">Grapes</span></div>
+        <div class="bc-item"><span class="bc-emoji">🥨</span><span class="bc-lbl">Pretzels</span></div>
+        <div class="bc-item"><span class="bc-emoji">📦</span><span class="bc-lbl">Fruit bar</span></div>
+        <div class="bc-item"><span class="bc-emoji">🥒</span><span class="bc-lbl">Cucumber</span></div>
+      </div>
+      <div class="bc-footer">
+        <button class="bc-edit" onclick="go('build',document.querySelectorAll('.nb')[2])">Edit box</button>
+      </div>
+    </div>
+    <!-- Duke - tuck shop Friday reminder -->
+    <div class="tuck-card">
+      <div class="tuck-icon">🎉</div>
+      <div style="flex:1">
+        <div class="tuck-name">Duke — Fri 17</div>
+        <div class="tuck-sub">Tuck shop day — no box needed</div>
+      </div>
+      <span class="tuck-change">Change</span>
+    </div>
+
+    <!-- post-lunch prompt (afternoon) -->
+    <div class="post-card">
+      <div class="post-icon">🍱</div>
+      <div class="post-txt">
+        <div class="post-title">Back from school?</div>
+        <div class="post-sub">Scan what came home — helps Zaeli learn what they like</div>
+      </div>
+      <button class="post-btn" onclick="go('post-lunch',document.querySelectorAll('.nb')[6])">Scan</button>
+    </div>
+    <span class="post-skip" style="margin:0 16px;display:block;text-align:right;">Not now</span>
+
+    <div class="pb"></div>
+  </div>
+  <div class="ask"><div class="ask-bar"><span class="ask-dia">✦</span><span class="ask-txt">Ask Zaeli about lunchboxes…</span><button class="ask-send">↑</button></div></div>
+</div>
+
+<!-- ═══ SCREEN 2 — FIRST TIME ONBOARDING ═══ -->
+<div class="screen" id="s-onboard">
+  <div class="sb">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="hero" style="padding:10px 20px 14px;">
+    <div class="hero-row">
+      <div class="logo"><div class="logo-mark">✦</div><div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div></div>
+      <div class="hero-title">Lunchbox</div>
+      <div class="hbtn"><div class="hline"></div><div class="hline"></div><div class="hline"></div></div>
+    </div>
+  </div>
+  <div class="onboard-wrap">
+    <div class="ob-icon">📸</div>
+    <div class="ob-title">Let's set up Poppy's lunchbox</div>
+    <div class="ob-body">The quickest way is to take a photo of a typical lunchbox you pack for her. Zaeli reads it and builds her preferences automatically — what she loves, what to avoid, and what's usually in stock.</div>
+    <div class="ob-zaeli">
+      <div class="ob-zav">✦</div>
+      <div class="ob-ztxt">One photo is all it takes. I'll have Poppy's box ready to go from tomorrow — and I'll start learning what she actually likes over time.</div>
+    </div>
+    <button class="ob-photo-btn" onclick="go('build',document.querySelectorAll('.nb')[2])">📷 Take a photo of a lunchbox</button>
+    <button class="ob-photo-btn" style="background:rgba(0,184,212,.1);color:var(--teal);border:1.5px solid var(--tealB);" onclick="go('build',document.querySelectorAll('.nb')[2])">🖼️ Upload a photo</button>
+    <span class="ob-manual" onclick="go('guided',document.querySelectorAll('.nb')[3])">I'll add items manually instead →</span>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 3 — QUICK BUILD (default) ═══ -->
+<div class="screen" id="s-build">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row">
+    <button class="back-btn" onclick="go('home',document.querySelectorAll('.nb')[0])">‹</button>
+    <div class="back-title">Poppy · Thursday 16</div>
+    <button onclick="go('guided',document.querySelectorAll('.nb')[3])" style="background:none;border:none;cursor:pointer;font-size:11px;font-weight:600;color:var(--teal);">Edit slots</button>
+  </div>
+  <div class="scroll">
+    <!-- Zaeli pre-filled card -->
+    <div style="background:rgba(0,184,212,.05);border:1.5px solid rgba(0,184,212,.2);border-radius:14px;margin:12px 16px 4px;padding:12px 14px;display:flex;align-items:flex-start;gap:9px;">
+      <div class="zav" style="width:24px;height:24px;border-radius:8px;font-size:11px;flex-shrink:0;">✦</div>
+      <div style="font-size:12px;color:var(--ink);line-height:1.55;flex:1;">Pre-filled from Poppy's favourites. <span style="font-weight:700;">I've added blueberries</span> — no fruit since Monday. Tap anything to swap.</div>
+    </div>
+
+    <!-- warn banner -->
+    <div class="warn-banner">
+      <span class="wb-icon">⚠️</span>
+      <div class="wb-txt"><strong>No fruit since Monday</strong> — blueberries are pre-selected from her usual picks</div>
+    </div>
+
+    <!-- Quick preview — tap cells to swap -->
+    <div class="preview-card" style="margin:10px 16px;">
+      <div class="prev-hdr">
+        <div class="prev-av" style="background:var(--poppy);">P</div>
+        <div class="prev-name">Poppy's box · Thu 16</div>
+        <div style="font-size:10px;font-weight:700;color:var(--gr);">✓ Balanced</div>
+      </div>
+      <div class="prev-items">
+        <div class="prev-item" onclick="go('guided',document.querySelectorAll('.nb')[3])"><span class="prev-emoji">🥪</span><span class="prev-lbl">Ham sand.</span></div>
+        <div class="prev-item" onclick="go('guided',document.querySelectorAll('.nb')[3])" style="border-color:var(--teal);background:var(--tealL);"><span class="prev-emoji">🫐</span><span class="prev-lbl" style="color:var(--teal);">Blueberries</span><span style="font-size:7px;font-weight:700;color:var(--teal);">✦ added</span></div>
+        <div class="prev-item" onclick="go('guided',document.querySelectorAll('.nb')[3])"><span class="prev-emoji">🌽</span><span class="prev-lbl">Corn chips</span></div>
+        <div class="prev-item" onclick="go('guided',document.querySelectorAll('.nb')[3])"><span class="prev-emoji">🍫</span><span class="prev-lbl">Cookie</span></div>
+        <div class="prev-item" onclick="go('guided',document.querySelectorAll('.nb')[3])"><span class="prev-emoji">🥒</span><span class="prev-lbl">Cucumber</span></div>
+      </div>
+      <div class="nutr-row">
+        <div class="nutr"><span class="nutr-lbl">Protein</span><span class="nutr-val nutr-ok">✓</span></div>
+        <div class="nutr"><span class="nutr-lbl">Fruit</span><span class="nutr-val nutr-ok">✓</span></div>
+        <div class="nutr"><span class="nutr-lbl">Carbs</span><span class="nutr-val nutr-ok">✓</span></div>
+        <div class="nutr"><span class="nutr-lbl">Veg</span><span class="nutr-val nutr-ok">✓</span></div>
+        <div class="nutr"><span class="nutr-lbl">Treat</span><span class="nutr-val nutr-ok">1×</span></div>
+      </div>
+    </div>
+
+    <div style="padding:0 16px;">
+      <button class="big-btn big-teal" onclick="go('home',document.querySelectorAll('.nb')[0])">✓ Save Poppy's lunchbox</button>
+      <button class="big-btn big-g" onclick="go('guided',document.querySelectorAll('.nb')[3])">Edit slots in detail</button>
+    </div>
+
+    <!-- copy to siblings -->
+    <div class="copy-banner">
+      <div class="copy-av">✦</div>
+      <div style="font-size:12px;color:var(--ink);line-height:1.5;flex:1;">Gab and Duke often have the same lunch as Poppy. <span style="font-weight:700;">Copy this box to them?</span></div>
+      <button style="background:var(--teal);color:#fff;border:none;border-radius:9px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;flex-shrink:0;margin-left:8px;">Copy</button>
+    </div>
+
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 4 — GUIDED BUILD (slot picker) ═══ -->
+<div class="screen" id="s-guided">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row">
+    <button class="back-btn" onclick="go('build',document.querySelectorAll('.nb')[2])">‹</button>
+    <div class="back-title">Edit Poppy's box</div>
+    <button onclick="go('preview',document.querySelectorAll('.nb')[5])" style="background:var(--teal);color:#fff;border:none;border-radius:9px;padding:6px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;">Preview →</button>
+  </div>
+  <div class="step-row">
+    <div class="step"><div class="step-num done">✓</div><div class="step-lbl">Photo</div></div>
+    <div class="step-line"></div>
+    <div class="step"><div class="step-num active">2</div><div class="step-lbl active">Pick items</div></div>
+    <div class="step-line"></div>
+    <div class="step"><div class="step-num">3</div><div class="step-lbl">Preview</div></div>
+  </div>
+  <div class="scroll">
+    <!-- Main -->
+    <div class="slot-sec">
+      <div class="slot-hdr"><span class="slot-name">🥪 Main</span></div>
+      <div class="slot-items">
+        <div class="si-row selected" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🥪</span><span class="si-name">Ham sandwich</span>
+          <span class="si-badge si-fav">❤️ fave</span>
+          <span class="si-meta">4×</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick on">✓</div>
+        </div>
+        <div class="si-row" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🌯</span><span class="si-name">Wrap</span>
+          <span class="si-meta">3×</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick"></div>
+        </div>
+        <div class="si-row" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🥐</span><span class="si-name">Croissant</span>
+          <span class="si-badge si-fav">❤️ fave</span>
+          <span class="si-meta">6×</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick"></div>
+        </div>
+        <div class="si-row" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🧆</span><span class="si-name">Pita + dip</span>
+          <span class="si-badge si-new">✦ new</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick"></div>
+        </div>
+      </div>
+      <span class="more-link">+ more options</span>
+    </div>
+    <!-- Fruit -->
+    <div class="slot-sec">
+      <div class="slot-hdr"><span class="slot-name">🍓 Fruit</span><span class="slot-warn">⚠️ 3 days no fruit</span></div>
+      <div class="slot-items">
+        <div class="si-row warn-selected" onclick="this.classList.toggle('warn-selected')">
+          <span class="si-emoji">🫐</span><span class="si-name">Blueberries</span>
+          <span class="si-meta">Poppy likes</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick on" style="background:var(--or);border-color:var(--or);">✓</div>
+        </div>
+        <div class="si-row" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🍓</span><span class="si-name">Strawberries</span>
+          <span class="si-meta">sometimes</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick"></div>
+        </div>
+        <div class="si-row" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🍇</span><span class="si-name">Grapes</span>
+          <span class="si-meta">3×</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick"></div>
+        </div>
+      </div>
+      <span class="more-link">+ more options</span>
+    </div>
+    <!-- Snack -->
+    <div class="slot-sec">
+      <div class="slot-hdr"><span class="slot-name">🌽 Snack</span></div>
+      <div class="slot-items">
+        <div class="si-row selected" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🌽</span><span class="si-name">Corn chips</span>
+          <span class="si-meta">8×</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick on">✓</div>
+        </div>
+        <div class="si-row" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">📦</span><span class="si-name">Muesli bar</span>
+          <span class="si-meta">5×</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick"></div>
+        </div>
+        <div class="si-row" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🥨</span><span class="si-name">Pretzel minis</span>
+          <span class="si-badge si-new">✦ new</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Treat -->
+    <div class="slot-sec">
+      <div class="slot-hdr"><span class="slot-name">🍫 Treat</span></div>
+      <div class="slot-items">
+        <div class="si-row selected" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🍫</span><span class="si-name">Cookie</span>
+          <span class="si-badge si-fav">❤️ fave</span>
+          <span class="si-meta">7×</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick on">✓</div>
+        </div>
+        <div class="si-row" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🧁</span><span class="si-name">Mini muffin</span>
+          <span class="si-meta">sometimes</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Extra -->
+    <div class="slot-sec">
+      <div class="slot-hdr"><span class="slot-name">🥒 Extra</span></div>
+      <div class="slot-items">
+        <div class="si-row selected" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🥒</span><span class="si-name">Cucumber</span>
+          <span class="si-meta" style="color:var(--go);">🏆 11×</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick on">✓</div>
+        </div>
+        <div class="si-row" onclick="this.classList.toggle('selected')">
+          <span class="si-emoji">🧀</span><span class="si-name">Cheese stick</span>
+          <span class="si-meta">4×</span>
+          <button class="si-shop">🛒</button>
+          <div class="si-tick"></div>
+        </div>
+        <div class="si-row" style="opacity:.5;">
+          <span class="si-emoji">🥕</span><span class="si-name">Carrot sticks</span>
+          <span class="si-badge si-avoid">✕ avoid</span>
+          <div class="si-tick"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:16px;">
+      <button class="big-btn big-teal" onclick="go('preview',document.querySelectorAll('.nb')[5])">Preview lunchbox →</button>
+    </div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 5 — SORT ALL 3 KIDS ═══ -->
+<div class="screen" id="s-sort-all">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row">
+    <button class="back-btn" onclick="go('home',document.querySelectorAll('.nb')[0])">‹</button>
+    <div class="back-title">All boxes · Thu 16</div>
+    <div style="font-size:11px;color:var(--gr);font-weight:700;">✓ All balanced</div>
+  </div>
+  <div class="scroll">
+    <div style="background:rgba(0,184,212,.05);border:1.5px solid rgba(0,184,212,.2);border-radius:14px;margin:12px 16px 4px;padding:12px 14px;display:flex;align-items:flex-start;gap:9px;">
+      <div class="zav" style="width:24px;height:24px;border-radius:8px;font-size:11px;flex-shrink:0;">✦</div>
+      <div style="font-size:12px;color:var(--ink);line-height:1.55;flex:1;">I've pre-filled all three boxes. Poppy and Gab have the same — I've already copied it across. Duke's is slightly different based on his favourites. Tap any item to swap.</div>
+    </div>
+
+    <!-- Copy notice -->
+    <div class="copy-banner">
+      <div class="copy-av">✦</div>
+      <div style="font-size:12px;color:var(--ink);line-height:1.5;flex:1;"><strong>Poppy → Gab copied</strong> — same lunch. I've swapped corn chips for pretzels since Gab prefers them.</div>
+    </div>
+
+    <!-- Poppy -->
+    <div class="all-child-card">
+      <div class="all-hdr"><div class="all-av" style="background:var(--poppy);">P</div><div class="all-name">Poppy</div><div class="all-status bc-ok">✓ Balanced</div></div>
+      <div class="all-items">
+        <div class="all-item"><span class="all-emoji">🥪</span><span class="all-lbl">Ham sand.</span></div>
+        <div class="all-item"><span class="all-emoji">🫐</span><span class="all-lbl" style="color:var(--or);">Blueberries</span></div>
+        <div class="all-item"><span class="all-emoji">🌽</span><span class="all-lbl">Corn chips</span></div>
+        <div class="all-item"><span class="all-emoji">🍫</span><span class="all-lbl">Cookie</span></div>
+        <div class="all-item"><span class="all-emoji">🥒</span><span class="all-lbl">Cucumber</span></div>
+      </div>
+      <span class="all-edit" onclick="go('guided',document.querySelectorAll('.nb')[3])">Edit Poppy's box</span>
+    </div>
+
+    <!-- Gab -->
+    <div class="all-child-card">
+      <div class="all-hdr"><div class="all-av" style="background:var(--gab);">G</div><div class="all-name">Gab</div><div class="all-status bc-ok">✓ Balanced</div></div>
+      <div class="all-items">
+        <div class="all-item"><span class="all-emoji">🥪</span><span class="all-lbl">Ham sand.</span></div>
+        <div class="all-item"><span class="all-emoji">🫐</span><span class="all-lbl">Blueberries</span></div>
+        <div class="all-item"><span class="all-emoji">🥨</span><span class="all-lbl">Pretzels</span></div>
+        <div class="all-item"><span class="all-emoji">🍫</span><span class="all-lbl">Cookie</span></div>
+        <div class="all-item"><span class="all-emoji">🥒</span><span class="all-lbl">Cucumber</span></div>
+      </div>
+      <span class="all-edit">Edit Gab's box</span>
+    </div>
+
+    <!-- Duke -->
+    <div class="all-child-card">
+      <div class="all-hdr"><div class="all-av" style="background:var(--duke);">D</div><div class="all-name">Duke</div><div class="all-status bc-ok">✓ Balanced</div></div>
+      <div class="all-items">
+        <div class="all-item"><span class="all-emoji">🥐</span><span class="all-lbl">Croissant</span></div>
+        <div class="all-item"><span class="all-emoji">🫐</span><span class="all-lbl">Blueberries</span></div>
+        <div class="all-item"><span class="all-emoji">🌽</span><span class="all-lbl">Corn chips</span></div>
+        <div class="all-item"><span class="all-emoji">🍫</span><span class="all-lbl">Cookie</span></div>
+        <div class="all-item"><span class="all-emoji">🥒</span><span class="all-lbl">Cucumber</span></div>
+      </div>
+      <span class="all-edit">Edit Duke's box</span>
+    </div>
+
+    <div style="padding:0 16px;">
+      <button class="big-btn big-teal" onclick="go('home',document.querySelectorAll('.nb')[0])">✓ Save all three lunchboxes</button>
+    </div>
+
+    <!-- Shopping nudge -->
+    <div style="background:var(--grL);border:1.5px solid rgba(0,201,122,.2);border-radius:12px;margin:4px 16px;padding:10px 13px;display:flex;align-items:center;gap:9px;">
+      <div style="width:22px;height:22px;border-radius:7px;background:var(--gr);display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;flex-shrink:0;">✦</div>
+      <div style="font-size:12px;color:var(--ink);line-height:1.5;flex:1;"><strong>Running low:</strong> Croissants and blueberries. Add to shopping list?</div>
+      <button style="background:var(--gr);color:#fff;border:none;border-radius:9px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;flex-shrink:0;">Add</button>
+    </div>
+
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 6 — PREVIEW & SAVE ═══ -->
+<div class="screen" id="s-preview">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row">
+    <button class="back-btn" onclick="go('guided',document.querySelectorAll('.nb')[3])">‹</button>
+    <div class="back-title">Preview · Poppy</div>
+    <div style="font-size:11px;color:var(--ink3);">Step 3 of 3</div>
+  </div>
+  <div class="scroll">
+    <div class="preview-card" style="margin:12px 16px;">
+      <div class="prev-hdr">
+        <div class="prev-av" style="background:var(--poppy);">P</div>
+        <div class="prev-name">Poppy's box · Thu 16</div>
+        <div style="font-size:10px;font-weight:700;color:var(--gr);">✓ Balanced</div>
+      </div>
+      <div class="prev-items">
+        <div class="prev-item" onclick="go('guided',document.querySelectorAll('.nb')[3])"><span class="prev-emoji">🥪</span><span class="prev-lbl">Ham sand.</span></div>
+        <div class="prev-item" onclick="go('guided',document.querySelectorAll('.nb')[3])" style="border-color:var(--or);background:var(--orL);"><span class="prev-emoji">🫐</span><span class="prev-lbl">Blueberries</span><span class="prev-miss">✦ added</span></div>
+        <div class="prev-item" onclick="go('guided',document.querySelectorAll('.nb')[3])"><span class="prev-emoji">🌽</span><span class="prev-lbl">Corn chips</span></div>
+        <div class="prev-item" onclick="go('guided',document.querySelectorAll('.nb')[3])"><span class="prev-emoji">🍫</span><span class="prev-lbl">Cookie</span></div>
+        <div class="prev-item" onclick="go('guided',document.querySelectorAll('.nb')[3])"><span class="prev-emoji">🥒</span><span class="prev-lbl">Cucumber</span></div>
+      </div>
+      <div class="nutr-row">
+        <div class="nutr"><span class="nutr-lbl">Protein</span><span class="nutr-val nutr-ok">✓</span></div>
+        <div class="nutr"><span class="nutr-lbl">Fruit</span><span class="nutr-val nutr-ok">✓</span></div>
+        <div class="nutr"><span class="nutr-lbl">Carbs</span><span class="nutr-val nutr-ok">✓</span></div>
+        <div class="nutr"><span class="nutr-lbl">Veg</span><span class="nutr-val nutr-ok">✓</span></div>
+        <div class="nutr"><span class="nutr-lbl">Treat</span><span class="nutr-val nutr-ok">1×</span></div>
+      </div>
+    </div>
+
+    <!-- Zaeli sign-off -->
+    <div style="background:rgba(0,184,212,.05);border:1.5px solid rgba(0,184,212,.2);border-radius:14px;margin:0 16px 12px;padding:12px 14px;display:flex;align-items:flex-start;gap:9px;">
+      <div class="zav" style="width:24px;height:24px;border-radius:8px;font-size:11px;flex-shrink:0;">✦</div>
+      <div style="font-size:12px;color:var(--ink);line-height:1.55;flex:1;">Looking great! Blueberries balances it nicely after a few fruit-free days. Everything else is a Poppy favourite. 🙌</div>
+    </div>
+
+    <div style="padding:0 16px;">
+      <button class="big-btn big-teal" onclick="go('home',document.querySelectorAll('.nb')[0])">✓ Save Poppy's lunchbox</button>
+      <button class="big-btn big-g" onclick="go('guided',document.querySelectorAll('.nb')[3])">← Back to edit</button>
+    </div>
+
+    <!-- copy nudge -->
+    <div class="copy-banner">
+      <div class="copy-av">✦</div>
+      <div style="font-size:12px;color:var(--ink);line-height:1.5;flex:1;">Copy this box to Gab or Duke?</div>
+      <button style="background:var(--teal);color:#fff;border:none;border-radius:9px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;flex-shrink:0;margin-left:8px;">Copy</button>
+    </div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+<!-- ═══ SCREEN 7 — AFTER SCHOOL SCAN ═══ -->
+<div class="screen" id="s-post-lunch">
+  <div class="sb dk">9:41 <span>●●● WiFi ▮</span></div>
+  <div class="back-row">
+    <button class="back-btn" onclick="go('home',document.querySelectorAll('.nb')[0])">‹</button>
+    <div class="back-title">What came home?</div>
+  </div>
+  <div class="scroll">
+    <div style="padding:16px;display:flex;flex-direction:column;gap:14px;">
+      <!-- optional framing -->
+      <div style="background:var(--grL);border:1.5px solid rgba(0,201,122,.2);border-radius:14px;padding:14px;display:flex;gap:10px;">
+        <div style="font-size:24px;flex-shrink:0;">🍱</div>
+        <div style="flex:1;"><div style="font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px;">Optional — totally up to you</div><div style="font-size:12px;color:var(--ink2);line-height:1.6;">Scan what came back in the lunchbox. Over time, Zaeli learns what each kid actually eats — and stops suggesting the things they leave behind.</div></div>
+      </div>
+
+      <!-- scan options -->
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;border:1.5px solid rgba(0,0,0,.09);background:#fff;cursor:pointer;">
+          <div style="width:40px;height:40px;border-radius:12px;background:var(--grL);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">📷</div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--ink);">Take a photo</div><div style="font-size:11px;color:var(--ink2);">Point at the opened lunchbox</div></div>
+          <div style="font-size:16px;color:var(--ink3);">→</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;border:1.5px solid rgba(0,0,0,.09);background:#fff;cursor:pointer;">
+          <div style="width:40px;height:40px;border-radius:12px;background:var(--blL);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">✏️</div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:700;color:var(--ink);">Quick tap</div><div style="font-size:11px;color:var(--ink2);">Tick what came home, untick what was eaten</div></div>
+          <div style="font-size:16px;color:var(--ink3);">→</div>
+        </div>
+      </div>
+
+      <!-- quick tap example for Poppy -->
+      <div style="font-size:12px;font-weight:700;color:var(--ink2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:-6px;">Poppy's box today</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:10px 12px;">
+          <span style="font-size:20px;">🥪</span><span style="flex:1;font-size:13px;font-weight:600;color:var(--ink);">Ham sandwich</span>
+          <div style="display:flex;gap:8px;">
+            <button style="background:var(--grL);color:var(--gr);border:1.5px solid rgba(0,201,122,.2);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;">Eaten ✓</button>
+            <button style="background:var(--redL);color:var(--red);border:1.5px solid rgba(255,59,59,.15);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;">Came home</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:10px 12px;">
+          <span style="font-size:20px;">🫐</span><span style="flex:1;font-size:13px;font-weight:600;color:var(--ink);">Blueberries</span>
+          <div style="display:flex;gap:8px;">
+            <button style="background:var(--grL);color:var(--gr);border:1.5px solid rgba(0,201,122,.2);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;">Eaten ✓</button>
+            <button style="background:rgba(0,0,0,.04);color:var(--ink3);border:1.5px solid rgba(0,0,0,.09);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;">Came home</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;border:1.5px solid var(--border);padding:10px 12px;">
+          <span style="font-size:20px;">🌽</span><span style="flex:1;font-size:13px;font-weight:600;color:var(--ink);">Corn chips</span>
+          <div style="display:flex;gap:8px;">
+            <button style="background:var(--grL);color:var(--gr);border:1.5px solid rgba(0,201,122,.2);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;">Eaten ✓</button>
+            <button style="background:rgba(0,0,0,.04);color:var(--ink3);border:1.5px solid rgba(0,0,0,.09);border-radius:8px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Poppins',sans-serif;">Came home</button>
+          </div>
+        </div>
+      </div>
+
+      <button class="big-btn big-teal" onclick="go('home',document.querySelectorAll('.nb')[0])">✓ Save what I've logged</button>
+      <span onclick="go('home',document.querySelectorAll('.nb')[0])" style="text-align:center;font-size:12px;font-weight:600;color:var(--ink3);cursor:pointer;display:block;margin-top:-4px;">Skip for now</span>
+    </div>
+    <div class="pb"></div>
+  </div>
+</div>
+
+</div></div>
+
+<script>
+function go(id,btn){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  const s=document.getElementById('s-'+id);
+  if(s){s.classList.add('on');const sc=s.querySelector('.scroll');if(sc)sc.scrollTop=0;}
+  if(btn)btn.classList.add('on');
+}
+function setChild(name){
+  document.querySelectorAll('.ct').forEach(t=>t.classList.remove('on'));
+  event.currentTarget.classList.add('on');
+}
+document.querySelectorAll('.si-row').forEach(r=>{
+  r.addEventListener('click',function(){
+    const tick=this.querySelector('.si-tick');
+    if(tick){tick.classList.toggle('on');tick.textContent=tick.classList.contains('on')?'✓':'';}
+  });
+});
+</script>
+</body>
+</html>

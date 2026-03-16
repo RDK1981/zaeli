@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli · Meals v4</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F7F7F7;--card:#fff;--ink:#0A0A0A;--ink2:rgba(0,0,0,.50);--ink3:rgba(0,0,0,.28);
+  --border:rgba(0,0,0,.08);--borderhv:rgba(0,0,0,.12);
+  --or:#FF8C00;--orL:rgba(255,140,0,.09);--orB:rgba(255,140,0,.22);
+  --bl:#0057FF;--blL:rgba(0,87,255,.08);--blB:rgba(0,87,255,.22);
+  --gr:#00C97A;--grL:rgba(0,201,122,.10);--grB:rgba(0,201,122,.28);
+  --mag:#E0007C;--ye:#FFE500;--pu:#9B6DD6;--puL:rgba(155,127,212,.10);
+  --red:#FF3B3B;--redL:rgba(255,59,59,.08);
+  --kit:#007a55;--kitL:rgba(0,150,100,.07);
+  --anna:#0057FF;--richard:#FF8C00;--poppy:#9B6DD6;--gab:#00B4D8;--duke:#4A90E2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#111;font-family:'Poppins',sans-serif;padding:0 0 80px;}
+
+/* ── page chrome ── */
+.page-hdr{position:sticky;top:0;z-index:200;background:#111;padding:14px 20px 10px;border-bottom:1px solid rgba(255,255,255,.06);}
+.page-title{font-size:10px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;}
+.nav-row{display:flex;gap:4px;flex-wrap:wrap;}
+.nb{flex-shrink:0;background:rgba(255,255,255,.07);border:none;color:rgba(255,255,255,.4);padding:5px 12px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;transition:all .15s;white-space:nowrap;}
+.nb.on{background:#fff;color:#000;}
+.phone-wrap{padding:24px 20px;display:flex;justify-content:center;}
+.phone{width:375px;min-height:812px;background:var(--bg);border-radius:44px;overflow:hidden;box-shadow:0 48px 120px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.05);display:flex;flex-direction:column;position:relative;}
+.sb{display:flex;justify-content:space-between;padding:14px 28px 6px;font-size:11px;font-weight:500;color:rgba(255,255,255,.6);flex-shrink:0;}
+.screen{display:none;flex-direction:column;flex:1;overflow:hidden;}
+.screen.on{display:flex;}
+.scroll{flex:1;overflow-y:auto;scrollbar-width:none;}
+.scroll::-webkit-scrollbar{display:none;}
+
+/* ── hero (orange) ── */
+.hero{background:var(--or);padding:10px 20px 14px;flex-shrink:0;}
+.hero-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.logo-wrap{display:flex;align-items:center;gap:8px;z-index:1;}
+.logo-mark{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;}
+.logo-word{font-family:'DM Serif Display',serif;font-size:22px;color:#fff;letter-spacing:-.3px;}
+.logo-a{color:var(--ye);}
+.hero-title{font-family:'DM Serif Display',serif;font-size:28px;color:#fff;font-weight:400;position:absolute;left:0;right:0;text-align:center;}
+.ham{width:32px;height:32px;background:rgba(255,255,255,.18);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;cursor:pointer;}
+.ham span{display:block;width:14px;height:1.5px;background:#fff;border-radius:2px;}
+
+/* sub-tabs — matching shopping.tsx exactly */
+.stabs{display:flex;background:rgba(255,255,255,.12);border-radius:22px;padding:3px;gap:2px;}
+.st{flex:1;padding:8px 4px;border-radius:19px;text-align:center;font-size:13px;font-weight:600;color:rgba(255,255,255,.6);cursor:pointer;transition:all .2s;}
+.st.on{background:#fff;color:var(--ink);}
+
+/* ── blue brief card (Shopping style) ── */
+.brief-card{margin:14px 18px 6px;background:#fff;border-radius:20px;border:1.5px solid rgba(0,87,255,.15);box-shadow:0 4px 16px rgba(0,87,255,.08);overflow:hidden;}
+.brief-hdr{display:flex;align-items:center;gap:10px;padding:14px 16px 11px;border-bottom:1px solid rgba(0,87,255,.08);background:rgba(0,87,255,.03);}
+.brief-av{width:30px;height:30px;border-radius:10px;background:var(--bl);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;flex-shrink:0;}
+.brief-name{font-size:13px;font-weight:700;color:var(--ink);flex:1;}
+.brief-name span{color:var(--mag);}
+.brief-dot{width:6px;height:6px;border-radius:50%;background:var(--gr);flex-shrink:0;}
+.brief-time{font-size:10px;color:var(--ink3);}
+.brief-body{padding:14px 16px 16px;}
+.brief-msg{font-size:14px;color:var(--ink);line-height:1.6;margin-bottom:14px;}
+.brief-btns{display:flex;gap:8px;}
+.btn-p{flex:1;background:var(--bl);border-radius:12px;padding:11px;text-align:center;font-size:13px;font-weight:600;color:#fff;cursor:pointer;}
+.btn-g{flex:1;background:rgba(0,0,0,.055);border-radius:12px;padding:11px;text-align:center;font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer;border:1.5px solid rgba(0,0,0,.09);}
+
+/* ── relaxed card (blue) ── */
+.relaxed-card{margin:14px 18px 6px;background:rgba(0,87,255,.05);border-radius:20px;border:1.5px solid rgba(0,87,255,.18);overflow:hidden;}
+.relaxed-hdr{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid rgba(0,0,0,.05);}
+.relaxed-av{width:28px;height:28px;border-radius:9px;background:var(--bl);display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;flex-shrink:0;}
+.relaxed-ack{font-size:12px;font-weight:700;color:var(--bl);flex:1;}
+.relaxed-body{padding:12px 16px 14px;}
+.relaxed-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:5px;}
+.relaxed-msg{font-size:13px;color:var(--ink2);line-height:1.65;margin-bottom:12px;}
+.relaxed-btn{width:100%;background:rgba(0,87,255,.08);border-radius:12px;padding:10px;text-align:center;font-size:12px;font-weight:600;color:var(--bl);cursor:pointer;}
+
+/* ── day section ── */
+.day-sec{padding:14px 16px 0;}
+.day-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.day-lbl{font-size:10px;font-weight:700;letter-spacing:1.2px;color:var(--ink3);text-transform:uppercase;}
+.day-lbl.tonight{color:var(--or);}
+.day-date{font-size:10px;color:var(--ink3);}
+.cook-row{display:flex;align-items:center;gap:5px;}
+.av-sm{width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0;}
+.cook-name{font-size:10px;font-weight:600;color:var(--ink2);}
+.assign-chip{background:var(--orL);border:1px solid var(--orB);border-radius:7px;padding:3px 8px;font-size:10px;font-weight:600;color:var(--or);cursor:pointer;}
+
+/* ── meal card v4 — NO image, clean list style ── */
+.meal-card{background:var(--card);border-radius:16px;border:1.5px solid var(--border);margin-bottom:10px;padding:14px;cursor:pointer;transition:border-color .15s;}
+.meal-card:hover{border-color:var(--borderhv);}
+.meal-card-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;}
+.meal-icon{width:44px;height:44px;border-radius:12px;background:var(--orL);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.meal-info{flex:1;}
+.meal-badges{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;}
+.badge{border-radius:5px;padding:2px 7px;font-size:9px;font-weight:700;}
+.badge-lib{background:var(--blL);color:var(--bl);}
+.badge-fav{background:rgba(224,0,124,.08);color:var(--mag);}
+.badge-z{background:var(--orL);color:var(--or);}
+.badge-ok{background:var(--grL);color:var(--gr);}
+.badge-miss{background:var(--orL);color:var(--or);}
+.meal-name{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+.meal-meta{font-size:11px;color:var(--ink2);}
+.cook-line{display:flex;align-items:center;gap:5px;margin-top:6px;}
+.cook-line-txt{font-size:10px;color:var(--ink2);}
+.meal-actions{display:flex;gap:8px;align-items:center;}
+.ma-btn{flex:1;background:var(--or);border-radius:10px;padding:8px;text-align:center;font-size:12px;font-weight:600;color:#fff;cursor:pointer;}
+.ma-btn-g{flex:1;background:rgba(0,0,0,.055);border-radius:10px;padding:8px;text-align:center;font-size:12px;font-weight:600;color:var(--ink2);cursor:pointer;border:1.5px solid rgba(0,0,0,.09);}
+.ma-btn-del{width:34px;height:34px;border-radius:10px;background:var(--redL);border:1.5px solid rgba(255,59,59,.18);display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;flex-shrink:0;}
+
+/* ── kit / takeaway cards ── */
+.kit-card{background:var(--card);border-radius:14px;border:1.5px solid rgba(0,150,100,.25);margin-bottom:10px;overflow:hidden;}
+.kit-top{background:var(--kitL);padding:11px 14px;display:flex;align-items:center;gap:9px;}
+.kit-lbl{font-size:13px;font-weight:700;color:var(--kit);}
+.kit-badge{background:var(--kit);border-radius:4px;padding:2px 7px;font-size:9px;font-weight:700;color:#fff;}
+.kit-body{padding:10px 14px 12px;}
+.ta-card{background:var(--card);border-radius:14px;border:1.5px solid rgba(255,59,59,.2);margin-bottom:10px;overflow:hidden;}
+.ta-top{background:var(--redL);padding:11px 14px;display:flex;align-items:center;gap:9px;}
+
+/* ── empty card ── */
+.empty-card{border-radius:14px;border:1.5px dashed rgba(0,0,0,.15);display:flex;align-items:center;padding:16px;gap:12px;margin-bottom:10px;cursor:pointer;}
+.empty-icon{width:44px;height:44px;border-radius:12px;background:var(--orL);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.empty-lbl{font-size:14px;font-weight:600;color:var(--ink3);flex:1;}
+.empty-sub{font-size:12px;color:var(--ink3);margin-top:2px;}
+.empty-add{margin-left:auto;background:var(--orL);border:1.5px solid var(--orB);border-radius:9px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--or);flex-shrink:0;cursor:pointer;}
+
+/* ── ask bar — blue (Shopping style) ── */
+.ask-wrap{position:absolute;bottom:0;left:0;right:0;padding:10px 16px 16px;background:var(--bg);border-top:1px solid rgba(0,0,0,.07);}
+.ask-bar{background:#fff;border-radius:22px;padding:11px 14px;display:flex;align-items:center;gap:8px;border:1.5px solid rgba(0,0,0,.10);box-shadow:0 2px 12px rgba(0,0,0,.06);}
+.ask-diamond{font-size:15px;color:var(--bl);}
+.ask-txt{flex:1;font-size:15px;color:rgba(0,0,0,.28);}
+.ask-mic{width:36px;height:36px;background:rgba(0,0,0,.06);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;cursor:pointer;}
+.ask-send{width:36px;height:36px;border-radius:11px;background:var(--bl);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;cursor:pointer;box-shadow:0 2px 8px rgba(0,87,255,.3);}
+
+/* ── slbl ── */
+.slbl{font-size:10px;font-weight:700;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase;padding:14px 22px 6px;}
+
+/* ── RECIPES tab ── */
+.zaeli-hero-card{margin:14px 18px 0;background:linear-gradient(135deg,#0047D9 0%,#0057FF 60%,#2979FF 100%);border-radius:20px;padding:18px;color:#fff;position:relative;overflow:hidden;}
+.zaeli-hero-card::before{content:'';position:absolute;right:-30px;top:-30px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.07);}
+.zaeli-hero-card::after{content:'';position:absolute;right:20px;bottom:-20px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.05);}
+.zh-top{display:flex;align-items:center;gap:10px;margin-bottom:12px;position:relative;z-index:1;}
+.zh-av{width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+.zh-name{font-size:15px;font-weight:700;color:#fff;flex:1;}
+.zh-dot{width:7px;height:7px;border-radius:50%;background:var(--gr);}
+.zh-msg{font-size:14px;color:rgba(255,255,255,.92);line-height:1.55;margin-bottom:14px;position:relative;z-index:1;}
+.zh-btns{display:flex;gap:8px;position:relative;z-index:1;}
+.zh-btn-p{flex:1;background:#fff;border-radius:12px;padding:11px;text-align:center;font-size:13px;font-weight:600;color:var(--bl);cursor:pointer;}
+.zh-btn-g{flex:1;background:rgba(255,255,255,.15);border-radius:12px;padding:11px;text-align:center;font-size:13px;font-weight:600;color:rgba(255,255,255,.9);cursor:pointer;border:1.5px solid rgba(255,255,255,.25);}
+
+/* recipe row */
+.recipe-row{display:flex;align-items:center;background:var(--card);border-radius:16px;border:1.5px solid var(--border);margin:0 16px 8px;overflow:hidden;cursor:pointer;}
+.recipe-img{width:80px;height:80px;background:#f8f5f0;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden;}
+.recipe-img img{width:100%;height:100%;object-fit:cover;}
+.recipe-body{flex:1;padding:11px;}
+.recipe-name{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:3px;}
+.recipe-meta{font-size:11px;color:var(--ink2);margin-bottom:5px;}
+.rt-gr{background:var(--grL);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;color:var(--gr);display:inline-block;margin-right:4px;}
+.rt-bl{background:var(--blL);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;color:var(--bl);display:inline-block;margin-right:4px;}
+.rt-pu{background:var(--puL);border-radius:5px;padding:2px 6px;font-size:9px;font-weight:700;color:var(--pu);display:inline-block;margin-right:4px;}
+.recipe-add{margin:0 11px;background:var(--orL);border-radius:10px;padding:8px 12px;font-size:12px;font-weight:700;color:var(--or);cursor:pointer;border:1.5px solid var(--orB);white-space:nowrap;flex-shrink:0;}
+
+/* add recipe bottom sheet */
+.sheet-overlay{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.3);top:0;z-index:100;display:none;border-radius:44px;}
+.sheet-overlay.open{display:block;}
+.add-sheet{position:absolute;bottom:0;left:0;right:0;background:#fff;border-radius:22px 22px 0 0;padding:20px 20px 32px;z-index:101;}
+.sheet-handle{width:36px;height:4px;background:rgba(0,0,0,.12);border-radius:2px;margin:0 auto 16px;}
+.sheet-title{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:4px;}
+.sheet-sub{font-size:13px;color:var(--ink2);margin-bottom:18px;}
+.sheet-opt{display:flex;align-items:center;gap:14px;padding:14px;border-radius:16px;border:1.5px solid rgba(0,0,0,.09);background:#fff;margin-bottom:10px;cursor:pointer;}
+.sheet-opt-icon{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.sheet-opt-title{font-size:14px;font-weight:700;color:var(--ink);margin-bottom:2px;}
+.sheet-opt-sub{font-size:12px;color:var(--ink2);}
+.sheet-arr{font-size:20px;color:var(--ink3);margin-left:auto;}
+
+/* ── FAVOURITES tab ── */
+.fav-onboard{margin:14px 18px 6px;background:linear-gradient(135deg,#7c4dff 0%,var(--pu) 100%);border-radius:20px;padding:18px;overflow:hidden;position:relative;}
+.fav-onboard::before{content:'';position:absolute;right:-20px;top:-20px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.08);}
+.fo-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;position:relative;z-index:1;}
+.fo-av{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.fo-name{font-size:13px;font-weight:700;color:#fff;flex:1;}
+.fo-dot{width:6px;height:6px;border-radius:50%;background:var(--gr);}
+.fo-msg{font-size:13px;color:rgba(255,255,255,.9);line-height:1.6;margin-bottom:14px;position:relative;z-index:1;}
+.fo-pills{display:flex;gap:7px;flex-wrap:wrap;position:relative;z-index:1;}
+.fo-pill{background:rgba(255,255,255,.18);border-radius:20px;padding:5px 11px;font-size:11px;font-weight:600;color:#fff;border:1px solid rgba(255,255,255,.25);}
+.fo-btn{margin-top:14px;background:#fff;border-radius:12px;padding:10px;text-align:center;font-size:13px;font-weight:600;color:var(--pu);cursor:pointer;position:relative;z-index:1;}
+
+/* save CTA — dark */
+.save-cta{background:#2C2C2E;border-radius:18px;margin:8px 16px 6px;padding:18px;display:flex;align-items:center;gap:14px;cursor:pointer;}
+.save-cta-icon{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;}
+.save-cta-title{font-size:16px;font-weight:700;color:#fff;margin-bottom:3px;}
+.save-cta-sub{font-size:13px;color:rgba(255,255,255,.65);}
+.save-cta-btn{margin-left:auto;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.25);border-radius:12px;padding:8px 14px;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;}
+
+/* fav toggle */
+.fav-toggle{display:flex;margin:12px 16px 4px;background:rgba(0,0,0,.06);border-radius:14px;padding:3px;gap:2px;}
+.ft-btn{flex:1;padding:9px;border-radius:11px;text-align:center;font-size:12px;font-weight:600;color:var(--ink3);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s;}
+.ft-btn.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(0,0,0,.08);}
+
+/* fav card */
+.fav-card{background:var(--card);border-radius:16px;border:1.5px solid var(--border);margin:0 16px 10px;overflow:hidden;cursor:pointer;}
+.fav-img{width:100%;height:100px;background:#f0f4ff;display:flex;align-items:center;justify-content:center;font-size:40px;overflow:hidden;}
+.fav-img img{width:100%;height:100%;object-fit:cover;}
+.fav-body{padding:12px;}
+.fav-name{font-size:15px;font-weight:700;color:var(--ink);margin-bottom:3px;}
+.fav-meta{font-size:12px;color:var(--ink2);margin-bottom:8px;}
+.fav-footer{display:flex;align-items:center;justify-content:space-between;}
+.fav-tags{display:flex;gap:5px;flex-wrap:wrap;flex:1;}
+.fav-add{background:var(--orL);border:1.5px solid var(--orB);border-radius:10px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--or);cursor:pointer;}
+
+/* ── annotation ── */
+.annotation{max-width:375px;margin:0 auto 6px;padding:0 20px;}
+.ann{background:rgba(255,255,0,.12);border-left:3px solid rgba(255,255,0,.6);padding:8px 12px;border-radius:0 8px 8px 0;font-size:11px;color:rgba(255,255,255,.7);line-height:1.5;margin-bottom:8px;}
+.ann strong{color:#FFE500;}
+</style>
+</head>
+<body>
+
+<div class="page-hdr">
+  <div class="page-title">Zaeli · Meals v4 · March 2026</div>
+  <div class="nav-row">
+    <button class="nb on" onclick="go('dinners',this)">🍽 Dinners</button>
+    <button class="nb" onclick="go('recipes',this)">🔍 Recipes</button>
+    <button class="nb" onclick="go('favourites',this)">❤️ Favourites</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SCREEN 1 — DINNERS (redesigned)
+     ══════════════════════════════════════════ -->
+<div class="phone-wrap" id="wrap-dinners">
+  <div>
+    <div class="annotation">
+      <div class="ann"><strong>v4 changes:</strong> Blue brief card (Shopping-style). No meal images — clean text layout. Ask Zaeli bar in blue. Cook avatars prominent. View · Move · 🗑 action row.</div>
+    </div>
+    <div class="phone">
+      <div class="sb">9:41<span>●●●</span></div>
+
+      <!-- hero -->
+      <div class="hero">
+        <div class="hero-row">
+          <div class="logo-wrap">
+            <div class="logo-mark">✦</div>
+            <div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div>
+          </div>
+          <div class="hero-title">Meals</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+        <div class="stabs">
+          <div class="st on">Dinners</div>
+          <div class="st">Recipes</div>
+          <div class="st">Favourites</div>
+        </div>
+      </div>
+
+      <!-- scroll content -->
+      <div class="scroll" id="dinners-scroll">
+
+        <!-- BLUE brief card (Shopping style) -->
+        <div class="brief-card" id="d-brief">
+          <div class="brief-hdr">
+            <div class="brief-av">✦</div>
+            <div class="brief-name">Z<span>a</span>el<span>i</span></div>
+            <div class="brief-dot"></div>
+            <div class="brief-time">9:41 am</div>
+          </div>
+          <div class="brief-body">
+            <div class="brief-msg">Tonight's sorted — Honey Soy Chicken 🍗 Three nights still open this week. Want me to suggest something easy for Wednesday and Thursday?</div>
+            <div class="brief-btns">
+              <div class="btn-p" onclick="dismissDinnerBrief()">Yes, sort the week</div>
+              <div class="btn-g" onclick="dismissDinnerBrief()">All sorted, thanks</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- relaxed card (hidden until dismissed) -->
+        <div class="relaxed-card" id="d-relaxed" style="display:none">
+          <div class="relaxed-hdr">
+            <div class="relaxed-av">✦</div>
+            <div class="relaxed-ack">Sounds good! 🍳</div>
+          </div>
+          <div class="relaxed-body">
+            <div class="relaxed-title">Ask Zaeli anything</div>
+            <div class="relaxed-msg">Wednesday and Friday still need dinner — want me to pull something from your favourites that works with what's in the pantry?</div>
+            <div class="relaxed-btn">Let's cook something ✦</div>
+          </div>
+        </div>
+
+        <!-- TONIGHT — has meal, with cook -->
+        <div class="day-sec">
+          <div class="day-hdr">
+            <div>
+              <div class="day-lbl tonight">TONIGHT</div>
+              <div class="day-date" style="margin-top:1px">Mon 16 Mar</div>
+            </div>
+            <div class="cook-row">
+              <div class="av-sm" style="background:var(--anna)">A</div>
+              <div class="av-sm" style="background:var(--poppy)">P</div>
+              <div class="cook-name">Anna + Poppy · tap to change</div>
+            </div>
+          </div>
+          <div class="meal-card">
+            <div class="meal-card-top">
+              <div class="meal-icon">🍗</div>
+              <div class="meal-info">
+                <div class="meal-badges">
+                  <span class="badge badge-fav">❤️ Favourite</span>
+                  <span class="badge badge-ok">✓ All in pantry</span>
+                </div>
+                <div class="meal-name">Honey Soy Chicken</div>
+                <div class="meal-meta">⏱ 25 min · Serves 4</div>
+              </div>
+            </div>
+            <div class="meal-actions">
+              <div class="ma-btn">View recipe</div>
+              <div class="ma-btn-g">Move</div>
+              <div class="ma-btn-del">🗑</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TOMORROW — empty -->
+        <div class="day-sec">
+          <div class="day-hdr">
+            <div>
+              <div class="day-lbl">TOMORROW</div>
+              <div class="day-date" style="margin-top:1px">Tue 17 Mar</div>
+            </div>
+          </div>
+          <div class="empty-card">
+            <div class="empty-icon">🍽</div>
+            <div>
+              <div class="empty-lbl">Not planned yet</div>
+              <div class="empty-sub">Tap to add or ask Zaeli</div>
+            </div>
+            <div class="empty-add">+ Add</div>
+          </div>
+        </div>
+
+        <!-- WED — has meal, manual source -->
+        <div class="day-sec">
+          <div class="day-hdr">
+            <div>
+              <div class="day-lbl">WED 18 MAR</div>
+            </div>
+            <div class="cook-row">
+              <div class="assign-chip">+ Who's cooking?</div>
+            </div>
+          </div>
+          <div class="meal-card">
+            <div class="meal-card-top">
+              <div class="meal-icon">🍝</div>
+              <div class="meal-info">
+                <div class="meal-badges">
+                  <span class="badge badge-z">✏️ Manual</span>
+                  <span class="badge badge-miss">⚠️ 3 items needed</span>
+                </div>
+                <div class="meal-name">Pasta Bake</div>
+                <div class="meal-meta">Serves 4</div>
+              </div>
+            </div>
+            <div class="meal-actions">
+              <div class="ma-btn">View recipe</div>
+              <div class="ma-btn-g">Move</div>
+              <div class="ma-btn-del">🗑</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- THU — meal kit -->
+        <div class="day-sec">
+          <div class="day-hdr">
+            <div>
+              <div class="day-lbl">THU 19 MAR</div>
+            </div>
+            <div class="cook-row">
+              <div class="av-sm" style="background:var(--richard)">R</div>
+              <div class="av-sm" style="background:var(--duke)">D</div>
+              <div class="cook-name">Richard + Duke</div>
+            </div>
+          </div>
+          <div class="kit-card">
+            <div class="kit-top">
+              <span style="font-size:20px">📦</span>
+              <span class="kit-lbl">Meal Kit</span>
+              <span class="kit-badge">Ingredients included</span>
+            </div>
+            <div class="kit-body">
+              <div class="meal-name">Thai Beef Salad</div>
+              <div class="meal-meta">No pantry sync needed</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FRI — empty -->
+        <div class="day-sec">
+          <div class="day-hdr">
+            <div>
+              <div class="day-lbl">FRI 20 MAR</div>
+            </div>
+          </div>
+          <div class="empty-card">
+            <div class="empty-icon">🍽</div>
+            <div>
+              <div class="empty-lbl">Not planned yet</div>
+              <div class="empty-sub">Tap to add or ask Zaeli</div>
+            </div>
+            <div class="empty-add">+ Add</div>
+          </div>
+        </div>
+
+        <!-- SAT — takeaway -->
+        <div class="day-sec">
+          <div class="day-hdr">
+            <div><div class="day-lbl">SAT 21 MAR</div></div>
+          </div>
+          <div class="ta-card">
+            <div class="ta-top">
+              <span style="font-size:20px">🍕</span>
+              <span style="font-size:13px;font-weight:700;color:var(--red)">Takeaway / Eating out</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUN — library recipe -->
+        <div class="day-sec">
+          <div class="day-hdr">
+            <div><div class="day-lbl">SUN 22 MAR</div></div>
+            <div class="cook-row">
+              <div class="av-sm" style="background:var(--anna)">A</div>
+              <div class="cook-name">Anna</div>
+            </div>
+          </div>
+          <div class="meal-card">
+            <div class="meal-card-top">
+              <div class="meal-icon">🥗</div>
+              <div class="meal-info">
+                <div class="meal-badges">
+                  <span class="badge badge-lib">📚 Library</span>
+                  <span class="badge badge-ok">✓ All in pantry</span>
+                </div>
+                <div class="meal-name">Greek Salad Bowl</div>
+                <div class="meal-meta">⏱ 10 min · Serves 2</div>
+              </div>
+            </div>
+            <div class="meal-actions">
+              <div class="ma-btn">View recipe</div>
+              <div class="ma-btn-g">Move</div>
+              <div class="ma-btn-del">🗑</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:90px"></div>
+      </div><!-- /scroll -->
+
+      <!-- blue ask bar -->
+      <div class="ask-wrap">
+        <div class="ask-bar">
+          <div class="ask-diamond">✦</div>
+          <div class="ask-txt">Ask Zaeli about meals…</div>
+          <div class="ask-mic">🎤</div>
+          <div class="ask-send" style="color:#fff;font-size:13px">↑</div>
+        </div>
+      </div>
+
+    </div><!-- /phone -->
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SCREEN 2 — RECIPES (Zaeli-led)
+     ══════════════════════════════════════════ -->
+<div class="phone-wrap" id="wrap-recipes" style="display:none">
+  <div>
+    <div class="annotation">
+      <div class="ann"><strong>v4 changes:</strong> Zaeli hero card leads the section — two CTAs: "Find me a recipe" (blue primary) and "Browse manually" (ghost). Browse manually reveals filter chips + recipe rows below. Zaeli is the default entry point, not a search bar.</div>
+    </div>
+    <div class="phone">
+      <div class="sb">9:41<span>●●●</span></div>
+      <div class="hero">
+        <div class="hero-row">
+          <div class="logo-wrap">
+            <div class="logo-mark">✦</div>
+            <div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div>
+          </div>
+          <div class="hero-title">Meals</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+        <div class="stabs">
+          <div class="st">Dinners</div>
+          <div class="st on">Recipes</div>
+          <div class="st">Favourites</div>
+        </div>
+      </div>
+
+      <div class="scroll">
+
+        <!-- Zaeli leads -->
+        <div class="zaeli-hero-card">
+          <div class="zh-top">
+            <div class="zh-av">✦</div>
+            <div class="zh-name">Z<span style="color:var(--mag)">a</span>el<span style="color:var(--mag)">i</span></div>
+            <div class="zh-dot"></div>
+            <div style="font-size:10px;color:rgba(255,255,255,.6)">9:41 am</div>
+          </div>
+          <div class="zh-msg">Tell me what you're in the mood for — I'll find something from 5,000+ recipes that works with your pantry and the family's tastes. Or browse the library yourself below.</div>
+          <div class="zh-btns">
+            <div class="zh-btn-p">✦ Find me a recipe</div>
+            <div class="zh-btn-g" onclick="showBrowse()">Browse manually</div>
+          </div>
+        </div>
+
+        <!-- browse section — shown after tapping "Browse manually" -->
+        <div id="browse-section" style="display:none">
+
+          <!-- filter chips -->
+          <div style="display:flex;gap:8px;overflow-x:auto;padding:12px 16px 4px;scrollbar-width:none;">
+            <div style="flex-shrink:0;background:var(--or);border-radius:22px;padding:8px 16px;font-size:13px;font-weight:600;color:#fff">All</div>
+            <div style="flex-shrink:0;background:#fff;border-radius:22px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--ink2);border:1.5px solid rgba(0,0,0,.1)">Quick</div>
+            <div style="flex-shrink:0;background:#fff;border-radius:22px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--ink2);border:1.5px solid rgba(0,0,0,.1)">Kids love</div>
+            <div style="flex-shrink:0;background:#fff;border-radius:22px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--ink2);border:1.5px solid rgba(0,0,0,.1)">Gut friendly</div>
+            <div style="flex-shrink:0;background:#fff;border-radius:22px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--ink2);border:1.5px solid rgba(0,0,0,.1)">Gluten free</div>
+          </div>
+
+          <!-- pantry insight -->
+          <div style="margin:8px 18px 4px;background:#fff;border-radius:16px;border:1.5px solid rgba(255,140,0,.18);padding:12px 14px;display:flex;align-items:flex-start;gap:10px;">
+            <div style="width:28px;height:28px;border-radius:9px;background:var(--or);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">✦</div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:var(--ink)">Meals you can cook tonight</div>
+              <div style="font-size:13px;color:var(--ink2)">Using what's already in your pantry</div>
+            </div>
+          </div>
+
+          <div class="slbl">All recipes</div>
+          <div class="recipe-row">
+            <div class="recipe-img"><img src="https://spoonacular.com/recipeImages/715538-312x231.jpg" alt=""></div>
+            <div class="recipe-body">
+              <div class="recipe-name">Honey Soy Chicken</div>
+              <div class="recipe-meta">⏱ 25 min · Serves 4</div>
+              <span class="rt-gr">GF</span><span class="rt-bl">Dairy free</span>
+            </div>
+            <div class="recipe-add">+ Plan</div>
+          </div>
+          <div class="recipe-row">
+            <div class="recipe-img"><img src="https://spoonacular.com/recipeImages/716406-312x231.jpg" alt=""></div>
+            <div class="recipe-body">
+              <div class="recipe-name">Lemon Baked Salmon</div>
+              <div class="recipe-meta">⏱ 25 min · Serves 4</div>
+              <span class="rt-gr">GF</span><span class="rt-gr">Low FODMAP</span>
+            </div>
+            <div class="recipe-add">+ Plan</div>
+          </div>
+          <div class="recipe-row">
+            <div class="recipe-img"><img src="https://spoonacular.com/recipeImages/665613-312x231.jpg" alt=""></div>
+            <div class="recipe-body">
+              <div class="recipe-name">Chicken Stir-Fry</div>
+              <div class="recipe-meta">⏱ 20 min · Serves 4</div>
+              <span class="rt-gr">GF</span><span class="rt-bl">Dairy free</span>
+            </div>
+            <div class="recipe-add">+ Plan</div>
+          </div>
+        </div>
+
+        <div style="height:90px"></div>
+      </div>
+
+      <!-- blue ask bar -->
+      <div class="ask-wrap">
+        <div class="ask-bar">
+          <div class="ask-diamond">✦</div>
+          <div class="ask-txt">Ask Zaeli about meals…</div>
+          <div class="ask-mic">🎤</div>
+          <div class="ask-send" style="color:#fff;font-size:13px">↑</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SCREEN 3 — FAVOURITES (with brief card)
+     ══════════════════════════════════════════ -->
+<div class="phone-wrap" id="wrap-favourites" style="display:none">
+  <div>
+    <div class="annotation">
+      <div class="ann"><strong>v4 changes:</strong> Zaeli onboarding card in purple — explains section purpose, three quick-action pills. Family Picks / Saved Menus toggle below it. Dark-grey "Save a recipe" CTA. Clear hierarchy.</div>
+    </div>
+    <div class="phone">
+      <div class="sb">9:41<span>●●●</span></div>
+      <div class="hero">
+        <div class="hero-row">
+          <div class="logo-wrap">
+            <div class="logo-mark">✦</div>
+            <div class="logo-word">z<span class="logo-a">a</span>el<span class="logo-a">i</span></div>
+          </div>
+          <div class="hero-title">Meals</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+        <div class="stabs">
+          <div class="st">Dinners</div>
+          <div class="st">Recipes</div>
+          <div class="st on">Favourites</div>
+        </div>
+      </div>
+
+      <div class="scroll">
+
+        <!-- Zaeli favourites onboarding card — purple -->
+        <div class="fav-onboard" id="fav-brief">
+          <div class="fo-top">
+            <div class="fo-av">✦</div>
+            <div class="fo-name">Z<span style="color:var(--mag)">a</span>el<span style="color:var(--mag)">i</span></div>
+            <div class="fo-dot"></div>
+            <div style="font-size:10px;color:rgba(255,255,255,.6)">9:41 am</div>
+          </div>
+          <div class="fo-msg">This is your family's recipe collection — the meals you love, saved menus from places you visit, and recipes worth cooking again. Tap anything to view details, edit, or add to the dinner plan.</div>
+          <div class="fo-pills">
+            <div class="fo-pill">📸 Save from photo</div>
+            <div class="fo-pill">+ Add to dinner plan</div>
+            <div class="fo-pill">🍽️ Save a menu</div>
+          </div>
+          <div class="fo-btn" onclick="dismissFavBrief()">Got it — show me my favourites</div>
+        </div>
+
+        <!-- dismissed state -->
+        <div id="fav-relaxed" style="display:none;margin:14px 18px 6px;background:rgba(155,127,212,.07);border-radius:16px;border:1.5px solid rgba(155,127,212,.2);padding:14px;flex-direction:row;align-items:center;gap:12px;">
+          <div style="width:28px;height:28px;border-radius:9px;background:var(--pu);display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;flex-shrink:0;">✦</div>
+          <div style="font-size:13px;color:var(--ink2);flex:1">Z<span style="color:var(--mag)">a</span>el<span style="color:var(--mag)">i</span> · Still here if you need me</div>
+        </div>
+
+        <!-- dark save CTA -->
+        <div class="save-cta">
+          <div class="save-cta-icon">📸</div>
+          <div>
+            <div class="save-cta-title">Save a recipe</div>
+            <div class="save-cta-sub">Photo, URL, menu or recipe card</div>
+          </div>
+          <div class="save-cta-btn">+ Save</div>
+        </div>
+
+        <!-- toggle -->
+        <div class="fav-toggle">
+          <div class="ft-btn on">❤️ Family Picks</div>
+          <div class="ft-btn">🍽️ Saved Menus</div>
+        </div>
+
+        <div class="slbl">Your family favourites</div>
+
+        <!-- fav cards -->
+        <div class="fav-card">
+          <div class="fav-img"><img src="https://spoonacular.com/recipeImages/715538-312x231.jpg" alt=""></div>
+          <div class="fav-body">
+            <div class="fav-name">Honey Soy Chicken</div>
+            <div class="fav-meta">Family favourite</div>
+            <div class="fav-footer">
+              <div class="fav-tags"><span class="rt-pu">Kids love</span><span class="rt-pu">Quick</span></div>
+              <div class="fav-add">+ Plan</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fav-card">
+          <div class="fav-img"><img src="https://spoonacular.com/recipeImages/654959-312x231.jpg" alt=""></div>
+          <div class="fav-body">
+            <div class="fav-name">Pasta Bake</div>
+            <div class="fav-meta">Family favourite</div>
+            <div class="fav-footer">
+              <div class="fav-tags"><span class="rt-pu">Family</span><span class="rt-pu">Kids love</span></div>
+              <div class="fav-add">+ Plan</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fav-card">
+          <div class="fav-img" style="background:#f0fff4;font-size:40px">🌿</div>
+          <div class="fav-body">
+            <div class="fav-name">Dr Joanna's Gut Soup</div>
+            <div class="fav-meta">Saved from URL</div>
+            <div class="fav-footer">
+              <div class="fav-tags"><span class="rt-pu">Gut health</span><span class="rt-pu">Low FODMAP</span></div>
+              <div class="fav-add">+ Plan</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fav-card">
+          <div class="fav-img" style="background:#f0f4ff;font-size:40px">📸</div>
+          <div class="fav-body">
+            <div class="fav-name">Mum's Slow Cooker Stew</div>
+            <div class="fav-meta">Saved from photo</div>
+            <div class="fav-footer">
+              <div class="fav-tags"><span class="rt-pu">Comfort</span><span class="rt-pu">Slow cook</span></div>
+              <div class="fav-add">+ Plan</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="height:90px"></div>
+      </div>
+
+      <!-- blue ask bar -->
+      <div class="ask-wrap">
+        <div class="ask-bar">
+          <div class="ask-diamond">✦</div>
+          <div class="ask-txt">Ask Zaeli about meals…</div>
+          <div class="ask-mic">🎤</div>
+          <div class="ask-send" style="color:#fff;font-size:13px">↑</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function go(screen, btn) {
+  document.querySelectorAll('.phone-wrap').forEach(w=>w.style.display='none');
+  document.getElementById('wrap-'+screen).style.display='flex';
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+
+function dismissDinnerBrief(){
+  document.getElementById('d-brief').style.display='none';
+  document.getElementById('d-relaxed').style.display='block';
+}
+
+function dismissFavBrief(){
+  document.getElementById('fav-brief').style.display='none';
+  const r=document.getElementById('fav-relaxed');
+  r.style.display='flex';
+}
+
+function showBrowse(){
+  document.getElementById('browse-section').style.display='block';
+}
+</script>
+</body>
+</html>
