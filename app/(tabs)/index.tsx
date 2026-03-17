@@ -82,7 +82,6 @@ function IcoTodoBig({ size=24 }: { size?: number }) {
     </Svg>
   );
 }
-
 function IcoReminder({ size=24 }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -98,8 +97,6 @@ function IcoReminder({ size=24 }: { size?: number }) {
 
 const DUMMY_FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
 const DUMMY_MEMBER_NAME = 'Anna';
-const LATITUDE          = -27.4698;
-const LONGITUDE         = 153.0251;
 const DAYS_SHORT   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -176,45 +173,6 @@ function PulsingAvatar({size=30}:{size?:number}) {
   );
 }
 
-function AnimSentence({sentence,delay,isLast,sentenceStyle,sentenceLastStyle,boldStyle}:{
-  sentence:string;delay:number;isLast:boolean;
-  sentenceStyle:any;sentenceLastStyle:any;boldStyle:any;
-}) {
-  const opacity=useRef(new Animated.Value(0)).current;
-  const slide=useRef(new Animated.Value(10)).current;
-  useEffect(()=>{
-    const t=setTimeout(()=>{
-      Animated.parallel([
-        Animated.timing(opacity,{toValue:1,duration:380,easing:Easing.out(Easing.quad),useNativeDriver:true}),
-        Animated.timing(slide,{toValue:0,duration:380,easing:Easing.out(Easing.quad),useNativeDriver:true}),
-      ]).start();
-    },delay);
-    return ()=>clearTimeout(t);
-  },[]);
-  const parts=sentence.split(/\*\*(.*?)\*\*/g);
-  return (
-    <Animated.Text style={[isLast?sentenceLastStyle:sentenceStyle,{opacity,transform:[{translateY:slide}]}]}>
-      {parts.map((p,j)=>j%2===1?<Text key={j} style={boldStyle}>{p}</Text>:<Text key={j}>{p}</Text>)}
-    </Animated.Text>
-  );
-}
-
-function AnimatedBriefSentences({text,sentenceStyle,sentenceLastStyle,boldStyle}:{
-  text:string;sentenceStyle:any;sentenceLastStyle:any;boldStyle:any;
-}) {
-  const sentences=text.split(/\n+/).filter(s=>s.trim().length>0);
-  if(sentences.length===0) return null;
-  return (
-    <>
-      {sentences.map((sentence,i)=>(
-        <AnimSentence key={`${text.slice(0,20)}-${i}`} sentence={sentence} delay={i*230} isLast={i===sentences.length-1}
-          sentenceStyle={sentenceStyle} sentenceLastStyle={sentenceLastStyle} boldStyle={boldStyle}/>
-      ))}
-    </>
-  );
-}
-
-// ── BRIEF TEXT — fade in once fully ready, bold already applied ──────
 function TypewriterBrief({text,sentenceStyle,sentenceLastStyle,boldStyle}:{
   text:string;sentenceStyle:any;sentenceLastStyle:any;boldStyle:any;
 }) {
@@ -300,9 +258,15 @@ export default function HomeScreen() {
   const heroSlide=useRef(new Animated.Value(-10)).current;
   const bodyFade=useRef(new Animated.Value(0)).current;
   const bodySlide=useRef(new Animated.Value(14)).current;
-  const cardFade=useRef(new Animated.Value(1)).current; // starts visible
+  const cardFade=useRef(new Animated.Value(1)).current;
   const relaxedFade=useRef(new Animated.Value(0)).current;
+
+  // ── DOUBLE-FIRE GUARD ─────────────────────────────────────
+  // briefGenRef: tracks if a brief is currently in-flight or already generated this session
+  // lastBriefAt: tracks timestamp of last completed brief for the 30-min refresh check
+  const briefGenRef=useRef<boolean>(false);
   const lastBriefAt=useRef<number>(0);
+  const dismissedAt=useRef<number>(0);
 
   useEffect(()=>{
     Animated.sequence([
@@ -323,20 +287,22 @@ export default function HomeScreen() {
     return ()=>{supabase.removeChannel(sub);};
   },[]);
 
-  const dismissedAt=useRef<number>(0);
-
   useFocusEffect(useCallback(()=>{
     const elapsed=Date.now()-lastBriefAt.current;
     const dismissedElapsed=Date.now()-dismissedAt.current;
     if(cardDismissed){
+      // Regenerate brief if dismissed more than 2 hours ago
       if(dismissedAt.current>0 && dismissedElapsed>2*60*60*1000){
         setCardDismissed(false); setShowRelaxed(false);
+        briefGenRef.current=false;
         Animated.timing(cardFade,{toValue:1,duration:0,useNativeDriver:true}).start();
         fetchData();
       }
-    } else if(elapsed>30*60*1000 && elapsed>5000){
-      // elapsed>5000 prevents double-fire on initial mount with useEffect
-      fetchData();
+    } else if(elapsed>30*60*1000){
+      // Only refresh if 30+ minutes have passed AND not currently generating
+      if(!briefGenRef.current){
+        fetchData();
+      }
     }
   },[cardDismissed]));
 
@@ -367,6 +333,16 @@ export default function HomeScreen() {
   };
 
   const generateBrief=async(evs:any[],tdos:any[],tm:any,tmr:any,sh:any[]=[],pastEvs:any[]=[],doneTodos:any[]=[],ystMeal:any=null)=>{
+    // ── DOUBLE-FIRE GUARD ──────────────────────────────────
+    // Prevents duplicate API calls from React StrictMode double-mount,
+    // tab focus events, or any other concurrent trigger.
+    if(briefGenRef.current){
+      console.log('[brief] skipped — already generating or generated');
+      return;
+    }
+    briefGenRef.current=true;
+    // ──────────────────────────────────────────────────────
+
     setLoadingBrief(true); setBriefText('');
     const fallbacks:Record<string,{text:string;cta:string}>={
       morning:{text:`Right, let's have a look at your morning.\nNothing alarming on the radar — which is actually a lovely way to start.\nWant me to cast an eye over the week and flag anything worth knowing about?`,cta:"Yes, take a look"},
@@ -414,6 +390,7 @@ TIME FRAME: ${timeStr} on ${dateStr}. Frame: ${timeFrame}.
 
 RESPOND WITH JSON ONLY — no markdown, no backticks:
 {"brief":"sentences separated by newlines","cta":"button label max 4 words","signoff":"1 warm sentence stepping back, references 1 specific thing from the brief"}`;
+
       const fmt12 = (iso:string) => {
         if(!iso) return '';
         const tp = iso.replace('T',' ').split(' ')[1]||'';
@@ -429,15 +406,22 @@ RESPOND WITH JSON ONLY — no markdown, no backticks:
         const hoursAgo = Math.round((now.getTime() - evDate.getTime()) / (1000*60*60));
         return { ...fmtEv(e), _hoursAgo: hoursAgo };
       }).filter((e:any) => e._hoursAgo !== '?' && e._hoursAgo <= 24);
-      const ctx=`Family: ${DUMMY_MEMBER_NAME}. Today: ${localDateStr} (${dateStr}). Tomorrow: ${tomorrowStr}. Time: ${timeStr}. Time frame: ${timeFrame}.
-CALLBACK SOURCES (pick the most recent AND notable for sentence 1 — prefer events within 6hrs, fall back to 24hrs if nothing recent):
-1. Past events with recency label: ${labelledPastEvs.length>0?JSON.stringify(labelledPastEvs):'none'}.
-2. Yesterday's dinner: ${ystMeal?ystMeal.title:'none'}.
-3. Completed tasks (today/yesterday): ${doneTodos.length>0?JSON.stringify(doneTodos):'none'}.
-UPCOMING EVENTS: ${JSON.stringify(evs.slice(0,6).map(fmtEv))}.
-URGENT/OVERDUE TODOS: ${JSON.stringify(urgentTodos.slice(0,4))}.
-ALL ACTIVE TODOS: ${JSON.stringify(tdos.slice(0,5))}.
+
+      // Compact context for brief — names and labels only, no full JSON blobs
+      const evSummary = evs.slice(0,6).map(fmtEv).map((e:any)=>`${e.title} (${e.start_time||e.date})`).join(', ') || 'none';
+      const pastEvSummary = labelledPastEvs.slice(0,4).map((e:any)=>`${e.title} (${e._hoursAgo}h ago)`).join(', ') || 'none';
+      const todoSummary = tdos.slice(0,5).map((t:any)=>`${t.title}${t.priority==='high'?' [urgent]':''}${t.due_label?' due '+t.due_label:''}`).join(', ') || 'none';
+      const urgentSummary = urgentTodos.slice(0,4).map((t:any)=>t.title).join(', ') || 'none';
+
+      const ctx=`Family: ${DUMMY_MEMBER_NAME}. Today: ${localDateStr} (${dateStr}). Tomorrow: ${tomorrowStr}. Time: ${timeStr}. Frame: ${timeFrame}.
+Past events (callback sources): ${pastEvSummary}.
+Yesterday's dinner: ${ystMeal?.title||'none'}.
+Completed tasks today: ${doneTodos.slice(0,3).map((t:any)=>t.title).join(', ')||'none'}.
+Upcoming events: ${evSummary}.
+Urgent/overdue todos: ${urgentSummary}.
+All active todos: ${todoSummary}.
 Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not planned'}. Shopping items pending: ${sh.length}.${memCtx}`;
+
       const d=await callClaude({
         feature:'home_brief',
         familyId:DUMMY_FAMILY_ID,
@@ -459,7 +443,12 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
     }catch(e){
       console.log('generateBrief:',e);
       setBriefCta(fallback.cta); setTimeout(()=>setBriefText(fallback.text),100);
-    }finally{setLoadingBrief(false);}
+    }finally{
+      setLoadingBrief(false);
+      // Note: briefGenRef stays true for the session — this is intentional.
+      // It resets to false only when a new session starts (2hr dismissed timeout)
+      // or when a 30-min refresh is triggered via useFocusEffect.
+    }
   };
 
   const handleDismiss=()=>{
@@ -531,7 +520,6 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
           <Text style={s.greetLine}>{getGreeting(hour)}</Text>
           <Text style={s.nameLine}>{DUMMY_MEMBER_NAME} <Text style={s.nameIcon}>{getGreetingIcon(hour)}</Text></Text>
 
-          {/* Brief card — always visible immediately, thinking state shown inside */}
           {!cardDismissed?(
             <Animated.View style={[s.zaeliCard,{opacity:cardFade}]}>
               <View style={s.zaeliHead}>
@@ -577,10 +565,8 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
         {/* BODY */}
         <Animated.View style={[s.body,{opacity:bodyFade,transform:[{translateY:bodySlide}]}]}>
 
-          {/* Tiles 2×2 — Option C: coloured footer bar */}
           <View style={s.tilesGrid}>
-
-            {/* Top-left: Calendar — magenta */}
+            {/* Calendar */}
             <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push('/(tabs)/calendar')} activeOpacity={0.8}>
               <View style={s.tileTopArea}>
                 <View style={[s.tileIconBox,{backgroundColor:'rgba(224,0,124,0.08)'}]}><IcoCalendar size={24}/></View>
@@ -595,7 +581,7 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
               </View>
             </TouchableOpacity>
 
-            {/* Top-right: Shopping — black */}
+            {/* Shopping */}
             <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push('/(tabs)/shopping')} activeOpacity={0.8}>
               <View style={s.tileTopArea}>
                 <View style={[s.tileIconBox,{backgroundColor:'rgba(0,0,0,0.05)'}]}><IcoShopping size={24}/></View>
@@ -611,7 +597,7 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
               </View>
             </TouchableOpacity>
 
-            {/* Bottom-left: Meals — orange */}
+            {/* Meals */}
             <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push('/(tabs)/mealplanner')} activeOpacity={0.8}>
               <View style={s.tileTopArea}>
                 <View style={[s.tileIconBox,{backgroundColor:'rgba(255,140,0,0.09)'}]}><IcoDinner size={24}/></View>
@@ -627,7 +613,7 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
               </View>
             </TouchableOpacity>
 
-            {/* Bottom-right: To-dos — gold */}
+            {/* To-dos */}
             <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push({pathname:'/(tabs)/more',params:{initialPage:'todo'}})} activeOpacity={0.8}>
               {urgentCount>0&&<View style={s.tilePip}/>}
               <View style={s.tileTopArea}>
@@ -643,7 +629,6 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
                 <Text style={[s.tileFooterArr,{color:'#B8A400'}]}>→</Text>
               </View>
             </TouchableOpacity>
-
           </View>
 
           {/* On the radar */}
@@ -691,7 +676,7 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
         </Animated.View>
       </ScrollView>
 
-      {/* ASK ZAELI BAR — sticky */}
+      {/* ASK ZAELI BAR */}
       <View style={[s.askBarWrap,{paddingBottom: insets.bottom + 4}]}>
         <TouchableOpacity style={s.askBar} onPress={()=>openChat('General')} activeOpacity={0.85}>
           <View style={s.askDiamondWrap}>
@@ -749,8 +734,6 @@ const s=StyleSheet.create({
   relaxedSignoff:{fontFamily:'Poppins_400Regular',fontSize:13.5,color:'rgba(0,0,0,0.55)',lineHeight:21,flex:1},
   relaxedBtn:{backgroundColor:'rgba(0,87,255,0.08)',borderRadius:13,paddingVertical:12,alignItems:'center',justifyContent:'center'},
   relaxedBtnTxt:{fontFamily:'Poppins_600SemiBold',fontSize:13,color:'#0057FF',textAlign:'center' as any},
-
-  // Tiles — Option C with footer bar
   tilesGrid:{flexDirection:'row',flexWrap:'wrap',gap:12,paddingHorizontal:18,paddingTop:20},
   tile:{backgroundColor:'#fff',borderRadius:18,borderWidth:1.5,borderColor:'rgba(0,0,0,0.06)',shadowColor:'#000',shadowOpacity:0.04,shadowRadius:8,shadowOffset:{width:0,height:2},elevation:1,position:'relative',overflow:'hidden',justifyContent:'space-between'},
   tilePip:{position:'absolute',top:10,right:10,width:8,height:8,borderRadius:4,backgroundColor:'#E0007C',zIndex:2},
@@ -765,8 +748,6 @@ const s=StyleSheet.create({
   tileFooter:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:14,paddingVertical:8},
   tileFooterTxt:{fontFamily:'Poppins_700Bold',fontSize:10,letterSpacing:0.8,textTransform:'uppercase'},
   tileFooterArr:{fontFamily:'Poppins_700Bold',fontSize:12},
-
-  // Radar
   radarSection:{paddingHorizontal:18,paddingTop:20,paddingBottom:24},
   radarHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:12},
   radarTitle:{fontFamily:'Poppins_700Bold',fontSize:16,color:'#0A0A0A'},
@@ -786,7 +767,6 @@ const s=StyleSheet.create({
   dismissBtnTxt:{fontFamily:'Poppins_700Bold',fontSize:14,color:'rgba(0,0,0,0.32)',lineHeight:17},
   radarEmpty:{padding:22,alignItems:'center'},
   radarEmptyTxt:{fontFamily:'Poppins_400Regular',fontSize:14,color:'rgba(0,0,0,0.35)',textAlign:'center' as any},
-
   askBarWrap:{position:'absolute',bottom:0,left:0,right:0,paddingHorizontal:16,paddingTop:10,backgroundColor:'#F7F7F7',borderTopWidth:1,borderTopColor:'rgba(0,0,0,0.07)'},
   askBar:{backgroundColor:'#fff',borderRadius:22,paddingVertical:11,paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1.5,borderColor:'rgba(0,0,0,0.10)',shadowColor:'#000',shadowOpacity:0.06,shadowRadius:12,shadowOffset:{width:0,height:2},elevation:2},
   askDiamondWrap:{width:20,alignItems:'center',justifyContent:'center'},
