@@ -25,93 +25,137 @@ Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iO
 **Key constants:**
 - `DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'`
 - `DUMMY_MEMBER_NAME = 'Anna'`
-- AI model: always `claude-sonnet-4-20250514`
+- AI model: `claude-sonnet-4-20250514` (Sonnet) and `claude-haiku-4-5-20251001` (Haiku — for cheap tasks)
 
 ---
 
 ### What's been built (as of 17 March 2026)
 
-✅ `index.tsx` — Home screen
-- Blue hero, Zaeli brief card (thinking dots → fade in bold text, no typewriter)
-- 2×2 Option C tiles (coloured footer bars), radar section, Ask Zaeli bar
-- Brief: dismiss → relaxed card → Ask Zaeli bar handles re-entry
+✅ `index.tsx` — Home screen (blue hero, brief card, tiles, radar, Ask Zaeli bar)
 
-✅ `calendar.tsx` — Calendar
-- Magenta hero, Day/Week/Month views, recurring events
-- Zaeli brief card + dismissed card pattern
+✅ `calendar.tsx` — Calendar (magenta hero, Day/Week/Month, recurring events, brief card)
 
-✅ `shopping.tsx` — Shopping
-- **List tab:** sticky toolbar, Recently Bought (magenta, no strikethrough), food tick → auto-syncs to Pantry
-- **Pantry tab:** List/Aisle toggle, auto-detect receipt vs pantry scan
-- **Spend tab:** receipt history, expandable items, monthly spend summary
-- Item rows: meal_source shows as small orange pill tag below name (no squash)
+✅ `shopping.tsx` — Shopping (List/Pantry/Spend tabs, receipt scan, pantry sync)
 
-✅ `zaeli-chat.tsx` — AI Chat
-- Multi-channel: General, Calendar, Shopping, Meals, Kids, Travel
-- **Meals channel:** fetches full 7-day plan + recipes + menus for context-aware greeting
-- Meals greeting references actual plan state (empty nights, tonight's meal)
-- Zaeli generates recipes from training knowledge (does NOT say she can't search)
-- `add_meal_plan`: checks for day conflicts, asks user what to do — never silently moves
-- `replace_meal_plan`: replaces existing meal after user confirms
-- `save_recipe`: stores ingredients + method as separate fields (not a blob)
-- Date: uses `dayNames[now.getDay()]` array — avoids UTC/AEST day-name mismatch
+✅ `zaeli-chat.tsx` — AI Chat (multi-channel, Meals context-aware, conflict detection)
 
-✅ `mealplanner.tsx` — Meals (v4.1 fully implemented + full bug fix pass)
-- **Dinners tab:** Option A layout (left accent bar, DM Serif date), smart emoji icons via `getMealEmoji()`, heart shown when meal name matches any saved recipe (substring match + parallel fetch), dessert slot, kit card saves to Favourites, edit lifted to DinnersTab level (survives modal unmount), blue Zaeli brief
-- **Recipes tab:** blue brief card ("Find me a recipe" + "Browse manually"), browse section revealed on tap, `openDayPicker` wired through — "+ Add to dinner plan" works, edit pre-populated via `useEffect` watching `editingRecipe?.id`
-- **Favourites tab:** all rows show heart (tappable remove for DB entries, static for dummies), DB recipes deduplicated by name, `FavouriteDetailModal` has delete button, tags include Thermomix/Slow cooker/Air fryer
-- **Shared day picker:** `dayPickerCtx` in `MealPlannerScreen` — single Modal used by both Recipes and Favourites flows
-- iOS nested modal fix: all edit/assign modals lifted to parent component level
+✅ `mealplanner.tsx` — Meals v4.1 (Dinners/Recipes/Favourites, smart emoji icons, day picker, edit flows)
 
-✅ `more.tsx` — Hub + Settings + Permissions + To-dos
+✅ `more.tsx` — Hub + Settings + To-dos
 
-✅ `NavMenu.tsx` + `HamburgerButton`
+✅ `lib/api-logger.ts` — Central API logging wrapper (callClaude function)
 
-✅ `_layout.tsx` — Tab layout (all hidden, hamburger nav only)
+✅ `NavMenu.tsx`, `_layout.tsx`
 
 ---
 
-### Supabase tables (all created)
+### Supabase tables
 ```sql
-meal_plans    — id, family_id, day_key, planned_date, meal_name, meal_type,
-                source, image_url, prep_mins, cook_ids, ingredients (jsonb),
-                notes (text)
-                -- run if missing: alter table meal_plans add column if not exists notes text;
-recipes       — id, family_id, name, source_type, image_url, prep_mins, tags, notes, created_at
-menus         — id, family_id, venue_name, venue_type, image_url, items (jsonb), notes, created_at
-receipts      — id, family_id, store, purchase_date, total_amount, item_count, items (jsonb), raw_text, created_at
-pantry_items  — id, family_id, name, emoji, category, stock_level, last_updated
-shopping_items — id, family_id, name, item, category, checked, completed, meal_source
+-- All created and working:
+meal_plans, recipes, menus, receipts, pantry_items, shopping_items, api_logs
+
+-- api_logs schema:
+create table api_logs (
+  id uuid default gen_random_uuid() primary key,
+  family_id uuid not null,
+  account_id integer,
+  feature text not null,
+  model text not null default 'claude-sonnet-4-20250514',
+  input_tokens integer not null default 0,
+  output_tokens integer not null default 0,
+  cost_usd numeric(10,6) not null default 0,
+  created_at timestamptz not null default now()
+);
 ```
 
 ---
 
-### Immediate next tasks (in priority order)
-1. **API usage logging** — Supabase table + wrapper on all Claude API calls (per-family cost tracking)
-2. **Travel screen** — stub screen with basic layout
-3. **Kids Hub** — homework helper (Socratic method), kid task overview
-4. **Lunchbox screen** — `lunchbox-v1.html` mockup ready to build (teal #00B8D4)
-5. **Spoonacular API** — replace dummy recipe data with live search (deferred)
+### Admin Dashboard (LIVE)
+- **URL:** https://incomparable-gumdrop-32e4ba.netlify.app
+- Hosted on Netlify (richarddekretser@gmail.com account)
+- Shows real-time API usage, costs by feature, per-family breakdown
+- To redeploy: drag `C:\Users\richa\Downloads\zaeli-admin\index.html` folder onto Netlify project overview
+- Connected to Supabase — shows live data, hit Refresh to update
 
 ---
 
-### Key design decisions (don't revisit without reason)
+### CRITICAL — Cost Problem (must fix before building more features)
+
+**Current cost per family at realistic usage: ~$109/month**
+Root cause: each zaeli_chat message sends ~16,000 input tokens (loads ALL data every time)
+
+Real usage estimate for family of 4 with homework helper:
+- ~2,520 API calls/month
+- Homework helper alone: 45 messages/day × 3 kids = 1,350 calls/month
+- At current rates: $109/family/month → $109,000/month at 1,000 families = catastrophic
+
+**Three fixes needed (do these FIRST next session):**
+
+**Fix 1 — Smart context loading (75% saving)**
+- Currently loads ALL recipes, menus, shopping, events on EVERY message
+- Fix: detect what user is asking about, load only relevant data
+- Chat about meals → load meal data only
+- Chat about shopping → load shopping only
+- General chat → load events + todos only
+- Expected: 16,000 tokens → ~4,000 per message
+
+**Fix 2 — Haiku for simple tasks (80% saving on eligible calls)**
+- Haiku costs $0.25/$1.25 per million vs Sonnet $3/$15 (20x cheaper)
+- Move to Haiku: ALL briefs (home/calendar/shopping/meals), greetings, homework helper, category guessing
+- Keep Sonnet: only real conversation chat
+- Model strings: `claude-sonnet-4-20250514` and `claude-haiku-4-5-20251001`
+
+**Fix 3 — History cap at 6 messages (saves ~1,500 tokens/message)**
+- Currently keeping 10 messages of history
+- Drop to 6 — enough for natural conversation flow
+
+**Fix 4 — Single chat (remove channels)**
+- Decision made: remove channel tabs, use one General chat
+- Zaeli detects context from message content
+- Simpler UX, same capability
+
+**Target after all fixes:**
+- Per chat message: $0.013 (down from $0.050)
+- Per brief: $0.002 (down from $0.015)
+- Per family/month at heavy use: ~$12 (down from $109)
+- At 1,000 families: ~$12,000/month (down from $109,000)
+
+---
+
+### Pricing implications
+- Even optimised, heavy users (homework daily) cost $8-15/month in AI
+- Subscription needs to be $19.99/month minimum to be profitable
+- Consider: basic plan ($9.99 no homework), family plan ($19.99 everything)
+- Or: homework helper as $4.99/month add-on
+- Fair use cap: 500 AI interactions/month included, then throttle
+
+---
+
+### Immediate next tasks (in priority order)
+1. **Cost fixes** — smart context + Haiku + history cap + single chat (CRITICAL, do first)
+2. **Homework platform** — build it to test real rates after cost fixes
+3. **Travel screen** — stub
+4. **Lunchbox screen** — mockup ready (`lunchbox-v1.html`)
+
+---
+
+### Key design decisions (locked)
 - No floating FAB anywhere
 - Hamburger menu only navigation
 - Brief cards: blue on Home/Shopping/Meals, magenta on Calendar
-- `btnPrimary` style: blue not orange
-- Meal overview: NO images — smart emoji icon only via getMealEmoji()
-- Meal images: detail modals only
+- btnPrimary: blue not orange
+- Meal overview: NO images — smart emoji icons via getMealEmoji()
 - Edit modals: always lifted OUT of parent Modal (iOS pageSheet stacking)
-- `getMediaType()` always used for base64 API calls
+- getMediaType() always used for base64 API calls
 - Date context for AI: always use dayNames array, never toDateString()
-- `.single()` throws on no result — use `.limit(1)` + `data?.[0]`
+- .single() throws on no result — use .limit(1) + data?.[0]
 - React 18 batches async state updates — use useEffect for post-modal data loading
+- All API calls go through callClaude() in lib/api-logger.ts — never raw fetch
 
 ---
 
 ### Tech reminders
-- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../components/NavMenu`
+- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../components/NavMenu`, `../../lib/api-logger`
 - SafeAreaView always `edges={['top']}`
 - Poppins font for all UI, DMSerifDisplay for hero titles only
 - Always `npx expo start --clear` after copying files
@@ -119,4 +163,4 @@ shopping_items — id, family_id, name, item, category, checked, completed, meal
 
 ---
 
-Please confirm you've read CLAUDE.md and are ready to continue. First priority is **API usage logging**.
+Please read CLAUDE.md first, then confirm you're ready. **First priority is the cost fixes** — smart context loading, Haiku for simple tasks, 6-message history cap, and single chat. Do not build any new features until these are done.

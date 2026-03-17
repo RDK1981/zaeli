@@ -226,3 +226,54 @@ import { buildMemoryContext } from '../../lib/zaeli-memory';
 - Price tracking, expiry predictions in pantry
 - API key server-side proxy before launch
 - Marketing site
+
+---
+
+## Admin Dashboard
+- Live URL: https://incomparable-gumdrop-32e4ba.netlify.app
+- Hosted on Netlify (richarddekretser account)
+- Connects to Supabase api_logs table
+- Redeploy: drag `zaeli-admin` folder onto Netlify project overview drop zone
+- File location: `C:\Users\richa\Downloads\zaeli-admin\index.html`
+- To update credentials: run PowerShell key injection then redeploy
+
+## API Logging
+- Table: `api_logs` — created in Supabase ✅
+- Wrapper: `lib/api-logger.ts` — all 11 call sites wired ✅
+- Features tracked: home_brief, calendar_brief, shopping_brief, shopping_category,
+  pantry_scan, receipt_scan, chat_greeting, zaeli_chat, menu_photo, recipe_photo
+
+## CRITICAL — Cost Problem Identified
+Current cost per family at realistic usage (~2,520 calls/month): ~$109/month
+Root cause: zaeli_chat sends ~16,000 input tokens per message (all data loaded every time)
+
+### Three fixes needed BEFORE building more features:
+1. **Smart context loading** — detect what user is asking, load only relevant data
+   - Chat: don't load recipes/menus/shopping unless asked about them
+   - Estimated saving: 75% token reduction (16,000 → 4,000 per message)
+2. **Haiku for simple tasks** — briefs, greetings, homework helper, category guessing
+   - Haiku: $0.25/$1.25 per million vs Sonnet $3/$15 (20x cheaper)
+   - Estimated saving: 87% on eligible calls
+3. **History cap at 6 messages** — currently 10, saves ~1,500 tokens per message
+
+### Target after fixes:
+- Per chat message: $0.013 (down from $0.050)
+- Per brief: $0.002 (down from $0.015)
+- Per family/month at heavy use: ~$12 (down from $109)
+- At 1,000 families: ~$12,000/month (down from $109,000)
+
+### Pricing implications:
+- Need $15-20/month subscription to be profitable at heavy usage
+- Homework helper is most expensive feature — consider as premium add-on
+- Options: usage tiers, fair use cap (500 interactions/month), or premium plan
+
+## Single Chat (replacing channels)
+- Decision made: remove channel tabs, use one General chat
+- Zaeli detects context from message content and loads relevant data
+- Simpler UX, same capability, lower cost
+
+## Next Session Priority Order:
+1. Cost fixes (smart context + Haiku + history cap + single chat)
+2. Homework platform build (to test real rates)
+3. Travel screen stub
+4. Lunchbox screen
