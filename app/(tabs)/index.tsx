@@ -11,6 +11,7 @@ import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { buildMemoryContext } from '../../lib/zaeli-memory';
 import { HamburgerButton, NavMenu } from '../components/NavMenu';
+import { callClaude } from '../../lib/api-logger';
 
 // ── ASK BAR ICONS ────────────────────────────────────────────
 function IcoMic({ color = 'rgba(0,0,0,0.45)' }: { color?: string }) {
@@ -436,12 +437,11 @@ UPCOMING EVENTS: ${JSON.stringify(evs.slice(0,6).map(fmtEv))}.
 URGENT/OVERDUE TODOS: ${JSON.stringify(urgentTodos.slice(0,4))}.
 ALL ACTIVE TODOS: ${JSON.stringify(tdos.slice(0,5))}.
 Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not planned'}. Shopping items pending: ${sh.length}.${memCtx}`;
-      const res=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,system:systemPrompt,messages:[{role:'user',content:ctx}]}),
+      const d=await callClaude({
+        feature:'home_brief',
+        familyId:DUMMY_FAMILY_ID,
+        body:{model:'claude-sonnet-4-20250514',max_tokens:500,system:systemPrompt,messages:[{role:'user',content:ctx}]},
       });
-      const d=await res.json();
       const raw=d.content?.[0]?.text||'';
       const clean=raw.replace(/```json|```/g,'').trim();
       try{

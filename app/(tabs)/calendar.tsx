@@ -23,6 +23,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Line, Path, Polyline, Rect } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { HamburgerButton, NavMenu } from '../components/NavMenu';
+import { callClaude } from '../../lib/api-logger';
 
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 const ANTHROPIC_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
@@ -272,22 +273,15 @@ ${contextStr}
 Respond ONLY in this exact JSON format with no extra text:
 {"brief": "The brief text here.", "cta": "Short CTA label (3-5 words)"}`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_API_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
+      const data = await callClaude({
+        feature: 'calendar_brief',
+        familyId: DUMMY_FAMILY_ID,
+        body: {
           model: 'claude-sonnet-4-20250514',
           max_tokens: 200,
           messages: [{ role:'user', content: prompt }],
-        }),
+        },
       });
-
-      const data   = await response.json();
       const raw    = data?.content?.[0]?.text || '';
       const clean  = raw.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);

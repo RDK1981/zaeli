@@ -18,6 +18,7 @@ import Svg, { Line, Polyline, Circle } from 'react-native-svg';
 import { NavMenu, HamburgerButton } from '../components/NavMenu';
 import { supabase } from '../../lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
+import { callClaude } from '../../lib/api-logger';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
@@ -568,10 +569,10 @@ function SaveRecipeModal({visible,onClose,onSaved,router}:{visible:boolean;onClo
   const extractMenuFromPhoto=async(base64:string)=>{
     setMenuExtracting(true);
     try{
-      const res=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({
+      const data=await callClaude({
+        feature:'menu_photo',
+        familyId:DUMMY_FAMILY_ID,
+        body:{
           model:'claude-sonnet-4-20250514',
           max_tokens:4096,
           messages:[{role:'user',content:[
@@ -588,10 +589,8 @@ Rules:
 - price: include currency symbol if visible, empty string if not shown.
 - Output ONLY the JSON. No markdown. No explanation.`},
           ]}],
-        }),
+        },
       });
-      if(!res.ok){const e=await res.text();throw new Error(`API ${res.status}: ${e.substring(0,200)}`);}
-      const data=await res.json();
       const textBlock=data?.content?.find((b:any)=>b.type==='text');
       const raw=(textBlock?.text||'').trim();
       const cleaned=raw.replace(/^```json?\s*/,'').replace(/\s*```$/,'').trim();
@@ -652,15 +651,10 @@ Rules:
         type:'image' as const,
         source:{type:'base64' as const,media_type:getMediaType(b),data:b},
       }));
-      const res=await fetch('https://api.anthropic.com/v1/messages',{
-        method:'POST',
-        headers:{
-          'Content-Type':'application/json',
-          'x-api-key':ANTHROPIC_API_KEY,
-          'anthropic-version':'2023-06-01',
-          'anthropic-dangerous-direct-browser-access':'true',
-        },
-        body:JSON.stringify({
+      const data=await callClaude({
+        feature:'recipe_photo',
+        familyId:DUMMY_FAMILY_ID,
+        body:{
           model:'claude-sonnet-4-20250514',
           max_tokens:4096,
           messages:[{role:'user',content:[
@@ -676,17 +670,9 @@ Rules:
 - prep_mins: number or null
 - Output ONLY the JSON object. No explanation. No markdown. No extra text.`},
           ]}],
-        }),
+        },
       });
 
-      if(!res.ok){
-        const errBody=await res.text();
-        let msg=`API error ${res.status}`;
-        try{const j=JSON.parse(errBody);msg=j?.error?.message||msg;}catch{}
-        throw new Error(msg);
-      }
-
-      const data=await res.json();
       const textBlock=data?.content?.find((b:any)=>b.type==='text');
       const raw=(textBlock?.text||'').trim();
       if(!raw) throw new Error('No response from Claude');

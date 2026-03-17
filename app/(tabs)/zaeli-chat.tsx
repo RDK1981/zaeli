@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Line, Path, Polygon, Polyline, Rect } from 'react-native-svg';
+import { callClaude } from '../../lib/api-logger';
 import { detectReminderIntent, scheduleReminder } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
 import { buildMemoryContext, saveConversation } from '../../lib/zaeli-memory';
@@ -683,16 +684,15 @@ export default function ZaeliChatScreen() {
       const memCtx = await buildMemoryContext(DUMMY_FAMILY_ID);
       const ctx = `Today: ${now.toDateString()}. Time: ${timeStr}. Events: ${JSON.stringify(evR.data||[])}. Tasks: ${JSON.stringify(miR.data||[])}. Shopping: ${JSON.stringify(shR.data||[])}. Meal: ${JSON.stringify(mlR.data?.[0]||null)}.${memCtx}`;
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json','x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
-        body:JSON.stringify({
+      const d = await callClaude({
+        feature: 'chat_greeting',
+        familyId: DUMMY_FAMILY_ID,
+        body: {
           model:'claude-sonnet-4-20250514', max_tokens:200,
           system:`You are Zaeli — warm, brilliant, sparkling family assistant. Australian warmth. Get straight into it — friendly, warm, and ask what they'd like to tackle. Keep it to 1-2 sentences max. ${CAPABILITY_RULES} Context: ${ctx}`,
           messages:[{ role:'user', content:`Here is the brief I just showed her:\n\n${brief}\n\nShe tapped yes to get my help. Continue the conversation from here.` }],
-        }),
+        },
       });
-      const d = await res.json();
       const reply = d.content?.[0]?.text || `Right, let's get into it! What would you like to tackle first?`;
       setChannelMessages(prev => ({ ...prev, [channel]:[{ id:'seed-'+channel, role:'assistant', content:reply, time:getTime() }] }));
     } catch {
@@ -741,14 +741,13 @@ export default function ZaeliChatScreen() {
         ? ` Focus on: how many nights are still unplanned, what's on tonight, offer to help fill the week. Be specific about the dinner plan. Don't start with "Good ${tod}" — jump straight into the meals context naturally.`
         : ` Open with "Good ${tod}" naturally woven in. Mention 1-2 things from context if relevant.`;
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json','x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:120,
+      const d = await callClaude({
+        feature: 'chat_greeting',
+        familyId: DUMMY_FAMILY_ID,
+        body: { model:'claude-sonnet-4-20250514', max_tokens:120,
           system:`${CHANNELS[channel].prompt} Write a warm greeting for ${DUMMY_MEMBER_NAME} in the ${channel} channel.${mealsSysExtra} Max 35 words. One emoji at start only.`,
-          messages:[{ role:'user', content:ctx }] }),
+          messages:[{ role:'user', content:ctx }] },
       });
-      const d = await res.json();
       const greeting = d.content?.[0]?.text || `Good ${tod}, ${DUMMY_MEMBER_NAME}! What can I help with?`;
       setChannelMessages(prev => ({ ...prev, [channel]:[{ id:'g-'+channel, role:'assistant', content:greeting, time:getTime() }] }));
     } catch {
@@ -823,12 +822,11 @@ CRITICAL: The user is in ${tzOffset}. Always generate start_time/end_time as LOC
       const toolResults: string[] = [];
 
       for (let turn = 0; turn < 6; turn++) {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json', 'x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-          body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, system:systemPrompt, tools:TOOL_DEFINITIONS, messages:loopMessages }),
+        const d = await callClaude({
+          feature: 'zaeli_chat',
+          familyId: DUMMY_FAMILY_ID,
+          body: { model:'claude-sonnet-4-20250514', max_tokens:600, system:systemPrompt, tools:TOOL_DEFINITIONS, messages:loopMessages },
         });
-        const d = await res.json();
 
         if (d.stop_reason === 'tool_use') {
           const textBlock = d.content.find((b:any) => b.type === 'text');

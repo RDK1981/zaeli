@@ -18,6 +18,7 @@ import Svg, { Rect, Path, Line, Polyline, Circle } from 'react-native-svg';
 import { NavMenu, HamburgerButton } from '../components/NavMenu';
 import { supabase } from '../../lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
+import { callClaude } from '../../lib/api-logger';
 
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 const DUMMY_USER_NAME = 'Anna';
@@ -237,12 +238,11 @@ function ScanningSheet({ visible }: { visible: boolean }) {
 async function guessCategory(itemName: string): Promise<string> {
   const categories = ['Fruit & Veg', 'Dairy & Eggs', 'Meat & Seafood', 'Bakery', 'Pantry', 'Frozen', 'Drinks', 'Snacks', 'Household', 'Other'];
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'x-api-key': ANTHROPIC_API_KEY },
-      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 20, messages: [{ role: 'user', content: `Which single category does "${itemName}" belong to? Reply with ONLY the category name. Categories: ${categories.join(', ')}` }] }),
+    const data = await callClaude({
+      feature: 'shopping_category',
+      familyId: DUMMY_FAMILY_ID,
+      body: { model: 'claude-sonnet-4-20250514', max_tokens: 20, messages: [{ role: 'user', content: `Which single category does "${itemName}" belong to? Reply with ONLY the category name. Categories: ${categories.join(', ')}` }] },
     });
-    const data = await res.json();
     const guess = data?.content?.[0]?.text?.trim();
     return categories.find(c => c.toLowerCase() === guess?.toLowerCase()) || 'Other';
   } catch { return 'Other'; }
@@ -251,10 +251,10 @@ async function guessCategory(itemName: string): Promise<string> {
 async function scanPantryImage(base64: string): Promise<ScannedPantryItem[]> {
   try {
     if (!base64 || base64.length < 100) return [];
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'x-api-key': ANTHROPIC_API_KEY },
-      body: JSON.stringify({
+    const data = await callClaude({
+      feature: 'pantry_scan',
+      familyId: DUMMY_FAMILY_ID,
+      body: {
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
         messages: [{
@@ -264,9 +264,8 @@ async function scanPantryImage(base64: string): Promise<ScannedPantryItem[]> {
             { type: 'text', text: `You are scanning a fridge or pantry shelf photo. List every distinct food/product item you can see.\n\nFor each item, estimate how much is left:\n- critical = almost empty\n- low = less than 25% remaining\n- medium = roughly half\n- good = well stocked\n\nRespond ONLY as a JSON array, no markdown:\n[{"name":"Full cream milk","emoji":"🥛","stock":"low","quantity":"1L remaining"},...]\n\nRules:\n- Use common household names\n- Max 20 items\n- If no food items visible, return []` }
           ]
         }],
-      }),
+      },
     });
-    const data = await res.json();
     const raw = data?.content?.[0]?.text || '[]';
     return JSON.parse(raw.replace(/```json|```/g, '').trim()) as ScannedPantryItem[];
   } catch { return []; }
@@ -276,10 +275,10 @@ async function scanPantryImage(base64: string): Promise<ScannedPantryItem[]> {
 async function scanAnyImage(base64: string): Promise<{ type: 'pantry'; items: ScannedPantryItem[] } | { type: 'receipt'; data: Omit<Receipt,'id'> }> {
   try {
     if (!base64 || base64.length < 100) return { type: 'pantry', items: [] };
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'x-api-key': ANTHROPIC_API_KEY },
-      body: JSON.stringify({
+    const data = await callClaude({
+      feature: 'receipt_scan',
+      familyId: DUMMY_FAMILY_ID,
+      body: {
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1500,
         messages: [{
@@ -302,9 +301,8 @@ Respond ONLY as JSON (no markdown):
 {"imageType":"pantry","items":[{"name":"Full cream milk","emoji":"🥛","stock":"low","quantity":"1L remaining"},...]}`}
           ]
         }],
-      }),
+      },
     });
-    const data = await res.json();
     const raw = data?.content?.[0]?.text || '{}';
     const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
     if (parsed.imageType === 'receipt') {
@@ -385,12 +383,11 @@ function ShoppingBriefCard({ itemCount, onDismiss }: { itemCount: number; onDism
   const generateBrief = async () => {
     try {
       const prompt = `You are Zaeli, a warm and witty AI family assistant. Generate a brief shopping screen message for ${DUMMY_USER_NAME}. Max 2 sentences. The list has ${itemCount} item${itemCount !== 1 ? 's' : ''}. If empty, invite her to build it. If has items, offer to help fill gaps. End with something concrete. Respond ONLY as JSON: {"brief": "text", "cta": "3-5 words"}`;
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 120, messages: [{ role: 'user', content: prompt }] }),
+      const data = await callClaude({
+        feature: 'shopping_brief',
+        familyId: DUMMY_FAMILY_ID,
+        body: { model: 'claude-sonnet-4-20250514', max_tokens: 120, messages: [{ role: 'user', content: prompt }] },
       });
-      const data = await res.json();
       const parsed = JSON.parse(data?.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}');
       cachedBrief = parsed.brief || '';
       lastBriefCount = itemCount;
