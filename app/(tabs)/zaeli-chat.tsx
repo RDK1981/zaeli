@@ -24,10 +24,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Line, Path, Polygon, Polyline, Rect } from 'react-native-svg';
-import { callClaude } from '../../lib/api-logger';
 import { detectReminderIntent, scheduleReminder } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
 import { buildMemoryContext, saveConversation } from '../../lib/zaeli-memory';
+import { callClaude } from '../../lib/api-logger';
 
 const DUMMY_FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
 const DUMMY_MEMBER_NAME = 'Anna';
@@ -577,7 +577,7 @@ const CAPABILITY_RULES = `CRITICAL CAPABILITY RULES — never violate:
 
 // ── CHANNEL CONFIG ───────────────────────────────────────────
 const CHANNELS: Record<string,{ icon:string; prompt:string; seeds:string[] }> = {
-  General:  { icon:'✦',  prompt:`You are Zaeli, a warm family assistant. Help with anything. You have access to the family's saved recipes, favourites, and saved venue menus — provided in context under SAVED RECIPES & FAVOURITES and SAVED MENUS. Use this data to answer questions about ingredients, dishes at saved venues, or meal ideas. You can take real actions using tools: add events, tasks, shopping items, recipes and meals. When adding calendar events, use ISO 8601 format for start_time (e.g. 2026-03-11T18:45:00) and always include the date field as YYYY-MM-DD. When the user mentions items to buy, call add_shopping_item IMMEDIATELY with all items — do not ask for confirmation first. Book and save immediately when you have enough info. ${CAPABILITY_RULES}`,
+  General:  { icon:'✦',  prompt:`You are Zaeli, a warm family assistant. Help with anything. You have access to the family's saved recipes, favourites, and saved venue menus — provided in context under SAVED RECIPES & FAVOURITES and SAVED MENUS. You also have access to the family's pantry inventory — provided in context. You CAN check what's in the pantry and NEVER say you can't. Use all this data to answer questions about ingredients, dishes at saved venues, pantry stock, or meal ideas. You can take real actions using tools: add events, tasks, shopping items, recipes and meals. When adding calendar events, use ISO 8601 format for start_time (e.g. 2026-03-11T18:45:00) and always include the date field as YYYY-MM-DD. When the user mentions items to buy, call add_shopping_item IMMEDIATELY with all items — do not ask for confirmation first. Book and save immediately when you have enough info. ${CAPABILITY_RULES}`,
     seeds:["What's on this week?","Help me plan the weekend","Any reminders I should set?"] },
   Calendar: { icon:'📅', prompt:`You are Zaeli, focused on the family calendar. You can add events directly using the add_calendar_event tool. IMPORTANT: When the user gives you enough info to book (a title and rough time), use the tool immediately — do not ask follow-up questions first. Make reasonable assumptions for missing details (default 1hr duration, use today's date if no date given). Always use ISO 8601 format for start_time e.g. 2026-03-11T18:45:00. Confirm what you booked after. ${CAPABILITY_RULES}`,
     seeds:["Any clashes this week?","What's on this weekend?","Schedule something for me"] },
@@ -634,7 +634,7 @@ export default function ZaeliChatScreen() {
     setChannelMessages(prev => {
       const cur = prev[activeCtx] || [];
       const next = typeof updater === 'function' ? updater(cur) : updater;
-      const capped = next.length > 60 ? next.slice(next.length - 60) : next;
+      const capped = next.length > 30 ? next.slice(next.length - 30) : next;
       return { ...prev, [activeCtx]:capped };
     });
   };
@@ -682,14 +682,14 @@ export default function ZaeliChatScreen() {
         supabase.from('meal_plans').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',todayStr).limit(1),
       ]);
       const memCtx = await buildMemoryContext(DUMMY_FAMILY_ID);
-      const ctx = `Today: ${now.toDateString()}. Time: ${timeStr}. Events: ${JSON.stringify(evR.data||[])}. Tasks: ${JSON.stringify(miR.data||[])}. Shopping: ${JSON.stringify(shR.data||[])}. Meal: ${JSON.stringify(mlR.data?.[0]||null)}.${memCtx}`;
+      const ctx = `Today: ${todayStr}. Time: ${timeStr}. Tonight: ${mlR.data?.[0]?.meal_name||'not planned yet'}. Events: ${(evR.data||[]).map((e:any)=>e.title).join(', ')||'none'}.`;
 
       const d = await callClaude({
         feature: 'chat_greeting',
         familyId: DUMMY_FAMILY_ID,
         body: {
-          model:'claude-sonnet-4-20250514', max_tokens:200,
-          system:`You are Zaeli — warm, brilliant, sparkling family assistant. Australian warmth. Get straight into it — friendly, warm, and ask what they'd like to tackle. Keep it to 1-2 sentences max. ${CAPABILITY_RULES} Context: ${ctx}`,
+          model:'claude-haiku-4-5-20251001', max_tokens:80,
+          system:`You are Zaeli — warm, brilliant Australian family assistant. Get straight into it — friendly, warm, and ask what they'd like to tackle. Keep it to 1-2 sentences max. ${CAPABILITY_RULES} Context: ${ctx}`,
           messages:[{ role:'user', content:`Here is the brief I just showed her:\n\n${brief}\n\nShe tapped yes to get my help. Continue the conversation from here.` }],
         },
       });
@@ -728,13 +728,13 @@ export default function ZaeliChatScreen() {
         const venueCount = (menuR.data||[]).length;
         ctx = `Today is ${localDayName2} ${todayStr}. Time: ${timeStr} (${tod}). Tonight: ${todayMeal?todayMeal.meal_name:'not planned yet'}. Week plan: ${JSON.stringify(planned)}. Empty dinner nights this week: ${emptyNights}. Saved recipes: ${recipeCount}. Saved menus/venues: ${venueCount}.`;
       } else {
-        const [evR, miR, mlR] = await Promise.all([
-          supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).gte('start_time',todayStr).order('start_time').limit(5),
-          supabase.from('missions').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(10),
-          supabase.from('meal_plans').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',todayStr).limit(1),
+        // Fix B: Minimal context for greeting — just time + event titles + meal name
+        const [evR, mlR] = await Promise.all([
+          supabase.from('events').select('title,start_time').eq('family_id',DUMMY_FAMILY_ID).gte('start_time',todayStr).order('start_time').limit(4),
+          supabase.from('meal_plans').select('meal_name').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',todayStr).limit(1),
         ]);
-        const memCtx = await buildMemoryContext(DUMMY_FAMILY_ID);
-        ctx = `Today is ${localDayName2} ${todayStr}. Current time: ${timeStr} (${tod}). Events: ${JSON.stringify(evR.data||[])}. Tasks: ${JSON.stringify(miR.data||[])}. Meal: ${JSON.stringify(mlR.data?.[0]||null)}.${memCtx}`;
+        const evTitles = (evR.data||[]).map((e:any) => `${e.title} (${e.start_time?.substring(11,16)||''})`).join(', ') || 'nothing scheduled';
+        ctx = `Today: ${localDayName2} ${todayStr}. Time: ${timeStr}. Today's events: ${evTitles}. Tonight: ${mlR.data?.[0]?.meal_name||'not planned yet'}.`;
       }
 
       const mealsSysExtra = channel === 'Meals'
@@ -744,7 +744,7 @@ export default function ZaeliChatScreen() {
       const d = await callClaude({
         feature: 'chat_greeting',
         familyId: DUMMY_FAMILY_ID,
-        body: { model:'claude-sonnet-4-20250514', max_tokens:120,
+        body: { model:'claude-haiku-4-5-20251001', max_tokens:80,
           system:`${CHANNELS[channel].prompt} Write a warm greeting for ${DUMMY_MEMBER_NAME} in the ${channel} channel.${mealsSysExtra} Max 35 words. One emoji at start only.`,
           messages:[{ role:'user', content:ctx }] },
       });
@@ -769,16 +769,51 @@ export default function ZaeliChatScreen() {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 100);
 
     try {
-      const [evR, miR, shR, memR, recR, menuR, mealR] = await Promise.all([
-        supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(20),
-        supabase.from('missions').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(20),
-        supabase.from('shopping_items').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(30),
+      // ── COST FIX 1: Smart context — only load what the message needs ──
+      const mealKw    = /\b(meal|dinner|recipe|cook|eat|food|lunch|breakfast|ingredient|menu|dish|cuisine|restaurant|cafe|snack|plan)\b/i;
+      const shopKw    = /\b(shop|shopping|buy|need|list|groceries|supermarket|woolies|coles|milk|bread|egg)\b/i;
+      const pantryKw  = /\b(pantry|stock|fridge|cupboard|have we got|do we have|do i have|have i got|running low|out of|inventory)\b/i;
+      const needsMeals    = mealKw.test(msg);
+      const needsShopping = shopKw.test(msg);
+      const needsPantry   = pantryKw.test(msg) || needsShopping;
+
+      const [memR] = await Promise.all([
         supabase.from('family_members').select('*').eq('family_id',DUMMY_FAMILY_ID),
-        supabase.from('recipes').select('id,name,tags,prep_mins,notes,source_type').eq('family_id',DUMMY_FAMILY_ID).order('created_at',{ascending:false}).limit(50),
-        supabase.from('menus').select('id,venue_name,venue_type,items').eq('family_id',DUMMY_FAMILY_ID).limit(20),
-        supabase.from('meal_plans').select('day_key,meal_name,meal_type,source,cook_ids,prep_mins').eq('family_id',DUMMY_FAMILY_ID).order('day_key',{ascending:true}).limit(14),
       ]);
       const memCtx = await buildMemoryContext(DUMMY_FAMILY_ID);
+
+      let evR:any = { data:[] }, miR:any = { data:[] }, shR:any = { data:[] };
+      let recR:any = { data:[] }, menuR:any = { data:[] }, mealR:any = { data:[] }, pantryR:any = { data:[] };
+
+      const conditionalLoads: Promise<void>[] = [
+        supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).gte('start_time',localDateStr).order('start_time').limit(15)
+          .then(r => { evR = r; }),
+        supabase.from('missions').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(15)
+          .then(r => { miR = r; }),
+      ];
+      if (needsShopping) {
+        conditionalLoads.push(
+          supabase.from('shopping_items').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(30)
+            .then(r => { shR = r; })
+        );
+      }
+      if (needsPantry) {
+        conditionalLoads.push(
+          supabase.from('pantry_items').select('name,stock,quantity,emoji').eq('family_id',DUMMY_FAMILY_ID).limit(50)
+            .then(r => { pantryR = r; })
+        );
+      }
+      if (needsMeals) {
+        conditionalLoads.push(
+          supabase.from('recipes').select('id,name,tags,prep_mins,notes,source_type').eq('family_id',DUMMY_FAMILY_ID).order('created_at',{ascending:false}).limit(30)
+            .then(r => { recR = r; }),
+          supabase.from('menus').select('id,venue_name,venue_type,items').eq('family_id',DUMMY_FAMILY_ID).limit(10)
+            .then(r => { menuR = r; }),
+          supabase.from('meal_plans').select('day_key,meal_name,meal_type,source,cook_ids,prep_mins').eq('family_id',DUMMY_FAMILY_ID).order('day_key',{ascending:true}).limit(14)
+            .then(r => { mealR = r; })
+        );
+      }
+      await Promise.all(conditionalLoads);
       const now        = new Date();
       // Use locale-aware date to avoid UTC vs AEST day-name mismatch
       const localDateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
@@ -795,6 +830,9 @@ export default function ZaeliChatScreen() {
         return `${m.venue_name} (${m.venue_type||'restaurant'}):\n${dishes||'  (no dishes extracted yet)'}`;
       }).join('\n\n');
 
+      const pantryCtx = pantryR.data?.length
+        ? `\n\nPANTRY INVENTORY (${pantryR.data.length} items):\n${pantryR.data.map((p:any)=>`- ${p.name}: ${p.stock}${p.quantity?' ('+p.quantity+')':''}`).join('\n')}`
+        : '';
       const ctx = `Family:${JSON.stringify(memR.data)}. Events:${JSON.stringify(evR.data)}. Tasks:${JSON.stringify(miR.data)}. Shopping:${JSON.stringify(shR.data)}. Today is ${localDayName} — full date: ${localFullDate} (${localDateStr}). Current local time: ${localTimeStr}. Timezone: ${tzOffset}.
 
 MEAL PLAN (next 14 days):
@@ -806,10 +844,12 @@ ${(recR.data||[]).map((r:any)=>`- ${r.name}${r.prep_mins?' ('+r.prep_mins+' min)
 SAVED MENUS (${(menuR.data||[]).length} venues):
 ${menusFormatted||'None saved yet'}
 
-${memCtx}`;
-      const history = next.slice(-10).map(m => ({ role:m.role, content:m.content }));
+${memCtx}${pantryCtx}`;
+      const history = next.slice(-6).map(m => ({ role:m.role, content:m.content }));
 
       const systemPrompt = `${CHANNELS[activeCtx].prompt} Be warm, specific, concise — 1-3 sentences unless more is needed. Bold key info with **word**. If the user asks for MULTIPLE things, use tools for ALL of them — do not stop after the first.
+
+AFTER TOOL USE: When a tool returns a ✅ confirmation, do NOT send a follow-up message repeating what was just confirmed. The green tick is enough. Only respond after tool use if you have something genuinely new to add (e.g. a conflict, a question, or a suggestion). Silence after a successful tool action is correct behaviour.
 
 EDITING RULES (critical): When the user wants to reschedule, change time, change duration, or rename an existing event — ALWAYS use update_calendar_event. Never add a duplicate. Never leave the original event. One event per booking.
 
@@ -944,18 +984,7 @@ CRITICAL: The user is in ${tzOffset}. Always generate start_time/end_time as LOC
         </View>
       </View>
 
-      {/* ── CHANNEL BAR ── */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.ctxBar}
-        contentContainerStyle={{ paddingHorizontal:16, paddingVertical:9, gap:6 }}>
-        {CHANNEL_KEYS.map(c => (
-          <TouchableOpacity key={c} style={[s.ctxChip, activeCtx===c && s.ctxChipOn]}
-            onPress={()=>{ setActiveCtx(c); setShowHints(true); }} activeOpacity={0.8}>
-            <Text style={[s.ctxChipTxt, activeCtx===c && s.ctxChipTxtOn]}>
-              {CHANNELS[c].icon} {c}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* Channel bar removed — single chat (cost fix 4) */}
 
       {/* ── CHAT AREA ── */}
       <View style={{ flex:1 }}>
@@ -1089,7 +1118,7 @@ CRITICAL: The user is in ${tzOffset}. Always generate start_time/end_time as LOC
           {showHints && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}
               contentContainerStyle={{gap:6, paddingTop:10}}>
-              {CHANNELS[activeCtx].seeds.map(h=>(
+              {(CHANNELS[activeCtx]?.seeds || CHANNELS["General"].seeds).map(h=>(
                 <TouchableOpacity key={h} style={s.hintChip} onPress={()=>send(h)} activeOpacity={0.8}>
                   <Text style={s.hintTxt}>{h}</Text>
                 </TouchableOpacity>

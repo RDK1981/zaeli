@@ -334,7 +334,8 @@ export default function HomeScreen() {
         Animated.timing(cardFade,{toValue:1,duration:0,useNativeDriver:true}).start();
         fetchData();
       }
-    } else if(elapsed>30*60*1000){
+    } else if(elapsed>30*60*1000 && elapsed>5000){
+      // elapsed>5000 prevents double-fire on initial mount with useEffect
       fetchData();
     }
   },[cardDismissed]));
@@ -440,7 +441,7 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
       const d=await callClaude({
         feature:'home_brief',
         familyId:DUMMY_FAMILY_ID,
-        body:{model:'claude-sonnet-4-20250514',max_tokens:500,system:systemPrompt,messages:[{role:'user',content:ctx}]},
+        body:{model:'claude-haiku-4-5-20251001',max_tokens:400,system:systemPrompt,messages:[{role:'user',content:ctx}]},
       });
       const raw=d.content?.[0]?.text||'';
       const clean=raw.replace(/```json|```/g,'').trim();

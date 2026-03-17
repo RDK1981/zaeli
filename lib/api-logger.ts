@@ -38,9 +38,14 @@
 
 import { supabase } from './supabase';
 
-// ── Pricing (Sonnet 4 — update if model changes) ──────────────
-const PRICE_INPUT_PER_TOKEN  = 3.00  / 1_000_000;   // $3.00 per 1M input tokens
-const PRICE_OUTPUT_PER_TOKEN = 15.00 / 1_000_000;   // $15.00 per 1M output tokens
+// ── Pricing per model ─────────────────────────────────────────
+// Sonnet 4:  $3.00 / $15.00 per million tokens (input/output)
+// Haiku 4.5: $0.25 / $1.25  per million tokens (input/output)
+const PRICING: Record<string, { input: number; output: number }> = {
+  'claude-sonnet-4-20250514':  { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
+  'claude-haiku-4-5-20251001': { input: 0.25 / 1_000_000, output:  1.25 / 1_000_000 },
+};
+const DEFAULT_PRICING = PRICING['claude-sonnet-4-20250514'];
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
@@ -111,7 +116,8 @@ function logUsage({
   // Extract token usage from Anthropic response
   const inputTokens  = data?.usage?.input_tokens  ?? 0;
   const outputTokens = data?.usage?.output_tokens ?? 0;
-  const costUsd = (inputTokens * PRICE_INPUT_PER_TOKEN) + (outputTokens * PRICE_OUTPUT_PER_TOKEN);
+  const pricing = PRICING[model || ''] || DEFAULT_PRICING;
+  const costUsd = (inputTokens * pricing.input) + (outputTokens * pricing.output);
 
   // Fire and forget — don't await, don't block UI
   supabase.from('api_logs').insert({

@@ -1,5 +1,5 @@
 ## Zaeli App — New Chat Handover Brief
-*17 March 2026 — copy this entire message to start a new chat*
+*17 March 2026 (Session 6) — copy this entire message to start a new chat*
 
 ---
 
@@ -18,139 +18,108 @@ Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iO
 ### Where to find everything
 **Master brief (CLAUDE.md):** `C:\Users\richa\zaeli\CLAUDE.md` — full stack, colours, family members, coding rules, all screen statuses. **Always read this first.**
 
-**Transcripts:** `/mnt/transcripts/` — full session history. See `journal.txt` for catalog.
-
-**Output files:** `/mnt/user-data/outputs/` — latest versions of all built files.
-
 **Key constants:**
 - `DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'`
 - `DUMMY_MEMBER_NAME = 'Anna'`
-- AI model: `claude-sonnet-4-20250514` (Sonnet) and `claude-haiku-4-5-20251001` (Haiku — for cheap tasks)
+- `SONNET = 'claude-sonnet-4-20250514'`
+- `HAIKU  = 'claude-haiku-4-5-20251001'`
 
 ---
 
 ### What's been built (as of 17 March 2026)
 
-✅ `index.tsx` — Home screen (blue hero, brief card, tiles, radar, Ask Zaeli bar)
-
-✅ `calendar.tsx` — Calendar (magenta hero, Day/Week/Month, recurring events, brief card)
-
-✅ `shopping.tsx` — Shopping (List/Pantry/Spend tabs, receipt scan, pantry sync)
-
-✅ `zaeli-chat.tsx` — AI Chat (multi-channel, Meals context-aware, conflict detection)
-
-✅ `mealplanner.tsx` — Meals v4.1 (Dinners/Recipes/Favourites, smart emoji icons, day picker, edit flows)
-
+✅ `index.tsx` — Home screen, brief card (Haiku), double-fire fix applied
+✅ `calendar.tsx` — Full calendar, add/edit/recurring events, brief card
+✅ `shopping.tsx` — List/Pantry/Spend tabs, receipt scan, pantry sync
+✅ `zaeli-chat.tsx` — Single general chat (channels removed), smart context loading, Haiku greetings, pantry fix, tool echo suppression
+✅ `mealplanner.tsx` — Dinners/Recipes/Favourites v4.1
 ✅ `more.tsx` — Hub + Settings + To-dos
-
-✅ `lib/api-logger.ts` — Central API logging wrapper (callClaude function)
-
-✅ `NavMenu.tsx`, `_layout.tsx`
-
----
-
-### Supabase tables
-```sql
--- All created and working:
-meal_plans, recipes, menus, receipts, pantry_items, shopping_items, api_logs
-
--- api_logs schema:
-create table api_logs (
-  id uuid default gen_random_uuid() primary key,
-  family_id uuid not null,
-  account_id integer,
-  feature text not null,
-  model text not null default 'claude-sonnet-4-20250514',
-  input_tokens integer not null default 0,
-  output_tokens integer not null default 0,
-  cost_usd numeric(10,6) not null default 0,
-  created_at timestamptz not null default now()
-);
-```
+✅ `lib/api-logger.ts` — callClaude() wrapper, model-aware pricing (Haiku + Sonnet)
 
 ---
 
 ### Admin Dashboard (LIVE)
 - **URL:** https://incomparable-gumdrop-32e4ba.netlify.app
-- Hosted on Netlify (richarddekretser@gmail.com account)
-- Shows real-time API usage, costs by feature, per-family breakdown
-- To redeploy: drag `C:\Users\richa\Downloads\zaeli-admin\index.html` folder onto Netlify project overview
-- Connected to Supabase — shows live data, hit Refresh to update
+- Shows real-time API usage, costs by feature, financial model with sliders
+- Supabase `api_logs` table active ✅
+- Redeploy: PowerShell key injection → drag `zaeli-admin` folder to Netlify
 
 ---
 
-### CRITICAL — Cost Problem (must fix before building more features)
+### CRITICAL — Cost Architecture (Richard's primary concern)
 
-**Current cost per family at realistic usage: ~$109/month**
-Root cause: each zaeli_chat message sends ~16,000 input tokens (loads ALL data every time)
+**This is an ongoing concern that must continue to be researched every session.**
 
-Real usage estimate for family of 4 with homework helper:
-- ~2,520 API calls/month
-- Homework helper alone: 45 messages/day × 3 kids = 1,350 calls/month
-- At current rates: $109/family/month → $109,000/month at 1,000 families = catastrophic
+Real usage for family of 4 with homework helper: ~2,500 API calls/month.
 
-**Three fixes needed (do these FIRST next session):**
+| State | Cost/family/month | At 1,000 families |
+|---|---|---|
+| Before any fixes | ~$109 USD | ~$109,000/month 🚨 |
+| After Session 6 fixes | ~$8-10 USD (target) | ~$8,000-10,000/month |
+| Still being verified | testing in progress | — |
 
-**Fix 1 — Smart context loading (75% saving)**
-- Currently loads ALL recipes, menus, shopping, events on EVERY message
-- Fix: detect what user is asking about, load only relevant data
-- Chat about meals → load meal data only
-- Chat about shopping → load shopping only
-- General chat → load events + todos only
-- Expected: 16,000 tokens → ~4,000 per message
+**Cost fixes applied this session:**
+1. Smart context loading (intent detection — mealKw, shopKw, pantryKw)
+2. Haiku for all briefs and greetings (was Sonnet)
+3. History cap at 6 messages (was 10)
+4. Single chat — channels removed
+5. Double home_brief fire fixed
+6. Tool echo suppression — no "Perfect! Booked!" after ✅ confirmations
+7. Pantry fix — data loads on pantry keywords, system prompt updated
 
-**Fix 2 — Haiku for simple tasks (80% saving on eligible calls)**
-- Haiku costs $0.25/$1.25 per million vs Sonnet $3/$15 (20x cheaper)
-- Move to Haiku: ALL briefs (home/calendar/shopping/meals), greetings, homework helper, category guessing
-- Keep Sonnet: only real conversation chat
-- Model strings: `claude-sonnet-4-20250514` and `claude-haiku-4-5-20251001`
+**Still to explore (next session must address):**
+- Session-level context caching (load recipes/family once, not per message)
+- Prompt compression for long contexts
+- Fair use cap — 500 AI interactions/month per family, throttle beyond
+- Homework Haiku quality test — is it good enough?
+- Tool-use loop: turns 2+ could use stripped context
+- Anthropic Batch API (50% discount for async calls)
+- Real usage monitoring — are families actually hitting 2,500 calls?
 
-**Fix 3 — History cap at 6 messages (saves ~1,500 tokens/message)**
-- Currently keeping 10 messages of history
-- Drop to 6 — enough for natural conversation flow
-
-**Fix 4 — Single chat (remove channels)**
-- Decision made: remove channel tabs, use one General chat
-- Zaeli detects context from message content
-- Simpler UX, same capability
-
-**Target after all fixes:**
-- Per chat message: $0.013 (down from $0.050)
-- Per brief: $0.002 (down from $0.015)
-- Per family/month at heavy use: ~$12 (down from $109)
-- At 1,000 families: ~$12,000/month (down from $109,000)
+**One test session after cost fixes = ~$0.30 USD (meal search + calendar booking)**
+Target after all fixes: $0.10-0.15 per typical session.
 
 ---
 
-### Pricing implications
-- Even optimised, heavy users (homework daily) cost $8-15/month in AI
-- Subscription needs to be $19.99/month minimum to be profitable
-- Consider: basic plan ($9.99 no homework), family plan ($19.99 everything)
-- Or: homework helper as $4.99/month add-on
-- Fair use cap: 500 AI interactions/month included, then throttle
+### Pricing (locked)
+- **Family plan:** $15 AUD/month — calendar, shopping, meals, to-dos, notes, kids jobs
+- **Homework add-on:** $10 AUD/child/month
+- **Lunchboxes:** SCRAPPED
+- **Travel:** deferred to v2
+- **Distribution:** web-first (bypass App Store 15% cut), app free to download
+- **Trial:** 7 days free, payment at zaeli.app
+- **At 1,000 families (60% homework):** ~$7.6k USD/month profit, 51% margin
 
 ---
 
-### Immediate next tasks (in priority order)
-1. **Cost fixes** — smart context + Haiku + history cap + single chat (CRITICAL, do first)
-2. **Homework platform** — build it to test real rates after cost fixes
-3. **Travel screen** — stub
-4. **Lunchbox screen** — mockup ready (`lunchbox-v1.html`)
+### Supabase tables (all active)
+```
+events, todos, missions, shopping_items, pantry_items, receipts,
+meal_plans, recipes, menus, family_members, api_logs
+```
 
 ---
 
 ### Key design decisions (locked)
-- No floating FAB anywhere
+- No floating FAB
 - Hamburger menu only navigation
-- Brief cards: blue on Home/Shopping/Meals, magenta on Calendar
-- btnPrimary: blue not orange
-- Meal overview: NO images — smart emoji icons via getMealEmoji()
-- Edit modals: always lifted OUT of parent Modal (iOS pageSheet stacking)
-- getMediaType() always used for base64 API calls
-- Date context for AI: always use dayNames array, never toDateString()
-- .single() throws on no result — use .limit(1) + data?.[0]
-- React 18 batches async state updates — use useEffect for post-modal data loading
-- All API calls go through callClaude() in lib/api-logger.ts — never raw fetch
+- Brief cards: Haiku model, blue colour
+- All API calls through `callClaude()` in `lib/api-logger.ts` — never raw fetch
+- Edit modals lifted out of parent Modal (iOS pageSheet stacking)
+- `.single()` throws on no result — use `.limit(1)` + `data?.[0]`
+- Date: `dayNames[now.getDay()]` array always, never `toDateString()`
+- Smart context: only load data relevant to user's message intent
+- Single chat (no channels) — CHANNELS object still in code but UI hidden
+
+---
+
+### Next session priority order
+1. **Test cost fixes** — use app, check dashboard, compare vs $0.30 baseline
+2. **Cost research** — explore caching, prompt compression, batch API, usage caps
+3. **Homework platform build** — test Haiku quality at real rates
+4. **Onboarding flow** — email capture, 7-day trial, zaeli.app signup
+5. **GitHub Actions** — auto-deploy admin dashboard
+6. **Travel screen** stub
 
 ---
 
@@ -160,7 +129,18 @@ Real usage estimate for family of 4 with homework helper:
 - Poppins font for all UI, DMSerifDisplay for hero titles only
 - Always `npx expo start --clear` after copying files
 - PowerShell: no `&&` — use separate lines
+- Haiku model: `claude-haiku-4-5-20251001`
+- Sonnet model: `claude-sonnet-4-20250514`
 
 ---
 
-Please read CLAUDE.md first, then confirm you're ready. **First priority is the cost fixes** — smart context loading, Haiku for simple tasks, 6-message history cap, and single chat. Do not build any new features until these are done.
+### Note on code files
+The new chat won't have direct access to code files from previous sessions. To work on a specific file:
+1. Ask me to paste the current file contents, OR
+2. I can read it from the repo at `C:\Users\richa\zaeli\app\(tabs)\filename.tsx`
+
+The latest versions of all files are in the GitHub repo. Always ask me to paste the relevant file before making changes.
+
+---
+
+Please confirm you've read this and are ready to continue. Check the cost testing results on the admin dashboard first, then let's continue researching and implementing cost reductions before building new features.
