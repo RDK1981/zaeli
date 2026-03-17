@@ -52,7 +52,7 @@ type MealSource = 'library'|'favourites'|'zaeli'|'manual'|'kit'|'takeaway';
 type MealPlan = {
   id:string; day_key:string; meal_name:string; meal_type:string;
   source:MealSource; image_url?:string; prep_mins?:number;
-  cook_ids?:string[]; ingredients?:Ingredient[]; family_id:string;
+  cook_ids?:string[]; ingredients?:Ingredient[]; notes?:string; family_id:string;
 };
 type Ingredient = { name:string; emoji:string; qty:string; in_pantry:boolean };
 type SavedRecipe = {
@@ -89,6 +89,32 @@ function get7Days():Date[]{return Array.from({length:7},(_,i)=>addDays(new Date(
 function getTimeStr(){
   const n=new Date();
   return `${(n.getHours()%12)||12}:${String(n.getMinutes()).padStart(2,'0')} ${n.getHours()<12?'am':'pm'}`;
+}
+
+// Smart emoji based on meal name keywords
+function getMealEmoji(name:string):string{
+  const n=name.toLowerCase();
+  if(/pasta|spag|carb|lasag|penne|fettucc|rigatoni|gnocchi/.test(n)) return '🍝';
+  if(/pizza/.test(n)) return '🍕';
+  if(/taco|burrito|nacho|mexican|fajita/.test(n)) return '🌮';
+  if(/curry|butter chicken|tikka|masala|korma|dahl|lentil/.test(n)) return '🍛';
+  if(/salad|slaw|bowl/.test(n)) return '🥗';
+  if(/salmon|fish|prawn|shrimp|seafood|tuna|cod/.test(n)) return '🐟';
+  if(/soup|broth|stew|casserole|chowder/.test(n)) return '🍲';
+  if(/stir.fry|fried rice|noodle|pad thai|ramen|laksa/.test(n)) return '🍜';
+  if(/burger|patty|mince/.test(n)) return '🍔';
+  if(/sausage|snag|frank|hot dog/.test(n)) return '🌭';
+  if(/chicken|schnitzel|wing|drumstick|kyiv/.test(n)) return '🍗';
+  if(/steak|beef|lamb|roast|brisket/.test(n)) return '🥩';
+  if(/egg|omelette|frittata|quiche/.test(n)) return '🥚';
+  if(/veg|veggie|tofu|tempeh|plant/.test(n)) return '🥦';
+  if(/sandwich|wrap|sub|roll|toast/.test(n)) return '🥪';
+  if(/dessert|cake|cookie|brownie|pudding|tart|ice cream/.test(n)) return '🍰';
+  if(/breakfast|pancake|waffle|muesli|porridge/.test(n)) return '🥞';
+  if(/takeaway|pizza|delivery/.test(n)) return '🍕';
+  // Default — rotate through a set based on string hash for variety
+  const emojis=['🍽','🍴','🥘','🫕','🥣','🧆','🫔'];
+  return emojis[name.length%emojis.length];
 }
 // Detect real image format from base64 magic bytes
 function getMediaType(base64:string):'image/jpeg'|'image/png'|'image/gif'|'image/webp'{
@@ -336,19 +362,27 @@ function AddMealModal({visible,targetDayKey,targetDayLabel,onClose,onSaved,onBro
             </ScrollView>
           )}
           {(mode==='manual'||mode==='kit')&&(
-            <View style={{padding:20,gap:14}}>
+            <ScrollView contentContainerStyle={{padding:20,gap:14}} keyboardShouldPersistTaps="handled">
               <Text style={s.fieldLbl}>{mode==='kit'?'MEAL KIT NAME (optional)':'WHAT\'S THE MEAL CALLED?'}</Text>
               <TextInput style={s.fieldInput}
                 placeholder={mode==='kit'?'e.g. Thai Beef Salad':'e.g. Spaghetti Bolognese'}
                 placeholderTextColor={C.ink3} value={name} onChangeText={setName}
                 autoFocus returnKeyType="done"
                 onSubmitEditing={()=>saveToDb(name,mode==='kit'?'kit':'manual')}/>
+              {mode==='kit'&&(
+                <View style={{backgroundColor:C.kitL,borderRadius:12,padding:13,borderWidth:1.5,borderColor:'rgba(0,150,100,0.2)'}}>
+                  <Text style={{fontFamily:'Poppins_700Bold',fontSize:13,color:C.kit,marginBottom:4}}>💡 Worth saving to Favourites?</Text>
+                  <Text style={{fontFamily:'Poppins_400Regular',fontSize:12,color:C.ink2,lineHeight:18}}>
+                    Meal kits are often meals you can recreate yourself. After adding tonight, you can save the recipe to Favourites from the Dinners tab.
+                  </Text>
+                </View>
+              )}
               <TouchableOpacity style={[s.bigBtnOr,saving&&{opacity:0.5}]}
                 onPress={()=>saveToDb(name,mode==='kit'?'kit':'manual')}
                 disabled={saving} activeOpacity={0.85}>
                 <Text style={s.bigBtnTxt}>{saving?'Saving…':mode==='kit'?'Add meal kit night':'Add to plan'}</Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           )}
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -357,16 +391,25 @@ function AddMealModal({visible,targetDayKey,targetDayLabel,onClose,onSaved,onBro
 }
 
 // ── Meal Detail Modal ─────────────────────────────────────────────────────────
-function MealDetailModal({visible,meal,dayLbl,onClose,onRequestAssign}:{
+function MealDetailModal({visible,meal,dayLbl,onClose,onRequestAssign,onMove,onEdit}:{
   visible:boolean;meal:MealPlan|null;dayLbl:string;
-  onClose:()=>void;onRequestAssign:()=>void;
+  onClose:()=>void;onRequestAssign:()=>void;onMove?:()=>void;
+  onEdit?:(meal:MealPlan)=>void;
 }){
   if(!meal) return null;
   const missing=meal.ingredients?.filter(i=>!i.in_pantry)??[];
-  const allOk=missing.length===0;
+  const allOk=missing.length===0&&(meal.ingredients?.length??0)>0;
   const cookNames=meal.cook_ids?.length
     ?FAMILY.filter(m=>meal.cook_ids!.includes(m.id)).map(m=>m.name).join(' + ')
     :null;
+
+  // Parse method from notes if ingredients are in structured notes field
+  const parsedIngredients = meal.notes?.includes('Ingredients:')
+    ? (meal.notes.split(/\n(?=Method:)/)[0]?.replace(/^Ingredients:\n?/,'').trim()||'')
+    : null;
+  const parsedMethod = meal.notes?.includes('Method:')
+    ? (meal.notes.split(/\n(?=Method:)/)[1]?.replace(/^Method:\n?/,'').trim()||'')
+    : null;
 
   const addMissing=async()=>{
     for(const ing of missing){
@@ -386,14 +429,18 @@ function MealDetailModal({visible,meal,dayLbl,onClose,onRequestAssign}:{
             <Text style={{fontSize:22,color:C.blue,lineHeight:24}}>‹</Text>
           </TouchableOpacity>
           <Text style={[s.modalTitle,{textAlign:'left',flex:1}]} numberOfLines={1}>{meal.meal_name}</Text>
-          <View style={{width:40}}/>
+          {/* Edit — calls parent handler which keeps state alive after modal closes */}
+          <TouchableOpacity onPress={()=>{onClose();onEdit&&onEdit(meal);}} activeOpacity={0.7}
+            style={{width:34,height:34,borderRadius:10,backgroundColor:'rgba(0,0,0,.06)',alignItems:'center',justifyContent:'center'}}>
+            <Text style={{fontSize:15}}>✏️</Text>
+          </TouchableOpacity>
         </View>
         <ScrollView showsVerticalScrollIndicator={false}>
           {meal.image_url?(
             <Image source={{uri:meal.image_url}} style={s.detailImg} resizeMode="cover"/>
           ):(
             <View style={[s.detailImg,{backgroundColor:'#f8f5f0',alignItems:'center',justifyContent:'center'}]}>
-              <Text style={{fontSize:64}}>🍽</Text>
+              <Text style={{fontSize:64}}>{getMealEmoji(meal.meal_name)}</Text>
             </View>
           )}
           <View style={{padding:18}}>
@@ -419,57 +466,79 @@ function MealDetailModal({visible,meal,dayLbl,onClose,onRequestAssign}:{
                 </TouchableOpacity>
               </View>
             </View>
-            {/* Pantry status */}
-            {allOk?(
-              <View style={s.pantryAllOk}>
-                <View style={{width:26,height:26,borderRadius:8,backgroundColor:C.green,alignItems:'center',justifyContent:'center'}}>
-                  <Text style={{color:'#fff',fontSize:11}}>✦</Text>
-                </View>
-                <Text style={{fontSize:13,color:C.ink,lineHeight:20,flex:1}}>
-                  <Text style={{fontFamily:'Poppins_700Bold'}}>All ingredients in pantry</Text> — ready to cook!
-                </Text>
-              </View>
-            ):(
-              <View style={s.pantryMissing}>
-                <Text style={{fontSize:18}}>⚠️</Text>
-                <Text style={{fontSize:13,color:C.ink,lineHeight:20,flex:1}}>
-                  <Text style={{fontFamily:'Poppins_700Bold'}}>{missing.length} ingredient{missing.length!==1?'s':''} missing</Text> — tap + List to add
-                </Text>
-              </View>
-            )}
-            {/* Ingredients */}
-            {meal.ingredients?.length?(
+
+            {/* Structured ingredients (from RecipeDetailModal add flow) */}
+            {meal.ingredients?.length>0&&(
               <>
                 <Text style={s.sectionHdr}>Ingredients</Text>
-                {meal.ingredients.map((ing,i)=>(
+                {(meal.ingredients??[]).map((ing,i)=>(
                   <View key={i} style={s.ingRow}>
-                    <Text style={{fontSize:20}}>{ing.emoji}</Text>
+                    <Text style={{fontSize:18}}>{ing.emoji||'🍴'}</Text>
                     <Text style={[s.ingName,{flex:1}]}>{ing.name}</Text>
-                    <Text style={s.ingQty}>{ing.qty}</Text>
+                    {ing.qty?<Text style={s.ingQty}>{ing.qty}</Text>:null}
                     {ing.in_pantry?(
                       <View style={s.ingOk}><Text style={s.ingOkTxt}>In pantry</Text></View>
                     ):(
-                      <>
-                        <View style={s.ingMiss}><Text style={s.ingMissTxt}>Needed</Text></View>
-                        <TouchableOpacity style={s.ingAddBtn} onPress={addMissing} activeOpacity={0.8}>
-                          <Text style={s.ingAddTxt}>+ List</Text>
-                        </TouchableOpacity>
-                      </>
+                      <><View style={s.ingMiss}><Text style={s.ingMissTxt}>Needed</Text></View>
+                      <TouchableOpacity style={s.ingAddBtn} onPress={addMissing} activeOpacity={0.8}>
+                        <Text style={s.ingAddTxt}>+ List</Text>
+                      </TouchableOpacity></>
                     )}
                   </View>
                 ))}
               </>
-            ):null}
-            {allOk?(
-              <TouchableOpacity style={[s.bigBtn,{backgroundColor:C.green}]} activeOpacity={0.85}>
-                <Text style={s.bigBtnTxt}>✓ Nothing to add — all in pantry</Text>
-              </TouchableOpacity>
-            ):(
-              <TouchableOpacity style={s.bigBtnOr} onPress={addMissing} activeOpacity={0.85}>
-                <Text style={s.bigBtnTxt}>🛒 Add {missing.length} missing item{missing.length!==1?'s':''} to list</Text>
-              </TouchableOpacity>
             )}
-            <TouchableOpacity style={s.bigBtnGhost} activeOpacity={0.85}>
+
+            {/* Text ingredients from notes (Zaeli-added recipes) */}
+            {(!meal.ingredients?.length)&&parsedIngredients&&(
+              <>
+                <Text style={s.sectionHdr}>Ingredients</Text>
+                <View style={s.notesBox}>
+                  <Text style={s.notesTxt}>{parsedIngredients}</Text>
+                </View>
+              </>
+            )}
+
+            {/* Method */}
+            {parsedMethod&&(
+              <>
+                <Text style={[s.sectionHdr,{marginTop:12}]}>Method</Text>
+                <View style={s.notesBox}>
+                  <Text style={s.notesTxt}>{parsedMethod}</Text>
+                </View>
+              </>
+            )}
+
+            {/* Plain notes (no structure) */}
+            {(!parsedIngredients)&&meal.notes&&(
+              <>
+                <Text style={[s.sectionHdr,{marginTop:12}]}>Notes</Text>
+                <View style={s.notesBox}>
+                  <Text style={s.notesTxt}>{meal.notes}</Text>
+                </View>
+              </>
+            )}
+
+            {/* Pantry status */}
+            {(meal.ingredients?.length??0)>0&&(
+              allOk?(
+                <View style={[s.pantryAllOk,{marginTop:12}]}>
+                  <View style={{width:26,height:26,borderRadius:8,backgroundColor:C.green,alignItems:'center',justifyContent:'center'}}>
+                    <Text style={{color:'#fff',fontSize:11}}>✦</Text>
+                  </View>
+                  <Text style={{fontSize:13,color:C.ink,lineHeight:20,flex:1}}>
+                    <Text style={{fontFamily:'Poppins_700Bold'}}>All ingredients in pantry</Text> — ready to cook!
+                  </Text>
+                </View>
+              ):(
+                <TouchableOpacity style={[s.bigBtnOr,{marginTop:12}]} onPress={addMissing} activeOpacity={0.85}>
+                  <Text style={s.bigBtnTxt}>🛒 Add {missing.length} missing item{missing.length!==1?'s':''} to list</Text>
+                </TouchableOpacity>
+              )
+            )}
+
+            <TouchableOpacity style={[s.bigBtnGhost,{marginTop:12}]} activeOpacity={0.85}
+              onPress={()=>{onClose();onMove&&onMove();}}>
               <Text style={s.bigBtnGhostTxt}>Move to a different night</Text>
             </TouchableOpacity>
             <View style={{height:40}}/>
@@ -489,7 +558,7 @@ function SaveRecipeModal({visible,onClose,onSaved,router}:{visible:boolean;onClo
   const [method,setMethod]=useState('');
   const [tags,setTags]=useState<string[]>([]);
   const [saving,setSaving]=useState(false);
-  const ALL_TAGS=['Family','Kids love','Quick','Healthy','Comfort','Gut health','Low FODMAP','Gluten free','Dairy free'];
+  const ALL_TAGS=['Family','Kids love','Quick','Healthy','Comfort','Gut health','Low FODMAP','Gluten free','Dairy free','Thermomix','Slow cooker','Air fryer'];
   const reset=()=>{setMode('menu');setUrl('');setName('');setIngredients('');setMethod('');setTags([]);setSaving(false);setExtractedPhotos([]);setMenuExtracting(false);};
 
   const [extracting,setExtracting]=useState(false);
@@ -894,6 +963,7 @@ function FavouriteDetailModal({visible,recipe,onClose,onAdded,onSaved}:{
   const [saveError,setSaveError]=useState('');
   const [editImageUrl,setEditImageUrl]=useState<string|null|undefined>(undefined);
   const [savedOk,setSavedOk]=useState(false);
+  const [pickingDay,setPickingDay]=useState(false);
 
   // Reset ALL state every time the modal opens or recipe changes
   useEffect(()=>{
@@ -904,6 +974,9 @@ function FavouriteDetailModal({visible,recipe,onClose,onAdded,onSaved}:{
       setSaveError('');
       setSaving(false);
       setShowAssign(false);
+      setSavedOk(false);
+      setPickingDay(false);
+      setEditImageUrl(recipe.image_url);
       // Parse existing notes into ingredients/method if available
       if(recipe.notes?.includes('Ingredients:')){
         const parts=recipe.notes.split(/\n(?=Method:)/);
@@ -920,7 +993,7 @@ function FavouriteDetailModal({visible,recipe,onClose,onAdded,onSaved}:{
 
   if(!recipe) return null;
 
-  const ALL_TAGS=['Family','Kids love','Quick','Healthy','Comfort','Gut health','Low FODMAP','Gluten free','Dairy free'];
+  const ALL_TAGS=['Family','Kids love','Quick','Healthy','Comfort','Gut health','Low FODMAP','Gluten free','Dairy free','Thermomix','Slow cooker','Air fryer'];
 
   // Determine if this is a dummy recipe (not in DB) — dummy IDs are 'f1','f2' etc.
   const isDummy=recipe.id.startsWith('f')&&recipe.id.length<=3;
@@ -958,8 +1031,6 @@ function FavouriteDetailModal({visible,recipe,onClose,onAdded,onSaved}:{
     setTimeout(()=>setSavedOk(false),2500);
     onSaved?.(); // tell parent to re-fetch so list updates immediately
   };
-
-  const [pickingDay,setPickingDay]=useState(false);
 
   const addToPlan=async(targetDk:string)=>{
     setSaving(true);
@@ -1017,6 +1088,20 @@ function FavouriteDetailModal({visible,recipe,onClose,onAdded,onSaved}:{
               <Text style={{fontSize:22,color:C.blue,lineHeight:24}}>‹</Text>
             </TouchableOpacity>
             <Text style={[s.modalTitle,{textAlign:'left',flex:1}]} numberOfLines={1}>{recipe.name}</Text>
+            {/* Delete recipe */}
+            {!isDummy&&(
+              <TouchableOpacity activeOpacity={0.7} style={{width:34,height:34,borderRadius:10,backgroundColor:'rgba(255,59,59,0.08)',alignItems:'center',justifyContent:'center',marginRight:6}}
+                onPress={()=>Alert.alert('Remove favourite','Remove "'+recipe.name+'" from your Favourites?',[
+                  {text:'Cancel',style:'cancel'},
+                  {text:'Remove',style:'destructive',onPress:async()=>{
+                    await supabase.from('recipes').delete().eq('id',recipe.id);
+                    onSaved?.();
+                    onClose();
+                  }},
+                ])}>
+                <Text style={{fontSize:15}}>🗑</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={saveDetails} activeOpacity={0.8}>
               <Text style={{fontFamily:'Poppins_700Bold',fontSize:14,color:savedOk?C.green:C.orange}}>
                 {savedOk?'Saved ✓':'Save'}
@@ -1173,27 +1258,63 @@ function FavouriteDetailModal({visible,recipe,onClose,onAdded,onSaved}:{
 }
 
 // ── Recipe Detail Modal (from Recipes tab) ────────────────────────────────────
-function RecipeDetailModal({visible,recipe,onClose,onAdded}:{
+function RecipeDetailModal({visible,recipe,onClose,onAdded,onEdit,openDayPicker}:{
   visible:boolean;recipe:SpoonRecipe|null;
   onClose:()=>void;onAdded:(dayKey:string,dayLabel:string)=>void;
+  onEdit?:(recipe:SpoonRecipe)=>void;
+  openDayPicker?:(ctx:any)=>void;
 }){
   const [saving,setSaving]=useState(false);
   const [addedDay,setAddedDay]=useState<{key:string;label:string;id:string}|null>(null);
   const [showAssign,setShowAssign]=useState(false);
   const [saveError,setSaveError]=useState('');
+  const [isFav,setIsFav]=useState(false);
+  const [savingFav,setSavingFav]=useState(false);
 
-  // Reset every time modal opens with a new recipe
   useEffect(()=>{
     if(visible&&recipe){
-      setAddedDay(null);
-      setSaveError('');
-      setSaving(false);
+      setAddedDay(null); setSaveError(''); setSaving(false);
       setShowAssign(false);
+      // Check if already favourited
+      supabase.from('recipes').select('id').eq('family_id',DUMMY_FAMILY_ID)
+        .ilike('name',recipe.title).single()
+        .then(({data})=>setIsFav(!!data));
     }
   },[visible,recipe?.id]);
 
-  // Must come AFTER all hooks
   if(!recipe) return null;
+
+  const toggleFav=async()=>{
+    setSavingFav(true);
+    if(isFav){
+      // Remove from favourites
+      await supabase.from('recipes').delete().eq('family_id',DUMMY_FAMILY_ID).ilike('name',recipe.title);
+      setIsFav(false);
+    } else {
+      // Save to favourites
+      const RECIPE_ING_TEXT:Record<number,string>={
+        654959:'400g spaghetti\n150g pancetta or bacon\n4 large eggs\n80g parmesan, grated\nBlack pepper to taste',
+        715538:'1kg chicken thighs\n4 tbsp soy sauce\n3 tbsp honey\n3 garlic cloves\n1 tbsp sesame oil\nSteamed rice to serve',
+        644387:'500g mixed vegetables\n2 cans tinned tomatoes\n1 can cannellini beans\n150g small pasta\n1L vegetable stock',
+        716406:'4 salmon fillets\n2 lemons\n2 tbsp olive oil\n2 garlic cloves\nFresh dill or parsley',
+        665613:'500g chicken breast\n400g mixed stir-fry veg\n3 tbsp soy sauce\n2 tbsp oyster sauce\nGarlic & ginger, noodles or rice',
+        632660:'500g beef mince\n12 taco shells\n1 pkt taco seasoning\n1 cup shredded cheese\nSalsa, sour cream, lettuce',
+        715769:'250g cherry tomatoes\n1 cucumber\n100g kalamata olives\n150g feta\n½ red onion\nOlive oil & oregano',
+        664147:'1kg chicken thighs\n500ml butter chicken sauce\n100ml cream\n2 cups basmati rice\nNaan bread, coriander',
+      };
+      const noteParts=[
+        RECIPE_ING_TEXT[recipe.id]?`Ingredients:\n${RECIPE_ING_TEXT[recipe.id]}`:null,
+      ].filter(Boolean);
+      await supabase.from('recipes').insert({
+        family_id:DUMMY_FAMILY_ID, name:recipe.title,
+        source_type:'spoonacular', tags:[],
+        prep_mins:recipe.readyInMinutes, image_url:recipe.image,
+        notes:noteParts.join('')||null,
+      });
+      setIsFav(true);
+    }
+    setSavingFav(false);
+  };
 
   // Hardcoded ingredient sets for dummy recipes
   const RECIPE_INGREDIENTS:Record<number,{name:string;qty:string;emoji:string;in_pantry:boolean}[]>={
@@ -1263,16 +1384,21 @@ function RecipeDetailModal({visible,recipe,onClose,onAdded}:{
   const ingredients=RECIPE_INGREDIENTS[recipe.id]||[];
   const missing=ingredients.filter(i=>!i.in_pantry);
 
-  const addToPlan=async()=>{
+  const addToPlan=async(targetDk?:string)=>{
     setSaving(true);
     setSaveError('');
     try{
       const days=get7Days();
-      const{data:existing,error:fetchErr}=await supabase.from('meal_plans').select('day_key')
-        .eq('family_id',DUMMY_FAMILY_ID).in('day_key',days.map(dayKey));
-      if(fetchErr) throw fetchErr;
-      const planned=(existing||[]).map((x:any)=>x.day_key);
-      const targetDay=days.find(d=>!planned.includes(dayKey(d)))||days[0];
+      let targetDay:Date;
+      if(targetDk){
+        targetDay=days.find(d=>dayKey(d)===targetDk)||days[0];
+      } else {
+        const{data:existing,error:fetchErr}=await supabase.from('meal_plans').select('day_key')
+          .eq('family_id',DUMMY_FAMILY_ID).in('day_key',days.map(dayKey));
+        if(fetchErr) throw fetchErr;
+        const planned=(existing||[]).map((x:any)=>x.day_key);
+        targetDay=days.find(d=>!planned.includes(dayKey(d)))||days[0];
+      }
       const{data:inserted,error:insertErr}=await supabase.from('meal_plans').insert({
         family_id:DUMMY_FAMILY_ID,
         day_key:dayKey(targetDay),
@@ -1333,7 +1459,16 @@ function RecipeDetailModal({visible,recipe,onClose,onAdded}:{
               <Text style={{fontSize:22,color:C.blue,lineHeight:24}}>‹</Text>
             </TouchableOpacity>
             <Text style={[s.modalTitle,{textAlign:'left',flex:1}]} numberOfLines={1}>{recipe.title}</Text>
-            <View style={{width:40}}/>
+            {/* Edit button — calls parent-level handler, avoids iOS nested modal */}
+            <TouchableOpacity onPress={()=>{onClose();setTimeout(()=>onEdit&&onEdit(recipe),350);}} activeOpacity={0.7}
+              style={{width:34,height:34,borderRadius:10,backgroundColor:'rgba(0,0,0,.06)',alignItems:'center',justifyContent:'center',marginRight:6}}>
+              <Text style={{fontSize:15}}>✏️</Text>
+            </TouchableOpacity>
+            {/* Heart / favourite */}
+            <TouchableOpacity onPress={toggleFav} activeOpacity={0.7} disabled={savingFav}
+              style={{width:34,height:34,borderRadius:10,backgroundColor:isFav?'rgba(224,0,124,.1)':'rgba(0,0,0,.06)',alignItems:'center',justifyContent:'center'}}>
+              <Text style={{fontSize:16}}>{isFav?'❤️':'🤍'}</Text>
+            </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
             <Image source={{uri:recipe.image}} style={{width:'100%',height:220}} resizeMode="cover"/>
@@ -1363,7 +1498,6 @@ function RecipeDetailModal({visible,recipe,onClose,onAdded}:{
                       )}
                     </View>
                   ))}
-                  {/* Pantry summary */}
                   {missing.length===0?(
                     <View style={[s.pantryAllOk,{marginTop:8}]}>
                       <View style={{width:24,height:24,borderRadius:7,backgroundColor:C.green,alignItems:'center',justifyContent:'center'}}>
@@ -1384,7 +1518,7 @@ function RecipeDetailModal({visible,recipe,onClose,onAdded}:{
                 </>
               )}
 
-              {/* Method — hardcoded per recipe */}
+              {/* Method */}
               {(()=>{
                 const METHODS:Record<number,string>={
                   654959:'1. Boil pasta in salted water until al dente.\n2. Fry pancetta until crispy. Remove from heat.\n3. Whisk eggs, parmesan, and black pepper in a bowl.\n4. Drain pasta, reserving ½ cup pasta water.\n5. Toss hot pasta with pancetta, then quickly stir in egg mixture off the heat.\n6. Add pasta water a splash at a time until silky. Serve immediately.',
@@ -1426,7 +1560,20 @@ function RecipeDetailModal({visible,recipe,onClose,onAdded}:{
                 </View>
               ):null}
               {!addedDay?(
-                <TouchableOpacity style={[s.bigBtnOr,saving&&{opacity:0.5}]} onPress={addToPlan} disabled={saving} activeOpacity={0.85}>
+                <TouchableOpacity style={[s.bigBtnOr,saving&&{opacity:0.5}]}
+                  onPress={()=>{
+                    if(!recipe||!openDayPicker) return;
+                    onClose();
+                    setTimeout(()=>openDayPicker({
+                      name:recipe.title,
+                      source:'library',
+                      image_url:recipe.image,
+                      prep_mins:recipe.readyInMinutes,
+                      ingredients:ingredients,
+                      onAdded:(dk:string,dl:string)=>{ setAddedDay({key:dk,label:dl,id:''}); onAdded(dk,dl); },
+                    }),350);
+                  }}
+                  disabled={saving} activeOpacity={0.85}>
                   <Text style={s.bigBtnTxt}>{saving?'Saving…':'+ Add to dinner plan'}</Text>
                 </TouchableOpacity>
               ):(
@@ -1442,6 +1589,7 @@ function RecipeDetailModal({visible,recipe,onClose,onAdded}:{
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
       <AssignCookModal visible={showAssign} dayLbl={addedDay?.label||''}
         mealName={recipe.title} onClose={()=>setShowAssign(false)} onSave={handleAssignSave}/>
     </>
@@ -1459,6 +1607,15 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
   const [detailMeal,setDetailMeal]=useState<{meal:MealPlan;label:string}|null>(null);
   const [assignState,setAssignState]=useState<{key:string;label:string;meal:MealPlan}|null>(null);
   const [moveState,setMoveState]=useState<{meal:MealPlan;fromLabel:string}|null>(null);
+  const [savedKits,setSavedKits]=useState<Set<string>>(new Set());
+  const [favouritedNames,setFavouritedNames]=useState<Set<string>>(new Set());
+  // Edit state lifted to DinnersTab so it survives MealDetailModal unmount
+  const [editingMeal,setEditingMeal]=useState<MealPlan|null>(null);
+  const [editName,setEditName]=useState('');
+  const [editIngredients,setEditIngredients]=useState('');
+  const [editMethod,setEditMethod]=useState('');
+  const [editNotes,setEditNotes]=useState('');
+  const [savingEdit,setSavingEdit]=useState(false);
   // Brief animation — same as home screen
   const cardFade=useRef(new Animated.Value(1)).current;
   const relaxedFade=useRef(new Animated.Value(0)).current;
@@ -1467,10 +1624,15 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
   const fetchMeals=useCallback(async()=>{
     const days=get7Days();
     const keys=days.map(dayKey);
-    const{data,error}=await supabase.from('meal_plans').select('*')
-      .eq('family_id',DUMMY_FAMILY_ID).in('day_key',keys).order('created_at',{ascending:true});
+    const [{data,error}, {data:favData}] = await Promise.all([
+      supabase.from('meal_plans').select('*')
+        .eq('family_id',DUMMY_FAMILY_ID).in('day_key',keys).order('created_at',{ascending:true}),
+      supabase.from('recipes').select('name')
+        .eq('family_id',DUMMY_FAMILY_ID),
+    ]);
     if(error) console.error('fetchMeals error:',error);
     setMeals((data||[]) as MealPlan[]);
+    setFavouritedNames(new Set((favData||[]).map((r:any)=>r.name.toLowerCase())));
     setLoading(false);
   },[]);
 
@@ -1515,13 +1677,13 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
     <View style={{flex:1}}>
       <ScrollView contentContainerStyle={{paddingBottom:130,paddingTop:6}} showsVerticalScrollIndicator={false}>
 
-        {/* Brief card — exact same animation pattern as home/shopping */}
+        {/* Brief card — BLUE (Shopping style) */}
         {showBrief&&!loading?(
           <Animated.View style={{opacity:cardFade}}>
             <View style={s.briefCard}>
               <View style={s.briefHeader}>
                 <View style={s.briefAv}><Text style={{color:'#fff',fontSize:15,fontFamily:'Poppins_700Bold'}}>✦</Text></View>
-                <Text style={s.briefName}>Z<Text style={{color:C.orange}}>a</Text>el<Text style={{color:C.orange}}>i</Text></Text>
+                <Text style={s.briefName}>Z<Text style={{color:C.mag}}>a</Text>el<Text style={{color:C.mag}}>i</Text></Text>
                 <View style={s.briefLiveDot}/>
                 <Text style={s.briefTime}>{getTimeStr()}</Text>
               </View>
@@ -1530,7 +1692,7 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
                 <View style={s.briefBtns}>
                   <TouchableOpacity style={s.btnPrimary} activeOpacity={0.85}
                     onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Meals',returnTo:'/(tabs)/mealplanner'}})}>
-                    <Text style={s.btnPrimaryTxt}>Yes, show me ideas</Text>
+                    <Text style={s.btnPrimaryTxt}>Yes, sort the week</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.btnGhost} onPress={handleDismiss} activeOpacity={0.7}>
                     <Text style={s.btnGhostTxt}>All sorted, thanks</Text>
@@ -1540,17 +1702,15 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
             </View>
           </Animated.View>
         ):!showBrief?(
-          /* Relaxed card — exact structure from dismissed-card-variations.html */
+          /* Relaxed card — blue theme */
           <Animated.View style={[s.relaxedCard,{opacity:relaxedFade}]}>
-            {/* Header: orange avatar + ack line */}
             <View style={s.relaxedHeader}>
               <View style={s.relaxedAv}><Text style={{color:'#fff',fontSize:13}}>✦</Text></View>
               <Text style={s.relaxedAck}>Sounds good! 🍳</Text>
             </View>
-            {/* Body: bold title + message + CTA button */}
             <View style={s.relaxedBody}>
               <Text style={s.relaxedTitle}>Ask Zaeli anything</Text>
-              <Text style={s.relaxedMsg}>Thursday and Friday have nothing planned for dinner — want me to suggest something easy that uses what's already on the shopping list?</Text>
+              <Text style={s.relaxedMsg}>Still a few nights open this week — want me to suggest something easy that works with what's already in the pantry?</Text>
               <TouchableOpacity style={s.relaxedBtn} activeOpacity={0.85}
                 onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Meals',returnTo:'/(tabs)/mealplanner'}})}>
                 <Text style={s.relaxedBtnTxt}>Let's cook something ✦</Text>
@@ -1561,33 +1721,50 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
 
         {briefDays.map(d=>{
           const dk=dayKey(d);
-          const meal=meals.find(m=>m.day_key===dk);
+          const meal=meals.find(m=>m.day_key===dk&&m.meal_type!=='dessert');
+          const dessert=meals.find(m=>m.day_key===dk&&m.meal_type==='dessert');
           const dl=dayLabel(d);
           const isKit=meal?.source==='kit';
           const isTakeaway=meal?.source==='takeaway';
+          const tonight=isToday(d);
+          const tomorrow=isTomorrow(d);
           const cookNames=meal?.cook_ids?.length
             ?FAMILY.filter(m=>meal.cook_ids!.includes(m.id)).map(m=>m.name).join(' + ')
             :null;
 
           return(
             <View key={dk} style={s.daySec}>
-              <View style={s.dayHdr}>
-                <Text style={[s.dayLbl,isToday(d)&&{color:C.orange}]}>{dl}</Text>
-                <TouchableOpacity style={s.cookRow} activeOpacity={0.8}
-                  onPress={()=>meal&&setAssignState({key:dk,label:dl,meal})}>
-                  {cookNames?(
-                    <><CookAvatars cookIds={meal!.cook_ids!} size={20}/><Text style={s.cookNameTxt}>{cookNames}</Text></>
-                  ):meal?(
-                    <View style={s.assignDayBtn}><Text style={s.assignDayTxt}>+ Who's cooking?</Text></View>
-                  ):null}
-                </TouchableOpacity>
+
+              {/* Option A day header — coloured accent bar + serif date */}
+              <View style={s.dayRowA}>
+                <View style={[s.dayAccentA,tonight&&{backgroundColor:C.orange},!meal&&!tonight&&{backgroundColor:C.border}]}/>
+                <View style={{flex:1}}>
+                  <Text style={[s.dayNameA,tonight&&{color:C.orange}]}>
+                    {tonight?'TONIGHT':tomorrow?'TOMORROW':fmtDay(d).toUpperCase().split(' ')[0]}
+                  </Text>
+                  <Text style={[s.dayDateA,tonight&&{color:C.orange},!tonight&&{color:C.ink2}]}>
+                    {fmtDay(d)}
+                  </Text>
+                  {/* Cook avatars inline under date */}
+                  {meal&&(
+                    <TouchableOpacity style={s.cookRow} activeOpacity={0.8}
+                      onPress={()=>setAssignState({key:dk,label:dl,meal})}>
+                      {cookNames?(
+                        <><CookAvatars cookIds={meal.cook_ids!} size={20}/><Text style={s.cookNameTxt}>{cookNames}</Text></>
+                      ):(
+                        <View style={s.assignDayBtn}><Text style={s.assignDayTxt}>+ Who's cooking?</Text></View>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
 
+              {/* Meal content */}
               {!meal?(
                 <TouchableOpacity style={s.emptyCard} onPress={()=>setAddDay({key:dk,label:dl})} activeOpacity={0.8}>
                   <View style={s.emptyIcon}><Text style={{fontSize:22}}>🍽</Text></View>
                   <View style={{flex:1}}>
-                    <Text style={s.emptyLbl}>{isToday(d)?'Nothing planned for tonight':'Not planned yet'}</Text>
+                    <Text style={s.emptyLbl}>{tonight?'Nothing planned for tonight':'Not planned yet'}</Text>
                     <Text style={s.emptySub}>Tap to add or ask Zaeli</Text>
                   </View>
                   <View style={s.emptyAdd}><Text style={s.emptyAddTxt}>+ Add</Text></View>
@@ -1602,6 +1779,34 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
                   <View style={{padding:12}}>
                     <Text style={s.mealName}>{meal.meal_name}</Text>
                     <Text style={s.mealMeta}>No pantry sync needed</Text>
+                    <TouchableOpacity
+                      style={{marginTop:8,flexDirection:'row',alignItems:'center',gap:6,backgroundColor:'rgba(0,150,100,0.07)',borderRadius:10,padding:9,borderWidth:1.5,borderColor:'rgba(0,150,100,0.18)'}}
+                      activeOpacity={savedKits.has(meal.id)?1:0.85}
+                      onPress={()=>{
+                        if(savedKits.has(meal.id)) return;
+                        Alert.alert(
+                          'Save to Favourites?',
+                          'Meal kit meals are great to recreate at home. Save "'+meal.meal_name+'" to your Favourites?',
+                          [
+                            {text:'Cancel',style:'cancel'},
+                            {text:'Save',onPress:async()=>{
+                              await supabase.from('recipes').insert({
+                                family_id:DUMMY_FAMILY_ID,
+                                name:meal.meal_name||'Meal Kit Recipe',
+                                source_type:'manual',
+                                tags:['Meal kit'],
+                                notes:'Originally a meal kit — add ingredients and method to recreate at home.',
+                              });
+                              setSavedKits(prev=>new Set([...prev,meal.id]));
+                            }},
+                          ]
+                        );
+                      }}>
+                      <Text style={{fontSize:14}}>{savedKits.has(meal.id)?'❤️':'🤍'}</Text>
+                      <Text style={{fontFamily:'Poppins_600SemiBold',fontSize:12,color:savedKits.has(meal.id)?C.mag:C.kit}}>
+                        {savedKits.has(meal.id)?'Saved to Favourites':'Save recipe to Favourites'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               ):isTakeaway?(
@@ -1612,55 +1817,81 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
                   </View>
                 </View>
               ):(
-                <TouchableOpacity style={s.mealCard} onPress={()=>setDetailMeal({meal,label:dl})} activeOpacity={0.8}>
-                  {meal.image_url?(
-                    <Image source={{uri:meal.image_url}} style={s.mealImg} resizeMode="cover"/>
-                  ):(
-                    <View style={[s.mealImg,{backgroundColor:'#f8f5f0',alignItems:'center',justifyContent:'center'}]}>
-                      <Text style={{fontSize:44}}>🍽</Text>
-                    </View>
-                  )}
-                  <View style={s.mealBody}>
-                    <View style={s.badgeRow}>
-                      {meal.source==='library'&&<View style={s.badgeLib}><Text style={s.badgeLibTxt}>📚 Library</Text></View>}
-                      {meal.source==='favourites'&&<View style={s.badgeFav}><Text style={s.badgeFavTxt}>❤️ Favourite</Text></View>}
-                      {meal.source==='zaeli'&&<View style={s.badgeZ}><Text style={s.badgeZTxt}>✦ Zaeli</Text></View>}
-                      {meal.source==='manual'&&<View style={s.badgeZ}><Text style={s.badgeZTxt}>✏️ Manual</Text></View>}
-                    </View>
-                    <Text style={s.mealName}>{meal.meal_name}</Text>
-                    <Text style={s.mealMeta}>{meal.prep_mins?`⏱ ${meal.prep_mins} min · `:''}Serves 4</Text>
-                    {cookNames&&(
-                      <TouchableOpacity style={s.mcCookRow} activeOpacity={0.8}
-                        onPress={()=>setAssignState({key:dk,label:dl,meal})}>
-                        <CookAvatars cookIds={meal.cook_ids!} size={18}/>
-                        <Text style={s.mcCookLbl}>{cookNames} · tap to change</Text>
-                      </TouchableOpacity>
-                    )}
-                    <View style={{flexDirection:'row',gap:8,marginTop:4,alignItems:'center'}}>
-                      <TouchableOpacity style={[s.maBtn,{backgroundColor:C.orange}]}
-                        onPress={()=>setDetailMeal({meal,label:dl})} activeOpacity={0.85}>
-                        <Text style={{color:'#fff',fontSize:12,fontFamily:'Poppins_600SemiBold'}}>View recipe</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={s.maBtnG} activeOpacity={0.85}
-                        onPress={()=>setMoveState({meal,fromLabel:dl})}>
-                        <Text style={{color:C.ink2,fontSize:12,fontFamily:'Poppins_600SemiBold'}}>Move</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={{width:34,height:34,borderRadius:10,backgroundColor:'rgba(255,59,59,0.08)',alignItems:'center',justifyContent:'center',borderWidth:1.5,borderColor:'rgba(255,59,59,0.18)'}}
-                        activeOpacity={0.85}
-                        onPress={()=>Alert.alert('Remove meal','Remove '+meal.meal_name+' from the plan?',[
-                          {text:'Cancel',style:'cancel'},
-                          {text:'Remove',style:'destructive',onPress:async()=>{
-                            await supabase.from('meal_plans').delete().eq('id',meal.id);
-                            fetchMeals();
-                          }},
-                        ])}>
-                        <Text style={{fontSize:16}}>🗑</Text>
-                      </TouchableOpacity>
+                <View style={s.mealCard}>
+                  <View style={s.mealCardTop}>
+                    {/* Emoji icon — no image */}
+                    {/* Show heart if this meal is saved in Favourites (regardless of source) */}
+                    {(()=>{
+                      const mealLower=meal.meal_name.toLowerCase();
+                      const isFav=meal.source==='favourites'||
+                        [...favouritedNames].some(fn=>fn.includes(mealLower)||mealLower.includes(fn));
+                      return(
+                        <View style={[s.mealIconBox,
+                          isFav&&{backgroundColor:'rgba(224,0,124,0.1)'},
+                          !isFav&&tonight&&{backgroundColor:C.orangeL},
+                        ]}>
+                          <Text style={{fontSize:22}}>{isFav?'❤️':getMealEmoji(meal.meal_name)}</Text>
+                        </View>
+                      );
+                    })()}
+                    <View style={{flex:1}}>
+                      <View style={s.badgeRow}>
+                        {meal.source==='library'&&<View style={s.badgeLib}><Text style={s.badgeLibTxt}>📚 Library</Text></View>}
+                        {meal.source==='favourites'&&<View style={s.badgeFav}><Text style={s.badgeFavTxt}>❤️ Favourite</Text></View>}
+                        {meal.source==='zaeli'&&<View style={s.badgeZ}><Text style={s.badgeZTxt}>✦ Zaeli</Text></View>}
+                        {meal.source==='manual'&&<View style={s.badgeZ}><Text style={s.badgeZTxt}>✏️ Manual</Text></View>}
+                      </View>
+                      <Text style={s.mealName}>{meal.meal_name}</Text>
+                      <Text style={s.mealMeta}>{meal.prep_mins?`⏱ ${meal.prep_mins} min · `:''}Serves 4</Text>
                     </View>
                   </View>
+                  <View style={{flexDirection:'row',gap:8,alignItems:'center'}}>
+                    <TouchableOpacity style={[s.maBtn,{backgroundColor:C.orange}]}
+                      onPress={()=>setDetailMeal({meal,label:dl})} activeOpacity={0.85}>
+                      <Text style={{color:'#fff',fontSize:12,fontFamily:'Poppins_600SemiBold'}}>View recipe</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={s.maBtnG} activeOpacity={0.85}
+                      onPress={()=>setMoveState({meal,fromLabel:dl})}>
+                      <Text style={{color:C.ink2,fontSize:12,fontFamily:'Poppins_600SemiBold'}}>Move</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{width:34,height:34,borderRadius:10,backgroundColor:'rgba(255,59,59,0.08)',alignItems:'center',justifyContent:'center',borderWidth:1.5,borderColor:'rgba(255,59,59,0.18)'}}
+                      activeOpacity={0.85}
+                      onPress={()=>Alert.alert('Remove meal','Remove '+meal.meal_name+' from the plan?',[
+                        {text:'Cancel',style:'cancel'},
+                        {text:'Remove',style:'destructive',onPress:async()=>{
+                          await supabase.from('meal_plans').delete().eq('id',meal.id);
+                          fetchMeals();
+                        }},
+                      ])}>
+                      <Text style={{fontSize:16}}>🗑</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* Dessert slot — shown for all days that have a dinner */}
+              {meal&&!isKit&&!isTakeaway&&(
+                <TouchableOpacity
+                  style={[s.dessertSlot,dessert&&s.dessertSlotFilled]}
+                  activeOpacity={0.8}
+                  onPress={()=>setAddDay({key:dk,label:dl+(dessert?' (dessert)':' dessert')})}>
+                  <Text style={{fontSize:15}}>🍮</Text>
+                  {dessert?(
+                    <>
+                      <Text style={[s.dessertTxt,{color:C.ink,fontFamily:'Poppins_600SemiBold'}]}>{dessert.meal_name}</Text>
+                      <Text style={s.dessertMeta}>Dessert · Edit</Text>
+                    </>
+                  ):(
+                    <>
+                      <Text style={s.dessertTxt}>Add a dessert</Text>
+                      <Text style={s.dessertMeta}>optional</Text>
+                      <View style={s.dessertAdd}><Text style={s.dessertAddTxt}>+ Add</Text></View>
+                    </>
+                  )}
                 </TouchableOpacity>
               )}
+
             </View>
           );
         })}
@@ -1678,7 +1909,73 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
         visible={!!detailMeal} meal={detailMeal?.meal||null} dayLbl={detailMeal?.label||''}
         onClose={()=>setDetailMeal(null)}
         onRequestAssign={()=>detailMeal&&setAssignState({key:detailMeal.meal.day_key,label:detailMeal.label,meal:detailMeal.meal})}
+        onMove={()=>detailMeal&&setMoveState({meal:detailMeal.meal,fromLabel:detailMeal.label})}
+        onEdit={(meal)=>{
+          // Populate edit fields from meal data before opening modal
+          setEditName(meal.meal_name);
+          if(meal.notes?.includes('Ingredients:')){
+            const parts=meal.notes.split(/\n(?=Method:)/);
+            setEditIngredients(parts[0]?.replace(/^Ingredients:\n?/,'').trim()||'');
+            setEditMethod(parts[1]?.replace(/^Method:\n?/,'').trim()||'');
+            setEditNotes('');
+          } else {
+            setEditIngredients('');
+            setEditMethod('');
+            setEditNotes(meal.notes||'');
+          }
+          setEditingMeal(meal);
+        }}
       />
+
+      {/* Edit modal — lives in DinnersTab so it survives MealDetailModal unmount */}
+      <Modal visible={!!editingMeal} animationType="slide" presentationStyle="pageSheet" onRequestClose={()=>setEditingMeal(null)}>
+        <SafeAreaView style={{flex:1,backgroundColor:'#fff'}} edges={['top']}>
+          <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':'height'}>
+          <View style={s.modalHdr}>
+            <TouchableOpacity onPress={()=>setEditingMeal(null)}><Text style={s.modalCancel}>Cancel</Text></TouchableOpacity>
+            <Text style={s.modalTitle} numberOfLines={1}>{editName}</Text>
+            <TouchableOpacity disabled={savingEdit} activeOpacity={0.8} onPress={async()=>{
+              if(!editingMeal) return;
+              setSavingEdit(true);
+              const noteParts=[
+                editIngredients?`Ingredients:\n${editIngredients}`:null,
+                editMethod?`\nMethod:\n${editMethod}`:null,
+                editNotes?`\nNotes:\n${editNotes}`:null,
+              ].filter(Boolean);
+              await supabase.from('meal_plans').update({
+                meal_name:editName.trim()||editingMeal.meal_name,
+                notes:noteParts.join('')||null,
+              }).eq('id',editingMeal.id);
+              setSavingEdit(false);
+              setEditingMeal(null);
+              fetchMeals();
+            }}>
+              <Text style={{fontFamily:'Poppins_700Bold',fontSize:14,color:savingEdit?C.ink3:C.orange}}>{savingEdit?'Saving…':'Save'}</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={{padding:18,gap:14}} keyboardShouldPersistTaps="handled">
+            <Text style={s.fieldLbl}>MEAL NAME</Text>
+            <TextInput style={[s.fieldInput,{marginTop:6}]} value={editName} onChangeText={setEditName}
+              placeholder="Meal name" placeholderTextColor={C.ink3} autoCapitalize="words"/>
+            <Text style={s.fieldLbl}>INGREDIENTS</Text>
+            <TextInput style={[s.fieldInput,{minHeight:110,textAlignVertical:'top',marginTop:6}]}
+              value={editIngredients} onChangeText={setEditIngredients}
+              placeholder={'e.g.\n500g chicken thighs\n3 tbsp soy sauce\n2 tbsp honey'}
+              placeholderTextColor={C.ink3} multiline/>
+            <Text style={s.fieldLbl}>METHOD</Text>
+            <TextInput style={[s.fieldInput,{minHeight:110,textAlignVertical:'top',marginTop:6}]}
+              value={editMethod} onChangeText={setEditMethod}
+              placeholder={'e.g.\n1. Marinate chicken for 30 mins\n2. Bake at 200°C for 25 mins'}
+              placeholderTextColor={C.ink3} multiline/>
+            <Text style={s.fieldLbl}>NOTES (optional)</Text>
+            <TextInput style={[s.fieldInput,{minHeight:80,textAlignVertical:'top',marginTop:6}]}
+              value={editNotes} onChangeText={setEditNotes}
+              placeholder="e.g. Double the sauce, skip chilli for the kids…"
+              placeholderTextColor={C.ink3} multiline/>
+          </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
 
       {assignState&&(
         <AssignCookModal visible={!!assignState} dayLbl={assignState.label} mealName={assignState.meal.meal_name}
@@ -1752,10 +2049,43 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
 }
 
 // ── Recipes Tab ───────────────────────────────────────────────────────────────
-function RecipesTab({onPlanAdded}:{onPlanAdded:()=>void}){
+function RecipesTab({onPlanAdded,openDayPicker}:{
+  onPlanAdded:()=>void;
+  openDayPicker:(ctx:any)=>void;
+}){
+  const router=useRouter();
   const [query,setQuery]=useState('');
   const [filter,setFilter]=useState('All');
   const [selected,setSelected]=useState<SpoonRecipe|null>(null);
+  const [browseOpen,setBrowseOpen]=useState(false);
+  const [editingRecipe,setEditingRecipe]=useState<SpoonRecipe|null>(null);
+  const [editIngredients,setEditIngredients]=useState('');
+  const [editMethod,setEditMethod]=useState('');
+  const [editNotes,setEditNotes]=useState('');
+  const [savingEdit,setSavingEdit]=useState(false);
+
+  // When editingRecipe is set, look up any saved notes and pre-populate fields
+  useEffect(()=>{
+    if(!editingRecipe) return;
+    let cancelled=false;
+    supabase.from('recipes').select('notes')
+      .eq('family_id',DUMMY_FAMILY_ID).ilike('name',editingRecipe.title).limit(1)
+      .then(({data})=>{
+        if(cancelled) return;
+        const notes=data?.[0]?.notes||'';
+        if(notes.includes('Ingredients:')){
+          const parts=notes.split(/\n(?=Method:)/);
+          setEditIngredients(parts[0]?.replace(/^Ingredients:\n?/,'').trim()||'');
+          setEditMethod(parts[1]?.replace(/^Method:\n?/,'').trim()||'');
+          setEditNotes('');
+        } else {
+          setEditIngredients('');
+          setEditMethod('');
+          setEditNotes(notes);
+        }
+      });
+    return ()=>{cancelled=true;};
+  },[editingRecipe?.id]);
   const FILTERS=['All','Quick','Kids love','Gut friendly','Gluten free','Dairy free'];
 
   const filtered=DUMMY_RECIPES.filter(r=>{
@@ -1770,70 +2100,104 @@ function RecipesTab({onPlanAdded}:{onPlanAdded:()=>void}){
 
   return(
     <View style={{flex:1}}>
-      {/* Search bar — exact shopping.tsx addBar sizing */}
-      <View style={s.searchWrap}>
-        <View style={s.searchBar}>
-          <IcoSearch color={C.ink3}/>
-          <TextInput style={s.searchInput} placeholder="Search 5,000+ recipes…"
-            placeholderTextColor={C.ink3} value={query} onChangeText={setQuery}/>
-          {query.length>0&&(
-            <TouchableOpacity onPress={()=>setQuery('')} activeOpacity={0.7}>
-              <Text style={{fontSize:18,color:C.ink3,lineHeight:22}}>×</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-      {/* Filter chips — always fully visible */}
-      <View style={{backgroundColor:C.bg}}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{paddingHorizontal:16,paddingVertical:10,gap:8}}
-          style={{flexShrink:0}}>
-          {FILTERS.map(f=>(
-            <TouchableOpacity key={f} style={[s.filterChip,filter===f&&s.filterChipOn]}
-              onPress={()=>setFilter(f)} activeOpacity={0.8}>
-              <Text style={[s.filterChipTxt,filter===f&&{color:'#fff'}]}>{f}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
       <ScrollView contentContainerStyle={{paddingBottom:130}} showsVerticalScrollIndicator={false}>
-        <View style={s.pantryInsightCard}>
-          <View style={s.pantryInsightAv}><Text style={{color:'#fff',fontSize:13}}>✦</Text></View>
-          <View style={{flex:1,paddingLeft:2}}>
-            <Text style={s.pantryInsightTitle}>Meals you can cook tonight</Text>
-            <Text style={s.pantryInsightBody}>Using what's already in your pantry — no shopping needed</Text>
+
+      {/* Zaeli brief — blue card (matching Dinners/Shopping style) */}
+        <View style={s.briefCard}>
+          <View style={s.briefHeader}>
+            <View style={s.briefAv}><Text style={{color:'#fff',fontSize:15,fontFamily:'Poppins_700Bold'}}>✦</Text></View>
+            <Text style={s.briefName}>Z<Text style={{color:C.mag}}>a</Text>el<Text style={{color:C.mag}}>i</Text></Text>
+            <View style={s.briefLiveDot}/>
+            <Text style={s.briefTime}>{getTimeStr()}</Text>
+          </View>
+          <View style={s.briefBody}>
+            <Text style={s.briefMsg}>
+              Tell me what you're in the mood for — I'll find something from 5,000+ recipes that works with your pantry and the family's tastes. Or browse the library yourself below.
+            </Text>
+            <View style={s.briefBtns}>
+              <TouchableOpacity style={s.btnPrimary} activeOpacity={0.85}
+                onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Meals',returnTo:'/(tabs)/mealplanner',seedMessage:"I'm looking for a recipe idea — "}})}>
+                <Text style={s.btnPrimaryTxt}>✦ Find me a recipe</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.btnGhost} onPress={()=>setBrowseOpen(true)} activeOpacity={0.7}>
+                <Text style={s.btnGhostTxt}>Browse manually</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
-        {filtered.length===0?(
-          <View style={{alignItems:'center',paddingTop:40}}>
-            <Text style={{fontSize:36,marginBottom:12}}>🔍</Text>
-            <Text style={{fontFamily:'Poppins_700Bold',fontSize:17,color:C.ink,marginBottom:6}}>No results</Text>
-            <Text style={{fontFamily:'Poppins_400Regular',fontSize:14,color:C.ink2}}>Try a different search or filter</Text>
-          </View>
-        ):(
+
+        {/* Browse section — revealed when user taps "Browse manually" */}
+        {browseOpen&&(
           <>
-            <Text style={s.slbl}>{query?`Results for "${query}"`:filter==='All'?'All recipes':filter}</Text>
-            {filtered.map(r=>(
-              <TouchableOpacity key={r.id} style={s.recipeRow} onPress={()=>setSelected(r)} activeOpacity={0.8}>
-                <View style={s.recipeRowImg}>
-                  <Image source={{uri:r.image}} style={{width:80,height:80}} resizeMode="cover"/>
-                </View>
-                <View style={s.recipeRowBody}>
-                  <Text style={s.recipeRowName} numberOfLines={2}>{r.title}</Text>
-                  <Text style={s.recipeRowMeta}>⏱ {r.readyInMinutes} min · Serves {r.servings}</Text>
-                  <View style={{flexDirection:'row',gap:5,flexWrap:'wrap'}}>
-                    {r.glutenFree&&<View style={s.rtGr}><Text style={s.rtGrTxt}>GF</Text></View>}
-                    {r.lowFodmap&&<View style={s.rtGr}><Text style={s.rtGrTxt}>Low FODMAP</Text></View>}
-                    {r.dairyFree&&<View style={s.rtBl}><Text style={s.rtBlTxt}>Dairy free</Text></View>}
-                  </View>
-                </View>
-                <TouchableOpacity style={s.recipeAdd} onPress={()=>setSelected(r)} activeOpacity={0.8}>
-                  <Text style={s.recipeAddTxt}>+ Plan</Text>
-                </TouchableOpacity>
-              </TouchableOpacity>
-            ))}
+            {/* Filter chips */}
+            <View style={{backgroundColor:C.bg}}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{paddingHorizontal:16,paddingVertical:10,gap:8}}
+                style={{flexShrink:0}}>
+                {FILTERS.map(f=>(
+                  <TouchableOpacity key={f} style={[s.filterChip,filter===f&&s.filterChipOn]}
+                    onPress={()=>setFilter(f)} activeOpacity={0.8}>
+                    <Text style={[s.filterChipTxt,filter===f&&{color:'#fff'}]}>{f}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Search bar */}
+            <View style={s.searchWrap}>
+              <View style={s.searchBar}>
+                <IcoSearch color={C.ink3}/>
+                <TextInput style={s.searchInput} placeholder="Search 5,000+ recipes…"
+                  placeholderTextColor={C.ink3} value={query} onChangeText={setQuery}/>
+                {query.length>0&&(
+                  <TouchableOpacity onPress={()=>setQuery('')} activeOpacity={0.7}>
+                    <Text style={{fontSize:18,color:C.ink3,lineHeight:22}}>×</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Pantry insight */}
+            <View style={s.pantryInsightCard}>
+              <View style={s.pantryInsightAv}><Text style={{color:'#fff',fontSize:13}}>✦</Text></View>
+              <View style={{flex:1,paddingLeft:2}}>
+                <Text style={s.pantryInsightTitle}>Meals you can cook tonight</Text>
+                <Text style={s.pantryInsightBody}>Using what's already in your pantry</Text>
+              </View>
+            </View>
+
+            {filtered.length===0?(
+              <View style={{alignItems:'center',paddingTop:40}}>
+                <Text style={{fontSize:36,marginBottom:12}}>🔍</Text>
+                <Text style={{fontFamily:'Poppins_700Bold',fontSize:17,color:C.ink,marginBottom:6}}>No results</Text>
+                <Text style={{fontFamily:'Poppins_400Regular',fontSize:14,color:C.ink2}}>Try a different search or filter</Text>
+              </View>
+            ):(
+              <>
+                <Text style={s.slbl}>{query?`Results for "${query}"`:filter==='All'?'All recipes':filter}</Text>
+                {filtered.map(r=>(
+                  <TouchableOpacity key={r.id} style={s.recipeRow} onPress={()=>setSelected(r)} activeOpacity={0.8}>
+                    {/* Smart emoji icon based on recipe name */}
+                    <View style={[s.recipeRowImg,{alignItems:'center',justifyContent:'center',backgroundColor:C.orangeL}]}>
+                      <Text style={{fontSize:26}}>{getMealEmoji(r.title)}</Text>
+                    </View>
+                    <View style={s.recipeRowBody}>
+                      <Text style={s.recipeRowName} numberOfLines={2}>{r.title}</Text>
+                      <Text style={s.recipeRowMeta}>⏱ {r.readyInMinutes} min · Serves {r.servings}</Text>
+                      <View style={{flexDirection:'row',gap:5,flexWrap:'wrap'}}>
+                        {r.glutenFree&&<View style={s.rtGr}><Text style={s.rtGrTxt}>GF</Text></View>}
+                        {r.lowFodmap&&<View style={s.rtGr}><Text style={s.rtGrTxt}>Low FODMAP</Text></View>}
+                        {r.dairyFree&&<View style={s.rtBl}><Text style={s.rtBlTxt}>Dairy free</Text></View>}
+                      </View>
+                    </View>
+                    <TouchableOpacity style={s.recipeAdd} onPress={()=>setSelected(r)} activeOpacity={0.8}>
+                      <Text style={s.recipeAddTxt}>+ Plan</Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
           </>
         )}
       </ScrollView>
@@ -1842,7 +2206,66 @@ function RecipesTab({onPlanAdded}:{onPlanAdded:()=>void}){
         visible={!!selected} recipe={selected}
         onClose={()=>setSelected(null)}
         onAdded={(dk,dl)=>{setSelected(null);onPlanAdded();}}
+        openDayPicker={openDayPicker}
+        onEdit={(r)=>{
+          setEditingRecipe(r);
+          setSelected(null);
+        }}
       />
+
+      {/* Edit modal — at RecipesTab level, never nested */}
+      <Modal visible={!!editingRecipe} animationType="slide" presentationStyle="pageSheet" onRequestClose={()=>setEditingRecipe(null)}>
+        <SafeAreaView style={{flex:1,backgroundColor:'#fff'}} edges={['top']}>
+          <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':'height'}>
+          <View style={s.modalHdr}>
+            <TouchableOpacity onPress={()=>setEditingRecipe(null)}><Text style={s.modalCancel}>Cancel</Text></TouchableOpacity>
+            <Text style={s.modalTitle} numberOfLines={1}>{editingRecipe?.title}</Text>
+            <TouchableOpacity disabled={savingEdit} activeOpacity={0.8} onPress={async()=>{
+              if(!editingRecipe) return;
+              setSavingEdit(true);
+              const noteParts=[
+                editIngredients?`Ingredients:\n${editIngredients}`:null,
+                editMethod?`\nMethod:\n${editMethod}`:null,
+                editNotes?`\nNotes:\n${editNotes}`:null,
+              ].filter(Boolean);
+              // Upsert to recipes table
+              const{data:existing}=await supabase.from('recipes').select('id').eq('family_id',DUMMY_FAMILY_ID).ilike('name',editingRecipe.title).single();
+              if(existing?.id){
+                await supabase.from('recipes').update({notes:noteParts.join('')||null}).eq('id',existing.id);
+              } else {
+                await supabase.from('recipes').insert({
+                  family_id:DUMMY_FAMILY_ID,name:editingRecipe.title,source_type:'spoonacular',
+                  tags:[],prep_mins:editingRecipe.readyInMinutes,image_url:editingRecipe.image,
+                  notes:noteParts.join('')||null,
+                });
+              }
+              setSavingEdit(false);
+              setEditingRecipe(null);
+              Alert.alert('Saved','Your notes have been saved to Favourites.');
+            }}>
+              <Text style={{fontFamily:'Poppins_700Bold',fontSize:14,color:savingEdit?C.ink3:C.orange}}>{savingEdit?'Saving…':'Save'}</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={{padding:18,gap:14}} keyboardShouldPersistTaps="handled">
+            <Text style={s.fieldLbl}>INGREDIENTS (your overrides)</Text>
+            <TextInput style={[s.fieldInput,{minHeight:100,textAlignVertical:'top'}]}
+              value={editIngredients} onChangeText={setEditIngredients}
+              placeholder="Add or override ingredients…" placeholderTextColor={C.ink3} multiline/>
+            <Text style={s.fieldLbl}>METHOD (your overrides)</Text>
+            <TextInput style={[s.fieldInput,{minHeight:100,textAlignVertical:'top'}]}
+              value={editMethod} onChangeText={setEditMethod}
+              placeholder="Add or override method…" placeholderTextColor={C.ink3} multiline/>
+            <Text style={s.fieldLbl}>PERSONAL NOTES</Text>
+            <TextInput style={[s.fieldInput,{minHeight:80,textAlignVertical:'top'}]}
+              value={editNotes} onChangeText={setEditNotes}
+              placeholder="e.g. Double the sauce, skip chilli for the kids" placeholderTextColor={C.ink3} multiline/>
+            <Text style={{fontFamily:'Poppins_400Regular',fontSize:12,color:C.ink3,textAlign:'center'}}>
+              Edits are saved to your Favourites alongside the original recipe
+            </Text>
+          </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -1876,9 +2299,16 @@ function FavouritesTab({onPlanAdded}:{onPlanAdded:()=>void}){
   useFocusEffect(useCallback(()=>{fetchRecipes();fetchMenus();},[fetchRecipes,fetchMenus]));
 
   // Always show real DB recipes first, then dummy favourites that aren't duplicated by name
-  const dbNames=new Set(recipes.map(r=>r.name.toLowerCase()));
+  // Deduplicate DB recipes by name (case-insensitive) — keep most recent
+  const seenNames=new Set<string>();
+  const dedupedRecipes=recipes.filter(r=>{
+    const k=r.name.toLowerCase();
+    if(seenNames.has(k)) return false;
+    seenNames.add(k); return true;
+  });
+  const dbNames=new Set(dedupedRecipes.map(r=>r.name.toLowerCase()));
   const filteredDummies=DUMMY_FAVS.filter(d=>!dbNames.has(d.name.toLowerCase()));
-  const display=[...recipes,...filteredDummies];
+  const display=[...dedupedRecipes,...filteredDummies];
 
   return(
     <View style={{flex:1}}>
@@ -1909,29 +2339,56 @@ function FavouritesTab({onPlanAdded}:{onPlanAdded:()=>void}){
         {favView==='picks'&&(
           <>
             <Text style={s.slbl}>Your family favourites</Text>
-            {display.map(r=>(
-              <TouchableOpacity key={r.id} style={s.favCard} onPress={()=>setSelected(r)} activeOpacity={0.8}>
-                {r.image_url?(
-                  <Image source={{uri:r.image_url}} style={s.favImg} resizeMode="cover"/>
-                ):(
-                  <View style={[s.favImg,{backgroundColor:r.source_type==='url'?'#f0fff4':'#f0f4ff',alignItems:'center',justifyContent:'center'}]}>
-                    <Text style={{fontSize:40}}>{r.source_type==='url'?'🌿':r.source_type==='photo'?'📸':'🍽'}</Text>
+            {display.map(r=>{
+              // Pick an appropriate emoji based on source/tags
+              const icon=getMealEmoji(r.name);
+              const iconBg=
+                r.tags?.some((t:string)=>['Dessert','Baking','Sweet'].includes(t))?'rgba(192,57,43,.08)':
+                r.source_type==='url'?'rgba(0,201,122,.1)':
+                r.source_type==='photo'?'rgba(155,127,212,.1)':
+                C.orangeL;
+              return(
+                <TouchableOpacity key={r.id} style={s.favRow} onPress={()=>setSelected(r)} activeOpacity={0.8}>
+                  <View style={[s.favRowIcon,{backgroundColor:iconBg}]}>
+                    <Text style={{fontSize:20}}>{icon}</Text>
                   </View>
-                )}
-                <View style={s.favBody}>
-                  <Text style={s.favName}>{r.name}</Text>
-                  <Text style={s.favMeta}>{r.source_type==='photo'?'Saved from photo':r.source_type==='url'?'Saved from URL':'Family favourite'}</Text>
-                  <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
-                    <View style={{flexDirection:'row',gap:5,flexWrap:'wrap',flex:1}}>
-                      {r.tags?.slice(0,3).map(t=><View key={t} style={s.rtPu}><Text style={s.rtPuTxt}>{t}</Text></View>)}
+                  <View style={s.favRowInfo}>
+                    <Text style={s.favRowName}>{r.name}</Text>
+                    <Text style={s.favRowMeta}>
+                      {r.source_type==='photo'?'Saved from photo':r.source_type==='url'?'Saved from URL':r.source_type==='zaeli'?'Added by Zaeli':'Family favourite'}
+                      {r.prep_mins?` · ⏱ ${r.prep_mins} min`:''}
+                    </Text>
+                    {r.tags?.length>0&&(
+                      <View style={{flexDirection:'row',gap:5,flexWrap:'wrap',marginTop:4}}>
+                        {r.tags.slice(0,3).map((t:string)=>(
+                          <View key={t} style={s.rtPu}><Text style={s.rtPuTxt}>{t}</Text></View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                  {/* Heart shown on ALL entries — tappable remove only for real DB rows */}
+                  {r.id.startsWith('f')?(
+                    <View style={{padding:6}}>
+                      <Text style={{fontSize:18}}>❤️</Text>
                     </View>
-                    <TouchableOpacity style={s.fadd} onPress={()=>setSelected(r)} activeOpacity={0.8}>
-                      <Text style={s.faddTxt}>+ Plan</Text>
+                  ):(
+                    <TouchableOpacity style={{padding:6}} activeOpacity={0.7}
+                      onPress={()=>Alert.alert('Remove favourite','Remove "'+r.name+'" from your Favourites?',[
+                        {text:'Cancel',style:'cancel'},
+                        {text:'Remove',style:'destructive',onPress:async()=>{
+                          await supabase.from('recipes').delete().eq('id',r.id);
+                          fetchRecipes();
+                        }},
+                      ])}>
+                      <Text style={{fontSize:18}}>❤️</Text>
                     </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+                  )}
+                  <TouchableOpacity style={s.favPlanBtn} onPress={()=>setSelected(r)} activeOpacity={0.8}>
+                    <Text style={s.favPlanBtnTxt}>+ Plan</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              );
+            })}
           </>
         )}
 
@@ -2038,8 +2495,48 @@ export default function MealPlannerScreen(){
   });
   const [activeTab,setActiveTab]=useState<TabType>('dinners');
   const [navOpen,setNavOpen]=useState(false);
-  // Brief dismissed state — lives at screen level like home.tsx
   const [briefDismissed,setBriefDismissed]=useState(false);
+
+  // ── Shared day picker — lifted here so it never nests inside another Modal ──
+  const [dayPickerCtx,setDayPickerCtx]=useState<{
+    name:string;
+    source:'library'|'favourites'|'zaeli'|'manual';
+    ingredients?:any[];
+    notes?:string;
+    image_url?:string;
+    prep_mins?:number;
+    onAdded:(dayKey:string,dayLabel:string)=>void;
+  }|null>(null);
+  const [dayPickerSaving,setDayPickerSaving]=useState(false);
+
+  const openDayPicker=(ctx:typeof dayPickerCtx)=>setDayPickerCtx(ctx);
+
+  const saveToPlan=async(dk:string)=>{
+    if(!dayPickerCtx) return;
+    setDayPickerSaving(true);
+    try{
+      const{data:inserted,error}=await supabase.from('meal_plans').insert({
+        family_id:DUMMY_FAMILY_ID,
+        day_key:dk,
+        planned_date:dk,
+        meal_name:dayPickerCtx.name,
+        meal_type:'dinner',
+        source:dayPickerCtx.source,
+        image_url:dayPickerCtx.image_url||null,
+        prep_mins:dayPickerCtx.prep_mins||null,
+        ingredients:dayPickerCtx.ingredients||null,
+        notes:dayPickerCtx.notes||null,
+      }).select('id').single();
+      if(error) throw error;
+      const dl=dayLabel(get7Days().find(d=>dayKey(d)===dk)||new Date());
+      dayPickerCtx.onAdded(dk,dl);
+      setDayPickerCtx(null);
+    }catch(e:any){
+      Alert.alert('Could not save',e?.message||'Please try again');
+    }finally{
+      setDayPickerSaving(false);
+    }
+  };
 
   if(!fontsLoaded) return null;
 
@@ -2079,10 +2576,10 @@ export default function MealPlannerScreen(){
           />
         )}
         {activeTab==='recipes'&&(
-          <RecipesTab onPlanAdded={()=>setActiveTab('dinners')}/>
+          <RecipesTab onPlanAdded={()=>setActiveTab('dinners')} openDayPicker={openDayPicker}/>
         )}
         {activeTab==='favourites'&&(
-          <FavouritesTab onPlanAdded={()=>setActiveTab('dinners')}/>
+          <FavouritesTab onPlanAdded={()=>setActiveTab('dinners')} openDayPicker={openDayPicker}/>
         )}
 
         {/* Ask Zaeli bar — exact copy from shopping.tsx */}
@@ -2100,6 +2597,42 @@ export default function MealPlannerScreen(){
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* ── Shared day picker — never nested inside another modal ── */}
+      <Modal visible={!!dayPickerCtx} animationType="slide" presentationStyle="pageSheet" onRequestClose={()=>setDayPickerCtx(null)}>
+        <SafeAreaView style={{flex:1,backgroundColor:'#fff'}} edges={['top']}>
+          <View style={s.modalHdr}>
+            <TouchableOpacity onPress={()=>setDayPickerCtx(null)}><Text style={s.modalCancel}>Cancel</Text></TouchableOpacity>
+            <Text style={s.modalTitle}>Which night?</Text>
+            <View style={{width:60}}/>
+          </View>
+          <ScrollView contentContainerStyle={{padding:16,gap:8}}>
+            <Text style={[s.modalSub,{marginBottom:4}]}>
+              Adding: <Text style={{fontFamily:'Poppins_700Bold',color:C.ink}}>{dayPickerCtx?.name}</Text>
+            </Text>
+            {get7Days().map(d=>{
+              const dk=dayKey(d);
+              const tonight=isToday(d);
+              return(
+                <TouchableOpacity key={dk} disabled={dayPickerSaving}
+                  style={{borderRadius:14,borderWidth:1.5,padding:14,flexDirection:'row',alignItems:'center',gap:12,
+                    borderColor:tonight?C.orange:C.border,
+                    backgroundColor:tonight?C.orangeL:'#fff',
+                    opacity:dayPickerSaving?0.5:1}}
+                  activeOpacity={0.8}
+                  onPress={()=>saveToPlan(dk)}>
+                  <View style={{flex:1}}>
+                    <Text style={{fontFamily:'Poppins_700Bold',fontSize:14,color:tonight?C.orange:C.ink}}>{dayLabel(d)}</Text>
+                    <Text style={{fontFamily:'Poppins_400Regular',fontSize:11,color:C.ink3,marginTop:2}}>{fmtDay(d)}</Text>
+                  </View>
+                  <Text style={{fontSize:18,color:tonight?C.orange:C.ink3}}>→</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       <NavMenu visible={navOpen} onClose={()=>setNavOpen(false)}/>
     </View>
   );
@@ -2121,41 +2654,50 @@ const s=StyleSheet.create({
   subTabTxt:      {fontFamily:'Poppins_600SemiBold',fontSize:13,color:'rgba(255,255,255,0.60)'},
   subTabTxtOn:    {color:C.dark},
   // Brief card — exact from shopping.tsx with orange accent
-  briefCard:      {marginHorizontal:18,marginTop:14,marginBottom:6,backgroundColor:'#fff',borderRadius:20,borderWidth:1.5,borderColor:'rgba(255,140,0,0.15)',shadowColor:C.orange,shadowOpacity:0.08,shadowRadius:16,shadowOffset:{width:0,height:4},overflow:'hidden'},
-  briefHeader:    {flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:16,paddingTop:14,paddingBottom:11,borderBottomWidth:1,borderBottomColor:'rgba(255,140,0,0.08)',backgroundColor:'rgba(255,140,0,0.03)'},
-  briefAv:        {width:30,height:30,borderRadius:10,backgroundColor:C.orange,alignItems:'center',justifyContent:'center'},
+  briefCard:      {marginHorizontal:18,marginTop:14,marginBottom:6,backgroundColor:'#fff',borderRadius:20,borderWidth:1.5,borderColor:'rgba(0,87,255,0.15)',shadowColor:C.blue,shadowOpacity:0.08,shadowRadius:16,shadowOffset:{width:0,height:4},overflow:'hidden'},
+  briefHeader:    {flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:16,paddingTop:14,paddingBottom:11,borderBottomWidth:1,borderBottomColor:'rgba(0,87,255,0.08)',backgroundColor:'rgba(0,87,255,0.03)'},
+  briefAv:        {width:30,height:30,borderRadius:10,backgroundColor:C.blue,alignItems:'center',justifyContent:'center'},
   briefName:      {fontFamily:'Poppins_700Bold',fontSize:13,color:C.ink,flex:1},
   briefLiveDot:   {width:6,height:6,borderRadius:3,backgroundColor:C.green},
   briefTime:      {fontFamily:'Poppins_400Regular',fontSize:10,color:C.ink3},
   briefBody:      {padding:16,paddingTop:14},
   briefMsg:       {fontFamily:'Poppins_400Regular',fontSize:14,color:C.ink,lineHeight:22,marginBottom:14},
   briefBtns:      {flexDirection:'row',gap:8},
-  btnPrimary:     {flex:1,backgroundColor:C.orange,borderRadius:12,paddingVertical:11,alignItems:'center',justifyContent:'center'},
+  btnPrimary:     {flex:1,backgroundColor:C.blue,borderRadius:12,paddingVertical:11,alignItems:'center',justifyContent:'center'},
   btnPrimaryTxt:  {fontFamily:'Poppins_600SemiBold',fontSize:13,color:'#fff'},
   btnGhost:       {flex:1,backgroundColor:'rgba(0,0,0,0.055)',borderRadius:12,paddingVertical:11,alignItems:'center',justifyContent:'center',borderWidth:1.5,borderColor:'rgba(0,0,0,0.09)'},
   btnGhostTxt:    {fontFamily:'Poppins_600SemiBold',fontSize:13,color:C.ink2},
-  // Relaxed card — exact structure from dismissed-card-variations.html
-  relaxedCard:    {marginHorizontal:18,marginTop:14,marginBottom:6,borderRadius:20,borderWidth:1.5,borderColor:'rgba(255,140,0,0.18)',backgroundColor:'rgba(255,140,0,0.05)',overflow:'hidden'},
+  // Relaxed card — blue theme
+  relaxedCard:    {marginHorizontal:18,marginTop:14,marginBottom:6,borderRadius:20,borderWidth:1.5,borderColor:'rgba(0,87,255,0.18)',backgroundColor:'rgba(0,87,255,0.05)',overflow:'hidden'},
   relaxedHeader:  {flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:16,paddingVertical:11,borderBottomWidth:1,borderBottomColor:'rgba(0,0,0,0.05)'},
-  relaxedAv:      {width:28,height:28,borderRadius:9,backgroundColor:C.orange,alignItems:'center',justifyContent:'center',flexShrink:0},
-  relaxedAck:     {fontFamily:'Poppins_700Bold',fontSize:12,color:C.orange,flex:1},
+  relaxedAv:      {width:28,height:28,borderRadius:9,backgroundColor:C.blue,alignItems:'center',justifyContent:'center',flexShrink:0},
+  relaxedAck:     {fontFamily:'Poppins_700Bold',fontSize:12,color:C.blue,flex:1},
   relaxedBody:    {padding:16,paddingTop:12,paddingBottom:14},
   relaxedTitle:   {fontFamily:'Poppins_700Bold',fontSize:13,color:C.ink,marginBottom:5},
   relaxedMsg:     {fontFamily:'Poppins_400Regular',fontSize:13,color:C.ink2,lineHeight:21,marginBottom:12},
-  relaxedBtn:     {width:'100%',backgroundColor:'rgba(255,140,0,0.10)',borderRadius:12,paddingVertical:10,alignItems:'center'},
-  relaxedBtnTxt:  {fontFamily:'Poppins_600SemiBold',fontSize:12,color:C.orange},
+  relaxedBtn:     {width:'100%',backgroundColor:'rgba(0,87,255,0.08)',borderRadius:12,paddingVertical:10,alignItems:'center'},
+  relaxedBtnTxt:  {fontFamily:'Poppins_600SemiBold',fontSize:12,color:C.blue},
   // Pantry insight
   pantryInsightCard:  {marginHorizontal:18,marginTop:14,marginBottom:4,backgroundColor:'#fff',borderRadius:20,borderWidth:1.5,borderColor:'rgba(255,140,0,0.18)',shadowColor:C.orange,shadowOpacity:0.07,shadowRadius:14,shadowOffset:{width:0,height:3},overflow:'hidden',padding:14,flexDirection:'row',alignItems:'flex-start',gap:10},
   pantryInsightAv:    {width:28,height:28,borderRadius:9,backgroundColor:C.orange,alignItems:'center',justifyContent:'center'},
   pantryInsightTitle: {fontFamily:'Poppins_700Bold',fontSize:14,color:C.ink,marginBottom:2},
   pantryInsightBody:  {fontFamily:'Poppins_400Regular',fontSize:13,color:C.ink2,lineHeight:19},
-  // Ask bar — exact from shopping.tsx
+  // Ask bar — blue send button
   askBarWrap:     {position:'absolute',bottom:0,left:0,right:0,paddingHorizontal:16,paddingTop:10,backgroundColor:C.bg,borderTopWidth:1,borderTopColor:'rgba(0,0,0,0.07)'},
   askBar2:        {backgroundColor:'#fff',borderRadius:22,paddingVertical:11,paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1.5,borderColor:'rgba(0,0,0,0.10)',shadowColor:'#000',shadowOpacity:0.06,shadowRadius:12,shadowOffset:{width:0,height:2}},
   askDiamondWrap: {width:20,alignItems:'center',justifyContent:'center'},
-  askDiamond:     {fontSize:15,color:C.orange},
+  askDiamond:     {fontSize:15,color:C.blue},
   askText:        {flex:1,fontFamily:'Poppins_400Regular',fontSize:15,color:'rgba(0,0,0,0.28)'},
-  askSend:        {width:36,height:36,borderRadius:11,backgroundColor:C.orange,alignItems:'center',justifyContent:'center',flexShrink:0},
+  askSend:        {width:36,height:36,borderRadius:11,backgroundColor:C.blue,alignItems:'center',justifyContent:'center',flexShrink:0,shadowColor:C.blue,shadowOpacity:0.3,shadowRadius:6,shadowOffset:{width:0,height:2}},
+  // Recipes chat-bubble Zaeli card
+  recBriefAv:     {width:36,height:36,borderRadius:12,backgroundColor:C.blue,alignItems:'center',justifyContent:'center',flexShrink:0,marginBottom:2},
+  recBriefBubble: {flex:1,backgroundColor:'#fff',borderRadius:18,borderTopLeftRadius:4,padding:13,borderWidth:1.5,borderColor:C.blueL,shadowColor:C.blue,shadowOpacity:0.07,shadowRadius:12,shadowOffset:{width:0,height:2}},
+  recBriefName:   {fontFamily:'Poppins_700Bold',fontSize:12,color:C.blue},
+  recBriefMsg:    {fontFamily:'Poppins_400Regular',fontSize:14,color:C.ink,lineHeight:21},
+  recBriefChipP:  {backgroundColor:C.blue,borderRadius:20,paddingVertical:7,paddingHorizontal:14,borderWidth:1,borderColor:C.blue},
+  recBriefChipPTxt:{fontFamily:'Poppins_600SemiBold',fontSize:12,color:'#fff'},
+  recBriefChip:   {backgroundColor:C.blueL,borderRadius:20,paddingVertical:7,paddingHorizontal:14,borderWidth:1,borderColor:C.blueB},
+  recBriefChipTxt:{fontFamily:'Poppins_600SemiBold',fontSize:12,color:C.blue},
   // Search — matching shopping addBar
   searchWrap:     {backgroundColor:C.bg,paddingHorizontal:16,paddingTop:12,paddingBottom:0},
   searchBar:      {flexDirection:'row',alignItems:'center',gap:10,backgroundColor:C.card,borderWidth:1.5,borderColor:C.border,borderRadius:14,paddingHorizontal:14,paddingVertical:10},
@@ -2166,7 +2708,7 @@ const s=StyleSheet.create({
   filterChipTxt:  {fontFamily:'Poppins_600SemiBold',fontSize:13,color:C.ink2},
   slbl:           {fontFamily:'Poppins_700Bold',fontSize:10,color:C.ink3,letterSpacing:1.5,textTransform:'uppercase',paddingHorizontal:22,paddingTop:14,paddingBottom:6},
   // Day sections
-  daySec:         {paddingHorizontal:16,paddingTop:14},
+  daySec:         {paddingTop:12,paddingBottom:4},
   dayHdr:         {flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:8},
   dayLbl:         {fontFamily:'Poppins_700Bold',fontSize:10,letterSpacing:1.2,color:C.ink3},
   cookRow:        {flexDirection:'row',alignItems:'center',gap:5},
@@ -2174,7 +2716,7 @@ const s=StyleSheet.create({
   assignDayBtn:   {backgroundColor:C.orangeL,borderRadius:8,paddingHorizontal:9,paddingVertical:4,borderWidth:1,borderColor:C.orangeB},
   assignDayTxt:   {fontFamily:'Poppins_600SemiBold',fontSize:10,color:C.orange},
   // Meal card
-  mealCard:       {backgroundColor:C.card,borderRadius:16,borderWidth:1.5,borderColor:C.border,overflow:'hidden',marginBottom:10},
+  mealCard:       {backgroundColor:C.card,borderRadius:16,borderWidth:1.5,borderColor:C.border,marginHorizontal:16,marginBottom:8,padding:14},
   mealImg:        {width:'100%',height:120},
   mealBody:       {padding:12},
   badgeRow:       {flexDirection:'row',gap:5,marginBottom:7,flexWrap:'wrap'},
@@ -2191,14 +2733,14 @@ const s=StyleSheet.create({
   maBtn:          {flex:1,borderRadius:10,paddingVertical:9,alignItems:'center'},
   maBtnG:         {flex:1,borderRadius:10,paddingVertical:9,alignItems:'center',backgroundColor:'rgba(0,0,0,0.055)',borderWidth:1.5,borderColor:'rgba(0,0,0,0.09)'},
   // Empty card
-  emptyCard:      {borderRadius:14,borderWidth:1.5,borderColor:'rgba(0,0,0,0.15)',borderStyle:'dashed',flexDirection:'row',alignItems:'center',padding:16,gap:12,marginBottom:10},
+  emptyCard:      {borderRadius:14,borderWidth:1.5,borderColor:'rgba(0,0,0,0.15)',borderStyle:'dashed',flexDirection:'row',alignItems:'center',padding:16,gap:12,marginHorizontal:16,marginBottom:8},
   emptyIcon:      {width:44,height:44,borderRadius:12,backgroundColor:C.orangeL,alignItems:'center',justifyContent:'center'},
   emptyLbl:       {fontFamily:'Poppins_600SemiBold',fontSize:14,color:C.ink3},
   emptySub:       {fontFamily:'Poppins_400Regular',fontSize:12,color:C.ink3,marginTop:2},
   emptyAdd:       {marginLeft:'auto',backgroundColor:C.orangeL,borderRadius:9,paddingHorizontal:12,paddingVertical:7,borderWidth:1.5,borderColor:C.orangeB},
   emptyAddTxt:    {fontFamily:'Poppins_700Bold',fontSize:12,color:C.orange},
   // Kit card
-  kitCard:        {backgroundColor:C.card,borderRadius:14,borderWidth:1.5,borderColor:'rgba(0,150,100,0.25)',overflow:'hidden',marginBottom:10},
+  kitCard:        {backgroundColor:C.card,borderRadius:14,borderWidth:1.5,borderColor:'rgba(0,150,100,0.25)',overflow:'hidden',marginHorizontal:16,marginBottom:8},
   kitTop:         {backgroundColor:C.kitL,padding:11,flexDirection:'row',alignItems:'center',gap:9},
   kitLabel:       {fontFamily:'Poppins_700Bold',fontSize:13,color:C.kit},
   kitBadge:       {backgroundColor:C.kit,borderRadius:4,paddingHorizontal:7,paddingVertical:2},
@@ -2305,8 +2847,32 @@ const s=StyleSheet.create({
   bigBtnTxt:      {fontFamily:'Poppins_700Bold',fontSize:15,color:'#fff'},
   bigBtnGhost:    {backgroundColor:'rgba(0,0,0,0.055)',borderWidth:1.5,borderColor:'rgba(0,0,0,0.09)',borderRadius:14,paddingVertical:14,alignItems:'center',marginBottom:9},
   bigBtnGhostTxt: {fontFamily:'Poppins_700Bold',fontSize:15,color:C.ink2},
-  notesBox:       {backgroundColor:'rgba(0,0,0,0.03)',borderRadius:12,padding:13,borderWidth:1,borderColor:'rgba(0,0,0,0.07)'},
-  notesTxt:       {fontFamily:'Poppins_400Regular',fontSize:13,color:C.ink2,lineHeight:20},
+  // ── Option A day header styles ─────────────────────────────────────
+  dayRowA:        {flexDirection:'row',alignItems:'flex-start',gap:10,paddingHorizontal:16,paddingTop:12,marginBottom:8},
+  dayAccentA:     {width:3,borderRadius:2,backgroundColor:C.orange,minHeight:52,flexShrink:0,marginTop:2},
+  dayNameA:       {fontFamily:'Poppins_700Bold',fontSize:10,letterSpacing:1.4,color:C.ink3,textTransform:'uppercase',marginBottom:1},
+  dayDateA:       {fontFamily:'DMSerifDisplay_400Regular',fontSize:22,color:C.ink,lineHeight:26,marginBottom:4},
+  // ── Meal card v4 — no image ────────────────────────────────────────
+  mealCardTop:    {flexDirection:'row',alignItems:'flex-start',gap:10,marginBottom:12},
+  mealIconBox:    {width:44,height:44,borderRadius:12,backgroundColor:C.orangeL,alignItems:'center',justifyContent:'center',flexShrink:0},
+  // ── Dessert slot ───────────────────────────────────────────────────
+  dessertSlot:    {flexDirection:'row',alignItems:'center',gap:10,borderRadius:12,borderWidth:1.5,borderStyle:'dashed' as const,borderColor:'rgba(192,57,43,.25)',backgroundColor:'rgba(192,57,43,.04)',padding:10,marginHorizontal:16,marginBottom:8},
+  dessertSlotFilled:{borderStyle:'solid' as const,borderColor:'rgba(192,57,43,.2)',backgroundColor:'rgba(192,57,43,.05)'},
+  dessertTxt:     {flex:1,fontFamily:'Poppins_400Regular',fontSize:12,color:'#C0392B'},
+  dessertMeta:    {fontFamily:'Poppins_400Regular',fontSize:11,color:'rgba(192,57,43,.65)'},
+  dessertAdd:     {backgroundColor:'rgba(192,57,43,.1)',borderRadius:7,paddingHorizontal:9,paddingVertical:3,borderWidth:1,borderColor:'rgba(192,57,43,.2)'},
+  dessertAddTxt:  {fontFamily:'Poppins_700Bold',fontSize:11,color:'#C0392B'},
+  // ── Favourites list row — no image ────────────────────────────────
+  favRow:         {backgroundColor:C.card,borderRadius:14,borderWidth:1.5,borderColor:C.border,marginHorizontal:16,marginBottom:8,padding:13,flexDirection:'row',alignItems:'center',gap:12},
+  favRowIcon:     {width:44,height:44,borderRadius:12,alignItems:'center',justifyContent:'center',flexShrink:0},
+  favRowInfo:     {flex:1},
+  favRowName:     {fontFamily:'Poppins_700Bold',fontSize:14,color:C.ink,marginBottom:2},
+  favRowMeta:     {fontFamily:'Poppins_400Regular',fontSize:11,color:C.ink2,marginBottom:0},
+  favPlanBtn:     {backgroundColor:C.orangeL,borderWidth:1.5,borderColor:C.orangeB,borderRadius:10,paddingVertical:7,paddingHorizontal:12,flexShrink:0},
+  favPlanBtnTxt:  {fontFamily:'Poppins_700Bold',fontSize:12,color:C.orange},
+  tagChip:        {borderRadius:20,paddingVertical:6,paddingHorizontal:13,borderWidth:1.5,borderColor:'rgba(0,0,0,0.1)',backgroundColor:C.card},
   tagChipOn:      {backgroundColor:C.orange,borderColor:C.orange},
   tagChipTxt:     {fontFamily:'Poppins_600SemiBold',fontSize:12,color:C.ink2},
+  notesBox:       {backgroundColor:'rgba(0,0,0,0.03)',borderRadius:12,padding:13,borderWidth:1,borderColor:'rgba(0,0,0,0.07)'},
+  notesTxt:       {fontFamily:'Poppins_400Regular',fontSize:13,color:C.ink2,lineHeight:20},
 });

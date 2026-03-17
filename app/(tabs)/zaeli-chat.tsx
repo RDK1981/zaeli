@@ -237,10 +237,24 @@ const TOOL_DEFINITIONS = [
     }, required:['name'] } } }, required:['items'] } },
   { name:'add_todo', description:'Add a task for the family',
     input_schema:{ type:'object', properties:{ title:{type:'string'}, due_label:{type:'string'}, priority:{type:'string',enum:['high','medium','low']}, assignee:{type:'string'} }, required:['title'] } },
-  { name:'save_recipe', description:'Save a recipe to the family collection',
-    input_schema:{ type:'object', properties:{ title:{type:'string'}, content:{type:'string'} }, required:['title','content'] } },
-  { name:'add_meal_plan', description:'Add a meal to the meal planner',
-    input_schema:{ type:'object', properties:{ day_key:{type:'string',description:'YYYY-MM-DD'}, meal_type:{type:'string',enum:['breakfast','lunch','dinner','snack']}, title:{type:'string'}, notes:{type:'string'} }, required:['day_key','meal_type','title'] } },
+  { name:'save_recipe', description:'Save a recipe to the family Favourites collection. Always provide ingredients and method as separate fields.',
+    input_schema:{ type:'object', properties:{
+      title:{type:'string', description:'Recipe name'},
+      ingredients:{type:'string', description:'Full ingredients list — each ingredient on its own line e.g. "500g chicken thighs\\n3 tbsp soy sauce\\n2 tbsp honey"'},
+      method:{type:'string', description:'Numbered cooking steps — each step on its own line e.g. "1. Marinate chicken...\\n2. Bake at 200°C..."'},
+      notes:{type:'string', description:'Any additional notes or tips'}
+    }, required:['title','ingredients'] } },
+  { name:'add_meal_plan', description:'Add a meal to the meal planner. ALWAYS check the MEAL PLAN context first — if the day already has a meal, return a conflict message asking the user what to do instead of calling this tool. Include ingredients and method when you have them from a recipe.',
+    input_schema:{ type:'object', properties:{
+      day_key:{type:'string',description:'YYYY-MM-DD'},
+      meal_type:{type:'string',enum:['breakfast','lunch','dinner','snack']},
+      title:{type:'string'},
+      ingredients:{type:'string',description:'Full ingredients list — each ingredient on its own line'},
+      method:{type:'string',description:'Numbered cooking steps — each step on its own line'},
+      notes:{type:'string'}
+    }, required:['day_key','meal_type','title'] } },
+  { name:'replace_meal_plan', description:'Replace an existing meal on a specific day with a new one. Use this only after the user has explicitly confirmed they want to replace the existing meal.',
+    input_schema:{ type:'object', properties:{ day_key:{type:'string',description:'YYYY-MM-DD'}, title:{type:'string',description:'New meal name to replace with'}, meal_type:{type:'string',enum:['breakfast','lunch','dinner','snack']} }, required:['day_key','title'] } },
   { name:'complete_todo', description:'Mark a task as complete',
     input_schema:{ type:'object', properties:{ title:{type:'string'} }, required:['title'] } },
   { name:'update_calendar_event', description:'Update an existing calendar event — change time, date, duration, or title. Use this instead of adding a new event when the user wants to reschedule or edit.',
@@ -387,16 +401,80 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `✅ Task added: **${input.title}**${input.assignee ? ` for ${input.assignee}` : ''}.`;
     }
     if (name === 'save_recipe') {
-      const { error } = await supabase.from('recipes').insert({ family_id:DUMMY_FAMILY_ID, title:input.title, content:input.content, source:'zaeli-chat', created_at:new Date().toISOString() });
-      if (error) {
-        await supabase.from('shopping_items').insert({ family_id:DUMMY_FAMILY_ID, name:`📋 Recipe: ${input.title}`, category:'Recipes', checked:false });
-      }
-      return `✅ **${input.title}** saved to your recipe collection! Find it in Meals → Recipes.`;
+      const noteParts = [
+        input.ingredients ? `Ingredients:\n${input.ingredients}` : null,
+        input.method      ? `\nMethod:\n${input.method}`         : null,
+        input.notes       ? `\nNotes:\n${input.notes}`           : null,
+        // Legacy fallback if only content was provided
+        (!input.ingredients && input.content) ? input.content : null,
+      ].filter(Boolean);
+      const { error } = await supabase.from('recipes').insert({
+        family_id:   DUMMY_FAMILY_ID,
+        name:        input.title,
+        notes:       noteParts.join('') || null,
+        source_type: 'zaeli',
+        tags:        [],
+        created_at:  new Date().toISOString(),
+      });
+      if (error) return `I tried to save **${input.title}** but hit an error: ${error.message}. Try saving it manually in Meals → Favourites.`;
+      return `✅ **${input.title}** saved to your Favourites with ${input.ingredients ? 'ingredients and method' : 'recipe details'}! Find it in Meals → Favourites.`;
     }
     if (name === 'add_meal_plan') {
-      const { error } = await supabase.from('meal_plans').insert({ family_id:DUMMY_FAMILY_ID, day_key:input.day_key, meal_type:input.meal_type, title:input.title, notes:input.notes||'' });
-      if (error) throw error;
-      return `✅ **${input.title}** added to meal planner for ${input.day_key}.`;
+      const today = new Date();
+      const localDate = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+      const targetDate = input.day_key || localDate;
+
+      // Check if a meal already exists on this day before inserting
+      const { data: existing } = await supabase.from('meal_plans')
+        .select('meal_name')
+        .eq('family_id', DUMMY_FAMILY_ID)
+        .eq('day_key', targetDate)
+        .eq('meal_type', input.meal_type || 'dinner')
+        .neq('meal_type', 'dessert')
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        // Conflict — do NOT insert, return a message asking what to do
+        return `⚠️ **${targetDate}** already has **${existing[0].meal_name}** planned. What would you like to do?\n- Replace it with ${input.title}\n- Move ${existing[0].meal_name} to another night and put ${input.title} here\n- Pick a different night for ${input.title}\n\nJust let me know and I'll sort it.`;
+      }
+
+      // Build structured ingredients array if provided as text
+      const ingredientsList = input.ingredients
+        ? input.ingredients.split('\n').filter((l:string)=>l.trim()).map((l:string)=>({name:l.trim(),qty:'',emoji:'🍴',in_pantry:false}))
+        : null;
+
+      const { error } = await supabase.from('meal_plans').insert({
+        family_id:   DUMMY_FAMILY_ID,
+        day_key:     targetDate,
+        planned_date:targetDate,
+        meal_name:   input.title,
+        meal_type:   input.meal_type || 'dinner',
+        source:      'zaeli',
+        notes:       input.notes||null,
+        ingredients: ingredientsList,
+      });
+      if (error) return `Couldn't add **${input.title}** to the meal plan: ${error.message}`;
+      return `✅ **${input.title}** added to the dinner plan for ${targetDate}${ingredientsList ? ` with ${ingredientsList.length} ingredients` : ''}. Open Meals to assign who's cooking.`;
+    }
+    if (name === 'replace_meal_plan') {
+      const targetDate = input.day_key;
+      const mealType = input.meal_type || 'dinner';
+      // Delete existing meal on that day
+      await supabase.from('meal_plans').delete()
+        .eq('family_id', DUMMY_FAMILY_ID)
+        .eq('day_key', targetDate)
+        .eq('meal_type', mealType);
+      // Insert the new one
+      const { error } = await supabase.from('meal_plans').insert({
+        family_id: DUMMY_FAMILY_ID,
+        day_key: targetDate,
+        planned_date: targetDate,
+        meal_name: input.title,
+        meal_type: mealType,
+        source: 'zaeli',
+      });
+      if (error) return `Couldn't replace the meal: ${error.message}`;
+      return `✅ Done — **${input.title}** is now planned for ${targetDate}. The previous meal has been removed.`;
     }
     if (name === 'update_calendar_event') {
       const { data } = await supabase.from('events').select('id,title,date,start_time,end_time')
@@ -510,8 +588,20 @@ const CHANNELS: Record<string,{ icon:string; prompt:string; seeds:string[] }> = 
 5. After the tool responds, report exactly what it said. Do not add your own assumptions.
 ${CAPABILITY_RULES}`,
     seeds:["What do we need this week?","Add milk and eggs","What am I missing for dinners?"] },
-  Meals:    { icon:'🍽️', prompt:`You are Zaeli, focused on meal planning for the family. You have full access to the family's saved recipes, favourites, and saved venue menus — they are provided in the context under SAVED RECIPES & FAVOURITES and SAVED MENUS. When asked about a dish from a saved menu (e.g. "what's in the X dish at The Depot Noosa?"), look it up in the SAVED MENUS context and answer from that data. When asked for ingredients or method for a saved recipe, look it up in SAVED RECIPES & FAVOURITES. If you cannot find it, say so clearly rather than guessing. You can also save recipes and add meals to the planner using tools. ${CAPABILITY_RULES}`,
-    seeds:["What should we have tonight?","Plan dinners for the week","Give me a quick Tuesday recipe"] },
+  Meals:    { icon:'🍽️', prompt:`You are Zaeli, focused on meal planning for the family. 
+
+RECIPE KNOWLEDGE: You have extensive knowledge of recipes from your training. When asked for a recipe (e.g. "give me a butter chicken recipe"), provide it directly from your knowledge — ingredients list and step-by-step method. Do NOT say you cannot search the internet. You know thousands of recipes already. Always provide the full recipe when asked.
+
+SAVED DATA: The family's saved recipes and saved venue menus are in the context under SAVED RECIPES & FAVOURITES and SAVED MENUS. Use this data to answer questions about their specific saved items.
+
+MEAL PLANNING: You can add meals to the dinner plan using the add_meal_plan tool. CRITICAL: Before adding a meal to a specific day, ALWAYS check the MEAL PLAN context to see if that day already has a meal. If it does, DO NOT silently add to another day — instead ask the user: "Friday already has [meal name] — do you want to replace it, move it to another night, or add Butter Chicken to a different day?" Wait for their answer before using the tool.
+
+ADDING RECIPES: When you provide a recipe and the user wants to save it, use the save_recipe tool immediately with the full ingredients list in the "ingredients" field and the numbered method steps in the "method" field — never combine them into one field.
+
+ADDING TO MEAL PLAN: When adding a meal you've just described or cooked up, ALWAYS include the ingredients and method in the add_meal_plan tool call — don't wait to be asked. The user shouldn't have to request this separately.
+
+${CAPABILITY_RULES}`,
+    seeds:["What should we have tonight?","Give me a butter chicken recipe","Plan dinners for the week"] },
   Kids:     { icon:'🌟', prompt:`You are Zaeli, focused on the kids — tasks, activities, school and routines. You can add tasks and events using tools. ${CAPABILITY_RULES}`,
     seeds:["How are the kids tracking?","What jobs are left today?","Ideas for the weekend with kids"] },
   Travel:   { icon:'✈️', prompt:`You are Zaeli, focused on travel. You can add trip events to the calendar using tools. ${CAPABILITY_RULES}`,
@@ -619,20 +709,43 @@ export default function ZaeliChatScreen() {
       const hour     = now.getHours();
       const tod      = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
       const todayStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+      const dayNames2 = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const localDayName2 = dayNames2[now.getDay()];
       const timeStr  = now.toLocaleTimeString('en-AU', { hour:'numeric', minute:'2-digit', hour12:true });
 
-      const [evR, miR, mlR] = await Promise.all([
-        supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).gte('start_time',todayStr).order('start_time').limit(5),
-        supabase.from('missions').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(10),
-        supabase.from('meal_plans').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',todayStr).limit(1),
-      ]);
-      const memCtx = await buildMemoryContext(DUMMY_FAMILY_ID);
-      const ctx = `Today: ${now.toDateString()}. Current time: ${timeStr} (${tod}). Events: ${JSON.stringify(evR.data||[])}. Tasks: ${JSON.stringify(miR.data||[])}. Meal: ${JSON.stringify(mlR.data?.[0]||null)}.${memCtx}`;
+      // For Meals channel fetch the full week plan + saved recipes count for a specific greeting
+      let ctx = '';
+      if (channel === 'Meals') {
+        const [mlWeekR, recR, menuR] = await Promise.all([
+          supabase.from('meal_plans').select('day_key,meal_name,meal_type,source').eq('family_id',DUMMY_FAMILY_ID).gte('day_key',todayStr).order('day_key').limit(7),
+          supabase.from('recipes').select('name').eq('family_id',DUMMY_FAMILY_ID).limit(50),
+          supabase.from('menus').select('venue_name').eq('family_id',DUMMY_FAMILY_ID).limit(10),
+        ]);
+        const planned = (mlWeekR.data||[]);
+        const emptyNights = 7 - planned.filter(m=>m.meal_type!=='dessert').length;
+        const todayMeal = planned.find(m=>m.day_key===todayStr&&m.meal_type!=='dessert');
+        const recipeCount = (recR.data||[]).length;
+        const venueCount = (menuR.data||[]).length;
+        ctx = `Today is ${localDayName2} ${todayStr}. Time: ${timeStr} (${tod}). Tonight: ${todayMeal?todayMeal.meal_name:'not planned yet'}. Week plan: ${JSON.stringify(planned)}. Empty dinner nights this week: ${emptyNights}. Saved recipes: ${recipeCount}. Saved menus/venues: ${venueCount}.`;
+      } else {
+        const [evR, miR, mlR] = await Promise.all([
+          supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).gte('start_time',todayStr).order('start_time').limit(5),
+          supabase.from('missions').select('*').eq('family_id',DUMMY_FAMILY_ID).limit(10),
+          supabase.from('meal_plans').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',todayStr).limit(1),
+        ]);
+        const memCtx = await buildMemoryContext(DUMMY_FAMILY_ID);
+        ctx = `Today is ${localDayName2} ${todayStr}. Current time: ${timeStr} (${tod}). Events: ${JSON.stringify(evR.data||[])}. Tasks: ${JSON.stringify(miR.data||[])}. Meal: ${JSON.stringify(mlR.data?.[0]||null)}.${memCtx}`;
+      }
+
+      const mealsSysExtra = channel === 'Meals'
+        ? ` Focus on: how many nights are still unplanned, what's on tonight, offer to help fill the week. Be specific about the dinner plan. Don't start with "Good ${tod}" — jump straight into the meals context naturally.`
+        : ` Open with "Good ${tod}" naturally woven in. Mention 1-2 things from context if relevant.`;
+
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json','x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
         body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:120,
-          system:`${CHANNELS[channel].prompt} Write a warm greeting for ${DUMMY_MEMBER_NAME} in the ${channel} channel. It is currently ${tod} (${timeStr}), so open with "Good ${tod}" naturally woven in — not robotically. Mention 1-2 things from context if relevant. Max 30 words. One emoji at start only.`,
+          system:`${CHANNELS[channel].prompt} Write a warm greeting for ${DUMMY_MEMBER_NAME} in the ${channel} channel.${mealsSysExtra} Max 35 words. One emoji at start only.`,
           messages:[{ role:'user', content:ctx }] }),
       });
       const d = await res.json();
@@ -668,7 +781,12 @@ export default function ZaeliChatScreen() {
       ]);
       const memCtx = await buildMemoryContext(DUMMY_FAMILY_ID);
       const now        = new Date();
+      // Use locale-aware date to avoid UTC vs AEST day-name mismatch
       const localDateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+      const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const localDayName = dayNames[now.getDay()];
+      const localFullDate = `${localDayName} ${now.getDate()} ${monthNames[now.getMonth()]} ${now.getFullYear()}`;
       const localTimeStr = now.toLocaleTimeString('en-AU', { hour:'numeric', minute:'2-digit', hour12:true });
       const tzOffset   = 'UTC+10 (AEST, Sydney/Brisbane/Melbourne)';
 
@@ -678,7 +796,7 @@ export default function ZaeliChatScreen() {
         return `${m.venue_name} (${m.venue_type||'restaurant'}):\n${dishes||'  (no dishes extracted yet)'}`;
       }).join('\n\n');
 
-      const ctx = `Family:${JSON.stringify(memR.data)}. Events:${JSON.stringify(evR.data)}. Tasks:${JSON.stringify(miR.data)}. Shopping:${JSON.stringify(shR.data)}. Today local date: ${localDateStr}. Current local time: ${localTimeStr}. Timezone: ${tzOffset}.
+      const ctx = `Family:${JSON.stringify(memR.data)}. Events:${JSON.stringify(evR.data)}. Tasks:${JSON.stringify(miR.data)}. Shopping:${JSON.stringify(shR.data)}. Today is ${localDayName} — full date: ${localFullDate} (${localDateStr}). Current local time: ${localTimeStr}. Timezone: ${tzOffset}.
 
 MEAL PLAN (next 14 days):
 ${JSON.stringify(mealR.data||[])}

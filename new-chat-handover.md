@@ -1,5 +1,5 @@
-# Zaeli App — New Chat Handover Brief
-*16 March 2026 — copy this entire message to start a new chat*
+## Zaeli App — New Chat Handover Brief
+*17 March 2026 — copy this entire message to start a new chat*
 
 ---
 
@@ -7,7 +7,7 @@ Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iO
 
 ---
 
-## Who you are talking to
+### Who you are talking to
 - My name is Richard. The app's logged-in user is Anna (my family: Anna, Richard, Poppy age 12, Gab age 10, Duke age 8)
 - I'm a beginner developer — always give me **full file rewrites** with easy copy-paste PowerShell commands, step by step
 - Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no `&&` chaining)
@@ -15,8 +15,12 @@ Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iO
 
 ---
 
-## Where to find everything
-**Master brief (CLAUDE.md):** `C:\Users\richa\zaeli\CLAUDE.md` — full stack, colours, family members, coding rules, all screen statuses. Read this first.
+### Where to find everything
+**Master brief (CLAUDE.md):** `C:\Users\richa\zaeli\CLAUDE.md` — full stack, colours, family members, coding rules, all screen statuses. **Always read this first.**
+
+**Transcripts:** `/mnt/transcripts/` — full session history. See `journal.txt` for catalog.
+
+**Output files:** `/mnt/user-data/outputs/` — latest versions of all built files.
 
 **Key constants:**
 - `DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'`
@@ -25,95 +29,94 @@ Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iO
 
 ---
 
-## What's been built (as of 16 March 2026)
+### What's been built (as of 17 March 2026)
 
 ✅ `index.tsx` — Home screen
-✅ `calendar.tsx` — Full calendar
-✅ `shopping.tsx` — Shopping (List + Pantry + Spend)
-✅ `zaeli-chat.tsx` — Multi-channel AI chat (updated this session — now includes recipes/menus/meal context)
+- Blue hero, Zaeli brief card (thinking dots → fade in bold text, no typewriter)
+- 2×2 Option C tiles (coloured footer bars), radar section, Ask Zaeli bar
+- Brief: dismiss → relaxed card → Ask Zaeli bar handles re-entry
+
+✅ `calendar.tsx` — Calendar
+- Magenta hero, Day/Week/Month views, recurring events
+- Zaeli brief card + dismissed card pattern
+
+✅ `shopping.tsx` — Shopping
+- **List tab:** sticky toolbar, Recently Bought (magenta, no strikethrough), food tick → auto-syncs to Pantry
+- **Pantry tab:** List/Aisle toggle, auto-detect receipt vs pantry scan
+- **Spend tab:** receipt history, expandable items, monthly spend summary
+- Item rows: meal_source shows as small orange pill tag below name (no squash)
+
+✅ `zaeli-chat.tsx` — AI Chat
+- Multi-channel: General, Calendar, Shopping, Meals, Kids, Travel
+- **Meals channel:** fetches full 7-day plan + recipes + menus for context-aware greeting
+- Meals greeting references actual plan state (empty nights, tonight's meal)
+- Zaeli generates recipes from training knowledge (does NOT say she can't search)
+- `add_meal_plan`: checks for day conflicts, asks user what to do — never silently moves
+- `replace_meal_plan`: replaces existing meal after user confirms
+- `save_recipe`: stores ingredients + method as separate fields (not a blob)
+- Date: uses `dayNames[now.getDay()]` array — avoids UTC/AEST day-name mismatch
+
+✅ `mealplanner.tsx` — Meals (v4.1 fully implemented + full bug fix pass)
+- **Dinners tab:** Option A layout (left accent bar, DM Serif date), smart emoji icons via `getMealEmoji()`, heart shown when meal name matches any saved recipe (substring match + parallel fetch), dessert slot, kit card saves to Favourites, edit lifted to DinnersTab level (survives modal unmount), blue Zaeli brief
+- **Recipes tab:** blue brief card ("Find me a recipe" + "Browse manually"), browse section revealed on tap, `openDayPicker` wired through — "+ Add to dinner plan" works, edit pre-populated via `useEffect` watching `editingRecipe?.id`
+- **Favourites tab:** all rows show heart (tappable remove for DB entries, static for dummies), DB recipes deduplicated by name, `FavouriteDetailModal` has delete button, tags include Thermomix/Slow cooker/Air fryer
+- **Shared day picker:** `dayPickerCtx` in `MealPlannerScreen` — single Modal used by both Recipes and Favourites flows
+- iOS nested modal fix: all edit/assign modals lifted to parent component level
+
 ✅ `more.tsx` — Hub + Settings + Permissions + To-dos
-✅ `mealplanner.tsx` — **Major build this session** (see below)
+
 ✅ `NavMenu.tsx` + `HamburgerButton`
-✅ `_layout.tsx`
+
+✅ `_layout.tsx` — Tab layout (all hidden, hamburger nav only)
 
 ---
 
-## Supabase tables (all created and working)
-- `events`, `todos`, `shopping_items`, `pantry_items`, `meal_plans`, `family_members`, `receipts`, `missions`, `recipes`, `menus` ← new this session
-
-**Critical:** `meal_plans.planned_date` has `default current_date`. Always include `planned_date` in inserts.
-
----
-
-## What we built this session (16 March — Chat 4, Meals Day)
-
-### mealplanner.tsx — complete overhaul
-
-**Dinners tab:**
-- 7-day rolling feed, blue Zaeli brief card (Shopping-style), blue relaxed card on dismiss
-- Meal cards with emoji icon (no images on overview), cook avatars, View · Move · 🗑 actions
-- Move night: 7-night picker with override warning
-- Add meal: 6 options all wired (Ask Zaeli / Browse / Favourites / Meal kit / Manual / Takeaway)
-- Cook assignment: family picker, kid job creation with custom points, saves to `todos`
-
-**Recipes tab:**
-- Client-side search + filter (All/Quick/Kids love/Gut friendly/GF/Dairy free)
-- Full RecipeDetailModal: ingredients with pantry status, method, add to plan → day picker → assign cook
-
-**Favourites tab:**
-- Family Picks / Saved Menus toggle
-- FavouriteDetailModal: fully editable (name, tags, ingredients, method, photo), Save button in header
-- Add to plan: day picker → assign cook (modals lifted outside parent for iOS stacking fix)
-- **Save a menu**: photo → Claude extracts venue name + all dishes → `menus` table
-- Saved Menus view: venue cards → dish list with editable venue name
-
-**Photo extraction:**
-- `getMediaType()` helper detects JPEG/PNG/WebP from base64 magic bytes — never hardcoded
-- `max_tokens:4096` (was 1500, was truncating JSON)
-- Single JSON object prompt (not array), triple-layer parse fallback
-- `quality:0.15` for camera to stay under 5MB API limit
-
-### zaeli-chat.tsx — context update
-- Now fetches `recipes`, `menus` (formatted as venue→dish list), `meal_plans` (14 days) on every send
-- Zaeli can answer questions about specific dishes at saved venues
-- `extractRecipes()` tightened — no longer fires on shopping list answers
-
-### meals-v4.html mockup — designed, pending implementation
-Three screens redesigned:
-- **Dinners:** blue brief card, no images, cleaner day/date layout
-- **Recipes:** Zaeli hero card leads — "Find me a recipe" + "Browse manually"
-- **Favourites:** purple Zaeli onboarding card explaining section, dismissable
+### Supabase tables (all created)
+```sql
+meal_plans    — id, family_id, day_key, planned_date, meal_name, meal_type,
+                source, image_url, prep_mins, cook_ids, ingredients (jsonb),
+                notes (text)
+                -- run if missing: alter table meal_plans add column if not exists notes text;
+recipes       — id, family_id, name, source_type, image_url, prep_mins, tags, notes, created_at
+menus         — id, family_id, venue_name, venue_type, image_url, items (jsonb), notes, created_at
+receipts      — id, family_id, store, purchase_date, total_amount, item_count, items (jsonb), raw_text, created_at
+pantry_items  — id, family_id, name, emoji, category, stock_level, last_updated
+shopping_items — id, family_id, name, item, category, checked, completed, meal_source
+```
 
 ---
 
-## Immediate next tasks (in priority order)
-1. **Meals v4** — implement `meals-v4.html` mockup into `mealplanner.tsx` once Richard confirms design
-2. **API usage logging** — Supabase table + wrapper on all API calls
-3. **Travel screen** stub
-4. **Kids Hub redesign** — homework helper feature
-5. **Lunchbox screen** — `lunchbox-v1.html` mockup already designed
+### Immediate next tasks (in priority order)
+1. **API usage logging** — Supabase table + wrapper on all Claude API calls (per-family cost tracking)
+2. **Travel screen** — stub screen with basic layout
+3. **Kids Hub** — homework helper (Socratic method), kid task overview
+4. **Lunchbox screen** — `lunchbox-v1.html` mockup ready to build (teal #00B8D4)
+5. **Spoonacular API** — replace dummy recipe data with live search (deferred)
 
 ---
 
-## Key design decisions (don't revisit without reason)
+### Key design decisions (don't revisit without reason)
 - No floating FAB anywhere
 - Hamburger menu only navigation
-- Meals brief card: **BLUE** (not orange) — matches Shopping
-- Ask Zaeli bar on Meals: **BLUE** send button
-- Meal overview: **NO images** — emoji icon + text only
-- Meal images only in detail modals
-- Save a recipe CTA: dark `#2C2C2E`
-- Favourite → Add to plan: day picker first (not auto-assign)
-- Cook assignment modal always outside parent Modal (iOS stacking fix)
-- `getMediaType()` always used for base64 images — never `image/jpeg` hardcoded
-- `planned_date` always in meal_plans inserts
+- Brief cards: blue on Home/Shopping/Meals, magenta on Calendar
+- `btnPrimary` style: blue not orange
+- Meal overview: NO images — smart emoji icon only via getMealEmoji()
+- Meal images: detail modals only
+- Edit modals: always lifted OUT of parent Modal (iOS pageSheet stacking)
+- `getMediaType()` always used for base64 API calls
+- Date context for AI: always use dayNames array, never toDateString()
+- `.single()` throws on no result — use `.limit(1)` + `data?.[0]`
+- React 18 batches async state updates — use useEffect for post-modal data loading
 
 ---
 
-## Tech reminders
+### Tech reminders
 - Import paths from `app/(tabs)/`: `../../lib/supabase`, `../components/NavMenu`
 - SafeAreaView always `edges={['top']}`
-- Poppins for all UI, DMSerifDisplay for hero titles only
+- Poppins font for all UI, DMSerifDisplay for hero titles only
 - Always `npx expo start --clear` after copying files
 - PowerShell: no `&&` — use separate lines
-- iOS: nested modals don't stack — always lift child modals outside parent `<Modal>`
+
+---
+
+Please confirm you've read CLAUDE.md and are ready to continue. First priority is **API usage logging**.

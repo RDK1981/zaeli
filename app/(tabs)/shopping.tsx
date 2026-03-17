@@ -1260,9 +1260,17 @@ function ItemRow({ item, onToggle, onDelete, onEdit }: {
         <Text style={s.itemEmoji}>{CAT_EMOJI[item.category] || '🛒'}</Text>
         <View style={{ flex: 1 }}>
           <Text style={[s.itemName, item.checked && s.itemNameBought]}>{item.name}</Text>
+          {qty ? <Text style={s.itemQty}>{qty}</Text> : null}
           {note ? <Text style={s.itemSub}>{note}</Text> : null}
+          {/* Meal source shown as small pill below name */}
+          {item.meal_source && !item.meal_source.includes(' · ') ? (
+            <View style={{flexDirection:'row',marginTop:3}}>
+              <View style={{backgroundColor:'rgba(255,140,0,0.1)',borderRadius:5,paddingHorizontal:6,paddingVertical:1}}>
+                <Text style={{fontFamily:'Poppins_500Medium',fontSize:10,color:'rgba(180,90,0,0.8)'}}>{item.meal_source}</Text>
+              </View>
+            </View>
+          ) : null}
         </View>
-        {qty ? <Text style={s.itemQty}>{qty}</Text> : null}
       </TouchableOpacity>
       <TouchableOpacity style={s.delBtn} onPress={onDelete} activeOpacity={0.7}>
         <IcoTrash />
@@ -1685,9 +1693,9 @@ const s = StyleSheet.create({
   chk:            { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: C.ink3, justifyContent: 'center', alignItems: 'center' },
   chkDone:        { backgroundColor: '#B8A400', borderColor: '#B8A400' },
   chkTick:        { color: '#fff', fontSize: 11, fontFamily: 'Poppins_700Bold' },
-  itemBody:       { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13, paddingRight: 12 },
-  itemEmoji:      { fontSize: 20, flexShrink: 0 },
-  itemName:       { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: C.ink },
+  itemBody:       { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 13, paddingRight: 12 },
+  itemEmoji:      { fontSize: 20, flexShrink: 0, marginTop: 1 },
+  itemName:       { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: C.ink, flexWrap: 'wrap' },
   itemNameDone:   { textDecorationLine: 'line-through', color: C.ink2 },
   itemNameBought: { color: C.mag },
   itemSub:        { fontFamily: 'Poppins_400Regular', fontSize: 11, color: C.ink3, marginTop: 2 },

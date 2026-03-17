@@ -1,5 +1,5 @@
 # Zaeli — Master Project Brief
-*Last updated: 16 March 2026 — Chat 4 (Meals Day)*
+*Last updated: 17 March 2026 — Chat 5 (Meals polish, bug fixes)*
 
 ---
 
@@ -33,13 +33,18 @@ AI model: claude-sonnet-4-20250514
 ## Colours
 ```ts
 blue:    '#0057FF'   // Home hero, primary actions, Zaeli brief cards
-mag:     '#E0007C'   // Calendar hero, Zaeli name accent
-orange:  '#FF8C00'   // Meals hero
+mag:     '#E0007C'   // Calendar hero, Zaeli name accent, magenta
+orange:  '#FF8C00'   // Meals hero, primary CTA
 gold:    '#B8A400'   // To-dos
-green:   '#00C97A'   // Live dot, success
+green:   '#00C97A'   // Live dot, success states
 yellow:  '#FFE500'   // Logo accent
 dark:    '#0A0A0A'   // Shopping hero
 bg:      '#F7F7F7'   // Body background
+card:    '#FFFFFF'   // Card background
+ink:     '#0A0A0A'   // Primary text
+ink2:    '#555'      // Secondary text
+ink3:    '#999'      // Tertiary/placeholder text
+border:  '#EBEBEB'   // Card borders
 ```
 
 ---
@@ -62,9 +67,9 @@ app/
     index.tsx          ✅ Home screen
     calendar.tsx       ✅ Calendar
     shopping.tsx       ✅ Shopping (List + Pantry + Spend)
-    zaeli-chat.tsx     ✅ AI chat — updated with recipes/menus/meal context
+    zaeli-chat.tsx     ✅ AI chat — Meals channel fully context-aware
     more.tsx           ✅ Hub + Settings + Permissions + To-dos
-    mealplanner.tsx    ✅ Meal Planner — major build this session
+    mealplanner.tsx    ✅ Meal Planner — v4.1 + full bug fix pass
     _layout.tsx        ✅ Tab layout (all hidden, hamburger nav)
   components/
     NavMenu.tsx        ✅ Hamburger menu + HamburgerButton
@@ -77,89 +82,100 @@ lib/
 
 ---
 
-## Screens Status
+## Supabase Tables (key ones)
+```sql
+meal_plans    — id, family_id, day_key, planned_date, meal_name, meal_type,
+                source, image_url, prep_mins, cook_ids, ingredients (jsonb),
+                notes (text) ← ADD THIS IF MISSING: alter table meal_plans add column if not exists notes text;
+recipes       — id, family_id, name, source_type, image_url, prep_mins, tags, notes, created_at
+menus         — id, family_id, venue_name, venue_type, image_url, items (jsonb), notes, created_at
+receipts      — id, family_id, store, purchase_date, total_amount, item_count, items (jsonb), raw_text, created_at
+pantry_items  — id, family_id, name, emoji, category, stock_level, last_updated
+shopping_items — id, family_id, name, item, category, checked, completed, meal_source
+```
 
-### index.tsx — Home ✅
-- Blue hero, Zaeli brief card (thinking dots → fade in), dismissed → relaxed card
-- 2×2 tile grid Option C, radar section, Ask Zaeli bar
+---
 
-### calendar.tsx — Calendar ✅
-- Magenta hero, Day/Week/Month views, recurring events, brief card
+## Screen Status
 
-### shopping.tsx — Shopping ✅
-- List tab: Recently Bought (magenta), food tick → pantry sync
-- Pantry tab: auto-detect receipt vs pantry scan
-- Spend tab: receipt history
+### ✅ index.tsx — Home
+- Blue hero, Zaeli brief card (thinking dots → fade in bold text)
+- 2×2 tile grid Option C (coloured footer bars), radar, Ask Zaeli bar
+- Brief: dismisses → relaxed card → Ask Zaeli bar handles re-entry
 
-### zaeli-chat.tsx — AI Chat ✅ (updated Chat 4)
+### ✅ calendar.tsx — Calendar
+- Magenta hero, Day/Week/Month views, recurring events
+- Zaeli brief card, dismissed card pattern
+
+### ✅ shopping.tsx — Shopping
+- List tab: food tick → pantry sync, Recently Bought (magenta)
+- Pantry tab: List/Aisle toggle, receipt vs pantry scan auto-detect
+- Spend tab: receipt history, expandable items
+- Item rows: meal_source shows as orange pill tag below name (no squash)
+
+### ✅ zaeli-chat.tsx — AI Chat
 - Multi-channel: General, Calendar, Shopping, Meals, Kids, Travel
-- **Now fetches on every send:** `recipes`, `menus` (formatted venue→dish list), `meal_plans` (14 days)
-- Zaeli can answer questions about saved recipes and menu items (e.g. "what's in the X dish at The Depot Noosa?")
-- `extractRecipes()` tightened — no false positives on shopping list responses
-- Channel prompts updated: Meals + General explicitly reference saved data
+- Meals channel: fetches full 7-day plan + recipes + menus for greeting
+- Meals greeting references actual plan state (empty nights, tonight's meal)
+- Zaeli generates recipes from training knowledge — does NOT claim inability
+- add_meal_plan: checks for day conflicts before inserting, asks user what to do
+- replace_meal_plan: replaces existing meal after user confirms
+- save_recipe: stores ingredients/method in separate fields, not a blob
+- Date: uses localDayName array (not toDateString) to avoid UTC/AEST mismatch
 
-### more.tsx — More/Hub ✅
+### ✅ mealplanner.tsx — Meals (v4.1 + full bug fix pass)
 
-### mealplanner.tsx ✅ — Major build Chat 4
+**Architecture:**
+- `MealPlannerScreen` — manages tabs, dayPickerCtx (shared day picker), edit state
+- Shared `openDayPicker` function passed to RecipesTab and FavouritesTab
+- `DinnersTab` — owns editingMeal state (lifted so edit survives modal unmount)
+- `RecipesTab` — owns editingRecipe + useEffect-driven pre-population
+- `FavouritesTab` — self-contained with own pickingDay modal in FavouriteDetailModal
 
 **Dinners tab:**
-- 7-day rolling feed
-- Blue Zaeli brief card (Shopping-style) + blue relaxed card on dismiss
-- Cook avatars per day, "+ Who's cooking?" chip
-- Meal cards: emoji icon + text only — NO images on overview
-- Actions: View recipe · Move · 🗑 (with confirmation)
-- Move night: 7-night picker sheet, warns before replacing
-- Add meal: Ask Zaeli / Browse / Favourites / Meal kit / Manual / Takeaway
-- Cook assignment: family picker, kid job creation with points (15/25/35/Custom)
+- Option A layout: left accent bar (orange tonight / grey empty), DM Serif date
+- `getMealEmoji()` — 20-pattern keyword matcher for smart icons
+- ❤️ shown when `meal.source==='favourites'` OR name matches any saved recipe (substring)
+- `favouritedNames` Set fetched in parallel with `fetchMeals`
+- Dessert slot: dashed rose row beneath each planned dinner
+- Meal detail: shows structured ingredients + parsed notes (Ingredients/Method sections)
+- Edit: lifted to DinnersTab level — survives MealDetailModal unmount
+- Kit card: ❤️ save to Favourites with toggle state (🤍 → ❤️ after save)
+- Blue Zaeli brief + blue relaxed card
 
 **Recipes tab:**
-- Client-side search + filter chips
-- Tap row or "+ Plan" → RecipeDetailModal with full ingredients + method
-- Add to plan → day picker → assign cook
+- Blue brief card (matches Dinners) — "✦ Find me a recipe" + "Browse manually"
+- Browse section revealed on tap — filter chips + search + recipe rows
+- Recipe rows: smart emoji icon, no images
+- RecipeDetailModal: ✏️ edit + 🤍/❤️ heart in header
+- `openDayPicker` passed through — "+ Add to dinner plan" works
+- Edit: `useEffect` watches `editingRecipe?.id` and pre-populates fields from Supabase
+- Edit modal at `RecipesTab` level (never nested inside RecipeDetailModal)
 
 **Favourites tab:**
-- Toggle: **Family Picks** | **Saved Menus**
-- Save a recipe CTA (dark `#2C2C2E`)
-- SaveRecipeModal: photo/upload/URL/manual/describe/save-a-menu
-- Photo: `quality:0.15`, `getMediaType()` auto-detects format, `max_tokens:4096`, single object parse with triple fallback
-- Save a menu: Claude extracts venue + all dishes → `menus` table
-- FavouriteDetailModal: editable name/tags/ingredients/method, tappable photo, Save header button (insert for dummies, update for real)
-- Add to plan: day picker → assign cook (both modals lifted outside parent for iOS)
-- Saved Menus: venue cards → dish list with editable venue name
+- All rows show ❤️ — tappable remove for DB entries, static for dummy placeholders
+- DB recipes deduplicated by name before display (no duplicates)
+- `FavouriteDetailModal`: 🗑 delete in header for real DB entries
+- `FavouriteDetailModal`: pickingDay modal self-contained (no shared openDayPicker needed)
+- Tags include: Thermomix, Slow cooker, Air fryer
+- Save a menu: photo → Zaeli extracts venue + all dishes → `menus` table
+
+### ✅ more.tsx — More/Hub
 
 ---
 
-## Supabase Tables
-```
-events          — calendar events
-todos           — tasks + cooking jobs (source='meals', assigned_to, points)
-shopping_items  — shopping list
-pantry_items    — pantry inventory
-meal_plans      — dinner plan (planned_date NOT NULL, default current_date)
-family_members  — family roster
-receipts        — receipt history
-missions        — chat context
-recipes         — saved recipes (name, source_type, tags[], prep_mins, notes, image_url)
-menus           — saved venue menus (venue_name, venue_type, items JSONB)  ← NEW Chat 4
-```
-
-**Critical: always include `planned_date` in meal_plans inserts**
-
----
-
-## Key Design Decisions
+## Key Design Decisions (locked)
 - No floating FAB anywhere
 - Hamburger menu only navigation
-- Brief card: thinking dots → fade in (no typewriter)
-- Recently Bought: magenta, no strikethrough
-- Meals brief card: **BLUE** (not orange)
-- Ask Zaeli bar on Meals: **BLUE** send button
-- Meal overview: **NO images** — emoji icon + text only
+- Brief cards: blue on Home, Shopping, Meals — magenta on Calendar
+- btnPrimary: **blue** (`C.blue`) not orange
+- Meal overview: NO images — smart emoji icon only
 - Meal images: detail modals only
 - Save a recipe CTA: dark `#2C2C2E`
 - Favourite → Add to plan: day picker first (not auto-assign)
-- Cook assignment modal: always outside parent Modal (iOS stacking)
-- `getMediaType()` always used for base64 API calls — never hardcode `image/jpeg`
+- Edit modals: always lifted OUT of parent Modal (iOS stacking fix)
+- `getMediaType()` always used for base64 API calls
+- Date context: always use `dayNames[now.getDay()]` array, never `toDateString()`
 
 ---
 
@@ -175,39 +191,38 @@ import { buildMemoryContext } from '../../lib/zaeli-memory';
 ## Tech Reminders
 - SafeAreaView always `edges={['top']}`
 - Always `npx expo start --clear` after copying files
-- PowerShell: no `&&` chaining
-- iOS nested modals don't stack — lift child modals outside parent `<Modal>`
-
----
-
-## Meals v4 Mockup — Pending Implementation
-`meals-v4.html` ready and reviewed. Key changes:
-- Dinners: blue brief, no images, cleaner date layout
-- Recipes: Zaeli card leads — "Find me a recipe" + "Browse manually"
-- Favourites: purple Zaeli onboarding card, dismissable
-- All tabs: blue Ask Zaeli bar
-
-**Do not implement until Richard confirms.**
+- PowerShell: no `&&` — use separate lines
+- iOS nested modals don't stack — always lift child modals to parent component level
+- `.single()` throws on no result — use `.limit(1)` + `data?.[0]` for existence checks
+- React 18 batches async state updates — use `useEffect` for post-modal data loading
+- `select('*')` in fetchMeals — all columns including `notes` and `ingredients` come through
 
 ---
 
 ## Next Priority Tasks
-1. **Meals v4** — implement once mockup confirmed
-2. **API usage logging** — Supabase table + wrapper
-3. **Travel screen** stub
-4. **Kids Hub** — homework helper
-5. **Lunchbox screen** — `lunchbox-v1.html` mockup ready
+1. **API usage logging** — Supabase table + wrapper on all Claude API calls (per-family cost tracking)
+2. **Travel screen** — stub screen with basic layout
+3. **Kids Hub** — homework helper (Socratic method), kid task overview
+4. **Lunchbox screen** — `lunchbox-v1.html` mockup ready to build
+5. **Spoonacular API** — replace dummy recipe data with live search (deferred)
 
 ---
 
 ## Kids Hub — Homework Helper Spec
-Socratic method — guides without giving answers. Grade level per child.
+- Socratic method — guides without giving answers directly
+- Grade level per child (Poppy: Grade 6, Gab: Grade 4, Duke: Grade 2)
+- Subject detection (maths, literacy, science)
+- Tested pattern: "What do you think comes next?" style prompting
 
-## Lunchbox — Design Complete, Not Built
-`lunchbox-v1.html`. Teal `#00B8D4`. Child tabs, quick mode, tuck shop days, photo onboarding.
+## Lunchbox — Design Ready, Not Built
+- Mockup: `lunchbox-v1.html`
+- Teal `#00B8D4` hero colour
+- Child tabs (Poppy / Gab / Duke)
+- Quick mode, tuck shop days, photo onboarding
+- Weekly lunchbox planner with nutrition nudges
 
 ## Deferred
-- Spoonacular API (currently dummy data)
-- Price tracking, expiry predictions
-- API key server-side before launch
+- Spoonacular API integration (currently dummy data in mealplanner.tsx)
+- Price tracking, expiry predictions in pantry
+- API key server-side proxy before launch
 - Marketing site
