@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli Admin — Operations Centre</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=DM+Serif+Display&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Supabase JS client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --ink:#0A0A0A; --ink2:#444; --ink3:#888; --ink4:#bbb;
+    --bg:#F4F3EF; --card:#FFFFFF; --border:#E8E6DF;
+    --blue:#0057FF; --blueL:#EEF3FF; --blueB:#C5D4FF;
+    --orange:#FF8C00; --orangeL:#FFF3E0; --orangeB:#FFD08A;
+    --mag:#E0007C; --magL:#FFF0F7;
+    --green:#00C97A; --greenL:#E6FFF4; --greenB:#A8EDD0;
+    --red:#E53935; --redL:#FFF0EF;
+    --gold:#B8A400; --goldL:#FFFBE6;
+    --sidebar-w:220px;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--ink);display:flex;min-height:100vh;font-size:14px;}
+
+  /* ── Sidebar ── */
+  .sidebar{width:var(--sidebar-w);background:var(--ink);min-height:100vh;display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;z-index:100;}
+  .sidebar-logo{padding:20px 18px 16px;border-bottom:1px solid rgba(255,255,255,0.08);}
+  .logo-row{display:flex;align-items:center;gap:10px;}
+  .logo-mark{width:34px;height:34px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;flex-shrink:0;}
+  .wordmark{font-family:'DM Serif Display',serif;font-size:22px;color:#fff;letter-spacing:-0.5px;line-height:1;}
+  .wordmark .a{color:#FFE500;}
+  .admin-tag{font-size:9px;color:rgba(255,255,255,0.35);font-family:'DM Mono',monospace;letter-spacing:1.8px;margin-top:4px;text-transform:uppercase;padding-left:44px;}
+  .sidebar-nav{padding:16px 12px;flex:1;display:flex;flex-direction:column;gap:2px;}
+  .nav-section-label{font-size:9px;font-weight:600;letter-spacing:1.8px;color:rgba(255,255,255,0.25);text-transform:uppercase;padding:10px 8px 6px;font-family:'DM Mono',monospace;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,0.55);font-size:13.5px;font-weight:400;transition:all 0.15s;text-decoration:none;border:none;background:none;width:100%;text-align:left;font-family:'Poppins',sans-serif;}
+  .nav-item:hover{background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.9);}
+  .nav-item.active{background:var(--blue);color:#fff;font-weight:500;}
+  .nav-item .ico{font-size:15px;width:18px;text-align:center;flex-shrink:0;}
+  .sidebar-footer{padding:16px;border-top:1px solid rgba(255,255,255,0.08);}
+  .admin-pill{display:flex;align-items:center;gap:9px;padding:8px 10px;background:rgba(255,255,255,0.06);border-radius:8px;}
+  .admin-av{width:28px;height:28px;border-radius:8px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;font-weight:700;}
+  .admin-name{font-size:12.5px;color:rgba(255,255,255,0.8);font-weight:500;}
+  .admin-role{font-size:10px;color:rgba(255,255,255,0.35);font-family:'DM Mono',monospace;}
+
+  /* ── Main ── */
+  .main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;}
+  .topbar{background:var(--card);border-bottom:1px solid var(--border);padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+  .topbar-title{font-family:'DM Serif Display',serif;font-size:18px;color:var(--ink);}
+  .topbar-right{display:flex;align-items:center;gap:12px;}
+  .topbar-date{font-size:12px;color:var(--ink3);font-family:'DM Mono',monospace;}
+  .refresh-btn{padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:transparent;color:var(--ink2);font-family:'Poppins',sans-serif;transition:all 0.12s;}
+  .refresh-btn:hover{border-color:var(--blue);color:var(--blue);}
+  .live-dot{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--green);}
+  .live-dot::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);}
+  .content{padding:24px 28px;}
+
+  /* ── Loading / error states ── */
+  .loading-overlay{position:fixed;inset:0;background:rgba(244,243,239,0.85);z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;}
+  .loading-spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.7s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading-text{font-size:14px;color:var(--ink2);}
+  .error-banner{background:var(--redL);border:1.5px solid var(--red);border-radius:12px;padding:14px 18px;margin-bottom:20px;font-size:13px;color:var(--red);display:none;}
+  .setup-banner{background:var(--goldL);border:1.5px solid var(--gold);border-radius:12px;padding:16px 20px;margin-bottom:20px;display:none;}
+  .setup-banner h3{font-size:14px;font-weight:600;color:var(--gold);margin-bottom:6px;}
+  .setup-banner p{font-size:13px;color:var(--ink2);line-height:1.6;}
+  .setup-banner code{background:rgba(0,0,0,0.06);padding:2px 6px;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;}
+
+  /* ── Stat cards ── */
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+  .stat-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px;}
+  .stat-label{font-size:11px;font-weight:500;color:var(--ink3);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:8px;}
+  .stat-value{font-family:'DM Serif Display',serif;font-size:28px;color:var(--ink);line-height:1;margin-bottom:6px;}
+  .stat-sub{font-size:12px;color:var(--ink3);}
+  .stat-delta-up{color:var(--green);font-weight:500;}
+  .stat-delta-warn{color:var(--orange);font-weight:500;}
+
+  /* ── Section header ── */
+  .section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .section-title{font-family:'DM Serif Display',serif;font-size:17px;color:var(--ink);}
+  .section-sub{font-size:12px;color:var(--ink3);margin-top:2px;}
+
+  /* ── Table ── */
+  .table-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:24px;}
+  .table-toolbar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);gap:12px;}
+  .section-title-sm{font-size:14px;font-weight:600;color:var(--ink);}
+  table{width:100%;border-collapse:collapse;}
+  thead tr{border-bottom:1.5px solid var(--border);}
+  th{padding:11px 18px;text-align:left;font-size:11px;font-weight:600;color:var(--ink3);letter-spacing:0.7px;text-transform:uppercase;font-family:'DM Mono',monospace;white-space:nowrap;}
+  td{padding:13px 18px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:#FAFAF8;}
+  .acct-num{font-family:'DM Mono',monospace;font-size:12px;color:var(--ink3);background:var(--bg);padding:3px 8px;border-radius:5px;}
+  .acct-name{font-weight:500;font-size:13.5px;}
+  .acct-email{font-size:12px;color:var(--ink3);margin-top:1px;}
+  .plan-badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+  .plan-trial{background:var(--goldL);color:var(--gold);}
+  .plan-family{background:var(--blueL);color:var(--blue);}
+  .plan-premium{background:var(--magL);color:var(--mag);}
+  .status-dot{display:inline-flex;align-items:center;gap:5px;font-size:12px;}
+  .status-dot::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .status-active::before{background:var(--green);}
+  .cost-cell{font-family:'DM Mono',monospace;font-size:13px;}
+  .cost-ok{color:var(--ink2);}
+  .cost-warn{color:var(--orange);font-weight:500;}
+  .cost-high{color:var(--red);font-weight:600;}
+  .row-action{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:transparent;color:var(--ink2);font-family:'Poppins',sans-serif;transition:all 0.12s;}
+  .row-action:hover{border-color:var(--blue);color:var(--blue);}
+
+  /* ── Feature breakdown ── */
+  .usage-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;}
+  .chart-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:18px 20px;}
+  .feature-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .feature-row:last-child{border-bottom:none;}
+  .feature-name{font-size:13px;flex:1;color:var(--ink);}
+  .feature-bar-wrap{width:100px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+  .feature-bar{height:100%;border-radius:3px;background:var(--blue);transition:width 0.6s ease;}
+  .feature-calls{font-family:'DM Mono',monospace;font-size:12px;color:var(--ink3);width:50px;text-align:right;}
+  .feature-cost{font-family:'DM Mono',monospace;font-size:12px;color:var(--ink2);width:58px;text-align:right;font-weight:500;}
+  .empty-state{text-align:center;padding:32px;color:var(--ink3);}
+  .empty-state .ico{font-size:32px;margin-bottom:10px;}
+  .empty-state p{font-size:13px;line-height:1.6;}
+
+  /* ── Account detail panel ── */
+  .detail-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:200;display:none;align-items:flex-start;justify-content:flex-end;}
+  .detail-overlay.open{display:flex;}
+  .detail-panel{width:480px;height:100vh;background:var(--card);overflow-y:auto;box-shadow:-8px 0 40px rgba(0,0,0,0.15);animation:slideIn 0.22s ease;}
+  @keyframes slideIn{from{transform:translateX(40px);opacity:0;}to{transform:none;opacity:1;}}
+  .detail-hdr{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1.5px solid var(--border);position:sticky;top:0;background:var(--card);z-index:5;}
+  .detail-hdr-title{font-family:'DM Serif Display',serif;font-size:17px;}
+  .close-btn{width:32px;height:32px;border-radius:8px;border:1.5px solid var(--border);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--ink3);}
+  .detail-body{padding:20px 24px;}
+  .detail-acct-hero{display:flex;align-items:center;gap:14px;padding:16px;background:var(--bg);border-radius:12px;margin-bottom:20px;border:1.5px solid var(--border);}
+  .detail-av{width:48px;height:48px;border-radius:14px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:20px;font-weight:700;color:#fff;flex-shrink:0;}
+  .detail-acct-name{font-family:'DM Serif Display',serif;font-size:18px;}
+  .detail-acct-meta{font-size:12px;color:var(--ink3);font-family:'DM Mono',monospace;margin-top:2px;}
+  .detail-section{margin-bottom:20px;}
+  .detail-section-title{font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--ink3);font-family:'DM Mono',monospace;margin-bottom:10px;}
+  .detail-field-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);}
+  .detail-field-row:last-child{border-bottom:none;}
+  .detail-field-label{font-size:12.5px;color:var(--ink3);}
+  .detail-field-value{font-size:13px;font-weight:500;color:var(--ink);}
+  .actions-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .action-btn{padding:10px 14px;border-radius:9px;border:1.5px solid var(--border);background:transparent;font-size:12.5px;font-weight:500;cursor:pointer;color:var(--ink2);font-family:'Poppins',sans-serif;transition:all 0.12s;text-align:left;display:flex;align-items:center;gap:7px;}
+  .action-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blueL);}
+  .action-btn.danger:hover{border-color:var(--red);color:var(--red);background:var(--redL);}
+  .usage-feature-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;background:var(--bg);margin-bottom:6px;}
+  .usage-feature-name{font-size:12.5px;color:var(--ink);}
+  .usage-feature-calls{font-size:11px;color:var(--ink3);font-family:'DM Mono',monospace;}
+  .usage-feature-cost{font-size:13px;font-weight:500;font-family:'DM Mono',monospace;color:var(--ink2);}
+  .total-row{display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg);border-radius:8px;margin-top:4px;border:1.5px solid var(--border);}
+
+  /* ── Month bar chart ── */
+  .month-bars{display:flex;align-items:flex-end;gap:8px;height:90px;padding-top:8px;}
+  .month-bar-wrap{display:flex;flex-direction:column;align-items:center;gap:5px;flex:1;}
+  .month-bar{width:100%;border-radius:5px 5px 0 0;background:var(--blueL);border:1.5px solid var(--blueB);min-height:4px;transition:height 0.5s ease;}
+  .month-bar.current{background:var(--blue);border-color:var(--blue);}
+  .month-label{font-size:10px;color:var(--ink3);font-family:'DM Mono',monospace;}
+
+  /* ── Views ── */
+  .view{display:none;}
+  .view.active{display:block;}
+
+
+  /* ── Financial Model ── */
+  .fin-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;}
+  .fin-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:20px 22px;}
+  .fin-card.full{grid-column:1/-1;}
+  .slider-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
+  .slider-row:last-of-type{border-bottom:none;}
+  .slider-label{font-size:13px;color:var(--ink2);flex:1;}
+  .slider-val{font-family:'DM Mono',monospace;font-size:13px;font-weight:600;color:var(--ink);width:80px;text-align:right;}
+  .slider-wrap{width:160px;margin:0 14px;}
+  input[type=range]{width:100%;accent-color:var(--blue);cursor:pointer;}
+  .scale-tabs{display:flex;gap:4px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:3px;margin-bottom:20px;width:fit-content;}
+  .scale-tab{padding:6px 18px;border-radius:7px;font-size:12.5px;font-weight:500;cursor:pointer;color:var(--ink3);border:none;background:transparent;font-family:'Poppins',sans-serif;transition:all 0.12s;}
+  .scale-tab.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,0.08);}
+  .results-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+  .result-card{border-radius:12px;padding:16px 18px;border:1.5px solid;}
+  .result-card.profit{background:var(--greenL);border-color:var(--greenB);}
+  .result-card.loss{background:var(--redL);border-color:var(--red);}
+  .result-card.neutral{background:var(--blueL);border-color:var(--blueB);}
+  .result-card.warn{background:var(--orangeL);border-color:var(--orangeB);}
+  .result-label{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;margin-bottom:6px;}
+  .result-value{font-family:'DM Serif Display',serif;font-size:24px;line-height:1;}
+  .result-sub{font-size:11px;margin-top:4px;}
+  .breakdown-table{width:100%;border-collapse:collapse;}
+  .breakdown-table th{padding:9px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--ink3);letter-spacing:0.7px;text-transform:uppercase;font-family:'DM Mono',monospace;border-bottom:1.5px solid var(--border);}
+  .breakdown-table td{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;}
+  .breakdown-table tr:last-child td{border-bottom:none;font-weight:600;}
+  .breakdown-table tr.total-row td{background:var(--bg);font-weight:700;}
+  .tag-profit{color:var(--green);font-weight:600;}
+  .tag-loss{color:var(--red);font-weight:600;}
+  .viability-bar{height:12px;border-radius:6px;background:var(--border);overflow:hidden;margin-top:8px;}
+  .viability-fill{height:100%;border-radius:6px;background:var(--green);transition:width 0.5s ease;}
+  .scenario-row{display:grid;grid-template-columns:120px 1fr 1fr 1fr 1fr 1fr;gap:0;border-bottom:1px solid var(--border);}
+  .scenario-row:last-child{border-bottom:none;}
+  .scenario-row.hdr{background:var(--bg);}
+  .scenario-cell{padding:11px 14px;font-size:12.5px;}
+  .scenario-cell.hdr{font-size:10px;font-weight:600;color:var(--ink3);letter-spacing:0.7px;text-transform:uppercase;font-family:'DM Mono',monospace;}
+
+  /* ── Alerts ── */
+  .alert-card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:14px;}
+  .alert-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+  .alert-item:last-child{border-bottom:none;padding-bottom:0;}
+  .alert-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .dot-green{background:var(--green);}
+  .dot-orange{background:var(--orange);}
+  .dot-gold{background:var(--gold);}
+  .alert-body{flex:1;}
+  .alert-title{font-size:13px;font-weight:500;color:var(--ink);}
+  .alert-meta{font-size:11px;color:var(--ink3);margin-top:1px;}
+
+  /* ── Projection cards ── */
+  .proj-card{border-radius:10px;padding:13px 15px;margin-top:12px;border:1.5px solid;}
+  .proj-blue{background:var(--blueL);border-color:var(--blueB);}
+  .proj-green{background:var(--greenL);border-color:var(--greenB);}
+  .proj-label{font-size:10px;font-family:'DM Mono',monospace;font-weight:600;letter-spacing:0.8px;margin-bottom:5px;}
+  .proj-value{font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink);}
+  .proj-sub{font-size:12px;color:var(--ink3);margin-top:3px;}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Loading live data…</div>
+</div>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-row">
+      <div class="logo-mark">✦</div>
+      <div class="wordmark">z<span class="a">a</span>eli</div>
+    </div>
+    <div class="admin-tag">Admin Console</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <button class="nav-item active" onclick="showView('accounts',this)"><span class="ico">◉</span> Accounts</button>
+    <button class="nav-item" onclick="showView('usage',this)"><span class="ico">⚡</span> Usage & Cost</button>
+    <button class="nav-item" onclick="showView('alerts',this)"><span class="ico">⚠</span> Alerts</button>
+    <div class="nav-section-label">Operations</div>
+    <button class="nav-item" onclick="showView('tickets',this)"><span class="ico">◎</span> Support Tickets</button>
+    <button class="nav-item" onclick="showView('billing',this)"><span class="ico">$</span> Billing</button>
+    <button class="nav-item" onclick="showView('financial',this)"><span class="ico">📊</span> Financial Model</button>
+    <div class="nav-section-label">System</div>
+    <button class="nav-item" onclick="showView('settings',this)"><span class="ico">⚙</span> Settings</button>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="admin-pill">
+      <div class="admin-av">R</div>
+      <div>
+        <div class="admin-name">Richard</div>
+        <div class="admin-role">OWNER</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Main -->
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="page-title">Accounts</div>
+    <div class="topbar-right">
+      <span class="live-dot" id="connection-status">Connected</span>
+      <span class="topbar-date" id="last-refreshed">—</span>
+      <button class="refresh-btn" onclick="loadAllData()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="error-banner" id="error-banner"></div>
+    <div class="setup-banner" id="setup-banner">
+      <h3>⚠️ api_logs table not found</h3>
+      <p>Run this SQL in your Supabase SQL editor, then refresh:<br><br>
+      <code>create table if not exists api_logs (id uuid default gen_random_uuid() primary key, family_id uuid not null, account_id integer, feature text not null, model text not null default 'claude-sonnet-4-20250514', input_tokens integer not null default 0, output_tokens integer not null default 0, cost_usd numeric(10,6) not null default 0, created_at timestamptz not null default now());</code></p>
+    </div>
+
+    <!-- ═══ ACCOUNTS ═══ -->
+    <div class="view active" id="view-accounts">
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-label">Total Accounts</div>
+          <div class="stat-value" id="stat-total-accounts">—</div>
+          <div class="stat-sub">All families</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">API Calls MTD</div>
+          <div class="stat-value" id="stat-calls-mtd">—</div>
+          <div class="stat-sub" id="stat-calls-sub">This month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Cost MTD</div>
+          <div class="stat-value" id="stat-cost-mtd">—</div>
+          <div class="stat-sub" id="stat-cost-sub">Across all accounts</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Cost / Family</div>
+          <div class="stat-value" id="stat-avg-cost">—</div>
+          <div class="stat-sub">This month</div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-toolbar">
+          <span class="section-title-sm">All Accounts</span>
+          <span style="font-size:12px;color:var(--ink3);font-family:'DM Mono',monospace" id="account-count-label">loading…</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Family ID</th>
+              <th>Plan</th>
+              <th>API Calls MTD</th>
+              <th>Cost MTD</th>
+              <th>Last Call</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="accounts-tbody">
+            <tr><td colspan="7" class="empty-state"><div class="ico">⏳</div><p>Loading accounts…</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ USAGE & COST ═══ -->
+    <div class="view" id="view-usage">
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-label">Total Calls MTD</div>
+          <div class="stat-value" id="u-total-calls">—</div>
+          <div class="stat-sub">All features combined</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Cost MTD</div>
+          <div class="stat-value" id="u-total-cost">—</div>
+          <div class="stat-sub">All accounts</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Input Tokens MTD</div>
+          <div class="stat-value" id="u-input-tokens">—</div>
+          <div class="stat-sub">Prompts sent</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Output Tokens MTD</div>
+          <div class="stat-value" id="u-output-tokens">—</div>
+          <div class="stat-sub">Responses received</div>
+        </div>
+      </div>
+
+      <div class="usage-grid">
+        <div class="chart-card">
+          <div class="section-hdr" style="margin-bottom:10px">
+            <div>
+              <div class="section-title">Calls by Feature</div>
+              <div class="section-sub" id="usage-month-label">This month</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:10px;color:var(--ink3);font-family:'DM Mono',monospace;letter-spacing:0.5px">
+            <span style="flex:1">FEATURE</span>
+            <span style="width:100px">VOLUME</span>
+            <span style="width:50px;text-align:right">CALLS</span>
+            <span style="width:60px;text-align:right">COST</span>
+          </div>
+          <div id="feature-breakdown">
+            <div class="empty-state"><div class="ico">⏳</div><p>Loading…</p></div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="section-hdr" style="margin-bottom:10px">
+            <div>
+              <div class="section-title">Monthly Trend</div>
+              <div class="section-sub">Last 6 months combined cost</div>
+            </div>
+          </div>
+          <div class="month-bars" id="month-bars">
+            <div class="empty-state" style="flex:1"><p>Loading…</p></div>
+          </div>
+          <div id="projection-cards" style="margin-top:14px"></div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-toolbar">
+          <span class="section-title-sm">All Calls Log</span>
+          <span style="font-size:12px;color:var(--ink3);font-family:'DM Mono',monospace" id="log-count-label">loading…</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Feature</th>
+              <th>Family ID</th>
+              <th>Input tokens</th>
+              <th>Output tokens</th>
+              <th>Cost</th>
+            </tr>
+          </thead>
+          <tbody id="logs-tbody">
+            <tr><td colspan="6" class="empty-state"><div class="ico">⏳</div><p>Loading…</p></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ ALERTS ═══ -->
+    <div class="view" id="view-alerts">
+      <div class="alert-card">
+        <div class="section-hdr" style="margin-bottom:12px">
+          <div class="section-title">Usage Alerts</div>
+        </div>
+        <div id="usage-alerts-body">
+          <div class="empty-state"><div class="ico">⏳</div><p>Checking…</p></div>
+        </div>
+      </div>
+      <div class="alert-card">
+        <div class="section-hdr" style="margin-bottom:12px">
+          <div class="section-title">System Checklist</div>
+        </div>
+        <div id="system-alerts-body">
+          <div class="alert-item">
+            <div class="alert-dot dot-gold"></div>
+            <div class="alert-body">
+              <div class="alert-title">API key is client-side</div>
+              <div class="alert-meta">Move to server proxy before launch</div>
+            </div>
+          </div>
+          <div class="alert-item">
+            <div class="alert-dot dot-gold"></div>
+            <div class="alert-body">
+              <div class="alert-title">Spoonacular not connected</div>
+              <div class="alert-meta">Recipe library using dummy data</div>
+            </div>
+          </div>
+          <div class="alert-item" id="api-logs-check">
+            <div class="alert-dot dot-orange"></div>
+            <div class="alert-body">
+              <div class="alert-title">Checking api_logs table…</div>
+              <div class="alert-meta">Verifying logging is active</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ TICKETS (stub) ═══ -->
+    <div class="view" id="view-tickets">
+      <div class="table-card" style="padding:48px;text-align:center">
+        <div style="font-size:36px;margin-bottom:12px">◎</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:8px">Support Tickets</div>
+        <div style="font-size:13px;color:var(--ink3);max-width:340px;margin:0 auto;line-height:1.8">
+          Coming in Phase 2 — ticket queue, reply flow, status tracking, and escalation.
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ BILLING (stub) ═══ -->
+    <div class="view" id="view-billing">
+      <div class="table-card" style="padding:48px;text-align:center">
+        <div style="font-size:36px;margin-bottom:12px">$</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:8px">Billing Management</div>
+        <div style="font-size:13px;color:var(--ink3);max-width:340px;margin:0 auto;line-height:1.8">
+          Connects to Stripe when payment processing is added pre-launch.
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ SETTINGS ═══ -->
+    <div class="view" id="view-settings">
+      <div style="max-width:520px">
+        <div class="table-card" style="padding:20px 24px;margin-bottom:14px">
+          <div style="font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:16px">Connection</div>
+          <div class="detail-field-row">
+            <span class="detail-field-label">Supabase URL</span>
+            <span class="detail-field-value" style="font-family:'DM Mono',monospace;font-size:11px" id="settings-url">—</span>
+          </div>
+          <div class="detail-field-row" style="border-bottom:none">
+            <span class="detail-field-label">Status</span>
+            <span class="detail-field-value" id="settings-status">—</span>
+          </div>
+        </div>
+        <div class="table-card" style="padding:20px 24px">
+          <div style="font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:16px">Alert Thresholds</div>
+          <div class="detail-field-row">
+            <span class="detail-field-label">Warn owner at (per family / month)</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="color:var(--ink3)">$</span>
+              <input id="threshold-warn" style="width:65px;padding:5px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:'DM Mono',monospace;font-size:13px" value="3.00">
+            </div>
+          </div>
+          <div class="detail-field-row" style="border-bottom:none">
+            <span class="detail-field-label">Flag as high usage at (per family / month)</span>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="color:var(--ink3)">$</span>
+              <input id="threshold-high" style="width:65px;padding:5px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:'DM Mono',monospace;font-size:13px" value="8.00">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+    <!-- ═══ FINANCIAL MODEL ═══ -->
+    <div class="view" id="view-financial">
+      <div class="scale-tabs">
+        <button class="scale-tab on" onclick="setScale(1000,this)">1,000 families</button>
+        <button class="scale-tab" onclick="setScale(10000,this)">10,000 families</button>
+        <button class="scale-tab" onclick="setScale(100000,this)">100,000 families</button>
+      </div>
+      <div class="results-grid" id="fin-results"></div>
+      <div class="fin-grid">
+        <div class="fin-card">
+          <div style="font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:16px">Assumptions</div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin-bottom:8px">PRICING (AUD)</div>
+          <div class="slider-row">
+            <span class="slider-label">Family plan price</span>
+            <div class="slider-wrap"><input type="range" min="9.99" max="39.99" step="5" value="15" oninput="updateModel()" id="sl-family-price"></div>
+            <span class="slider-val" id="v-family-price">$15 AUD</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Homework per child</span>
+            <div class="slider-wrap"><input type="range" min="4.99" max="19.99" step="5" value="10" oninput="updateModel()" id="sl-hw-price"></div>
+            <span class="slider-val" id="v-hw-price">$10 AUD</span>
+          </div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin:16px 0 8px">FAMILY MIX</div>
+          <div class="slider-row">
+            <span class="slider-label">Avg children per family</span>
+            <div class="slider-wrap"><input type="range" min="0" max="4" step="0.5" value="2" oninput="updateModel()" id="sl-kids"></div>
+            <span class="slider-val" id="v-kids">2.0 kids</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">% using homework</span>
+            <div class="slider-wrap"><input type="range" min="0" max="100" step="5" value="60" oninput="updateModel()" id="sl-hw-pct"></div>
+            <span class="slider-val" id="v-hw-pct">60%</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">% via web (no App Store cut)</span>
+            <div class="slider-wrap"><input type="range" min="0" max="100" step="5" value="30" oninput="updateModel()" id="sl-web-pct"></div>
+            <span class="slider-val" id="v-web-pct">30%</span>
+          </div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin:16px 0 8px">API USAGE (after cost fixes)</div>
+          <div class="slider-row">
+            <span class="slider-label">Chat messages/month</span>
+            <div class="slider-wrap"><input type="range" min="50" max="1000" step="50" value="300" oninput="updateModel()" id="sl-chat"></div>
+            <span class="slider-val" id="v-chat">300</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Homework msgs/child/month</span>
+            <div class="slider-wrap"><input type="range" min="50" max="1500" step="50" value="150" oninput="updateModel()" id="sl-hw-msgs"></div>
+            <span class="slider-val" id="v-hw-msgs">450</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Briefs/month</span>
+            <div class="slider-wrap"><input type="range" min="100" max="600" step="50" value="420" oninput="updateModel()" id="sl-briefs"></div>
+            <span class="slider-val" id="v-briefs">420</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Photo scans/month</span>
+            <div class="slider-wrap"><input type="range" min="0" max="200" step="10" value="90" oninput="updateModel()" id="sl-scans"></div>
+            <span class="slider-val" id="v-scans">90</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Kids Hub interactions/child/mo</span>
+            <div class="slider-wrap"><input type="range" min="0" max="200" step="10" value="50" oninput="updateModel()" id="sl-kids-hub"></div>
+            <span class="slider-val" id="v-kids-hub">50</span>
+          </div>
+          <div class="slider-row">
+            <span class="slider-label">Voice input mins/month (Whisper)</span>
+            <div class="slider-wrap"><input type="range" min="0" max="60" step="5" value="10" oninput="updateModel()" id="sl-whisper"></div>
+            <span class="slider-val" id="v-whisper">10 min</span>
+          </div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin:16px 0 8px">FEATURES</div>
+          <div class="slider-row">
+            <span class="slider-label">Voice (ElevenLabs)</span>
+            <div class="slider-wrap">
+              <select id="sl-voice" onchange="updateModel()" style="width:100%;padding:4px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:'Poppins',sans-serif;font-size:12px">
+                <option value="0">Off (no voice)</option>
+                <option value="0.30">Light (A$0.46/mo)</option>
+                <option value="0.60">Medium (A$0.92/mo)</option>
+                <option value="1.20">Heavy (A$1.85/mo)</option>
+              </select>
+            </div>
+            <span class="slider-val" id="v-voice">Off</span>
+          </div>
+        </div>
+        <div class="fin-card">
+          <div style="font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:16px">Cost Breakdown <span style="font-size:13px;color:var(--ink3);font-family:'Poppins',sans-serif">per family / month</span></div>
+          <table class="breakdown-table" id="cost-breakdown"></table>
+          <div style="font-family:'DM Serif Display',serif;font-size:17px;margin:20px 0 16px">Revenue Breakdown <span style="font-size:13px;color:var(--ink3);font-family:'Poppins',sans-serif">per family / month</span></div>
+          <table class="breakdown-table" id="rev-breakdown"></table>
+        </div>
+        <div class="fin-card full">
+          <div style="font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:16px">Scenario Comparison</div>
+          <div id="scenario-table"></div>
+        </div>
+        <div class="fin-card full">
+          <div style="font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:6px">Break-even Analysis</div>
+          <div id="breakeven-text" style="font-size:13px;color:var(--ink2);line-height:1.7;margin-bottom:12px"></div>
+          <div class="viability-bar"><div class="viability-fill" id="viability-fill" style="width:0%"></div></div>
+          <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--ink3);font-family:'DM Mono',monospace">
+            <span>0</span><span id="breakeven-label">Break-even</span><span id="scale-label">1,000</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+<!-- Account detail panel -->
+<div class="detail-overlay" id="detail-overlay" onclick="if(event.target===this)closeDetail()">
+  <div class="detail-panel">
+    <div class="detail-hdr">
+      <div class="detail-hdr-title">Account Detail</div>
+      <button class="close-btn" onclick="closeDetail()">×</button>
+    </div>
+    <div class="detail-body" id="detail-body">
+      <div class="empty-state"><p>Loading…</p></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+// CONFIGURATION
+// Open this file in Notepad/VS Code and replace these two values
+// with the ones from your C:\Users\richa\zaeli\.env file
+// ─────────────────────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://rsvbzakyyrftezthlhtd.supabase.co';   // e.g. https://xxxx.supabase.co
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzdmJ6YWt5eXJmdGV6dGhsaHRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NDk5NjUsImV4cCI6MjA4ODQyNTk2NX0.9ssTEwSxgY4B7nXxTEyKB3QDIoeCLh8yMo9jO-m5i-w'; // starts with eyJ...
+const WARN_THRESHOLD_AUD = 3.00;  // A$ per family per month
+const HIGH_THRESHOLD_AUD = 8.00;
+
+// ─────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────
+const { createClient } = supabase;
+let db;
+let allLogs = [];
+let allFamilies = [];
+let selectedFamilyId = null;
+
+try {
+  db = createClient(SUPABASE_URL, SUPABASE_KEY);
+} catch(e) {
+  showError('Could not connect to Supabase. Check your URL and key in the HTML file.');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────
+function fmt$(n) {
+  if (n === null || n === undefined) return '—';
+  const aud = Number(n) * USD_TO_AUD;
+  return 'A$' + aud.toFixed(aud < 0.10 ? 4 : 2);
+}
+function fmtNum(n) { return n?.toLocaleString() || '0'; }
+function fmtDate(d) { return d ? new Date(d).toLocaleString('en-AU', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}) : '—'; }
+function thisMonthStart() { const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),1).toISOString(); }
+function showError(msg) {
+  const b = document.getElementById('error-banner');
+  b.textContent = '⚠ ' + msg; b.style.display = 'block';
+  document.getElementById('connection-status').textContent = 'Error';
+  document.getElementById('connection-status').style.color = 'var(--red)';
+}
+function setConnected() {
+  document.getElementById('connection-status').textContent = 'Connected';
+  document.getElementById('connection-status').style.color = 'var(--green)';
+  document.getElementById('last-refreshed').textContent = 'Updated ' + new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:true});
+}
+
+// ─────────────────────────────────────────────────────────────────
+// LOAD ALL DATA
+// ─────────────────────────────────────────────────────────────────
+async function loadAllData() {
+  if (!db) return;
+  document.getElementById('loading').style.display = 'flex';
+  try {
+    // Fetch api_logs for this month
+    const { data: logs, error: logsErr } = await db
+      .from('api_logs')
+      .select('*')
+      .gte('created_at', thisMonthStart())
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (logsErr) {
+      if (logsErr.message?.includes('relation') || logsErr.code === '42P01') {
+        document.getElementById('setup-banner').style.display = 'block';
+        updateApiLogsCheck(false);
+      } else {
+        showError(logsErr.message);
+      }
+      allLogs = [];
+    } else {
+      allLogs = logs || [];
+      updateApiLogsCheck(true);
+    }
+
+    // Fetch all-time logs for trend (last 6 months)
+    const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5); sixMonthsAgo.setDate(1);
+    const { data: trendLogs } = await db
+      .from('api_logs')
+      .select('cost_usd, created_at')
+      .gte('created_at', sixMonthsAgo.toISOString());
+
+    // Derive unique families from logs
+    allFamilies = [...new Set((allLogs).map(l => l.family_id))].map(fid => ({
+      family_id: fid,
+      calls: allLogs.filter(l => l.family_id === fid).length,
+      cost: allLogs.filter(l => l.family_id === fid).reduce((s,l) => s + Number(l.cost_usd), 0),
+      last_call: allLogs.filter(l => l.family_id === fid).sort((a,b) => b.created_at > a.created_at ? 1 : -1)[0]?.created_at,
+    }));
+
+    renderAccounts();
+    renderUsage(trendLogs || []);
+    renderAlerts();
+    setConnected();
+
+  } catch(e) {
+    showError('Failed to load data: ' + e.message);
+  } finally {
+    document.getElementById('loading').style.display = 'none';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ACCOUNTS VIEW
+// ─────────────────────────────────────────────────────────────────
+function renderAccounts() {
+  const totalCalls = allLogs.length;
+  const totalCost  = allLogs.reduce((s,l) => s+Number(l.cost_usd), 0);
+  const avgCost    = allFamilies.length ? totalCost / allFamilies.length : 0;
+
+  document.getElementById('stat-total-accounts').textContent = allFamilies.length || (allLogs.length > 0 ? '—' : '0');
+  document.getElementById('stat-calls-mtd').textContent = fmtNum(totalCalls);
+  document.getElementById('stat-cost-mtd').textContent = fmt$(totalCost);
+  document.getElementById('stat-avg-cost').textContent = fmt$(avgCost);
+  document.getElementById('account-count-label').textContent = allFamilies.length + ' account' + (allFamilies.length !== 1 ? 's' : '');
+
+  const tbody = document.getElementById('accounts-tbody');
+
+  if (allFamilies.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="ico">📭</div><p>No API calls logged yet.<br>Use the app and refresh to see data here.</p></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = allFamilies.map(f => {
+    const shortId = f.family_id.substring(0,8) + '…';
+    const isTestAcct = f.family_id === '00000000-0000-0000-0000-000000000001';
+    const costClass = f.cost * USD_TO_AUD > HIGH_THRESHOLD_AUD ? 'cost-high' : f.cost * USD_TO_AUD > WARN_THRESHOLD_AUD ? 'cost-warn' : 'cost-ok';
+    return `<tr>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="acct-num">${isTestAcct ? '100001' : '—'}</span>
+          <div>
+            <div class="acct-name">${isTestAcct ? 'Anna De Kretser' : 'Family Account'}</div>
+          </div>
+        </div>
+      </td>
+      <td><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3)">${shortId}</span></td>
+      <td><span class="plan-badge plan-trial">Trial</span></td>
+      <td><span style="font-family:'DM Mono',monospace;font-size:13px">${fmtNum(f.calls)}</span></td>
+      <td><span class="cost-cell ${costClass}">${fmt$(f.cost)}</span></td>
+      <td><span style="font-size:12px;color:var(--ink3)">${fmtDate(f.last_call)}</span></td>
+      <td><button class="row-action" onclick="openDetail('${f.family_id}')">View →</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// USAGE VIEW
+// ─────────────────────────────────────────────────────────────────
+function renderUsage(trendLogs) {
+  const totalCalls   = allLogs.length;
+  const totalCost    = allLogs.reduce((s,l) => s+Number(l.cost_usd), 0);
+  const totalInput   = allLogs.reduce((s,l) => s+Number(l.input_tokens), 0);
+  const totalOutput  = allLogs.reduce((s,l) => s+Number(l.output_tokens), 0);
+
+  document.getElementById('u-total-calls').textContent  = fmtNum(totalCalls);
+  document.getElementById('u-total-cost').textContent   = fmt$(totalCost);
+  document.getElementById('u-input-tokens').textContent  = fmtNum(totalInput);
+  document.getElementById('u-output-tokens').textContent = fmtNum(totalOutput);
+
+  // Feature breakdown
+  const byFeature = {};
+  allLogs.forEach(l => {
+    if (!byFeature[l.feature]) byFeature[l.feature] = { calls:0, cost:0 };
+    byFeature[l.feature].calls++;
+    byFeature[l.feature].cost += Number(l.cost_usd);
+  });
+
+  const featuresSorted = Object.entries(byFeature).sort((a,b) => b[1].cost - a[1].cost);
+  const maxCalls = Math.max(...featuresSorted.map(f => f[1].calls), 1);
+  const colors = { zaeli_chat:'var(--blue)', recipe_photo:'var(--orange)', menu_photo:'var(--mag)', pantry_scan:'var(--green)', receipt_scan:'var(--gold)', home_brief:'var(--blue)', calendar_brief:'var(--mag)', shopping_brief:'var(--blue)', chat_greeting:'var(--green)', shopping_category:'var(--ink3)' };
+
+  const featEl = document.getElementById('feature-breakdown');
+  if (featuresSorted.length === 0) {
+    featEl.innerHTML = `<div class="empty-state"><div class="ico">📭</div><p>No API calls logged yet.<br>Use the app then refresh.</p></div>`;
+  } else {
+    featEl.innerHTML = featuresSorted.map(([feat, data]) => `
+      <div class="feature-row">
+        <span class="feature-name">${feat}</span>
+        <div class="feature-bar-wrap"><div class="feature-bar" style="width:${Math.round(data.calls/maxCalls*100)}%;background:${colors[feat]||'var(--blue)'}"></div></div>
+        <span class="feature-calls">${data.calls}</span>
+        <span class="feature-cost">${fmt$(data.cost)}</span>
+      </div>`).join('');
+  }
+
+  // Month trend bars
+  const monthMap = {};
+  (trendLogs).forEach(l => {
+    const d = new Date(l.created_at);
+    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    monthMap[key] = (monthMap[key]||0) + Number(l.cost_usd);
+  });
+
+  const months = [];
+  for (let i=5; i>=0; i--) {
+    const d = new Date(); d.setMonth(d.getMonth()-i);
+    const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+    const label = d.toLocaleString('en-AU',{month:'short'});
+    months.push({ key, label, cost: monthMap[key]||0, current: i===0 });
+  }
+
+  const maxCost = Math.max(...months.map(m => m.cost), 0.001);
+  document.getElementById('month-bars').innerHTML = months.map(m => `
+    <div class="month-bar-wrap">
+      <div class="month-bar ${m.current?'current':''}" style="height:${Math.max(4,Math.round(m.cost/maxCost*80))}px" title="${fmt$(m.cost)}"></div>
+      <div class="month-label">${m.label}</div>
+    </div>`).join('');
+
+  // Projection cards
+  const avgPerFamily = allFamilies.length ? totalCost / allFamilies.length : totalCost;
+  document.getElementById('projection-cards').innerHTML = `
+    <div class="proj-card proj-blue">
+      <div class="proj-label" style="color:var(--blue)">PROJECTION AT 1,000 FAMILIES</div>
+      <div class="proj-value">${fmt$(avgPerFamily * 1000)} <span style="font-size:14px;color:var(--ink3)">/month</span></div>
+      <div class="proj-sub">Based on current avg of ${fmt$(avgPerFamily)}/family/mo</div>
+    </div>
+    <div class="proj-card proj-green" style="margin-top:10px">
+      <div class="proj-label" style="color:var(--green)">BREAK-EVEN AT $9.99/MONTH PLAN</div>
+      <div class="proj-value">${avgPerFamily > 0 ? Math.ceil(9.99/avgPerFamily*1) : '—'} <span style="font-size:14px;color:var(--ink3)">paying families needed</span></div>
+      <div class="proj-sub">API costs covered from that point</div>
+    </div>`;
+
+  // Logs table
+  const logsTbody = document.getElementById('logs-tbody');
+  document.getElementById('log-count-label').textContent = allLogs.length + ' calls this month';
+  if (allLogs.length === 0) {
+    logsTbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="ico">📭</div><p>No logs yet — use the app first.</p></div></td></tr>`;
+  } else {
+    logsTbody.innerHTML = allLogs.slice(0,100).map(l => `
+      <tr>
+        <td style="font-size:12px;color:var(--ink3)">${fmtDate(l.created_at)}</td>
+        <td><span style="background:var(--blueL);color:var(--blue);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600">${l.feature}</span></td>
+        <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3)">${l.family_id?.substring(0,8)}…</td>
+        <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtNum(l.input_tokens)}</td>
+        <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtNum(l.output_tokens)}</td>
+        <td><span class="cost-cell cost-ok">${fmt$(l.cost_usd)}</span></td>
+      </tr>`).join('');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ALERTS VIEW
+// ─────────────────────────────────────────────────────────────────
+function renderAlerts() {
+  const highFamilies = allFamilies.filter(f => f.cost * USD_TO_AUD >= HIGH_THRESHOLD_AUD);
+  const warnFamilies = allFamilies.filter(f => f.cost * USD_TO_AUD >= WARN_THRESHOLD_AUD && f.cost * USD_TO_AUD < HIGH_THRESHOLD_AUD);
+  const el = document.getElementById('usage-alerts-body');
+
+  if (allFamilies.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="ico">✓</div><p>No usage data yet — no alerts to show.</p></div>`;
+    return;
+  }
+  if (highFamilies.length === 0 && warnFamilies.length === 0) {
+    el.innerHTML = `<div class="alert-item"><div class="alert-dot dot-green"></div><div class="alert-body"><div class="alert-title">All clear — no families over threshold</div><div class="alert-meta">All ${allFamilies.length} account${allFamilies.length!==1?'s':''} within cost limits this month</div></div></div>`;
+    return;
+  }
+  el.innerHTML = [
+    ...highFamilies.map(f => `<div class="alert-item"><div class="alert-dot" style="background:var(--red)"></div><div class="alert-body"><div class="alert-title">High usage — ${f.family_id.substring(0,8)}…</div><div class="alert-meta">${fmt$(f.cost)} this month — over A$$${HIGH_THRESHOLD_AUD} threshold</div></div><button class="row-action" onclick="openDetail('${f.family_id}')">View</button></div>`),
+    ...warnFamilies.map(f => `<div class="alert-item"><div class="alert-dot dot-orange"></div><div class="alert-body"><div class="alert-title">Usage warning — ${f.family_id.substring(0,8)}…</div><div class="alert-meta">${fmt$(f.cost)} this month — approaching A$$${WARN_THRESHOLD_AUD} threshold</div></div><button class="row-action" onclick="openDetail('${f.family_id}')">View</button></div>`),
+  ].join('');
+}
+
+function updateApiLogsCheck(exists) {
+  const el = document.getElementById('api-logs-check');
+  if (exists) {
+    el.innerHTML = `<div class="alert-dot dot-green"></div><div class="alert-body"><div class="alert-title">api_logs table active</div><div class="alert-meta">Logging is running — ${allLogs.length} call${allLogs.length!==1?'s':''} recorded this month</div></div>`;
+  } else {
+    el.innerHTML = `<div class="alert-dot dot-orange"></div><div class="alert-body"><div class="alert-title">api_logs table missing</div><div class="alert-meta">Run the SQL shown in the yellow banner above</div></div>`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ACCOUNT DETAIL PANEL
+// ─────────────────────────────────────────────────────────────────
+function openDetail(familyId) {
+  selectedFamilyId = familyId;
+  const f = allFamilies.find(x => x.family_id === familyId) || { family_id: familyId, calls:0, cost:0 };
+  const isTestAcct = familyId === '00000000-0000-0000-0000-000000000001';
+  const name = isTestAcct ? 'Anna De Kretser' : 'Family Account';
+  const acctNum = isTestAcct ? '100001' : '—';
+
+  // Feature breakdown for this family
+  const famLogs = allLogs.filter(l => l.family_id === familyId);
+  const byFeat = {};
+  famLogs.forEach(l => {
+    if (!byFeat[l.feature]) byFeat[l.feature] = {calls:0,cost:0};
+    byFeat[l.feature].calls++;
+    byFeat[l.feature].cost += Number(l.cost_usd);
+  });
+  const featRows = Object.entries(byFeat).sort((a,b)=>b[1].cost-a[1].cost)
+    .map(([feat,d]) => `<div class="usage-feature-row"><span class="usage-feature-name">${feat}</span><span class="usage-feature-calls">${d.calls} call${d.calls!==1?'s':''}</span><span class="usage-feature-cost">${fmt$(d.cost)}</span></div>`).join('');
+
+  document.getElementById('detail-body').innerHTML = `
+    <div class="detail-acct-hero">
+      <div class="detail-av">${name.charAt(0)}</div>
+      <div>
+        <div class="detail-acct-name">${name}</div>
+        <div class="detail-acct-meta">Account #${acctNum} · Trial · Active</div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Account</div>
+      <div class="detail-field-row"><span class="detail-field-label">Family ID</span><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3)">${familyId}</span></div>
+      <div class="detail-field-row"><span class="detail-field-label">Plan</span><span class="plan-badge plan-trial">Trial</span></div>
+      <div class="detail-field-row" style="border-bottom:none"><span class="detail-field-label">Last API call</span><span class="detail-field-value">${fmtDate(f.last_call)}</span></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">API Usage — This Month</div>
+      ${featRows || '<div class="empty-state"><p>No calls yet this month.</p></div>'}
+      <div class="total-row"><span style="font-size:13px;font-weight:600">Total this month</span><span style="font-family:\'DM Mono\',monospace;font-size:14px;font-weight:700">${fmt$(f.cost)}</span></div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Actions</div>
+      <div class="actions-grid">
+        <button class="action-btn">🔑 Reset password</button>
+        <button class="action-btn">⭐ Upgrade plan</button>
+        <button class="action-btn">✉️ Send email</button>
+        <button class="action-btn">📋 Add note</button>
+        <button class="action-btn">⏸ Suspend account</button>
+        <button class="action-btn danger">🗑 Delete account</button>
+      </div>
+    </div>`;
+
+  document.getElementById('detail-overlay').classList.add('open');
+}
+function closeDetail() { document.getElementById('detail-overlay').classList.remove('open'); }
+
+// ─────────────────────────────────────────────────────────────────
+// NAV + SETTINGS
+// ─────────────────────────────────────────────────────────────────
+function showView(id, btn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  btn.classList.add('active');
+  const titles = { accounts:'Accounts', usage:'Usage & Cost', alerts:'Alerts', tickets:'Support Tickets', billing:'Billing', settings:'Settings' };
+  document.getElementById('page-title').textContent = titles[id]||id;
+}
+
+// Settings URL display
+document.getElementById('settings-url').textContent = SUPABASE_URL === 'https://rsvbzakyyrftezthlhtd.supabase.co' ? 'Not configured' : SUPABASE_URL.replace('https://','').split('.')[0]+'…';
+document.getElementById('settings-status').textContent = SUPABASE_URL === 'https://rsvbzakyyrftezthlhtd.supabase.co' ? 'Not configured' : 'Configured';
+
+
+// ─────────────────────────────────────────────────────────────────
+// FINANCIAL MODEL
+// ─────────────────────────────────────────────────────────────────
+let finScale = 1000;
+const AUD_TO_USD = 0.65;
+const USD_TO_AUD = 1 / AUD_TO_USD;  // ~1.538
+const APP_STORE_CUT = 0.15;
+const STRIPE_PCT = 0.029;
+const STRIPE_FIXED = 0.30;
+
+// Per-message costs USD (after cost fixes)
+const COST_CHAT_MSG    = 0.013;   // blended Sonnet/Haiku, smart context
+const COST_HW_MSG      = 0.0094;  // blended Sonnet (70%) + Haiku (30%)
+const COST_BRIEF       = 0.0005;  // Haiku
+const COST_SCAN        = 0.019;   // Sonnet vision
+const COST_KIDS_HUB    = 0.0008;  // Haiku tool calls
+const COST_WHISPER_MIN = 0.006;   // OpenAI Whisper per minute
+
+// Display USD cost as AUD (financial model)
+function fmtAUD(usd) {
+  const aud = usd * USD_TO_AUD;
+  return 'A$' + aud.toFixed(aud < 0.01 ? 4 : 2);
+}
+
+// Display a live USD value (from api_logs) as AUD
+function fmtLive(usd) {
+  if (usd === null || usd === undefined) return '—';
+  const aud = Number(usd) * USD_TO_AUD;
+  return 'A$' + aud.toFixed(aud < 0.10 ? 4 : 2);
+}
+
+function setScale(n, btn) {
+  finScale = n;
+  document.querySelectorAll('.scale-tab').forEach(t => t.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('scale-label').textContent = n.toLocaleString();
+  updateModel();
+}
+
+function updateModel() {
+  const famPrice    = parseFloat(document.getElementById('sl-family-price').value);
+  const hwPrice     = parseFloat(document.getElementById('sl-hw-price').value);
+  const avgKids     = parseFloat(document.getElementById('sl-kids').value);
+  const hwPct       = parseFloat(document.getElementById('sl-hw-pct').value) / 100;
+  const webPct      = parseFloat(document.getElementById('sl-web-pct').value) / 100;
+  const chatMsgs    = parseFloat(document.getElementById('sl-chat').value);
+  const hwMsgs      = parseFloat(document.getElementById('sl-hw-msgs').value);
+  const briefs      = parseFloat(document.getElementById('sl-briefs').value);
+  const scans       = parseFloat(document.getElementById('sl-scans').value);
+  const voiceCost   = parseFloat(document.getElementById('sl-voice').value);
+
+  // Update labels
+  document.getElementById('v-family-price').textContent = '$' + famPrice.toFixed(2) + ' AUD';
+  document.getElementById('v-hw-price').textContent = '$' + hwPrice.toFixed(2) + ' AUD';
+  document.getElementById('v-kids').textContent = avgKids.toFixed(1) + ' kids';
+  document.getElementById('v-hw-pct').textContent = (hwPct*100).toFixed(0) + '%';
+  document.getElementById('v-web-pct').textContent = (webPct*100).toFixed(0) + '%';
+  document.getElementById('v-chat').textContent = chatMsgs.toFixed(0);
+  document.getElementById('v-hw-msgs').textContent = hwMsgs.toFixed(0);
+  document.getElementById('v-briefs').textContent = briefs.toFixed(0);
+  document.getElementById('v-scans').textContent = scans.toFixed(0);
+  const kidsHubMsgs   = parseFloat(document.getElementById('sl-kids-hub').value);
+  const whisperMins   = parseFloat(document.getElementById('sl-whisper').value);
+  document.getElementById('v-voice').textContent     = voiceCost === 0 ? 'Off' : 'A$'+(voiceCost*USD_TO_AUD).toFixed(2)+'/mo';
+  document.getElementById('v-kids-hub').textContent  = kidsHubMsgs.toFixed(0);
+  document.getElementById('v-whisper').textContent   = whisperMins.toFixed(0) + ' min';
+
+  // ── Per-family calculations ──
+  const apiChat    = chatMsgs * COST_CHAT_MSG;
+  const apiHw      = hwMsgs * avgKids * hwPct * COST_HW_MSG;
+  const apiBrief   = briefs * COST_BRIEF;
+  const apiScan    = scans * COST_SCAN;
+  const apiKidsHub = kidsHubMsgs * avgKids * COST_KIDS_HUB;
+  const apiWhisper = whisperMins * COST_WHISPER_MIN;
+  const apiTotal   = apiChat + apiHw + apiBrief + apiScan + apiKidsHub + apiWhisper + voiceCost;
+
+  // Revenue per family (USD)
+  const famRevenueAUD = famPrice;
+  const hwRevenueAUD  = hwPrice * avgKids * hwPct;
+  const totalRevenueAUD = famRevenueAUD + hwRevenueAUD;
+  const totalRevenueUSD = totalRevenueAUD * AUD_TO_USD;
+
+  // App store cut (weighted by web vs app)
+  const appStoreCutUSD = totalRevenueUSD * (1 - webPct) * APP_STORE_CUT;
+  const stripeUSD = totalRevenueUSD * STRIPE_PCT + STRIPE_FIXED;
+  const supabaseUSD = 0.025;
+  const hostingUSD = 0.005;
+  const supportUSD = 1.00;
+
+  const totalCostUSD = apiTotal + appStoreCutUSD + stripeUSD + supabaseUSD + hostingUSD + supportUSD;
+  const netRevenueUSD = totalRevenueUSD - appStoreCutUSD - stripeUSD;
+  const marginUSD = netRevenueUSD - apiTotal - supabaseUSD - hostingUSD - supportUSD;
+  const marginPct = netRevenueUSD > 0 ? (marginUSD / netRevenueUSD * 100) : 0;
+
+  // ── Render cost breakdown ──
+  document.getElementById('cost-breakdown').innerHTML = `
+    <tr><th>Item</th><th>Per family/mo (AUD)</th><th>Notes</th></tr>
+    <tr><td>Chat (Sonnet/Haiku blend)</td><td>${fmtAUD(apiChat)}</td><td>${chatMsgs} msgs × ${fmtAUD(COST_CHAT_MSG)} avg</td></tr>
+    <tr><td>Homework (Sonnet 70% + Haiku 30%)</td><td>${fmtAUD(apiHw)}</td><td>${hwMsgs} msgs × ${avgKids.toFixed(1)} kids × ${(hwPct*100).toFixed(0)}%</td></tr>
+    <tr><td>Briefs (Haiku)</td><td>${fmtAUD(apiBrief)}</td><td>${briefs} briefs × ${fmtAUD(COST_BRIEF)}</td></tr>
+    <tr><td>Photo scans (Sonnet vision)</td><td>${fmtAUD(apiScan)}</td><td>${scans} scans × ${fmtAUD(COST_SCAN)}</td></tr>
+    ${apiKidsHub > 0 ? `<tr><td>Kids Hub (Haiku)</td><td>${fmtAUD(apiKidsHub)}</td><td>${kidsHubMsgs} interactions × ${avgKids.toFixed(1)} kids</td></tr>` : ''}
+    ${apiWhisper > 0 ? `<tr><td>Whisper voice input</td><td>${fmtAUD(apiWhisper)}</td><td>${whisperMins} mins × A$0.01/min</td></tr>` : ''}
+    ${voiceCost > 0 ? `<tr><td>Voice output (ElevenLabs)</td><td>${fmtAUD(voiceCost)}</td><td>Monthly voice output</td></tr>` : ''}
+    <tr><td>App Store / Google</td><td>${fmtAUD(appStoreCutUSD)}</td><td>${(100-webPct*100).toFixed(0)}% via app × 15%</td></tr>
+    <tr><td>Stripe fees</td><td>${fmtAUD(stripeUSD)}</td><td>2.9% + A$0.46</td></tr>
+    <tr><td>Supabase + hosting</td><td>${fmtAUD(supabaseUSD+hostingUSD)}</td><td>Infrastructure</td></tr>
+    <tr><td>Support overhead</td><td>${fmtAUD(supportUSD)}</td><td>Estimate</td></tr>
+    <tr class="total-row"><td>Total cost</td><td>${fmtAUD(totalCostUSD)}</td><td></td></tr>
+  `;
+
+  // ── Render revenue breakdown ──
+  document.getElementById('rev-breakdown').innerHTML = `
+    <tr><th>Item</th><th>Per family/mo (AUD)</th><th>Notes</th></tr>
+    <tr><td>Family plan</td><td>A$${famRevenueAUD.toFixed(2)}</td><td>Charged in AUD</td></tr>
+    <tr><td>Homework add-on</td><td>A$${hwRevenueAUD.toFixed(2)}</td><td>${avgKids.toFixed(1)} kids × ${(hwPct*100).toFixed(0)}% uptake</td></tr>
+    <tr class="total-row"><td>Total revenue</td><td>A$${totalRevenueAUD.toFixed(2)}</td><td></td></tr>
+    <tr><td style="color:var(--ink3)">After App Store + Stripe</td><td>A$${(netRevenueUSD*USD_TO_AUD).toFixed(2)}</td><td></td></tr>
+    <tr class="total-row" style="color:${marginUSD >= 0 ? 'var(--green)' : 'var(--red)'}"><td>Net margin</td><td>A$${(marginUSD*USD_TO_AUD).toFixed(2)} (${marginPct.toFixed(0)}%)</td><td>${marginUSD >= 0 ? 'Profitable ✓' : 'Loss — adjust pricing'}</td></tr>
+  `;
+
+  // ── Scale scenarios ──
+  const scales = [500, 1000, 5000, 10000, 50000, 100000];
+  let scenarioHTML = `
+    <div class="scenario-row hdr">
+      <div class="scenario-cell hdr">Families</div>
+      <div class="scenario-cell hdr">Revenue AUD</div>
+      <div class="scenario-cell hdr">API Cost AUD</div>
+      <div class="scenario-cell hdr">Total Cost AUD</div>
+      <div class="scenario-cell hdr">Profit AUD</div>
+      <div class="scenario-cell hdr">Margin</div>
+    </div>
+  `;
+  scales.forEach(n => {
+    const rev = totalRevenueAUD * n;
+    const api = apiTotal * n;
+    const cost = totalCostUSD * n;
+    const profit = (netRevenueUSD - apiTotal - supabaseUSD - hostingUSD - supportUSD) * n;
+    const pct = netRevenueUSD > 0 ? (profit / (netRevenueUSD * n) * 100) : 0;
+    const isSelected = n === finScale;
+    scenarioHTML += `
+      <div class="scenario-row" style="${isSelected ? 'background:var(--blueL)' : ''}">
+        <div class="scenario-cell" style="font-family:'DM Mono',monospace;font-weight:${isSelected?'700':'400'}">${n.toLocaleString()}</div>
+        <div class="scenario-cell">A$${(rev/1000).toFixed(0)}k</div>
+        <div class="scenario-cell">A$${(api*USD_TO_AUD/1000).toFixed(1)}k</div>
+        <div class="scenario-cell">A$${(cost*USD_TO_AUD/1000).toFixed(1)}k</div>
+        <div class="scenario-cell" class="${profit>=0?'tag-profit':'tag-loss'}" style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:600">${profit>=0?'+':''} A$${Math.abs(profit*USD_TO_AUD/1000).toFixed(1)}k</div>
+        <div class="scenario-cell" style="color:${pct>=20?'var(--green)':pct>=0?'var(--orange)':'var(--red)'};font-weight:600">${pct.toFixed(0)}%</div>
+      </div>`;
+  });
+  document.getElementById('scenario-table').innerHTML = scenarioHTML;
+
+  // ── Results cards ──
+  const scaledProfit = marginUSD * finScale;
+  const scaledRevAUD = totalRevenueAUD * finScale;
+  const scaledApiUSD = apiTotal * finScale;
+  const tenKTarget = marginUSD > 0 ? Math.ceil(10000 / (marginUSD * USD_TO_AUD)) : null;
+  document.getElementById('fin-results').innerHTML = `
+    <div class="result-card ${scaledProfit >= 0 ? 'profit' : 'loss'}">
+      <div class="result-label" style="color:${scaledProfit>=0?'var(--green)':'var(--red)'}">${scaledProfit>=0?'MONTHLY PROFIT':'MONTHLY LOSS'}</div>
+      <div class="result-value">${scaledProfit>=0?'+':'-'}A$${Math.abs(scaledProfit*USD_TO_AUD/1000).toFixed(0)}k</div>
+      <div class="result-sub" style="color:${scaledProfit>=0?'var(--green)':'var(--red)'}">${finScale.toLocaleString()} families · ${marginPct.toFixed(0)}% margin</div>
+    </div>
+    <div class="result-card neutral">
+      <div class="result-label" style="color:var(--blue)">MONTHLY REVENUE</div>
+      <div class="result-value">A$${(scaledRevAUD/1000).toFixed(0)}k</div>
+      <div class="result-sub" style="color:var(--blue)">A$${totalRevenueAUD.toFixed(2)} avg per family</div>
+    </div>
+    <div class="result-card warn">
+      <div class="result-label" style="color:var(--orange)">ANTHROPIC BILL</div>
+      <div class="result-value">A$${(scaledApiUSD*USD_TO_AUD/1000).toFixed(1)}k</div>
+      <div class="result-sub" style="color:var(--orange)">A$${(apiTotal*USD_TO_AUD).toFixed(2)} per family/mo</div>
+    </div>
+    <div class="result-card ${marginUSD > 0 ? 'profit' : 'loss'}">
+      <div class="result-label" style="color:${marginUSD>0?'var(--green)':'var(--red)'}">MARGIN PER FAMILY</div>
+      <div class="result-value" style="color:${marginUSD>0?'var(--green)':'var(--red)'}">A$${(marginUSD*USD_TO_AUD).toFixed(2)}</div>
+      <div class="result-sub" style="color:${marginUSD>0?'var(--green)':'var(--red)'}">after all costs · ${marginPct.toFixed(0)}% margin</div>
+    </div>
+  `;
+
+  // ── Break-even bar — shows progress toward A$10k/month profit milestone ──
+  const tenKFamilies = marginUSD > 0 ? Math.ceil(10000 / (marginUSD * USD_TO_AUD)) : null;
+  document.getElementById('breakeven-text').innerHTML = marginUSD > 0
+    ? `Each paying family generates <strong>A$${(marginUSD*USD_TO_AUD).toFixed(2)} net margin</strong> after all costs (${marginPct.toFixed(0)}% margin).
+       Revenue per family: <strong>A$${totalRevenueAUD.toFixed(2)}</strong> · Total cost: <strong>A$${(totalCostUSD*USD_TO_AUD).toFixed(2)}</strong> · Anthropic bill: <strong>A$${(apiTotal*USD_TO_AUD).toFixed(2)}</strong>.
+       At <strong>${finScale.toLocaleString()} families</strong>: <strong style="color:var(--green)">+A$${(scaledProfit*USD_TO_AUD/1000).toFixed(1)}k/month profit</strong>.
+       To hit <strong>A$10k/month profit</strong>, you need <strong style="color:var(--blue)">${tenKFamilies ? tenKFamilies.toLocaleString() : '—'} families</strong>.`
+    : `At current settings, costs exceed revenue by <strong>A$${Math.abs(marginUSD*USD_TO_AUD).toFixed(2)} per family</strong>. Raise the family plan price or reduce usage assumptions.`;
+  const fillPct = tenKFamilies ? Math.min(100, (finScale / tenKFamilies) * 100) : 0;
+  document.getElementById('viability-fill').style.width = fillPct + '%';
+  document.getElementById('viability-fill').style.background = marginUSD >= 0 ? (fillPct >= 100 ? 'var(--green)' : 'var(--blue)') : 'var(--red)';
+  document.getElementById('breakeven-label').textContent = tenKFamilies ? 'A$10k/mo (' + tenKFamilies.toLocaleString() + ' fam)' : 'Break-even';
+}
+
+// ─────────────────────────────────────────────────────────────────
+// STARTUP
+// ─────────────────────────────────────────────────────────────────
+loadAllData();
+  updateModel();
+</script>
+</body>
+</html>

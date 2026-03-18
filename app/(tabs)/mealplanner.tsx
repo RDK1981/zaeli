@@ -1,24 +1,32 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
 import {
-  View, Text, ScrollView, TouchableOpacity, TextInput,
-  Modal, Platform, KeyboardAvoidingView, Animated, Easing,
-  StyleSheet, Alert, Image,
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
-import {
-  useFonts,
   Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold,
   Poppins_700Bold, Poppins_800ExtraBold,
+  useFonts,
 } from '@expo-google-fonts/poppins';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import Svg, { Line, Polyline, Circle } from 'react-native-svg';
-import { NavMenu, HamburgerButton } from '../components/NavMenu';
-import { supabase } from '../../lib/supabase';
+import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Image,
+  KeyboardAvoidingView,
+  Modal, Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 import { callClaude } from '../../lib/api-logger';
+import { supabase } from '../../lib/supabase';
+import { HamburgerButton, NavMenu } from '../components/NavMenu';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
@@ -295,8 +303,8 @@ function AssignCookModal({visible,dayLbl,mealName,onClose,onSave}:{
 }
 
 // ── Add Meal Modal — all options wired ───────────────────────────────────────
-function AddMealModal({visible,targetDayKey,targetDayLabel,onClose,onSaved,onBrowseRecipes,onFavourites}:{
-  visible:boolean;targetDayKey:string;targetDayLabel:string;
+function AddMealModal({visible,targetDayKey,targetDayLabel,targetMealType,onClose,onSaved,onBrowseRecipes,onFavourites}:{
+  visible:boolean;targetDayKey:string;targetDayLabel:string;targetMealType?:string;
   onClose:()=>void;onSaved:()=>void;
   onBrowseRecipes:()=>void;onFavourites:()=>void;
 }){
@@ -313,7 +321,7 @@ function AddMealModal({visible,targetDayKey,targetDayLabel,onClose,onSaved,onBro
       day_key:targetDayKey,
       planned_date:targetDayKey,
       meal_name:mealName||'Dinner',
-      meal_type:'dinner',
+      meal_type: targetMealType || 'dinner',
       source,
     });
     if(error) Alert.alert('Could not save',error.message);
@@ -397,6 +405,23 @@ function MealDetailModal({visible,meal,dayLbl,onClose,onRequestAssign,onMove,onE
   onClose:()=>void;onRequestAssign:()=>void;onMove?:()=>void;
   onEdit?:(meal:MealPlan)=>void;
 }){
+  const [recipeNotes,setRecipeNotes]=useState<string|null>(null);
+  // When meal has no ingredients/notes, look up recipe by name from recipes table
+  useEffect(()=>{
+    if(!meal) return;
+    const hasIngredients=(meal.ingredients?.length??0)>0;
+    const hasNotes=meal.notes?.includes('Ingredients:');
+    if(!hasIngredients&&!hasNotes&&meal.meal_name){
+      supabase.from('recipes').select('notes').eq('family_id',DUMMY_FAMILY_ID)
+        .ilike('name',meal.meal_name).limit(1)
+        .then(({data})=>{
+          if(data?.[0]?.notes) setRecipeNotes(data[0].notes);
+        });
+    } else {
+      setRecipeNotes(null);
+    }
+  },[meal?.id]);
+
   if(!meal) return null;
   const missing=meal.ingredients?.filter(i=>!i.in_pantry)??[];
   const allOk=missing.length===0&&(meal.ingredients?.length??0)>0;
@@ -404,12 +429,15 @@ function MealDetailModal({visible,meal,dayLbl,onClose,onRequestAssign,onMove,onE
     ?FAMILY.filter(m=>meal.cook_ids!.includes(m.id)).map(m=>m.name).join(' + ')
     :null;
 
+  // Use meal.notes first, fall back to recipe lookup
+  const effectiveNotes = meal.notes || recipeNotes;
+
   // Parse method from notes if ingredients are in structured notes field
-  const parsedIngredients = meal.notes?.includes('Ingredients:')
-    ? (meal.notes.split(/\n(?=Method:)/)[0]?.replace(/^Ingredients:\n?/,'').trim()||'')
+  const parsedIngredients = effectiveNotes?.includes('Ingredients:')
+    ? (effectiveNotes.split(/\n(?=Method:)/)[0]?.replace(/^Ingredients:\n?/,'').trim()||'')
     : null;
-  const parsedMethod = meal.notes?.includes('Method:')
-    ? (meal.notes.split(/\n(?=Method:)/)[1]?.replace(/^Method:\n?/,'').trim()||'')
+  const parsedMethod = effectiveNotes?.includes('Method:')
+    ? (effectiveNotes.split(/\n(?=Method:)/)[1]?.replace(/^Method:\n?/,'').trim()||'')
     : null;
 
   const addMissing=async()=>{
@@ -511,11 +539,11 @@ function MealDetailModal({visible,meal,dayLbl,onClose,onRequestAssign,onMove,onE
             )}
 
             {/* Plain notes (no structure) */}
-            {(!parsedIngredients)&&meal.notes&&(
+            {(!parsedIngredients)&&effectiveNotes&&(
               <>
                 <Text style={[s.sectionHdr,{marginTop:12}]}>Notes</Text>
                 <View style={s.notesBox}>
-                  <Text style={s.notesTxt}>{meal.notes}</Text>
+                  <Text style={s.notesTxt}>{effectiveNotes}</Text>
                 </View>
               </>
             )}
@@ -1589,7 +1617,7 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
   const router=useRouter();
   const [meals,setMeals]=useState<MealPlan[]>([]);
   const [loading,setLoading]=useState(true);
-  const [addDay,setAddDay]=useState<{key:string;label:string}|null>(null);
+  const [addDay,setAddDay]=useState<{key:string;label:string;mealType?:string}|null>(null);
   const [detailMeal,setDetailMeal]=useState<{meal:MealPlan;label:string}|null>(null);
   const [assignState,setAssignState]=useState<{key:string;label:string;meal:MealPlan}|null>(null);
   const [moveState,setMoveState]=useState<{meal:MealPlan;fromLabel:string}|null>(null);
@@ -1861,7 +1889,13 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
                 <TouchableOpacity
                   style={[s.dessertSlot,dessert&&s.dessertSlotFilled]}
                   activeOpacity={0.8}
-                  onPress={()=>setAddDay({key:dk,label:dl+(dessert?' (dessert)':' dessert')})}>
+                  onPress={()=>{
+                    if(dessert){
+                      setDetailMeal({meal:dessert,label:dl+' (dessert)'});
+                    } else {
+                      setAddDay({key:dk,label:dl+' dessert',mealType:'dessert'});
+                    }
+                  }}>
                   <Text style={{fontSize:15}}>🍮</Text>
                   {dessert?(
                     <>
@@ -1885,6 +1919,7 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
 
       <AddMealModal
         visible={!!addDay} targetDayKey={addDay?.key||''} targetDayLabel={addDay?.label||''}
+        targetMealType={addDay?.mealType}
         onClose={()=>setAddDay(null)}
         onSaved={()=>{setAddDay(null);fetchMeals();}}
         onBrowseRecipes={()=>{setAddDay(null);onTabChange('recipes');}}
