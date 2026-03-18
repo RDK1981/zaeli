@@ -12,6 +12,7 @@ import { supabase } from '../../lib/supabase';
 import { buildMemoryContext } from '../../lib/zaeli-memory';
 import { HamburgerButton, NavMenu } from '../components/NavMenu';
 import { callClaude } from '../../lib/api-logger';
+import { getZaeliProvider } from '../../lib/zaeli-provider';
 
 // ── ASK BAR ICONS ────────────────────────────────────────────
 function IcoMic({ color = 'rgba(0,0,0,0.45)' }: { color?: string }) {
@@ -332,6 +333,26 @@ export default function HomeScreen() {
     }catch(e){console.log('fetchData:',e);}
   };
 
+  // ── Brief helper — routes to OpenAI or Claude based on provider toggle ──
+  async function callBrief({feature,system,userContent,maxTokens=400}:
+    {feature:string;system:string;userContent:string;maxTokens?:number}): Promise<string> {
+    if(getZaeliProvider()==='openai'){
+      const res=await fetch('https://api.openai.com/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY||''}`},
+        body:JSON.stringify({model:'gpt-5.4-mini',max_tokens:maxTokens,
+          messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
+      });
+      const d=await res.json();
+      return d.choices?.[0]?.message?.content||'';
+    } else {
+      const d=await callClaude({feature,familyId:DUMMY_FAMILY_ID,
+        body:{model:'claude-haiku-4-5-20251001',max_tokens:maxTokens,
+          system,messages:[{role:'user',content:userContent}]}});
+      return d.content?.[0]?.text||'';
+    }
+  }
+
   const generateBrief=async(evs:any[],tdos:any[],tm:any,tmr:any,sh:any[]=[],pastEvs:any[]=[],doneTodos:any[]=[],ystMeal:any=null)=>{
     // ── DOUBLE-FIRE GUARD ──────────────────────────────────
     // Prevents duplicate API calls from React StrictMode double-mount,
@@ -449,12 +470,7 @@ Urgent/overdue todos: ${urgentSummary}.
 All active todos: ${todoSummary}.
 Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not planned'}. Shopping items pending: ${sh.length}.${memCtx}`;
 
-      const d=await callClaude({
-        feature:'home_brief',
-        familyId:DUMMY_FAMILY_ID,
-        body:{model:'claude-haiku-4-5-20251001',max_tokens:400,system:systemPrompt,messages:[{role:'user',content:ctx}]},
-      });
-      const raw=d.content?.[0]?.text||'';
+      const raw=await callBrief({feature:'home_brief',system:systemPrompt,userContent:ctx,maxTokens:400});
       const clean=raw.replace(/```json|```/g,'').trim();
       try{
         const parsed=JSON.parse(clean);

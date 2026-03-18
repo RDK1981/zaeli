@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 18 March 2026 — Session 9 (Whisper, Brief Caching, Shopping Search, Usage Cap)*
+*Last updated: 18 March 2026 — Session 9 (Whisper, GPT-5.4 mini toggle, brief caching, shopping search, usage cap)*
 
 ---
 
@@ -17,10 +17,9 @@
 - React Native + Expo (iOS-first)
 - Supabase (Postgres) — auth, database, realtime
 - Claude API — AI throughout (see model routing below)
-- OpenAI Whisper API — voice input (`EXPO_PUBLIC_OPENAI_API_KEY` in `.env`, single line, no line breaks)
+- OpenAI API — GPT-5.4 mini test mode + Whisper voice input
 - expo-router (file-based routing)
 - expo-av (~16.0.8) — audio recording for Whisper
-- expo-file-system — NOT used (deprecated getInfoAsync removed)
 - Poppins font (all UI), DMSerifDisplay (hero titles only)
 - No bottom tab bar — hamburger menu only navigation
 
@@ -30,40 +29,69 @@
 ```ts
 DUMMY_FAMILY_ID   = '00000000-0000-0000-0000-000000000001'
 DUMMY_MEMBER_NAME = 'Anna'
-SONNET = 'claude-sonnet-4-20250514'
-HAIKU  = 'claude-haiku-4-5-20251001'
+SONNET    = 'claude-sonnet-4-20250514'
+HAIKU     = 'claude-haiku-4-5-20251001'
+GPT5_MINI = 'gpt-5.4-mini'
 AUD_TO_USD = 0.65
-USD_TO_AUD = 1 / 0.65  // ~1.538
+USD_TO_AUD = ~1.538
 ```
 
 ---
 
-## Model Routing (CRITICAL — cost architecture)
-All API calls go through `callClaude()` in `lib/api-logger.ts`.
+## AI Provider Toggle Architecture (CRITICAL)
 
-| Feature | Model | Why |
+### lib/zaeli-provider.ts
+Shared state file — both `zaeli-chat.tsx` and `more.tsx` import from here.
+```ts
+export function getZaeliProvider(): 'claude' | 'openai'
+export function setZaeliProvider(p: 'claude' | 'openai')
+```
+**Never import provider state from zaeli-chat.tsx directly — causes circular import errors.**
+
+### Toggle behaviour
+- **OFF (Claude mode):** Sonnet/Haiku blend for chat, Haiku for briefs
+- **ON (GPT mode):** GPT-5.4 mini for ALL calls — chat AND briefs
+- **Homework:** Always Claude Sonnet regardless of toggle (not yet built)
+- Toggle lives in: More → Settings → scroll to bottom → AI Engine toggle
+
+### callBrief() helper pattern
+All three brief screens (index.tsx, calendar.tsx, shopping.tsx) use a `callBrief()` helper that checks `getZaeliProvider()` and routes to either `callClaude()` or OpenAI fetch.
+
+### Known issues with GPT mode (to fix next session)
+1. **Home brief JSON parse error** — GPT returns plain text but home brief expects JSON `{brief, cta, signoff}` format. Need to either prompt GPT to return JSON or update parser to handle plain text
+2. **Chat 400 error** — OpenAI message format slightly wrong, needs debugging
+3. **Shopping brief** — not working in GPT mode
+4. **Brief-to-chat continuation** — not wired up for OpenAI path
+5. **Persona tuning** — GPT sounds more corporate/American, needs stronger Zaeli persona prompting
+
+---
+
+## Model Routing
+All Claude calls go through `callClaude()` in `lib/api-logger.ts`.
+OpenAI calls use direct `fetch()` to `api.openai.com/v1/chat/completions`.
+
+| Feature | Claude mode | GPT mode |
 |---|---|---|
-| `home_brief` | Haiku | Simple structured output |
-| `chat_greeting` | Haiku | Short, 50 token / 12 word limit |
-| `zaeli_chat` turn 0 — pure action | Haiku | Add/book/complete only |
-| `zaeli_chat` turn 0 — conversational | Sonnet | Needs warmth/reasoning |
-| `zaeli_chat` turns 1+ (tool loop) | Haiku | Stripped prompt, cheap |
-| `calendar_brief` | Haiku | Once per day, 2am reset |
-| `shopping_brief` | Haiku | Once per day, 2am reset |
-| `receipt_scan` | Sonnet | Vision + structured extraction |
-| `whisper_transcription` | OpenAI Whisper-1 | Voice input, ~A$0.009/min |
-| Homework (future) | Sonnet 70% + Haiku 30% | Reasoning quality critical |
+| home_brief | Haiku | GPT-5.4 mini |
+| calendar_brief | Haiku | GPT-5.4 mini |
+| shopping_brief | Haiku | GPT-5.4 mini |
+| chat_greeting | Haiku | GPT-5.4 mini |
+| zaeli_chat | Sonnet/Haiku blend | GPT-5.4 mini |
+| receipt_scan | Sonnet vision | Sonnet vision (always) |
+| whisper_transcription | OpenAI Whisper-1 | OpenAI Whisper-1 |
+| Homework (future) | Sonnet always | Sonnet always |
 
-**selectModel() logic** in `zaeli-chat.tsx`:
-- ≤2 words → Haiku
-- Emotional/planning/recipe/advice keywords → Sonnet
-- Short pure action phrases → Haiku
-- Ambiguous → Sonnet (safety default)
+**max_tokens:** Sonnet turn 0 = 1024, others = 600, greetings = 50
 
-**max_tokens:**
-- Sonnet turn 0: 1024
-- All other turns: 600
-- Greetings/brief continuation: 50
+---
+
+## Cost Comparison
+| Model | Per msg (AUD) | 300 msgs/month | 1,000 msgs/month |
+|---|---|---|---|
+| Claude blend | A$0.022 | A$6.60 | A$22.00 |
+| GPT-5.4 mini | A$0.003 | A$0.90 | A$3.00 |
+
+**GPT-5.4 mini is ~7× cheaper.** At that cost, message caps are unnecessary and response length can be increased significantly.
 
 ---
 
@@ -84,106 +112,70 @@ chatBg:  '#F4F6FA'   // Chat background
 ## Screens (all built)
 | File | Status | Notes |
 |---|---|---|
-| `app/(tabs)/index.tsx` | ✅ Live | Home, brief card (2hr cache), tiles, radar, Ask Zaeli bar |
-| `app/(tabs)/calendar.tsx` | ✅ Live | Full calendar, add/edit/recurring, brief (once/day 2am reset) |
-| `app/(tabs)/shopping.tsx` | ✅ Live | List/Pantry/Spend, search bars, 30-day Recently Bought, brief (once/day) |
-| `app/(tabs)/zaeli-chat.tsx` | ✅ Live | Multi-channel, Whisper voice, usage cap, week dates fix |
-| `app/(tabs)/mealplanner.tsx` | ✅ Live | Dinners/Recipes/Favourites v4.2, NO brief (removed) |
-| `app/(tabs)/more.tsx` | ✅ Live | Hub + Settings + To-dos, no brief |
+| `app/(tabs)/index.tsx` | ✅ Live | Home, brief card (2hr cache), GPT/Claude routing |
+| `app/(tabs)/calendar.tsx` | ✅ Live | Full calendar, brief (once/day 2am reset), GPT/Claude routing |
+| `app/(tabs)/shopping.tsx` | ✅ Live | List/Pantry/Spend, search bars, 30-day Recently Bought, GPT/Claude routing |
+| `app/(tabs)/zaeli-chat.tsx` | ✅ Live | Multi-channel, Whisper, usage cap, GPT/Claude toggle |
+| `app/(tabs)/mealplanner.tsx` | ✅ Live | Dinners/Recipes/Favourites v4.2, no brief |
+| `app/(tabs)/more.tsx` | ✅ Live | Hub + Settings + AI Engine toggle |
 | `app/components/NavMenu.tsx` | ✅ Live | Hamburger nav |
+| `lib/zaeli-provider.ts` | ✅ Live | Shared provider toggle state |
 
-**IMPORTANT — files that must NOT be in `app/(tabs)/`:**
-- `api-logger.ts` → lives in `lib/`
-- `zaeli-memory.ts` → lives in `lib/`
-- `notifications.ts` → lives in `lib/`
-- `.md` files, `.html` files → never in `app/(tabs)/`
+**Files that must NOT be in `app/(tabs)/`:**
+- `api-logger.ts`, `zaeli-memory.ts`, `notifications.ts`, `zaeli-provider.ts` → all in `lib/`
 
 ---
 
-## Brief Firing Architecture (CRITICAL — cost control)
-
-| Screen | Fires when | Cache |
-|---|---|---|
-| Home | Cold start / 2hr away | `briefGenRef` boolean, 2hr threshold |
-| Calendar | Once per day | Module-level cache, resets at 2am |
-| Shopping | Once per day | Module-level cache, resets at 2am |
-| Meals | **REMOVED** | No API call on Meals screen open |
-| More/To-dos | No brief | Never had one |
-| Zaeli Chat | Greeting on channel open | Very cheap (A$0.0001), not cached |
-
-**Cost impact:** Scenario of 15 app opens = 1 brief (not 15). Saves ~A$0.10/day for heavy users.
+## Brief Firing Architecture
+| Screen | Fires when | Cache | GPT support |
+|---|---|---|---|
+| Home | Cold start / 2hr away | briefGenRef + 2hr threshold | ✅ via callBrief() |
+| Calendar | Once per day | Module-level, 2am reset | ✅ via callBrief() |
+| Shopping | Once per day | Module-level, 2am reset | ✅ via callBrief() |
+| Meals | REMOVED | — | — |
 
 ---
 
-## Usage Cap (CRITICAL — margin protection)
-Implemented in `zaeli-chat.tsx` `send()` function:
-- Counts `zaeli_chat` rows in `api_logs` for current family + current month
-- **Soft warning at 450:** tool-style banner shown above message, message still goes through
-- **Hard limit at 500:** Zaeli blocks message, shows friendly reset date + hello@zaeli.app
-- Briefs, greetings, receipt scans — do NOT count toward cap
-- If count query fails → message goes through (never block on failed check)
-- Reset: 1st of each month (count by `created_at >= first day of month`)
+## Usage Cap
+- Soft warning at 450 zaeli_chat msgs/month
+- Hard limit at 500 msgs/month (friendly message + reset date)
+- Counts `zaeli_chat` rows in `api_logs` — briefs/greetings excluded
+- If count fails → message goes through (never block on failed check)
+- **Note:** At GPT-5.4 mini pricing, cap is less critical — consider raising to 2,000 or removing
 
 ---
 
 ## Whisper Voice Input
-Implemented in `zaeli-chat.tsx`:
-- Tap mic → magenta banner + pulsing dot, solid magenta mic button
-- Tap again → sends to OpenAI Whisper API → transcribed text drops into input field
-- User reviews and taps send manually
-- Name correction: Xaeli/Zeily/Zaily/Zeli/Saeli → corrected to "Zaeli" via regex
-- Cost: fixed A$0.003 per transcription logged to `api_logs` as `whisper_transcription`
-- Key: `EXPO_PUBLIC_OPENAI_API_KEY` in `.env` — MUST be single line, no line breaks
-- Uses `expo-av` for recording — do NOT use `expo-file-system` (deprecated)
+- Tap mic → magenta banner + pulsing dot
+- Tap again → OpenAI Whisper transcription → text in input field
+- Name correction: Xaeli/Zeily etc → "Zaeli"
+- Key: `EXPO_PUBLIC_OPENAI_API_KEY` in `.env` — single unbroken line
+- Cost: A$0.003 fixed per transcription
 
 ---
 
-## Shopping Screen — Key Architecture
-- **Search bars:** List tab (above toolbar) + Pantry tab (above toolbar), both use `marginHorizontal: 16` to align with toolbar
-- **Recently Bought:** limited to last 30 days, older items hidden behind "+ X older items" button
-- **Pantry scan → Pantry only** (not Recently Bought)
-- **Receipt scan → Pantry + Recently Bought**
-- **Food item ticked → auto-syncs to Pantry** (FOOD_CATEGORIES only, not Household/Other)
+## Shopping Screen
+- Search bars on List tab (above toolbar) + Pantry tab
+- Both use `marginHorizontal: 16` to align with toolbar
+- Recently Bought: last 30 days only, "+ X older items" toggle
+- Pantry scan → Pantry only (not Recently Bought)
+- Receipt scan → Pantry + Recently Bought
 
 ---
 
-## Supabase Tables (all active)
+## Supabase Tables
 ```
-events          — calendar events (recurring supported)
-todos           — tasks / to-dos
-missions        — kids tasks / chores
-shopping_items  — shopping list (checked = Recently Bought, created_at used for 30-day filter)
-pantry_items    — pantry inventory with stock levels
-receipts        — scanned receipts with items JSON
-meal_plans      — dinner plan by day_key (YYYY-MM-DD)
-recipes         — saved recipes / favourites
-menus           — saved venue menus with dishes
-family_members  — family roster
-api_logs        — API usage tracking (cost dashboard + usage cap source)
-```
-
-**Critical Supabase rules:**
-- `.single()` throws on no result — always use `.limit(1)` + `data?.[0]`
-- Date: always build as `YYYY-MM-DD` string from `new Date()`, never `toDateString()`
-- Day names: always use `dayNames[now.getDay()]` array, never `toDateString()`
-
----
-
-## Import Paths (from `app/(tabs)/`)
-```ts
-import { supabase } from '../../lib/supabase'
-import { callClaude } from '../../lib/api-logger'
-import { buildMemoryContext, saveConversation } from '../../lib/zaeli-memory'
-import { HamburgerButton, NavMenu } from '../components/NavMenu'
+events, todos, missions, shopping_items, pantry_items, receipts,
+meal_plans, recipes, menus, family_members, api_logs
 ```
 
 ---
 
 ## Coding Rules
 - SafeAreaView `edges={['top']}` for ALL screens EXCEPT `zaeli-chat.tsx`
-- `zaeli-chat.tsx`: `edges={[]}` + `useSafeAreaInsets()` + `paddingTop: insets.top+8` on header View
+- `zaeli-chat.tsx`: `edges={[]}` + `useSafeAreaInsets()` + `paddingTop: insets.top+8`
 - No floating FAB anywhere
-- Logo on every screen taps → home (`router.replace('/(tabs)/')`)
+- Logo taps → home (`router.replace('/(tabs)/')`)
 - Edit modals lifted out of parent Modal (iOS pageSheet stacking bug)
 - PowerShell: no `&&` — use separate lines
 - Always `npx expo start --clear` after copying files
@@ -191,103 +183,42 @@ import { HamburgerButton, NavMenu } from '../components/NavMenu'
 
 ---
 
-## API Cost Architecture (Verified Session 8/9)
-
-| Metric | Value |
-|---|---|
-| Avg input tokens/chat call | ~3,000 |
-| Avg cost/chat call | A$0.022 |
-| Full test day (146 calls) | A$1.97 |
-| home_brief | A$0.007 each |
-| 300 msgs/month projected | A$6.60 API cost |
-| Margin at A$15 plan | **56%** |
-| Families to A$10k/month | **1,046** |
-
----
-
-## Date Bug — Root Cause + Fix (CRITICAL)
-
-**Root causes:**
-1. `new Date('YYYY-MM-DD')` parses UTC midnight → AEST shifts day back by 1
-2. Zaeli generating ISO timestamps herself instead of using context dates
-3. `loopSystem` didn't include week dates
-
-**Fix in `zaeli-chat.tsx`:**
-- Week map built with `new Date(y, m-1, d)` constructor
-- Format: `Sunday=2026-03-22, Monday=2026-03-23...`
-- Injected into BOTH `systemPrompt` (as `CRITICAL DATES` block) AND `loopSystem`
-- CAPABILITY_RULES: "copy date from WEEK DATES verbatim — never add or subtract days"
-
-**Fix in `index.tsx`:**
-- `DAY_NAMES` array declared BEFORE `evSummary` (was undefined — caused TypeError)
-- `evSummary` includes day name with each event: `Sunday 2026-03-22`
-- `weekDates` injected into brief context
-
----
-
-## Mealplanner — Architecture Notes (v4.2)
-
-**Dessert handling:**
-- Dessert slot: existing → `setDetailMeal`, empty → `setAddDay({mealType:'dessert'})`
-- Tool: always `meal_type:'dessert'`
-
-**Ingredients/method:**
-- `MealDetailModal` uses `effectiveNotes = meal.notes || recipeNotes`
-- `recipeNotes` fetched from `recipes` table by name as fallback
-
-**Brief:** REMOVED from Meals screen entirely.
-
----
-
 ## Admin Dashboard
 - **URL:** https://incomparable-gumdrop-32e4ba.netlify.app
 - All costs in AUD — `fmt$()` converts USD→AUD
-- Alert thresholds: warn A$3, flag A$8 per family/month
-- Redeploy: drag `zaeli-admin/index.html` to Netlify drop
+- Financial model: Claude blend vs GPT-5.4 mini toggle in Financial Model tab
+- Redeploy: drag `zaeli-admin/index.html` (in Downloads/zaeli-admin/) to Netlify
 
 ---
 
-## Pricing (locked)
+## Pricing (under review)
 | Plan | Price AUD | Notes |
 |---|---|---|
-| Family plan | $15/month | 500 AI msgs/month included |
-| Homework add-on | $10/child/month | Socratic method, grade-aware |
-| Lunchboxes | SCRAPPED | — |
-| Travel | Deferred v2 | — |
+| Family plan | TBD ($14.99 or $19.99) | Pending GPT test results |
+| Homework add-on | $10/child/month | Always Claude Sonnet |
 
----
-
-## Zaeli Persona
-- Warm, brilliant, Australian. Never robotic, vague, or naggy.
-- Brief: Callback → Coming → Slipping → The offer
-- Bold names/times/deadlines only — max 3. Never starts with "I". Max 4 sentences.
-- 12-hour time (9:30 am not 09:30)
-
-Full spec: `/mnt/project/zaeli-brief-logic-spec.md`
-
----
-
-## Capability Rules (hard limits)
-- CANNOT call/text/email autonomously — DRAFT only
-- CANNOT set phone reminders — calendar IS the reminder
-- DATES: copy EXACTLY from WEEK DATES — never calculate
-- DESSERTS: always `meal_type:'dessert'`
+- If GPT-5.4 mini passes quality test → A$14.99 with no message cap
+- If staying Claude → A$19.99 with no message cap (A$14.99 with cap)
+- Goldee competitor charges A$8.99 but has very shallow AI
 
 ---
 
 ## What's Next (priority order)
-1. **Homework module** — Socratic method, grade-aware, Sonnet, biggest revenue lever
-2. **Kids Hub redesign** — jobs, rewards, homework in one place
-3. **Multi-user / family sync** — core retention requirement
-4. **Website** (zaeli.app) — needed for trial signups
-5. **Stripe + onboarding** — trial → paid conversion
-6. **Push notifications** — reminders, meal prep, kids job nudges
-7. **Privacy policy + T&Cs** — App Store + payment requirement
+1. **Fix GPT mode bugs** — JSON parse, 400 error, shopping brief, chat continuation
+2. **Test GPT-5.4 mini properly** — 30min real use with toggle ON
+3. **Tune Zaeli persona for GPT** — more enthusiastic, warmer, longer responses
+4. **Finalise pricing decision** based on GPT test
+5. **Homework module** — Socratic method, grade-aware, Sonnet, biggest revenue lever
+6. **Kids Hub redesign** — jobs, rewards, homework
+7. **Multi-user / family sync** — core retention requirement
+8. **Website** (zaeli.app) — needed for trial signups
+9. **Stripe + onboarding** — trial → paid conversion
+10. **Push notifications**
 
 ---
 
 ## Known Issues / Watch List
+- GPT mode: JSON parse on home brief, 400 on chat, shopping brief broken
 - Date bug: substantially fixed — monitor in testing
-- Usage cap: not easily testable without 450+ messages — logic is simple, monitor via dashboard
-- Whisper: key must be single line in `.env` — 401 error = key split or wrong key
-- `selectModel()` — monitor for misroutes (Haiku getting conversational turns)
+- Usage cap: not easily testable without 450+ messages
+- Whisper key must be single unbroken line in `.env`

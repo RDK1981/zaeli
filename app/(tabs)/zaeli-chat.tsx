@@ -31,8 +31,12 @@ const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
 const DUMMY_FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
 const DUMMY_MEMBER_NAME = 'Anna';
 
-const SONNET = 'claude-sonnet-4-20250514';
-const HAIKU  = 'claude-haiku-4-5-20251001';
+const SONNET    = 'claude-sonnet-4-20250514';
+const HAIKU     = 'claude-haiku-4-5-20251001';
+const GPT5_MINI = 'gpt-5.4-mini';  // GPT-5.4 mini — cheaper & faster than Haiku, test mode
+
+// ── PROVIDER TOGGLE — shared via lib/zaeli-provider.ts ──
+import { getZaeliProvider, setZaeliProvider } from '../../lib/zaeli-provider';
 
 const C = {
   blue:'#0057FF', mag:'#E0007C', ink:'#0A0A0A',
@@ -147,6 +151,16 @@ const TOOL_DEFINITIONS = [
   {name:'delete_calendar_event',description:'Delete a calendar event',input_schema:{type:'object',properties:{search_title:{type:'string'},date:{type:'string',description:'YYYY-MM-DD'}},required:['search_title']}},
   {name:'add_recurring_event',description:'Add a recurring event (weekly, fortnightly, monthly)',input_schema:{type:'object',properties:{title:{type:'string'},frequency:{type:'string',enum:['weekly','fortnightly','monthly']},start_time:{type:'string'},duration_minutes:{type:'number'},notes:{type:'string'}},required:['title','frequency','start_time']}},
 ];
+// ── OpenAI tool format (wraps Anthropic schema in 'function' object) ──
+const TOOL_DEFINITIONS_OPENAI = TOOL_DEFINITIONS.map((t:any)=>({
+  type:'function',
+  function:{
+    name:t.name,
+    description:t.description,
+    parameters:t.input_schema,
+  }
+}));
+
 
 // ── TOOL EXECUTOR ─────────────────────────────────────────────
 async function executeTool(name:string,input:any):Promise<string>{
@@ -433,6 +447,42 @@ export default function ZaeliChatScreen(){
     }finally{setLoading(false);}
   };
 
+  // ── OPENAI GPT-5 MINI CHAT ───────────────────────────────────────
+  const callOpenAI=async({system,messages,useTools=true}:{system:string;messages:any[];useTools?:boolean})=>{
+    const msgs=[{role:'system',content:system},...messages];
+    const body:any={
+      model:GPT5_MINI,
+      max_tokens:1024,
+      messages:msgs,
+    };
+    if(useTools) body.tools=TOOL_DEFINITIONS_OPENAI;
+    const res=await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${OPENAI_API_KEY}`},
+      body:JSON.stringify(body),
+    });
+    if(!res.ok) throw new Error(`OpenAI error: ${res.status}`);
+    return res.json();
+  };
+
+  const parseOpenAITools=(d:any)=>{
+    const msg=d.choices?.[0]?.message;
+    if(!msg) return null;
+    if(msg.tool_calls?.length){
+      return{
+        type:'tool_use' as const,
+        text:msg.content||'',
+        tools:msg.tool_calls.map((tc:any)=>({
+          id:tc.id,
+          name:tc.function.name,
+          input:JSON.parse(tc.function.arguments||'{}'),
+        })),
+        rawMsg:msg,
+      };
+    }
+    return{type:'text' as const,text:msg.content||''};
+  };
+
   // ── WHISPER VOICE INPUT ──────────────────────────────────────
   const startRecording=async()=>{
     try{
@@ -681,25 +731,67 @@ ${ctx}`;
       let finalReply='';const toolResults:string[]=[];
 
       for(let turn=0;turn<6;turn++){
-        const d=await callClaude({feature:'zaeli_chat',familyId:DUMMY_FAMILY_ID,
-          body:{
-            model:turn===0?chosenModel:HAIKU,
-            // Raised to 1024 for Sonnet turn 0 — complex multi-tool responses need more room.
-            // 600 caused truncation crash at message 11-12 in long sessions.
-            max_tokens:turn===0&&chosenModel===SONNET?1024:600,
-            system:turn===0?systemPrompt:loopSystem,
-            tools:TOOL_DEFINITIONS,messages:loopMessages,
-          }});
+        // ── Route to OpenAI or Claude based on provider toggle ──
+        let stopReason:string='end_turn';
+        let replyText='';
+        let toolCalls:any[]=[];
+        let rawAssistantContent:any=null;
 
-        if(d.stop_reason==='tool_use'){
-          const tb=d.content.find((b:any)=>b.type==='text');
-          if(tb?.text) setMessages(prev=>[...prev,{id:(Date.now()+turn).toString(),role:'assistant',content:tb.text,time:getTime()}]);
-          const tbs=d.content.filter((b:any)=>b.type==='tool_use');
+        if(getZaeliProvider()==='openai'){
+          // OpenAI path — GPT-5.4 mini
+          const d=await callOpenAI({
+            system:turn===0?systemPrompt:loopSystem,
+            messages:loopMessages,
+          });
+          const parsed=parseOpenAITools(d);
+          if(!parsed){finalReply='';break;}
+          if(parsed.type==='tool_use'){
+            stopReason='tool_use';
+            replyText=parsed.text;
+            toolCalls=parsed.tools;
+            rawAssistantContent=parsed.rawMsg;
+          } else {
+            replyText=parsed.text;
+            finalReply=replyText;break;
+          }
+        } else {
+          // Claude path — Sonnet/Haiku blend (production)
+          const d=await callClaude({feature:'zaeli_chat',familyId:DUMMY_FAMILY_ID,
+            body:{
+              model:turn===0?chosenModel:HAIKU,
+              max_tokens:turn===0&&chosenModel===SONNET?1024:600,
+              system:turn===0?systemPrompt:loopSystem,
+              tools:TOOL_DEFINITIONS,messages:loopMessages,
+            }});
+          stopReason=d.stop_reason||'end_turn';
+          if(stopReason==='tool_use'){
+            const tb=d.content.find((b:any)=>b.type==='text');
+            replyText=tb?.text||'';
+            toolCalls=d.content.filter((b:any)=>b.type==='tool_use').map((b:any)=>({id:b.id,name:b.name,input:b.input}));
+            rawAssistantContent=d.content;
+          } else {
+            finalReply=d.content?.[0]?.text||'';break;
+          }
+        }
+
+        // ── Handle tool calls (same for both providers) ──
+        if(stopReason==='tool_use'){
+          if(replyText) setMessages(prev=>[...prev,{id:(Date.now()+turn).toString(),role:'assistant',content:replyText,time:getTime()}]);
           const trc:any[]=[];
-          for(const tb of tbs){const r=await executeTool(tb.name,tb.input);toolResults.push(r);trc.push({type:'tool_result',tool_use_id:tb.id,content:r});}
-          loopMessages=[...loopMessages,{role:'assistant',content:d.content},{role:'user',content:trc}];
-        }else{
-          finalReply=d.content?.[0]?.text||'';break;
+          for(const tc of toolCalls){
+            const r=await executeTool(tc.name,tc.input);
+            toolResults.push(r);
+            if(getZaeliProvider()==='openai'){
+              trc.push({role:'tool',tool_call_id:tc.id,content:r});
+            } else {
+              trc.push({type:'tool_result',tool_use_id:tc.id,content:r});
+            }
+          }
+          if(getZaeliProvider()==='openai'){
+            loopMessages=[...loopMessages,{role:'assistant',content:replyText,tool_calls:rawAssistantContent?.tool_calls},...trc];
+          } else {
+            loopMessages=[...loopMessages,{role:'assistant',content:rawAssistantContent},{role:'user',content:trc}];
+          }
         }
       }
 

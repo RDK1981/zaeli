@@ -12,8 +12,9 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
+import { getZaeliProvider, setZaeliProvider } from '../../lib/zaeli-provider';
 import {
-  Modal, ScrollView, StyleSheet, Text,
+  Alert, Modal, ScrollView, StyleSheet, Switch, Text,
   TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -418,8 +419,52 @@ function SettingsPage({ onBack, onNav }: { onBack: () => void; onNav: (p: string
             </React.Fragment>
           ))}
         </View>
+        {/* ── AI Provider toggle (test mode) ── */}
+        <AiProviderToggle />
         <Text style={s.versionTxt}>Zaeli · v0.1.0 · Family edition</Text>
       </ScrollView>
+    </View>
+  );
+}
+
+// ── AI Provider Toggle ─────────────────────────────────────────
+function AiProviderToggle() {
+  const [provider, setProvider] = useState<'claude'|'openai'>(getZaeliProvider());
+  const toggle = () => {
+    const next = provider === 'claude' ? 'openai' : 'claude';
+    setZaeliProvider(next);
+    setProvider(next);
+    Alert.alert(
+      next === 'openai' ? '🧪 Test mode on' : '✅ Back to Claude',
+      next === 'openai'
+        ? 'Zaeli will now use GPT-5.4 mini for all chats. Homework stays on Claude Sonnet.'
+        : 'Zaeli is back to the Sonnet/Haiku blend.',
+      [{text:'Got it'}]
+    );
+  };
+  return (
+    <View style={{ marginTop: 24, backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.07)' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#0A0A0A' }}>
+            AI Engine {provider === 'openai' ? '🧪' : ''}
+          </Text>
+          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(0,0,0,0.5)', marginTop: 2 }}>
+            {provider === 'claude' ? 'Claude Sonnet/Haiku (production)' : 'GPT-5.4 mini (test mode)'}
+          </Text>
+        </View>
+        <Switch
+          value={provider === 'openai'}
+          onValueChange={toggle}
+          trackColor={{ false: 'rgba(0,0,0,0.12)', true: '#0057FF' }}
+          thumbColor={'#fff'}
+        />
+      </View>
+      {provider === 'openai' && (
+        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: '#E0007C', marginTop: 8 }}>
+          Test mode active — comparing GPT-5.4 mini vs Claude
+        </Text>
+      )}
     </View>
   );
 }

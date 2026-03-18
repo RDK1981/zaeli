@@ -24,6 +24,7 @@ import Svg, { Line, Path, Polyline, Rect } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { HamburgerButton, NavMenu } from '../components/NavMenu';
 import { callClaude } from '../../lib/api-logger';
+import { getZaeliProvider } from '../../lib/zaeli-provider';
 
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 const ANTHROPIC_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
@@ -284,15 +285,8 @@ ${contextStr}
 Respond ONLY in this exact JSON format with no extra text:
 {"brief": "The brief text here.", "cta": "Short CTA label (3-5 words)"}`;
 
-      const data = await callClaude({
-        feature: 'calendar_brief',
-        familyId: DUMMY_FAMILY_ID,
-        body: {
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 200,
-          messages: [{ role:'user', content: prompt }],
-        },
-      });
+      const briefText = await callBrief({feature:'calendar_brief',system:'You are Zaeli, warm Australian family assistant writing a calendar brief.',userContent:prompt,maxTokens:200});
+      const data = {content:[{text:briefText}]};
       const raw    = data?.content?.[0]?.text || '';
       const clean  = raw.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(clean);
@@ -1031,6 +1025,27 @@ function EventDetailModal({ event, onClose, onDeleted }: {
 }
 
 // ── MAIN SCREEN ───────────────────────────────────────────────
+
+// ── callBrief — routes to GPT-5.4 mini or Claude based on provider toggle ──
+async function callBrief({feature,system,userContent,maxTokens=200}:
+  {feature:string;system:string;userContent:string;maxTokens?:number}): Promise<string> {
+  if(getZaeliProvider()==='openai'){
+    const res=await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY||''}`},
+      body:JSON.stringify({model:'gpt-5.4-mini',max_tokens:maxTokens,
+        messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
+    });
+    const d=await res.json();
+    return d.choices?.[0]?.message?.content||'';
+  } else {
+    const d=await callClaude({feature,familyId:DUMMY_FAMILY_ID,
+      body:{model:'claude-haiku-4-5-20251001',max_tokens:maxTokens,
+        system,messages:[{role:'user',content:userContent}]}});
+    return d.content?.[0]?.text||'';
+  }
+}
+
 export default function CalendarScreen() {
   const today  = new Date();
   const insets = useSafeAreaInsets();

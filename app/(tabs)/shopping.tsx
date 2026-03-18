@@ -19,6 +19,7 @@ import { NavMenu, HamburgerButton } from '../components/NavMenu';
 import { supabase } from '../../lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { callClaude } from '../../lib/api-logger';
+import { getZaeliProvider } from '../../lib/zaeli-provider';
 
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 const DUMMY_USER_NAME = 'Anna';
@@ -351,6 +352,26 @@ let cachedBrief = '';
 let lastBriefCount = -1;
 let lastBriefTime: number | null = null;
 
+// ── callBrief — routes to GPT-5.4 mini or Claude based on provider toggle ──
+async function callBrief({feature,system,userContent,maxTokens=200}:
+  {feature:string;system:string;userContent:string;maxTokens?:number}): Promise<string> {
+  if(getZaeliProvider()==='openai'){
+    const res=await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY||''}`},
+      body:JSON.stringify({model:'gpt-5.4-mini',max_tokens:maxTokens,
+        messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
+    });
+    const d=await res.json();
+    return d.choices?.[0]?.message?.content||'';
+  } else {
+    const d=await callClaude({feature,familyId:DUMMY_FAMILY_ID,
+      body:{model:'claude-haiku-4-5-20251001',max_tokens:maxTokens,
+        system,messages:[{role:'user',content:userContent}]}});
+    return d.content?.[0]?.text||'';
+  }
+}
+
 function ShoppingBriefCard({ itemCount, onDismiss }: { itemCount: number; onDismiss: () => void }) {
   const [loading, setLoading]     = useState(true);
   const [briefText, setBriefText] = useState('');
@@ -384,12 +405,8 @@ function ShoppingBriefCard({ itemCount, onDismiss }: { itemCount: number; onDism
   const generateBrief = async () => {
     try {
       const prompt = `You are Zaeli, a warm and witty AI family assistant. Generate a brief shopping screen message for ${DUMMY_USER_NAME}. Max 2 sentences. The list has ${itemCount} item${itemCount !== 1 ? 's' : ''}. If empty, invite her to build it. If has items, offer to help fill gaps. End with something concrete. Respond ONLY as JSON: {"brief": "text", "cta": "3-5 words"}`;
-      const data = await callClaude({
-        feature: 'shopping_brief',
-        familyId: DUMMY_FAMILY_ID,
-        body: { model: 'claude-sonnet-4-20250514', max_tokens: 120, messages: [{ role: 'user', content: prompt }] },
-      });
-      const parsed = JSON.parse(data?.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}');
+      const briefRaw = await callBrief({feature:'shopping_brief',system:'You are Zaeli, warm Australian family assistant writing a shopping brief.',userContent:prompt,maxTokens:120});
+      const parsed = JSON.parse(briefRaw?.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}');
       cachedBrief = parsed.brief || '';
       lastBriefCount = itemCount;
       lastBriefTime = Date.now();

@@ -3,121 +3,130 @@
 
 ---
 
-Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iOS-first family life platform with AI (Claude API) at its core. We've been building this together across many sessions and I need you to pick up exactly where we left off.
+Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iOS-first family life platform with AI (Claude API + OpenAI) at its core.
 
 ---
 
 ### Who you are talking to
-- My name is Richard. The app's logged-in user is Anna (my family: Anna, Richard, Poppy age 12, Gab age 10, Duke age 8)
-- I'm a beginner developer — always give me **full file rewrites** with easy copy-paste PowerShell commands, one step at a time
-- Always put PowerShell commands and Cursor find/replace blocks in their own separate copy-paste boxes
-- PowerShell paths with `(tabs)` need backtick escaping: `app\`(tabs`)\filename.tsx`
-- Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no `&&` chaining)
+- My name is Richard. The app's logged-in user is Anna (family: Anna, Richard, Poppy 12, Gab 10, Duke 8)
+- Beginner developer — always **full file rewrites**, one copy-paste step at a time
+- Every PowerShell command and Cursor find/replace in its own separate copy-paste box
+- PowerShell: backtick escape `(tabs)`: `app\`(tabs`)\filename.tsx`
+- Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no `&&`)
 - Repo: https://github.com/RDK1981/zaeli (private)
 
 ---
 
-### Where to find everything
-**Master brief (CLAUDE.md):** `C:\Users\richa\zaeli\app\(tabs)\CLAUDE.md` — full stack, colours, coding rules, all screen statuses. **Always read this first.**
-
-**Key constants:**
+### Key constants
 - `DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'`
-- `DUMMY_MEMBER_NAME = 'Anna'`
 - `SONNET = 'claude-sonnet-4-20250514'`
-- `HAIKU  = 'claude-haiku-4-5-20251001'`
-- `AUD_TO_USD = 0.65` / `USD_TO_AUD = ~1.538`
+- `HAIKU = 'claude-haiku-4-5-20251001'`
+- `GPT5_MINI = 'gpt-5.4-mini'`
 
 ---
 
-### What's been built (as of 18 March 2026 — Session 9)
+### What's been built (Session 9 — 18 March 2026)
 
-✅ `index.tsx` — Home screen, brief card (2hr cache), Option C tiles, date fix
-✅ `calendar.tsx` — Full calendar, add/edit/recurring, brief (once/day, 2am reset)
-✅ `shopping.tsx` — List/Pantry/Spend, search bars on List+Pantry, 30-day Recently Bought, brief (once/day)
-✅ `zaeli-chat.tsx` — Multi-channel chat, Whisper voice input, usage cap (500/month), week dates fix
-✅ `mealplanner.tsx` — Dinners/Recipes/Favourites v4.2, dessert fix, ingredients fallback, NO brief
-✅ `more.tsx` — Hub + Settings + To-dos
-✅ `lib/api-logger.ts` — callClaude() wrapper, model-aware pricing
-✅ `lib/zaeli-memory.ts` — conversation memory
-✅ `lib/notifications.ts` — reminder intent detection
+✅ `index.tsx` — Home, brief card (2hr cache), GPT/Claude routing via callBrief()
+✅ `calendar.tsx` — Full calendar, brief (once/day 2am reset), GPT/Claude routing
+✅ `shopping.tsx` — List/Pantry/Spend, search bars, 30-day Recently Bought, GPT/Claude routing
+✅ `zaeli-chat.tsx` — Multi-channel, Whisper voice, usage cap (500/month), GPT-5.4 mini toggle
+✅ `mealplanner.tsx` — Dinners/Recipes/Favourites v4.2, no brief
+✅ `more.tsx` — Settings with AI Engine toggle (Claude vs GPT-5.4 mini)
+✅ `lib/zaeli-provider.ts` — Shared provider state (NEW — both zaeli-chat and more import from here)
 
 ---
 
-### Admin Dashboard (LIVE)
+### Admin Dashboard
 - **URL:** https://incomparable-gumdrop-32e4ba.netlify.app
-- All costs in AUD, Kids Hub + Whisper sliders, break-even to A$10k milestone
-- Redeploy: drag `zaeli-admin/index.html` to Netlify drop
+- Financial model has Claude blend vs GPT-5.4 mini cost toggle
+- Admin HTML is in `Downloads/zaeli-admin/index.html` — drag to Netlify to redeploy
 
 ---
 
-### Cost Architecture — VERIFIED STABLE
-- Avg cost/chat call: A$0.022 | Full test day (146 calls): A$1.97
-- 300 msgs/month → A$6.60 API cost | Margin at A$15: **56%**
-- Families to A$10k/month profit: **1,046**
+### CRITICAL — GPT Toggle Architecture
+
+**lib/zaeli-provider.ts** is the shared state file:
+```ts
+export function getZaeliProvider(): 'claude' | 'openai'
+export function setZaeliProvider(p: 'claude' | 'openai')
+```
+**NEVER import provider state from zaeli-chat.tsx** — causes circular import crash.
+
+**Toggle location:** More → Settings → scroll to bottom → AI Engine switch
+
+**When toggle is ON (GPT mode):**
+- All briefs → GPT-5.4 mini via callBrief() helper
+- All chat → GPT-5.4 mini
+- Whisper, receipt scans → unchanged (still OpenAI/Sonnet)
+- Homework → always Claude Sonnet (when built)
+
+**callBrief() pattern** (same in index.tsx, calendar.tsx, shopping.tsx):
+```ts
+async function callBrief({feature, system, userContent, maxTokens}) {
+  if (getZaeliProvider() === 'openai') {
+    // fetch to api.openai.com/v1/chat/completions with gpt-5.4-mini
+  } else {
+    // callClaude() with Haiku
+  }
+}
+```
 
 ---
 
-### Session 9 — What was built
+### IMMEDIATE NEXT TASK — Fix GPT mode bugs
 
-**Whisper voice input (zaeli-chat.tsx):**
-- Tap mic → magenta recording banner + pulsing dot
-- Tap again → transcribes via OpenAI Whisper → text drops into input
-- Name correction: Xaeli/Zeily etc → "Zaeli" via regex
-- Key: `EXPO_PUBLIC_OPENAI_API_KEY` in `.env` — MUST be single unbroken line
-- Uses `expo-av` — do NOT import `expo-file-system` (deprecated, causes crash)
-- Cost: A$0.003 fixed per transcription, logged to api_logs
+**Bug 1 — Home brief JSON parse error:**
+- Home brief expects JSON response: `{brief: "...", cta: "...", signoff: "..."}`
+- GPT returns plain text, not JSON
+- Fix: either add JSON instruction to GPT system prompt OR update parser to handle plain text fallback
 
-**Brief firing overhaul:**
-- Home: regenerates after 2hr away (was 30min)
-- Calendar + Shopping: once per day, resets at 2am (was every 30min)
-- Meals brief: REMOVED entirely — no API call on Meals screen open
-- More/To-dos: never had a brief
-- Cost impact: 15 app opens = 1 brief fire, not 15
+**Bug 2 — Chat 400 error on OpenAI:**
+- `callOpenAI()` in zaeli-chat.tsx is sending wrong message format
+- Check the message history format — OpenAI tool result messages use `{role:'tool', tool_call_id, content}` not `{type:'tool_result'}`
+- Also check loopMessages format when tool calls are involved
 
-**Shopping search bars:**
-- List tab: search bar above `+ Add item` toolbar, filters active + Recently Bought
-- Pantry tab: search bar above toolbar, filters pantry items in real time
-- Both use `marginHorizontal: 16` to align with toolbar buttons
-- Recently Bought: limited to last 30 days, "+ X older items" button for older
+**Bug 3 — Shopping brief not working in GPT mode:**
+- Needs investigation — likely same JSON/format issue as home brief
 
-**Usage cap (zaeli-chat.tsx):**
-- Soft warning at 450 msgs/month: banner shown, message still goes through
-- Hard limit at 500 msgs/month: Zaeli blocks, shows reset date + hello@zaeli.app
-- Counts `zaeli_chat` rows in `api_logs` — briefs/greetings excluded
-- If count query fails → message goes through (never block on failed check)
-- Not easily testable without 450+ messages — monitor via admin dashboard
+**Bug 4 — Brief-to-chat continuation not wired for OpenAI:**
+- `loadBriefContinuation()` in zaeli-chat.tsx always uses Haiku
+- Need to add GPT path when toggle is ON
 
-**Date bug fixes (index.tsx + zaeli-chat.tsx):**
-- `DAY_NAMES` array now declared BEFORE `evSummary` in index.tsx (was causing TypeError)
-- `evSummary` now includes day name with each event: `Sunday 2026-03-22 5:00pm`
-- `weekDates` injected into brief context in index.tsx
-- `loopSystem` includes `weekDates` (was losing date context on tool loop turns)
+**After fixing bugs:**
+- Do a proper 30-min test with GPT toggle ON
+- Tune Zaeli persona prompt for GPT — more enthusiastic, warmer, longer responses
+- GPT naturally sounds more corporate/American — needs stronger Australian warmth instructions
+- Decide on pricing: GPT → A$14.99 no cap; Claude → A$19.99 no cap
 
 ---
 
-### Key architecture notes
+### Cost comparison (why this matters)
+| Engine | Per msg | 1,000 msgs/month | Margin at A$14.99 |
+|---|---|---|---|
+| Claude blend | A$0.022 | A$22.00 | Negative |
+| GPT-5.4 mini | A$0.003 | A$3.00 | **80%** |
 
-**zaeli-chat.tsx send() flow:**
-1. Usage cap check (Supabase count query)
-2. Build week dates map
-3. Load context (events, todos, meal_plans always, shopping/pantry if keywords match)
-4. Build systemPrompt with CRITICAL DATES block at top
-5. Tool loop (turn 0 = chosen model, turns 1+ = Haiku with loopSystem including weekDates)
-
-**Brief cache pattern (calendar.tsx + shopping.tsx):**
-- Module-level variables: `cachedBriefText`, `lastBriefTime`
-- On mount: compute today's "brief day key" (2am-reset YYYY-MM-DD)
-- If cached key === today key → use cache, no API call
-- Uses `new Date()` directly (NOT a `now` variable — causes undefined error)
-
-**Shopping recently bought:**
-- `ShopItem` type includes `created_at?: string`
-- Filter: `new Date(i.created_at) >= thirtyDaysAgo`
-- Older items: `olderChecked` array, shown via `showOlderBought` state toggle
+GPT-5.4 mini at 7× cheaper changes the entire economics. At that cost: no message cap needed, longer responses affordable, A$14.99 pricing works comfortably.
 
 ---
 
-### Supabase tables (all active)
+### Whisper voice input
+- Tap mic → magenta recording banner
+- Tap again → transcribes → text in input field
+- Name correction: Xaeli → Zaeli automatically
+- `EXPO_PUBLIC_OPENAI_API_KEY` in `.env` — must be single unbroken line
+
+---
+
+### Brief firing (once per day, resets 2am)
+- Home: cold start + 2hr threshold
+- Calendar + Shopping: once per day module-level cache
+- Meals: NO brief (removed)
+
+---
+
+### Supabase tables
 ```
 events, todos, missions, shopping_items, pantry_items, receipts,
 meal_plans, recipes, menus, family_members, api_logs
@@ -125,36 +134,24 @@ meal_plans, recipes, menus, family_members, api_logs
 
 ---
 
-### Key design decisions (locked)
-- No floating FAB · Hamburger menu only
-- Brief cards: Haiku, once per day per screen (2am reset), home = 2hr cache
-- Meals screen: NO brief card
-- All API calls through `callClaude()` in `lib/api-logger.ts`
-- SafeAreaView: `edges={['top']}` everywhere EXCEPT zaeli-chat (`edges={[]}` + insets)
-- Recipes: Zaeli provides from training knowledge — no Spoonacular yet
-- Usage cap: 500 zaeli_chat msgs/month, soft warn at 450
-- `.env` OpenAI key: single unbroken line, no wrapping
-
----
-
-### Next session priority order
-1. **Homework module** — Socratic method, grade-aware, Sonnet, biggest revenue lever (A$15→A$35)
-2. **Kids Hub redesign** — jobs, rewards, homework in one place
-3. **Multi-user / family sync** — core retention requirement before launch
-4. **Website** (zaeli.app) — needed for trial signups
-5. **Stripe + onboarding** — trial → paid conversion
-6. **Push notifications** — reminders, meal prep alerts, kids jobs
-7. **Privacy policy + T&Cs** — required for App Store + payments
-
----
-
 ### Tech reminders
-- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../../lib/api-logger`
-- Files in `app/(tabs)/` must be `.tsx` screen files only
-- PowerShell: backtick escape `(tabs)`: `app\`(tabs`)\file.tsx`
-- Always `npx expo start --clear` after file changes
-- Upload files directly into chat before making changes — don't rely on memory
+- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../../lib/api-logger`, `../../lib/zaeli-provider`
+- Files in `app/(tabs)/` = screen .tsx files only
+- Always `npx expo start --clear` after changes
+- Upload files directly into chat before editing
 
 ---
 
-Please confirm you've read this and are ready to continue. Ask Richard what he'd like to tackle and suggest the homework module as the priority — it's the single biggest revenue lever remaining.
+### Priority order after GPT fixes
+1. Fix GPT mode bugs (JSON, 400, shopping, continuation)
+2. Test + tune GPT persona
+3. Finalise pricing decision
+4. **Homework module** — biggest revenue lever (A$15 → A$35/family)
+5. Kids Hub redesign
+6. Multi-user / family sync
+7. Website (zaeli.app)
+8. Stripe + onboarding
+
+---
+
+Please confirm you've read this. First priority is fixing the GPT mode bugs listed above — start by asking Richard to upload `zaeli-chat.tsx` and `index.tsx`.
