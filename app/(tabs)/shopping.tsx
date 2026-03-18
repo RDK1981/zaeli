@@ -48,6 +48,7 @@ const STOCK_META: Record<string, { label: string; color: string; bg: string; bar
 type ShopItem = {
   id: string; name: string; category: string;
   checked: boolean; meal_source: string | null;
+  created_at?: string;
 };
 
 type PantryItem = {
@@ -747,6 +748,8 @@ function PantryTab({ shoppingItems, onShoppingUpdate }: { shoppingItems: ShopIte
   const [addingToList, setAddingToList] = useState<string | null>(null);
   const [pantryView, setPantryView]     = useState<'list' | 'aisle'>('list');
   const isMounted = useRef(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showOlderBought, setShowOlderBought] = useState(false);
 
   useEffect(() => {
     isMounted.current = true;
@@ -868,8 +871,10 @@ function PantryTab({ shoppingItems, onShoppingUpdate }: { shoppingItems: ShopIte
     await fetchItems();
   };
 
-  const runningLow  = items.filter(i => i.stock === 'critical' || i.stock === 'low');
-  const wellStocked = items.filter(i => i.stock === 'medium'   || i.stock === 'good');
+  const pq = searchQuery.toLowerCase().trim();
+  const filteredItems = pq ? items.filter(i => i.name.toLowerCase().includes(pq)) : items;
+  const runningLow  = filteredItems.filter(i => i.stock === 'critical' || i.stock === 'low');
+  const wellStocked = filteredItems.filter(i => i.stock === 'medium'   || i.stock === 'good');
   const lowNames    = runningLow.map(i => i.name);
 
   const addAllToList = async () => {
@@ -883,6 +888,27 @@ function PantryTab({ shoppingItems, onShoppingUpdate }: { shoppingItems: ShopIte
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Search bar */}
+      <View style={s.searchRow}>
+        <View style={s.searchBox}>
+          <Text style={s.searchIco}>⌕</Text>
+          <TextInput
+            style={s.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search list…"
+            placeholderTextColor={C.ink3}
+            clearButtonMode="while-editing"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+              <Text style={s.searchClear}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
       {/* Sticky toolbar — matches List tab style */}
       <View style={s.stickyToolRow}>
         <View style={s.toolRow}>
@@ -1419,6 +1445,8 @@ export default function ShoppingScreen() {
   const [navOpen, setNavOpen]       = useState(false);
 
   const isMounted = useRef(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showOlderBought, setShowOlderBought] = useState(false);
   useEffect(() => {
     isMounted.current = true;
     return () => { isMounted.current = false; };
@@ -1456,8 +1484,22 @@ export default function ShoppingScreen() {
     await Share.share({ message: `Shopping list:\n\n${text}` });
   };
 
-  const unchecked = items.filter(i => !i.checked);
-  const checked   = items.filter(i => i.checked);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const sq = searchQuery.toLowerCase().trim();
+  const unchecked = items.filter(i => !i.checked && (!sq || i.name.toLowerCase().includes(sq)));
+  const allChecked = items.filter(i => i.checked);
+  const recentChecked = allChecked.filter(i => {
+    if (!i.created_at) return true;
+    return new Date(i.created_at) >= thirtyDaysAgo;
+  });
+  const olderChecked = allChecked.filter(i => {
+    if (!i.created_at) return false;
+    return new Date(i.created_at) < thirtyDaysAgo;
+  });
+  const checked = (showOlderBought ? allChecked : recentChecked)
+    .filter(i => !sq || i.name.toLowerCase().includes(sq));
   const byCategory = CATEGORIES.reduce<Record<string, ShopItem[]>>((acc, cat) => {
     const ci = unchecked.filter(i => i.category === cat);
     if (ci.length) acc[cat] = ci;
@@ -1477,6 +1519,16 @@ export default function ShoppingScreen() {
         <Text style={s.purchasedTxt}>Recently Bought</Text>
         <View style={s.purchasedLine} />
       </View>
+      {olderChecked.length > 0 && (
+        <TouchableOpacity
+          style={s.showOlderBtn}
+          onPress={() => setShowOlderBought(v => !v)}
+          activeOpacity={0.7}>
+          <Text style={s.showOlderTxt}>
+            {showOlderBought ? `Hide older items` : `+ ${olderChecked.length} older item${olderChecked.length !== 1 ? 's' : ''}`}
+          </Text>
+        </TouchableOpacity>
+      )}
       {viewMode === 'aisle' ? (
         // Aisle mode — group recently bought by category too
         (() => {
@@ -1555,6 +1607,26 @@ export default function ShoppingScreen() {
                   <Text style={s.pantryNudgeTxt}>✦  <Text style={{ fontFamily: 'Poppins_600SemiBold' }}>{nudgeItemName}</Text> is already in your pantry</Text>
                 </View>
               )}
+              {/* Search bar */}
+              <View style={s.listSearchRow}>
+                <View style={s.listSearchBox}>
+                  <Text style={s.searchIco}>⌕</Text>
+                  <TextInput
+                    style={s.searchInput}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Search list…"
+                    placeholderTextColor={C.ink3}
+                    clearButtonMode="while-editing"
+                    autoCorrect={false}
+                  />
+                  {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+                      <Text style={s.searchClear}>✕</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
               <View style={s.toolRow}>
                 <TouchableOpacity style={s.addBar} onPress={() => setAddVisible(true)} activeOpacity={0.7}>
                   <Text style={s.addBarPlus}>＋</Text>
@@ -1702,6 +1774,15 @@ const s = StyleSheet.create({
   purchasedBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
   purchasedLine:   { flex: 1, height: 1, backgroundColor: C.border },
   purchasedTxt:    { fontFamily: 'Poppins_700Bold', fontSize: 10, color: C.ink3, letterSpacing: 1.5, textTransform: 'uppercase' },
+  showOlderBtn:    { alignSelf: 'center', marginBottom: 10, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: C.card },
+  showOlderTxt:    { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: C.ink2 },
+  searchRow:       { marginHorizontal: 16, marginTop: 8, marginBottom: 4 },
+  listSearchRow:   { marginHorizontal: 16, marginTop: 8, marginBottom: 4 },
+  listSearchBox:   { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: C.border },
+  searchBox:       { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: C.border },
+  searchIco:       { fontSize: 16, color: C.ink3, marginRight: 6 },
+  searchInput:     { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 14, color: C.ink, padding: 0 },
+  searchClear:     { fontSize: 14, color: C.ink3, paddingHorizontal: 4 },
 
   emptyState:     { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 },
   emptyEmoji:     { fontSize: 42, marginBottom: 12 },

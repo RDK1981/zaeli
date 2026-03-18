@@ -12,11 +12,12 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { Audio } from 'expo-av';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Clipboard, Easing, Keyboard, KeyboardAvoidingView,
+  Alert, Animated, Clipboard, Easing, Keyboard, KeyboardAvoidingView,
   Platform, ScrollView, Share, StyleSheet, Text, TextInput,
-  ToastAndroid, TouchableOpacity, View,
+  TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Line, Path, Polygon, Polyline, Rect } from 'react-native-svg';
@@ -24,6 +25,8 @@ import { detectReminderIntent, scheduleReminder } from '../../lib/notifications'
 import { supabase } from '../../lib/supabase';
 import { buildMemoryContext, saveConversation } from '../../lib/zaeli-memory';
 import { callClaude } from '../../lib/api-logger';
+
+const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
 
 const DUMMY_FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
 const DUMMY_MEMBER_NAME = 'Anna';
@@ -336,6 +339,12 @@ export default function ZaeliChatScreen(){
   const[feedback,setFeedback]=useState<FeedbackState>({});
   const[showScrollBtn,setShowScrollBtn]=useState(false);
 
+  // ── Whisper voice input state ──
+  const[isRecording,setIsRecording]=useState(false);
+  const[isTranscribing,setIsTranscribing]=useState(false);
+  const recordingRef=useRef<Audio.Recording|null>(null);
+  const micPulse=useRef(new Animated.Value(1)).current;
+
   const messages=channelMessages[activeCtx]||[];
   const setMessages=(updater:Message[]|((p:Message[])=>Message[]))=>{
     setChannelMessages(prev=>{
@@ -379,7 +388,7 @@ export default function ZaeliChatScreen(){
       const et=(evR.data||[]).map((e:any)=>`${e.title} (${e.start_time?.substring(11,16)||''})`).join(', ')||'none';
       const ctx=`Today: ${td}. Time: ${ts}. Events: ${et}. Tonight: ${mlR.data?.[0]?.meal_name||'not planned'}.`;
       const d=await callClaude({feature:'chat_greeting',familyId:DUMMY_FAMILY_ID,
-        body:{model:HAIKU,max_tokens:120,system:`You are Zaeli — warm Australian family assistant. User tapped brief CTA. Continue naturally, 1-2 sentences. ${CAPABILITY_RULES} Context: ${ctx}`,
+        body:{model:HAIKU,max_tokens:50,system:`You are Zaeli. User tapped yes. Reply in one sentence, max 12 words. Context: ${ctx}`,
           messages:[{role:'user',content:`Brief:\n\n${brief}\n\nUser tapped yes. Continue.`}]}});
       const reply=d.content?.[0]?.text||`Right, let's get into it! What would you like to tackle first?`;
       setChannelMessages(prev=>({...prev,[channel]:[{id:'seed-'+channel,role:'assistant',content:reply,time:getTime()}]}));
@@ -415,7 +424,7 @@ export default function ZaeliChatScreen(){
       }
       const se=channel==='Meals'?` Focus on unplanned nights and tonight. Don't start with "Good ${tod}".`:` Open with "Good ${tod}" naturally. Mention 1-2 context details.`;
       const d=await callClaude({feature:'chat_greeting',familyId:DUMMY_FAMILY_ID,
-        body:{model:HAIKU,max_tokens:120,system:`${CHANNELS[channel].prompt} Write a warm greeting for ${DUMMY_MEMBER_NAME}.${se} Max 30 words. Be warm and specific. One emoji at start only.`,messages:[{role:'user',content:ctx}]}});
+        body:{model:HAIKU,max_tokens:50,system:`You are Zaeli. Greet ${DUMMY_MEMBER_NAME} in one short sentence, max 12 words. One emoji. No lists. No line breaks.`,messages:[{role:'user',content:ctx}]}});
       const greeting=d.content?.[0]?.text||`Good ${tod}, ${DUMMY_MEMBER_NAME}! What can I help with?`;
       setChannelMessages(prev=>({...prev,[channel]:[{id:'g-'+channel,role:'assistant',content:greeting,time:getTime()}]}));
     }catch{
@@ -424,10 +433,147 @@ export default function ZaeliChatScreen(){
     }finally{setLoading(false);}
   };
 
+  // ── WHISPER VOICE INPUT ──────────────────────────────────────
+  const startRecording=async()=>{
+    try{
+      const perm=await Audio.requestPermissionsAsync();
+      if(!perm.granted){
+        Alert.alert('Microphone permission required','Please allow microphone access in your device settings.');
+        return;
+      }
+      await Audio.setAudioModeAsync({allowsRecordingIOS:true,playsInSilentModeIOS:true});
+      const{recording}=await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current=recording;
+      setIsRecording(true);
+      // Pulse animation while recording
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(micPulse,{toValue:1.3,duration:600,useNativeDriver:true}),
+          Animated.timing(micPulse,{toValue:1,duration:600,useNativeDriver:true}),
+        ])
+      ).start();
+    }catch(e:any){
+      console.log('Recording error:',e?.message);
+    }
+  };
+
+  const stopAndTranscribe=async()=>{
+    if(!recordingRef.current) return;
+    try{
+      micPulse.stopAnimation();
+      micPulse.setValue(1);
+      setIsRecording(false);
+      setIsTranscribing(true);
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri=recordingRef.current.getURI();
+      recordingRef.current=null;
+      await Audio.setAudioModeAsync({allowsRecordingIOS:false});
+      if(!uri) throw new Error('No recording URI');
+
+      // Send to OpenAI Whisper API
+      const formData=new FormData();
+      formData.append('file',{uri,name:'recording.m4a',type:'audio/m4a'} as any);
+      formData.append('model','whisper-1');
+      formData.append('language','en');
+
+      const response=await fetch('https://api.openai.com/v1/audio/transcriptions',{
+        method:'POST',
+        headers:{Authorization:`Bearer ${OPENAI_API_KEY}`},
+        body:formData,
+      });
+      if(!response.ok) throw new Error('Whisper API error: '+response.status);
+      const data=await response.json();
+      const transcript=(data.text||'').trim();
+      if(transcript){
+        // Correct common Whisper mishearings of "Zaeli"
+        const corrected=transcript
+          .replace(/\bXaeli\b/gi,'Zaeli')
+          .replace(/\bZeily\b/gi,'Zaeli')
+          .replace(/\bZaily\b/gi,'Zaeli')
+          .replace(/\bZeli\b/gi,'Zaeli')
+          .replace(/\bZaely\b/gi,'Zaeli')
+          .replace(/\bSaeli\b/gi,'Zaeli')
+          .replace(/\bZailee\b/gi,'Zaeli');
+        // Estimate cost at $0.006 USD/minute — use fixed 0.5 min as conservative estimate
+        const costUsd=0.003;
+        // Log to api_logs
+        try{
+          await supabase.from('api_logs').insert({
+            family_id:DUMMY_FAMILY_ID,
+            feature:'whisper_transcription',
+            model:'whisper-1',
+            input_tokens:Math.round(fileSizeBytes/100),
+            output_tokens:transcript.split(' ').length,
+            cost_usd:costUsd,
+          });
+        }catch{}
+        // Drop transcript into input field for user to review
+        setInput(corrected);
+        inputRef.current?.focus();
+      } else {
+        Alert.alert('Could not hear clearly','Please try again or type your message.');
+      }
+    }catch(e:any){
+      console.log('Transcription error:',e?.message);
+      Alert.alert('Voice input failed','Could not transcribe audio. Please type your message instead.');
+    }finally{
+      setIsTranscribing(false);
+    }
+  };
+
+  const handleMicPress=async()=>{
+    if(isTranscribing) return;
+    if(isRecording){
+      await stopAndTranscribe();
+    } else {
+      await startRecording();
+    }
+  };
+
   const send=async(text?:string)=>{
     const msg=(text||input).trim();
     if(!msg||loading) return;
     setInput('');setShowHints(false);Keyboard.dismiss();
+
+    // ── USAGE CAP CHECK ──────────────────────────────────────
+    // Count zaeli_chat calls this month — briefs/greetings excluded
+    try{
+      const now=new Date();
+      const monthStart=new Date(now.getFullYear(),now.getMonth(),1).toISOString();
+      const{count}=await supabase.from('api_logs')
+        .select('*',{count:'exact',head:true})
+        .eq('family_id',DUMMY_FAMILY_ID)
+        .eq('feature','zaeli_chat')
+        .gte('created_at',monthStart);
+      const used=count||0;
+      const resetDate=new Date(now.getFullYear(),now.getMonth()+1,1)
+        .toLocaleDateString('en-AU',{day:'numeric',month:'long'});
+
+      if(used>=500){
+        // Hard limit — block and show friendly message
+        const userMsg:Message={id:Date.now().toString(),role:'user',content:msg,time:getTime()};
+        const limitMsg:Message={id:(Date.now()+1).toString(),role:'assistant',
+          content:`You've reached your 500 message limit for ${now.toLocaleString('en-AU',{month:'long'})}. The plan includes 500 AI conversations to keep things running smoothly for everyone. Your limit resets on **${resetDate}**. If you need more, reach out to us at hello@zaeli.app and we'll sort you out. 💙`,
+          time:getTime()};
+        setMessages(prev=>[...prev,userMsg,limitMsg]);
+        setTimeout(()=>scrollRef.current?.scrollToEnd({animated:true}),100);
+        return;
+      }
+      if(used>=450){
+        // Soft warning — let message through but note the limit
+        const warningMsg:Message={id:(Date.now()-1).toString(),role:'assistant',isToolMsg:true,
+          content:`✦ Heads up — you've used ${used} of your 500 messages this month. Limit resets on ${resetDate}.`,
+          time:getTime()};
+        setMessages(prev=>[...prev,warningMsg]);
+      }
+    }catch(e){
+      // If count fails, let message through — don't block on a failed check
+      console.log('[usage cap] check failed:', e);
+    }
+    // ─────────────────────────────────────────────────────────
+
     const userMsg:Message={id:Date.now().toString(),role:'user',content:msg,time:getTime()};
     const next=[...messages,userMsg];
     setMessages(next);setLoading(true);
@@ -677,12 +823,34 @@ ${ctx}`;
 
       <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':'height'} keyboardVerticalOffset={0}>
         <View style={s.inputArea}>
+          {isRecording&&(
+            <View style={{flexDirection:'row',alignItems:'center',gap:8,backgroundColor:'rgba(224,0,124,0.08)',borderRadius:10,paddingHorizontal:12,paddingVertical:7,marginBottom:8,borderWidth:1,borderColor:'rgba(224,0,124,0.2)'}}>
+              <Animated.View style={{width:8,height:8,borderRadius:4,backgroundColor:C.mag,transform:[{scale:micPulse}]}}/>
+              <Text style={{fontFamily:'Poppins_600SemiBold',fontSize:12,color:C.mag,flex:1}}>Recording… tap mic to stop</Text>
+            </View>
+          )}
+          {isTranscribing&&(
+            <View style={{flexDirection:'row',alignItems:'center',gap:8,backgroundColor:C.blueL,borderRadius:10,paddingHorizontal:12,paddingVertical:7,marginBottom:8,borderWidth:1,borderColor:C.blueB}}>
+              <Text style={{fontFamily:'Poppins_600SemiBold',fontSize:12,color:C.blue,flex:1}}>Transcribing…</Text>
+            </View>
+          )}
           <View style={s.inputBox}>
             <TextInput ref={inputRef} style={s.inputField} value={input} onChangeText={setInput}
               placeholder="Ask Zaeli anything…" placeholderTextColor={C.ink3} multiline
               returnKeyType="send" onSubmitEditing={()=>send()}
               onFocus={()=>{setShowHints(false);setTimeout(()=>scrollRef.current?.scrollToEnd({animated:true}),350);}}/>
-            <TouchableOpacity style={s.micBtn} activeOpacity={0.7} onPress={()=>{}}><IcoMic/></TouchableOpacity>
+            <TouchableOpacity
+              style={[s.micBtn,
+                isRecording&&{backgroundColor:C.mag,borderRadius:11},
+                isTranscribing&&{backgroundColor:C.blueL}
+              ]}
+              activeOpacity={0.7}
+              onPress={handleMicPress}>
+              {isTranscribing
+                ?<Text style={{fontSize:11,color:C.blue,fontFamily:'Poppins_700Bold'}}>…</Text>
+                :<IcoMic color={isRecording?'#fff':'rgba(0,0,0,0.45)'}/>
+              }
+            </TouchableOpacity>
             <TouchableOpacity style={[s.sendBtn,(!input.trim()||loading)&&{opacity:0.4}]} onPress={()=>send()} disabled={!input.trim()||loading} activeOpacity={0.8}><IcoSend/></TouchableOpacity>
           </View>
           {showHints&&(

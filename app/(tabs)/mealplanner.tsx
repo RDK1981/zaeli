@@ -1611,8 +1611,8 @@ function RecipeDetailModal({visible,recipe,onClose,onAdded,onEdit,openDayPicker}
 }
 
 // ── Dinners Tab ───────────────────────────────────────────────────────────────
-function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
-  showBrief:boolean;onDismissBrief:()=>void;onTabChange:(t:TabType)=>void;
+function DinnersTab({onTabChange}:{
+  onTabChange:(t:TabType)=>void;
 }){
   const router=useRouter();
   const [meals,setMeals]=useState<MealPlan[]>([]);
@@ -1631,9 +1631,7 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
   const [editNotes,setEditNotes]=useState('');
   const [savingEdit,setSavingEdit]=useState(false);
   // Brief animation — same as home screen
-  const cardFade=useRef(new Animated.Value(1)).current;
-  const relaxedFade=useRef(new Animated.Value(0)).current;
-  const briefText=useRef('');
+
 
   const fetchMeals=useCallback(async()=>{
     const days=get7Days();
@@ -1654,13 +1652,7 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
   useEffect(()=>{fetchMeals();},[]);
   useFocusEffect(useCallback(()=>{fetchMeals();},[fetchMeals]));
 
-  // Dismiss — fade card out, fade relaxed in — matches home/shopping exactly
-  const handleDismiss=()=>{
-    Animated.timing(cardFade,{toValue:0,duration:300,useNativeDriver:true}).start(()=>{
-      onDismissBrief();
-      setTimeout(()=>Animated.timing(relaxedFade,{toValue:1,duration:350,useNativeDriver:true}).start(),50);
-    });
-  };
+
 
   const handleAssignSave=async(cookIds:string[],jobKidIds:string[],pts:Record<string,number>)=>{
     if(!assignState) return;
@@ -1678,60 +1670,16 @@ function DinnersTab({showBrief,onDismissBrief,onTabChange}:{
   };
 
   // Build brief text — recompute days fresh
+
+
+  // briefDays drives the 7-day dinner plan list — keep even without brief card
   const briefDays=get7Days();
-  const todayMeal=meals.find(m=>m.day_key===dayKey(briefDays[0]));
-  const emptyCount=briefDays.filter(d=>!meals.find(m=>m.day_key===dayKey(d))).length;
-  if(!briefText.current){
-    briefText.current=todayMeal
-      ?`Tonight's sorted — ${todayMeal.meal_name}. ${emptyCount>0?`${emptyCount} night${emptyCount!==1?'s':''} still open — want me to throw some ideas together?`:''}`
-      :`Nothing planned for tonight yet. Want me to suggest something quick based on what's in the pantry?`;
-  }
 
   return(
     <View style={{flex:1}}>
       <ScrollView contentContainerStyle={{paddingBottom:130,paddingTop:6}} showsVerticalScrollIndicator={false}>
 
-        {/* Brief card — BLUE (Shopping style) */}
-        {showBrief&&!loading?(
-          <Animated.View style={{opacity:cardFade}}>
-            <View style={s.briefCard}>
-              <View style={s.briefHeader}>
-                <View style={s.briefAv}><Text style={{color:'#fff',fontSize:15,fontFamily:'Poppins_700Bold'}}>✦</Text></View>
-                <Text style={s.briefName}>Z<Text style={{color:C.mag}}>a</Text>el<Text style={{color:C.mag}}>i</Text></Text>
-                <View style={s.briefLiveDot}/>
-                <Text style={s.briefTime}>{getTimeStr()}</Text>
-              </View>
-              <View style={s.briefBody}>
-                <Text style={s.briefMsg}>{briefText.current}</Text>
-                <View style={s.briefBtns}>
-                  <TouchableOpacity style={s.btnPrimary} activeOpacity={0.85}
-                    onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Meals',returnTo:'/(tabs)/mealplanner'}})}>
-                    <Text style={s.btnPrimaryTxt}>Yes, sort the week</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.btnGhost} onPress={handleDismiss} activeOpacity={0.7}>
-                    <Text style={s.btnGhostTxt}>All sorted, thanks</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Animated.View>
-        ):!showBrief?(
-          /* Relaxed card — blue theme */
-          <Animated.View style={[s.relaxedCard,{opacity:relaxedFade}]}>
-            <View style={s.relaxedHeader}>
-              <View style={s.relaxedAv}><Text style={{color:'#fff',fontSize:13}}>✦</Text></View>
-              <Text style={s.relaxedAck}>Sounds good! 🍳</Text>
-            </View>
-            <View style={s.relaxedBody}>
-              <Text style={s.relaxedTitle}>Ask Zaeli anything</Text>
-              <Text style={s.relaxedMsg}>Still a few nights open this week — want me to suggest something easy that works with what's already in the pantry?</Text>
-              <TouchableOpacity style={s.relaxedBtn} activeOpacity={0.85}
-                onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Meals',returnTo:'/(tabs)/mealplanner'}})}>
-                <Text style={s.relaxedBtnTxt}>Let's cook something ✦</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        ):null}
+        {/* Meals brief removed — fires once per day max via Ask Zaeli bar */}
 
         {briefDays.map(d=>{
           const dk=dayKey(d);
@@ -2516,7 +2464,7 @@ export default function MealPlannerScreen(){
   });
   const [activeTab,setActiveTab]=useState<TabType>('dinners');
   const [navOpen,setNavOpen]=useState(false);
-  const [briefDismissed,setBriefDismissed]=useState(false);
+
 
   // ── Shared day picker — lifted here so it never nests inside another Modal ──
   const [dayPickerCtx,setDayPickerCtx]=useState<{
@@ -2591,8 +2539,6 @@ export default function MealPlannerScreen(){
       <View style={{flex:1,backgroundColor:C.bg}}>
         {activeTab==='dinners'&&(
           <DinnersTab
-            showBrief={!briefDismissed}
-            onDismissBrief={()=>setBriefDismissed(true)}
             onTabChange={setActiveTab}
           />
         )}

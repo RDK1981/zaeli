@@ -206,7 +206,18 @@ function BriefCard({ events, todos, onDismiss }: {
   useEffect(() => {
     Animated.timing(cardFade, { toValue:1, duration:400, useNativeDriver:true }).start();
     const now = Date.now();
-    if (cachedBriefText && lastBriefTime && (now - lastBriefTime) < 30 * 60 * 1000) {
+    // Once-per-day brief — resets at 2am
+    // getBriefDayKey returns YYYY-MM-DD, treating hours 0-1 as previous day
+    const _now = new Date();
+    const _d = new Date(_now);
+    if (_now.getHours() < 2) _d.setDate(d.getDate() - 1);
+    const todayKey = _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');
+    const lastKey = lastBriefTime ? (()=>{
+      const ld=new Date(lastBriefTime);
+      if(ld.getHours()<2) ld.setDate(ld.getDate()-1);
+      return ld.getFullYear()+'-'+String(ld.getMonth()+1).padStart(2,'0')+'-'+String(ld.getDate()).padStart(2,'0');
+    })() : null;
+    if (cachedBriefText && lastKey && lastKey === todayKey) {
       setBriefText(cachedBriefText);
       setCtaLabel(cachedBriefCta || "Let's talk it through");
       setLoading(false);

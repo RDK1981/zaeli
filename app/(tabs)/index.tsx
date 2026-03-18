@@ -298,8 +298,8 @@ export default function HomeScreen() {
         Animated.timing(cardFade,{toValue:1,duration:0,useNativeDriver:true}).start();
         fetchData();
       }
-    } else if(elapsed>30*60*1000){
-      // Only refresh if 30+ minutes have passed AND not currently generating
+    } else if(elapsed>2*60*60*1000){
+      // Only refresh if 2+ hours have passed AND not currently generating
       if(!briefGenRef.current){
         fetchData();
       }
@@ -357,7 +357,10 @@ export default function HomeScreen() {
       const urgentTodos=tdos.filter((t:any)=>t.priority==='high'||t.priority==='urgent');
       const systemPrompt=`You are Zaeli — warm, brilliant, completely magnetic. Australian warmth — real and unpretentious. The switched-on friend who noticed three things before anyone asked.
 
-You are writing ${DUMMY_MEMBER_NAME}'s home screen brief. STRUCTURE:
+You are writing ${DUMMY_MEMBER_NAME}'s home screen brief.
+CRITICAL: The WEEK DATES section shows the exact date for each day name. Always use these — never calculate dates yourself. When referencing an event, check its date against WEEK DATES to confirm whether it is today, tomorrow, or later in the week.
+
+STRUCTURE:
 
 SENTENCE 1 — CALLBACK (optional): If something notable is in the data (recent past event, yesterday's dinner, completed task, dismissed reminder), open with one warm alive sentence that connects — not a recap. Examples: "Hope the tacos went down well last night!" / "Great that Jack's soccer registration is done — one less thing." / "Hope Poppy had a brilliant time at dance tonight." BAD examples: "I see you completed 2 tasks" (robotic) / "You had pasta for dinner" (stating facts) / "Good morning!" (greeting, not callback). SKIP THIS SENTENCE ENTIRELY if nothing notable is in the data — go straight to sentence 2.
 
@@ -408,12 +411,36 @@ RESPOND WITH JSON ONLY — no markdown, no backticks:
       }).filter((e:any) => e._hoursAgo !== '?' && e._hoursAgo <= 24);
 
       // Compact context for brief — names and labels only, no full JSON blobs
-      const evSummary = evs.slice(0,6).map(fmtEv).map((e:any)=>`${e.title} (${e.start_time||e.date})`).join(', ') || 'none';
+      // Build week dates map — must be before evSummary which uses DAY_NAMES
+      const DAY_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const weekMap:string[]=[];
+      for(let i=0;i<7;i++){
+        const wd=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);
+        const wdk=wd.getFullYear()+'-'+String(wd.getMonth()+1).padStart(2,'0')+'-'+String(wd.getDate()).padStart(2,'0');
+        weekMap.push(`${DAY_NAMES[wd.getDay()]}=${wdk}`);
+      }
+      const weekDates=weekMap.join(', ');
+
+      // Include day name with each event so Haiku never miscalculates the day
+      // Use new Date(y,m,d) constructor (local time) not new Date('YYYY-MM-DD') (UTC, shifts day in AEST)
+      const evSummary = evs.slice(0,6).map(fmtEv).map((e:any)=>{
+        const rawDate=e.date||'';
+        let dayLabel='';
+        if(rawDate){
+          const[ey,em,ed]=rawDate.split('-').map(Number);
+          if(ey&&em&&ed){
+            const evDay=new Date(ey,em-1,ed);
+            dayLabel=DAY_NAMES[evDay.getDay()]+' '+rawDate+' ';
+          }
+        }
+        return `${e.title} (${dayLabel}${e.start_time||''})`;
+      }).join(', ') || 'none';
       const pastEvSummary = labelledPastEvs.slice(0,4).map((e:any)=>`${e.title} (${e._hoursAgo}h ago)`).join(', ') || 'none';
       const todoSummary = tdos.slice(0,5).map((t:any)=>`${t.title}${t.priority==='high'?' [urgent]':''}${t.due_label?' due '+t.due_label:''}`).join(', ') || 'none';
       const urgentSummary = urgentTodos.slice(0,4).map((t:any)=>t.title).join(', ') || 'none';
 
       const ctx=`Family: ${DUMMY_MEMBER_NAME}. Today: ${localDateStr} (${dateStr}). Tomorrow: ${tomorrowStr}. Time: ${timeStr}. Frame: ${timeFrame}.
+WEEK DATES (use EXACTLY these — never calculate): ${weekDates}.
 Past events (callback sources): ${pastEvSummary}.
 Yesterday's dinner: ${ystMeal?.title||'none'}.
 Completed tasks today: ${doneTodos.slice(0,3).map((t:any)=>t.title).join(', ')||'none'}.
