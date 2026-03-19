@@ -485,6 +485,7 @@ Rules:
         const dg=await res.json();
         console.log('[brief continuation] GPT status:', res.status, 'reply:', dg.choices?.[0]?.message?.content?.substring(0,50));
         if(dg.error) console.log('[brief continuation] GPT error:', JSON.stringify(dg.error));
+        try{const u=dg.usage||{};const c=((u.prompt_tokens||0)/1000000)*0.75+((u.completion_tokens||0)/1000000)*4.50;supabase.from('api_logs').insert({family_id:DUMMY_FAMILY_ID,feature:'chat_greeting',model:GPT5_MINI,input_tokens:u.prompt_tokens||0,output_tokens:u.completion_tokens||0,cost_usd:c});}catch{}
         reply=dg.choices?.[0]?.message?.content||'';
       } else {
         const d=await callClaude({feature:'chat_greeting',familyId:DUMMY_FAMILY_ID,
@@ -569,6 +570,7 @@ CRITICAL DATE RULE: Events in context are labelled (TODAY), (TOMORROW), or with 
             messages:[{role:'system',content:greetSys},{role:'user',content:ctx}]}),
         });
         const dg=await res.json();
+        try{const u=dg.usage||{};const c=((u.prompt_tokens||0)/1000000)*0.75+((u.completion_tokens||0)/1000000)*4.50;supabase.from('api_logs').insert({family_id:DUMMY_FAMILY_ID,feature:'chat_greeting',model:GPT5_MINI,input_tokens:u.prompt_tokens||0,output_tokens:u.completion_tokens||0,cost_usd:c});}catch{}
         greeting=dg.choices?.[0]?.message?.content||'';
       } else {
         const d=await callClaude({feature:'chat_greeting',familyId:DUMMY_FAMILY_ID,
@@ -617,7 +619,24 @@ CRITICAL DATE RULE: Events in context are labelled (TODAY), (TOMORROW), or with 
       body:JSON.stringify(body),
     });
     if(!res.ok) throw new Error(`OpenAI error: ${res.status}`);
-    return res.json();
+    const d=await res.json();
+    // Log to api_logs (non-blocking — never fail on logging error)
+    try{
+      const usage=d.usage||{};
+      const inputTok=usage.prompt_tokens||0;
+      const outputTok=usage.completion_tokens||0;
+      // GPT-5.4 mini: $0.75/1M input, $4.50/1M output (USD)
+      const costUsd=(inputTok/1000000)*0.75+(outputTok/1000000)*4.50;
+      await supabase.from('api_logs').insert({
+        family_id:DUMMY_FAMILY_ID,
+        feature:'zaeli_chat',
+        model:GPT5_MINI,
+        input_tokens:inputTok,
+        output_tokens:outputTok,
+        cost_usd:costUsd,
+      });
+    }catch{}
+    return d;
   };
 
   const parseOpenAITools=(d:any)=>{

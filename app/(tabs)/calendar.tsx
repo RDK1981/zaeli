@@ -1050,6 +1050,15 @@ async function callBrief({feature,system,userContent,maxTokens=200}:
         messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
     });
     const d=await res.json();
+    // Log GPT brief call to api_logs (non-blocking)
+    try{
+      const u=d.usage||{};
+      const costUsd=((u.prompt_tokens||0)/1000000)*0.75+((u.completion_tokens||0)/1000000)*4.50;
+      supabase.from('api_logs').insert({
+        family_id:DUMMY_FAMILY_ID,feature,model:'gpt-5.4-mini',
+        input_tokens:u.prompt_tokens||0,output_tokens:u.completion_tokens||0,cost_usd:costUsd,
+      });
+    }catch{}
     return d.choices?.[0]?.message?.content||'';
   } else {
     const d=await callClaude({feature,familyId:DUMMY_FAMILY_ID,

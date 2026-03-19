@@ -521,12 +521,12 @@
           <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin-bottom:8px">PRICING (AUD)</div>
           <div class="slider-row">
             <span class="slider-label">Family plan price</span>
-            <div class="slider-wrap"><input type="range" min="9.99" max="39.99" step="5" value="15" oninput="updateModel()" id="sl-family-price"></div>
+            <div class="slider-wrap"><input type="range" min="9.99" max="39.99" step="1" value="14.99" oninput="updateModel()" id="sl-family-price"></div>
             <span class="slider-val" id="v-family-price">$15 AUD</span>
           </div>
           <div class="slider-row">
             <span class="slider-label">Homework per child</span>
-            <div class="slider-wrap"><input type="range" min="4.99" max="19.99" step="5" value="10" oninput="updateModel()" id="sl-hw-price"></div>
+            <div class="slider-wrap"><input type="range" min="4.99" max="19.99" step="1" value="9.99" oninput="updateModel()" id="sl-hw-price"></div>
             <span class="slider-val" id="v-hw-price">$10 AUD</span>
           </div>
           <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin:16px 0 8px">FAMILY MIX</div>
@@ -542,27 +542,10 @@
           </div>
           <div class="slider-row">
             <span class="slider-label">% via web (no App Store cut)</span>
-            <div class="slider-wrap"><input type="range" min="0" max="100" step="5" value="30" oninput="updateModel()" id="sl-web-pct"></div>
+            <div class="slider-wrap"><input type="range" min="0" max="100" step="5" value="100" oninput="updateModel()" id="sl-web-pct"></div>
             <span class="slider-val" id="v-web-pct">30%</span>
           </div>
           <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin:16px 0 8px">API USAGE (after cost fixes)</div>
-
-          <!-- AI Provider Toggle -->
-          <div style='margin-bottom:16px;padding:14px;background:#f0f4ff;border-radius:10px;border:1px solid #c8d4ff'>
-            <div style='font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px'>AI Engine — Chat Cost Model</div>
-            <div style='display:flex;gap:8px;flex-wrap:wrap'>
-              <button class='provider-tab on' onclick='setAiProvider("claude",this)'
-                style='padding:7px 14px;border-radius:8px;border:1.5px solid #0057FF;cursor:pointer;font-size:12px;font-weight:600;background:#0057FF;color:#fff'>
-                Claude Blend · $0.013/msg
-              </button>
-              <button class='provider-tab' onclick='setAiProvider("openai",this)'
-                style='padding:7px 14px;border-radius:8px;border:1.5px solid #ccc;cursor:pointer;font-size:12px;font-weight:600;background:#fff;color:#333'>
-                GPT-5.4 mini · $0.003/msg
-              </button>
-            </div>
-            <div style='margin-top:8px;font-size:11px;color:#888'>Homework always uses Sonnet/Haiku blend regardless of engine.</div>
-          </div>
-
           <div class="slider-row">
             <span class="slider-label">Chat messages/month</span>
             <div class="slider-wrap"><input type="range" min="100" max="1000" step="50" value="300" oninput="updateModel()" id="sl-chat"></div>
@@ -590,7 +573,7 @@
               <select id="sl-voice" onchange="updateModel()" style="width:100%;padding:4px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:'Poppins',sans-serif;font-size:12px">
                 <option value="0">Off (no voice)</option>
                 <option value="0.30">Light ($0.30/mo)</option>
-                <option value="0.60">Medium ($0.60/mo)</option>
+                <option value="0.60" selected>Medium ($0.60/mo)</option>
                 <option value="1.20">Heavy ($1.20/mo)</option>
               </select>
             </div>
@@ -639,6 +622,8 @@
 // ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://rsvbzakyyrftezthlhtd.supabase.co';   // e.g. https://xxxx.supabase.co
 const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzdmJ6YWt5eXJmdGV6dGhsaHRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NDk5NjUsImV4cCI6MjA4ODQyNTk2NX0.9ssTEwSxgY4B7nXxTEyKB3QDIoeCLh8yMo9jO-m5i-w'; // starts with eyJ...
+const USD_TO_AUD = 1.538;  // 1 USD = 1.538 AUD
+const AUD_TO_USD = 0.65;
 const WARN_THRESHOLD = 2.00;  // $ per family per month — update in Settings
 const HIGH_THRESHOLD = 5.00;
 
@@ -660,7 +645,13 @@ try {
 // ─────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────
-function fmt$(n) { return n === null || n === undefined ? '—' : '$' + Number(n).toFixed(n < 0.01 ? 4 : 2); }
+function fmt$(n, isAUD=false) {
+  if (n === null || n === undefined) return '—';
+  const v = Number(n);
+  if (isAUD) return 'A$' + v.toFixed(v < 0.01 ? 4 : 2);
+  // Convert USD to AUD for display
+  return 'A$' + (v * USD_TO_AUD).toFixed(v * USD_TO_AUD < 0.01 ? 4 : 2);
+}
 function fmtNum(n) { return n?.toLocaleString() || '0'; }
 function fmtDate(d) { return d ? new Date(d).toLocaleString('en-AU', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}) : '—'; }
 function thisMonthStart() { const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),1).toISOString(); }
@@ -689,7 +680,7 @@ async function loadAllData() {
       .select('*')
       .gte('created_at', thisMonthStart())
       .order('created_at', { ascending: false })
-      .limit(500);
+      .limit(2000);
 
     if (logsErr) {
       if (logsErr.message?.includes('relation') || logsErr.code === '42P01') {
@@ -982,22 +973,13 @@ const APP_STORE_CUT = 0.15;
 const STRIPE_PCT = 0.029;
 const STRIPE_FIXED = 0.30;
 
-// Per-message costs (after fixes: smart context + Haiku)
-const COST_CHAT_CLAUDE = 0.013;  // Claude Sonnet/Haiku blend, smart context
-const COST_CHAT_GPT    = 0.003;  // GPT-5.4 mini (all chats)
-let   COST_CHAT_MSG    = COST_CHAT_CLAUDE; // active cost — toggled by provider switch
-const COST_HW_MSG      = 0.0094; // Homework: Sonnet 70% + Haiku 30% blend
-const COST_BRIEF       = 0.0005; // Haiku
-const COST_SCAN        = 0.019;  // Sonnet image
-let   aiProvider       = 'claude'; // 'claude' | 'openai'
-
-function setAiProvider(p, btn) {
-  aiProvider = p;
-  COST_CHAT_MSG = p === 'openai' ? COST_CHAT_GPT : COST_CHAT_CLAUDE;
-  document.querySelectorAll('.provider-tab').forEach(t => t.classList.remove('on'));
-  btn.classList.add('on');
-  updateFinancial();
-}
+// Per-message costs in USD
+const COST_CHAT_MSG    = 0.00195; // GPT-5.4 mini ($0.75/$4.50 per 1M, ~250 in/750 out avg = $0.00195 USD)
+const COST_BRIEF       = 0.00065; // GPT-5.4 mini (shorter, ~100 in/200 out = $0.00065 USD)
+const COST_HW_SONNET   = 0.0140;  // Claude Sonnet (70% of homework)
+const COST_HW_HAIKU    = 0.0008;  // Claude Haiku (30% of homework)
+const COST_HW_MSG      = COST_HW_SONNET * 0.7 + COST_HW_HAIKU * 0.3; // blended = $0.010 USD
+const COST_SCAN        = 0.019;   // Claude Sonnet vision
 
 function setScale(n, btn) {
   finScale = n;
@@ -1059,26 +1041,26 @@ function updateModel() {
   // ── Render cost breakdown ──
   document.getElementById('cost-breakdown').innerHTML = `
     <tr><th>Item</th><th>Per family/mo</th><th>Notes</th></tr>
-    <tr><td>Chat (${aiProvider === 'openai' ? 'GPT-5.4 mini' : 'Claude blend'})</td><td>$${apiChat.toFixed(3)} USD</td><td>${chatMsgs} msgs × $${COST_CHAT_MSG}</td></tr>
-    <tr><td>Homework (Sonnet 70%/Haiku 30%)</td><td>$${apiHw.toFixed(3)} USD</td><td>${hwMsgs} msgs × ${avgKids.toFixed(1)} kids × ${(hwPct*100).toFixed(0)}%</td></tr>
-    <tr><td>Briefs (Haiku)</td><td>$${apiBrief.toFixed(3)} USD</td><td>${briefs} briefs × $${COST_BRIEF}</td></tr>
-    <tr><td>Photo scans</td><td>$${apiScan.toFixed(3)} USD</td><td>${scans} scans × $${COST_SCAN}</td></tr>
-    ${voiceCost > 0 ? `<tr><td>Voice (ElevenLabs)</td><td>$${voiceCost.toFixed(2)} USD</td><td>Monthly voice usage</td></tr>` : ''}
-    <tr><td>App Store / Google</td><td>$${appStoreCutUSD.toFixed(3)} USD</td><td>${(100-webPct*100).toFixed(0)}% via app × 15%</td></tr>
-    <tr><td>Stripe fees</td><td>$${stripeUSD.toFixed(3)} USD</td><td>2.9% + $0.30</td></tr>
-    <tr><td>Supabase + hosting</td><td>$${(supabaseUSD+hostingUSD).toFixed(3)} USD</td><td>Infrastructure</td></tr>
-    <tr><td>Support overhead</td><td>$${supportUSD.toFixed(2)} USD</td><td>Estimate</td></tr>
-    <tr class="total-row"><td>Total cost</td><td>$${totalCostUSD.toFixed(2)} USD</td><td></td></tr>
+    <tr><td>Chat (GPT-5.4 mini)</td><td>${fmt$(apiChat)}</td><td>${chatMsgs} msgs × A$${(COST_CHAT_MSG*USD_TO_AUD).toFixed(4)}</td></tr>
+    <tr><td>Homework (Sonnet 70%/Haiku 30%)</td><td>${fmt$(apiHw)}</td><td>${hwMsgs} msgs × ${avgKids.toFixed(1)} kids × ${(hwPct*100).toFixed(0)}%</td></tr>
+    <tr><td>Briefs (GPT-5.4 mini)</td><td>${fmt$(apiBrief)}</td><td>${briefs} briefs × A$${(COST_BRIEF*USD_TO_AUD).toFixed(4)}</td></tr>
+    <tr><td>Photo scans (Sonnet vision)</td><td>${fmt$(apiScan)}</td><td>${scans} scans × A$${(COST_SCAN*USD_TO_AUD).toFixed(3)}</td></tr>
+    ${voiceCost > 0 ? `<tr><td>Voice (ElevenLabs)</td><td>${fmt$(voiceCost)}</td><td>Monthly voice usage</td></tr>` : ''}
+    <tr><td>App Store / Google</td><td>${fmt$(appStoreCutUSD)}</td><td>${(100-webPct*100).toFixed(0)}% via app × 15%</td></tr>
+    <tr><td>Stripe fees</td><td>${fmt$(stripeUSD)}</td><td>2.9% + A$${(0.30*USD_TO_AUD).toFixed(2)}</td></tr>
+    <tr><td>Supabase + hosting</td><td>${fmt$(supabaseUSD+hostingUSD)}</td><td>Infrastructure</td></tr>
+    <tr><td>Support overhead</td><td>${fmt$(supportUSD)}</td><td>Estimate</td></tr>
+    <tr class="total-row"><td>Total cost</td><td>${fmt$(totalCostUSD)}</td><td></td></tr>
   `;
 
   // ── Render revenue breakdown ──
   document.getElementById('rev-breakdown').innerHTML = `
-    <tr><th>Item</th><th>Per family/mo (AUD)</th><th>Per family/mo (USD)</th></tr>
-    <tr><td>Family plan</td><td>$${famRevenueAUD.toFixed(2)}</td><td>$${(famRevenueAUD*AUD_TO_USD).toFixed(2)}</td></tr>
-    <tr><td>Homework add-on</td><td>$${hwRevenueAUD.toFixed(2)}</td><td>$${(hwRevenueAUD*AUD_TO_USD).toFixed(2)}</td></tr>
-    <tr class="total-row"><td>Total revenue</td><td>$${totalRevenueAUD.toFixed(2)} AUD</td><td>$${totalRevenueUSD.toFixed(2)} USD</td></tr>
-    <tr><td style="color:var(--ink3)">After App Store + Stripe</td><td></td><td>$${netRevenueUSD.toFixed(2)} USD</td></tr>
-    <tr class="total-row" style="color:${marginUSD >= 0 ? 'var(--green)' : 'var(--red)'}"><td>Net margin</td><td></td><td>${marginUSD >= 0 ? '+' : ''}$${marginUSD.toFixed(2)} USD (${marginPct.toFixed(0)}%)</td></tr>
+    <tr><th>Item</th><th>Per family/mo (AUD)</th><th>Notes</th></tr>
+    <tr><td>Family plan</td><td>A$$${famRevenueAUD.toFixed(2)}</td><td>Base subscription</td></tr>
+    <tr><td>Homework add-on</td><td>A$$${hwRevenueAUD.toFixed(2)}</td><td>${avgKids.toFixed(1)} kids × ${(hwPct*100).toFixed(0)}% uptake</td></tr>
+    <tr class="total-row"><td>Total revenue</td><td>A$$${totalRevenueAUD.toFixed(2)}</td><td>(${(totalRevenueUSD).toFixed(2)} USD)</td></tr>
+    <tr><td style="color:var(--ink3)">After App Store + Stripe</td><td>A$$${(netRevenueUSD*USD_TO_AUD).toFixed(2)}</td><td></td></tr>
+    <tr class="total-row" style="color:${marginUSD >= 0 ? 'var(--green)' : 'var(--red)'}"><td>Net margin</td><td>A$$${(marginUSD*USD_TO_AUD).toFixed(2)} (${marginPct.toFixed(0)}%)</td><td>${marginUSD >= 0 ? '✓ Profitable' : '✗ Loss-making'}</td></tr>
   `;
 
   // ── Scale scenarios ──
@@ -1087,9 +1069,9 @@ function updateModel() {
     <div class="scenario-row hdr">
       <div class="scenario-cell hdr">Families</div>
       <div class="scenario-cell hdr">Revenue AUD</div>
-      <div class="scenario-cell hdr">API Cost USD</div>
-      <div class="scenario-cell hdr">Total Cost USD</div>
-      <div class="scenario-cell hdr">Profit USD</div>
+      <div class="scenario-cell hdr">API Cost AUD</div>
+      <div class="scenario-cell hdr">Total Cost AUD</div>
+      <div class="scenario-cell hdr">Profit AUD</div>
       <div class="scenario-cell hdr">Margin</div>
     </div>
   `;
@@ -1103,9 +1085,9 @@ function updateModel() {
     scenarioHTML += `
       <div class="scenario-row" style="${isSelected ? 'background:var(--blueL)' : ''}">
         <div class="scenario-cell" style="font-family:'DM Mono',monospace;font-weight:${isSelected?'700':'400'}">${n.toLocaleString()}</div>
-        <div class="scenario-cell">$${(rev/1000).toFixed(0)}k AUD</div>
-        <div class="scenario-cell">$${(api/1000).toFixed(1)}k USD</div>
-        <div class="scenario-cell">$${(cost/1000).toFixed(1)}k USD</div>
+        <div class="scenario-cell">A$${(rev/1000).toFixed(0)}k</div>
+        <div class="scenario-cell">A$${(api*USD_TO_AUD/1000).toFixed(1)}k</div>
+        <div class="scenario-cell">A$${(cost*USD_TO_AUD/1000).toFixed(1)}k</div>
         <div class="scenario-cell" class="${profit>=0?'tag-profit':'tag-loss'}" style="color:${profit>=0?'var(--green)':'var(--red)'};font-weight:600">${profit>=0?'+':''} $${Math.abs(profit/1000).toFixed(1)}k USD</div>
         <div class="scenario-cell" style="color:${pct>=20?'var(--green)':pct>=0?'var(--orange)':'var(--red)'};font-weight:600">${pct.toFixed(0)}%</div>
       </div>`;
@@ -1116,21 +1098,23 @@ function updateModel() {
   const scaledProfit = marginUSD * finScale;
   const scaledRevAUD = totalRevenueAUD * finScale;
   const scaledApiUSD = apiTotal * finScale;
+  const scaledProfitAUD = scaledProfit * USD_TO_AUD;
+  const scaledApiAUD = scaledApiUSD * USD_TO_AUD;
   document.getElementById('fin-results').innerHTML = `
     <div class="result-card ${scaledProfit >= 0 ? 'profit' : 'loss'}">
       <div class="result-label" style="color:${scaledProfit>=0?'var(--green)':'var(--red)'}">${scaledProfit>=0?'MONTHLY PROFIT':'MONTHLY LOSS'}</div>
-      <div class="result-value">${scaledProfit>=0?'+':'-'}$${Math.abs(scaledProfit/1000).toFixed(0)}k USD</div>
+      <div class="result-value">${scaledProfit>=0?'+':'-'}A$$${Math.abs(scaledProfitAUD/1000).toFixed(0)}k</div>
       <div class="result-sub" style="color:${scaledProfit>=0?'var(--green)':'var(--red)'}">${finScale.toLocaleString()} families · ${marginPct.toFixed(0)}% margin</div>
     </div>
     <div class="result-card neutral">
       <div class="result-label" style="color:var(--blue)">MONTHLY REVENUE</div>
-      <div class="result-value">$${(scaledRevAUD/1000).toFixed(0)}k AUD</div>
-      <div class="result-sub" style="color:var(--blue)">$${(totalRevenueAUD).toFixed(2)} avg per family</div>
+      <div class="result-value">A$$${(scaledRevAUD/1000).toFixed(0)}k</div>
+      <div class="result-sub" style="color:var(--blue)">A$$${(totalRevenueAUD).toFixed(2)} avg per family</div>
     </div>
     <div class="result-card warn">
-      <div class="result-label" style="color:var(--orange)">ANTHROPIC BILL</div>
-      <div class="result-value">$${(scaledApiUSD/1000).toFixed(1)}k USD</div>
-      <div class="result-sub" style="color:var(--orange)">$${apiTotal.toFixed(2)} per family/mo</div>
+      <div class="result-label" style="color:var(--orange)">API BILL (AUD)</div>
+      <div class="result-value">A$$${(scaledApiAUD/1000).toFixed(1)}k</div>
+      <div class="result-sub" style="color:var(--orange)">A$$${(apiTotal*USD_TO_AUD).toFixed(3)} per family/mo</div>
     </div>
     <div class="result-card neutral">
       <div class="result-label" style="color:var(--blue)">BREAK-EVEN AT</div>
@@ -1144,9 +1128,9 @@ function updateModel() {
   const beSimple = marginUSD > 0 ? Math.ceil(totalCostUSD / netRevenueUSD) : null;
   document.getElementById('breakeven-text').innerHTML = beSimple
     ? `At current settings, you need <strong>${beSimple.toLocaleString()} paying families</strong> to cover all costs. 
-       Each family generates <strong>$${netRevenueUSD.toFixed(2)} USD net revenue</strong> after App Store and Stripe fees, 
-       against <strong>$${totalCostUSD.toFixed(2)} USD total cost</strong> — leaving <strong style="color:${marginUSD>=0?'var(--green)':'var(--red)'}">$${marginUSD.toFixed(2)} USD margin</strong> per family.
-       At ${finScale.toLocaleString()} families: <strong style="color:${scaledProfit>=0?'var(--green)':'var(--red)'}">${scaledProfit>=0?'profitable at':'losing'} $${Math.abs(scaledProfit/1000).toFixed(1)}k USD/month</strong>.`
+       Each family generates <strong>A$$${(netRevenueUSD*USD_TO_AUD).toFixed(2)} net revenue</strong> after App Store and Stripe fees, 
+       against <strong>A$$${(totalCostUSD*USD_TO_AUD).toFixed(2)} total cost</strong> — leaving <strong style="color:${marginUSD>=0?'var(--green)':'var(--red)'}">A$$${(marginUSD*USD_TO_AUD).toFixed(2)} margin</strong> per family.
+       At ${finScale.toLocaleString()} families: <strong style="color:${scaledProfit>=0?'var(--green)':'var(--red)'}">${scaledProfit>=0?'profitable at':'losing'} A$$${Math.abs(scaledProfitAUD/1000).toFixed(1)}k/month</strong>.`
     : `At current pricing, costs exceed revenue per family. Raise the family plan price or reduce usage assumptions.`;
   const fillPct = beSimple ? Math.min(100, (finScale / (beSimple * 2)) * 100) : 0;
   document.getElementById('viability-fill').style.width = fillPct + '%';

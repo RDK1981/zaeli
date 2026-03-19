@@ -1,134 +1,155 @@
-## Zaeli App — New Chat Handover Brief
-*19 March 2026 (Session 10) — copy this entire message to start a new chat*
+## Zaeli App — New Chat Handover
+*19 March 2026 — Session 10 complete. Copy this entire message to start a new chat.*
 
 ---
 
-Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iOS-first family life platform with GPT-5.4 mini AI at its core.
+Hi! I'm continuing development of **Zaeli** — an iOS-first AI family life platform built in React Native / Expo. We've been building this together across many sessions. Please read this carefully before we start.
 
 ---
 
-### Who you are talking to
+### How I like to work (important)
+- I'm a **beginner developer** — always give me **full file rewrites** I can copy-paste, never partial diffs
+- One PowerShell command at a time, never chained with `&&`
+- Explain what you're doing in plain English before diving into code
+- **Design before code** — for any new screen, discuss and show an HTML mockup first
+- The **Zaeli persona is the most important thing** in the entire product — every response Zaeli gives must feel like a switched-on friend, never a chatbot. See persona rules in CLAUDE.md
+- **ROI matters** — every feature decision should consider retention impact and revenue potential
+
+---
+
+### Who I am
 - My name is Richard. Logged-in user is Anna (family: Anna, Richard, Poppy 12, Gab 10, Duke 8)
-- Beginner developer — always **full file rewrites**, one copy-paste step at a time
-- PowerShell: backtick escape `(tabs)`: `app\`(tabs`)\filename.tsx`
-- Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no `&&`)
+- Local path: `C:\Users\richa\zaeli` (Windows, PowerShell)
+- PowerShell escape: `app\`(tabs`)\filename.tsx`
 - Repo: https://github.com/RDK1981/zaeli (private)
+- Admin: https://incomparable-gumdrop-32e4ba.netlify.app
 
 ---
 
 ### Key constants
 ```
 DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
+DUMMY_MEMBER_NAME = 'Anna'
+GPT5_MINI = 'gpt-5.4-mini'
 SONNET = 'claude-sonnet-4-20250514'
 HAIKU  = 'claude-haiku-4-5-20251001'
-GPT5_MINI = 'gpt-5.4-mini'
 ```
-**CRITICAL:** OpenAI uses `max_completion_tokens`. Claude uses `max_tokens`. Never mix.
+**CRITICAL:** OpenAI = `max_completion_tokens`. Claude = `max_tokens`. Never mix.
 
 ---
 
-### Current state (Session 10 — 19 March 2026)
+### What's been built (all working as of 19 Mar 2026)
 
-**GPT-5.4 mini is live as the default engine for everything:**
-- All briefs (home/calendar/shopping/meals)
-- All zaeli_chat conversations and greetings
-- Brief-to-chat continuation
-- Whisper voice input (unchanged)
-- Claude Sonnet still used for receipt/pantry vision scans
+**AI engine:** GPT-5.4 mini is live as the default for everything — all briefs, chat, greetings, continuations. Claude Sonnet only for receipt/pantry vision scans.
 
-**All screens working:**
-- ✅ `index.tsx` — Home brief, mic → autoMic chat
-- ✅ `calendar.tsx` — Brief fetches own events (UTC date fix), mic
-- ✅ `shopping.tsx` — Both mic buttons wired, 100-item shopping list
-- ✅ `zaeli-chat.tsx` — Full GPT, correct layout, status bar visible
-- ✅ `mealplanner.tsx` — GPT brief, mic, correct unplanned night count
-- ✅ `more.tsx` — AI Engine toggle (testing only, remove pre-launch)
-- ✅ `lib/zaeli-provider.ts` — Default = 'openai'
+**All screens complete:**
+- ✅ Home (`index.tsx`) — brief, mic, GPT logging
+- ✅ Calendar (`calendar.tsx`) — brief fetches own events, mic, GPT logging
+- ✅ Shopping (`shopping.tsx`) — both mics wired, 100-item list, GPT logging
+- ✅ Zaeli Chat (`zaeli-chat.tsx`) — full GPT, status bar, autoMic, no "mate", all logging
+- ✅ Meal Planner (`mealplanner.tsx`) — GPT brief, mic, correct unplanned count, GPT logging
+- ✅ More (`more.tsx`) — AI engine toggle (remove pre-launch)
+- ✅ Admin console — real-world costs, AUD throughout, homework engine toggle
+
+**Real-world costs verified today:**
+- Chat: A$0.0037/msg avg (with tool calls)
+- Brief: A$0.002/call avg
+- 216 calls this month total cost: A$2.14
+- At 300 msgs/month realistic family: ~A$1.50 API cost → ~85% margin
 
 ---
 
-### CRITICAL architecture notes
+### Critical architecture (don't break these)
 
-**Brief-to-chat context flow:**
-- All screen brief CTAs pass `seedMessage: briefText` to zaeli-chat
-- zaeli-chat useEffect5 detects seedMessage → `loadBriefContinuation(params.channel, seedMessage)`
-- useEffect5 uses `params.channel` directly (NOT `activeCtx`) to avoid timing race
-- useEffect6 (greeting) skips entirely when seedMessage is set
+**Brief data fetching:** All briefs fetch their own data inside generateBrief() — never rely on component state (it won't be loaded yet).
 
-**zaeli-chat render structure (DO NOT change):**
+**Date handling:** Always use local date construction — NEVER `toISOString().split('T')[0]` (UTC shifts in AEST).
+
+**zaeli-chat render structure:**
 ```
-<View flex:1 white>            ← root
-  <StatusBar dark/>
-  <SafeAreaView edges=['top']>  ← header ONLY
+<View flex:1 white>
+  <StatusBar dark animated/>
+  <SafeAreaView edges=['top']>   ← header ONLY
     <View hdr/>
   </SafeAreaView>
-  <View flex:1>                ← chat content
-    <ScrollView/>
-  </View>
-  <KeyboardAvoidingView/>      ← input at bottom
+  <View flex:1><ScrollView/></View>
+  <KeyboardAvoidingView/>
 </View>
 ```
 
-**Mic (autoMic):**
-- All screen mic buttons navigate with `params.autoMic='true'`
-- zaeli-chat uses `useFocusEffect` to auto-start recording (800ms delay)
-- MUST be placed AFTER `const startRecording = async()=>{}` (arrow fn, not hoisted)
+**autoMic:** Uses `useFocusEffect` — MUST be placed after `startRecording` is defined (arrow fn, not hoisted).
 
-**Shopping data:**
-- Query limit: 100 items, fmtShop slice: 100 items
-- `ns=true` always — shopping always loaded regardless of keywords
-- Previous limit of 20-30 caused "item not found" errors
+**Shopping:** `ns=true` always, query limit 100, fmtShop slice 100 — previous limits caused "item not found" errors.
 
-**Date handling:**
-- ALWAYS use local date: `` `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}` ``
-- NEVER `now.toISOString().split('T')[0]` — UTC shifts date in AEST
-- Events labelled (TODAY)/(TOMORROW)/(DayName YYYY-MM-DD) for GPT
-
-**Brief data fetching:**
-- All briefs fetch their own data inside generateBrief() — don't use component state
-- Meal brief: 7-day window = today + 6 days (NOT +7, gives 8 days)
-- Pass exact unplanned day names to GPT, not just a count
-
-**Persona:**
-- NEVER "mate" or "guys" — blocked in ZAELI_PERSONA
-- 1-2 emojis naturally, never forced
-- Reference: `zaeli-persona-v9.html` in Downloads
+**Persona:** NEVER "mate" or "guys". Anne Hathaway energy. Australian warmth. Reference: `zaeli-persona-v9.html` in Downloads.
 
 ---
 
-### Immediate next priorities
-1. **Admin console fixes:**
-   - USD/AUD mix — all costs should be AUD
-   - AI engine toggle buttons not clicking (onclick issue)
-   - Brief costs should use GPT pricing when GPT selected
-   - File: `Downloads/zaeli-admin/index.html` → drag to Netlify to redeploy
-   - URL: https://incomparable-gumdrop-32e4ba.netlify.app
+### What we did in Session 10
 
-2. **Homework module** — biggest revenue lever (A$9.99/child add-on)
-   - Socratic method (guide without giving answers)
-   - Grade-aware
-   - Always Claude Sonnet regardless of provider toggle
-
-3. **Kids Hub redesign** — jobs, rewards, homework
-
-4. **Multi-user / family sync**
-
-5. **Website** (zaeli.app) + **Stripe + onboarding**
+1. **GPT-5.4 mini fully live** — all screens switched from Claude to GPT as default
+2. **Brief-to-chat context flow** — CTA from any brief now opens chat in context (seedMessage)
+3. **Mic auto-start** — all screen mic buttons navigate with `autoMic:'true'`, useFocusEffect fires recording
+4. **Status bar fixed** — `RNStatusBar.setBarStyle` via useFocusEffect on every focus
+5. **Shopping list** — increased to 100 items (was 20-30, causing "item not found" errors)
+6. **Calendar brief** — fixed UTC date bug, now fetches own events directly
+7. **Meal brief** — fixed 8-day window bug (+6 not +7), explicit unplanned day names to GPT
+8. **No "mate"** — blocked in ZAELI_PERSONA and tone rules
+9. **GPT logging** — all 8 call types now log to api_logs with real costs
+10. **Admin console** — full AUD conversion, real-world GPT costs, homework engine toggle (Blend vs GPT)
+11. **Brief continuation** — useEffect5 uses params.channel directly to avoid timing race
+12. **Blank chat fix** — useEffect6 skips entirely when seedMessage is set
 
 ---
 
-### Pricing confirmed viable
-- GPT-5.4 mini at A$0.003/msg
-- Realistic family: A$6.43/month cost → **74% margin at A$14.99+A$9.99**
-- Heavy use: A$12.80/month cost → **49% margin**
+### The big decision for this session: Homework/Tutoring AI
+
+This is the highest-priority feature and biggest revenue lever (A$9.99/child/month).
+
+**Architecture question to discuss:**
+
+**Option A — Tutoring AI as standalone module**
+- Bold, premium feel
+- Own screen with dedicated UX
+- "Zaeli Tutor" or "Homework Helper" — feels like a product in itself
+- Easier to market as a distinct add-on
+
+**Option B — Inside Kids Hub**
+- Kids Hub contains: jobs, rewards, homework helper
+- More cohesive family view
+- Kids Hub needs to be built first
+- Homework is one tab among several
+
+**Richard's lean:** Possibly bold standalone — discuss at start of new chat.
+
+**The GPT question:** If GPT-5.4 mini can tutor as well as Sonnet/Haiku blend, saves A$4,200/month at 1,000 families. Need to test this in the new session — build with a toggle so we can compare quality live.
+
+**Homework spec:**
+- Socratic method — guide without giving answers
+- Grade-aware (Poppy Yr 7, Gab Yr 5, Duke Yr 3)
+- Subject detection (maths, English, science etc.)
+- Step-by-step prompting
+- Praise specific progress, never generic
+
+---
+
+### Remaining priorities after homework
+
+1. GPT logging for Whisper (minor, completeness)
+2. Home brief quality pass — implement full zaeli-brief-logic-spec.md
+3. To-dos screen (currently stub in more.tsx)
+4. Website (zaeli.app) + Stripe + onboarding
+5. Multi-user / family sync
+6. Remove AI toggle before launch
 
 ---
 
 ### Tech reminders
-- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../../lib/api-logger`, `../../lib/zaeli-provider`
 - Always `npx expo start --clear` after changes
-- Upload files directly into chat before editing
+- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../../lib/api-logger`, `../../lib/zaeli-provider`
+- Supabase: rsvbzakyyrftezthlhtd (Sydney, ap-southeast-2)
+- Admin file: `C:\Users\richa\Downloads\zaeli-admin\index.html` → drag to Netlify to redeploy
 
 ---
 
-Please confirm you've read this. **First priority is admin console fixes** — ask Richard to share the current `zaeli-admin/index.html` from his Downloads folder.
+**Please confirm you've read this and are ready to continue. First thing to discuss: standalone Tutoring AI screen vs part of Kids Hub — what's your recommendation and why?**
