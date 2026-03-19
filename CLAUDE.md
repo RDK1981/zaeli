@@ -8,7 +8,7 @@
 - Never give partial diffs or targeted edits unless it's a single truly isolated line
 - Always explain what you're doing and why in plain English before diving into code
 - Richard responds well to clear structure, bullet points for decisions, and knowing what's coming next
-- Family: Anna (logged-in user), Richard, Poppy (12, Yr 6), Gab (10, Yr 4), Duke (8, Yr 1)
+- Family: Anna (logged-in user), Richard, Poppy (11, Yr 6, girl), Gab (9, Yr 4, **boy** — Gabriel), Duke (6, Yr 1, boy)
 - Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no `&&` chaining)
 - Repo: https://github.com/RDK1981/zaeli (private)
 - **PowerShell rule:** `(tabs)` folder needs backtick escaping: `app\`(tabs`)\filename.tsx`
@@ -175,10 +175,11 @@ T_GOLDL = 'rgba(201,168,76,0.08)'
 ```
 Anna    — parent, tutor_active: false
 Richard — parent, tutor_active: false
-Poppy   — child, Year 6, tutor_active: true
-Gab     — child, Year 4, tutor_active: true
-Duke    — child, Year 1, tutor_active: false (locked)
+Poppy   — child, Year 6, age 11, GIRL, tutor_active: true
+Gab     — child, Year 4, age 9, BOY (Gabriel), tutor_active: true
+Duke    — child, Year 1, age 6, boy, tutor_active: false (unlock for weekend testing)
 ```
+**IMPORTANT:** Gab is a BOY — Gabriel. Always use "he/him". Several places in the app said "her" incorrectly — check any hardcoded references.
 
 ### Key tutor features
 - **Adaptive difficulty** — getDifficultyInstruction() from live success rate

@@ -18,7 +18,7 @@ Hi! I'm continuing development of **Zaeli** — an iOS-first AI family life plat
 ---
 
 ### Who I am
-- My name is Richard. Logged-in user is Anna (family: Anna, Richard, Poppy 12 Yr6, Gab 10 Yr4, Duke 8 Yr1)
+- My name is Richard. Logged-in user is Anna (family: Anna, Richard, Poppy 11 Yr6 girl, Gab 9 Yr4 BOY (Gabriel), Duke 6 Yr1 boy)
 - Local path: `C:\Users\richa\zaeli` (Windows, PowerShell)
 - PowerShell escape: `app\`(tabs`)\filename.tsx`
 - Repo: https://github.com/RDK1981/zaeli (private)
@@ -82,15 +82,35 @@ HAIKU  = 'claude-haiku-4-5-20251001'
 ```
 Anna    — parent, tutor_active: false
 Richard — parent, tutor_active: false
-Poppy   — child, Year 6, tutor_active: true  (id: 81b7d721...)
-Gab     — child, Year 4, tutor_active: true  (id: d0d5fb7a...)
-Duke    — child, Year 1, tutor_active: false (id: a3c867a1...)
+Poppy   — child, Year 6, age 11, GIRL, tutor_active: true  (id: 81b7d721...)
+Gab     — child, Year 4, age 9, BOY (Gabriel), tutor_active: true  (id: d0d5fb7a...)
+Duke    — child, Year 1, age 6, boy, tutor_active: false → run SQL below to unlock
 ```
+**IMPORTANT: Gab is a BOY — Gabriel. Always use he/him. Several "her" references may exist in the app — fix on sight.**
+
+**Unlock Duke for weekend testing:**
+```sql
+update family_members
+set tutor_active = true
+where name = 'Duke'
+and family_id = '00000000-0000-0000-0000-000000000001';
+```
+
 Old test records (Emma, Jack, Sarah, Dad) deleted. New columns added:
 ```sql
 -- family_members: year_level integer, tutor_active boolean
 -- tutor_sessions: questions_answered integer, questions_correct integer, status text
 ```
+
+---
+
+### Weekend testing — suggested focus per child
+
+| Child | Age | Focus | Watch for |
+|---|---|---|---|
+| Poppy | 11, Yr6, girl | English + Maths, Socratic sheet | Is difficulty right? Does she engage with hints? |
+| Gab | 9, Yr4, boy | Maths practice, wrong answer flow | Does hint → workings flow help him? |
+| Duke | 6, Yr1, boy | Simple Maths, **voice input critical** | Can he use it independently? Voice working? |
 
 ---
 
@@ -122,28 +142,49 @@ Old test records (Emma, Jack, Sarah, Dad) deleted. New columns added:
 
 ### Next session priorities (in order)
 
-**1. Voice recording UI — FIRST THING (quick win)**
-All three tutor screens need same visual indicator as home/calendar when recording:
-- Pulsing red dot
-- "Recording…" label
-- Consistent across tutor-session, tutor-practice Socratic sheet, tutor-reading
+**0. Before anything — run Duke unlock SQL (30 seconds)**
+```sql
+update family_members set tutor_active = true
+where name = 'Duke' and family_id = '00000000-0000-0000-0000-000000000001';
+```
 
-**2. Prompt audit / token optimisation**
-Input:output ratio is 15:1 — system prompts are verbose. Trim 20-30% without quality loss. Easy margin improvement at scale.
+**1. Voice recording UI — all tutor screens**
+Same pulsing red dot + "Recording…" indicator as home/calendar.
+Critical for Duke (age 6) — voice is his primary input method.
+Apply to: tutor-session, tutor-practice (Socratic sheet), tutor-reading.
 
-**3. Home brief quality pass**
-Implement zaeli-brief-logic-spec.md properly — callbacks, dinner logic, time windows.
+**2. iPad layout pass — all tutor screens**
+Add `isTablet` detection + `maxWidth: 600` centred content wrapper.
+Goal: kids can test on iPad over the weekend.
+```ts
+const { width } = Dimensions.get('window');
+const isTablet = width >= 768;
+const CONTENT_WIDTH = isTablet ? 600 : width;
+```
 
-**4. Tutor Activity tab**
-Build once real session data exists. Per-child: sessions, time, subjects, streaks.
+**3. ElevenLabs voice output**
+Zaeli speaks her responses aloud — huge for Duke (age 6, Year 1).
+Also great for all kids — feels like a real tutor in the room.
+Discuss implementation approach at start of session.
 
-**5. Tutor Settings tab**
-Manage licences per child. Eventually Stripe.
+**4. Fix Gab gender references**
+Gab is a BOY (Gabriel). Check tutor screens for any "her/she" references and fix.
 
-**6. To-dos screen**
-Stub in more.tsx — needs dedicated screen.
+**5. Prompt audit / token optimisation**
+Input:output ratio is 15:1. Trim system prompts 20-30%. Easy margin win.
 
-**7. Website + Stripe + onboarding**
+**6. Home brief quality pass**
+Implement zaeli-brief-logic-spec.md — callbacks, dinner logic, time windows.
+
+**7. Tutor Activity + Settings tabs**
+Activity: build once real session data exists.
+Settings: licence management, eventually Stripe.
+
+**8. PWA / laptop support**
+For older kids (high school) doing homework on laptops.
+Discuss approach — Expo Web vs proper PWA build.
+
+**9. Website + Stripe + onboarding**
 
 ---
 
