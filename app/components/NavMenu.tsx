@@ -71,6 +71,17 @@ function IcoMealNav({ s=20 }: { s?: number }) {
     </Svg>
   );
 }
+function IcoTutorNav({ s=20 }: { s?: number }) {
+  return (
+    <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      {/* Graduation cap — midnight dark with gold accent */}
+      <Path d="M12 3L2 8l10 5 10-5-10-5z" fill="#1A1A2E" stroke="#C9A84C" strokeWidth={1.2} strokeLinejoin="round"/>
+      <Path d="M6 10.5v5c0 1.5 2.7 3 6 3s6-1.5 6-3v-5" fill="#C9A84C" fillOpacity={0.18} stroke="#C9A84C" strokeWidth={1.2} strokeLinecap="round"/>
+      <Line x1="20" y1="8" x2="20" y2="14" stroke="#1A1A2E" strokeWidth={1.8} strokeLinecap="round"/>
+      <Circle cx="20" cy="15" r="1.2" fill="#C9A84C"/>
+    </Svg>
+  );
+}
 function IcoKidsNav({ s=20 }: { s?: number }) {
   return (
     <Svg width={s} height={s} viewBox="0 0 24 24" fill="none">
@@ -133,6 +144,7 @@ const C = {
   green: '#00C97A', greenL: 'rgba(0,201,122,0.09)',
   purple: '#9B7FD4', purpleL: 'rgba(155,127,212,0.10)',
   teal: '#00BFBF', tealL: 'rgba(0,191,191,0.09)',
+  tutorGold: '#C9A84C',
   ink: '#0A0A0A', ink2: 'rgba(0,0,0,0.45)', ink3: 'rgba(0,0,0,0.28)',
   darkL: 'rgba(0,0,0,0.06)', border: 'rgba(0,0,0,0.06)',
 };
@@ -167,6 +179,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { renderIcon: () => <IcoCartNav s={20}/>,  label: 'Shopping',     route: '/(tabs)/shopping',    dotBg: '#F4F4F4' },
       { renderIcon: () => <IcoMealNav s={20}/>,  label: 'Meal Planner', route: '/(tabs)/mealplanner', dotBg: '#FFF7ED' },
+      { renderIcon: () => <IcoTutorNav s={20}/>, label: 'Tutor',        route: '/(tabs)/tutor',       dotBg: '#F5F0E8', activeColor: C.tutorGold },
       { renderIcon: () => <IcoKidsNav s={20}/>,  label: 'Kids',         route: '/(tabs)/chores',      dotBg: '#FFFBEA' },
     ],
   },
@@ -307,13 +320,13 @@ export function NavMenu({ visible, onClose }: NavMenuProps) {
   );
 }
 
-// ── Hamburger button — matches HTML .menu-trigger exactly ──────
-export function HamburgerButton({ onPress }: { onPress: () => void }) {
+// ── Hamburger button ──────────────────────────────────────────
+export function HamburgerButton({ onPress, color = '#fff' }: { onPress: () => void; color?: string }) {
   return (
     <TouchableOpacity style={s.menuTrigger} onPress={onPress} activeOpacity={0.75} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-      <View style={[s.hbLine, { width: 20 }]} />
-      <View style={[s.hbLine, { width: 20 }]} />
-      <View style={[s.hbLine, { width: 14 }]} />
+      <View style={[s.hbLine, { width: 20, backgroundColor: color }]} />
+      <View style={[s.hbLine, { width: 20, backgroundColor: color }]} />
+      <View style={[s.hbLine, { width: 14, backgroundColor: color }]} />
     </TouchableOpacity>
   );
 }
@@ -364,7 +377,6 @@ const s = StyleSheet.create({
   settingsRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 },
   settingsLbl: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: C.ink2 },
 
-  // Hamburger — matches HTML .menu-trigger
   menuTrigger: {
     width: 44, height: 44, borderRadius: 14,
     backgroundColor: 'rgba(255,255,255,0.15)',

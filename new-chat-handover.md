@@ -1,154 +1,178 @@
-## Zaeli App — New Chat Handover Brief
-*18 March 2026 (Session 8) — copy this entire message to start a new chat*
+## Zaeli App — New Chat Handover
+*19 March 2026 — Session 11 complete. Copy this entire message to start a new chat.*
 
 ---
 
-Hi! I'm continuing development of the **Zaeli app** — a React Native / Expo iOS-first family life platform with AI (Claude API) at its core. We've been building this together across many sessions and I need you to pick up exactly where we left off.
+Hi! I'm continuing development of **Zaeli** — an iOS-first AI family life platform built in React Native / Expo. We've been building this together across many sessions. Please read this carefully before we start.
 
 ---
 
-### Who you are talking to
-- My name is Richard. The app's logged-in user is Anna (my family: Anna, Richard, Poppy age 12, Gab age 10, Duke age 8)
-- I'm a beginner developer — always give me **full file rewrites** with easy copy-paste PowerShell commands, step by step
-- Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no `&&` chaining)
+### How I like to work (important)
+- I'm a **beginner developer** — always give me **full file rewrites** I can copy-paste, never partial diffs
+- One PowerShell command at a time, never chained with `&&`
+- Explain what you're doing in plain English before diving into code
+- **Design before code** — for any new screen, discuss and show an HTML mockup first
+- The **Zaeli persona is the most important thing** in the entire product — every response Zaeli gives must feel like a switched-on friend, never a chatbot. See persona rules in CLAUDE.md
+- **ROI matters** — every feature decision should consider retention impact and revenue potential
+
+---
+
+### Who I am
+- My name is Richard. Logged-in user is Anna (family: Anna, Richard, Poppy 12 Yr6, Gab 10 Yr4, Duke 8 Yr1)
+- Local path: `C:\Users\richa\zaeli` (Windows, PowerShell)
+- PowerShell escape: `app\`(tabs`)\filename.tsx`
 - Repo: https://github.com/RDK1981/zaeli (private)
+- Admin: https://incomparable-gumdrop-32e4ba.netlify.app
 
 ---
 
-### Where to find everything
-**Master brief (CLAUDE.md):** `C:\Users\richa\zaeli\CLAUDE.md` — full stack, colours, family members, coding rules, all screen statuses. **Always read this first.**
-
-**Key constants:**
-- `DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'`
-- `DUMMY_MEMBER_NAME = 'Anna'`
-- `SONNET = 'claude-sonnet-4-20250514'`
-- `HAIKU  = 'claude-haiku-4-5-20251001'`
-
----
-
-### What's been built (as of 17 March 2026)
-
-✅ `index.tsx` — Home screen, brief card (Haiku), hardened double-fire guard (`briefGenRef` boolean)
-✅ `calendar.tsx` — Full calendar, add/edit/recurring events, brief card
-✅ `shopping.tsx` — List/Pantry/Spend tabs, receipt scan, pantry sync
-✅ `zaeli-chat.tsx` — Single chat, smart Sonnet/Haiku routing, history cap 12, no "previous conversation" bug
-✅ `mealplanner.tsx` — Dinners/Recipes/Favourites v4.1
-✅ `more.tsx` — Hub + Settings + To-dos
-✅ `lib/api-logger.ts` — callClaude() wrapper, model-aware pricing
+### Key constants
+```
+DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
+DUMMY_MEMBER_NAME = 'Anna'
+GPT5_MINI = 'gpt-5.4-mini'
+SONNET = 'claude-sonnet-4-20250514'
+HAIKU  = 'claude-haiku-4-5-20251001'
+```
+**CRITICAL:** OpenAI = `max_completion_tokens`. Claude = `max_tokens`. Never mix.
+**CRITICAL:** OpenAI env var = `EXPO_PUBLIC_OPENAI_API_KEY` (NOT `EXPO_PUBLIC_OPENAI_KEY` — this mistake cost us a session!)
 
 ---
 
-### Admin Dashboard (LIVE)
-- **URL:** https://incomparable-gumdrop-32e4ba.netlify.app
-- Shows real-time API usage, costs by feature, financial model with sliders
-- Supabase `api_logs` table active ✅
+### What's been built (all working as of 19 Mar 2026 Session 11)
+
+**Core screens — all complete:**
+- ✅ Home (`index.tsx`) — brief, mic, GPT logging
+- ✅ Calendar (`calendar.tsx`) — brief, mic, GPT logging
+- ✅ Shopping (`shopping.tsx`) — both mics, 100-item list, GPT logging
+- ✅ Zaeli Chat (`zaeli-chat.tsx`) — full GPT, autoMic, logging
+- ✅ Meal Planner (`mealplanner.tsx`) — GPT brief, mic, logging
+- ✅ More (`more.tsx`) — AI engine toggle (remove pre-launch)
+
+**Tutor module — fully built this session:**
+- ✅ `tutor.tsx` — Parent hub. Dark midnight hero. Child cards (active/locked). Zaeli noticed card (gold, briefCard style). Session data drives noticed text.
+- ✅ `tutor-child.tsx` — Child home. Mode selector (Homework/Practice/Reading cards). Recent sessions with score badges (8/11). useFocusEffect refetches on every return.
+- ✅ `tutor-session.tsx` — Homework Help. Socratic GPT chat. Photo (camera or library). Voice (Whisper). Session saved and completed on Back.
+- ✅ `tutor-practice.tsx` — Practice Mode. MC questions (Middle Years) or show-working (Senior). Adaptive difficulty. No repeated questions. Three-stage wrong answer flow. Socratic bottom sheet ("🧠 Talk me through it"). Session saving + completion on Back.
+- ✅ `tutor-reading.tsx` — Reading Mode. Photo page (camera or library). Record reading (Whisper). GPT feedback with accuracy/pacing/confidence scores.
 
 ---
 
-### CRITICAL — What we did in Session 7 (cost optimisation)
+### Tutor module — key decisions made
 
-This was a full cost analysis and optimisation session. **Always check CLAUDE.md for the full cost architecture.**
+**Architecture:** Standalone premium module. Parent hub → child home → mode. Not inside Kids Hub.
 
-**Problem identified from dashboard:**
-- Session 1 (before fixes): 5 chat calls × ~16,000 input tokens = $0.27
-- Root cause: `JSON.stringify` of entire DB sent in system prompt every turn
-- Tool loop turns (turns 2+) were re-sending full 8,000+ token context unnecessarily
-- home_brief was double-firing on every app open (~$0.02 wasted per launch)
+**Pricing:** A$9.99/child/month. Duke locked (Year 1 — parents' choice). Poppy + Gab active.
 
-**Three fixes applied to `zaeli-chat.tsx` and `index.tsx`:**
+**AI engine:** GPT-5.4 mini confirmed working well for all tutor functions. Sonnet only for vision (photo of work).
 
-**Fix 1 — Context compression (biggest win, ~60% token reduction):**
-Replaced all `JSON.stringify(data)` blobs in the context string with compact human-readable summaries:
-- Events: `"Soccer pickup 3:30pm (2026-03-18)"` instead of full JSON objects
-- Recipes: names only instead of full notes
-- Pantry: `"milk:good, eggs:low"` format
-- Result: avg input per chat call dropped from ~8,000–16,000 → ~3,640 tokens
+**Session model:** One session per screen visit. Starts on first answer. Completes on Back press. Subject change always creates new session (never overwrites). Questions answered + correct saved.
 
-**Fix 2 — Stripped tool loop system prompt:**
-Tool loop turns 2+ now use a 150-token system prompt instead of full 8,000-token context.
-- Before: 9,966 and 9,576 token tool-loop calls
-- After: ~800–1,200 token tool-loop calls
+**Socratic sheet:** Always-available `🧠 Talk me through it` button. Animated.timing slide-up (380ms). Full screen. Voice + camera wired. Logs to session. [READY_TO_TRY] token triggers close button.
 
-**Fix 3 — home_brief double-fire guard:**
-`briefGenRef` is now a boolean ref set to `true` at the very start of `generateBrief()` — before any async work. `useFocusEffect` also checks `!briefGenRef.current` before triggering 30-min refresh.
+**Wrong answer flow:** Stage 1 (Zaeli redirect) → Stage 2 (💡 hint button) → Stage 3 (📝 whiteboard workings with actual numbers and method).
 
-**Results after fixes (from dashboard):**
-- Avg input/call: 3,640 (was 8,000–16,000) ✅
-- Avg cost/call: $0.013 (was $0.033) ✅
-- home_brief: 1,337 tokens, fired once per session ✅
-- Typical family/month cost: ~$2.25 (150 msgs) — 76% margin at $15 AUD plan ✅
+**Adaptive difficulty:** getDifficultyInstruction() from live correct/answered ratio. Zaeli acknowledges shifts naturally.
 
-**Smart model routing added to `zaeli-chat.tsx`:**
-New `selectModel()` function routes each message to Sonnet or Haiku before the API call:
-- ≤2 words → Haiku
-- Emotional/planning/recipe/advice keywords → Sonnet
-- Short pure action phrases ("add milk", "book soccer") → Haiku
-- Ambiguous → Sonnet (safety default — never risk quality to save $0.01)
-- Tool loop turns 2+ → always Haiku regardless
-
-**History cap increased 6 → 12:**
-Prevents mid-conversation context loss (Zaeli was forgetting context after 3 exchanges).
-Also added to `CAPABILITY_RULES`: Zaeli must never say "I don't see any previous conversation."
+**No repeats:** askedQs[] array passed to GPT each question load.
 
 ---
 
-### Observed cost benchmarks (use these for comparison)
-| Metric | Before Session 7 | After Session 7 |
-|---|---|---|
-| Avg input tokens/chat call | 8,000–16,000 | ~3,640 |
-| Avg cost/chat call | $0.033 | $0.013 |
-| home_brief tokens | 4,305 (×2 fires) | 1,337 (×1 fire) |
-| Typical session cost (12 msgs) | $0.30+ | ~$0.16 |
-| Light family/month (45 msgs) | ~$4+ | ~$0.89 |
-| Medium family/month (150 msgs) | ~$10+ | ~$2.25 |
+### Supabase — family_members correct data
+```
+Anna    — parent, tutor_active: false
+Richard — parent, tutor_active: false
+Poppy   — child, Year 6, tutor_active: true  (id: 81b7d721...)
+Gab     — child, Year 4, tutor_active: true  (id: d0d5fb7a...)
+Duke    — child, Year 1, tutor_active: false (id: a3c867a1...)
+```
+Old test records (Emma, Jack, Sarah, Dad) deleted. New columns added:
+```sql
+-- family_members: year_level integer, tutor_active boolean
+-- tutor_sessions: questions_answered integer, questions_correct integer, status text
+```
 
 ---
 
-### Immediate next tasks (priority order)
-1. **Test Session 7 cost fixes** — run a test session in the morning, check dashboard, compare vs $0.013/call baseline. Target: similar session to last night's 12-call test should come in under $0.10.
-2. **Monitor selectModel() routing** — check dashboard to see if Haiku is firing on expected turns. Look for any quality issues with Haiku responses in action.
-3. **Homework platform build** — Socratic method, Grade-aware prompting. Architecture: 20-message history cap, always Sonnet, subject + grade passed as compact `homework_ctx` string separate from family context.
-4. **Onboarding flow** — email capture, 7-day trial, zaeli.app signup
-5. **Usage cap** — 500 AI interactions/month soft limit, throttle beyond
-6. **Batch API** — 50% discount for async calls (briefs, summaries)
-7. **GitHub Actions** — auto-deploy admin dashboard
-8. **Travel screen** stub
+### Critical bugs fixed this session
+
+1. **Wrong env var** — `EXPO_PUBLIC_OPENAI_KEY` doesn't exist. Correct: `EXPO_PUBLIC_OPENAI_API_KEY`. All tutor screens updated.
+2. **logApiCall doesn't exist** — `api-logger` only exports `callClaude`. GPT calls log inline to Supabase directly.
+3. **Session overwrite on subject change** — Fixed: `changeSubject()` resets sessionId to null so new subject always creates new row.
+4. **Next button race** — Fixed: `feedbackLoading` state disables Next until GPT feedback arrives.
+5. **Socratic sheet ✕ blocked** — Fixed: TouchableWithoutFeedback was wrapping the whole sheet, swallowing taps. Moved to wrap chat ScrollView only.
+6. **Sheet header too tall** — Fixed: Removed SafeAreaView inside Modal (causes double padding). Use paddingTop:52 directly.
+7. **Keyboard gap** — Fixed: Removed manual insets padding from KAV, use `insets.bottom || 16`.
 
 ---
 
-### Key design decisions (locked — don't revisit without reason)
-- No floating FAB anywhere
-- Hamburger menu only navigation
-- Brief: Haiku model, thinking dots → fade in (no typewriter)
-- Tiles: Option C (coloured footer bar)
-- To-dos: Gold `#B8A400`
-- Logo on every screen taps → home
-- Recently Bought: magenta text, no strikethrough
-- Receipt capture: lives in Pantry tab (not Spend tab)
-- Food items ticked off → auto-sync to Pantry
-- Household/Other → do NOT sync to Pantry
-- All API calls through `callClaude()` — never raw fetch
-- Edit modals lifted out of parent Modal (iOS pageSheet stacking)
+### Unit economics confirmed tonight
+
+| Metric | Value |
+|---|---|
+| 10-question practice session | ~A$0.01 total |
+| 50 sessions/child/month | ~A$0.50 API cost |
+| Gross margin on A$9.99 Tutor | ~95% |
+| 500 families revenue (base + tutor) | ~A$12,490/month |
+| 500 families API cost | ~A$4,250/month |
+| Profit at 500 families | ~A$6,700/month |
+| GPT-5.4 mini quality verdict | ✅ Working well — keep it |
+
+---
+
+### Next session priorities (in order)
+
+**1. Voice recording UI — FIRST THING (quick win)**
+All three tutor screens need same visual indicator as home/calendar when recording:
+- Pulsing red dot
+- "Recording…" label
+- Consistent across tutor-session, tutor-practice Socratic sheet, tutor-reading
+
+**2. Prompt audit / token optimisation**
+Input:output ratio is 15:1 — system prompts are verbose. Trim 20-30% without quality loss. Easy margin improvement at scale.
+
+**3. Home brief quality pass**
+Implement zaeli-brief-logic-spec.md properly — callbacks, dinner logic, time windows.
+
+**4. Tutor Activity tab**
+Build once real session data exists. Per-child: sessions, time, subjects, streaks.
+
+**5. Tutor Settings tab**
+Manage licences per child. Eventually Stripe.
+
+**6. To-dos screen**
+Stub in more.tsx — needs dedicated screen.
+
+**7. Website + Stripe + onboarding**
+
+---
+
+### Critical architecture reminders
+
+**SafeAreaView inside Modal:** Don't use. Use `paddingTop: 52` on inner view instead.
+
+**Photo pickers:** Always `Alert.alert` with camera + library options. Never `launchCameraAsync` directly.
+
+**Back buttons:** Always `router.replace()` with explicit params. Never `router.back()`.
+
+**Keyboard in chat screens:** `TouchableWithoutFeedback` wraps the ScrollView only — NOT the whole screen or modal.
+
+**Brief data:** Always fetched fresh inside generateBrief(). Never from component state.
+
+**Date handling:** Never `toISOString().split('T')[0]` — UTC shifts date in AEST.
+
+**GPT logging (tutor):** Inline Supabase insert — no wrapper function.
+
+**Claude vision (tutor):** `callClaude({ feature: 'receipt_scan', ... })` — logs automatically.
 
 ---
 
 ### Tech reminders
-- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../components/NavMenu`, `../../lib/api-logger`
-- SafeAreaView always `edges={['top']}`
-- Poppins font for all UI, DMSerifDisplay for hero titles only
-- Always `npx expo start --clear` after copying files
-- PowerShell: no `&&` — use separate lines
-- `.single()` throws on no result — always use `.limit(1)` + `data?.[0]`
+- Always `npx expo start --clear` after changes
+- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../../lib/api-logger`, `../../lib/zaeli-provider`
+- Supabase: rsvbzakyyrftezthlhtd (Sydney, ap-southeast-2)
+- Admin file: `C:\Users\richa\Downloads\zaeli-admin\index.html` → drag to Netlify to redeploy
 
 ---
 
-### Note on code files
-The new chat won't have direct access to code files from previous sessions. To work on a specific file:
-1. Ask me to paste the current file contents, OR
-2. Read it from the repo at `C:\Users\richa\zaeli\app\(tabs)\filename.tsx`
-
-The latest versions of all files are in GitHub. **Always ask me to paste the relevant file before making changes.**
-
----
-
-Please confirm you've read this and are ready to continue. First priority is checking the dashboard after a morning test session to verify the Session 7 cost fixes are holding up in practice.
+**Please confirm you've read this and are ready to continue. First priority: voice recording UI on all three tutor screens.**
