@@ -3,7 +3,7 @@
  * app/(tabs)/zaeli-chat.tsx
  *
  * Fixes in this version:
- * - max_tokens raised to 1024 for Sonnet turn 0 (was 600 — caused crash at message 11-12)
+ * - max_completion_tokens raised to 1024 for Sonnet turn 0 (was 600 — caused crash at message 11-12)
  * - Error boundary in catch prevents screen crash on truncated/malformed response
  * - Day names included in meal plan context (fixes Zaeli saying wrong day of week)
  *   Root cause: new Date('YYYY-MM-DD') parses as UTC midnight, shifting day by 1 in AEST.
@@ -11,12 +11,13 @@
  */
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { Audio } from 'expo-av';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert, Animated, Clipboard, Easing, Keyboard, KeyboardAvoidingView,
-  Platform, ScrollView, Share, StyleSheet, Text, TextInput,
+  Platform, ScrollView, Share, StatusBar as RNStatusBar, StyleSheet, Text, TextInput,
   TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +26,7 @@ import { detectReminderIntent, scheduleReminder } from '../../lib/notifications'
 import { supabase } from '../../lib/supabase';
 import { buildMemoryContext, saveConversation } from '../../lib/zaeli-memory';
 import { callClaude } from '../../lib/api-logger';
+import { getZaeliProvider, setZaeliProvider } from '../../lib/zaeli-provider';
 
 const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
 
@@ -36,7 +38,6 @@ const HAIKU     = 'claude-haiku-4-5-20251001';
 const GPT5_MINI = 'gpt-5.4-mini';  // GPT-5.4 mini — cheaper & faster than Haiku, test mode
 
 // ── PROVIDER TOGGLE — shared via lib/zaeli-provider.ts ──
-import { getZaeliProvider, setZaeliProvider } from '../../lib/zaeli-provider';
 
 const C = {
   blue:'#0057FF', mag:'#E0007C', ink:'#0A0A0A',
@@ -313,6 +314,31 @@ async function executeTool(name:string,input:any):Promise<string>{
   }
 }
 
+const ZAELI_PERSONA=`You are Zaeli — a warm, brilliant, lightly witty AI assistant built specifically for Australian families. You are not a generic AI assistant. You have a distinct personality.
+
+VOICE & PERSONALITY
+You have Anne Hathaway energy — smart, warm, magnetic, with just enough spark to keep people smiling. You are the switched-on friend who noticed three things before anyone asked. You are enthusiastic about helping — genuinely, not performatively. You thrive on the chaos of family life.
+
+Your personality in one line: cheeky opener, always backed by smart and thoughtful.
+
+TONE RULES
+- Australian warmth — real and unpretentious. "Love", "brilliant" are natural here. NEVER use "mate" or "guys" — too casual, not Zaeli's voice.
+- Dry wit when the moment earns it. Never forced, never random.
+- Short by default. Expand only when clearly useful or asked.
+- Never start a response with "I" — start with the subject, the observation, or the action.
+- Hard moments get the fewest words. Step back when love is what's needed.
+- Encouragement must be earned and specific, never generic.
+  GOOD: "You just handed me a week's worth of chaos in thirty seconds — you're a joy to work with."
+  BAD: "You're amazing!" (random, unearned)
+- Tone scales to context: Stressed → calm and quiet. Productive → upbeat, celebratory. Planning → structured, helpful. Kids → full warmth, make them feel like the most important person in the room.
+
+ZAELI'S SIGNATURE LINES (use naturally, not on rotation)
+"I thrive on chaos." / "The obligations, I'm afraid, persist." / "Tonight is completely yours — just breathe." / "She needs her person. Go be her hero." / "I refuse to let the adults go unrepresented." / "Worth checking before I proceed with misplaced confidence." / "You're very organised when you have help." / "You're a joy to work with."
+
+WHAT ZAELI IS NOT: Not a chatbot giving speeches. Not a corporate assistant. Not a coach or therapist. Not over-enthusiastic. Not robotic or generic.
+
+RESPONSE FORMAT: Bold names/times/deadlines (max 3). Never start with "I". 1-3 sentences default. 12-hour time. Use 1-2 emojis naturally — warmth, encouragement, fun moments. Never forced, never more than 2.`;
+
 const CAPABILITY_RULES=`CRITICAL CAPABILITY RULES — never violate:
 - Zaeli CANNOT make phone calls, send messages/emails/texts autonomously. She can DRAFT them.
 - Zaeli CANNOT set phone reminders. The calendar entry IS the reminder.
@@ -325,19 +351,19 @@ const CAPABILITY_RULES=`CRITICAL CAPABILITY RULES — never violate:
 - DESSERTS: When adding a dessert to the meal plan, ALWAYS use meal_type:"dessert". Never use meal_type:"dinner" for a dessert item.`;
 
 const CHANNELS:Record<string,{icon:string;prompt:string;seeds:string[]}>={
-  General:{icon:'✦',prompt:`You are Zaeli, a warm family assistant. Help with anything. You know thousands of recipes from your training — provide them directly without mentioning search limitations. You have access to saved recipes, menus, and pantry in context. Use tools for real actions. Add shopping items IMMEDIATELY when mentioned. ${CAPABILITY_RULES}`,seeds:["What's on this week?","Help me plan the weekend","What's for dinner tonight?"]},
-  Calendar:{icon:'📅',prompt:`You are Zaeli, focused on the family calendar. Book immediately when you have enough info. Default 1hr duration. ISO 8601 local format. ${CAPABILITY_RULES}`,seeds:["Any clashes this week?","What's on this weekend?","Schedule something for me"]},
-  Shopping:{icon:'🛒',prompt:`You are Zaeli, focused on shopping. Call add_shopping_item IMMEDIATELY for any item mentioned. Relay tool responses naturally. ${CAPABILITY_RULES}`,seeds:["What do we need this week?","Add milk and eggs","What am I missing for dinners?"]},
-  Meals:{icon:'🍽️',prompt:`You are Zaeli, focused on meal planning. You know thousands of recipes from your training — provide them directly and confidently without mentioning search limitations or the internet. Check MEAL PLAN context before adding to any day. Use separate ingredients/method fields when saving. ${CAPABILITY_RULES}`,seeds:["What should we have tonight?","Give me a butter chicken recipe","Plan dinners for the week"]},
-  Kids:{icon:'🌟',prompt:`You are Zaeli, focused on the kids — tasks, activities, school and routines. ${CAPABILITY_RULES}`,seeds:["How are the kids tracking?","What jobs are left today?","Ideas for the weekend with kids"]},
-  Travel:{icon:'✈️',prompt:`You are Zaeli, focused on travel. Add trip events to calendar using tools. ${CAPABILITY_RULES}`,seeds:["Plan a weekend away","What should we pack?","Kid-friendly things to do nearby"]},
+  General:{icon:'✦',prompt:`${ZAELI_PERSONA} Help with anything family-related. You know thousands of recipes — provide them directly. Use tools for real actions. Add shopping items IMMEDIATELY when mentioned. ${CAPABILITY_RULES}`,seeds:["What's on this week?","Help me plan the weekend","What's for dinner tonight?"]},
+  Calendar:{icon:'📅',prompt:`${ZAELI_PERSONA} Focused on the family calendar. Book immediately when you have enough info. Default 1hr duration. ISO 8601 local format. ${CAPABILITY_RULES}`,seeds:["Any clashes this week?","What's on this weekend?","Schedule something for me"]},
+  Shopping:{icon:'🛒',prompt:`${ZAELI_PERSONA} Focused on shopping. Call add_shopping_item IMMEDIATELY for any item mentioned. Relay tool responses naturally. ${CAPABILITY_RULES}`,seeds:["What do we need this week?","Add milk and eggs","What am I missing for dinners?"]},
+  Meals:{icon:'🍽️',prompt:`${ZAELI_PERSONA} Focused on meal planning. You know thousands of recipes — provide them directly and confidently. Check MEAL PLAN context before adding to any day. Use separate ingredients/method fields when saving. ${CAPABILITY_RULES}`,seeds:["What should we have tonight?","Give me a butter chicken recipe","Plan dinners for the week"]},
+  Kids:{icon:'🌟',prompt:`${ZAELI_PERSONA} Focused on the kids — tasks, activities, school and routines. With kids: full warmth, make them feel brilliant. ${CAPABILITY_RULES}`,seeds:["How are the kids tracking?","What jobs are left today?","Ideas for the weekend with kids"]},
+  Travel:{icon:'✈️',prompt:`${ZAELI_PERSONA} Focused on travel planning. Add trip events to calendar using tools. ${CAPABILITY_RULES}`,seeds:["Plan a weekend away","What should we pack?","Kid-friendly things to do nearby"]},
 };
 const CHANNEL_KEYS=Object.keys(CHANNELS);
 
 export default function ZaeliChatScreen(){
   const insets=useSafeAreaInsets();
   const router=useRouter();
-  const params=useLocalSearchParams<{channel?:string;returnTo?:string;seedMessage?:string}>();
+  const params=useLocalSearchParams<{channel?:string;returnTo?:string;seedMessage?:string;autoMic?:string}>();
   const returnTo=params.returnTo||'/(tabs)/';
   const seedMessage=params.seedMessage||'';
   const scrollRef=useRef<ScrollView>(null);
@@ -347,6 +373,22 @@ export default function ZaeliChatScreen(){
   const[input,setInput]=useState('');
   const[loading,setLoading]=useState(false);
   const[activeCtx,setActiveCtx]=useState(params.channel&&CHANNEL_KEYS.includes(params.channel)?params.channel:'General');
+  // Sync activeCtx when params.channel changes (re-navigation from different screens)
+  // This only updates the visual state - greeting is handled by useEffect 5/6
+  useEffect(()=>{
+    if(params.channel && CHANNEL_KEYS.includes(params.channel)){
+      setActiveCtx(params.channel);
+    }
+  },[params.channel]);
+
+  // Force dark status bar whenever this screen is focused
+  // expo-status-bar's declarative approach doesn't always override after light-hero screens
+  useFocusEffect(useCallback(()=>{
+    RNStatusBar.setBarStyle('dark-content', true);
+    return ()=>{}; // no cleanup needed
+  },[]));
+
+  // autoMic useEffect moved to after startRecording definition
   const[showHints,setShowHints]=useState(true);
   const[loadedChans,setLoadedChans]=useState<Set<string>>(new Set());
   const[copiedId,setCopiedId]=useState<string|null>(null);
@@ -364,16 +406,19 @@ export default function ZaeliChatScreen(){
     setChannelMessages(prev=>{
       const cur=prev[activeCtx]||[];
       const next=typeof updater==='function'?updater(cur):updater;
-      const capped=next.length>12?next.slice(next.length-12):next;
+      const capped=next.length>20?next.slice(next.length-20):next;
       return{...prev,[activeCtx]:capped};
     });
   };
 
   useEffect(()=>{
+    // Use params.channel directly to avoid activeCtx timing issues
+    const targetChannel = (params.channel && CHANNEL_KEYS.includes(params.channel)) ? params.channel : 'General';
     if(seedMessage){
-      setChannelMessages(prev=>({...prev,[activeCtx]:[]}));
-      setLoadedChans(prev=>{const n=new Set(prev);n.delete(activeCtx);return n;});
-      loadBriefContinuation(activeCtx,seedMessage);
+      console.log('[brief continuation] useEffect5 firing for channel:', targetChannel, 'seedMessage length:', seedMessage.length);
+      setChannelMessages(prev=>({...prev,[targetChannel]:[]}));
+      setLoadedChans(prev=>{const n=new Set(prev);n.delete(targetChannel);return n;});
+      loadBriefContinuation(targetChannel,seedMessage);
     }else if(loadedChans.has(activeCtx)){
       const opts=['Hey, back again! What else can I help with? 😊','Hey! What can I do for you? ✨',"I'm here — what's on your mind?",'Back! What do you need?','Hey, what else can I sort for you?'];
       const note=opts[Math.floor(Math.random()*opts.length)];
@@ -385,33 +430,78 @@ export default function ZaeliChatScreen(){
   },[]);
 
   useEffect(()=>{
-    if(!loadedChans.has(activeCtx)&&!seedMessage) loadChannelGreeting(activeCtx);
-    else setTimeout(()=>scrollRef.current?.scrollToEnd({animated:false}),50);
+    const msgs = channelMessages[activeCtx]||[];
+    console.log('[greeting] useEffect6 activeCtx:', activeCtx, 'msgs:', msgs.length, 'seedMessage:', !!seedMessage, 'loadedChans has:', loadedChans.has(activeCtx));
+    // Skip entirely if seedMessage — useEffect5 handles that flow
+    if(seedMessage) return;
+    // Load greeting if: channel not loaded yet, OR loaded but messages are empty (re-navigation)
+    if(!loadedChans.has(activeCtx) || msgs.length===0){
+      // Remove from loadedChans so greeting fires fresh
+      setLoadedChans(prev=>{const n=new Set(prev);n.delete(activeCtx);return n;});
+      loadChannelGreeting(activeCtx);
+    } else {
+      setTimeout(()=>scrollRef.current?.scrollToEnd({animated:false}),50);
+    }
   },[activeCtx]);
 
   const loadBriefContinuation=async(channel:string,brief:string)=>{
+    console.log('[brief continuation] called, channel:', channel, 'brief length:', brief?.length);
     setLoadedChans(prev=>new Set([...prev,channel]));setLoading(true);
     try{
       const now=new Date();
       const ts=now.toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit',hour12:true});
       const td=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
-      const[evR,mlR]=await Promise.all([
-        supabase.from('events').select('title,start_time').eq('family_id',DUMMY_FAMILY_ID).gte('start_time',td).order('start_time').limit(4),
+      const[evR,mlR,tdR,shR]=await Promise.all([
+        supabase.from('events').select('title,start_time').eq('family_id',DUMMY_FAMILY_ID).gte('date',td).order('start_time').limit(6),
         supabase.from('meal_plans').select('meal_name').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',td).limit(1),
+        supabase.from('todos').select('title,priority').eq('family_id',DUMMY_FAMILY_ID).eq('status','active').order('priority',{ascending:false}).limit(5),
+        supabase.from('shopping_items').select('name').eq('family_id',DUMMY_FAMILY_ID).eq('checked',false).limit(10),
       ]);
       const et=(evR.data||[]).map((e:any)=>`${e.title} (${e.start_time?.substring(11,16)||''})`).join(', ')||'none';
-      const ctx=`Today: ${td}. Time: ${ts}. Events: ${et}. Tonight: ${mlR.data?.[0]?.meal_name||'not planned'}.`;
-      const d=await callClaude({feature:'chat_greeting',familyId:DUMMY_FAMILY_ID,
-        body:{model:HAIKU,max_tokens:50,system:`You are Zaeli. User tapped yes. Reply in one sentence, max 12 words. Context: ${ctx}`,
-          messages:[{role:'user',content:`Brief:\n\n${brief}\n\nUser tapped yes. Continue.`}]}});
-      const reply=d.content?.[0]?.text||`Right, let's get into it! What would you like to tackle first?`;
+      const todos=(tdR.data||[]).map((t:any)=>t.title).join(', ')||'none';
+      const shopping=(shR.data||[]).map((s:any)=>s.name).join(', ')||'none';
+      const ctx=`Today: ${td}. Time: ${ts}. Screen: ${channel}. Events today: ${et}. Tonight: ${mlR.data?.[0]?.meal_name||'not planned'}. Active todos: ${todos}. Shopping: ${shopping}.`;
+      const contSys=`${ZAELI_PERSONA}
+
+The user just tapped the CTA on the ${channel} screen brief. Pick up exactly where the brief left off — not starting fresh.
+
+The brief was: "${brief}"
+
+Rules:
+- 1-2 warm sentences max
+- Pick up the specific thing the brief offered — continue it, don't repeat it
+- Sound mid-conversation, not starting one
+- Never start with "I"
+- Never say "Great!", "Sure!" or "Of course!"
+- Context: ${ctx}`;
+      let reply='';
+      if(getZaeliProvider()==='openai'){
+        const res=await fetch('https://api.openai.com/v1/chat/completions',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':`Bearer ${OPENAI_API_KEY}`},
+          body:JSON.stringify({model:GPT5_MINI,max_completion_tokens:100,
+            messages:[{role:'system',content:contSys},{role:'user',content:"Yes, let's do it."}]}),
+        });
+        const dg=await res.json();
+        console.log('[brief continuation] GPT status:', res.status, 'reply:', dg.choices?.[0]?.message?.content?.substring(0,50));
+        if(dg.error) console.log('[brief continuation] GPT error:', JSON.stringify(dg.error));
+        reply=dg.choices?.[0]?.message?.content||'';
+      } else {
+        const d=await callClaude({feature:'chat_greeting',familyId:DUMMY_FAMILY_ID,
+          body:{model:HAIKU,max_tokens:100,system:contSys,
+            messages:[{role:'user',content:"Yes, let's do it."}]}});
+        reply=d.content?.[0]?.text||'';
+      }
+      reply=reply||`Right, let's sort this — what would you like to tackle first?`;
       setChannelMessages(prev=>({...prev,[channel]:[{id:'seed-'+channel,role:'assistant',content:reply,time:getTime()}]}));
-    }catch{
-      setChannelMessages(prev=>({...prev,[channel]:[{id:'seed-'+channel,role:'assistant',content:`Right, let's sort this — where do you want to start?`,time:getTime()}]}));
+    }catch(e:any){
+      console.log('[brief continuation] error:', e?.message);
+      setChannelMessages(prev=>({...prev,[channel]:[{id:'seed-'+channel,role:'assistant',content:`Right, let's get into it — what's first?`,time:getTime()}]}));
     }finally{setLoading(false);}
-  };
+  }
 
   const loadChannelGreeting=async(channel:string)=>{
+    console.log('[greeting] loading channel:', channel);
     setLoadedChans(prev=>new Set([...prev,channel]));setLoading(true);
     try{
       const now=new Date();const hour=now.getHours();
@@ -430,20 +520,85 @@ export default function ZaeliChatScreen(){
         const tm=pl.find((m:any)=>m.day_key===td&&m.meal_type!=='dessert');
         ctx=`Today: ${dayName} ${td}. Time: ${ts}. Tonight: ${tm?tm.meal_name:'not planned'}. Week: ${pl.map((m:any)=>`${m.day_key}: ${m.meal_name}`).join(', ')||'nothing planned'}. Empty nights: ${en}. Saved recipes: ${(recR.data||[]).map((r:any)=>r.name).join(', ')||'none'}.`;
       }else{
+        const tomorrow=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+        const tomorrowKey=`${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`;
         const[evR,mlR]=await Promise.all([
-          supabase.from('events').select('title,start_time').eq('family_id',DUMMY_FAMILY_ID).gte('start_time',td).order('start_time').limit(4),
+          supabase.from('events').select('title,start_time,date').eq('family_id',DUMMY_FAMILY_ID).gte('date',td).order('date').order('start_time').limit(6),
           supabase.from('meal_plans').select('meal_name').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',td).limit(1),
         ]);
-        ctx=`Today: ${dayName} ${td}. Time: ${ts}. Events: ${(evR.data||[]).map((e:any)=>`${e.title} (${e.start_time?.substring(11,16)||''})`).join(', ')||'nothing'}. Tonight: ${mlR.data?.[0]?.meal_name||'not planned'}.`;
+        // Label ALL events with explicit day name so GPT never guesses the date
+        const dn2=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        const evList=(evR.data||[]).map((e:any)=>{
+          let dayLabel='';
+          if(e.date===td) dayLabel=' (TODAY)';
+          else if(e.date===tomorrowKey) dayLabel=' (TOMORROW)';
+          else if(e.date){
+            const[ey,em,ed]=e.date.split('-').map(Number);
+            dayLabel=` (${dn2[new Date(ey,em-1,ed).getDay()]} ${e.date})`;
+          }
+          const t=e.start_time?.substring(11,16)||'';
+          const h=parseInt(t.split(':')[0]||'0');
+          const mn=t.split(':')[1]||'00';
+          const fmt=t?` ${h===0?12:h>12?h-12:h}:${mn}${h>=12?'pm':'am'}`:'';
+          return `${e.title}${fmt}${dayLabel}`;
+        }).join(', ')||'none';
+        ctx=`Today: ${dayName} ${td}. Time: ${ts}. Events: ${evList}. Tonight: ${mlR.data?.[0]?.meal_name||'not planned'}. CRITICAL: events labelled (TODAY) are happening today — do NOT treat them as past unless the time has already passed (current time: ${ts}). Events labelled (TOMORROW) are tomorrow. Never calculate dates yourself. Never say someone enjoyed or completed an event that hasn't happened yet.`;
       }
-      const se=channel==='Meals'?` Focus on unplanned nights and tonight. Don't start with "Good ${tod}".`:` Open with "Good ${tod}" naturally. Mention 1-2 context details.`;
-      const d=await callClaude({feature:'chat_greeting',familyId:DUMMY_FAMILY_ID,
-        body:{model:HAIKU,max_tokens:50,system:`You are Zaeli. Greet ${DUMMY_MEMBER_NAME} in one short sentence, max 12 words. One emoji. No lists. No line breaks.`,messages:[{role:'user',content:ctx}]}});
-      const greeting=d.content?.[0]?.text||`Good ${tod}, ${DUMMY_MEMBER_NAME}! What can I help with?`;
+      // Screen-specific greeting instructions
+      const screenHints:Record<string,string> = {
+        General: `Open warmly, mention 1 thing from context if relevant. Always end with a specific question like "What's on your mind?" or "What can I sort for you?"`,
+        Calendar: `You're on the Calendar screen. Reference 1 upcoming event from context if there is one. Always end with a question like "Want me to check for any clashes?" or "Anything you'd like to add or move?"`,
+        Shopping: `You're on the Shopping screen. Reference the list if relevant. Always end with a question like "Want me to help fill the gaps?" or "Shall I check what's needed for this week's meals?"`,
+        Meals: `You're on the Meal Planner screen. Reference tonight or unplanned nights. Always end with a question like "Want me to plan out the week?" or "What are you in the mood for tonight?"`,
+        Kids: `You're on the Kids screen. Warm and playful. Always end with a question like "How are the kids tracking today?" or "Any jobs that need sorting?"`,
+        Travel: `You're on the Travel screen. Always end with a question like "Planning a trip?" or "Want me to help map something out?"`,
+      };
+      const hint = screenHints[channel] || screenHints.General;
+      const greetSys = `${ZAELI_PERSONA}
+
+Write a single greeting message for ${DUMMY_MEMBER_NAME} opening the ${channel} screen. 1-2 sentences max. ${hint} Never start with "I". Never say "Great!" or "Sure!". Australian warmth.
+
+CRITICAL DATE RULE: Events in context are labelled (TODAY), (TOMORROW), or with a full date like (Saturday 2026-03-21). ONLY reference (TODAY) events as happening now or soon. Events labelled with any other day are NOT today — never treat them as current or imminent.`;
+
+      let greeting = '';
+      if(getZaeliProvider()==='openai'){
+        const res=await fetch('https://api.openai.com/v1/chat/completions',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':`Bearer ${OPENAI_API_KEY}`},
+          body:JSON.stringify({model:GPT5_MINI,max_completion_tokens:80,
+            messages:[{role:'system',content:greetSys},{role:'user',content:ctx}]}),
+        });
+        const dg=await res.json();
+        greeting=dg.choices?.[0]?.message?.content||'';
+      } else {
+        const d=await callClaude({feature:'chat_greeting',familyId:DUMMY_FAMILY_ID,
+          body:{model:HAIKU,max_tokens:80,system:greetSys,
+            messages:[{role:'user',content:ctx}]}});
+        greeting=d.content?.[0]?.text||'';
+      }
+      // Fallbacks per screen
+      const fallbacks:Record<string,string>={
+        Calendar:`Good ${tod}! What's coming up — anything you'd like to add or move around?`,
+        Shopping:`Good ${tod}! ${DUMMY_MEMBER_NAME}, want me to check what's needed for the week?`,
+        Meals:`Good ${tod}! What are we thinking for dinner tonight — shall I suggest a few ideas?`,
+        Kids:`Good ${tod}! How are the kids tracking — any jobs or activities to sort out?`,
+        Travel:`Good ${tod}! Planning something? Where are we heading?`,
+        General:`Good ${tod}, ${DUMMY_MEMBER_NAME}! What can I sort out for you today?`,
+      };
+      greeting = greeting || fallbacks[channel] || fallbacks.General;
+      console.log('[greeting] result for', channel, ':', greeting?.substring(0,60));
       setChannelMessages(prev=>({...prev,[channel]:[{id:'g-'+channel,role:'assistant',content:greeting,time:getTime()}]}));
     }catch{
       const tod=new Date().getHours()<12?'morning':new Date().getHours()<17?'afternoon':'evening';
-      setChannelMessages(prev=>({...prev,[channel]:[{id:'g-'+channel,role:'assistant',content:`Good ${tod}, ${DUMMY_MEMBER_NAME}! What can I help with?`,time:getTime()}]}));
+      const fallbacks:Record<string,string>={
+        Calendar:`Good ${tod}! Anything on the calendar you'd like to sort out?`,
+        Shopping:`Good ${tod}! Want me to check what's needed this week?`,
+        Meals:`Good ${tod}! What are we thinking for dinner — want some ideas?`,
+        Kids:`Good ${tod}! How are the kids going today?`,
+        Travel:`Good ${tod}! Planning a trip?`,
+        General:`Good ${tod}, ${DUMMY_MEMBER_NAME}! What can I help with today?`,
+      };
+      setChannelMessages(prev=>({...prev,[channel]:[{id:'g-'+channel,role:'assistant',content:fallbacks[channel]||fallbacks.General,time:getTime()}]}));
     }finally{setLoading(false);}
   };
 
@@ -452,7 +607,7 @@ export default function ZaeliChatScreen(){
     const msgs=[{role:'system',content:system},...messages];
     const body:any={
       model:GPT5_MINI,
-      max_tokens:1024,
+      max_completion_tokens:1500,
       messages:msgs,
     };
     if(useTools) body.tools=TOOL_DEFINITIONS_OPENAI;
@@ -508,6 +663,15 @@ export default function ZaeliChatScreen(){
       console.log('Recording error:',e?.message);
     }
   };
+
+  // Auto-start mic when arriving from external mic button
+  // useFocusEffect fires every time screen comes into focus, not just on mount
+  useFocusEffect(useCallback(()=>{
+    if(params.autoMic==='true'){
+      const t=setTimeout(()=>startRecording(),800);
+      return ()=>clearTimeout(t);
+    }
+  },[params.autoMic]));
 
   const stopAndTranscribe=async()=>{
     if(!recordingRef.current) return;
@@ -634,7 +798,8 @@ export default function ZaeliChatScreen(){
       const mealKw=/\b(meal|dinner|recipe|cook|eat|food|lunch|breakfast|ingredient|menu|dish|cuisine|restaurant|cafe|snack|plan)\b/i;
       const shopKw=/\b(shop|shopping|buy|need|list|groceries|supermarket|woolies|coles|milk|bread|egg)\b/i;
       const pantryKw=/\b(pantry|stock|fridge|cupboard|have we got|do we have|do i have|have i got|running low|out of|inventory)\b/i;
-      const nm=mealKw.test(msg),ns=shopKw.test(msg),np=pantryKw.test(msg)||ns;
+      const nm=mealKw.test(msg),np=pantryKw.test(msg)||shopKw.test(msg);
+      const ns=true; // Always load shopping — cheap at GPT pricing, avoids missing items
 
       const now=new Date();
       const lds=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
@@ -661,7 +826,7 @@ export default function ZaeliChatScreen(){
         supabase.from('events').select('title,date,start_time').eq('family_id',DUMMY_FAMILY_ID).gte('start_time',lds).order('start_time').limit(10).then(r=>{evR=r;}),
         supabase.from('missions').select('title,priority,due_label,status').eq('family_id',DUMMY_FAMILY_ID).limit(10).then(r=>{miR=r;}),
       ];
-      if(ns) loads.push(supabase.from('shopping_items').select('name,category,checked').eq('family_id',DUMMY_FAMILY_ID).limit(30).then(r=>{shR=r;}));
+      if(ns) loads.push(supabase.from('shopping_items').select('name,category,checked').eq('family_id',DUMMY_FAMILY_ID).limit(100).then(r=>{shR=r;}));
       if(np) loads.push(supabase.from('pantry_items').select('name,stock').eq('family_id',DUMMY_FAMILY_ID).limit(50).then(r=>{pantryR=r;}));
       // Always load meal_plans — needed for date conflict checking and dessert type detection
       // even when message doesn't contain meal keywords (e.g. "add lasagna to Saturday")
@@ -682,7 +847,7 @@ export default function ZaeliChatScreen(){
         return `${e.title}${tp?` ${h===0?12:h>12?h-12:h}:${m}${h>=12?'pm':'am'}`:''} (${e.date||''})`;
       }).join(', ')||'none';
       const fmtTasks=(miR.data||[]).slice(0,6).map((t:any)=>`${t.title}${t.priority==='high'?' [urgent]':''}${t.due_label?' due '+t.due_label:''}`).join(', ')||'none';
-      const fmtShop=ns?(shR.data||[]).filter((i:any)=>!i.checked).slice(0,20).map((i:any)=>i.name).join(', ')||'empty':'(not loaded)';
+      const fmtShop=ns?(shR.data||[]).filter((i:any)=>!i.checked).slice(0,100).map((i:any)=>i.name).join(', ')||'empty':'(not loaded)';
       const fmtPantry=np&&(pantryR.data||[]).length?pantryR.data.slice(0,30).map((p:any)=>`${p.name}:${p.stock}`).join(', '):np?'empty':'(not loaded)';
 
       // ── FIX: Include day name with each meal date to prevent day-of-week miscalculation ──
@@ -712,7 +877,10 @@ SAVED RECIPES: ${fmtRecipes}.
 SAVED MENUS: ${fmtMenus}.
 ${memCtx}`;
 
-      const history=next.slice(-12).map((m:any)=>({role:m.role,content:m.content}));
+      // Filter tool messages from history — they have provider-specific formats that cause 400s
+      const history=next.slice(-20)
+        .filter((m:any)=>!m.isToolMsg)
+        .map((m:any)=>({role:m.role,content:typeof m.content==='string'?m.content:JSON.stringify(m.content)}));
 
       const systemPrompt=`${CHANNELS[activeCtx].prompt} Be warm, specific, concise — 1-3 sentences unless more is needed. Bold key info. Handle MULTIPLE requests — use all relevant tools in one go.
 
@@ -759,7 +927,7 @@ ${ctx}`;
           const d=await callClaude({feature:'zaeli_chat',familyId:DUMMY_FAMILY_ID,
             body:{
               model:turn===0?chosenModel:HAIKU,
-              max_tokens:turn===0&&chosenModel===SONNET?1024:600,
+              max_tokens:turn===0&&chosenModel===SONNET?1500:800,
               system:turn===0?systemPrompt:loopSystem,
               tools:TOOL_DEFINITIONS,messages:loopMessages,
             }});
@@ -842,17 +1010,22 @@ ${ctx}`;
   const giveFeedback=(id:string,val:'up'|'down')=>{setFeedback(prev=>({...prev,[id]:prev[id]===val?null:val}));};
 
   return(
-    <SafeAreaView style={s.safe} edges={[]}>
-      <StatusBar style="dark"/>
-      <View style={[s.hdr,{paddingTop:insets.top+8}]}>
-        <TouchableOpacity style={s.backBtn} onPress={()=>router.push(returnTo as any)} activeOpacity={0.7}><IcoBack/></TouchableOpacity>
-        <PulsingAvatar/>
-        <View style={{flex:1,gap:2}}>
-          <Text style={s.hdrName}>{'z'}<Text style={{color:C.mag}}>{'a'}</Text>{'el'}<Text style={{color:C.mag}}>{'i'}</Text></Text>
-          <Text style={s.hdrStatus}>● Here for your family</Text>
-        </View>
-      </View>
+    <View style={{flex:1,backgroundColor:'#fff'}}>
+      <StatusBar style="dark" animated={true}/>
 
+      {/* Header — SafeAreaView handles top notch inset only */}
+      <SafeAreaView edges={['top']} style={{backgroundColor:'#fff'}}>
+        <View style={s.hdr}>
+          <TouchableOpacity style={s.backBtn} onPress={()=>router.push(returnTo as any)} activeOpacity={0.7}><IcoBack/></TouchableOpacity>
+          <PulsingAvatar/>
+          <View style={{flex:1,gap:2}}>
+            <Text style={s.hdrName}>{'z'}<Text style={{color:C.mag}}>{'a'}</Text>{'el'}<Text style={{color:C.mag}}>{'i'}</Text></Text>
+            <Text style={s.hdrStatus}>● Here for your family</Text>
+          </View>
+        </View>
+      </SafeAreaView>
+
+      {/* Chat content — flex:1 fills remaining space */}
       <View style={{flex:1}}>
         <ScrollView ref={scrollRef} style={s.chatScroll} contentContainerStyle={{padding:16,paddingBottom:24}}
           showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" removeClippedSubviews={true}
@@ -913,6 +1086,7 @@ ${ctx}`;
         )}
       </View>
 
+      {/* Input — KeyboardAvoidingView at bottom, outside flex:1 content area */}
       <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':'height'} keyboardVerticalOffset={0}>
         <View style={s.inputArea}>
           {isRecording&&(
@@ -954,13 +1128,14 @@ ${ctx}`;
           )}
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+
+    </View>
   );
 }
 
 const s=StyleSheet.create({
-  safe:{flex:1,backgroundColor:C.chatBg},
-  hdr:{flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:16,paddingVertical:10,paddingBottom:12,backgroundColor:'#fff',borderBottomWidth:1,borderBottomColor:C.border},
+  safe:{flex:1,backgroundColor:'#fff'},
+  hdr:{flexDirection:'row',alignItems:'center',gap:12,paddingHorizontal:16,paddingTop:12,paddingBottom:12,backgroundColor:'#fff',borderBottomWidth:1,borderBottomColor:C.border},
   backBtn:{width:34,height:34,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,87,255,0.07)',borderRadius:11},
   av:{width:42,height:42,borderRadius:13,backgroundColor:C.blue,alignItems:'center',justifyContent:'center',shadowColor:C.blue,shadowOpacity:0.35,shadowRadius:10,shadowOffset:{width:0,height:4}},
   avStar:{fontSize:20,color:'#fff'},
@@ -987,7 +1162,7 @@ const s=StyleSheet.create({
   scrollBtn:{position:'absolute',bottom:10,right:12,flexDirection:'row',alignItems:'center',gap:5,backgroundColor:'#fff',borderRadius:20,paddingHorizontal:12,paddingVertical:6,borderWidth:1.5,borderColor:'rgba(0,0,0,0.08)',shadowColor:'#000',shadowOpacity:0.1,shadowRadius:8,shadowOffset:{width:0,height:2}},
   scrollDot:{width:7,height:7,borderRadius:4,backgroundColor:C.mag},
   scrollTxt:{fontFamily:'Poppins_700Bold',fontSize:11,color:C.blue},
-  inputArea:{backgroundColor:'#fff',borderTopWidth:1,borderTopColor:C.border,paddingHorizontal:14,paddingTop:10,paddingBottom:Platform.OS==='ios'?28:12},
+  inputArea:{backgroundColor:'#fff',borderTopWidth:1,borderTopColor:C.border,paddingHorizontal:14,paddingTop:10,paddingBottom:Platform.OS==='ios'?16:12},
   inputBox:{flexDirection:'row',alignItems:'center',gap:8,backgroundColor:C.bg,borderWidth:1.5,borderColor:'rgba(0,0,0,0.10)',borderRadius:18,paddingHorizontal:14,paddingVertical:10},
   inputField:{flex:1,fontFamily:'Poppins_400Regular',fontSize:15,color:C.ink,maxHeight:100},
   micBtn:{width:36,height:36,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,0.06)',borderRadius:11},

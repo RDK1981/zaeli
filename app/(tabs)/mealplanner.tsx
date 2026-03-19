@@ -23,13 +23,38 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Line, Polyline } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
 import { callClaude } from '../../lib/api-logger';
+import { getZaeliProvider } from '../../lib/zaeli-provider';
 import { supabase } from '../../lib/supabase';
 import { HamburgerButton, NavMenu } from '../components/NavMenu';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
+
+// ── Brief cache ────────────────────────────────────────────────
+let mealBriefCache = '';  // cleared on each app session
+let mealBriefTime: number | null = null;
+
+async function callBrief({feature,system,userContent,maxTokens=200}:
+  {feature:string;system:string;userContent:string;maxTokens?:number}): Promise<string> {
+  if(getZaeliProvider()==='openai'){
+    const res=await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${OPENAI_API_KEY}`},
+      body:JSON.stringify({model:'gpt-5.4-mini',max_completion_tokens:maxTokens,
+        messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
+    });
+    const d=await res.json();
+    return d.choices?.[0]?.message?.content||'';
+  } else {
+    const d=await callClaude({feature,familyId:DUMMY_FAMILY_ID,
+      body:{model:'claude-haiku-4-5-20251001',max_tokens:maxTokens,
+        system,messages:[{role:'user',content:userContent}]}});
+    return d.content?.[0]?.text||'';
+  }
+}
 const ANTHROPIC_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
 
 // ── Colours — matching shopping.tsx exactly ───────────────────────────────────
@@ -158,6 +183,17 @@ function IcoSend(){
     <Svg width={16} height={16} viewBox="0 0 24 24">
       <Line x1="12" y1="19" x2="12" y2="5" stroke="#fff" strokeWidth={2.5} strokeLinecap="round"/>
       <Polyline points="5 12 12 5 19 12" stroke="#fff" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+function IcoMic(){
+  const color='rgba(0,0,0,0.45)';
+  return(
+    <Svg width={18} height={18} viewBox="0 0 24 24">
+      <Rect x="9" y="2" width="6" height="11" rx="3" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M5 10a7 7 0 0014 0" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Line x1="12" y1="19" x2="12" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
+      <Line x1="8" y1="23" x2="16" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
     </Svg>
   );
 }
@@ -1615,6 +1651,10 @@ function DinnersTab({onTabChange}:{
   onTabChange:(t:TabType)=>void;
 }){
   const router=useRouter();
+  const [mealBriefText, setMealBriefText] = useState('');
+  const [mealBriefCta, setMealBriefCta] = useState('Find me a recipe');
+  const [mealBriefLoading, setMealBriefLoading] = useState(true);
+  const [mealBriefDismissed, setMealBriefDismissed] = useState(false);
   const [meals,setMeals]=useState<MealPlan[]>([]);
   const [loading,setLoading]=useState(true);
   const [addDay,setAddDay]=useState<{key:string;label:string;mealType?:string}|null>(null);
@@ -1650,7 +1690,68 @@ function DinnersTab({onTabChange}:{
 
   // Fetch on mount AND every time tab is focused
   useEffect(()=>{fetchMeals();},[]);
-  useFocusEffect(useCallback(()=>{fetchMeals();},[fetchMeals]));
+  useFocusEffect(useCallback(()=>{
+    fetchMeals();
+    // Generate brief once per session if not dismissed
+    if(!mealBriefDismissed){
+      generateMealBrief();
+    } else if(mealBriefCache){
+      setMealBriefText(mealBriefCache);
+      setMealBriefLoading(false);
+    }
+  },[fetchMeals,mealBriefDismissed]));
+
+  const generateMealBrief = async() => {
+    const now = new Date();
+    const td = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const todayName = dayNames[now.getDay()];
+    // Fetch meals directly — don't rely on component state which may not be loaded yet
+    const endDate = new Date(now.getFullYear(),now.getMonth(),now.getDate()+6);  // +6 = 7 day window inclusive
+    const edStr = `${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-${String(endDate.getDate()).padStart(2,'0')}`;
+    const { data: freshMeals } = await supabase.from('meal_plans').select('day_key,meal_name,meal_type')
+      .eq('family_id', DUMMY_FAMILY_ID).gte('day_key', td).lte('day_key', edStr).order('day_key');
+    const mealData = freshMeals || [];
+    console.log('[meal brief] fetched', mealData.length, 'meals, td:', td, 'edStr:', edStr);
+    console.log('[meal brief] meals:', mealData.map((m:any)=>m.day_key+'/'+m.meal_type).join(', '));
+    const plannedCount = mealData.filter(m => m.meal_type !== 'dessert').length;
+    const tonightMeal = mealData.find((m:any) => m.day_key === td && m.meal_type !== 'dessert');
+    const unplannedCount = 7 - plannedCount;
+    
+    const sys = 'You are Zaeli, warm Australian family meal planning assistant. CRITICAL: respond with valid JSON only — no preamble, no markdown, no backticks.';
+    // List the exact unplanned days so GPT cannot miscalculate
+    const allDays = Array.from({length:7},(_,i)=>{
+      const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    });
+    const plannedDays = new Set(mealData.filter((m:any)=>m.meal_type!=='dessert').map((m:any)=>m.day_key));
+    const unplannedDays = allDays.filter(d=>!plannedDays.has(d));
+    const dn=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const unplannedNames = unplannedDays.map(d=>{const dt=new Date(d);return dn[dt.getDay()];}).join(', ') || 'none';
+    console.log('[meal brief] unplannedDays:', unplannedDays, 'unplannedNames:', unplannedNames);
+    
+    const userMsg = `Generate a meal planner screen brief. Today is ${todayName}. Tonight's dinner: ${tonightMeal?.meal_name || 'not planned'}. EXACTLY ${unplannedDays.length} night${unplannedDays.length!==1?'s are':' is'} unplanned this week: ${unplannedNames}. Do NOT calculate this yourself — use the exact number ${unplannedDays.length}. Rules: 1-2 warm sentences, Australian warmth, end with a concrete question or offer, never start with "I". Respond ONLY with: {"brief":"text","cta":"3-4 words"}`;
+    
+    try {
+      const raw = await callBrief({feature:'meal_brief', system:sys, userContent:userMsg, maxTokens:150});
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,'').trim()); }
+      catch { parsed = { brief: raw.trim(), cta: 'Find me a recipe' }; }
+      const finalBrief = parsed.brief || (tonightMeal
+        ? `${tonightMeal.meal_name} tonight — want me to check what else needs planning this week? 🍽️`
+        : `Tonight's dinner isn't planned yet — want me to throw a few ideas together? 🍽️`);
+      mealBriefCache = finalBrief;
+      setMealBriefText(finalBrief);
+      setMealBriefCta(parsed.cta || 'Find me a recipe');
+    } catch {
+      const fallback = tonightMeal
+        ? `${tonightMeal.meal_name} tonight — want me to check what else needs planning this week? 🍽️`
+        : `Tonight's dinner isn't planned yet — want me to throw a few ideas together? 🍽️`;
+      setMealBriefText(fallback);
+    } finally {
+      setMealBriefLoading(false);
+    }
+  };
 
 
 
@@ -2071,29 +2172,33 @@ function RecipesTab({onPlanAdded,openDayPicker}:{
     <View style={{flex:1}}>
       <ScrollView contentContainerStyle={{paddingBottom:130}} showsVerticalScrollIndicator={false}>
 
-      {/* Zaeli brief — blue card (matching Dinners/Shopping style) */}
-        <View style={s.briefCard}>
-          <View style={s.briefHeader}>
-            <View style={s.briefAv}><Text style={{color:'#fff',fontSize:15,fontFamily:'Poppins_700Bold'}}>✦</Text></View>
-            <Text style={s.briefName}>Z<Text style={{color:C.mag}}>a</Text>el<Text style={{color:C.mag}}>i</Text></Text>
-            <View style={s.briefLiveDot}/>
-            <Text style={s.briefTime}>{getTimeStr()}</Text>
-          </View>
-          <View style={s.briefBody}>
-            <Text style={s.briefMsg}>
-              Tell me what you're in the mood for — I'll find something from 5,000+ recipes that works with your pantry and the family's tastes. Or browse the library yourself below.
-            </Text>
-            <View style={s.briefBtns}>
-              <TouchableOpacity style={s.btnPrimary} activeOpacity={0.85}
-                onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Meals',returnTo:'/(tabs)/mealplanner',seedMessage:"I'm looking for a recipe idea — "}})}>
-                <Text style={s.btnPrimaryTxt}>✦ Find me a recipe</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.btnGhost} onPress={()=>setBrowseOpen(true)} activeOpacity={0.7}>
-                <Text style={s.btnGhostTxt}>Browse manually</Text>
-              </TouchableOpacity>
+      {/* Zaeli brief — GPT-generated, context-aware */}
+        {!mealBriefDismissed && (
+          <View style={s.briefCard}>
+            <View style={s.briefHeader}>
+              <View style={s.briefAv}><Text style={{color:'#fff',fontSize:15,fontFamily:'Poppins_700Bold'}}>✦</Text></View>
+              <Text style={s.briefName}>Z<Text style={{color:C.mag}}>a</Text>el<Text style={{color:C.mag}}>i</Text></Text>
+              <View style={s.briefLiveDot}/>
+              <Text style={s.briefTime}>{getTimeStr()}</Text>
+            </View>
+            <View style={s.briefBody}>
+              {mealBriefLoading ? (
+                <Text style={[s.briefMsg, {color:'rgba(0,0,0,0.3)'}]}>Zaeli is thinking…</Text>
+              ) : (
+                <Text style={s.briefMsg}>{mealBriefText}</Text>
+              )}
+              <View style={s.briefBtns}>
+                <TouchableOpacity style={s.btnPrimary} activeOpacity={0.85}
+                  onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Meals',returnTo:'/(tabs)/mealplanner',seedMessage:mealBriefText}})}>
+                  <Text style={s.btnPrimaryTxt}>✦ {mealBriefCta}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.btnGhost} onPress={()=>setMealBriefDismissed(true)} activeOpacity={0.7}>
+                  <Text style={s.btnGhostTxt}>I'm sorted, thanks</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        )}
 
 
         {/* Browse section — revealed when user taps "Browse manually" */}
@@ -2556,6 +2661,11 @@ export default function MealPlannerScreen(){
             activeOpacity={0.85}>
             <View style={s.askDiamondWrap}><Text style={s.askDiamond}>✦</Text></View>
             <Text style={s.askText}>Ask Zaeli about meals…</Text>
+            <TouchableOpacity style={s.askMicBtn}
+              onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Meals',returnTo:'/(tabs)/mealplanner',autoMic:'true'}})}
+              activeOpacity={0.7}>
+              <IcoMic/>
+            </TouchableOpacity>
             <TouchableOpacity style={s.askSend}
               onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Meals',returnTo:'/(tabs)/mealplanner'}})}
               activeOpacity={0.85}>
@@ -2655,6 +2765,7 @@ const s=StyleSheet.create({
   askDiamondWrap: {width:20,alignItems:'center',justifyContent:'center'},
   askDiamond:     {fontSize:15,color:C.blue},
   askText:        {flex:1,fontFamily:'Poppins_400Regular',fontSize:15,color:'rgba(0,0,0,0.28)'},
+  askMicBtn:{width:36,height:36,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,0.06)',borderRadius:11,marginRight:2},
   askSend:        {width:36,height:36,borderRadius:11,backgroundColor:C.blue,alignItems:'center',justifyContent:'center',flexShrink:0,shadowColor:C.blue,shadowOpacity:0.3,shadowRadius:6,shadowOffset:{width:0,height:2}},
   // Recipes chat-bubble Zaeli card
   recBriefAv:     {width:36,height:36,borderRadius:12,backgroundColor:C.blue,alignItems:'center',justifyContent:'center',flexShrink:0,marginBottom:2},

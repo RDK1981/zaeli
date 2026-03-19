@@ -337,13 +337,17 @@ export default function HomeScreen() {
   async function callBrief({feature,system,userContent,maxTokens=400}:
     {feature:string;system:string;userContent:string;maxTokens?:number}): Promise<string> {
     if(getZaeliProvider()==='openai'){
+      const oaiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
+      console.log('[home brief] provider=openai, key present:', oaiKey.length > 0, 'key prefix:', oaiKey.substring(0,8));
       const res=await fetch('https://api.openai.com/v1/chat/completions',{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY||''}`},
-        body:JSON.stringify({model:'gpt-5.4-mini',max_tokens:maxTokens,
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${oaiKey}`},
+        body:JSON.stringify({model:'gpt-5.4-mini',max_completion_tokens:maxTokens,
           messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
       });
+      console.log('[home brief] status:', res.status);
       const d=await res.json();
+      if(d.error) console.log('[home brief] error:', JSON.stringify(d.error));
       return d.choices?.[0]?.message?.content||'';
     } else {
       const d=await callClaude({feature,familyId:DUMMY_FAMILY_ID,
@@ -379,11 +383,15 @@ export default function HomeScreen() {
       const systemPrompt=`You are Zaeli — warm, brilliant, completely magnetic. Australian warmth — real and unpretentious. The switched-on friend who noticed three things before anyone asked.
 
 You are writing ${DUMMY_MEMBER_NAME}'s home screen brief.
-CRITICAL: The WEEK DATES section shows the exact date for each day name. Always use these — never calculate dates yourself. When referencing an event, check its date against WEEK DATES to confirm whether it is today, tomorrow, or later in the week.
+CRITICAL DATES: Events in the context are labelled (TODAY) or (TOMORROW) explicitly. Use ONLY these labels — never calculate what day an event falls on yourself. If an event says (TODAY) it is happening today. If it says (TOMORROW) it is tomorrow. Never reference a future event as if it is happening today.
 
 STRUCTURE:
 
-SENTENCE 1 — CALLBACK (optional): If something notable is in the data (recent past event, yesterday's dinner, completed task, dismissed reminder), open with one warm alive sentence that connects — not a recap. Examples: "Hope the tacos went down well last night!" / "Great that Jack's soccer registration is done — one less thing." / "Hope Poppy had a brilliant time at dance tonight." BAD examples: "I see you completed 2 tasks" (robotic) / "You had pasta for dinner" (stating facts) / "Good morning!" (greeting, not callback). SKIP THIS SENTENCE ENTIRELY if nothing notable is in the data — go straight to sentence 2.
+SENTENCE 1 — CALLBACK (use when genuine past data exists): Look at "Past events" and "Yesterday's dinner" and "Completed tasks" in the context. Only reference things that have ALREADY HAPPENED — never reference an upcoming event as if it's done.
+GOOD: "Hope the tacos went down well last night!" / "Great that Jack's soccer registration is done." / "Sounds like a big day — glad the accountant call is behind you."
+BAD: "Hope you enjoyed the bike ride" when the bike ride is later today (it hasn't happened yet).
+BAD: "I see you completed 2 tasks" (robotic) / "Good morning!" (greeting not callback).
+RULE: Only use callback if past_events contains events with times BEFORE the current time, OR yesterday_dinner is set, OR completed_tasks is not none. Skip entirely if nothing genuinely past.
 
 SENTENCE 2 — WHAT'S COMING: The single most important upcoming event or deadline in the current time window. Must include name, time, and person where known. Do NOT say "you have a meeting" — say "accountant call at 9am". One item only.
 
@@ -397,6 +405,8 @@ SENTENCE 4 — THE OFFER (required): One warm specific question offering one con
 - "Want me to sort the calendar for the weekend?" → CTA: "Sort the weekend"
 - "Want me to help prioritise what's most urgent?" → CTA: "Help me prioritise"
 - No clear action → CTA: "Let's talk it through"
+
+TONE: Warm, alive, Australian. Like a switched-on friend who noticed things before anyone asked. Cheeky opener when there's something to reference, always backed by smart and helpful. Never dry, never corporate, never robotic.
 
 HARD RULES:
 - Max 4 sentences total. Min 2.
@@ -412,7 +422,7 @@ HARD RULES:
 DINNER RULE: ${dinnerRule}
 TIME FRAME: ${timeStr} on ${dateStr}. Frame: ${timeFrame}.
 
-RESPOND WITH JSON ONLY — no markdown, no backticks:
+CRITICAL: You MUST respond with valid JSON only. No preamble, no explanation, no markdown, no backticks. Just the JSON object.
 {"brief":"sentences separated by newlines","cta":"button label max 4 words","signoff":"1 warm sentence stepping back, references 1 specific thing from the brief"}`;
 
       const fmt12 = (iso:string) => {
@@ -444,6 +454,10 @@ RESPOND WITH JSON ONLY — no markdown, no backticks:
 
       // Include day name with each event so Haiku never miscalculates the day
       // Use new Date(y,m,d) constructor (local time) not new Date('YYYY-MM-DD') (UTC, shifts day in AEST)
+      // Format events with explicit day name AND relative label so GPT never miscalculates
+      const todayKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const tomorrowDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+      const tomorrowKey=`${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth()+1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`;
       const evSummary = evs.slice(0,6).map(fmtEv).map((e:any)=>{
         const rawDate=e.date||'';
         let dayLabel='';
@@ -451,12 +465,19 @@ RESPOND WITH JSON ONLY — no markdown, no backticks:
           const[ey,em,ed]=rawDate.split('-').map(Number);
           if(ey&&em&&ed){
             const evDay=new Date(ey,em-1,ed);
-            dayLabel=DAY_NAMES[evDay.getDay()]+' '+rawDate+' ';
+            const rel=rawDate===todayKey?' (TODAY)':rawDate===tomorrowKey?' (TOMORROW)':'';
+            dayLabel=DAY_NAMES[evDay.getDay()]+' '+rawDate+rel+' ';
           }
         }
-        return `${e.title} (${dayLabel}${e.start_time||''})`;
-      }).join(', ') || 'none';
-      const pastEvSummary = labelledPastEvs.slice(0,4).map((e:any)=>`${e.title} (${e._hoursAgo}h ago)`).join(', ') || 'none';
+        return `${e.title} — ${dayLabel}${e.start_time||''}`;
+      }).join(' | ') || 'none';
+      // Only include events that have actually passed (start_time before now)
+      const trulyPastEvs = labelledPastEvs.filter((e:any)=>{
+        if(!e.start_time) return false;
+        const evTimeStr = e.start_time.includes('T') ? e.start_time : `${e.date}T${e.start_time}`;
+        return new Date(evTimeStr) < now;
+      });
+      const pastEvSummary = trulyPastEvs.slice(0,4).map((e:any)=>`${e.title} (${e._hoursAgo}h ago)`).join(', ') || 'none';
       const todoSummary = tdos.slice(0,5).map((t:any)=>`${t.title}${t.priority==='high'?' [urgent]':''}${t.due_label?' due '+t.due_label:''}`).join(', ') || 'none';
       const urgentSummary = urgentTodos.slice(0,4).map((t:any)=>t.title).join(', ') || 'none';
 
@@ -726,7 +747,7 @@ Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not pla
             <Text style={s.askDiamond}>{'\u2726'}</Text>
           </View>
           <Text style={s.askText}>Ask Zaeli anything...</Text>
-          <TouchableOpacity style={s.askMic} onPress={()=>{}} activeOpacity={0.7}>
+          <TouchableOpacity style={s.askMic} onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'General',returnTo:'/(tabs)/',autoMic:'true'}})} activeOpacity={0.7}>
             <IcoMic/>
           </TouchableOpacity>
           <TouchableOpacity style={s.askSend} onPress={()=>openChat('General')} activeOpacity={0.85}>

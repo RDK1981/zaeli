@@ -234,14 +234,22 @@ function BriefCard({ events, todos, onDismiss }: {
       const timeFrame = getTimeFrame(hour);
       const timeStr   = now.toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit', hour12:true });
       const dateStr   = now.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' });
-      const todayStr  = now.toISOString().split('T')[0];
-      const in48h     = new Date(now.getTime() + 48*60*60*1000);
-      const in48hStr  = in48h.toISOString().split('T')[0];
+      // Use local date (not UTC) to avoid day-shift in AEST (UTC+10)
+      const todayStr  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const in48h     = new Date(now.getFullYear(),now.getMonth(),now.getDate()+2);
+      const in48hStr  = `${in48h.getFullYear()}-${String(in48h.getMonth()+1).padStart(2,'0')}-${String(in48h.getDate()).padStart(2,'0')}`;
 
-      const upcomingEvs = events.filter(e => e.date >= todayStr && e.date <= in48hStr);
-      const recentPast  = events.filter(e => {
+      // Fetch events directly — don't rely on component state which may not be loaded yet
+      const evFetch = await supabase.from('events').select('*')
+        .eq('family_id', DUMMY_FAMILY_ID)
+        .gte('date', todayStr).lte('date', in48hStr)
+        .order('date').order('start_time').limit(10);
+      const freshEvents = evFetch.data || [];
+      
+      const upcomingEvs = freshEvents.filter(e => e.date >= todayStr && e.date <= in48hStr);
+      const recentPast  = freshEvents.filter(e => {
         if (!e.start_time) return false;
-        const evTime = new Date(e.start_time.replace(' ','T'));
+        const evTime = new Date(e.start_time.includes('T') ? e.start_time : e.start_time.replace(' ','T'));
         const diff   = now.getTime() - evTime.getTime();
         return diff > 0 && diff < 6 * 60 * 60 * 1000;
       });
@@ -266,24 +274,29 @@ function BriefCard({ events, todos, onDismiss }: {
         urgentTodos.length ? `Urgent/overdue todos: ${urgentTodos.map(t => t.title).join(', ')}` : 'No urgent todos',
       ].filter(Boolean).join('\n');
 
-      const prompt = `You are Zaeli, a warm and witty AI family assistant. Generate a calendar screen brief for Anna.
+      const prompt = `Generate a calendar screen brief for Anna. CRITICAL: respond with valid JSON only — no preamble, no markdown, no backticks.
 
-RULES:
-- Max 3-4 sentences total
-- Structure: [optional warm callback if recent event] + [most important upcoming thing] + [one thing slipping if relevant] + [specific contextual question]
+TONE: Warm, alive, Australian. Like a switched-on friend who noticed things before you did. Cheeky opener when there's something to reference, always backed by helpful. Never dry or corporate.
+
+STRUCTURE (follow in order):
+1. CALLBACK (use if recent/past event in context): One warm sentence referencing something that just happened or was completed. "Hope the tacos went down well!" / "Great that soccer registration is sorted." SKIP only if nothing recent in context.
+2. WHAT'S COMING: Most important upcoming event — name, time, person. Be specific.
+3. WHAT'S SLIPPING (if relevant): One thing overdue or at risk. Like a friend flagging it, not a task manager.
+4. THE OFFER: One warm question offering something concrete right now.
+
+HARD RULES:
+- Max 4 sentences. Min 2.
 - Never start with "I"
-- Never sound like a push notification or status report
-- Be specific — name events, times, people
-- End with ONE question offering something concrete Zaeli can do right now
-- Bold key names/times using **bold** syntax (max 3 bolds)
+- Never vague — name things specifically
+- Bold **names/times** only, max 3
+- 12-hour time always
 - Tone: ${toneMap[timeFrame] || 'warm and helpful'}
-- If calendar is empty, still say something real and useful — don't just state the obvious
+- If calendar empty: still say something warm and useful
 
 CONTEXT:
 ${contextStr}
 
-Respond ONLY in this exact JSON format with no extra text:
-{"brief": "The brief text here.", "cta": "Short CTA label (3-5 words)"}`;
+Respond ONLY with: {"brief": "text here", "cta": "3-5 word label"}`;
 
       const briefText = await callBrief({feature:'calendar_brief',system:'You are Zaeli, warm Australian family assistant writing a calendar brief.',userContent:prompt,maxTokens:200});
       const data = {content:[{text:briefText}]};
@@ -1033,7 +1046,7 @@ async function callBrief({feature,system,userContent,maxTokens=200}:
     const res=await fetch('https://api.openai.com/v1/chat/completions',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY||''}`},
-      body:JSON.stringify({model:'gpt-5.4-mini',max_tokens:maxTokens,
+      body:JSON.stringify({model:'gpt-5.4-mini',max_completion_tokens:maxTokens,
         messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
     });
     const d=await res.json();
@@ -1363,7 +1376,7 @@ export default function CalendarScreen() {
             <Text style={s.askDiamond}>{'\u2726'}</Text>
           </View>
           <Text style={s.askText}>Ask Zaeli anything...</Text>
-          <TouchableOpacity style={s.askMic} onPress={() => {}} activeOpacity={0.7}>
+          <TouchableOpacity style={s.askMic} onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Calendar',returnTo:'/(tabs)/calendar',autoMic:'true'}})} activeOpacity={0.7}>
             <IcoMic/>
           </TouchableOpacity>
           <TouchableOpacity style={s.askSend} onPress={() => openChat()} activeOpacity={0.85}>

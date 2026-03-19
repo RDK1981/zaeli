@@ -356,13 +356,18 @@ let lastBriefTime: number | null = null;
 async function callBrief({feature,system,userContent,maxTokens=200}:
   {feature:string;system:string;userContent:string;maxTokens?:number}): Promise<string> {
   if(getZaeliProvider()==='openai'){
+    const oaiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
+    console.log('[callBrief] provider=openai, key present:', oaiKey.length > 0, 'key prefix:', oaiKey.substring(0,8));
     const res=await fetch('https://api.openai.com/v1/chat/completions',{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY||''}`},
-      body:JSON.stringify({model:'gpt-5.4-mini',max_tokens:maxTokens,
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${oaiKey}`},
+      body:JSON.stringify({model:'gpt-5.4-mini',max_completion_tokens:maxTokens,
         messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
     });
+    console.log('[callBrief] status:', res.status);
     const d=await res.json();
+    console.log('[callBrief] response keys:', Object.keys(d));
+    if(d.error) console.log('[callBrief] error:', JSON.stringify(d.error));
     return d.choices?.[0]?.message?.content||'';
   } else {
     const d=await callClaude({feature,familyId:DUMMY_FAMILY_ID,
@@ -404,17 +409,34 @@ function ShoppingBriefCard({ itemCount, onDismiss }: { itemCount: number; onDism
 
   const generateBrief = async () => {
     try {
-      const prompt = `You are Zaeli, a warm and witty AI family assistant. Generate a brief shopping screen message for ${DUMMY_USER_NAME}. Max 2 sentences. The list has ${itemCount} item${itemCount !== 1 ? 's' : ''}. If empty, invite her to build it. If has items, offer to help fill gaps. End with something concrete. Respond ONLY as JSON: {"brief": "text", "cta": "3-5 words"}`;
-      const briefRaw = await callBrief({feature:'shopping_brief',system:'You are Zaeli, warm Australian family assistant writing a shopping brief.',userContent:prompt,maxTokens:120});
-      const parsed = JSON.parse(briefRaw?.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}');
-      cachedBrief = parsed.brief || '';
+      const sys = 'You are Zaeli, warm Australian family assistant. CRITICAL: respond with valid JSON only — no preamble, no markdown, no backticks. Just the JSON object.';
+      const userMsg = itemCount === 0
+        ? `Shopping list is empty. Write a warm 1-sentence invite to build it together. End with a question. Respond ONLY with: {"brief":"text","cta":"3-4 words"}`
+        : `Shopping list has ${itemCount} items. Write 1-2 warm sentences acknowledging this and offering something specific. End with a question. Australian warmth. Never start with "I". Respond ONLY with: {"brief":"text","cta":"3-4 words"}`;
+      const briefRaw = await callBrief({feature:'shopping_brief',system:sys,userContent:userMsg,maxTokens:150});
+      console.log('[shopping brief] raw:', briefRaw);
+      const rawStr = typeof briefRaw === 'string' ? briefRaw : '';
+      let parsed: any = {};
+      if (rawStr) {
+        try { parsed = JSON.parse(rawStr.replace(/```json|```/g,'').trim()); }
+        catch { parsed = { brief: rawStr.replace(/[{}"]/g,'').trim(), cta: "Let's sort the list" }; }
+      }
+      // Guaranteed fallback — never show empty
+      const finalBrief = parsed.brief || (itemCount === 0
+        ? "List is wide open — want me to help build it from this week's meals?"
+        : `${itemCount} thing${itemCount!==1?'s':''} on the list — want me to check the meal plan and fill any gaps?`);
+      cachedBrief = finalBrief;
       lastBriefCount = itemCount;
       lastBriefTime = Date.now();
-      setBriefText(cachedBrief);
-      setCtaLabel(parsed.cta || "Here's what we need…");
-    } catch {
-      setBriefText("Can I help build the list this week? Tell me what's on for dinners — or just do a brain dump and I'll sort it.");
-      setCtaLabel("Here's what we need…");
+      setBriefText(finalBrief);
+      setCtaLabel(parsed.cta || (itemCount === 0 ? "Build the list" : "Fill the gaps"));
+    } catch (e) {
+      console.log('[shopping brief] error:', e);
+      const fallback = itemCount === 0
+        ? "List is wide open — want me to help build it from this week's meals?"
+        : `${itemCount} thing${itemCount!==1?'s':''} on the list — want me to check the meal plan and fill any gaps?`;
+      setBriefText(fallback);
+      setCtaLabel(itemCount === 0 ? "Build the list" : "Fill the gaps");
     } finally { setLoading(false); }
   };
 
@@ -1648,7 +1670,7 @@ export default function ShoppingScreen() {
                 <TouchableOpacity style={s.addBar} onPress={() => setAddVisible(true)} activeOpacity={0.7}>
                   <Text style={s.addBarPlus}>＋</Text>
                   <Text style={s.addBarTxt}>Add item…</Text>
-                  <TouchableOpacity style={s.micBtn} onPress={() => {}} activeOpacity={0.7}>
+                  <TouchableOpacity style={s.micBtn} onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Shopping',returnTo:'/(tabs)/shopping',autoMic:'true'}})} activeOpacity={0.7}>
                     <IcoMic color="rgba(0,0,0,0.40)" />
                   </TouchableOpacity>
                 </TouchableOpacity>
@@ -1707,7 +1729,7 @@ export default function ShoppingScreen() {
               activeOpacity={0.85}>
               <View style={s.askDiamondWrap}><Text style={s.askDiamond}>✦</Text></View>
               <Text style={s.askText}>Ask Zaeli anything…</Text>
-              <TouchableOpacity style={s.askMic} onPress={() => {}} activeOpacity={0.7}>
+              <TouchableOpacity style={s.askMic} onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Shopping',returnTo:'/(tabs)/shopping',autoMic:'true'}})} activeOpacity={0.7}>
                 <IcoMic color="rgba(0,0,0,0.45)" />
               </TouchableOpacity>
               <TouchableOpacity style={s.askSend}
