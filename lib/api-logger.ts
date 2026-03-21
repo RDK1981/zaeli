@@ -2,45 +2,12 @@
  * Zaeli API Logger
  * ─────────────────────────────────────────────────────────────
  * Central wrapper for all Anthropic API calls.
- * Logs every call to api_logs in Supabase with:
- *   - family_id       who made the call
- *   - feature         which part of the app (e.g. 'zaeli_chat', 'home_brief')
- *   - input_tokens    tokens sent (from Anthropic usage response)
- *   - output_tokens   tokens received
- *   - cost_usd        calculated cost (Sonnet 4 pricing)
- *   - created_at      timestamp
- *
- * Usage:
- *   import { callClaude } from '../../lib/api-logger';
- *
- *   const data = await callClaude({
- *     feature: 'home_brief',
- *     familyId: DUMMY_FAMILY_ID,
- *     body: { model: 'claude-sonnet-4-20250514', max_tokens: 300, ... }
- *   });
- *   // data is the parsed Anthropic response JSON — use exactly as before
- *
- * SQL to create the table (run once in Supabase):
- *   create table if not exists api_logs (
- *     id            uuid default gen_random_uuid() primary key,
- *     family_id     uuid not null,
- *     account_id    integer,
- *     feature       text not null,
- *     model         text not null default 'claude-sonnet-4-20250514',
- *     input_tokens  integer not null default 0,
- *     output_tokens integer not null default 0,
- *     cost_usd      numeric(10,6) not null default 0,
- *     created_at    timestamptz not null default now()
- *   );
- *   create index on api_logs (family_id, created_at);
- *   create index on api_logs (feature, created_at);
+ * Logs every call to api_logs in Supabase.
  */
 
 import { supabase } from './supabase';
 
 // ── Pricing per model ─────────────────────────────────────────
-// Sonnet 4:  $3.00 / $15.00 per million tokens (input/output)
-// Haiku 4.5: $0.25 / $1.25  per million tokens (input/output)
 const PRICING: Record<string, { input: number; output: number }> = {
   'claude-sonnet-4-20250514':  { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
   'claude-haiku-4-5-20251001': { input: 0.25 / 1_000_000, output:  1.25 / 1_000_000 },
@@ -52,6 +19,7 @@ const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
 
 // ── Feature type — all tracked call sites ─────────────────────
 export type ZaeliFeature =
+  // ── Core app features ──
   | 'home_brief'
   | 'calendar_brief'
   | 'shopping_brief'
@@ -62,7 +30,17 @@ export type ZaeliFeature =
   | 'menu_photo'
   | 'pantry_scan'
   | 'receipt_scan'
-  | 'shopping_category';
+  | 'shopping_category'
+  // ── Tutor features ──
+  | 'tutor_practice'      // MC question generation + feedback + hints + workings
+  | 'tutor_session'       // Homework help chat exchanges
+  | 'tutor_socratic'      // Socratic sheet chat messages (Talk me through it)
+  | 'tutor_reading'       // Reading feedback GPT call
+  | 'tutor_vision'        // All photo analysis in tutor (book page, working photo)
+  | 'tutor_whisper'       // Voice input in tutor screens (fixed cost per call)
+  | 'whisper_transcription' // Voice input in main chat (kept for backwards compat)
+  // ── Future ──
+  | 'elevenlabs_tts';     // ElevenLabs text-to-speech (per character)
 
 // ── Main call function ─────────────────────────────────────────
 export async function callClaude({
@@ -89,7 +67,6 @@ export async function callClaude({
 
   const data = await res.json();
 
-  // Log asynchronously — never let logging failure break the UI
   logUsage({ feature, familyId, accountId, data, model: body.model });
 
   if (!res.ok) {
@@ -99,7 +76,62 @@ export async function callClaude({
   return data;
 }
 
-// ── Internal logging — fire-and-forget ────────────────────────
+// ── ElevenLabs cost logger ─────────────────────────────────────
+// Charges per character — US$0.00022/char above plan
+// Log separately so we can track TTS costs independently
+export async function logElevenLabs({
+  familyId,
+  characterCount,
+  accountId,
+}: {
+  familyId: string;
+  characterCount: number;
+  accountId?: number;
+}) {
+  // US$0.00022/char, convert to AUD (~1.55)
+  const costUsd = characterCount * 0.00022;
+  const costAud = costUsd * 1.55;
+
+  supabase.from('api_logs').insert({
+    family_id:     familyId,
+    account_id:    accountId ?? null,
+    feature:       'elevenlabs_tts',
+    model:         'eleven_multilingual_v2',
+    input_tokens:  characterCount, // repurpose input_tokens as char count
+    output_tokens: 0,
+    cost_usd:      parseFloat(costAud.toFixed(6)),
+  }).then(({ error }) => {
+    if (error) console.warn('[api-logger] ElevenLabs log failed:', error.message);
+  });
+}
+
+// ── Whisper fixed cost logger ──────────────────────────────────
+// Whisper charges per minute of audio, not per token
+// US$0.006/min — typical tutor reading: 2-3 mins = ~US$0.015
+// Log as fixed A$0.02 per call (covers up to ~2.5 mins)
+export async function logWhisper({
+  familyId,
+  feature = 'tutor_whisper',
+  accountId,
+}: {
+  familyId: string;
+  feature?: ZaeliFeature;
+  accountId?: number;
+}) {
+  supabase.from('api_logs').insert({
+    family_id:     familyId,
+    account_id:    accountId ?? null,
+    feature,
+    model:         'whisper-1',
+    input_tokens:  0,
+    output_tokens: 0,
+    cost_usd:      0.02, // fixed A$0.02 per transcription (~2 mins audio)
+  }).then(({ error }) => {
+    if (error) console.warn('[api-logger] Whisper log failed:', error.message);
+  });
+}
+
+// ── Internal usage logger — fire-and-forget ────────────────────
 function logUsage({
   feature,
   familyId,
@@ -113,13 +145,11 @@ function logUsage({
   data: any;
   model?: string;
 }) {
-  // Extract token usage from Anthropic response
   const inputTokens  = data?.usage?.input_tokens  ?? 0;
   const outputTokens = data?.usage?.output_tokens ?? 0;
   const pricing = PRICING[model || ''] || DEFAULT_PRICING;
   const costUsd = (inputTokens * pricing.input) + (outputTokens * pricing.output);
 
-  // Fire and forget — don't await, don't block UI
   supabase.from('api_logs').insert({
     family_id:     familyId,
     account_id:    accountId ?? null,

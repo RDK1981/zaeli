@@ -18,7 +18,6 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   StatusBar as RNStatusBar, ActivityIndicator, Alert, Image, TextInput,
   Modal, Animated, Dimensions, KeyboardAvoidingView, Platform,
-  Keyboard, TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
@@ -403,46 +402,55 @@ Focus on teaching the METHOD so they can apply it next time.` }, 800]);
     }).eq('id', sessionId);
   }
 
-  // ── Chat photo — camera or library ───────────────────────────
+  // ── Chat photo ────────────────────────────────────────────────
   async function sendChatPhoto() {
-    Alert.alert('Add a photo', 'How would you like to add a photo?', [
-      { text: '📷 Camera', onPress: () => pickChatPhoto('camera') },
-      { text: '🖼️ Photo Library', onPress: () => pickChatPhoto('library') },
+    Alert.alert('Add photo', 'How would you like to add a photo?', [
+      { text: 'Camera', onPress: () => doChatPhoto('camera') },
+      { text: 'Photo Library', onPress: () => doChatPhoto('library') },
       { text: 'Cancel', style: 'cancel' },
     ]);
   }
 
-  async function pickChatPhoto(source: 'camera' | 'library') {
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, base64: true })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, base64: true });
-    if (result.canceled || !result.assets[0] || !question) return;
-    const asset = result.assets[0];
-    const updated: ChatMessage[] = [...chatMessages, { role: 'child', content: 'Here is a photo.', imageUri: asset.uri }];
-    setChatMessages(updated);
-    setChatSending(true);
+  async function doChatPhoto(source: 'camera' | 'library') {
     try {
-      const vData = await callClaude({
-        feature: 'receipt_scan', familyId: FAMILY_ID,
-        body: { model: 'claude-sonnet-4-6', max_tokens: 200, messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: asset.mimeType ?? 'image/jpeg', data: asset.base64 ?? '' } },
-          { type: 'text',  text: 'Describe what the student has written or drawn in 1-2 sentences for a tutor.' },
-        ]}]},
-      });
-      const desc = vData.content?.[0]?.text ?? 'I can see their work.';
-      const history = [
-        { role: 'system', content: getSocraticPrompt(childName, yearLevel, subject, question.question, qAnswered) },
-        ...updated.map(m => ({ role: m.role === 'zaeli' ? 'assistant' : 'user', content: m.content })),
-        { role: 'user', content: `${childName} shared a photo. I can see: ${desc}. Respond Socratically — acknowledge what they've done and ask the next guiding question.` },
-      ];
-      const reply = await callGPT(history, 300);
-      const clean = reply.replace('[READY_TO_TRY]', '').trim();
-      const final: ChatMessage[] = clean ? [...updated, { role: 'zaeli', content: clean }] : updated;
-      setChatMessages(final);
-      if (reply.includes('[READY_TO_TRY]')) setShowReadyBtn(true);
-      await appendSocraticToSession(final);
-    } catch { setChatMessages(prev => [...prev, { role: 'zaeli', content: "I can see your work — let's keep going! What did you try next?" }]); }
-    setChatSending(false);
+      let result;
+      if (source === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Camera access in Settings.'); return; }
+        result = await ImagePicker.launchCameraAsync({ quality: 0.7, base64: true });
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Photo Library access in Settings.'); return; }
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, base64: true });
+      }
+      if (result.canceled || !result.assets[0] || !question) return;
+      const asset = result.assets[0];
+      const updated: ChatMessage[] = [...chatMessages, { role: 'child', content: 'Here is a photo.', imageUri: asset.uri }];
+      setChatMessages(updated);
+      setChatSending(true);
+      try {
+        const vData = await callClaude({
+          feature: 'tutor_vision', familyId: FAMILY_ID,
+          body: { model: 'claude-sonnet-4-6', max_tokens: 200, messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: asset.mimeType ?? 'image/jpeg', data: asset.base64 ?? '' } },
+            { type: 'text',  text: 'Describe what the student has written or drawn in 1-2 sentences for a tutor.' },
+          ]}]},
+        });
+        const desc = vData.content?.[0]?.text ?? 'I can see their work.';
+        const history = [
+          { role: 'system', content: getSocraticPrompt(childName, yearLevel, subject, question.question, qAnswered) },
+          ...updated.map(m => ({ role: m.role === 'zaeli' ? 'assistant' : 'user', content: m.content })),
+          { role: 'user', content: `${childName} shared a photo. I can see: ${desc}. Respond Socratically — acknowledge what they've done and ask the next guiding question.` },
+        ];
+        const reply = await callGPT(history, 300);
+        const clean = reply.replace('[READY_TO_TRY]', '').trim();
+        const final: ChatMessage[] = clean ? [...updated, { role: 'zaeli', content: clean }] : updated;
+        setChatMessages(final);
+        if (reply.includes('[READY_TO_TRY]')) setShowReadyBtn(true);
+        await appendSocraticToSession(final);
+      } catch { setChatMessages(prev => [...prev, { role: 'zaeli', content: "I can see your work — let's keep going! What did you try next?" }]); }
+      setChatSending(false);
+    } catch (e) { console.error('Chat photo:', e); }
   }
 
   // ── Voice ─────────────────────────────────────────────────────
@@ -509,37 +517,46 @@ Focus on teaching the METHOD so they can apply it next time.` }, 800]);
     router.replace({ pathname: '/(tabs)/tutor-child', params: { childId, childName, yearLevel: String(yearLevel) } });
   }
 
-  // ── Working photo — camera or library ────────────────────────
+  // ── Working photo ─────────────────────────────────────────────
   async function takeWorkingPhoto() {
-    Alert.alert('Add your working', 'How would you like to add a photo?', [
-      { text: '📷 Camera', onPress: () => pickWorkingPhoto('camera') },
-      { text: '🖼️ Photo Library', onPress: () => pickWorkingPhoto('library') },
+    Alert.alert('Show your working', 'How would you like to add your photo?', [
+      { text: 'Camera', onPress: () => doWorkingPhoto('camera') },
+      { text: 'Photo Library', onPress: () => doWorkingPhoto('library') },
       { text: 'Cancel', style: 'cancel' },
     ]);
   }
 
-  async function pickWorkingPhoto(source: 'camera' | 'library') {
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6, base64: true })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6, base64: true });
-    if (result.canceled || !result.assets[0]) return;
-    setWorkingPhoto(result.assets[0].uri);
-    setAssessingWorking(true);
+  async function doWorkingPhoto(source: 'camera' | 'library') {
     try {
-      const vData = await callClaude({
-        feature: 'receipt_scan', familyId: FAMILY_ID,
-        body: { model: 'claude-sonnet-4-6', max_tokens: 200, messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: result.assets[0].mimeType ?? 'image/jpeg', data: result.assets[0].base64 ?? '' } },
-          { type: 'text',  text: 'Describe the working out in 2 sentences. What method? What steps?' },
-        ]}]},
-      });
-      const desc = vData.content?.[0]?.text ?? '';
-      if (question && isMC(question)) {
-        const wf = await callGPT([{ role: 'user', content: `Zaeli reviewing ${childName}'s working for: "${question.question}". Working: ${desc}. 1-2 warm sentences on their METHOD. Specific praise if good. Gentle redirect if not. Never start with "I".` }]);
-        setWorkingFeedback(wf);
+      let result;
+      if (source === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Camera access in Settings.'); return; }
+        result = await ImagePicker.launchCameraAsync({ quality: 0.6, base64: true });
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Photo Library access in Settings.'); return; }
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6, base64: true });
       }
-    } catch { setWorkingFeedback("Great job showing your steps!"); }
-    setAssessingWorking(false);
+      if (result.canceled || !result.assets[0]) return;
+      setWorkingPhoto(result.assets[0].uri);
+      setAssessingWorking(true);
+      try {
+        const vData = await callClaude({
+          feature: 'tutor_vision', familyId: FAMILY_ID,
+          body: { model: 'claude-sonnet-4-6', max_tokens: 200, messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: result.assets[0].mimeType ?? 'image/jpeg', data: result.assets[0].base64 ?? '' } },
+            { type: 'text',  text: 'Describe the working out in 2 sentences. What method? What steps?' },
+          ]}]},
+        });
+        const desc = vData.content?.[0]?.text ?? '';
+        if (question && isMC(question)) {
+          const wf = await callGPT([{ role: 'user', content: `Zaeli reviewing ${childName}'s working for: "${question.question}". Working: ${desc}. 1-2 warm sentences on their METHOD. Specific praise if good. Gentle redirect if not. Never start with "I".` }]);
+          setWorkingFeedback(wf);
+        }
+      } catch { setWorkingFeedback("Great job showing your steps!"); }
+      setAssessingWorking(false);
+    } catch (e) { console.error('Working photo:', e); }
   }
 
   // ── Senior ────────────────────────────────────────────────────
@@ -555,8 +572,27 @@ Focus on teaching the METHOD so they can apply it next time.` }, 800]);
   }
 
   async function takeSeniorPhoto() {
-    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.65 });
-    if (!result.canceled && result.assets[0]) setSeniorPhoto(result.assets[0].uri);
+    Alert.alert('Show your working', 'How would you like to add your photo?', [
+      { text: 'Camera', onPress: () => doSeniorPhoto('camera') },
+      { text: 'Photo Library', onPress: () => doSeniorPhoto('library') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  async function doSeniorPhoto(source: 'camera' | 'library') {
+    try {
+      let result;
+      if (source === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Camera access in Settings.'); return; }
+        result = await ImagePicker.launchCameraAsync({ quality: 0.65 });
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Photo Library access in Settings.'); return; }
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.65 });
+      }
+      if (!result.canceled && result.assets[0]) setSeniorPhoto(result.assets[0].uri);
+    } catch (e) { console.error('Senior photo:', e); }
   }
 
   async function nextQuestion() { setQIndex(i => i + 1); await loadQuestion(); }
@@ -569,19 +605,17 @@ Focus on teaching the METHOD so they can apply it next time.` }, 800]);
     <SafeAreaView style={s.safe} edges={['top']}>
       <RNStatusBar barStyle="light-content" />
 
-      {/* Hero — compact single row */}
+      {/* Hero */}
       <View style={s.practiceHdr}>
         <View style={s.practiceHdrOrb} />
-        <View style={s.hdrRow}>
-          <TouchableOpacity onPress={handleBack} activeOpacity={0.7} hitSlop={{ top:12,bottom:12,left:16,right:16 }}>
-            <Text style={s.backTxt}>‹ Back</Text>
-          </TouchableOpacity>
-          <View style={s.hdrRight}>
-            <View style={s.goldBadge}>
-              <Text style={s.goldBadgeTxt}>{subject} Practice · Yr {yearLevel}</Text>
-            </View>
-          </View>
+        <TouchableOpacity onPress={handleBack} activeOpacity={0.7} hitSlop={{ top:12,bottom:12,left:12,right:12 }} style={s.backBtn}>
+          <Text style={s.backTxt}>‹ Back</Text>
+        </TouchableOpacity>
+        <View style={s.goldBadge}>
+          <Text style={s.goldBadgeTxt}>{getTierBadge(yearLevel)} · Year {yearLevel}</Text>
         </View>
+        <Text style={s.heroTitle}>{subject}{'\n'}Practice</Text>
+        <Text style={s.heroSub}>{senior ? 'ACARA-aligned · show your working' : 'ACARA-aligned · fresh questions every time'}</Text>
       </View>
 
       <View style={s.content}>
@@ -815,25 +849,25 @@ Focus on teaching the METHOD so they can apply it next time.` }, 800]);
       <Modal visible={sheetVisible} transparent animationType="none" onRequestClose={closeSheet}>
         <Animated.View style={[s.sheet, { transform: [{ translateY: slideAnim }] }]}>
 
-          {/* Sheet header — outside keyboard dismiss wrapper so X button always works */}
+          {/* Sheet header */}
           <View style={s.sheetHdr}>
             <View style={s.sheetHdrOrb}/>
-            {/* Use paddingTop for status bar instead of SafeAreaView inside Modal */}
-            <View style={s.sheetHdrInner}>
-              <View style={s.sheetHdrRow}>
-                <View style={s.sheetHdrTextWrap}>
-                  <Text style={s.sheetHdrLabel}>🧠 Zaeli · Tutoring</Text>
-                  <Text style={s.sheetHdrSub}>{subject} · Year {yearLevel}</Text>
+            <SafeAreaView edges={['top']}>
+              <View style={s.sheetHdrInner}>
+                <View style={s.sheetHdrRow}>
+                  <View style={{flex:1}}>
+                    <Text style={s.sheetHdrLabel}>🧠 Zaeli · Tutoring</Text>
+                    <Text style={s.sheetHdrQ} numberOfLines={2}>{question && isMC(question) ? question.question : (question as SeniorQuestion)?.question ?? ''}</Text>
+                  </View>
+                  <TouchableOpacity onPress={closeSheet} style={s.sheetClose} activeOpacity={0.75}>
+                    <Text style={s.sheetCloseTxt}>✕</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={closeSheet} style={s.sheetClose} activeOpacity={0.75} hitSlop={{ top:12, bottom:12, left:12, right:12 }}>
-                  <Text style={s.sheetCloseTxt}>✕</Text>
-                </TouchableOpacity>
               </View>
-            </View>
+            </SafeAreaView>
           </View>
 
-          {/* Chat area — wrapped in keyboard dismiss */}
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          {/* Chat area */}
           <ScrollView
             ref={chatScrollRef}
             style={s.chatArea}
@@ -872,11 +906,10 @@ Focus on teaching the METHOD so they can apply it next time.` }, 800]);
               </TouchableOpacity>
             )}
           </ScrollView>
-          </TouchableWithoutFeedback>
 
-          {/* Input bar — outside keyboard dismiss so taps work */}
-          <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
-            <View style={[s.chatInputBar, {paddingBottom: insets.bottom || 16}]}>
+          {/* Input bar */}
+          <KeyboardAvoidingView behavior={Platform.OS==='ios' ? 'padding' : undefined}>
+            <View style={[s.chatInputBar, {paddingBottom: insets.bottom + 8}]}>
               <View style={s.chatInputRow}>
                 <TextInput
                   style={s.chatInput}
@@ -887,7 +920,6 @@ Focus on teaching the METHOD so they can apply it next time.` }, 800]);
                   multiline
                   returnKeyType="send"
                   onSubmitEditing={sendChatMessage}
-                  blurOnSubmit={false}
                 />
                 <TouchableOpacity style={s.chatSendBtn} onPress={sendChatMessage} activeOpacity={0.85}>
                   <Text style={s.chatSendTxt}>↑</Text>
@@ -916,15 +948,14 @@ const s = StyleSheet.create({
   safe:    { flex:1, backgroundColor:T_DARK },
   content: { flex:1, backgroundColor:BG },
 
-  practiceHdr:    { backgroundColor:T_DARK, paddingHorizontal:18, paddingTop:14, paddingBottom:14, position:'relative', overflow:'hidden' },
+  practiceHdr:    { backgroundColor:T_DARK, paddingHorizontal:22, paddingTop:14, paddingBottom:20, position:'relative', overflow:'hidden' },
   practiceHdrOrb: { position:'absolute', right:-40, top:-40, width:180, height:180, borderRadius:90, backgroundColor:'rgba(201,168,76,0.04)' },
-
-  // Compact hero row — Back left, badge right
-  hdrRow:   { flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
-  hdrRight: { alignItems:'flex-end' },
-  backTxt:  { fontSize:22, color:'rgba(255,255,255,0.65)', fontFamily:'Poppins_400Regular' },
-  goldBadge:    { backgroundColor:'rgba(201,168,76,0.18)', borderWidth:1, borderColor:'rgba(201,168,76,0.35)', borderRadius:20, paddingHorizontal:10, paddingVertical:5 },
-  goldBadgeTxt: { fontFamily:'Poppins_700Bold', fontSize:11, color:T_GOLD, letterSpacing:0.8, textTransform:'uppercase' },
+  backBtn:      { marginBottom:10 },
+  backTxt:      { fontSize:22, color:'rgba(255,255,255,0.65)', fontFamily:'Poppins_400Regular' },
+  goldBadge:    { alignSelf:'flex-start', backgroundColor:'rgba(201,168,76,0.18)', borderWidth:1, borderColor:'rgba(201,168,76,0.35)', borderRadius:20, paddingHorizontal:10, paddingVertical:4, marginBottom:9 },
+  goldBadgeTxt: { fontFamily:'Poppins_700Bold', fontSize:11, color:T_GOLD, letterSpacing:1.2, textTransform:'uppercase' },
+  heroTitle:    { fontFamily:'DMSerifDisplay_400Regular', fontSize:34, color:'#fff', letterSpacing:-0.8, marginBottom:5 },
+  heroSub:      { fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(255,255,255,0.55)' },
 
   chips:     { flexDirection:'row', gap:8, paddingHorizontal:18, paddingTop:14, paddingBottom:6, flexWrap:'wrap' },
   chip:      { paddingHorizontal:14, paddingVertical:8, borderRadius:20, borderWidth:1.5, borderColor:BORDER, backgroundColor:CARD },
@@ -1030,11 +1061,10 @@ const s = StyleSheet.create({
   sheet:       { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:BG },
   sheetHdr:    { backgroundColor:T_DARK, overflow:'hidden' },
   sheetHdrOrb: { position:'absolute', right:-30, top:-30, width:120, height:120, borderRadius:60, backgroundColor:'rgba(201,168,76,0.06)' },
-  sheetHdrInner:   { paddingHorizontal:20, paddingTop:52, paddingBottom:14 },
-  sheetHdrRow:     { flexDirection:'row', alignItems:'center', gap:12 },
-  sheetHdrTextWrap:{ flex:1 },
-  sheetHdrLabel:   { fontFamily:'Poppins_700Bold', fontSize:13, color:T_GOLD, letterSpacing:0.5 },
-  sheetHdrSub:     { fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(255,255,255,0.45)', marginTop:2 },
+  sheetHdrInner: { paddingHorizontal:20, paddingTop:12, paddingBottom:16 },
+  sheetHdrRow:   { flexDirection:'row', alignItems:'flex-start', gap:12 },
+  sheetHdrLabel: { fontFamily:'Poppins_700Bold', fontSize:11, color:T_GOLD, textTransform:'uppercase', letterSpacing:0.8, marginBottom:4 },
+  sheetHdrQ:     { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#fff', lineHeight:22 },
   sheetClose:    { width:34, height:34, borderRadius:10, backgroundColor:'rgba(255,255,255,0.12)', alignItems:'center', justifyContent:'center', flexShrink:0 },
   sheetCloseTxt: { fontSize:14, color:'rgba(255,255,255,0.7)', fontFamily:'Poppins_600SemiBold' },
 

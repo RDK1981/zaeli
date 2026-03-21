@@ -14,19 +14,7 @@ import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
-import { callClaude } from '../../lib/api-logger';
-
-// ── Inline GPT logger ─────────────────────────────────────────
-async function logGpt(familyId: string, feature: string, model: string, usage: any) {
-  const i = usage?.prompt_tokens ?? 0;
-  const o = usage?.completion_tokens ?? 0;
-  const cost = (i * 0.75 + o * 4.50) / 1_000_000;
-  supabase.from('api_logs').insert({
-    family_id: familyId, feature, model,
-    input_tokens: i, output_tokens: o,
-    cost_usd: parseFloat(cost.toFixed(6)),
-  }).then(({ error }) => { if (error) console.warn('log error:', error.message); });
-}
+import { logApiCall } from '../../lib/api-logger';
 
 // ── Constants ─────────────────────────────────────────────────
 const FAMILY_ID  = '00000000-0000-0000-0000-000000000001';
@@ -44,7 +32,7 @@ const BORDER     = 'rgba(0,0,0,0.07)';
 const BG         = '#F7F7F7';
 const CARD       = '#FFFFFF';
 const GPT_MODEL  = 'gpt-5.4-mini';
-function getOpenAIKey() { return process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''; }
+const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
 
 type Step = 'photo' | 'read' | 'feedback';
 
@@ -78,35 +66,49 @@ export default function TutorReadingScreen() {
   useFocusEffect(useCallback(() => { RNStatusBar.setBarStyle('light-content', true); }, []));
 
   async function takePagePhoto() {
-    Alert.alert('Add your page', 'How would you like to add a photo?', [
-      { text: '📷 Camera', onPress: () => pickPagePhoto('camera') },
-      { text: '🖼️ Photo Library', onPress: () => pickPagePhoto('library') },
+    Alert.alert('Add your page', 'How would you like to add your page?', [
+      { text: 'Camera', onPress: () => doPickPhoto('camera') },
+      { text: 'Photo Library', onPress: () => doPickPhoto('library') },
       { text: 'Cancel', style: 'cancel' },
     ]);
   }
 
-  async function pickPagePhoto(source: 'camera' | 'library') {
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({ mediaTypes:ImagePicker.MediaTypeOptions.Images, quality:0.75, base64:true })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes:ImagePicker.MediaTypeOptions.Images, quality:0.75, base64:true });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    setPagePhoto(asset.uri);
-    setDetectingPage(true);
+  async function doPickPhoto(source: 'camera' | 'library') {
     try {
-      const vData = await callClaude({
-        feature: 'receipt_scan',
-        familyId: FAMILY_ID,
-        body: { model:'claude-sonnet-4-6', max_tokens:500, messages:[{ role:'user', content:[
+      let result;
+      if (source === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Camera access in Settings.'); return; }
+        result = await ImagePicker.launchCameraAsync({ quality:0.75, base64:true });
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Photo Library access in Settings.'); return; }
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes:ImagePicker.MediaTypeOptions.Images, quality:0.75, base64:true });
+      }
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      setPagePhoto(asset.uri);
+      setDetectingPage(true);
+      try {
+      const ANTHROPIC_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+      const t0 = Date.now();
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'x-api-key':ANTHROPIC_KEY, 'anthropic-version':'2023-06-01' },
+        body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:500, messages:[{ role:'user', content:[
           { type:'image', source:{ type:'base64', media_type:asset.mimeType??'image/jpeg', data:asset.base64??'' }},
           { type:'text',  text:'Return JSON only (no markdown): {"title":"book title and chapter if visible, else Unknown book","text":"full text on the page transcribed accurately word for word"}' },
-        ]}]},
+        ]}]}),
       });
-      const parsed = JSON.parse(vData.content?.[0]?.text?.replace(/```json|```/g,'').trim() ?? '{}');
+      const json = await res.json();
+      await logApiCall({ family_id:FAMILY_ID, call_type:'tutor_vision', model:'claude-sonnet-4-6', provider:'anthropic',
+        prompt_tokens:json.usage?.input_tokens??0, completion_tokens:json.usage?.output_tokens??0, duration_ms:Date.now()-t0 });
+      const parsed = JSON.parse(json.content?.[0]?.text?.replace(/```json|```/g,'').trim() ?? '{}');
       setPageTitle(parsed.title ?? '');
       setPageDesc(parsed.text ?? '');
     } catch { setPageTitle('Page detected'); setPageDesc(''); }
-    setDetectingPage(false);
+      setDetectingPage(false);
+    } catch (e) { console.error('Photo picker:', e); }
   }
 
   async function startRecording() {
@@ -135,10 +137,11 @@ export default function TutorReadingScreen() {
       form.append('model', 'whisper-1');
       const t0 = Date.now();
       const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method:'POST', headers:{ Authorization:`Bearer ${getOpenAIKey()}` }, body:form,
+        method:'POST', headers:{ Authorization:`Bearer ${OPENAI_KEY}` }, body:form,
       });
       const json = await res.json();
-      logGpt(FAMILY_ID, 'whisper_transcription', 'whisper-1', {prompt_tokens:0,completion_tokens:0});
+      await logApiCall({ family_id:FAMILY_ID, call_type:'whisper_transcription', model:'whisper-1', provider:'openai',
+        prompt_tokens:0, completion_tokens:0, duration_ms:Date.now()-t0 });
       if (json.text?.trim()) await generateFeedback(json.text.trim());
     } catch { Alert.alert('Oops', 'Could not transcribe — please try again.'); }
     setTranscribing(false);
@@ -155,12 +158,13 @@ confidence: exactly one of "↑ Up", "→ Same", "↓ Down"`;
     try {
       const t0 = Date.now();
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${getOpenAIKey()}` },
+        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${OPENAI_KEY}` },
         body: JSON.stringify({ model:GPT_MODEL, max_completion_tokens:400, messages:[{ role:'user', content:prompt }] }),
       });
       const json = await res.json();
       const raw = json.choices?.[0]?.message?.content ?? '';
-      logGpt(FAMILY_ID, 'tutor_session', GPT_MODEL, json.usage);
+      await logApiCall({ family_id:FAMILY_ID, call_type:'tutor_session', model:GPT_MODEL, provider:'openai',
+        prompt_tokens:json.usage?.prompt_tokens??0, completion_tokens:json.usage?.completion_tokens??0, duration_ms:Date.now()-t0 });
       const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim()) as ReadingFeedback;
       setFeedback(parsed);
       await supabase.from('tutor_sessions').insert({ family_id:FAMILY_ID, child_name:childName, year_level:yearLevel, mode:'reading', subject:'Reading', topic:pageTitle||'Reading session', messages:[], duration_seconds:0 });
@@ -190,7 +194,8 @@ confidence: exactly one of "↑ Up", "→ Same", "↓ Down"`;
           <Text style={s.readingBadgeTxt}>📖 Reading &amp; Speaking</Text>
         </View>
         {/* .hero-title font-size:28px — bumped to 32 */}
-        <Text style={s.heroTitle}>Read aloud{'\n'}to Zaeli</Text>
+        <Text style={s.heroTitle}>Read aloud{'\
+'}to Zaeli</Text>
         {/* .hero-sub */}
         <Text style={s.heroSub}>She'll listen for fluency, pacing and confidence.</Text>
       </View>

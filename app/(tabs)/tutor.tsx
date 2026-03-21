@@ -17,12 +17,17 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar as RNStatusBar, ActivityIndicator,
+  StatusBar as RNStatusBar, ActivityIndicator, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { NavMenu, HamburgerButton } from '../components/NavMenu';
+
+// ── Tablet detection ──────────────────────────────────────────
+const { width: SCREEN_W } = Dimensions.get('window');
+const IS_TABLET = SCREEN_W >= 768;
+const CONTENT_MAX = IS_TABLET ? 600 : SCREEN_W;
 
 // ── Constants ─────────────────────────────────────────────────
 const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
@@ -69,7 +74,6 @@ export default function TutorScreen() {
   const [sessions, setSessions]   = useState<Session[]>([]);
   const [noticed,  setNoticed]    = useState('');
   const [loading,  setLoading]    = useState(true);
-  const [tab, setTab]             = useState<'kids'|'activity'|'settings'>('kids');
 
   useFocusEffect(useCallback(() => {
     RNStatusBar.setBarStyle('light-content', true);
@@ -184,22 +188,6 @@ export default function TutorScreen() {
         </Text>
 
         <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
-
-        {/* ── Toggle — EXACTLY calendar viewTog / vt / vtOn ── */}
-        <View style={s.viewTog}>
-          {([ ['kids','Your Kids'], ['activity','Activity'], ['settings','Settings'] ] as const).map(
-            ([key, label]) => (
-              <TouchableOpacity
-                key={key}
-                style={[s.vt, tab === key && s.vtOn]}
-                onPress={() => setTab(key)}
-                activeOpacity={0.8}
-              >
-                <Text style={[s.vtTxt, tab === key && s.vtTxtOn]}>{label}</Text>
-              </TouchableOpacity>
-            )
-          )}
-        </View>
       </View>
 
       {/* ══════════════════════════════════════════
@@ -211,25 +199,23 @@ export default function TutorScreen() {
             <ActivityIndicator size="large" color={T_GOLD} />
           </View>
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:60 }}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:60, alignItems: IS_TABLET ? 'center' : undefined }}>
+            <View style={{ width: '100%', maxWidth: CONTENT_MAX, alignSelf: 'center' }}>
 
-            {/* Zaeli noticed — briefCard structure with gold palette */}
-            {(noticed !== '' || true) && (
+            {/* Zaeli noticed — warm kid-directed brief card */}
+            {noticed !== '' && (
               <View style={s.noticedCard}>
-                {/* Header row — ✦ + title, gold tint bg */}
                 <View style={s.noticedRow}>
                   <Text style={s.noticedStar}>✦</Text>
                   <Text style={s.noticedTitle}>Zaeli noticed</Text>
                 </View>
-                <Text style={s.noticedBody}>
-                  {noticed !== '' ? noticed : <><Text style={{ fontWeight:'700' }}>Poppy</Text>{' has had 4 sessions this week — her essay structure is really clicking. '}<Text style={{ fontWeight:'700' }}>Gab</Text>{' is showing confidence in multiplication but getting tripped up on remainders — worth a look.'}</>}
-                </Text>
+                <Text style={s.noticedBody}>{noticed}</Text>
               </View>
             )}
 
-            {/* Section label — same as calendar slbl */}
+            {/* Section label */}
             {active.length > 0 && (
-              <Text style={s.slbl}>Your Children</Text>
+              <Text style={s.slbl}>Who's learning today?</Text>
             )}
 
             {/* Active child cards */}
@@ -292,6 +278,7 @@ export default function TutorScreen() {
                 <Text style={s.emptyBody}>Add your children in Our Family → Profiles first.</Text>
               </View>
             )}
+            </View>
           </ScrollView>
         )}
       </View>

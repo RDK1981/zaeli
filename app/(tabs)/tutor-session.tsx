@@ -7,9 +7,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, KeyboardAvoidingView, Platform, StatusBar as RNStatusBar,
-  ActivityIndicator, Alert, Image, Keyboard, TouchableWithoutFeedback,
+  ActivityIndicator, Alert, Image, Animated, Clipboard, Share,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path, Rect, Polygon, Polyline, Line, Circle } from 'react-native-svg';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
@@ -19,9 +20,12 @@ import { callClaude } from '../../lib/api-logger';
 // ── Constants ─────────────────────────────────────────────────
 const FAMILY_ID  = '00000000-0000-0000-0000-000000000001';
 const T_DARK     = '#1A1A2E';
+const HW_INDIGO  = '#1A5F7A';   // Homework Help — deep teal
 const T_GOLD     = '#C9A84C';
 const T_GOLD2    = '#B8963E';
 const T_GOLDL    = 'rgba(201,168,76,0.08)';
+const BLUE       = '#0057FF';
+const MAG        = '#E0007C';
 const INK        = '#0A0A0A';
 const INK2       = 'rgba(10,10,10,0.45)';
 const INK3       = 'rgba(10,10,10,0.18)';
@@ -29,6 +33,10 @@ const BORDER     = 'rgba(0,0,0,0.07)';
 const BG         = '#F4F6FA';
 const CARD       = '#FFFFFF';
 const GPT_MODEL  = 'gpt-5.4-mini';
+
+const ICON_SIZE   = 18;
+const ICON_STROKE = 1.8;
+const ICON_COLOR  = 'rgba(0,0,0,0.40)';
 
 function getOpenAIKey() { return process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''; }
 
@@ -44,42 +52,61 @@ async function logGpt(feature: string, usage: any) {
 
 function buildSystemPrompt(childName: string, yearLevel: number, subject: string) {
   return `You are Zaeli, a warm encouraging AI tutor helping ${childName}, an Australian Year ${yearLevel} student.
-RULES:
-- NEVER give the direct answer immediately. Always guide thinking first.
-- NEVER complete work on behalf of the child.
-- Ask a guiding question or give a hint before revealing anything.
-- Break problems into small steps. Ask the child to try each step.
-- Celebrate correct thinking specifically, not generically.
-- If wrong, be gentle and redirect with a question.
-- After 2-3 exchanges, you may reveal the answer but explain the method.
-- Keep responses to 2-3 sentences. End with a question or prompt.
+
+ABSOLUTE RULES — never break these:
+- NEVER state the answer to any calculation, question or problem. Not even as an example.
+- NEVER complete any step for the child. Ask them to do every step themselves.
+- If the child gives a CORRECT answer, confirm it warmly and move to the next step with a question.
+- If the child gives a WRONG answer, say gently "not quite — let's think again" and give a hint without revealing the answer.
+- Break every problem into the smallest possible steps. One step at a time.
+- Always end with a question or prompt that moves them forward.
+- Keep responses to 2-3 sentences maximum.
 - Never start with "I". Australian English. Warm and encouraging.
-${subject ? `Subject: ${subject}` : ''}`;
+- Do NOT use asterisks or markdown bold in your responses — plain text only.
+${subject ? `Subject context: ${subject}` : ''}`;
 }
 
 interface Message { role: 'zaeli' | 'child'; content: string; imageUri?: string; }
 
 export default function TutorSessionScreen() {
   const router    = useRouter();
-  const insets    = useSafeAreaInsets();
-  const params    = useLocalSearchParams<{ childId: string; childName: string; yearLevel: string }>();
+  const params    = useLocalSearchParams<{ childId: string; childName: string; yearLevel: string; resumeSessionId?: string }>();
   const childName = params.childName ?? '';
   const yearLevel = parseInt(params.yearLevel ?? '5', 10);
   const childId   = params.childId ?? '';
+  const resumeId  = params.resumeSessionId ?? null;
 
   const [messages, setMessages]   = useState<Message[]>([]);
   const [input, setInput]         = useState('');
   const [sending, setSending]     = useState(false);
   const [subject, setSubject]     = useState('');
   const [topic, setTopic]         = useState('');
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(resumeId);
   const [recording, setRecording] = useState(false);
   const [audioRec, setAudioRec]   = useState<Audio.Recording | null>(null);
+  const [saved, setSaved]         = useState(false);
+  const [feedback, setFeedback]   = useState<Record<number, 'up'|'down'>>({});
+  const savedOpacity              = useRef(new Animated.Value(0)).current;
   const startTimeRef = useRef(Date.now());
   const scrollRef    = useRef<ScrollView>(null);
+  const micPulse     = useRef(new Animated.Value(1)).current;
 
-  useFocusEffect(useCallback(() => { RNStatusBar.setBarStyle('light-content', true); }, []));
-  useEffect(() => { sendGreeting(); }, []);
+  useFocusEffect(useCallback(() => {
+    RNStatusBar.setBarStyle('light-content', true);
+    // Reset state fresh on every focus so new sessions start clean
+    setMessages([]);
+    setInput('');
+    setSubject('');
+    setTopic('');
+    setSessionId(resumeId);
+    setFeedback({});
+    startTimeRef.current = Date.now();
+    if (resumeId) {
+      loadSession(resumeId);
+    } else {
+      sendGreeting();
+    }
+  }, [resumeId]));
   useEffect(() => { setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100); }, [messages]);
 
   // ── GPT ──────────────────────────────────────────────────────
@@ -107,6 +134,21 @@ export default function TutorSessionScreen() {
     setSending(false);
   }
 
+  async function loadSession(id: string) {
+    const { data } = await supabase
+      .from('tutor_sessions')
+      .select('messages, subject, topic')
+      .eq('id', id)
+      .single();
+    if (data?.messages && Array.isArray(data.messages) && data.messages.length > 0) {
+      setMessages(data.messages as Message[]);
+      if (data.subject) setSubject(data.subject);
+      if (data.topic)   setTopic(data.topic);
+    } else {
+      sendGreeting();
+    }
+  }
+
   // ── Send message ─────────────────────────────────────────────
   async function sendMessage() {
     const text = input.trim();
@@ -127,52 +169,94 @@ export default function TutorSessionScreen() {
     await saveSession(final);
   }
 
-  // ── Send photo — camera or library ───────────────────────────
+  // ── Send photo ───────────────────────────────────────────────
   async function sendPhoto() {
-    Alert.alert('Add a photo', 'How would you like to add a photo?', [
-      { text: '📷 Camera', onPress: () => pickPhoto('camera') },
-      { text: '🖼️ Photo Library', onPress: () => pickPhoto('library') },
+    Alert.alert('Add a photo', 'How would you like to add your photo?', [
+      { text: 'Camera', onPress: () => doSendPhoto('camera') },
+      { text: 'Photo Library', onPress: () => doSendPhoto('library') },
       { text: 'Cancel', style: 'cancel' },
     ]);
   }
 
-  async function pickPhoto(source: 'camera' | 'library') {
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, base64: true })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, base64: true });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    const updated: Message[] = [...messages, { role: 'child', content: 'Here is a photo of my work.', imageUri: asset.uri }];
-    setMessages(updated);
-    setSending(true);
+  async function doSendPhoto(source: 'camera' | 'library') {
     try {
-      const vData = await callClaude({
-        feature: 'receipt_scan', familyId: FAMILY_ID,
-        body: { model: 'claude-sonnet-4-6', max_tokens: 400, messages: [{ role: 'user', content: [
-          { type: 'image', source: { type: 'base64', media_type: asset.mimeType ?? 'image/jpeg', data: asset.base64 ?? '' } },
-          { type: 'text',  text: `Describe this homework photo from a Year ${yearLevel} student in 2 sentences: what subject, what the task is, what they've attempted.` },
-        ]}]},
-      });
-      const desc = vData.content?.[0]?.text ?? 'I can see your work.';
-      const history = [
-        { role: 'system', content: buildSystemPrompt(childName, yearLevel, subject) },
-        ...updated.map(m => ({ role: m.role === 'zaeli' ? 'assistant' : 'user', content: m.content })),
-        { role: 'user', content: `${childName} sent a photo. I can see: ${desc}. Respond warmly and Socratically — acknowledge their effort, say something specific, then ask a guiding question. Don't give the answer.` },
-      ];
-      const reply = await callGPT(history);
-      const final: Message[] = reply ? [...updated, { role: 'zaeli', content: reply }] : updated;
-      setMessages(final);
-      await saveSession(final);
-    } catch {
-      setMessages(prev => [...prev, { role: 'zaeli', content: "I can see your work — let's think through this together. What step are you finding tricky?" }]);
-    }
-    setSending(false);
+      let result;
+      if (source === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Camera access in Settings.'); return; }
+        result = await ImagePicker.launchCameraAsync({ quality: 0.9, base64: true });
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Photo Library access in Settings.'); return; }
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9, base64: true });
+      }
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const updated: Message[] = [...messages, { role: 'child', content: 'Here is a photo of my work.', imageUri: asset.uri }];
+      setMessages(updated);
+      setSending(true);
+
+      // Step 1 — Claude Vision extracts content
+      let desc = '';
+      try {
+        const vData = await callClaude({
+          feature: 'tutor_vision', familyId: FAMILY_ID,
+          body: { model: 'claude-sonnet-4-6', max_tokens: 800, messages: [{ role: 'user', content: [
+            { type: 'image', source: { type: 'base64', media_type: asset.mimeType ?? 'image/jpeg', data: asset.base64 ?? '' } },
+            { type: 'text', text: `You are reading a homework photo for a Year ${yearLevel} Australian student.
+
+CRITICAL EXTRACTION RULES:
+1. Extract ALL mathematical content EXACTLY as written — every number, operator (÷ × + − = ( ) [ ]), fraction, equation, and blank line
+2. Preserve the exact structure — if it's a numbered list of questions, list them all numbered
+3. Do NOT interpret or solve — just transcribe faithfully
+4. Note any handwritten working or answers the student has already written
+5. If the image is unclear in any part, say exactly which part is unclear
+
+Return your response in this format:
+SUBJECT: [subject type]
+QUESTIONS: [exact transcription of every question, numbered if applicable]
+STUDENT_WORK: [any answers or working the student has written, or "none visible"]
+CLARITY: [clear / partially unclear — describe what's hard to read]` },
+          ]}]},
+        });
+        desc = vData.content?.[0]?.text ?? '';
+        console.log('[tutor-vision] extraction:', desc);
+      } catch (vErr) {
+        console.error('[tutor-vision] Claude Vision failed:', vErr);
+        setMessages(prev => [...prev, { role: 'zaeli', content: `Hmm, I had trouble reading that photo — could you try uploading it again, or type out the question for me?` }]);
+        setSending(false);
+        return;
+      }
+
+      // Step 2 — GPT responds using the extraction
+      try {
+        const history = [
+          { role: 'system', content: buildSystemPrompt(childName, yearLevel, subject) },
+          ...updated.map(m => ({ role: m.role === 'zaeli' ? 'assistant' : 'user', content: m.content })),
+          { role: 'user', content: `${childName} uploaded a photo of their homework. Here is exactly what I extracted from it:\n\n${desc}\n\nIMPORTANT INSTRUCTIONS:\n- Do NOT show the SUBJECT/QUESTIONS/STUDENT_WORK/CLARITY labels to ${childName} — those were for your internal use only\n- Start by naturally restating the first question in plain conversational language so ${childName} knows you read it correctly (e.g. "Ok, I can see question 1 is: 5 × (2 + 3 × 5) − 34")\n- Then ask one guiding question to get them started — what do they think should be solved first?\n- Never give the answer. One step at a time.` },
+        ];
+        const reply = await callGPT(history);
+        console.log('[tutor-session] GPT reply:', reply);
+        const final: Message[] = reply ? [...updated, { role: 'zaeli', content: reply }] : updated;
+        setMessages(final);
+        await saveSession(final);
+      } catch (gErr) {
+        console.error('[tutor-session] GPT failed:', gErr);
+        // Show what we extracted at minimum so it's not lost
+        const fallback = desc
+          ? `Here's what I can see in your photo:\n\n${desc}\n\nWhat part would you like to start with?`
+          : `I had trouble responding — can you type out the question for me?`;
+        setMessages(prev => [...prev, { role: 'zaeli', content: fallback }]);
+      }
+      setSending(false);
+    } catch (e) { console.error('[tutor-session] doSendPhoto outer:', e); setSending(false); }
   }
 
   // ── Voice ────────────────────────────────────────────────────
   async function toggleVoice() {
     if (recording) {
       setRecording(false);
+      micPulse.stopAnimation(); micPulse.setValue(1);
       if (!audioRec) return;
       await audioRec.stopAndUnloadAsync();
       const uri = audioRec.getURI();
@@ -184,6 +268,12 @@ export default function TutorSessionScreen() {
         await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
         const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
         setAudioRec(rec); setRecording(true);
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(micPulse, { toValue: 1.3, duration: 600, useNativeDriver: true }),
+            Animated.timing(micPulse, { toValue: 1.0, duration: 600, useNativeDriver: true }),
+          ])
+        ).start();
       } catch { Alert.alert('Microphone', 'Could not access microphone.'); }
     }
   }
@@ -232,7 +322,19 @@ export default function TutorSessionScreen() {
     }
   }
 
-  // ── Complete session on Back ─────────────────────────────────
+  // ── Save — silent, stay in session ──────────────────────────
+  async function handleSave() {
+    await saveSession(messages);
+    // Brief toast then dismiss
+    setSaved(true);
+    Animated.sequence([
+      Animated.timing(savedOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.delay(700),
+      Animated.timing(savedOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+    ]).start(() => setSaved(false));
+  }
+
+  // ── Back — save + exit to child hub ─────────────────────────
   async function handleBack() {
     if (sessionId) {
       await supabase.from('tutor_sessions').update({
@@ -244,146 +346,366 @@ export default function TutorSessionScreen() {
     router.replace({ pathname: '/(tabs)/tutor-child', params: { childId, childName, yearLevel: String(yearLevel) } });
   }
 
+
+  async function retryLast() {
+    const withoutLast = messages.slice(0, -1);
+    if (withoutLast.length === 0) return;
+    setMessages(withoutLast);
+    setSending(true);
+    const history = [
+      { role: 'system', content: buildSystemPrompt(childName, yearLevel, subject) },
+      ...withoutLast.map(m => ({ role: m.role === 'zaeli' ? 'assistant' : 'user', content: m.content })),
+    ];
+    const reply = await callGPT(history);
+    const final: Message[] = reply ? [...withoutLast, { role: 'zaeli', content: reply }] : withoutLast;
+    setMessages(final);
+    setSending(false);
+    await saveSession(final);
+  }
+
   // ── Render ───────────────────────────────────────────────────
   return (
-    <View style={s.root}>
+    <SafeAreaView style={s.safe} edges={['top']}>
       <RNStatusBar barStyle="light-content" />
 
+      {/* ── Header ── */}
       <View style={s.sessionHdr}>
         <View style={s.sessionHdrOrb} />
-        <SafeAreaView edges={['top']}>
-          <View style={s.sessionHdrInner}>
-            <View style={s.sessionHdrRow}>
-              <TouchableOpacity
-                onPress={handleBack}
-                activeOpacity={0.7}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Text style={s.sessionBack}>‹</Text>
-              </TouchableOpacity>
-              <Text style={s.sessionChild} numberOfLines={1}>{childName} · Homework Help</Text>
-              {subject !== '' && (
-                <View style={s.sessionPill}>
-                  <Text style={s.sessionPillTxt}>{subject} ✦</Text>
-                </View>
-              )}
-            </View>
-            <Text style={s.sessionTopic}>{topic || 'What are we working on today?'}</Text>
-          </View>
-        </SafeAreaView>
-      </View>
-
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <ScrollView
-        ref={scrollRef}
-        style={s.chatArea}
-        contentContainerStyle={s.chatContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {messages.map((msg, i) => (
-          <View key={i}>
-            {msg.role === 'zaeli' ? (
-              <View style={s.bz}>
-                <Text style={s.bzName}>✦ Zaeli</Text>
-                <Text style={s.bzText}>{msg.content}</Text>
-              </View>
-            ) : (
-              <View style={s.bcWrap}>
-                {msg.imageUri && (
-                  <View style={s.photoBub}>
-                    <Image source={{ uri: msg.imageUri }} style={s.photoImg} resizeMode="cover" />
-                    <Text style={s.photoCap}>Photo uploaded</Text>
-                  </View>
-                )}
-                {msg.content !== 'Here is a photo of my work.' && (
-                  <View style={s.bc}>
-                    <Text style={s.bcText}>{msg.content}</Text>
-                  </View>
-                )}
+        <View style={s.sessionHdrInner}>
+          <View style={s.sessionHdrRow}>
+            <TouchableOpacity onPress={handleBack} activeOpacity={0.7}
+              hitSlop={{ top:12, bottom:12, left:12, right:12 }}>
+              <Text style={s.sessionBack}>‹ Back</Text>
+            </TouchableOpacity>
+            <Text style={s.sessionChild} numberOfLines={1}>{childName} · Homework Help</Text>
+            {subject !== '' && (
+              <View style={s.sessionPill}>
+                <Text style={s.sessionPillTxt}>{subject} ✦</Text>
               </View>
             )}
           </View>
-        ))}
-        {sending && (
-          <View style={s.bz}>
-            <Text style={s.bzName}>✦ Zaeli</Text>
-            <ActivityIndicator size="small" color={T_GOLD} style={{ alignSelf: 'flex-start' }} />
-          </View>
-        )}
-      </ScrollView>
-      </TouchableWithoutFeedback>
+          {topic !== '' && (
+            <Text style={s.sessionTopic}>{topic}</Text>
+          )}
+        </View>
+      </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
-        <View style={[s.inputBar, { paddingBottom: insets.bottom || 16 }]}>
-          <View style={s.inputRow}>
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: CARD }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={0}
+      >
+        <ScrollView
+          ref={scrollRef}
+          style={s.chatArea}
+          contentContainerStyle={s.chatContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {messages.map((msg, i) => {
+            const isLast = i === messages.length - 1;
+            const ts = new Date().toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
+            const fb = feedback[i];
+            return (
+              <View key={i} style={s.msgWrap}>
+                {msg.role === 'zaeli' ? (
+                  /* ── Zaeli — full width, left accent ── */
+                  <View style={s.zRow}>
+                    <View style={s.zAccent} />
+                    <View style={s.zBody}>
+                      <Text style={s.bzName}>✦ Zaeli</Text>
+                      <Text style={s.bzText}>{msg.content}</Text>
+                      <View style={s.actRow}>
+                        <TouchableOpacity style={s.actBtn} activeOpacity={0.6}>
+                          <IcoPlay />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
+                          onPress={() => Clipboard.setString(msg.content)}>
+                          <IcoCopy />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
+                          onPress={() => Share.share({ message: msg.content })}>
+                          <IcoForward />
+                        </TouchableOpacity>
+                        <View style={s.actSep} />
+                        <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
+                          onPress={() => setFeedback(f => ({ ...f, [i]: 'up' }))}>
+                          <IcoThumbUp color={fb === 'up' ? HW_INDIGO : ICON_COLOR} />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
+                          onPress={() => setFeedback(f => ({ ...f, [i]: 'down' }))}>
+                          <IcoThumbDown color={fb === 'down' ? MAG : ICON_COLOR} />
+                        </TouchableOpacity>
+                        {isLast && (
+                          <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
+                            onPress={retryLast}>
+                            <IcoRetry />
+                          </TouchableOpacity>
+                        )}
+                        <Text style={s.tsInline}>{ts}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  /* ── Child — full width, teal tint ── */
+                  <View style={s.cRow}>
+                    {msg.imageUri && (
+                      <Image source={{ uri: msg.imageUri }} style={s.photoImg} resizeMode="cover" />
+                    )}
+                    {msg.content !== 'Here is a photo of my work.' && (
+                      <Text style={s.bcText}>{msg.content}</Text>
+                    )}
+                    <View style={s.cActRow}>
+                      <Text style={s.tsInline}>{ts}</Text>
+                      <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
+                        onPress={() => Clipboard.setString(msg.content)}>
+                        <IcoCopy />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
+                        onPress={() => Share.share({ message: msg.content })}>
+                        <IcoForward />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+            );
+          })}
+          {sending && (
+            <View style={s.msgWrap}>
+              <View style={s.zRow}>
+                <View style={s.zAccent} />
+                <View style={s.zBody}>
+                  <Text style={s.bzName}>✦ Zaeli</Text>
+                  <ActivityIndicator size="small" color={HW_INDIGO} style={{ alignSelf: 'flex-start', marginTop: 4 }} />
+                </View>
+              </View>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* ── Input bar ── */}
+        <View style={s.inputArea}>
+          {recording && (
+            <View style={s.recBanner}>
+              <Animated.View style={[s.recDot, { transform: [{ scale: micPulse }] }]} />
+              <Text style={s.recBannerTxt}>Listening… tap Stop when done</Text>
+            </View>
+          )}
+          <View style={s.inputBox}>
             <TextInput
               style={s.inputField}
               value={input}
               onChangeText={setInput}
-              placeholder="Type your answer…"
-              placeholderTextColor={INK2}
+              placeholder="Chat with Zaeli…"
+              placeholderTextColor={INK3}
               multiline
+              returnKeyType="default"
             />
-            <TouchableOpacity style={s.inputSend} onPress={sendMessage} activeOpacity={0.85}>
-              <Text style={s.inputSendTxt}>↑</Text>
+            <TouchableOpacity
+              style={[s.micBtn, recording && s.micBtnActive]}
+              onPress={toggleVoice}
+              activeOpacity={0.7}
+            >
+              <IcoMic color={recording ? '#fff' : 'rgba(0,0,0,0.35)'} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.sendBtn, (!input.trim() && !recording) && { opacity: 0.45 }]}
+              onPress={sendMessage}
+              activeOpacity={0.8}
+            >
+              <IcoSend />
             </TouchableOpacity>
           </View>
-          <View style={s.inputActions}>
-            <TouchableOpacity style={[s.inputBtn, recording && s.inputBtnActive]} onPress={toggleVoice} activeOpacity={0.8}>
-              <Text style={[s.inputBtnTxt, recording && s.inputBtnTxtActive]}>{recording ? '⏹ Stop' : '🎤 Voice'}</Text>
+          <View style={s.actionRow}>
+            <TouchableOpacity style={s.actionBtn} onPress={() => doSendPhoto('camera')} activeOpacity={0.75}>
+              <IcoCamera />
+              <Text style={s.actionBtnTxt}>Camera</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.inputBtn} onPress={sendPhoto} activeOpacity={0.8}>
-              <Text style={s.inputBtnTxt}>📸 Photo</Text>
+            <View style={s.actionDivider} />
+            <TouchableOpacity style={s.actionBtn} onPress={() => doSendPhoto('library')} activeOpacity={0.75}>
+              <IcoUpload />
+              <Text style={s.actionBtnTxt}>Upload</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.inputBtn} activeOpacity={0.8}>
-              <Text style={s.inputBtnTxt}>🔊 Replay</Text>
+            <View style={s.actionDivider} />
+            <TouchableOpacity style={s.actionBtn} onPress={handleSave} activeOpacity={0.75}>
+              <IcoSaveSession />
+              <Text style={s.actionBtnTxt}>Save</Text>
             </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
-    </View>
+
+      {/* ── Saved toast ── */}
+      {saved && (
+        <Animated.View style={[s.savedToast, { opacity: savedOpacity }]}>
+          <IcoSaveSession color="#fff" />
+          <Text style={s.savedToastTxt}>Session saved!</Text>
+        </Animated.View>
+      )}
+    </SafeAreaView>
+  );
+}
+
+// ── SVG Icons — identical to zaeli-chat ──────────────────────
+
+function IcoPlay({ color = ICON_COLOR }: { color?: string }) {
+  return (
+    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
+      <Polygon points="5 3 19 12 5 21 5 3" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+function IcoCopy({ color = ICON_COLOR }: { color?: string }) {
+  return (
+    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
+      <Rect x="9" y="9" width="13" height="13" rx="2" stroke={color} strokeWidth={ICON_STROKE} fill="none"/>
+      <Path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+function IcoForward({ color = ICON_COLOR }: { color?: string }) {
+  return (
+    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
+      <Path d="M22 2L15 22l-3-7-7-3 17-10z" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+function IcoThumbUp({ color = ICON_COLOR }: { color?: string }) {
+  return (
+    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
+      <Path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+function IcoThumbDown({ color = ICON_COLOR }: { color?: string }) {
+  return (
+    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
+      <Path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+function IcoRetry({ color = ICON_COLOR }: { color?: string }) {
+  return (
+    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
+      <Polyline points="1 4 1 10 7 10" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M3.51 15a9 9 0 102.13-9.36L1 10" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+function IcoMic({ color = ICON_COLOR }: { color?: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24">
+      <Rect x="9" y="2" width="6" height="11" rx="3" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M5 10a7 7 0 0014 0" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Line x1="12" y1="19" x2="12" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
+      <Line x1="8" y1="23" x2="16" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
+    </Svg>
+  );
+}
+function IcoSend() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 24 24">
+      <Line x1="12" y1="19" x2="12" y2="5" stroke="#fff" strokeWidth={2.5} strokeLinecap="round"/>
+      <Polyline points="5 12 12 5 19 12" stroke="#fff" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+
+// Camera icon — lens + body outline
+function IcoCamera({ color = ICON_COLOR }: { color?: string }) {
+  return (
+    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
+      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Circle cx="12" cy="13" r="4" stroke={color} strokeWidth={ICON_STROKE} fill="none"/>
+    </Svg>
+  );
+}
+// Upload icon — image with up arrow
+function IcoUpload({ color = ICON_COLOR }: { color?: string }) {
+  return (
+    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
+      <Rect x="3" y="3" width="18" height="18" rx="2" stroke={color} strokeWidth={ICON_STROKE} fill="none"/>
+      <Path d="M12 16V8" stroke={color} strokeWidth={ICON_STROKE} strokeLinecap="round"/>
+      <Polyline points="8 12 12 8 16 12" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+// Save / checkmark icon — circle with tick
+function IcoSaveSession({ color = ICON_COLOR }: { color?: string }) {
+  return (
+    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
+      <Path d="M22 11.08V12a10 10 0 11-5.93-9.14" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Polyline points="22 4 12 14.01 9 11.01" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
   );
 }
 
 // ── Styles ────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  root:     { flex: 1, backgroundColor: BG },
+  safe: { flex: 1, backgroundColor: HW_INDIGO },
 
-  sessionHdr:      { backgroundColor: T_DARK, overflow: 'hidden' },
-  sessionHdrOrb:   { position: 'absolute', right: -30, top: -30, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(201,168,76,0.05)' },
-  sessionHdrInner: { paddingHorizontal: 22, paddingTop: 14, paddingBottom: 16 },
-  sessionHdrRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  // Header
+  sessionHdr:      { backgroundColor: HW_INDIGO, overflow: 'hidden' },
+  sessionHdrOrb:   { position: 'absolute', right: -30, top: -30, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)' },
+  sessionHdrInner: { paddingHorizontal: 22, paddingTop: 14, paddingBottom: 14 },
+  sessionHdrRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 },
+  sessionBack:     { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: 'rgba(255,255,255,0.7)' },
+  sessionChild:    { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#fff', flex: 1, textAlign: 'right' },
+  sessionPill:     { backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4 },
+  sessionPillTxt:  { fontFamily: 'Poppins_700Bold', fontSize: 11, color: '#fff', textTransform: 'uppercase', letterSpacing: 0.5 },
+  sessionTopic:    { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 4 },
 
-  sessionBack:    { fontSize: 30, color: 'rgba(255,255,255,0.7)', fontFamily: 'Poppins_400Regular', lineHeight: 36 },
-  sessionChild:   { fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#fff', flex: 1 },
-  sessionPill:    { backgroundColor: 'rgba(201,168,76,0.2)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.3)', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4 },
-  sessionPillTxt: { fontFamily: 'Poppins_700Bold', fontSize: 11, color: T_GOLD, textTransform: 'uppercase', letterSpacing: 0.5 },
-  sessionTopic:   { fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(255,255,255,0.45)' },
-
+  // Chat area
   chatArea:    { flex: 1, backgroundColor: BG },
-  chatContent: { padding: 14, paddingHorizontal: 18, gap: 10, paddingBottom: 8 },
+  chatContent: { paddingVertical: 12 },
 
-  bz:     { maxWidth: '84%', backgroundColor: CARD, borderRadius: 18, borderTopLeftRadius: 4, padding: 14, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' },
-  bzName: { fontFamily: 'Poppins_700Bold', fontSize: 11, color: T_GOLD, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 },
-  bzText: { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, lineHeight: 23 },
+  // Message wrapper — full width with horizontal padding
+  msgWrap: { paddingHorizontal: 16, marginBottom: 2 },
 
-  bcWrap: { alignItems: 'flex-end' },
-  bc:     { maxWidth: '74%', backgroundColor: T_DARK, borderRadius: 18, borderTopRightRadius: 4, padding: 14 },
-  bcText: { fontFamily: 'Poppins_400Regular', fontSize: 15, color: '#fff', lineHeight: 22 },
+  // Zaeli message — full width with teal left accent bar
+  zRow:    { flexDirection: 'row', marginBottom: 12 },
+  zAccent: { width: 3, borderRadius: 2, backgroundColor: HW_INDIGO, marginRight: 12, marginTop: 2, flexShrink: 0 },
+  zBody:   { flex: 1 },
+  bzName:  { fontFamily: 'Poppins_700Bold', fontSize: 11, color: HW_INDIGO, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 },
+  bzText:  { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, lineHeight: 24 },
 
-  photoBub: { maxWidth: '78%', marginBottom: 4, alignSelf: 'flex-end' },
-  photoImg: { width: 200, height: 140, borderRadius: 14, borderTopRightRadius: 4 },
-  photoCap: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: INK2, textAlign: 'right', marginTop: 3 },
+  // Child message — full width, teal tint background
+  cRow:    { backgroundColor: `${HW_INDIGO}12`, borderRadius: 12, padding: 12, marginBottom: 12 },
+  bcText:  { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, lineHeight: 22 },
+  cActRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 2 },
 
-  inputBar:     { backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingTop: 10, paddingBottom: 22 },
-  inputRow:     { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 9 },
-  inputField:   { flex: 1, backgroundColor: '#F7F7F7', borderRadius: 24, borderWidth: 1.5, borderColor: BORDER, paddingHorizontal: 16, paddingVertical: 11, fontSize: 15, color: INK, maxHeight: 100, fontFamily: 'Poppins_400Regular' },
-  inputSend:    { width: 46, height: 46, backgroundColor: T_DARK, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
-  inputSendTxt: { fontSize: 20, color: '#fff' },
-  inputActions:     { flexDirection: 'row', gap: 7 },
-  inputBtn:         { flex: 1, backgroundColor: '#F7F7F7', borderRadius: 12, borderWidth: 1.5, borderColor: BORDER, paddingVertical: 11, alignItems: 'center', justifyContent: 'center' },
-  inputBtnActive:   { backgroundColor: T_GOLDL, borderColor: 'rgba(201,168,76,0.25)' },
-  inputBtnTxt:      { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK2 },
-  inputBtnTxtActive:{ color: T_GOLD2 },
+  // Action rows
+  actRow:   { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 8 },
+  actBtn:   { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+  actSep:   { width: 1, height: 16, backgroundColor: 'rgba(0,0,0,0.10)', marginHorizontal: 4 },
+  tsInline: { fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK3, marginLeft: 'auto', paddingRight: 2 },
+
+  // Photo — full width in conversation
+  photoImg:  { width: '100%', height: 220, borderRadius: 10, marginBottom: 8 },
+
+  // Input bar
+  inputArea:    { backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingTop: 10, paddingBottom: Platform.OS === 'ios' ? 28 : 12 },
+  inputBox:     { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F7F7F7', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.10)', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+  inputField:   { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, maxHeight: 100 },
+  micBtn:       { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 11 },
+  micBtnActive: { backgroundColor: MAG },
+  sendBtn:      { width: 36, height: 36, borderRadius: 11, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center', shadowColor: BLUE, shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+
+  // Three action buttons
+  actionRow:     { flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: '#F7F7F7', borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.10)', overflow: 'hidden' },
+  actionBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 6 },
+  actionBtnTxt:  { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK2 },
+  actionDivider: { width: 1, height: 20, backgroundColor: 'rgba(0,0,0,0.08)' },
+
+  // Saved toast
+  savedToast:    { position: 'absolute', bottom: 120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: HW_INDIGO, borderRadius: 24, paddingHorizontal: 20, paddingVertical: 12, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+  savedToastTxt: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' },
+
+  // Recording banner
+  recBanner:    { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(224,0,124,0.08)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: 'rgba(224,0,124,0.2)' },
+  recDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: MAG },
+  recBannerTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: MAG, flex: 1 },
 });

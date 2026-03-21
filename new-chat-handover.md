@@ -1,5 +1,5 @@
 ## Zaeli App — New Chat Handover
-*19 March 2026 — Session 11 complete. Copy this entire message to start a new chat.*
+*21 March 2026 — Session 13 complete. Copy this entire message to start a new chat.*
 
 ---
 
@@ -7,20 +7,21 @@ Hi! I'm continuing development of **Zaeli** — an iOS-first AI family life plat
 
 ---
 
-### How I like to work (important)
+### How I like to work
 - I'm a **beginner developer** — always give me **full file rewrites** I can copy-paste, never partial diffs
-- One PowerShell command at a time, never chained with `&&`
+- One PowerShell command at a time, never chained with &&
 - Explain what you're doing in plain English before diving into code
 - **Design before code** — for any new screen, discuss and show an HTML mockup first
-- The **Zaeli persona is the most important thing** in the entire product — every response Zaeli gives must feel like a switched-on friend, never a chatbot. See persona rules in CLAUDE.md
-- **ROI matters** — every feature decision should consider retention impact and revenue potential
+- The **Zaeli persona is the most important thing** — every response must feel like a switched-on friend, never a chatbot
+- **ROI matters** — every feature decision should consider retention and revenue impact
 
 ---
 
 ### Who I am
-- My name is Richard. Logged-in user is Anna (family: Anna, Richard, Poppy 11 Yr6 girl, Gab 9 Yr4 BOY (Gabriel), Duke 6 Yr1 boy)
-- Local path: `C:\Users\richa\zaeli` (Windows, PowerShell)
-- PowerShell escape: `app\`(tabs`)\filename.tsx`
+- My name is Richard. Logged-in user is Anna
+- Family: Anna, Richard, Poppy (Yr6, age 11, girl), Gab (Yr4, age 9, BOY — Gabriel, he/him), Duke (Yr1, age 6, boy)
+- Local path: C:\Users\richa\zaeli (Windows, PowerShell)
+- PowerShell escape: app\`(tabs`)\filename.tsx
 - Repo: https://github.com/RDK1981/zaeli (private)
 - Admin: https://incomparable-gumdrop-32e4ba.netlify.app
 
@@ -29,191 +30,144 @@ Hi! I'm continuing development of **Zaeli** — an iOS-first AI family life plat
 ### Key constants
 ```
 DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
-DUMMY_MEMBER_NAME = 'Anna'
+SONNET    = 'claude-sonnet-4-6'
 GPT5_MINI = 'gpt-5.4-mini'
-SONNET = 'claude-sonnet-4-20250514'
-HAIKU  = 'claude-haiku-4-5-20251001'
+CRITICAL: OpenAI = max_completion_tokens. Claude = max_tokens. Never mix.
 ```
-**CRITICAL:** OpenAI = `max_completion_tokens`. Claude = `max_tokens`. Never mix.
-**CRITICAL:** OpenAI env var = `EXPO_PUBLIC_OPENAI_API_KEY` (NOT `EXPO_PUBLIC_OPENAI_KEY` — this mistake cost us a session!)
 
 ---
 
-### What's been built (all working as of 19 Mar 2026 Session 11)
+### What's been built (all working as of 21 Mar 2026)
 
 **Core screens — all complete:**
-- ✅ Home (`index.tsx`) — brief, mic, GPT logging
-- ✅ Calendar (`calendar.tsx`) — brief, mic, GPT logging
-- ✅ Shopping (`shopping.tsx`) — both mics, 100-item list, GPT logging
-- ✅ Zaeli Chat (`zaeli-chat.tsx`) — full GPT, autoMic, logging
-- ✅ Meal Planner (`mealplanner.tsx`) — GPT brief, mic, logging
-- ✅ More (`more.tsx`) — AI engine toggle (remove pre-launch)
+- index.tsx — Home brief, mic, GPT logging
+- calendar.tsx — Calendar brief, mic, logging
+- shopping.tsx — Shopping + Pantry + Spend tabs, both mics, logging
+- zaeli-chat.tsx — Full multi-channel chat, GPT, autoMic, logging
+- mealplanner.tsx — Meal planner, GPT brief, mic, logging
+- more.tsx — Hub + Settings + AI toggle (remove pre-launch)
 
-**Tutor module — fully built this session:**
-- ✅ `tutor.tsx` — Parent hub. Dark midnight hero. Child cards (active/locked). Zaeli noticed card (gold, briefCard style). Session data drives noticed text.
-- ✅ `tutor-child.tsx` — Child home. Mode selector (Homework/Practice/Reading cards). Recent sessions with score badges (8/11). useFocusEffect refetches on every return.
-- ✅ `tutor-session.tsx` — Homework Help. Socratic GPT chat. Photo (camera or library). Voice (Whisper). Session saved and completed on Back.
-- ✅ `tutor-practice.tsx` — Practice Mode. MC questions (Middle Years) or show-working (Senior). Adaptive difficulty. No repeated questions. Three-stage wrong answer flow. Socratic bottom sheet ("🧠 Talk me through it"). Session saving + completion on Back.
-- ✅ `tutor-reading.tsx` — Reading Mode. Photo page (camera or library). Record reading (Whisper). GPT feedback with accuracy/pacing/confidence scores.
+**Tutor module — built this session:**
+- tutor.tsx — Hub: kids list, Zaeli noticed card (speaks TO kids not about them)
+- tutor-child.tsx — Child zone: 3 full-width mode cards, recent sessions (tappable)
+- tutor-session.tsx — Homework Help: full-width layout, vision+GPT pipeline, all icons
+- tutor-practice.tsx — Practice quiz (camera fixes applied, needs UX review)
+- tutor-reading.tsx — Reading & Speaking (camera fixes applied, needs UX review)
 
----
-
-### Tutor module — key decisions made
-
-**Architecture:** Standalone premium module. Parent hub → child home → mode. Not inside Kids Hub.
-
-**Pricing:** A$9.99/child/month. Duke locked (Year 1 — parents' choice). Poppy + Gab active.
-
-**AI engine:** GPT-5.4 mini confirmed working well for all tutor functions. Sonnet only for vision (photo of work).
-
-**Session model:** One session per screen visit. Starts on first answer. Completes on Back press. Subject change always creates new session (never overwrites). Questions answered + correct saved.
-
-**Socratic sheet:** Always-available `🧠 Talk me through it` button. Animated.timing slide-up (380ms). Full screen. Voice + camera wired. Logs to session. [READY_TO_TRY] token triggers close button.
-
-**Wrong answer flow:** Stage 1 (Zaeli redirect) → Stage 2 (💡 hint button) → Stage 3 (📝 whiteboard workings with actual numbers and method).
-
-**Adaptive difficulty:** getDifficultyInstruction() from live correct/answered ratio. Zaeli acknowledges shifts naturally.
-
-**No repeats:** askedQs[] array passed to GPT each question load.
+**Admin console:**
+- URL: https://incomparable-gumdrop-32e4ba.netlify.app
+- MTD cost tracking fixed: aggregate query + limit 2000 (was 500 — caused wrong totals)
+- Verified cost 21 Mar: A$2.55 MTD
 
 ---
 
-### Supabase — family_members correct data
-```
-Anna    — parent, tutor_active: false
-Richard — parent, tutor_active: false
-Poppy   — child, Year 6, age 11, GIRL, tutor_active: true  (id: 81b7d721...)
-Gab     — child, Year 4, age 9, BOY (Gabriel), tutor_active: true  (id: d0d5fb7a...)
-Duke    — child, Year 1, age 6, boy, tutor_active: false → run SQL below to unlock
-```
-**IMPORTANT: Gab is a BOY — Gabriel. Always use he/him. Several "her" references may exist in the app — fix on sight.**
+### Tutor module — detailed state
 
-**Unlock Duke for weekend testing:**
-```sql
-update family_members
-set tutor_active = true
-where name = 'Duke'
-and family_id = '00000000-0000-0000-0000-000000000001';
-```
+**Colours:**
+- Tutor hub hero: T_DARK #1A1A2E
+- Practice: T_GOLD #C9A84C
+- Homework Help: HW_INDIGO #1A5F7A (deep teal)
+- Reading: MAG #E0007C
 
-Old test records (Emma, Jack, Sarah, Dad) deleted. New columns added:
-```sql
--- family_members: year_level integer, tutor_active boolean
--- tutor_sessions: questions_answered integer, questions_correct integer, status text
-```
+**Homework Help chat (tutor-session.tsx):**
+- Full-width document layout (not bubbles) — matches Claude/GPT chat style
+- Zaeli messages: left teal accent bar, full width
+- Child messages: teal-tint background block, full width
+- Photos: full-width 220px
+- Input bar: exact match to zaeli-chat (F7F7F7 box, borderRadius:18, mic in grey square, blue rounded-square send)
+- 3 action buttons below input: Camera (direct), Upload (direct), Save (silent save + toast, stay in session)
+- Back button: saves session as complete, navigates to child hub
 
----
+**Vision pipeline:**
+1. Claude Sonnet 4.6 at quality:0.9 extracts SUBJECT/QUESTIONS/STUDENT_WORK/CLARITY
+2. GPT receives extraction, told NOT to show labels to child, restates question naturally, guides Socratically
+3. Errors: Vision fail = specific retry message. GPT fail = shows raw extraction as fallback.
+4. Both steps log to console for debugging
 
-### Weekend testing — suggested focus per child
+**Session management:**
+- resumeSessionId param = load that session's messages from Supabase
+- No resumeSessionId = fresh greeting (new session)
+- useFocusEffect resets ALL state on every focus (messages, sessionId, subject, topic, feedback)
+- Mode card buttons always create new sessions
+- Recent session cards pass their own resumeSessionId
+- IMPORTANT: tutor_sessions table needs messages column:
+  ALTER TABLE tutor_sessions ADD COLUMN IF NOT EXISTS messages jsonb DEFAULT '[]'::jsonb;
 
-| Child | Age | Focus | Watch for |
-|---|---|---|---|
-| Poppy | 11, Yr6, girl | English + Maths, Socratic sheet | Is difficulty right? Does she engage with hints? |
-| Gab | 9, Yr4, boy | Maths practice, wrong answer flow | Does hint → workings flow help him? |
-| Duke | 6, Yr1, boy | Simple Maths, **voice input critical** | Can he use it independently? Voice working? |
+**Tutor system prompt rules (ABSOLUTE):**
+- NEVER give the answer to any calculation — not even as an example
+- NEVER complete a step for the child
+- Correct answer: confirm warmly, next step
+- Wrong answer: hint only, redirect with question
+- One step at a time, always end with a question
+- Max 2-3 sentences, plain text (no asterisks/bold)
 
----
-
-### Critical bugs fixed this session
-
-1. **Wrong env var** — `EXPO_PUBLIC_OPENAI_KEY` doesn't exist. Correct: `EXPO_PUBLIC_OPENAI_API_KEY`. All tutor screens updated.
-2. **logApiCall doesn't exist** — `api-logger` only exports `callClaude`. GPT calls log inline to Supabase directly.
-3. **Session overwrite on subject change** — Fixed: `changeSubject()` resets sessionId to null so new subject always creates new row.
-4. **Next button race** — Fixed: `feedbackLoading` state disables Next until GPT feedback arrives.
-5. **Socratic sheet ✕ blocked** — Fixed: TouchableWithoutFeedback was wrapping the whole sheet, swallowing taps. Moved to wrap chat ScrollView only.
-6. **Sheet header too tall** — Fixed: Removed SafeAreaView inside Modal (causes double padding). Use paddingTop:52 directly.
-7. **Keyboard gap** — Fixed: Removed manual insets padding from KAV, use `insets.bottom || 16`.
-
----
-
-### Unit economics confirmed tonight
-
-| Metric | Value |
-|---|---|
-| 10-question practice session | ~A$0.01 total |
-| 50 sessions/child/month | ~A$0.50 API cost |
-| Gross margin on A$9.99 Tutor | ~95% |
-| 500 families revenue (base + tutor) | ~A$12,490/month |
-| 500 families API cost | ~A$4,250/month |
-| Profit at 500 families | ~A$6,700/month |
-| GPT-5.4 mini quality verdict | ✅ Working well — keep it |
+**Icons (all wired except Play):**
+- Play: placeholder — will connect to ElevenLabs
+- Copy: Clipboard.setString
+- Forward: Share.share (iOS share sheet)
+- ThumbUp/Down: colour state feedback (teal/magenta)
+- Retry: removes last Zaeli message, regenerates
+- IcoCamera, IcoUpload, IcoSaveSession: SVG line icons in action row
 
 ---
 
-### Next session priorities (in order)
+### What we discussed (off-topic but important)
 
-**0. Before anything — run Duke unlock SQL (30 seconds)**
-```sql
-update family_members set tutor_active = true
-where name = 'Duke' and family_id = '00000000-0000-0000-0000-000000000001';
-```
-
-**1. Voice recording UI — all tutor screens**
-Same pulsing red dot + "Recording…" indicator as home/calendar.
-Critical for Duke (age 6) — voice is his primary input method.
-Apply to: tutor-session, tutor-practice (Socratic sheet), tutor-reading.
-
-**2. iPad layout pass — all tutor screens**
-Add `isTablet` detection + `maxWidth: 600` centred content wrapper.
-Goal: kids can test on iPad over the weekend.
-```ts
-const { width } = Dimensions.get('window');
-const isTablet = width >= 768;
-const CONTENT_WIDTH = isTablet ? 600 : width;
-```
-
-**3. ElevenLabs voice output**
-Zaeli speaks her responses aloud — huge for Duke (age 6, Year 1).
-Also great for all kids — feels like a real tutor in the room.
-Discuss implementation approach at start of session.
-
-**4. Fix Gab gender references**
-Gab is a BOY (Gabriel). Check tutor screens for any "her/she" references and fix.
-
-**5. Prompt audit / token optimisation**
-Input:output ratio is 15:1. Trim system prompts 20-30%. Easy margin win.
-
-**6. Home brief quality pass**
-Implement zaeli-brief-logic-spec.md — callbacks, dinner logic, time windows.
-
-**7. Tutor Activity + Settings tabs**
-Activity: build once real session data exists.
-Settings: licence management, eventually Stripe.
-
-**8. PWA / laptop support**
-For older kids (high school) doing homework on laptops.
-Discuss approach — Expo Web vs proper PWA build.
-
-**9. Website + Stripe + onboarding**
+**OpenClaw / NemoClaw:**
+- OpenClaw = viral open-source AI agent, 250K GitHub stars, runs on messaging apps
+- NemoClaw = NVIDIA enterprise stack on OpenClaw
+- Claude Dispatch = Anthropic's remote Mac agent via phone (professional focus)
+- None are direct Zaeli threats TODAY — all require technical setup families won't do
+- Real threat: Apple shipping a proper agentic Siri in 18-30 months
+- Strategy: build deep family features (Tutor, brief intelligence, Zaeli noticed) that generic agents can't replicate. Window is open now.
 
 ---
 
 ### Critical architecture reminders
 
-**SafeAreaView inside Modal:** Don't use. Use `paddingTop: 52` on inner view instead.
+**Brief data fetching:** Always fetch inside generateBrief() — never rely on component state.
 
-**Photo pickers:** Always `Alert.alert` with camera + library options. Never `launchCameraAsync` directly.
+**Date handling:** Always local date construction — NEVER toISOString().split('T')[0] (UTC shifts in AEST).
 
-**Back buttons:** Always `router.replace()` with explicit params. Never `router.back()`.
+**Keyboard:** KeyboardAvoidingView behavior='padding' + paddingBottom:28 on input bar. NEVER use automaticallyAdjustKeyboardInsets alongside KAV — they conflict and cause gaps.
 
-**Keyboard in chat screens:** `TouchableWithoutFeedback` wraps the ScrollView only — NOT the whole screen or modal.
+**SafeAreaView:** edges={['top']} only — handle bottom with paddingBottom:28 in input bar.
 
-**Brief data:** Always fetched fresh inside generateBrief(). Never from component state.
+**zaeli-chat render structure (do not change):**
+```
+<View flex:1 white>
+  <StatusBar dark animated/>
+  <SafeAreaView edges=['top']>  ← header ONLY
+    <View hdr/>
+  </SafeAreaView>
+  <View flex:1><ScrollView/></View>
+  <KeyboardAvoidingView/>
+</View>
+```
 
-**Date handling:** Never `toISOString().split('T')[0]` — UTC shifts date in AEST.
+---
 
-**GPT logging (tutor):** Inline Supabase insert — no wrapper function.
+### Immediate next priorities
 
-**Claude vision (tutor):** `callClaude({ feature: 'receipt_scan', ... })` — logs automatically.
+1. **tutor-practice.tsx UX review** — same UX pass as homework (full-width layout, input bar, icons)
+2. **tutor-reading.tsx UX review** — same pass
+3. **Pass 4: Parent analytics** — Zaeli noticed card moves to Home screen as parent insight; tutor summary/activity/settings move to Our Family (parent-only)
+4. **ElevenLabs Play button** — wire up voice playback for Zaeli responses
+5. **Whisper logging** — voice transcriptions not yet logged to api_logs
+6. **Home brief quality pass** — implement zaeli-brief-logic-spec.md fully
+7. **To-dos screen** — currently stub in more.tsx
+8. **Website + Stripe + onboarding**
+9. **Multi-user / family sync**
+10. **Pre-launch cleanup** — remove AI toggle, replace DUMMY_FAMILY_ID with real auth
 
 ---
 
 ### Tech reminders
-- Always `npx expo start --clear` after changes
-- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../../lib/api-logger`, `../../lib/zaeli-provider`
+- Always npx expo start --clear after changes
+- Import paths from app/(tabs)/: ../../lib/supabase, ../../lib/api-logger, ../../lib/zaeli-provider
 - Supabase: rsvbzakyyrftezthlhtd (Sydney, ap-southeast-2)
-- Admin file: `C:\Users\richa\Downloads\zaeli-admin\index.html` → drag to Netlify to redeploy
+- Admin file: C:\Users\richa\Downloads\zaeli-admin\index.html → drag to Netlify to redeploy
 
 ---
 
-**Please confirm you've read this and are ready to continue. First priority: voice recording UI on all three tutor screens.**
+**Please confirm you've read this. First priority: tutor-practice.tsx UX review, or tell me what you'd like to tackle first.**
