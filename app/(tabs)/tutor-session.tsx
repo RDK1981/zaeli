@@ -13,6 +13,7 @@ import Svg, { Path, Rect, Polygon, Polyline, Line, Circle } from 'react-native-s
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import { callClaude } from '../../lib/api-logger';
@@ -37,6 +38,24 @@ const GPT_MODEL  = 'gpt-5.4-mini';
 const ICON_SIZE   = 18;
 const ICON_STROKE = 1.8;
 const ICON_COLOR  = 'rgba(0,0,0,0.40)';
+
+// ── Detect real image format from base64 magic bytes ──────────
+// expo-image-picker mimeType can return 'image/jpg' (invalid for Claude)
+// or undefined. Reading the actual bytes is the only reliable approach.
+// HEIC files start with AAAAJGZ0eXBoZWlj — Claude cannot process these.
+function getMediaType(base64: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
+  if (!base64) return 'image/jpeg';
+  // Strip data URI prefix if present
+  const raw = base64.replace(/^data:image\/[^;]+;base64,/, '');
+  if (raw.startsWith('/9j/'))       return 'image/jpeg';
+  if (raw.startsWith('iVBORw0K'))  return 'image/png';
+  if (raw.startsWith('R0lGOD'))    return 'image/gif';
+  if (raw.startsWith('UklGR'))     return 'image/webp';
+  // HEIC/HEIF — Apple format, not supported by Claude
+  // Magic bytes decode to ftyp box: AAAAJGZ0eXBoZWlj = ftypheic
+  if (raw.startsWith('AAAAJ') || raw.startsWith('AAAAI')) return 'image/jpeg'; // will be caught by HEIC guard
+  return 'image/jpeg';
+}
 
 function getOpenAIKey() { return process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''; }
 
@@ -184,26 +203,68 @@ export default function TutorSessionScreen() {
       if (source === 'camera') {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Camera access in Settings.'); return; }
-        result = await ImagePicker.launchCameraAsync({ quality: 0.9, base64: true });
+        // allowsEditing forces transcoding to JPEG — prevents HEIC being sent to Claude
+        result = await ImagePicker.launchCameraAsync({
+          quality: 0.7,
+          base64: true,
+          exif: false,
+          allowsEditing: false,
+          mediaTypes: ['images'],
+        });
       } else {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Photo Library access in Settings.'); return; }
-        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9, base64: true });
+        // allowsEditing + mediaTypes forces Expo to transcode HEIC → JPEG
+        result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          quality: 0.7,
+          base64: true,
+          exif: false,
+          allowsEditing: false,
+        });
       }
       if (result.canceled || !result.assets[0]) return;
       const asset = result.assets[0];
+
+      // Resize + compress to guarantee under Claude's 5MB limit
+      // Max 1280px on longest side, quality 0.5 — plenty sharp for reading text
+      const compressed = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1280 } }],
+        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+
+      // Use compressed base64 — always JPEG from manipulateAsync, no HEIC risk
+      const rawBase64 = (compressed.base64 ?? '').replace(/^data:image\/[^;]+;base64,/, '');
+      console.log('[tutor-vision] base64 length after compress:', rawBase64.length, '| type:', getMediaType(rawBase64));
+
       const updated: Message[] = [...messages, { role: 'child', content: 'Here is a photo of my work.', imageUri: asset.uri }];
       setMessages(updated);
       setSending(true);
 
       // Step 1 — Claude Vision extracts content
+      // Call fetch directly (not callClaude) — large base64 strings can be
+      // corrupted when passed through the callClaude JSON.stringify wrapper.
       let desc = '';
       try {
-        const vData = await callClaude({
-          feature: 'tutor_vision', familyId: FAMILY_ID,
-          body: { model: 'claude-sonnet-4-6', max_tokens: 800, messages: [{ role: 'user', content: [
-            { type: 'image', source: { type: 'base64', media_type: asset.mimeType ?? 'image/jpeg', data: asset.base64 ?? '' } },
-            { type: 'text', text: `You are reading a homework photo for a Year ${yearLevel} Australian student.
+        const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+        const visionBody = {
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 800,
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: getMediaType(rawBase64),
+                  data: rawBase64,
+                },
+              },
+              {
+                type: 'text',
+                text: `You are reading a homework photo for a Year ${yearLevel} Australian student.
 
 CRITICAL EXTRACTION RULES:
 1. Extract ALL mathematical content EXACTLY as written — every number, operator (÷ × + − = ( ) [ ]), fraction, equation, and blank line
@@ -216,11 +277,31 @@ Return your response in this format:
 SUBJECT: [subject type]
 QUESTIONS: [exact transcription of every question, numbered if applicable]
 STUDENT_WORK: [any answers or working the student has written, or "none visible"]
-CLARITY: [clear / partially unclear — describe what's hard to read]` },
-          ]}]},
+CLARITY: [clear / partially unclear — describe what's hard to read]`,
+              },
+            ],
+          }],
+        };
+
+        const vRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': API_KEY,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify(visionBody),
         });
+
+        const vData = await vRes.json();
+        console.log('[tutor-vision] status:', vRes.status, '| response:', JSON.stringify(vData).substring(0, 200));
+
+        if (!vRes.ok) {
+          throw new Error(`Anthropic API ${vRes.status}: ${vData?.error?.message ?? 'unknown'}`);
+        }
+
         desc = vData.content?.[0]?.text ?? '';
-        console.log('[tutor-vision] extraction:', desc);
       } catch (vErr) {
         console.error('[tutor-vision] Claude Vision failed:', vErr);
         setMessages(prev => [...prev, { role: 'zaeli', content: `Hmm, I had trouble reading that photo — could you try uploading it again, or type out the question for me?` }]);

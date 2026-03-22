@@ -1,842 +1,766 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Animated, Easing,
-  ScrollView,
-  StyleSheet, Text, TouchableOpacity, View, useWindowDimensions
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Line, Path, Polyline, Rect } from 'react-native-svg';
-import { supabase } from '../../lib/supabase';
-import { buildMemoryContext } from '../../lib/zaeli-memory';
-import { HamburgerButton, NavMenu } from '../components/NavMenu';
-import { callClaude } from '../../lib/api-logger';
-import { getZaeliProvider } from '../../lib/zaeli-provider';
+/**
+ * index.tsx — Zaeli Home Screen
+ * Full redesign: compact blue banner · oversized serif brief · emoji nav rows with sub-notes
+ * Add to Chat sheet (SVG) · Claude-style mic + waveform animation
+ */
 
-// ── ASK BAR ICONS ────────────────────────────────────────────
-function IcoMic({ color = 'rgba(0,0,0,0.45)' }: { color?: string }) {
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  Animated, Easing, Platform, Modal, Pressable,
+} from 'react-native';
+import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect, useRouter } from 'expo-router';
+import Svg, { Path, Line, Rect, Circle, Polyline } from 'react-native-svg';
+import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '../../lib/supabase';
+import { callGPT } from '../../lib/zaeli-provider';
+import { NavMenu, HamburgerButton } from '../components/NavMenu';
+
+// ── Session-level voice overlay flag (resets on cold start) ────
+// Once the overlay has been shown, subsequent mic taps go straight
+// to zaeli-chat with voiceBarActive — no overlay again that session.
+let voiceOverlayShownThisSession = false;
+
+// ── Constants ──────────────────────────────────────────────────
+const FAMILY_ID        = '00000000-0000-0000-0000-000000000001';
+const MEMBER_NAME      = 'Anna';
+const BLUE             = '#0057FF';
+const CORAL            = '#FF4545';
+const INK              = '#0A0A0A';
+const INK2             = 'rgba(10,10,10,0.5)';
+const INK3             = 'rgba(10,10,10,0.32)';
+const BORDER           = 'rgba(10,10,10,0.08)';
+const BG               = '#FAF8F5';
+const YELLOW           = '#FFE500';
+const SCROLL_THRESHOLD = 120;
+
+// ── Helpers ────────────────────────────────────────────────────
+function getGreeting(h: number) {
+  if (h < 12) return 'Good morning,';
+  if (h < 17) return 'Good afternoon,';
+  if (h < 21) return 'Good evening,';
+  return 'Good night,';
+}
+function getGreetingEmoji(h: number) {
+  if (h < 12) return '👋';
+  if (h < 17) return '☀️';
+  if (h < 21) return '🌤️';
+  return '🌙';
+}
+function localDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ── SVG Icons ──────────────────────────────────────────────────
+function IcoPlus() {
   return (
-    <Svg width={18} height={18} viewBox="0 0 24 24">
-      <Rect x="9" y="2" width="6" height="11" rx="3" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <Path d="M5 10a7 7 0 0014 0" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <Line x1="12" y1="19" x2="12" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
-      <Line x1="8" y1="23" x2="16" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
+    <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={INK3} strokeWidth="2" strokeLinecap="round">
+      <Line x1="12" y1="5" x2="12" y2="19"/>
+      <Line x1="5" y1="12" x2="19" y2="12"/>
+    </Svg>
+  );
+}
+function IcoMic({ color = INK3 }: { color?: string }) {
+  return (
+    <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="9" y="2" width="6" height="11" rx="3"/>
+      <Path d="M5 10a7 7 0 0014 0"/>
+      <Line x1="12" y1="19" x2="12" y2="23"/>
+      <Line x1="8" y1="23" x2="16" y2="23"/>
     </Svg>
   );
 }
 function IcoSend() {
   return (
-    <Svg width={16} height={16} viewBox="0 0 24 24">
-      <Line x1="12" y1="19" x2="12" y2="5" stroke="#fff" strokeWidth={2.5} strokeLinecap="round"/>
-      <Polyline points="5 12 12 5 19 12" stroke="#fff" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <Line x1="12" y1="19" x2="12" y2="5"/>
+      <Polyline points="5 12 12 5 19 12"/>
+    </Svg>
+  );
+}
+function IcoArrowDown() {
+  return (
+    <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <Line x1="12" y1="5" x2="12" y2="19"/>
+      <Polyline points="19 12 12 19 5 12"/>
+    </Svg>
+  );
+}
+function IcoChevron() {
+  return (
+    <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={INK3} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="9 18 15 12 9 6"/>
+    </Svg>
+  );
+}
+function IcoClose() {
+  return (
+    <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="2.2" strokeLinecap="round">
+      <Line x1="18" y1="6" x2="6" y2="18"/>
+      <Line x1="6" y1="6" x2="18" y2="18"/>
+    </Svg>
+  );
+}
+// Add to Chat sheet SVG icons
+function IcoCamera() {
+  return (
+    <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+      <Circle cx="12" cy="13" r="4"/>
+    </Svg>
+  );
+}
+function IcoPhotos() {
+  return (
+    <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3" y="3" width="18" height="18" rx="2"/>
+      <Circle cx="8.5" cy="8.5" r="1.5"/>
+      <Polyline points="21 15 16 10 5 21"/>
+    </Svg>
+  );
+}
+function IcoFiles() {
+  return (
+    <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+      <Polyline points="14 2 14 8 20 8"/>
+      <Line x1="12" y1="18" x2="12" y2="12"/>
+      <Line x1="9" y1="15" x2="15" y2="15"/>
     </Svg>
   );
 }
 
-// ── TILE ICONS ───────────────────────────────────────────────
-function IcoCalendar({ size=24 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Rect x="3" y="4" width="18" height="17" rx="4" fill="#fff" stroke="#F9A8D4" strokeWidth={1.5}/>
-      <Rect x="3" y="4" width="18" height="7" rx="4" fill="#EC4899"/>
-      <Rect x="3" y="8" width="18" height="3" fill="#EC4899"/>
-      <Line x1="8" y1="2" x2="8" y2="6" stroke="#DB2777" strokeWidth={2} strokeLinecap="round"/>
-      <Line x1="16" y1="2" x2="16" y2="6" stroke="#DB2777" strokeWidth={2} strokeLinecap="round"/>
-      <Circle cx="8" cy="14" r="1.5" fill="#F9A8D4"/>
-      <Circle cx="12" cy="14" r="1.5" fill="#F9A8D4"/>
-      <Circle cx="16" cy="14" r="1.5" fill="#F9A8D4"/>
-      <Circle cx="8" cy="18" r="1.5" fill="#F9A8D4"/>
-      <Circle cx="12" cy="18" r="1.5" fill="#F9A8D4"/>
-      <Circle cx="16" cy="18" r="1.5" fill="#FBCFE8"/>
-    </Svg>
-  );
-}
-function IcoDinner({ size=24 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="12" r="9" fill="#FED7AA" stroke="#FB923C" strokeWidth={1.8}/>
-      <Circle cx="12" cy="12" r="6" fill="#fff" stroke="#FED7AA" strokeWidth={1.2}/>
-      <Line x1="9" y1="8" x2="9" y2="10" stroke="#FB923C" strokeWidth={1.8} strokeLinecap="round"/>
-      <Line x1="7.5" y1="8" x2="7.5" y2="10" stroke="#FB923C" strokeWidth={1.8} strokeLinecap="round"/>
-      <Line x1="10.5" y1="8" x2="10.5" y2="10" stroke="#FB923C" strokeWidth={1.8} strokeLinecap="round"/>
-      <Path d="M7.5 10 Q9 12 10.5 10" stroke="#FB923C" strokeWidth={1.8} fill="none" strokeLinecap="round"/>
-      <Line x1="9" y1="12" x2="9" y2="16" stroke="#FB923C" strokeWidth={1.8} strokeLinecap="round"/>
-      <Path d="M14 8 C15 9 15 11 14 12 L14 16" stroke="#FB923C" strokeWidth={1.8} fill="none" strokeLinecap="round"/>
-    </Svg>
-  );
-}
-function IcoShopping({ size=24 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M9 22C9.55228 22 10 21.5523 10 21C10 20.4477 9.55228 20 9 20C8.44772 20 8 20.4477 8 21C8 21.5523 8.44772 22 9 22Z" fill="#9CA3AF"/>
-      <Path d="M20 22C20.5523 22 21 21.5523 21 21C21 20.4477 20.5523 20 20 20C19.4477 20 19 20.4477 19 21C19 21.5523 19.4477 22 20 22Z" fill="#9CA3AF"/>
-      <Path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 001.99-1.69L23 6H6" stroke="#9CA3AF" strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-function IcoTodoBig({ size=24 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Rect x="2" y="2" width="20" height="20" rx="5" fill="#22C55E"/>
-      <Path d="M7 12l3.5 3.5L17 8.5" stroke="#fff" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-function IcoReminder({ size=24 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M12 4C8.5 4 6 6.5 6 10v5l-1.5 2h15L18 15v-5c0-3.5-2.5-6-6-6z" fill="none" stroke="#00BFBF" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"/>
-      <Line x1="12" y1="2" x2="12" y2="4" stroke="#00BFBF" strokeWidth={1.8} strokeLinecap="round"/>
-      <Path d="M9.5 17a2.5 2.5 0 005 0" fill="none" stroke="#00BFBF" strokeWidth={1.8} strokeLinecap="round"/>
-      <Circle cx="18" cy="6" r="4" fill="#FF3B3B"/>
-      <Line x1="18" y1="4.5" x2="18" y2="6.5" stroke="#fff" strokeWidth={1.8} strokeLinecap="round"/>
-      <Circle cx="18" cy="8" r="1" fill="#fff"/>
-    </Svg>
-  );
-}
+// ── Claude-style waveform animation ────────────────────────────
+// 5 bars, each independently animated at different speeds/heights
+function WaveformBars() {
+  const BAR_COUNT = 5;
+  // Heights cycle differently per bar to look organic
+  const anims = useRef(
+    Array.from({ length: BAR_COUNT }, (_, i) => new Animated.Value(0.3 + i * 0.1))
+  ).current;
 
-const DUMMY_FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
-const DUMMY_MEMBER_NAME = 'Anna';
-const DAYS_SHORT   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-function getTimeFrame(h:number):'morning'|'afternoon'|'evening'|'night' {
-  if(h>=6&&h<12) return 'morning';
-  if(h>=12&&h<17) return 'afternoon';
-  if(h>=17&&h<21) return 'evening';
-  return 'night';
-}
-function getDinnerInstruction(h:number,tm:any,tmr:any):string {
-  if(h>=21){
-    if(tmr) return 'Do NOT mention dinner at all.';
-    return 'Do NOT mention dinner tonight — it is too late. If other content is light, one gentle mention is acceptable: "Worth thinking about tomorrow\'s dinner before the morning rush."';
-  }
-  if(h>=19){
-    if(tm) return 'Tonight\'s dinner is done or sorted. Do not mention it.';
-    if(tmr) return 'Tonight\'s dinner window has passed. Reference tomorrow\'s dinner is sorted if relevant.';
-    return 'Tonight\'s dinner window is passing. Shift to tomorrow: mention tomorrow night\'s dinner is not planned yet — keep it light.';
-  }
-  if(h>=16){
-    if(tm) return 'Tonight\'s dinner is planned. Do not mention it unless it requires prep that hasn\'t started.';
-    return 'PRIORITY: Tonight\'s dinner is NOT planned — urgency window. Mention it, offer ideas. CTA should be meal suggestions.';
-  }
-  if(tm) return 'Tonight\'s dinner is planned. Do not mention it in the brief.';
-  return 'Tonight\'s dinner is not yet planned — mention it if relevant. CTA can be meal suggestions.';
-}
-function getGreeting(h:number):string { return h<12?'Good Morning':h<17?'Good Afternoon':'Good Evening'; }
-function getGreetingIcon(h:number):string { return h<12?'☀️':h<17?'👋':'🌙'; }
-function fmtRadarTime(startTime:string):string {
-  if(!startTime) return '';
-  const tp=startTime.replace('T',' ').split(' ')[1]||'';
-  const [hh,mm]=tp.split(':').map(Number);
-  if(isNaN(hh)) return '';
-  return `${hh===0?12:hh>12?hh-12:hh}:${String(mm).padStart(2,'0')} ${hh>=12?'pm':'am'}`;
-}
-
-function TypingDot({delay}:{delay:number}) {
-  const a=useRef(new Animated.Value(0)).current;
-  useEffect(()=>{
-    Animated.loop(Animated.sequence([
-      Animated.delay(delay),
-      Animated.timing(a,{toValue:-5,duration:300,useNativeDriver:true}),
-      Animated.timing(a,{toValue:0,duration:300,useNativeDriver:true}),
-      Animated.delay(600),
-    ])).start();
-  },[]);
-  return <Animated.View style={{width:7,height:7,borderRadius:3.5,backgroundColor:'rgba(0,0,0,0.2)',transform:[{translateY:a}]}}/>;
-}
-
-function PulsingAvatar({size=30}:{size?:number}) {
-  const scale=useRef(new Animated.Value(1)).current;
-  const opacity=useRef(new Animated.Value(0.55)).current;
-  useEffect(()=>{
-    Animated.loop(Animated.sequence([
-      Animated.parallel([
-        Animated.timing(scale,{toValue:1.18,duration:900,easing:Easing.inOut(Easing.ease),useNativeDriver:true}),
-        Animated.timing(opacity,{toValue:0,duration:900,easing:Easing.in(Easing.ease),useNativeDriver:true}),
-      ]),
-      Animated.parallel([
-        Animated.timing(scale,{toValue:1,duration:0,useNativeDriver:true}),
-        Animated.timing(opacity,{toValue:0.55,duration:0,useNativeDriver:true}),
-      ]),
-      Animated.delay(700),
-    ])).start();
-  },[]);
-  const br=Math.round(size*0.32);
-  return (
-    <View style={{width:size,height:size,alignItems:'center',justifyContent:'center'}}>
-      <Animated.View style={{position:'absolute',width:size,height:size,borderRadius:br,backgroundColor:'#0057FF',transform:[{scale}],opacity}}/>
-      <View style={{width:size,height:size,borderRadius:br,backgroundColor:'#0057FF',alignItems:'center',justifyContent:'center'}}>
-        <Text style={{fontSize:Math.round(size*0.5),color:'#fff'}}>{'\u2726'}</Text>
-      </View>
-    </View>
-  );
-}
-
-function TypewriterBrief({text,sentenceStyle,sentenceLastStyle,boldStyle}:{
-  text:string;sentenceStyle:any;sentenceLastStyle:any;boldStyle:any;
-}) {
-  const fadeAnim=useRef(new Animated.Value(0)).current;
-  useEffect(()=>{
-    if(!text) return;
-    fadeAnim.setValue(0);
-    Animated.timing(fadeAnim,{toValue:1,duration:500,easing:Easing.out(Easing.ease),useNativeDriver:true}).start();
-  },[text]);
-  const sentences=text.split(/\n+/).filter(s=>s.trim().length>0);
-  return (
-    <Animated.View style={{opacity:fadeAnim}}>
-      {sentences.map((sentence,i)=>{
-        const isLast=i===sentences.length-1;
-        const parts=sentence.split(/\*\*(.*?)\*\*/g);
-        return (
-          <Text key={i} style={isLast?sentenceLastStyle:sentenceStyle}>
-            {parts.map((p,j)=>j%2===1?<Text key={j} style={boldStyle}>{p}</Text>:<Text key={j}>{p}</Text>)}
-          </Text>
-        );
-      })}
-    </Animated.View>
-  );
-}
-
-function RadarRow({barColor,icon,title,meta,badge,badgeBg,badgeColor,isReminder,onDismiss}:{
-  barColor:string;icon:React.ReactElement;title:string;meta:string;
-  badge:string;badgeBg:string;badgeColor:string;
-  isReminder?:boolean;onDismiss?:()=>void;
-}) {
-  return (
-    <View style={s.radarRow}>
-      <View style={[s.radarBar,{backgroundColor:barColor}]}/>
-      <View style={s.radarIconWrap}>{icon}</View>
-      <View style={s.radarContent}>
-        <Text style={s.radarRowTitle} numberOfLines={1}>{title}</Text>
-        <Text style={s.radarMeta}>{meta}</Text>
-      </View>
-      <View style={[s.radarBadge,{backgroundColor:badgeBg}]}>
-        <Text style={[s.radarBadgeTxt,{color:badgeColor}]}>{badge}</Text>
-      </View>
-      {isReminder&&(
-        <TouchableOpacity style={s.dismissBtn} onPress={onDismiss} activeOpacity={0.7} hitSlop={{top:8,bottom:8,left:8,right:8}}>
-          <Text style={s.dismissBtnTxt}>{'×'}</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-export default function HomeScreen() {
-  const insets=useSafeAreaInsets();
-  const router=useRouter();
-  const [menuOpen,setMenuOpen]=useState(false);
-
-  const now=new Date();
-  const hour=now.getHours();
-  const mins=String(now.getMinutes()).padStart(2,'0');
-  const ampm=hour<12?'am':'pm';
-  const h12=hour===0?12:hour>12?hour-12:hour;
-  const timeStr=`${h12}:${mins} ${ampm}`;
-  const dateStr=`${DAYS_SHORT[now.getDay()]} ${now.getDate()} ${MONTHS_SHORT[now.getMonth()]}`;
-  const localDateStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const tomorrowDate=new Date(now); tomorrowDate.setDate(now.getDate()+1);
-  const tomorrowStr=`${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth()+1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`;
-  const timeFrame=getTimeFrame(hour);
-
-  const [events,setEvents]=useState<any[]>([]);
-  const [todos,setTodos]=useState<any[]>([]);
-  const [reminders,setReminders]=useState<any[]>([]);
-  const [shopping,setShopping]=useState<any[]>([]);
-  const [todayMeal,setTodayMeal]=useState<any>(null);
-  const [tomorrowMeal,setTomorrowMeal]=useState<any>(null);
-  const [dismissedReminders,setDismissedReminders]=useState<Set<string>>(new Set());
-  const [briefText,setBriefText]=useState('');
-  const [briefCta,setBriefCta]=useState('');
-  const [briefSignoff,setBriefSignoff]=useState('');
-  const [loadingBrief,setLoadingBrief]=useState(true);
-  const [cardDismissed,setCardDismissed]=useState(false);
-  const [showRelaxed,setShowRelaxed]=useState(false);
-
-  const heroFade=useRef(new Animated.Value(0)).current;
-  const heroSlide=useRef(new Animated.Value(-10)).current;
-  const bodyFade=useRef(new Animated.Value(0)).current;
-  const bodySlide=useRef(new Animated.Value(14)).current;
-  const cardFade=useRef(new Animated.Value(1)).current;
-  const relaxedFade=useRef(new Animated.Value(0)).current;
-
-  // ── DOUBLE-FIRE GUARD ─────────────────────────────────────
-  // briefGenRef: tracks if a brief is currently in-flight or already generated this session
-  // lastBriefAt: tracks timestamp of last completed brief for the 30-min refresh check
-  const briefGenRef=useRef<boolean>(false);
-  const lastBriefAt=useRef<number>(0);
-  const dismissedAt=useRef<number>(0);
-
-  useEffect(()=>{
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(heroFade,{toValue:1,duration:400,easing:Easing.out(Easing.quad),useNativeDriver:true}),
-        Animated.timing(heroSlide,{toValue:0,duration:400,easing:Easing.out(Easing.quad),useNativeDriver:true}),
-      ]),
-      Animated.parallel([
-        Animated.timing(bodyFade,{toValue:1,duration:350,easing:Easing.out(Easing.quad),useNativeDriver:true}),
-        Animated.timing(bodySlide,{toValue:0,duration:350,easing:Easing.out(Easing.quad),useNativeDriver:true}),
-      ]),
-    ]).start();
-    fetchData();
-    const sub=supabase.channel('home-todos')
-      .on('postgres_changes',{event:'*',schema:'public',table:'todos',filter:`family_id=eq.${DUMMY_FAMILY_ID}`},
-        ()=>{supabase.from('todos').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('status','active').order('priority',{ascending:false}).limit(10).then(({data})=>{if(data)setTodos(data);});})
-      .subscribe();
-    return ()=>{supabase.removeChannel(sub);};
-  },[]);
-
-  useFocusEffect(useCallback(()=>{
-    const elapsed=Date.now()-lastBriefAt.current;
-    const dismissedElapsed=Date.now()-dismissedAt.current;
-    if(cardDismissed){
-      // Regenerate brief if dismissed more than 2 hours ago
-      if(dismissedAt.current>0 && dismissedElapsed>2*60*60*1000){
-        setCardDismissed(false); setShowRelaxed(false);
-        briefGenRef.current=false;
-        Animated.timing(cardFade,{toValue:1,duration:0,useNativeDriver:true}).start();
-        fetchData();
-      }
-    } else if(elapsed>2*60*60*1000){
-      // Only refresh if 2+ hours have passed AND not currently generating
-      if(!briefGenRef.current){
-        fetchData();
-      }
-    }
-  },[cardDismissed]));
-
-  const fetchData=async()=>{
-    try{
-      const yesterdayDate=new Date(now); yesterdayDate.setDate(now.getDate()-1);
-      const yesterdayStr=`${yesterdayDate.getFullYear()}-${String(yesterdayDate.getMonth()+1).padStart(2,'0')}-${String(yesterdayDate.getDate()).padStart(2,'0')}`;
-      const[evR,pastEvR,shR,mlR,tmR,tdR,doneR,ystMlR]=await Promise.all([
-        supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).gte('date',localDateStr).order('date').order('start_time').limit(15),
-        supabase.from('events').select('*').eq('family_id',DUMMY_FAMILY_ID).gte('date',yesterdayStr).lte('date',localDateStr).order('date',{ascending:false}).order('start_time',{ascending:false}).limit(12),
-        supabase.from('shopping_items').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('checked',false).limit(30),
-        supabase.from('meal_plans').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',localDateStr).limit(1),
-        supabase.from('meal_plans').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',tomorrowStr).limit(1),
-        supabase.from('todos').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('status','active').order('priority',{ascending:false}).limit(10),
-        supabase.from('todos').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('status','done').order('created_at',{ascending:false}).limit(3),
-        supabase.from('meal_plans').select('*').eq('family_id',DUMMY_FAMILY_ID).eq('day_key',yesterdayStr).limit(1),
-      ]);
-      const evs=evR.data||[]; const pastEvs=pastEvR.data||[]; const tdos=tdR.data||[];
-      const doneTodos=doneR.data||[]; const tm=mlR.data?.[0]||null; const tmr=tmR.data?.[0]||null;
-      const ystMeal=ystMlR.data?.[0]||null; const sh=shR.data||[];
-      const cals=evs.filter((e:any)=>{ const type=(e.event_type||'').toLowerCase(); return type !== 'reminder'; });
-      const rems=evs.filter((e:any)=>{ const type=(e.event_type||'').toLowerCase(); return type === 'reminder'; });
-      setEvents(cals); setReminders(rems); setShopping(sh);
-      setTodayMeal(tm); setTomorrowMeal(tmr); setTodos(tdos);
-      generateBrief(evs,tdos,tm,tmr,sh,pastEvs,doneTodos,ystMeal);
-      lastBriefAt.current=Date.now();
-    }catch(e){console.log('fetchData:',e);}
-  };
-
-  // ── Brief helper — routes to OpenAI or Claude based on provider toggle ──
-  async function callBrief({feature,system,userContent,maxTokens=400}:
-    {feature:string;system:string;userContent:string;maxTokens?:number}): Promise<string> {
-    if(getZaeliProvider()==='openai'){
-      const oaiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
-      console.log('[home brief] provider=openai, key present:', oaiKey.length > 0, 'key prefix:', oaiKey.substring(0,8));
-      const res=await fetch('https://api.openai.com/v1/chat/completions',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${oaiKey}`},
-        body:JSON.stringify({model:'gpt-5.4-mini',max_completion_tokens:maxTokens,
-          messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
-      });
-      console.log('[home brief] status:', res.status);
-      const d=await res.json();
-      if(d.error) console.log('[home brief] error:', JSON.stringify(d.error));
-      try{const u=d.usage||{};const costUsd=((u.prompt_tokens||0)/1000000)*0.75+((u.completion_tokens||0)/1000000)*4.50;supabase.from('api_logs').insert({family_id:DUMMY_FAMILY_ID,feature:'home_brief',model:'gpt-5.4-mini',input_tokens:u.prompt_tokens||0,output_tokens:u.completion_tokens||0,cost_usd:costUsd});}catch{}
-      return d.choices?.[0]?.message?.content||'';
-    } else {
-      const d=await callClaude({feature,familyId:DUMMY_FAMILY_ID,
-        body:{model:'claude-haiku-4-5-20251001',max_tokens:maxTokens,
-          system,messages:[{role:'user',content:userContent}]}});
-      return d.content?.[0]?.text||'';
-    }
-  }
-
-  const generateBrief=async(evs:any[],tdos:any[],tm:any,tmr:any,sh:any[]=[],pastEvs:any[]=[],doneTodos:any[]=[],ystMeal:any=null)=>{
-    // ── DOUBLE-FIRE GUARD ──────────────────────────────────
-    // Prevents duplicate API calls from React StrictMode double-mount,
-    // tab focus events, or any other concurrent trigger.
-    if(briefGenRef.current){
-      console.log('[brief] skipped — already generating or generated');
-      return;
-    }
-    briefGenRef.current=true;
-    // ──────────────────────────────────────────────────────
-
-    setLoadingBrief(true); setBriefText('');
-    const fallbacks:Record<string,{text:string;cta:string}>={
-      morning:{text:`Right, let's have a look at your morning.\nNothing alarming on the radar — which is actually a lovely way to start.\nWant me to cast an eye over the week and flag anything worth knowing about?`,cta:"Yes, take a look"},
-      afternoon:{text:`Hope the morning treated you well.\nAfternoon's looking fairly civilised from where I'm standing.\nWant me to check what's still on the list and sort anything before the evening rush?`,cta:"Yes, let's sort it"},
-      evening:{text:`Evening — the hard part of the day is nearly done.\nWant me to take a quick look at tomorrow so you're not surprised by anything in the morning?`,cta:"Yes, check tomorrow"},
-      night:{text:`Getting late — you've earned the rest.\nWant me to quietly line up anything that needs to be ready for the morning?`,cta:"Yes, set it up"},
-    };
-    const fallback=fallbacks[timeFrame];
-    try{
-      const memCtx=await buildMemoryContext(DUMMY_FAMILY_ID);
-      const dinnerRule=getDinnerInstruction(hour,tm,tmr);
-      const urgentTodos=tdos.filter((t:any)=>t.priority==='high'||t.priority==='urgent');
-      const systemPrompt=`You are Zaeli — warm, brilliant, completely magnetic. Australian warmth — real and unpretentious. The switched-on friend who noticed three things before anyone asked.
-
-You are writing ${DUMMY_MEMBER_NAME}'s home screen brief.
-CRITICAL DATES: Events in the context are labelled (TODAY) or (TOMORROW) explicitly. Use ONLY these labels — never calculate what day an event falls on yourself. If an event says (TODAY) it is happening today. If it says (TOMORROW) it is tomorrow. Never reference a future event as if it is happening today.
-
-STRUCTURE:
-
-SENTENCE 1 — CALLBACK (use when genuine past data exists): Look at "Past events" and "Yesterday's dinner" and "Completed tasks" in the context. Only reference things that have ALREADY HAPPENED — never reference an upcoming event as if it's done.
-GOOD: "Hope the tacos went down well last night!" / "Great that Jack's soccer registration is done." / "Sounds like a big day — glad the accountant call is behind you."
-BAD: "Hope you enjoyed the bike ride" when the bike ride is later today (it hasn't happened yet).
-BAD: "I see you completed 2 tasks" (robotic) / "Good morning!" (greeting not callback).
-RULE: Only use callback if past_events contains events with times BEFORE the current time, OR yesterday_dinner is set, OR completed_tasks is not none. Skip entirely if nothing genuinely past.
-
-SENTENCE 2 — WHAT'S COMING: The single most important upcoming event or deadline in the current time window. Must include name, time, and person where known. Do NOT say "you have a meeting" — say "accountant call at 9am". One item only.
-
-SENTENCE 3 — WHAT'S QUIETLY SLIPPING: 1–2 things overdue, approaching deadline, or at risk of being forgotten. Urgent/overdue first, then items due within 72 hours. Deliver like a friend flagging it over coffee — not a task manager list. If nothing is slipping, fold this into sentence 2 or skip.
-
-SENTENCE 4 — THE OFFER (required): One warm specific question offering one concrete thing you can do right now. This drives the CTA button. Match the CTA label to your question:
-- "Want me to throw together a few dinner ideas?" → CTA: "Yes, show me ideas"
-- "Want me to draft a quick note to the school?" → CTA: "Draft it for me"
-- "Want me to check the meal plan and top up the list?" → CTA: "Yes, sort the list"
-- "Should I find a time for the dentist this week?" → CTA: "Find a time"
-- "Want me to sort the calendar for the weekend?" → CTA: "Sort the weekend"
-- "Want me to help prioritise what's most urgent?" → CTA: "Help me prioritise"
-- No clear action → CTA: "Let's talk it through"
-
-TONE: Warm, alive, Australian. Like a switched-on friend who noticed things before anyone asked. Cheeky opener when there's something to reference, always backed by smart and helpful. Never dry, never corporate, never robotic.
-
-HARD RULES:
-- Max 4 sentences total. Min 2.
-- NEVER start with "I"
-- NEVER be vague — "a few things need attention" is not acceptable. Name them.
-- NEVER sound like a push notification — no "You have 3 tasks due"
-- NEVER nag — no "you need to", "you should", "don't forget"
-- Bold **names, times, deadlines** only — max 3 bold elements
-- ALWAYS use 12-hour time (e.g. "9:30 am", "7:00 pm") — NEVER 24-hour format
-- Current time is ${timeStr}. If an event has already passed today, do NOT mention it as upcoming
-- CAPABILITY: Can draft messages/notes. CANNOT make calls or send messages.
-
-DINNER RULE: ${dinnerRule}
-TIME FRAME: ${timeStr} on ${dateStr}. Frame: ${timeFrame}.
-
-CRITICAL: You MUST respond with valid JSON only. No preamble, no explanation, no markdown, no backticks. Just the JSON object.
-{"brief":"sentences separated by newlines","cta":"button label max 4 words","signoff":"1 warm sentence stepping back, references 1 specific thing from the brief"}`;
-
-      const fmt12 = (iso:string) => {
-        if(!iso) return '';
-        const tp = iso.replace('T',' ').split(' ')[1]||'';
-        const [hh,mm] = tp.split(':').map(Number);
-        if(isNaN(hh)) return iso;
-        return `${hh===0?12:hh>12?hh-12:hh}:${String(mm).padStart(2,'0')} ${hh>=12?'pm':'am'}`;
-      };
-      const fmtEv = (e:any) => ({ ...e, start_time: fmt12(e.start_time), end_time: fmt12(e.end_time) });
-      const labelledPastEvs = pastEvs.map((e:any) => {
-        if(!e.start_time) return { ...e, _hoursAgo: '?' };
-        const timeStr2 = e.start_time.includes('T') ? e.start_time : `${e.date}T${e.start_time}`;
-        const evDate = new Date(timeStr2);
-        const hoursAgo = Math.round((now.getTime() - evDate.getTime()) / (1000*60*60));
-        return { ...fmtEv(e), _hoursAgo: hoursAgo };
-      }).filter((e:any) => e._hoursAgo !== '?' && e._hoursAgo <= 24);
-
-      // Compact context for brief — names and labels only, no full JSON blobs
-      // Build week dates map — must be before evSummary which uses DAY_NAMES
-      const DAY_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-      const weekMap:string[]=[];
-      for(let i=0;i<7;i++){
-        const wd=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);
-        const wdk=wd.getFullYear()+'-'+String(wd.getMonth()+1).padStart(2,'0')+'-'+String(wd.getDate()).padStart(2,'0');
-        weekMap.push(`${DAY_NAMES[wd.getDay()]}=${wdk}`);
-      }
-      const weekDates=weekMap.join(', ');
-
-      // Include day name with each event so Haiku never miscalculates the day
-      // Use new Date(y,m,d) constructor (local time) not new Date('YYYY-MM-DD') (UTC, shifts day in AEST)
-      // Format events with explicit day name AND relative label so GPT never miscalculates
-      const todayKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      const tomorrowDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
-      const tomorrowKey=`${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth()+1).padStart(2,'0')}-${String(tomorrowDate.getDate()).padStart(2,'0')}`;
-      const evSummary = evs.slice(0,6).map(fmtEv).map((e:any)=>{
-        const rawDate=e.date||'';
-        let dayLabel='';
-        if(rawDate){
-          const[ey,em,ed]=rawDate.split('-').map(Number);
-          if(ey&&em&&ed){
-            const evDay=new Date(ey,em-1,ed);
-            const rel=rawDate===todayKey?' (TODAY)':rawDate===tomorrowKey?' (TOMORROW)':'';
-            dayLabel=DAY_NAMES[evDay.getDay()]+' '+rawDate+rel+' ';
-          }
-        }
-        return `${e.title} — ${dayLabel}${e.start_time||''}`;
-      }).join(' | ') || 'none';
-      // Only include events that have actually passed (start_time before now)
-      const trulyPastEvs = labelledPastEvs.filter((e:any)=>{
-        if(!e.start_time) return false;
-        const evTimeStr = e.start_time.includes('T') ? e.start_time : `${e.date}T${e.start_time}`;
-        return new Date(evTimeStr) < now;
-      });
-      const pastEvSummary = trulyPastEvs.slice(0,4).map((e:any)=>`${e.title} (${e._hoursAgo}h ago)`).join(', ') || 'none';
-      const todoSummary = tdos.slice(0,5).map((t:any)=>`${t.title}${t.priority==='high'?' [urgent]':''}${t.due_label?' due '+t.due_label:''}`).join(', ') || 'none';
-      const urgentSummary = urgentTodos.slice(0,4).map((t:any)=>t.title).join(', ') || 'none';
-
-      const ctx=`Family: ${DUMMY_MEMBER_NAME}. Today: ${localDateStr} (${dateStr}). Tomorrow: ${tomorrowStr}. Time: ${timeStr}. Frame: ${timeFrame}.
-WEEK DATES (use EXACTLY these — never calculate): ${weekDates}.
-Past events (callback sources): ${pastEvSummary}.
-Yesterday's dinner: ${ystMeal?.title||'none'}.
-Completed tasks today: ${doneTodos.slice(0,3).map((t:any)=>t.title).join(', ')||'none'}.
-Upcoming events: ${evSummary}.
-Urgent/overdue todos: ${urgentSummary}.
-All active todos: ${todoSummary}.
-Tonight meal: ${tm?.title||'not planned'}. Tomorrow meal: ${tmr?.title||'not planned'}. Shopping items pending: ${sh.length}.${memCtx}`;
-
-      const raw=await callBrief({feature:'home_brief',system:systemPrompt,userContent:ctx,maxTokens:400});
-      const clean=raw.replace(/```json|```/g,'').trim();
-      try{
-        const parsed=JSON.parse(clean);
-        if(parsed.brief){
-          setBriefCta(parsed.cta||"Let's talk it through");
-          setBriefSignoff(parsed.signoff||'');
-          setTimeout(()=>setBriefText(parsed.brief),100); return;
-        }
-      }catch{
-        if(raw){ setBriefCta("Let's talk it through"); setTimeout(()=>setBriefText(raw),100); return; }
-      }
-      setBriefCta(fallback.cta); setTimeout(()=>setBriefText(fallback.text),100);
-    }catch(e){
-      console.log('generateBrief:',e);
-      setBriefCta(fallback.cta); setTimeout(()=>setBriefText(fallback.text),100);
-    }finally{
-      setLoadingBrief(false);
-      // Note: briefGenRef stays true for the session — this is intentional.
-      // It resets to false only when a new session starts (2hr dismissed timeout)
-      // or when a 30-min refresh is triggered via useFocusEffect.
-    }
-  };
-
-  const handleDismiss=()=>{
-    Animated.timing(cardFade,{toValue:0,duration:300,useNativeDriver:true}).start(()=>{
-      setCardDismissed(true); setShowRelaxed(true);
-      dismissedAt.current=Date.now();
-      Animated.timing(relaxedFade,{toValue:1,duration:350,useNativeDriver:true}).start();
+  useEffect(() => {
+    const loops = anims.map((anim, i) => {
+      const minH  = 0.2 + i * 0.05;
+      const maxH  = 0.7 + (i % 3) * 0.15;
+      const speed = 180 + i * 55;
+      return Animated.loop(
+        Animated.sequence([
+          Animated.timing(anim, { toValue: maxH, duration: speed, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(anim, { toValue: minH, duration: speed + 40, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        ])
+      );
     });
-  };
-  const handleDismissReminder=(id:string)=>setDismissedReminders(prev=>new Set([...prev,id]));
-  const openChat=(channel='General',seed?:string)=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel,returnTo:'/(tabs)/',seedMessage:seed||''}});
-
-  const {width:screenWidth}=useWindowDimensions();
-  const TILE_PAD=18; const TILE_GAP=12;
-  const tileSize=Math.floor((screenWidth-TILE_PAD*2-TILE_GAP)/2);
-  const tileHeight=Math.floor(tileSize*0.95);
-  const urgentCount=todos.filter((t:any)=>t.priority==='high'||t.priority==='urgent').length;
-  const visibleRemindersRaw=reminders.filter((r:any)=>!dismissedReminders.has(r.id));
-  const seenReminderTitles=new Set<string>();
-  const visibleReminders:any[]=[];
-  for(const r of visibleRemindersRaw){
-    const key=(r.title||'').toLowerCase().trim();
-    if(!seenReminderTitles.has(key)){seenReminderTitles.add(key);visibleReminders.push(r);}
-  }
-  const radarEventsRaw=events.filter((e:any)=>(e.date||'')>=localDateStr);
-  const seenTitles=new Set<string>();
-  const radarEvents:any[]=[];
-  for(const e of radarEventsRaw){
-    const key=(e.title||'').toLowerCase().trim();
-    if(!seenTitles.has(key)){seenTitles.add(key);radarEvents.push(e);}
-    if(radarEvents.length>=3) break;
-  }
-  const radarTodos=todos.filter((t:any)=>t.priority==='high'||t.priority==='urgent').slice(0,2);
-  const mealDisplay=(timeFrame==='night'||hour>=21)?tomorrowMeal:todayMeal;
-  const mealLabel=(timeFrame==='night'||hour>=21)?'Tomorrow':'Tonight';
-
-  const ASK_BAR_H = 64;
-  const bottomPad = insets.bottom + ASK_BAR_H + 16;
+    loops.forEach(l => l.start());
+    return () => loops.forEach(l => l.stop());
+  }, []);
 
   return (
-    <SafeAreaView style={{flex:1,backgroundColor:'#0057FF'}} edges={['top']}>
-      <StatusBar style="light"/>
-      <NavMenu visible={menuOpen} onClose={()=>setMenuOpen(false)}/>
-
-      <ScrollView
-        style={{flex:1,backgroundColor:'#0057FF'}}
-        showsVerticalScrollIndicator={false}
-        bounces
-        contentContainerStyle={{paddingBottom: bottomPad}}
-      >
-        {/* HERO */}
-        <Animated.View style={[s.hero,{opacity:heroFade,transform:[{translateY:heroSlide}]}]}>
-          <View style={s.heroOrbOuter}/><View style={s.heroOrbInner}/><View style={s.heroOrb2}/>
-
-          <View style={s.topRow}>
-            <TouchableOpacity style={s.logoWrap} onPress={()=>router.replace('/(tabs)/')} activeOpacity={0.75}>
-              <View style={s.logoMark}><Text style={{fontSize:22,color:'#fff'}}>{'\u2726'}</Text></View>
-              <Text style={s.logoWord}>{'z'}<Text style={{color:'#FFE500'}}>{'a'}</Text>{'el'}<Text style={{color:'#FFE500'}}>{'i'}</Text></Text>
-            </TouchableOpacity>
-            <View style={s.topRight}>
-              <View style={s.datePill}>
-                <View style={s.liveDotPill}/>
-                <Text style={s.datePillTxt}>{dateStr}</Text>
-              </View>
-              <HamburgerButton onPress={()=>setMenuOpen(true)}/>
-            </View>
-          </View>
-
-          <Text style={s.greetLine}>{getGreeting(hour)}</Text>
-          <Text style={s.nameLine}>{DUMMY_MEMBER_NAME} <Text style={s.nameIcon}>{getGreetingIcon(hour)}</Text></Text>
-
-          {!cardDismissed?(
-            <Animated.View style={[s.zaeliCard,{opacity:cardFade}]}>
-              <View style={s.zaeliHead}>
-                <PulsingAvatar size={28}/>
-                <Text style={s.zaeliName}>{'Z'}<Text style={{color:'#E0007C'}}>{'a'}</Text>{'el'}<Text style={{color:'#E0007C'}}>{'i'}</Text></Text>
-                <View style={s.cardLiveDot}/>
-                <Text style={s.zaeliTime}>{timeStr}</Text>
-              </View>
-              {loadingBrief?(
-                <View style={s.loadingRow}>
-                  <Text style={s.loadingTxt}>Zaeli is thinking…</Text>
-                  <View style={{flexDirection:'row',gap:3,alignItems:'center'}}>{[0,1,2].map(i=><TypingDot key={i} delay={i*200}/>)}</View>
-                </View>
-              ):(
-                <>
-                  <View style={s.briefWrap}>
-                    <TypewriterBrief text={briefText||''} sentenceStyle={s.briefSentence} sentenceLastStyle={s.briefSentenceLast} boldStyle={{fontFamily:'Poppins_700Bold',color:'#0A0A0A'}}/>
-                  </View>
-                  <View style={s.zaeliActions}>
-                    <TouchableOpacity style={s.ctaPrimary} onPress={()=>openChat('General',briefText)} activeOpacity={0.85}>
-                      <Text style={s.ctaPrimaryTxt}>{briefCta||"Let's talk it through"}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.ctaGhost} onPress={handleDismiss} activeOpacity={0.7}>
-                      <Text style={s.ctaGhostTxt}>{"I'm sorted, thanks"}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-            </Animated.View>
-          ):showRelaxed?(
-            <Animated.View style={[s.relaxedCard,{opacity:relaxedFade}]}>
-              <View style={s.relaxedInner}>
-                <View style={s.relaxedAvatar}><Text style={{fontSize:13,color:'#0057FF'}}>{'\u2726'}</Text></View>
-                <Text style={s.relaxedSignoff}>{briefSignoff||"No worries! I'm here whenever you need me. 💛"}</Text>
-              </View>
-              <TouchableOpacity style={s.relaxedBtn} onPress={()=>openChat('General',briefText)} activeOpacity={0.85}>
-                <Text style={s.relaxedBtnTxt}>{"Let's chat \u2726"}</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          ):null}
-        </Animated.View>
-
-        {/* BODY */}
-        <Animated.View style={[s.body,{opacity:bodyFade,transform:[{translateY:bodySlide}]}]}>
-
-          <View style={s.tilesGrid}>
-            {/* Calendar */}
-            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push('/(tabs)/calendar')} activeOpacity={0.8}>
-              <View style={s.tileTopArea}>
-                <View style={[s.tileIconBox,{backgroundColor:'rgba(224,0,124,0.08)'}]}><IcoCalendar size={24}/></View>
-                <View style={s.tileBottom}>
-                  <Text style={s.tileLabel}>NEXT UP</Text>
-                  {radarEvents.length>0?(<><Text style={s.tileVal} numberOfLines={2}>{radarEvents[0].title}</Text><Text style={s.tileSub} numberOfLines={1}>{fmtRadarTime(radarEvents[0].start_time)||'Today'}</Text></>):(<><Text style={s.tileVal}>All clear</Text><Text style={s.tileSub}>nothing scheduled</Text></>)}
-                </View>
-              </View>
-              <View style={[s.tileFooter,{backgroundColor:'rgba(224,0,124,0.07)'}]}>
-                <Text style={[s.tileFooterTxt,{color:'#E0007C'}]}>Calendar</Text>
-                <Text style={[s.tileFooterArr,{color:'#E0007C'}]}>→</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Shopping */}
-            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push('/(tabs)/shopping')} activeOpacity={0.8}>
-              <View style={s.tileTopArea}>
-                <View style={[s.tileIconBox,{backgroundColor:'rgba(0,0,0,0.05)'}]}><IcoShopping size={24}/></View>
-                <View style={s.tileBottom}>
-                  <Text style={s.tileLabel}>SHOPPING</Text>
-                  <Text style={[s.tileVal,shopping.length>0&&{color:'#0057FF'}]}>{shopping.length>0?`${shopping.length} item${shopping.length>1?'s':''}`:'All clear'}</Text>
-                  <Text style={[s.tileSub,shopping.length>0&&s.tileSubCta]}>{shopping.length>0?'Woolies run needed':'nothing pending'}</Text>
-                </View>
-              </View>
-              <View style={[s.tileFooter,{backgroundColor:'rgba(0,0,0,0.04)'}]}>
-                <Text style={[s.tileFooterTxt,{color:'#444'}]}>Shopping</Text>
-                <Text style={[s.tileFooterArr,{color:'#444'}]}>→</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Meals */}
-            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push('/(tabs)/mealplanner')} activeOpacity={0.8}>
-              <View style={s.tileTopArea}>
-                <View style={[s.tileIconBox,{backgroundColor:'rgba(255,140,0,0.09)'}]}><IcoDinner size={24}/></View>
-                <View style={s.tileBottom}>
-                  <Text style={s.tileLabel}>{mealLabel.toUpperCase()}</Text>
-                  <Text style={[s.tileVal,!mealDisplay&&s.tileValWarn]} numberOfLines={2}>{mealDisplay?mealDisplay.title:'Not planned'}</Text>
-                  <Text style={[s.tileSub,!mealDisplay&&s.tileSubCta]}>{mealDisplay?'planned \u2713':'Tap to sort \u2192'}</Text>
-                </View>
-              </View>
-              <View style={[s.tileFooter,{backgroundColor:'rgba(255,140,0,0.07)'}]}>
-                <Text style={[s.tileFooterTxt,{color:'#FF8C00'}]}>Meals</Text>
-                <Text style={[s.tileFooterArr,{color:'#FF8C00'}]}>→</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* To-dos */}
-            <TouchableOpacity style={[s.tile,{width:tileSize,height:tileHeight}]} onPress={()=>router.push({pathname:'/(tabs)/more',params:{initialPage:'todo'}})} activeOpacity={0.8}>
-              {urgentCount>0&&<View style={s.tilePip}/>}
-              <View style={s.tileTopArea}>
-                <View style={[s.tileIconBox,{backgroundColor:'rgba(184,164,0,0.10)'}]}><IcoTodoBig size={24}/></View>
-                <View style={s.tileBottom}>
-                  <Text style={s.tileLabel}>TO-DOS</Text>
-                  <Text style={[s.tileVal,urgentCount>0&&{color:'#B8A400'}]}>{urgentCount>0?`${urgentCount} urgent`:todos.length>0?`${todos.length} items`:'All clear'}</Text>
-                  <Text style={s.tileSub}>{todos.length>0?`${todos.length} total`:'nice work 🎉'}</Text>
-                </View>
-              </View>
-              <View style={[s.tileFooter,{backgroundColor:'rgba(184,164,0,0.08)'}]}>
-                <Text style={[s.tileFooterTxt,{color:'#B8A400'}]}>To-dos</Text>
-                <Text style={[s.tileFooterArr,{color:'#B8A400'}]}>→</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* On the radar */}
-          <View style={s.radarSection}>
-            <View style={s.radarHead}>
-              <Text style={s.radarTitle}>On the radar</Text>
-              <TouchableOpacity onPress={()=>router.push('/(tabs)/calendar')}><Text style={s.radarLink}>See all</Text></TouchableOpacity>
-            </View>
-            <View style={s.radarBand}>
-              {radarEvents.length>0&&(<>
-                <View style={s.radarSection2Hdr}><Text style={s.radarSection2Label}>Coming up</Text></View>
-                {radarEvents.map((e:any)=>{
-                  const t=fmtRadarTime(e.start_time); const isToday=e.date===localDateStr; const isTmrw=e.date===tomorrowStr;
-                  const dayLabel=isToday?'Today':isTmrw?'Tomorrow':e.date;
-                  return (
-                    <TouchableOpacity key={e.id} activeOpacity={0.8} onPress={()=>router.push({pathname:'/(tabs)/calendar',params:{eventId:e.id}})}>
-                      <RadarRow barColor="#7C3AED" icon={<IcoCalendar size={20}/>} title={e.title} meta={`${dayLabel}${t?' \u00B7 '+t:''}`} badge={t||'Soon'} badgeBg="rgba(0,87,255,0.08)" badgeColor="#0057FF"/>
-                    </TouchableOpacity>
-                  );
-                })}
-              </>)}
-              {visibleReminders.length>0&&(<>
-                {radarEvents.length===0&&<View style={s.radarSection2Hdr}><Text style={s.radarSection2Label}>Coming up</Text></View>}
-                {visibleReminders.slice(0,4).map((r:any)=>{
-                  const t=fmtRadarTime(r.start_time); const isToday=r.date===localDateStr;
-                  return (<TouchableOpacity key={r.id} activeOpacity={0.8} onPress={()=>router.push('/(tabs)/calendar')}>
-                    <RadarRow barColor="#00BFBF" icon={<IcoReminder size={20}/>} title={r.title} meta={`Reminder \u00B7 ${isToday?'today':'tomorrow'}${t?' '+t:''}`} badge={t||'Today'} badgeBg="rgba(0,191,191,0.10)" badgeColor="#00BFBF" isReminder onDismiss={()=>handleDismissReminder(r.id)}/>
-                  </TouchableOpacity>);
-                })}
-              </>)}
-              {radarTodos.length>0&&(<>
-                <View style={s.radarSection2Hdr}><Text style={s.radarSection2Label}>Needs attention</Text></View>
-                {radarTodos.map((t:any)=>(
-                  <TouchableOpacity key={t.id} onPress={()=>router.push({pathname:'/(tabs)/more',params:{initialPage:'todo',todoId:t.id}})} activeOpacity={0.8}>
-                    <RadarRow barColor="#22C55E" icon={<IcoTodoBig size={20}/>} title={t.title} meta={t.due_label||'Overdue'} badge="urgent" badgeBg="rgba(224,0,124,0.08)" badgeColor="#E0007C"/>
-                  </TouchableOpacity>
-                ))}
-              </>)}
-              {radarEvents.length===0&&visibleReminders.length===0&&radarTodos.length===0&&(
-                <View style={s.radarEmpty}><Text style={s.radarEmptyTxt}>All clear — nothing urgent on the radar {'\u2728'}</Text></View>
-              )}
-            </View>
-          </View>
-
-        </Animated.View>
-      </ScrollView>
-
-      {/* ASK ZAELI BAR */}
-      <View style={[s.askBarWrap,{paddingBottom: insets.bottom + 4}]}>
-        <TouchableOpacity style={s.askBar} onPress={()=>openChat('General')} activeOpacity={0.85}>
-          <View style={s.askDiamondWrap}>
-            <Text style={s.askDiamond}>{'\u2726'}</Text>
-          </View>
-          <Text style={s.askText}>Ask Zaeli anything...</Text>
-          <TouchableOpacity style={s.askMic} onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'General',returnTo:'/(tabs)/',autoMic:'true'}})} activeOpacity={0.7}>
-            <IcoMic/>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.askSend} onPress={()=>openChat('General')} activeOpacity={0.85}>
-            <IcoSend/>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </View>
-
-    </SafeAreaView>
+    <View style={s.waveRow}>
+      {anims.map((anim, i) => (
+        <Animated.View
+          key={i}
+          style={[s.waveBar, { transform: [{ scaleY: anim }] }]}
+        />
+      ))}
+    </View>
   );
 }
 
-const s=StyleSheet.create({
-  hero:{backgroundColor:'#0057FF',paddingHorizontal:18,paddingTop:6,paddingBottom:20},
-  heroOrbOuter:{position:'absolute',right:-70,top:-70,width:270,height:270,borderRadius:135,backgroundColor:'rgba(255,255,255,0.12)'},
-  heroOrbInner:{position:'absolute',right:-30,top:-30,width:190,height:190,borderRadius:95,backgroundColor:'rgba(255,255,255,0.22)'},
-  heroOrb2:{position:'absolute',right:32,top:68,width:105,height:105,borderRadius:52,backgroundColor:'rgba(255,255,255,0.14)'},
-  topRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:4},
-  logoWrap:{flexDirection:'row',alignItems:'center',gap:8},
-  logoMark:{width:44,height:44,backgroundColor:'rgba(255,255,255,0.2)',borderRadius:14,alignItems:'center',justifyContent:'center'},
-  logoWord:{fontFamily:'DMSerifDisplay_400Regular',fontSize:30,color:'#fff',letterSpacing:-0.5},
-  topRight:{flexDirection:'row',alignItems:'center',gap:10},
-  datePill:{flexDirection:'row',alignItems:'center',gap:6,backgroundColor:'rgba(255,255,255,0.12)',borderWidth:1,borderColor:'rgba(255,255,255,0.16)',borderRadius:14,paddingHorizontal:14,height:44},
-  liveDotPill:{width:6,height:6,borderRadius:3,backgroundColor:'#00C97A'},
-  datePillTxt:{fontFamily:'Poppins_600SemiBold',fontSize:13,color:'rgba(255,255,255,0.9)'},
-  greetLine:{fontFamily:'DMSerifDisplay_400Regular',fontSize:24,color:'rgba(255,255,255,0.72)',letterSpacing:-0.5,lineHeight:28,marginTop:14,marginBottom:0},
-  nameLine:{fontFamily:'DMSerifDisplay_400Regular',fontSize:36,color:'#fff',letterSpacing:-1.5,lineHeight:42,marginBottom:18},
-  nameIcon:{fontSize:32},
-  body:{backgroundColor:'#F7F7F7',flex:1,minHeight:600},
-  zaeliCard:{backgroundColor:'#fff',borderRadius:22,shadowColor:'#000',shadowOpacity:0.10,shadowRadius:20,shadowOffset:{width:0,height:4},elevation:4,paddingHorizontal:16,paddingTop:14,paddingBottom:16,marginBottom:20},
-  zaeliHead:{flexDirection:'row',alignItems:'center',gap:8,marginBottom:12},
-  zaeliName:{fontFamily:'DMSerifDisplay_400Regular',fontSize:16,color:'#0A0A0A'},
-  cardLiveDot:{width:6,height:6,borderRadius:3,backgroundColor:'#00C97A',marginLeft:1},
-  zaeliTime:{marginLeft:'auto' as any,fontFamily:'Poppins_400Regular',fontSize:11,color:'rgba(0,0,0,0.3)'},
-  briefSentence:{fontFamily:'Poppins_400Regular',fontSize:14,color:'#1A1A2E',lineHeight:22,marginBottom:7},
-  briefSentenceLast:{fontFamily:'Poppins_400Regular',fontSize:14,color:'#1A1A2E',lineHeight:22,marginBottom:0},
-  briefWrap:{marginBottom:16},
-  loadingRow:{flexDirection:'row',alignItems:'center',gap:8,paddingVertical:10},
-  loadingTxt:{fontFamily:'Poppins_400Regular',fontSize:13,color:'rgba(0,0,0,0.38)'},
-  zaeliActions:{flexDirection:'row',gap:10},
-  ctaPrimary:{flex:1,backgroundColor:'#E0007C',borderRadius:14,paddingVertical:13,alignItems:'center',justifyContent:'center'},
-  ctaPrimaryTxt:{fontFamily:'Poppins_600SemiBold',fontSize:13,color:'#fff',textAlign:'center'},
-  ctaGhost:{flex:1,backgroundColor:'rgba(0,0,0,0.055)',borderRadius:14,paddingVertical:13,alignItems:'center',justifyContent:'center',borderWidth:1.5,borderColor:'rgba(0,0,0,0.09)'},
-  ctaGhostTxt:{fontFamily:'Poppins_500Medium',fontSize:13,color:'rgba(0,0,0,0.45)',textAlign:'center'},
-  relaxedCard:{backgroundColor:'#fff',borderRadius:22,paddingHorizontal:16,paddingTop:14,paddingBottom:14,marginBottom:20,shadowColor:'#000',shadowOpacity:0.06,shadowRadius:12,shadowOffset:{width:0,height:3},elevation:2,gap:12},
-  relaxedInner:{flexDirection:'row',alignItems:'flex-start',gap:10},
-  relaxedAvatar:{width:28,height:28,borderRadius:9,backgroundColor:'#E8ECFF',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1},
-  relaxedSignoff:{fontFamily:'Poppins_400Regular',fontSize:13.5,color:'rgba(0,0,0,0.55)',lineHeight:21,flex:1},
-  relaxedBtn:{backgroundColor:'rgba(0,87,255,0.08)',borderRadius:13,paddingVertical:12,alignItems:'center',justifyContent:'center'},
-  relaxedBtnTxt:{fontFamily:'Poppins_600SemiBold',fontSize:13,color:'#0057FF',textAlign:'center' as any},
-  tilesGrid:{flexDirection:'row',flexWrap:'wrap',gap:12,paddingHorizontal:18,paddingTop:20},
-  tile:{backgroundColor:'#fff',borderRadius:18,borderWidth:1.5,borderColor:'rgba(0,0,0,0.06)',shadowColor:'#000',shadowOpacity:0.04,shadowRadius:8,shadowOffset:{width:0,height:2},elevation:1,position:'relative',overflow:'hidden',justifyContent:'space-between'},
-  tilePip:{position:'absolute',top:10,right:10,width:8,height:8,borderRadius:4,backgroundColor:'#E0007C',zIndex:2},
-  tileIconBox:{width:42,height:42,borderRadius:12,alignItems:'center',justifyContent:'center'},
-  tileTopArea:{padding:14,flex:1,justifyContent:'space-between'},
-  tileBottom:{gap:2,marginTop:8},
-  tileLabel:{fontFamily:'Poppins_700Bold',fontSize:9,letterSpacing:1.2,textTransform:'uppercase',color:'rgba(0,0,0,0.28)'},
-  tileVal:{fontFamily:'Poppins_700Bold',fontSize:17,color:'#0A0A0A',lineHeight:22},
-  tileValWarn:{color:'#E0007C'},
-  tileSub:{fontFamily:'Poppins_400Regular',fontSize:11,color:'rgba(0,0,0,0.38)'},
-  tileSubCta:{color:'#0057FF',fontFamily:'Poppins_600SemiBold'},
-  tileFooter:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:14,paddingVertical:8},
-  tileFooterTxt:{fontFamily:'Poppins_700Bold',fontSize:10,letterSpacing:0.8,textTransform:'uppercase'},
-  tileFooterArr:{fontFamily:'Poppins_700Bold',fontSize:12},
-  radarSection:{paddingHorizontal:18,paddingTop:20,paddingBottom:24},
-  radarHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:12},
-  radarTitle:{fontFamily:'Poppins_700Bold',fontSize:16,color:'#0A0A0A'},
-  radarLink:{fontFamily:'Poppins_600SemiBold',fontSize:13,color:'#0057FF'},
-  radarBand:{backgroundColor:'#fff',borderRadius:20,overflow:'hidden',borderWidth:1.5,borderColor:'rgba(0,0,0,0.06)',shadowColor:'#000',shadowOpacity:0.04,shadowRadius:8,shadowOffset:{width:0,height:2},elevation:1},
-  radarSection2Hdr:{paddingHorizontal:16,paddingTop:14,paddingBottom:6},
-  radarSection2Label:{fontFamily:'Poppins_700Bold',fontSize:10,letterSpacing:1.5,textTransform:'uppercase',color:'rgba(0,0,0,0.28)'},
-  radarRow:{flexDirection:'row',alignItems:'center',gap:14,paddingHorizontal:16,paddingVertical:14,borderBottomWidth:1,borderBottomColor:'rgba(0,0,0,0.05)'},
-  radarBar:{width:3,borderRadius:2,alignSelf:'stretch',minHeight:36,flexShrink:0},
-  radarIconWrap:{width:26,height:26,alignItems:'center',justifyContent:'center',flexShrink:0},
-  radarContent:{flex:1,minWidth:0},
-  radarRowTitle:{fontFamily:'Poppins_600SemiBold',fontSize:14,color:'#0A0A0A',lineHeight:20},
-  radarMeta:{fontFamily:'Poppins_400Regular',fontSize:11,color:'rgba(0,0,0,0.50)',marginTop:2},
-  radarBadge:{borderRadius:100,paddingHorizontal:10,paddingVertical:4,flexShrink:0},
-  radarBadgeTxt:{fontFamily:'Poppins_700Bold',fontSize:11},
-  dismissBtn:{width:24,height:24,borderRadius:12,backgroundColor:'rgba(0,0,0,0.07)',alignItems:'center',justifyContent:'center',flexShrink:0},
-  dismissBtnTxt:{fontFamily:'Poppins_700Bold',fontSize:14,color:'rgba(0,0,0,0.32)',lineHeight:17},
-  radarEmpty:{padding:22,alignItems:'center'},
-  radarEmptyTxt:{fontFamily:'Poppins_400Regular',fontSize:14,color:'rgba(0,0,0,0.35)',textAlign:'center' as any},
-  askBarWrap:{position:'absolute',bottom:0,left:0,right:0,paddingHorizontal:16,paddingTop:10,backgroundColor:'#F7F7F7',borderTopWidth:1,borderTopColor:'rgba(0,0,0,0.07)'},
-  askBar:{backgroundColor:'#fff',borderRadius:22,paddingVertical:11,paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:8,borderWidth:1.5,borderColor:'rgba(0,0,0,0.10)',shadowColor:'#000',shadowOpacity:0.06,shadowRadius:12,shadowOffset:{width:0,height:2},elevation:2},
-  askDiamondWrap:{width:20,alignItems:'center',justifyContent:'center'},
-  askDiamond:{fontSize:15,color:'#0057FF'},
-  askText:{flex:1,fontFamily:'Poppins_400Regular',fontSize:15,color:'rgba(0,0,0,0.28)'},
-  askMic:{width:36,height:36,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(0,0,0,0.06)',borderRadius:11,flexShrink:0},
-  askSend:{width:36,height:36,borderRadius:11,backgroundColor:'#0057FF',alignItems:'center',justifyContent:'center',flexShrink:0,shadowColor:'#0057FF',shadowOpacity:0.3,shadowRadius:6,shadowOffset:{width:0,height:2}},
+// ── Typing dots (brief loading) ─────────────────────────────────
+function TypingDots() {
+  const dots = useRef([0,1,2].map(() => new Animated.Value(0.25))).current;
+  useEffect(() => {
+    const anims = dots.map((dot, i) =>
+      Animated.loop(Animated.sequence([
+        Animated.delay(i * 160),
+        Animated.timing(dot, { toValue: 1, duration: 300, easing: Easing.ease, useNativeDriver: true }),
+        Animated.timing(dot, { toValue: 0.25, duration: 300, easing: Easing.ease, useNativeDriver: true }),
+        Animated.delay(500 - i * 160),
+      ]))
+    );
+    anims.forEach(a => a.start());
+    return () => anims.forEach(a => a.stop());
+  }, []);
+  return (
+    <View style={s.dotsRow}>
+      {dots.map((op, i) => <Animated.View key={i} style={[s.dot, { opacity: op }]} />)}
+    </View>
+  );
+}
+
+// ── Nav rows — emoji + live sub-note text ───────────────────────
+// Sub-notes are hardcoded here; in production pull from Supabase
+const NAV_ROWS = [
+  { key: 'calendar', label: "What's on today",  sub: 'Soccer 4pm · Dentist done',        emoji: '📅', route: '/(tabs)/calendar' },
+  { key: 'shopping', label: 'Shopping list',     sub: '8 items · Milk & eggs needed',      emoji: '🛒', route: '/(tabs)/shopping' },
+  { key: 'meals',    label: 'Dinner ideas',      sub: 'Tonight unplanned — I can help',    emoji: '🍽️', route: '/(tabs)/mealplanner' },
+  { key: 'tutor',    label: 'Zaeli Tutor',       sub: 'Poppy · Maths due today',           emoji: '🎓', route: '/(tabs)/tutor' },
+  { key: 'todos',    label: 'To-do list',        sub: '3 tasks · Soccer slip unsigned',    emoji: '✅', route: '/(tabs)/more' },
+  { key: 'kids',     label: 'Kids Hub',          sub: 'Poppy · Gab · Duke · Activity',    emoji: '👧', route: '/(tabs)/more' },
+  { key: 'notes',    label: 'Notes',             sub: '3 notes this week',                 emoji: '📝', route: '/(tabs)/more' },
+  { key: 'travel',   label: 'Travel plans',      sub: 'Easter trip · 3 weeks away',        emoji: '✈️', route: '/(tabs)/more' },
+];
+
+// ── Main component ─────────────────────────────────────────────
+export default function HomeScreen() {
+  const router    = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
+  const now       = new Date();
+  const hour      = now.getHours();
+  const dateStr   = now.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+
+  const [menuOpen,       setMenuOpen]       = useState(false);
+  const [briefLoading,   setBriefLoading]   = useState(true);
+  const [briefText,      setBriefText]      = useState('');
+  const [briefAccent,    setBriefAccent]    = useState('');
+  const [briefSub,       setBriefSub]       = useState('');
+  const [ctaLabel,       setCtaLabel]       = useState('Yes please');
+  const [ctaSeed,        setCtaSeed]        = useState('');
+  const [briefGenerated, setBriefGenerated] = useState(false);
+  const [showScrollBtn,  setShowScrollBtn]  = useState(false);
+  const [showAddSheet,   setShowAddSheet]   = useState(false);
+
+  // Mic — first session tap → voice overlay (full-screen "Chat with Zaeli")
+  // Subsequent taps → zaeli-chat with voiceBarActive (types into input bar)
+  function handleMicPress() {
+    if (!voiceOverlayShownThisSession) {
+      voiceOverlayShownThisSession = true;
+      router.push('/(tabs)/voice-overlay' as any);
+    } else {
+      router.push({
+        pathname: '/(tabs)/zaeli-chat',
+        params: { channel: 'general', returnTo: '/(tabs)/', voiceBarActive: 'true' },
+      });
+    }
+  }
+
+  const scrollBtnOpacity = useRef(new Animated.Value(0)).current;
+  const briefOpacity     = useRef(new Animated.Value(0)).current;
+  const sheetAnim        = useRef(new Animated.Value(320)).current;
+
+  // ── Add-to-chat sheet ──────────────────────────────────────
+  function openSheet() {
+    setShowAddSheet(true);
+    Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+  }
+
+  // Animate out → hide modal → wait for iOS to fully dismiss → then run callback
+  function closeSheet(cb?: () => void) {
+    Animated.timing(sheetAnim, { toValue: 320, duration: 200, useNativeDriver: true }).start(() => {
+      setShowAddSheet(false);
+      if (cb) {
+        // Wait for the Modal to fully unmount before launching any pickers
+        // iOS requires the presenting view controller to be gone first
+        setTimeout(cb, 350);
+      }
+    });
+  }
+
+  // Open camera → get image URI → navigate to chat with it
+  async function openCamera() {
+    closeSheet(async () => {
+      try {
+        const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+        if (!granted) return;
+        const result = await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+        });
+        if (!result.canceled && result.assets?.[0]) {
+          router.push({
+            pathname: '/(tabs)/zaeli-chat',
+            params: { channel: 'general', returnTo: '/(tabs)/', pendingImageUri: result.assets[0].uri },
+          });
+        }
+      } catch (e) { console.error('Camera error:', e); }
+    });
+  }
+
+  // Open photo library → get image URI → navigate to chat with it
+  async function openPhotos() {
+    closeSheet(async () => {
+      try {
+        const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!granted) return;
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+        });
+        if (!result.canceled && result.assets?.[0]) {
+          router.push({
+            pathname: '/(tabs)/zaeli-chat',
+            params: { channel: 'general', returnTo: '/(tabs)/', pendingImageUri: result.assets[0].uri },
+          });
+        }
+      } catch (e) { console.error('Photos error:', e); }
+    });
+  }
+
+  // Files — navigate to chat; zaeli-chat handles file picker from params
+  function openFiles() {
+    closeSheet(() => {
+      router.push({
+        pathname: '/(tabs)/zaeli-chat',
+        params: { channel: 'general', returnTo: '/(tabs)/', openFilePicker: 'true' },
+      });
+    });
+  }
+
+  // ── Scroll arrow ───────────────────────────────────────────
+  const handleScroll = useCallback((e: any) => {
+    const { contentSize, layoutMeasurement, contentOffset } = e.nativeEvent;
+    const dist = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    const show = dist > SCROLL_THRESHOLD;
+    if (show !== showScrollBtn) {
+      setShowScrollBtn(show);
+      Animated.timing(scrollBtnOpacity, { toValue: show ? 1 : 0, duration: 200, useNativeDriver: true }).start();
+    }
+  }, [showScrollBtn]);
+
+  // ── Brief generation ───────────────────────────────────────
+  async function generateBrief() {
+    if (briefGenerated) return;
+    setBriefLoading(true);
+    setBriefGenerated(true);
+    try {
+      const td = localDateStr(now);
+      const [{ data: events }, { data: todos }, { data: meals }] = await Promise.all([
+        supabase.from('events').select('title,date,time').eq('family_id', FAMILY_ID).gte('date', td).order('date').limit(5),
+        supabase.from('todos').select('title,priority').eq('family_id', FAMILY_ID).eq('done', false).limit(5),
+        supabase.from('meal_plans').select('meal_name,date').eq('family_id', FAMILY_ID).gte('date', td).limit(2),
+      ]);
+      const todayMeal  = meals?.find(m => m.date === td)?.meal_name;
+      const dinnerRule = hour < 19
+        ? todayMeal ? `Dinner planned: ${todayMeal}.` : 'Dinner not planned yet — mention warmly.'
+        : 'Do not mention dinner.';
+      const evStr  = events?.length ? events.map(e=>`${e.title} (${e.date===td?'TODAY':e.date}${e.time?' '+e.time:''})`).join(', ') : 'Nothing on calendar';
+      const tdStr  = todos?.length  ? todos.slice(0,3).map(t=>t.title).join(', ') : 'No urgent tasks';
+      const frame  = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 21 ? 'evening' : 'night';
+
+      const sys = `You write the Zaeli home brief for ${MEMBER_NAME}. Zaeli is warm, witty, Australian — Anne Hathaway energy. No mate/guys. Never start with I.
+TIME: ${now.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})} (${frame})
+EVENTS: ${evStr}
+URGENT TASKS: ${tdStr}
+${dinnerRule}
+Return ONLY valid JSON (no markdown):
+{"main":"1-2 warm sentences. Wrap ONE key phrase in [ACCENT]...[/ACCENT] — the most important fact. Never start with I.","sub":"One warm specific question ending with ?","cta":"3-4 word button label","seed":"Message to send when CTA tapped"}`;
+
+      const raw    = await callGPT({ feature:'home_brief', familyId:FAMILY_ID, messages:[{role:'user',content:'Generate now.'}], systemPrompt:sys, maxTokens:300 });
+      const txt    = raw?.choices?.[0]?.message?.content ?? '';
+      const parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
+
+      const mainRaw: string    = parsed.main ?? '';
+      const accentMatch        = mainRaw.match(/\[ACCENT\](.*?)\[\/ACCENT\]/);
+      const accentPhrase       = accentMatch ? accentMatch[1] : '';
+      const mainClean          = mainRaw.replace(/\[ACCENT\](.*?)\[\/ACCENT\]/g, accentPhrase);
+
+      setBriefText(mainClean);
+      setBriefAccent(accentPhrase);
+      setBriefSub(parsed.sub ?? '');
+      setCtaLabel(parsed.cta ?? 'Yes please');
+      setCtaSeed(parsed.seed ?? '');
+    } catch {
+      setBriefText('Hope the tacos went down well! Soccer at 4pm and the dentist is done — one less thing.');
+      setBriefAccent('Soccer at 4pm');
+      setBriefSub("Dinner's still wide open — want me to sort something quick?");
+      setCtaLabel('Yes please');
+      setCtaSeed('Can you help sort dinner?');
+    } finally {
+      setBriefLoading(false);
+      Animated.timing(briefOpacity, { toValue:1, duration:400, useNativeDriver:true }).start();
+    }
+  }
+
+  useFocusEffect(useCallback(() => { generateBrief(); }, []));
+
+  function openChat(seed = '') {
+    router.push({ pathname:'/(tabs)/zaeli-chat', params:{ channel:'general', returnTo:'/(tabs)/', seedMessage:seed } });
+  }
+
+  // ── Brief render ──────────────────────────────────────────
+  function renderBrief() {
+    if (briefLoading) {
+      return (
+        <View style={s.loadingWrap}>
+          <Text style={s.loadingLabel}>Zaeli is thinking…</Text>
+          <TypingDots />
+        </View>
+      );
+    }
+    const parts = briefAccent && briefText.includes(briefAccent) ? briefText.split(briefAccent) : null;
+    return (
+      <Animated.View style={{ opacity: briefOpacity }}>
+        <Text style={s.briefMain}>
+          {parts
+            ? <>{parts[0]}<Text style={s.briefAccent}>{briefAccent}</Text>{parts[1] ?? ''}</>
+            : briefText
+          }
+        </Text>
+        {briefSub ? <Text style={s.briefSub}>{briefSub}</Text> : null}
+      </Animated.View>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  return (
+    <View style={s.root}>
+      <ExpoStatusBar style="light" />
+      <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
+
+      {/* ══ COMPACT BLUE BANNER ══ */}
+      <SafeAreaView style={s.banner} edges={['top']}>
+        <View style={s.bannerOrb} />
+
+        {/* Top row */}
+        <View style={s.bannerTopRow}>
+          {/* Logo — exact calendar/tutor style */}
+          <TouchableOpacity style={s.logoMark} onPress={() => router.replace('/(tabs)/')} activeOpacity={0.8}>
+            <View style={s.logoStarBox}>
+              <Text style={s.logoStarTxt}>✦</Text>
+            </View>
+            <Text style={s.logoWord}>
+              {'z'}<Text style={{ color: YELLOW }}>{'a'}</Text>{'el'}<Text style={{ color: YELLOW }}>{'i'}</Text>
+            </Text>
+          </TouchableOpacity>
+
+          <View style={s.bannerRight}>
+            {/* Date — same visual weight as hamburger */}
+            <Text style={s.bannerDate}>{dateStr}</Text>
+            <HamburgerButton onPress={() => setMenuOpen(true)} tint="#fff" />
+          </View>
+        </View>
+
+        {/* Greeting — bigger, Anna in DM Serif */}
+        <Text style={s.bannerGreeting}>{getGreeting(hour)}</Text>
+        <Text style={s.bannerName}>
+          <Text style={s.bannerNameSerif}>{MEMBER_NAME}</Text>
+          {'  '}{getGreetingEmoji(hour)}
+        </Text>
+      </SafeAreaView>
+
+      {/* ══ SCROLLABLE BODY ══ */}
+      <View style={s.scrollWrap}>
+        <ScrollView
+          ref={scrollRef}
+          style={s.scroll}
+          contentContainerStyle={s.scrollContent}
+          showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+        >
+          {/* Brief */}
+          <View style={s.briefBlock}>{renderBrief()}</View>
+
+          {/* CTAs */}
+          {!briefLoading && (
+            <View style={s.ctas}>
+              <TouchableOpacity style={s.btnPrimary} onPress={() => openChat(ctaSeed)} activeOpacity={0.85}>
+                <Text style={s.btnPrimaryTxt}>{ctaLabel}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.btnSecondary} activeOpacity={0.7}>
+                <Text style={s.btnSecondaryTxt}>All good, thanks</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={s.divider} />
+
+          {/* Nav rows — emoji + sub-notes */}
+          <View style={s.navRows}>
+            {NAV_ROWS.map((row, i) => (
+              <TouchableOpacity
+                key={row.key}
+                style={[s.navRow, i === NAV_ROWS.length - 1 && { borderBottomWidth: 0 }]}
+                onPress={() => router.push(row.route as any)}
+                activeOpacity={0.7}
+              >
+                <View style={s.navRowEmoji}>
+                  <Text style={s.navRowEmojiTxt}>{row.emoji}</Text>
+                </View>
+                <View style={s.navRowText}>
+                  <Text style={s.navRowLabel}>{row.label}</Text>
+                  <Text style={s.navRowSub}>{row.sub}</Text>
+                </View>
+                <IcoChevron />
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={{ height: 36 }} />
+        </ScrollView>
+
+        {/* Scroll-to-bottom arrow — Claude style */}
+        <Animated.View
+          style={[s.scrollDownBtn, { opacity: scrollBtnOpacity }]}
+          pointerEvents={showScrollBtn ? 'auto' : 'none'}
+        >
+          <TouchableOpacity
+            style={s.scrollDownInner}
+            onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
+            activeOpacity={0.85}
+          >
+            <IcoArrowDown />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* ══ FLOATING BAR — bigger, Claude-style ══ */}
+        <View style={s.floatingBar}>
+          <View style={s.floatingBarInner}>
+
+            {/* + Add to Chat */}
+            <TouchableOpacity style={s.barIconBtn} onPress={openSheet} activeOpacity={0.75}>
+              <IcoPlus />
+            </TouchableOpacity>
+
+            <View style={s.barSep} />
+
+            {/* Placeholder text → opens chat */}
+            <TouchableOpacity style={{ flex: 1, paddingVertical: 4 }} onPress={() => openChat('')} activeOpacity={0.6}>
+              <Text style={s.barPlaceholder}>Chat with Zaeli…</Text>
+            </TouchableOpacity>
+
+            {/* Right side: mic — tapping navigates to zaeli-chat in voice mode */}
+            <TouchableOpacity style={s.barIconBtn} onPress={handleMicPress} activeOpacity={0.75}>
+              <IcoMic color={INK3} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* ══ ADD TO CHAT BOTTOM SHEET ══ */}
+      <Modal visible={showAddSheet} transparent animationType="none" onRequestClose={() => closeSheet()}>
+        <Pressable style={s.sheetOverlay} onPress={() => closeSheet()}>
+          <Animated.View style={[s.sheet, { transform: [{ translateY: sheetAnim }] }]}>
+            <Pressable onPress={() => {}}>
+              {/* Handle bar */}
+              <View style={s.sheetHandle} />
+
+              {/* Header */}
+              <View style={s.sheetHeader}>
+                <TouchableOpacity style={s.sheetCloseBtn} onPress={() => closeSheet()} activeOpacity={0.7}>
+                  <IcoClose />
+                </TouchableOpacity>
+                <Text style={s.sheetTitle}>Add to Chat</Text>
+                {/* Spacer to centre title */}
+                <View style={{ width: 44 }} />
+              </View>
+
+              {/* Tile row */}
+              <View style={s.sheetTiles}>
+                <TouchableOpacity style={s.sheetTile} activeOpacity={0.75} onPress={openCamera}>
+                  <IcoCamera />
+                  <Text style={s.sheetTileLabel}>Camera</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.sheetTile} activeOpacity={0.75} onPress={openPhotos}>
+                  <IcoPhotos />
+                  <Text style={s.sheetTileLabel}>Photos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.sheetTile} activeOpacity={0.75} onPress={openFiles}>
+                  <IcoFiles />
+                  <Text style={s.sheetTileLabel}>Files</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ height: Platform.OS === 'ios' ? 32 : 20 }} />
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
+// ── Styles ─────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: BLUE },
+
+  // ── BANNER ──────────────────────────────────────────────────
+  banner: {
+    backgroundColor: BLUE,
+    paddingHorizontal: 22,
+    paddingBottom: 24,
+    overflow: 'hidden',
+  },
+  bannerOrb: {
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.07)', top: -55, right: -35,
+  },
+  bannerTopRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 18, paddingTop: 6,
+  },
+
+  // Logo — bigger on home than other screens (was 32/17/22, now 40/21/28)
+  logoMark:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logoStarBox: { width: 40, height: 40, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  logoStarTxt: { fontSize: 21, color: '#fff' },
+  logoWord:    { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 28, color: '#fff', letterSpacing: -0.5 },
+
+  bannerRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  // Date — Poppins SemiBold 14px matches hamburger visual weight
+  bannerDate: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 14, color: 'rgba(255,255,255,0.72)', letterSpacing: 0.1,
+  },
+
+  // Greeting — bigger overall
+  bannerGreeting: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 17, color: 'rgba(255,255,255,0.82)', marginBottom: 3,
+  },
+  bannerName: {
+    // "Anna" is DMSerifDisplay Italic, emoji after is Poppins bold
+    fontSize: 30, color: '#fff', letterSpacing: -0.3,
+  },
+  // "Anna" rendered as nested Text with DM Serif Italic
+  bannerNameSerif: {
+    fontFamily: 'DMSerifDisplay_400Italic',
+    fontSize: 34, color: '#fff', letterSpacing: -0.8,
+  },
+
+  // ── SCROLL ──────────────────────────────────────────────────
+  scrollWrap:    { flex: 1, backgroundColor: BG, position: 'relative' },
+  scroll:        { flex: 1, backgroundColor: BG },
+  scrollContent: { paddingBottom: 130 },
+
+  // ── BRIEF ───────────────────────────────────────────────────
+  briefBlock: { paddingHorizontal: 22, paddingTop: 28, paddingBottom: 4, minHeight: 130 },
+  loadingWrap: { paddingTop: 6 },
+  loadingLabel: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK3, marginBottom: 12 },
+  dotsRow: { flexDirection: 'row', gap: 7, alignItems: 'center' },
+  dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: CORAL },
+
+  briefMain: {
+    fontFamily: 'DMSerifDisplay_400Regular',
+    fontSize: 48, color: INK, lineHeight: 54, letterSpacing: -2, marginBottom: 12,
+  },
+  briefAccent: { color: CORAL, fontStyle: 'italic' },
+  briefSub: {
+    fontFamily: 'DMSerifDisplay_400Italic',
+    fontSize: 20, color: INK2, lineHeight: 28, letterSpacing: -0.3,
+  },
+
+  // ── CTAs ────────────────────────────────────────────────────
+  ctas: {
+    flexDirection: 'row', gap: 10, paddingHorizontal: 22, marginTop: 22, marginBottom: 26,
+  },
+  btnPrimary: {
+    flex: 1, paddingVertical: 16, backgroundColor: CORAL,
+    borderRadius: 14, alignItems: 'center',
+  },
+  btnPrimaryTxt: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' },
+  btnSecondary: {
+    flex: 1, paddingVertical: 15, borderWidth: 1.5, borderColor: BORDER,
+    borderRadius: 14, alignItems: 'center',
+  },
+  btnSecondaryTxt: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: INK3 },
+
+  divider: { height: 1, backgroundColor: BORDER, marginHorizontal: 22 },
+
+  // ── NAV ROWS ────────────────────────────────────────────────
+  navRows: { paddingHorizontal: 22 },
+  navRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: BORDER,
+  },
+  navRowEmoji: {
+    width: 50, height: 50, borderRadius: 14,
+    backgroundColor: 'rgba(10,10,10,0.04)',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  navRowEmojiTxt: { fontSize: 26 },
+  navRowText:  { flex: 1 },
+  navRowLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: INK, marginBottom: 3 },
+  navRowSub:   { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK3 },
+
+  // ── SCROLL-DOWN ARROW ───────────────────────────────────────
+  scrollDownBtn: {
+    position: 'absolute', bottom: 108, left: 0, right: 0,
+    alignItems: 'center', zIndex: 50,
+  },
+  scrollDownInner: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: 'rgba(10,10,10,0.45)',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+  },
+
+  // ── FLOATING BAR — bigger ────────────────────────────────────
+  floatingBar: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 20,
+    paddingTop: 12,
+  },
+  floatingBarInner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#fff',
+    borderRadius: 32,
+    paddingVertical: 16,   // bigger than before
+    paddingHorizontal: 18,
+    borderWidth: 1, borderColor: BORDER,
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 18,
+    shadowOffset: { width: 0, height: -2 }, elevation: 6,
+  },
+  barIconBtn: {
+    width: 36, height: 36, alignItems: 'center', justifyContent: 'center',
+  },
+  barSep: { width: 1, height: 20, backgroundColor: 'rgba(10,10,10,0.1)' },
+  barPlaceholder: {
+    fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK3,
+  },
+
+  // Waveform — black circle with animated bars
+  barWaveBtn: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: INK,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  waveRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  waveBar: {
+    width: 3.5, height: 18, borderRadius: 2,
+    backgroundColor: '#fff',
+  },
+
+  // ── ADD TO CHAT SHEET ────────────────────────────────────────
+  sheetOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.38)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: BG,
+    borderTopLeftRadius: 26, borderTopRightRadius: 26,
+    paddingHorizontal: 20,
+    shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 22, shadowOffset: { width: 0, height: -4 },
+  },
+  sheetHandle: {
+    width: 38, height: 4, borderRadius: 2,
+    backgroundColor: 'rgba(10,10,10,0.14)',
+    alignSelf: 'center', marginTop: 12, marginBottom: 4,
+  },
+  sheetHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', paddingVertical: 18,
+  },
+  sheetCloseBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(10,10,10,0.07)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sheetTitle: {
+    fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK,
+  },
+  sheetTiles: { flexDirection: 'row', gap: 12, marginBottom: 10 },
+  sheetTile: {
+    flex: 1,
+    backgroundColor: 'rgba(10,10,10,0.05)',
+    borderRadius: 20, paddingVertical: 32,
+    alignItems: 'center', justifyContent: 'center', gap: 14,
+  },
+  sheetTileLabel: {
+    fontFamily: 'Poppins_500Medium', fontSize: 15, color: INK,
+  },
 });

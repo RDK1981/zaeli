@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 21 March 2026 — Session 13 complete*
+*Last updated: 22 March 2026 — Session 14 complete*
 
 ---
 
@@ -11,6 +11,7 @@
 - Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no && chaining)
 - Repo: https://github.com/RDK1981/zaeli (private)
 - PowerShell rule: (tabs) folder needs backtick escaping: app\`(tabs`)\filename.tsx
+- Copy files using: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\(tabs)\file.tsx"`
 - Full file rewrites only — never partial diffs
 - Design before code — always discuss/mockup new screens before writing code
 
@@ -26,10 +27,10 @@ Zaeli is an iOS-first AI family life platform for Australian families with child
 - 100% web sales (no App Store cut)
 
 **Unit economics (verified 21 Mar 2026):**
-- GPT-5.4 mini chat: A$0.0037/msg
-- GPT-5.4 mini brief: A$0.002/call
-- Claude Sonnet scan: A$0.03/receipt
-- Homework GPT-5.4 mini: A$0.0037/msg
+- GPT-4o-mini chat: A$0.0037/msg
+- GPT-4o-mini brief: A$0.002/call
+- Claude Sonnet 4.6 vision scan: A$0.03/receipt
+- Homework GPT-4o-mini: A$0.0037/msg
 - Realistic family monthly API cost: ~A$1.50 → ~85% margin
 - MTD cost 21 Mar: A$2.55 (admin console, aggregate query fix applied)
 
@@ -48,14 +49,16 @@ Core: Anne Hathaway energy — smart, warm, magnetic.
 - Never start with "I"
 - No asterisks or markdown bold in spoken responses — plain text only
 - NEVER sound like a push notification or task manager
+- Always time-aware — knows exact date, day, time. Never guesses or calls a day "typical"
+- Late night (9pm+): focus on tomorrow, acknowledge the hour naturally
 
 ---
 
 ## Stack
-- React Native + Expo (iOS-first)
+- React Native + Expo SDK 54 (iOS-first)
 - Supabase (Postgres, Sydney ap-southeast-2, ID: rsvbzakyyrftezthlhtd)
-- Claude Sonnet 4.6 — vision/scan only
-- OpenAI GPT-5.4 mini — all chat/briefs/homework/greetings
+- Claude Sonnet 4.6 (`claude-sonnet-4-6`) — vision/scan only
+- OpenAI GPT-4o-mini (`gpt-4o-mini`) — all chat/briefs/homework/greetings
 - OpenAI Whisper-1 — voice transcription
 - expo-router, expo-av, react-native-svg
 - Poppins font (UI), DMSerifDisplay (hero titles)
@@ -67,8 +70,9 @@ Core: Anne Hathaway energy — smart, warm, magnetic.
 ```
 DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
 SONNET    = 'claude-sonnet-4-6'
-GPT5_MINI = 'gpt-5.4-mini'
-CRITICAL: OpenAI = max_completion_tokens. Claude = max_tokens. Never mix.
+GPT_MODEL = 'gpt-4o-mini'
+CRITICAL: OpenAI = max_tokens (NOT max_completion_tokens). Claude = max_tokens. 
+zaeli-chat.tsx calls OpenAI directly via fetch — does NOT use callGPT from zaeli-provider.
 ```
 
 ---
@@ -77,10 +81,10 @@ CRITICAL: OpenAI = max_completion_tokens. Claude = max_tokens. Never mix.
 
 | File | Status | Notes |
 |---|---|---|
-| index.tsx | Complete | Brief, mic, GPT logging |
+| index.tsx | Complete | Brief, mic, GPT logging, floating bar, scroll arrow |
 | calendar.tsx | Complete | Brief fetches own events, mic, logging |
 | shopping.tsx | Complete | Both mics, 100 items, logging |
-| zaeli-chat.tsx | Complete | Full GPT, autoMic, logging |
+| zaeli-chat.tsx | Complete (Session 14) | Full rewrite — see notes below |
 | mealplanner.tsx | Complete | GPT brief, mic, correct count |
 | more.tsx | Complete | AI toggle (remove pre-launch) |
 | tutor.tsx | Complete | Hub, kids list, Zaeli noticed (kid-directed) |
@@ -88,6 +92,43 @@ CRITICAL: OpenAI = max_completion_tokens. Claude = max_tokens. Never mix.
 | tutor-session.tsx | Complete | Homework Help — full-width layout, vision+GPT, all icons wired |
 | tutor-practice.tsx | Built | Camera fixes applied, needs UX review |
 | tutor-reading.tsx | Built | Camera fixes applied, needs UX review |
+| voice-overlay.tsx | Complete | First-session mic entry → Whisper → zaeli-chat seedMessage |
+
+---
+
+## zaeli-chat.tsx — Session 14 Changes (22 Mar 2026)
+
+**What was fixed/built this session:**
+
+1. **SVG icon rows restored** under every message:
+   - Zaeli messages: timestamp · Play ▷ · Copy · Forward · ThumbUp · ThumbDown
+   - User messages: timestamp · Copy · Forward (right-aligned)
+   - Thumbs have live colour state (teal = up, coral = down, toggles off)
+   - Play is placeholder — will wire to ElevenLabs
+
+2. **Image vision pipeline** — now matches Homework Help tutor module:
+   - Claude Sonnet 4.6 reads the image first, returns 2–4 sentence description
+   - Description injected into GPT system prompt as IMAGE CONTEXT
+   - GPT-4o-mini responds with full context
+   - Uses `expo-file-system/legacy` (SDK 54 deprecation fix)
+
+3. **Standard message reliability** — removed dependency on `callGPT` from `zaeli-provider` (was undefined). Now calls OpenAI directly via `callOpenAI()` helper in the file.
+
+4. **User message bubble** — blue (`#0057FF`) rounded bubble, white text, squared bottom-right corner. Zaeli messages remain full-width, no bubble.
+
+5. **Keyboard push-up** — input bar moved inside `KeyboardAvoidingView` as a normal flow element (was `position: absolute` which broke keyboard behaviour). Smooth push-up now matches Claude app.
+
+6. **Time-aware system prompt** — `buildSystemPrompt()` injects exact real date, time, day name, and time-of-day frame into every API call. Zaeli never guesses the day.
+
+7. **Zaeli can take platform actions** — system prompt now tells Zaeli she CAN add calendar events, shopping items, and todos directly (Supabase table names + fields included). She should confirm and act, not redirect.
+
+8. **Scroll-down arrow** — fades in/out when scrolled up, same style as home screen.
+
+9. **Logo updated** — blue star box (`#0057FF`), white ✦, yellow `a` and `i` letters (`#FFE500`) matching home screen.
+
+10. **Header symmetry** — Online pill pushed to far right with 16px spacer before hamburger, matching back button left gap.
+
+11. **Floating input bar restored** — `position: absolute`, transparent background, white pill with shadow, matching home screen exactly.
 
 ---
 
@@ -97,8 +138,10 @@ events, todos, missions, shopping_items, pantry_items, receipts,
 meal_plans, recipes, menus, family_members, api_logs, tutor_sessions
 ```
 
-IMPORTANT: tutor_sessions needs messages column:
+IMPORTANT: tutor_sessions needs messages column (run once if not done):
+```sql
 ALTER TABLE tutor_sessions ADD COLUMN IF NOT EXISTS messages jsonb DEFAULT '[]'::jsonb;
+```
 
 ---
 
@@ -151,31 +194,29 @@ Not bubbles — document style:
 ---
 
 ## Coding Rules
-- SafeAreaView edges={['top']} always — handle bottom with paddingBottom:28
+- SafeAreaView edges={['top']} always
+- Floating input bars: `position: absolute`, `paddingBottom: Platform.OS === 'ios' ? 32 : 20`, transparent background, white pill with shadow
+- ScrollView `paddingBottom` must be ≥110 to clear floating bar
 - No floating FAB anywhere
 - Logo taps = router.replace('/(tabs)/')
 - PowerShell: no && — separate lines
 - Always npx expo start --clear after changes
-- Keyboard: KeyboardAvoidingView behavior=padding + paddingBottom:28. NEVER use automaticallyAdjustKeyboardInsets alongside KAV.
+- Keyboard: KeyboardAvoidingView behavior='padding'. NEVER use automaticallyAdjustKeyboardInsets alongside KAV.
 - SVG icons: always react-native-svg components — never emoji for UI icons
+- expo-file-system: import from `expo-file-system/legacy` (SDK 54)
+- ImagePicker: MediaTypeOptions is deprecated — use MediaType when refactoring
 
 ---
 
-## Next Priorities
+## Next Priorities (as of 22 Mar 2026)
 
-1. Tutor module remaining:
-   - tutor-practice.tsx UX review
-   - tutor-reading.tsx UX review
-   - Pass 4: Parent analytics (Zaeli noticed to Home screen, tutor summary to Our Family)
-   - ElevenLabs Play button
-   - Whisper logging to api_logs
-
-2. Home brief quality pass — implement zaeli-brief-logic-spec.md
-
-3. To-dos screen — currently stub in more.tsx
-
-4. Website + Stripe + onboarding
-
-5. Multi-user / family sync
-
-6. Pre-launch: remove AI toggle, replace DUMMY_FAMILY_ID with real auth
+1. **tutor-practice.tsx UX review** — full-width layout pass, input bar, icons (same as tutor-session)
+2. **tutor-reading.tsx UX review** — same pass
+3. **ElevenLabs Play button** — wire up voice playback for Zaeli responses (zaeli-chat + tutor-session)
+4. **Whisper logging** — voice transcriptions not yet logged to api_logs
+5. **Home brief quality pass** — implement zaeli-brief-logic-spec.md fully
+6. **To-dos screen** — currently stub in more.tsx
+7. **Floating bar rollout** — roll the home-screen floating bar style across Calendar, Shopping, Mealplanner, More screens
+8. **Website + Stripe + onboarding**
+9. **Multi-user / family sync**
+10. **Pre-launch cleanup** — remove AI toggle, replace DUMMY_FAMILY_ID with real auth
