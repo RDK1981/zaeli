@@ -1,6 +1,6 @@
 /**
  * zaeli-chat.tsx — Zaeli Chat Screen
- * Fixes: keyboard push-up · scroll-down arrow · time-aware persona · Zaeli can act on platform
+ * Always injects live shopping, calendar and todo data into every GPT call
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -20,7 +20,7 @@ import { NavMenu, HamburgerButton } from '../components/NavMenu';
 
 // ── Direct API helpers ────────────────────────────────────────────────────────
 const OPENAI_URL  = 'https://api.openai.com/v1/chat/completions';
-const GPT_MODEL   = 'gpt-4o-mini';
+const GPT_MODEL   = 'gpt-5.4-mini';
 const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
 
 async function callOpenAI(
@@ -35,7 +35,7 @@ async function callOpenAI(
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model: GPT_MODEL,
-      max_tokens: maxTokens,
+      max_completion_tokens: maxTokens,
       messages: [{ role: 'system', content: systemPrompt }, ...messages],
     }),
   });
@@ -68,26 +68,37 @@ function getTimeContext() {
   return { dateStr, timeStr, frame, isLate };
 }
 
+function localDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function addDays(date: Date, n: number) {
+  const d = new Date(date); d.setDate(d.getDate() + n); return d;
+}
+function toLocalDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 // ── Channel config ─────────────────────────────────────────────────────────────
 const CHANNELS: Record<string, { label: string; color: string; persona: string; seeds: string[] }> = {
   general: {
     label: 'Zaeli', color: CORAL,
-    persona: `You are Zaeli, a warm, switched-on AI assistant for an Australian family. Anne Hathaway energy — smart, magnetic, never try-hard. Australian warmth (never "mate" or "guys"). Never start with "I". Short by default, expand when useful. No asterisks or markdown bold — plain text only. Never sound like a push notification.`,
+    persona: `You are Zaeli — a smart, warm, and quietly witty AI for a modern Australian family. You are a teammate, not just an assistant — when Anna's tired or crushing it, you're in it with her. Confident, observant, playful. Vary your tone: sometimes warm and encouraging, sometimes dry, sometimes full camaraderie ("we've got this, Anna!"), sometimes just a quick sharp line. Use emojis occasionally — 1-2 when the moment calls for it (💪 for effort, 🙌 for wins, 👀 for observations). Never say "mate". Never use hollow affirmations. Never start with "I". Short and natural. No bullet points, no markdown.`,
     seeds: ["What's on today?", 'Help with dinner', 'Shopping list', 'Kids activities'],
   },
   Calendar: {
-    label: 'Calendar', color: BLUE,
-    persona: `You are Zaeli helping with calendar and scheduling for an Australian family. Warm, efficient, specific. Never "mate" or "guys". Plain text only.`,
+    label: 'Calendar', color: '#2055F0',
+    persona: `You are Zaeli — smart, organised, and lightly dry about what you see in the calendar. You notice clashes before Anna does, think ahead, and occasionally remark on what's coming ("Thursdays are working hard this week 👀"). You bring energy when something big is coming up — "big week ahead — we've got this." Never sound corporate. Never say "mate". Never start with "I". Use 1-2 emojis when the moment calls for it. Short, warm, specific. No bullet points, no markdown.`,
     seeds: ['What do we have this week?', 'Book something in', 'Move an event', 'Check conflicts'],
   },
   Shopping: {
     label: 'Shopping', color: '#1A7A45',
-    persona: `You are Zaeli helping with shopping and pantry management for an Australian family. Practical and warm. Never "mate" or "guys". Plain text only.`,
+    persona: `You are Zaeli — practical, food-savvy, and lightly playful. You know exactly what's on the list. Make quick smart suggestions, add small observations, bring a little energy. Never just confirm actions flatly. Examples: "You're one or two ingredients off a very decent dinner here 👀" or "Done — future you is going to be very happy about this 🙌". Never say "mate". Never start with "I". Use 1-2 emojis when right. No bullet points, no markdown.`,
     seeds: ['Add to list', 'What do we need?', 'Pantry check', 'Recipe ingredients'],
   },
   Meals: {
     label: 'Meals', color: '#E8601A',
-    persona: `You are Zaeli helping with meal planning and dinner ideas for an Australian family. Practical, warm, food-savvy. Never "mate" or "guys". Plain text only.`,
+    persona: `You are Zaeli — food-curious, practical, and warm. You know what the kids like and what's in the pantry. You have opinions (gentle ones). Make dinner feel nearly sorted rather than like a problem. Light, helpful, occasionally a little opinionated. Use 1-2 emojis when the moment calls for it. Never say "mate". Never start with "I". No bullet points, no markdown.`,
     seeds: ["What's for dinner?", 'Quick meal ideas', 'Kids favourites', 'Weekly plan'],
   },
 };
@@ -280,9 +291,13 @@ export default function ZaeliChat() {
   const [showAddSheet,  setShowAddSheet]  = useState(false);
   const [pendingImage,  setPendingImage]  = useState<string | null>(null);
   const [isRecording,   setIsRecording]   = useState(false);
-  const [shoppingItems, setShoppingItems] = useState<any[]>([]);
-  const [thumbs,        setThumbs]        = useState<Record<string, 'up' | 'down' | null>>({});
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [thumbs,        setThumbs]        = useState<Record<string, 'up' | 'down' | null>>({});
+
+  // Live platform data — loaded once, used in every system prompt
+  const [shoppingItems, setShoppingItems] = useState<any[]>([]);
+  const [liveEvents,    setLiveEvents]    = useState<any[]>([]);
+  const [liveTodos,     setLiveTodos]     = useState<any[]>([]);
 
   const scrollBtnAnim   = useRef(new Animated.Value(0)).current;
   const recordingRef    = useRef<Audio.Recording | null>(null);
@@ -291,6 +306,7 @@ export default function ZaeliChat() {
   const greetingHandled = useRef(false);
   const isAtBottom      = useRef(true);
 
+  // ── Channel sync ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const ch = params.channel || 'general';
     setActiveCtx(CHANNELS[ch] ? ch : 'general');
@@ -300,14 +316,41 @@ export default function ZaeliChat() {
     if (params.pendingImageUri) setPendingImage(params.pendingImageUri);
   }, [params.pendingImageUri]);
 
-  useEffect(() => {
-    supabase.from('shopping_items').select('id,name,aisle,checked')
-      .eq('family_id', FAMILY_ID).eq('checked', false).limit(100)
-      .then(({ data }) => setShoppingItems(data || []));
-  }, []);
+  // ── Load live platform data ───────────────────────────────────────────────────
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
-    if (!seedMsg || seedHandled.current) return;
+    const td = localDateStr();
+    Promise.all([
+      supabase.from('shopping_items').select('id,name,checked')
+        .eq('family_id', FAMILY_ID).eq('checked', false).limit(200),
+      supabase.from('events').select('title,date,time')
+        .eq('family_id', FAMILY_ID).gte('date', td).order('date').order('time').limit(10),
+      supabase.from('todos').select('title,priority')
+        .eq('family_id', FAMILY_ID).eq('done', false).limit(10),
+    ]).then(([shop, events, todos]) => {
+      console.log('SHOPPING DEBUG — count:', shop.data?.length, 'error:', shop.error?.message);
+      console.log('SHOPPING sample:', JSON.stringify(shop.data?.slice(0,3)));
+      setShoppingItems(shop.data || []);
+      setLiveEvents(events.data || []);
+      setLiveTodos(todos.data || []);
+      setDataLoaded(true);
+    }).catch((e) => { console.error('Live data fetch error:', e); setDataLoaded(true); });
+  }, []);
+
+  // ── Seed message — wait for live data first ──────────────────────────────────
+  // Reset seedHandled whenever seedMsg changes so returning with a new seed works
+  useEffect(() => {
+    if (!seedMsg) return;
+    // New seed arrived — reset everything for a fresh conversation
+    seedHandled.current = false;
+    greetingHandled.current = false;
+    setMessages([]);
+    setShowHints(false);
+  }, [seedMsg]);
+
+  useEffect(() => {
+    if (!seedMsg || seedHandled.current || !dataLoaded) return;
     seedHandled.current = true;
     const ch = params.channel || 'general';
     const ctx = CHANNELS[ch] ? ch : 'general';
@@ -318,17 +361,19 @@ export default function ZaeliChat() {
     setMessages([userMsg]); setShowHints(false);
     greetingHandled.current = true;
     setTimeout(() => doSend(seedMsg, ctx, []), 100);
-  }, []);
+  }, [dataLoaded, seedMsg]);
 
+  // ── Greeting — wait for live data first ──────────────────────────────────────
   useEffect(() => {
-    if (greetingHandled.current) return;
+    if (greetingHandled.current || !dataLoaded) return;
     greetingHandled.current = true;
     const ch = params.channel || 'general';
     doGreeting(CHANNELS[ch] ? ch : 'general');
-  }, [activeCtx]);
+  }, [dataLoaded]);
 
   useFocusEffect(useCallback(() => { RNStatusBar.setBarStyle('dark-content', true); }, []));
 
+  // ── autoMic ───────────────────────────────────────────────────────────────────
   const startRecording = useCallback(async () => {
     try {
       const { granted } = await Audio.requestPermissionsAsync();
@@ -388,19 +433,22 @@ export default function ZaeliChat() {
     });
   }
 
-  // ── System prompt with real time + capabilities ───────────────────────────────
-  function buildSystemPrompt(persona: string, ctx: string, imageDescription?: string): string {
+  // ── System prompt — always includes live platform data ────────────────────────
+  function buildSystemPrompt(persona: string, imageDescription?: string): string {
     const tc = getTimeContext();
     const parts = [persona];
+
     parts.push(
       `TIME & DATE: It is ${tc.timeStr} on ${tc.dateStr} (${tc.frame}). ` +
       `You always know the exact real date and time — never guess or call it a "typical" day. ` +
       (tc.isLate ? `It is late — acknowledge this naturally and warmly if relevant. Focus on tomorrow rather than today. ` : '') +
       `Match your tone and content to the actual time of day.`
     );
+
     parts.push(
       `FAMILY: Anna (logged in), Richard, Poppy (Yr6, girl, age 11), Gab (Yr4, boy, age 9), Duke (Yr1, boy, age 6). Family ID: ${FAMILY_ID}.`
     );
+
     parts.push(
       `CAPABILITIES — you CAN and SHOULD take direct action when asked:\n` +
       `• Add calendar events → Supabase 'events' table (title, start_time, end_time, all_day, description, family_id)\n` +
@@ -409,12 +457,28 @@ export default function ZaeliChat() {
       `When asked to add/book/create something: confirm the details, then tell the user it's been added. ` +
       `If you need one missing detail ask for just that. Never tell the user to add things themselves — you handle it.`
     );
-    if (ctx === 'Shopping') {
-      parts.push(`CURRENT SHOPPING LIST: ${shoppingItems.slice(0, 100).map(i => i.name).join(', ') || 'Empty'}`);
-    }
+
+    // Always inject live data — Zaeli always knows the real state of the family's platform
+    const shopCount = shoppingItems.length;
+    const shopNames = shoppingItems.slice(0, 30).map((i: any) => i.name).join(', ');
+    const eventStr  = liveEvents.length > 0
+      ? liveEvents.map((e: any) => `${e.title} (${e.date}${e.time ? ' at ' + e.time.slice(0,5) : ''})`).join(', ')
+      : 'no upcoming events found';
+    const todoStr   = liveTodos.length > 0
+      ? liveTodos.map((t: any) => `${t.title}${t.priority === 'high' || t.priority === 'urgent' ? ' [URGENT]' : ''}`).join(', ')
+      : 'no open to-dos found';
+
+    parts.push(
+      `LIVE PLATFORM DATA — always use this, never say you don't have access:\n` +
+      `• Shopping list: ${shopCount} item${shopCount === 1 ? '' : 's'} to get${shopCount > 0 ? ` — ${shopNames}${shopCount > 30 ? ` + ${shopCount - 30} more` : ''}` : ' (list is clear)'}\n` +
+      `• Upcoming calendar events: ${eventStr}\n` +
+      `• Open to-dos: ${todoStr}`
+    );
+
     if (imageDescription) {
       parts.push(`IMAGE CONTEXT: The user shared a photo. Description: ${imageDescription}`);
     }
+
     return parts.join('\n\n');
   }
 
@@ -448,12 +512,133 @@ export default function ZaeliChat() {
     setLoading(true);
     const channel = CHANNELS[ctx] || CHANNELS.general;
     try {
-      const text = await callOpenAI(buildSystemPrompt(channel.persona, ctx), [{ role: 'user', content: 'Say hello.' }], 140);
+      const text = await callOpenAI(buildSystemPrompt(channel.persona), [{ role: 'user', content: 'Say hello.' }], 140);
       appendMsg({ role: 'zaeli', text });
     } catch (e) {
       console.error('Greeting error:', e);
       appendMsg({ role: 'zaeli', text: `Hey ${MEMBER_NAME}! What can I help with?` });
     } finally { setLoading(false); }
+  }
+
+  // ── Calendar tool use — extract and save events from GPT response ───────────
+  // Two-step approach:
+  // 1. Ask GPT to extract event intent (title, date, whether to copy times from existing)
+  // 2. If copying an existing event, look up the real start/end times from Supabase
+  async function tryExtractAndSaveCalendarEvent(userText: string, gptReply: string, history: Msg[]): Promise<void> {
+    const confirmKeywords = ['added', 'booked', 'scheduled', 'created', 'done', 'copied', 'set up', 'locked in'];
+    const looksLikeConfirmation = confirmKeywords.some(k => gptReply.toLowerCase().includes(k));
+    if (!looksLikeConfirmation) return;
+
+    try {
+      const now2 = new Date();
+      const td   = toLocalDateStr(now2);
+
+      const historyContext = history.slice(-10).map(m =>
+        `${m.role === 'user' ? 'User' : 'Zaeli'}: ${m.text}`
+      ).join('\n');
+
+      // Step 1: Extract intent — what event, what date, what title, copy existing?
+      const intentPrompt = `Extract the calendar event being added from this conversation.
+
+CONVERSATION:
+${historyContext}
+User: "${userText}"
+Zaeli: "${gptReply}"
+
+Today is ${td}. "Tomorrow" = ${toLocalDateStr(addDays(now2, 1))}.
+
+Return ONLY valid JSON:
+{
+  "title": "exact event title being added",
+  "date": "YYYY-MM-DD",
+  "source_event_title": "if copying from an existing event, the original event name — else null",
+  "source_event_date": "if copying, the original event date YYYY-MM-DD — else null",
+  "explicit_start_time": "HH:MM:SS if a specific NEW time was mentioned — else null",
+  "explicit_end_time": "HH:MM:SS if a specific NEW end time was mentioned — else null",
+  "confirmed": true or false
+}
+
+If no event was confirmed as added, set confirmed: false.`;
+
+      const intentRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY || ''}` },
+        body: JSON.stringify({ model: 'gpt-5.4-mini', max_completion_tokens: 250,
+          messages: [{ role: 'user', content: intentPrompt }] }),
+      });
+      const intentJson = await intentRes.json();
+      const intentRaw  = intentJson?.choices?.[0]?.message?.content?.trim() || '';
+      const intent     = JSON.parse(intentRaw.replace(/```json|```/g, '').trim());
+
+      if (!intent.confirmed || !intent.title || !intent.date) return;
+
+      let startTime: string | null = intent.explicit_start_time || null;
+      let endTime:   string | null = intent.explicit_end_time   || null;
+
+      // Step 2: If copying an existing event, fetch its real times from Supabase
+      if (intent.source_event_title) {
+        // Fetch all events in a wide window — match title in JS, not SQL
+        const fromDate = toLocalDateStr(addDays(now2, -30));
+        const toDate   = toLocalDateStr(addDays(now2, 30));
+        const { data: sourceEvents } = await supabase
+          .from('events')
+          .select('title, date, start_time, end_time')
+          .eq('family_id', FAMILY_ID)
+          .gte('date', fromDate)
+          .lte('date', toDate)
+          .order('date', { ascending: false })
+          .limit(50);
+
+        if (sourceEvents && sourceEvents.length > 0) {
+          const srcTitle = intent.source_event_title.toLowerCase().trim();
+
+          // Score each event by how many words of the source title it contains
+          const scored = sourceEvents.map(e => {
+            const eTitle = e.title.toLowerCase();
+            const srcWords = srcTitle.split(/\s+/).filter((w: string) => w.length > 2);
+            const matchCount = srcWords.filter((w: string) => eTitle.includes(w)).length;
+            return { ...e, score: matchCount };
+          }).filter(e => e.score > 0)
+            .sort((a, b) => b.score - a.score);
+
+          const match = scored[0] || null;
+          console.log('Calendar tool use: source title lookup —', srcTitle, '→', match?.title, match?.start_time);
+
+          if (match?.start_time) {
+            const timePart = match.start_time.includes('T')
+              ? match.start_time.split('T')[1].substring(0, 8)
+              : match.start_time.substring(0, 8);
+            startTime = timePart;
+            console.log('Calendar tool use: using time', timePart, 'from event', match.title, 'on', match.date);
+          }
+          if (match?.end_time && !endTime) {
+            const timePart = match.end_time.includes('T')
+              ? match.end_time.split('T')[1].substring(0, 8)
+              : match.end_time.substring(0, 8);
+            endTime = timePart;
+          }
+        }
+      }
+
+      // Build and insert the row
+      const row: any = {
+        family_id:   FAMILY_ID,
+        title:       intent.title,
+        date:        intent.date,
+        timezone:    'Australia/Brisbane',
+        repeat_rule: 'Never',
+        alert_rule:  'None',
+      };
+      if (startTime) row.start_time = `${intent.date}T${startTime}`;
+      if (endTime)   row.end_time   = `${intent.date}T${endTime}`;
+
+      const { error } = await supabase.from('events').insert(row);
+      if (error) console.log('Calendar tool use insert error:', error.message);
+      else       console.log('Calendar tool use: saved —', intent.title, intent.date, startTime);
+
+    } catch (e) {
+      console.log('Calendar tool use error:', e);
+    }
   }
 
   // ── Core send ─────────────────────────────────────────────────────────────────
@@ -463,19 +648,27 @@ export default function ZaeliChat() {
     try {
       let imageDescription = '';
       if (imageUri) imageDescription = await describeImageWithClaude(imageUri);
+
       const historyMsgs = history.slice(-12).map(m => ({
         role: m.role === 'zaeli' ? 'assistant' as const : 'user' as const,
         content: m.text.startsWith('[Image:') ? '(shared a photo)' : m.text,
       }));
+
       let userContent = text;
       if (imageDescription && !text) userContent = `[The user shared a photo: ${imageDescription}]`;
       else if (imageDescription && text) userContent = `${text} [Photo attached: ${imageDescription}]`;
+
       const reply = await callOpenAI(
-        buildSystemPrompt(channel.persona, ctx, imageDescription || undefined),
+        buildSystemPrompt(channel.persona, imageDescription || undefined),
         [...historyMsgs, { role: 'user', content: userContent }],
         500,
       );
       appendMsg({ role: 'zaeli', text: reply });
+
+      // Calendar tool use — if in Calendar channel, try to save any confirmed events
+      if (ctx === 'Calendar') {
+        tryExtractAndSaveCalendarEvent(text, reply, history);
+      }
     } catch (e) {
       console.error('doSend error:', e);
       appendMsg({ role: 'zaeli', text: "Something went wrong — try that again?" });
@@ -605,13 +798,12 @@ export default function ZaeliChat() {
         </View>
       </SafeAreaView>
 
-      {/* KAV wraps scroll + input so keyboard pushes input up smoothly */}
+      {/* KAV wraps scroll + input */}
       <KeyboardAvoidingView
         style={s.kavWrap}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-        {/* Scroll area */}
         <View style={s.scrollWrap}>
           <ScrollView
             ref={scrollRef}
@@ -634,7 +826,6 @@ export default function ZaeliChat() {
             </View>
 
             {renderMessages()}
-
             {loading && <View style={s.zaeliMsgWrap}><TypingDots /></View>}
 
             {showHints && !loading && messages.length <= 1 && (
@@ -649,7 +840,7 @@ export default function ZaeliChat() {
             <View style={{ height: 20 }} />
           </ScrollView>
 
-          {/* Scroll-down arrow — fades in/out, same as home screen */}
+          {/* Scroll-down arrow */}
           {showScrollBtn && (
             <Animated.View style={[s.scrollDownBtn, { opacity: scrollBtnAnim }]} pointerEvents="box-none">
               <TouchableOpacity
@@ -662,7 +853,7 @@ export default function ZaeliChat() {
             </Animated.View>
           )}
 
-          {/* INPUT BAR — absolute floating pill inside scrollWrap, keyboard pushed by KAV */}
+          {/* Floating input bar */}
           <View style={s.inputArea}>
             {pendingImage && (
               <View style={s.imagePreviewWrap}>
@@ -753,14 +944,11 @@ const s = StyleSheet.create({
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#00B450' },
   onlineLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#00B450' },
 
-  // KAV fills remaining space under header
   kavWrap: { flex: 1 },
-  // scrollWrap is relative so the scroll-down btn sits inside it
   scrollWrap: { flex: 1, position: 'relative' },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 110 },
 
-  // Scroll-down arrow — exact same style as home screen
   scrollDownBtn: { position: 'absolute', bottom: 108, left: 0, right: 0, alignItems: 'center', zIndex: 50 },
   scrollDownInner: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(10,10,10,0.45)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 } },
 
@@ -791,27 +979,11 @@ const s = StyleSheet.create({
   hintChip: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#F5F3EF', borderRadius: 20, borderWidth: 1, borderColor: BORDER },
   hintTxt: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: INK2 },
 
-  // INPUT — floating pill, absolute positioned, exact home screen match
-  inputArea: {
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 20,
-    paddingTop: 12,
-    backgroundColor: 'transparent',
-  },
+  inputArea: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 32 : 20, paddingTop: 12, backgroundColor: 'transparent' },
   imagePreviewWrap: { marginBottom: 8, alignSelf: 'flex-start', position: 'relative' },
   imagePreview: { width: 80, height: 80, borderRadius: 10 },
   imagePreviewRemove: { position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: INK, alignItems: 'center', justifyContent: 'center' },
-  barPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#fff',
-    borderRadius: 32,
-    paddingVertical: 16, paddingHorizontal: 18,
-    borderWidth: 1, borderColor: BORDER,
-    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 18,
-    shadowOffset: { width: 0, height: -2 }, elevation: 6,
-  },
+  barPill: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderRadius: 32, paddingVertical: 16, paddingHorizontal: 18, borderWidth: 1, borderColor: BORDER, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: -2 }, elevation: 6 },
   barBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   barSep: { width: 1, height: 20, backgroundColor: 'rgba(10,10,10,0.1)' },
   barInput: { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK, maxHeight: 100, paddingVertical: 0 },

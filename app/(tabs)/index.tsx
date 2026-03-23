@@ -1,176 +1,217 @@
 /**
- * index.tsx — Zaeli Home Screen
- * Full redesign: compact blue banner · oversized serif brief · emoji nav rows with sub-notes
- * Add to Chat sheet (SVG) · Claude-style mic + waveform animation
+ * index.tsx — Zaeli Home · AI-First Chat Interface
+ * Chat is home. Zaeli opens every session. Pills bring screens into chat.
+ * See ZAELI-PRODUCT.md for full framework.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Easing, Platform, Modal, Pressable,
+  Animated, Easing, TextInput, KeyboardAvoidingView,
+  Platform, Modal, Pressable, Image, Share, Clipboard, Keyboard,
+  useColorScheme,
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
-import Svg, { Path, Line, Rect, Circle, Polyline } from 'react-native-svg';
+import Svg, { Path, Line, Rect, Circle, Polyline, Polygon } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
-import { callGPT } from '../../lib/zaeli-provider';
 import { NavMenu, HamburgerButton } from '../components/NavMenu';
 
-// ── Session-level voice overlay flag (resets on cold start) ────
-// Once the overlay has been shown, subsequent mic taps go straight
-// to zaeli-chat with voiceBarActive — no overlay again that session.
-let voiceOverlayShownThisSession = false;
+// ── Constants ──────────────────────────────────────────────────────────────
+const FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
+const MEMBER_NAME = 'Anna';
+const CORAL = '#FF4545';
+const INK   = '#0A0A0A';   // fallback for icon default props
+const INK3  = 'rgba(10,10,10,0.32)';  // fallback for icon default props
+const YELLOW      = '#FFE500';
+const TEAL        = '#1A5F7A';
 
-// ── Constants ──────────────────────────────────────────────────
-const FAMILY_ID        = '00000000-0000-0000-0000-000000000001';
-const MEMBER_NAME      = 'Anna';
-const BLUE             = '#0057FF';
-const CORAL            = '#FF4545';
-const INK              = '#0A0A0A';
-const INK2             = 'rgba(10,10,10,0.5)';
-const INK3             = 'rgba(10,10,10,0.32)';
-const BORDER           = 'rgba(10,10,10,0.08)';
-const BG               = '#FAF8F5';
-const YELLOW           = '#FFE500';
-const SCROLL_THRESHOLD = 120;
+// Light mode — Option B (coral banner, warm neutral bubble)
+const L = {
+  banner:      '#E8503A',
+  bannerOrb:   'rgba(255,255,255,0.07)',
+  bg:          '#FFFFFF',
+  bg2:         '#FFFFFF',
+  ink:         '#0A0A0A',
+  ink2:        'rgba(10,10,10,0.5)',
+  ink3:        'rgba(10,10,10,0.28)',
+  border:      'rgba(10,10,10,0.09)',
+  userBubble:  '#F2F2F2',
+  userText:    '#0A0A0A',
+  zaeliStar:   '#4D8BFF',
+  zaeliName:   '#4D8BFF',
+  dateLine:    'rgba(10,10,10,0.09)',
+  replyBg:     '#FFFFFF',
+  replyBorder: 'rgba(10,10,10,0.13)',
+  replyText:   '#0A0A0A',
+  dismiss:     'rgba(10,10,10,0.32)',
+  gridBg:      'rgba(10,10,10,0.06)',
+  gridBorder:  'rgba(10,10,10,0.1)',
+  gridDot:     'rgba(10,10,10,0.4)',
+  barBg:       '#FFFFFF',
+  barBorder:   'rgba(10,10,10,0.09)',
+  barPh:       'rgba(10,10,10,0.28)',
+  barSep:      'rgba(10,10,10,0.1)',
+  barIcon:     'rgba(10,10,10,0.32)',
+  gridSheet:   '#FFFFFF',
+  gridHandle:  'rgba(10,10,10,0.12)',
+  gridTitle:   '#0A0A0A',
+  gridItemBg:  'rgba(10,10,10,0.05)',
+  gridItemBdr: 'rgba(10,10,10,0.09)',
+  gridItemLbl: 'rgba(10,10,10,0.5)',
+  statusBar:   'light' as const,
+};
 
-// ── Helpers ────────────────────────────────────────────────────
-function getGreeting(h: number) {
-  if (h < 12) return 'Good morning,';
-  if (h < 17) return 'Good afternoon,';
-  if (h < 21) return 'Good evening,';
-  return 'Good night,';
+// Dark mode — Option A
+const D = {
+  banner:      '#0D1B3E',
+  bannerOrb:   'rgba(255,255,255,0.06)',
+  bg:          '#111111',
+  bg2:         '#1C1C1C',
+  ink:         '#F0EDE8',
+  ink2:        'rgba(240,237,232,0.55)',
+  ink3:        'rgba(240,237,232,0.28)',
+  border:      'rgba(255,255,255,0.08)',
+  userBubble:  '#1E2D50',
+  userText:    '#A8C4FF',
+  zaeliStar:   '#4D8BFF',
+  zaeliName:   '#6BA3FF',
+  dateLine:    'rgba(255,255,255,0.08)',
+  replyBg:     '#1E1E1E',
+  replyBorder: 'rgba(255,255,255,0.1)',
+  replyText:   '#F0EDE8',
+  dismiss:     'rgba(240,237,232,0.28)',
+  gridBg:      'rgba(255,255,255,0.08)',
+  gridBorder:  'rgba(255,255,255,0.1)',
+  gridDot:     'rgba(240,237,232,0.45)',
+  barBg:       '#1C1C1C',
+  barBorder:   'rgba(255,255,255,0.08)',
+  barPh:       'rgba(240,237,232,0.28)',
+  barSep:      'rgba(255,255,255,0.08)',
+  barIcon:     'rgba(240,237,232,0.32)',
+  gridSheet:   '#1C1C1C',
+  gridHandle:  'rgba(255,255,255,0.1)',
+  gridTitle:   '#F0EDE8',
+  gridItemBg:  'rgba(255,255,255,0.06)',
+  gridItemBdr: 'rgba(255,255,255,0.09)',
+  gridItemLbl: 'rgba(240,237,232,0.45)',
+  statusBar:   'light' as const,
+};
+
+const OPENAI_URL  = 'https://api.openai.com/v1/chat/completions';
+const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
+
+// All screens — for grid
+const ALL_SCREENS = [
+  { key: 'calendar', label: 'Calendar',   emoji: '📅', route: '/(tabs)/calendar' },
+  { key: 'shopping', label: 'Shopping',   emoji: '🛒', route: '/(tabs)/shopping' },
+  { key: 'meals',    label: 'Meals',      emoji: '🍽',  route: '/(tabs)/shopping' },
+  { key: 'tutor',    label: 'Tutor',      emoji: '🎓', route: '/(tabs)/tutor' },
+  { key: 'todos',    label: 'To-dos',     emoji: '✅', route: '/(tabs)/more' },
+  { key: 'kids',     label: 'Kids Hub',   emoji: '👧', route: '/(tabs)/more' },
+  { key: 'notes',    label: 'Notes',      emoji: '📝', route: '/(tabs)/more' },
+  { key: 'travel',   label: 'Travel',     emoji: '✈️', route: '/(tabs)/more' },
+  { key: 'family',   label: 'Our Family', emoji: '👨‍👩‍👧', route: '/(tabs)/more' },
+];
+
+// ── Message type ───────────────────────────────────────────────────────────
+interface Msg {
+  id: string;
+  role: 'zaeli' | 'user';
+  text: string;
+  imageUri?: string;
+  ts: string;
+  isLoading?: boolean;
+  isBrief?: boolean;
+  quickReplies?: string[];   // contextual chips for brief
 }
-function getGreetingEmoji(h: number) {
-  if (h < 12) return '👋';
-  if (h < 17) return '☀️';
-  if (h < 21) return '🌤️';
-  return '🌙';
-}
-function localDateStr(d: Date) {
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
+function fmtTime(t?: string | null): string {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  return `${h % 12 || 12}${m ? ':' + String(m).padStart(2,'0') : ''}${h >= 12 ? 'pm' : 'am'}`;
+}
+function naturalDate(ds: string, td: string): string {
+  const diff = Math.round((new Date(ds+'T00:00:00').getTime() - new Date(td+'T00:00:00').getTime()) / 86400000);
+  if (diff === 0) return 'today';
+  if (diff === 1) return 'tomorrow';
+  if (diff <= 6)  return new Date(ds+'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long' });
+  return new Date(ds+'T00:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+function nowTs() {
+  return new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+}
+function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
 
-// ── SVG Icons ──────────────────────────────────────────────────
+// ── OpenAI ─────────────────────────────────────────────────────────────────
+async function callGPT(system: string, msgs: { role: string; content: string }[], maxTokens = 400): Promise<string> {
+  const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+  if (!key) throw new Error('No OpenAI key');
+  const res = await fetch(OPENAI_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model: 'gpt-5.4-mini', max_completion_tokens: maxTokens, messages: [{ role: 'system', content: system }, ...msgs] }),
+  });
+  const json = await res.json();
+  const text = json?.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error(`GPT empty: ${JSON.stringify(json)}`);
+  return text;
+}
+
+// ── Icons — exact set from zaeli-chat.tsx ─────────────────────────────────
 function IcoPlus() {
-  return (
-    <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={INK3} strokeWidth="2" strokeLinecap="round">
-      <Line x1="12" y1="5" x2="12" y2="19"/>
-      <Line x1="5" y1="12" x2="19" y2="12"/>
-    </Svg>
-  );
+  return <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={INK3} strokeWidth="2" strokeLinecap="round"><Line x1="12" y1="5" x2="12" y2="19"/><Line x1="5" y1="12" x2="19" y2="12"/></Svg>;
 }
 function IcoMic({ color = INK3 }: { color?: string }) {
-  return (
-    <Svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <Rect x="9" y="2" width="6" height="11" rx="3"/>
-      <Path d="M5 10a7 7 0 0014 0"/>
-      <Line x1="12" y1="19" x2="12" y2="23"/>
-      <Line x1="8" y1="23" x2="16" y2="23"/>
-    </Svg>
-  );
+  return <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><Rect x="9" y="2" width="6" height="11" rx="3"/><Path d="M5 10a7 7 0 0014 0"/><Line x1="12" y1="19" x2="12" y2="23"/><Line x1="8" y1="23" x2="16" y2="23"/></Svg>;
 }
 function IcoSend() {
-  return (
-    <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <Line x1="12" y1="19" x2="12" y2="5"/>
-      <Polyline points="5 12 12 5 19 12"/>
-    </Svg>
-  );
+  return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>;
 }
 function IcoArrowDown() {
-  return (
-    <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <Line x1="12" y1="5" x2="12" y2="19"/>
-      <Polyline points="19 12 12 19 5 12"/>
-    </Svg>
-  );
+  return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="5" x2="12" y2="19"/><Polyline points="19 12 12 19 5 12"/></Svg>;
 }
-function IcoChevron() {
-  return (
-    <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={INK3} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <Polyline points="9 18 15 12 9 6"/>
-    </Svg>
-  );
+function IcoPlay({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Polygon points="5 3 19 12 5 21 5 3"/></Svg>;
+}
+function IcoCopy({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Rect x="9" y="9" width="13" height="13" rx="2"/><Path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></Svg>;
+}
+function IcoForward({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Line x1="22" y1="2" x2="11" y2="13"/><Polygon points="22 2 15 22 11 13 2 9 22 2"/></Svg>;
+}
+function IcoThumbUp({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/><Path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></Svg>;
+}
+function IcoThumbDown({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/><Path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/></Svg>;
 }
 function IcoClose() {
-  return (
-    <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="2.2" strokeLinecap="round">
-      <Line x1="18" y1="6" x2="6" y2="18"/>
-      <Line x1="6" y1="6" x2="18" y2="18"/>
-    </Svg>
-  );
+  return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="2.2" strokeLinecap="round"><Line x1="18" y1="6" x2="6" y2="18"/><Line x1="6" y1="6" x2="18" y2="18"/></Svg>;
 }
-// Add to Chat sheet SVG icons
 function IcoCamera() {
-  return (
-    <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-      <Circle cx="12" cy="13" r="4"/>
-    </Svg>
-  );
+  return <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><Circle cx="12" cy="13" r="4"/></Svg>;
 }
 function IcoPhotos() {
-  return (
-    <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <Rect x="3" y="3" width="18" height="18" rx="2"/>
-      <Circle cx="8.5" cy="8.5" r="1.5"/>
-      <Polyline points="21 15 16 10 5 21"/>
-    </Svg>
-  );
+  return <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><Rect x="3" y="3" width="18" height="18" rx="2"/><Circle cx="8.5" cy="8.5" r="1.5"/><Polyline points="21 15 16 10 5 21"/></Svg>;
 }
 function IcoFiles() {
-  return (
-    <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-      <Polyline points="14 2 14 8 20 8"/>
-      <Line x1="12" y1="18" x2="12" y2="12"/>
-      <Line x1="9" y1="15" x2="15" y2="15"/>
-    </Svg>
-  );
+  return <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><Polyline points="14 2 14 8 20 8"/><Line x1="12" y1="18" x2="12" y2="12"/><Line x1="9" y1="15" x2="15" y2="15"/></Svg>;
+}
+function IcoX() {
+  return <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><Line x1="18" y1="6" x2="6" y2="18"/><Line x1="6" y1="6" x2="18" y2="18"/></Svg>;
 }
 
-// ── Claude-style waveform animation ────────────────────────────
-// 5 bars, each independently animated at different speeds/heights
-function WaveformBars() {
-  const BAR_COUNT = 5;
-  // Heights cycle differently per bar to look organic
-  const anims = useRef(
-    Array.from({ length: BAR_COUNT }, (_, i) => new Animated.Value(0.3 + i * 0.1))
-  ).current;
-
-  useEffect(() => {
-    const loops = anims.map((anim, i) => {
-      const minH  = 0.2 + i * 0.05;
-      const maxH  = 0.7 + (i % 3) * 0.15;
-      const speed = 180 + i * 55;
-      return Animated.loop(
-        Animated.sequence([
-          Animated.timing(anim, { toValue: maxH, duration: speed, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-          Animated.timing(anim, { toValue: minH, duration: speed + 40, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        ])
-      );
-    });
-    loops.forEach(l => l.start());
-    return () => loops.forEach(l => l.stop());
-  }, []);
-
-  return (
-    <View style={s.waveRow}>
-      {anims.map((anim, i) => (
-        <Animated.View
-          key={i}
-          style={[s.waveBar, { transform: [{ scaleY: anim }] }]}
-        />
-      ))}
-    </View>
-  );
-}
-
-// ── Typing dots (brief loading) ─────────────────────────────────
-function TypingDots() {
+// ── Typing dots — exact from zaeli-chat ────────────────────────────────────
+function TypingDots({ color = '#FF4545' }: { color?: string }) {
   const dots = useRef([0,1,2].map(() => new Animated.Value(0.25))).current;
   useEffect(() => {
     const anims = dots.map((dot, i) =>
@@ -186,581 +227,837 @@ function TypingDots() {
   }, []);
   return (
     <View style={s.dotsRow}>
-      {dots.map((op, i) => <Animated.View key={i} style={[s.dot, { opacity: op }]} />)}
+      {dots.map((op, i) => <Animated.View key={i} style={[s.dot, { opacity: op, backgroundColor: color }]} />)}
     </View>
   );
 }
 
-// ── Nav rows — emoji + live sub-note text ───────────────────────
-// Sub-notes are hardcoded here; in production pull from Supabase
-const NAV_ROWS = [
-  { key: 'calendar', label: "What's on today",  sub: 'Soccer 4pm · Dentist done',        emoji: '📅', route: '/(tabs)/calendar' },
-  { key: 'shopping', label: 'Shopping list',     sub: '8 items · Milk & eggs needed',      emoji: '🛒', route: '/(tabs)/shopping' },
-  { key: 'meals',    label: 'Dinner ideas',      sub: 'Tonight unplanned — I can help',    emoji: '🍽️', route: '/(tabs)/mealplanner' },
-  { key: 'tutor',    label: 'Zaeli Tutor',       sub: 'Poppy · Maths due today',           emoji: '🎓', route: '/(tabs)/tutor' },
-  { key: 'todos',    label: 'To-do list',        sub: '3 tasks · Soccer slip unsigned',    emoji: '✅', route: '/(tabs)/more' },
-  { key: 'kids',     label: 'Kids Hub',          sub: 'Poppy · Gab · Duke · Activity',    emoji: '👧', route: '/(tabs)/more' },
-  { key: 'notes',    label: 'Notes',             sub: '3 notes this week',                 emoji: '📝', route: '/(tabs)/more' },
-  { key: 'travel',   label: 'Travel plans',      sub: 'Easter trip · 3 weeks away',        emoji: '✈️', route: '/(tabs)/more' },
-];
+// ── Waveform — exact from zaeli-chat ──────────────────────────────────────
+function WaveformBars() {
+  const anims = useRef(Array.from({ length: 5 }, (_, i) => new Animated.Value(0.3 + i * 0.1))).current;
+  useEffect(() => {
+    const loops = anims.map((anim, i) => {
+      const min = 0.2 + i * 0.05, max = 0.7 + (i % 3) * 0.15, spd = 180 + i * 55;
+      return Animated.loop(Animated.sequence([
+        Animated.timing(anim, { toValue: max, duration: spd, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(anim, { toValue: min, duration: spd + 40, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]));
+    });
+    loops.forEach(l => l.start());
+    return () => loops.forEach(l => l.stop());
+  }, []);
+  return (
+    <View style={s.waveRow}>
+      {anims.map((anim, i) => <Animated.View key={i} style={[s.waveBar, { transform: [{ scaleY: anim }] }]} />)}
+    </View>
+  );
+}
 
-// ── Main component ─────────────────────────────────────────────
+// ── Brief cache (module-level) ────────────────────────────────────────────
+let cachedBriefText: string | null = null;
+let cachedBriefSub:  string | null = null;
+let cachedBriefSeed: string | null = null;
+let lastBriefTime:   number | null = null;
+
+// ── Main component ─────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router    = useRouter();
+  const scheme    = useColorScheme();
+  const T         = scheme === 'dark' ? D : L;   // active theme tokens
   const scrollRef = useRef<ScrollView>(null);
+  const inputRef  = useRef<TextInput>(null);
   const now       = new Date();
-  const hour      = now.getHours();
-  const dateStr   = now.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+  const h         = now.getHours();
+  const dateLabel = now.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+  const dateShort = now.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
 
-  const [menuOpen,       setMenuOpen]       = useState(false);
-  const [briefLoading,   setBriefLoading]   = useState(true);
-  const [briefText,      setBriefText]      = useState('');
-  const [briefAccent,    setBriefAccent]    = useState('');
-  const [briefSub,       setBriefSub]       = useState('');
-  const [ctaLabel,       setCtaLabel]       = useState('Yes please');
-  const [ctaSeed,        setCtaSeed]        = useState('');
-  const [briefGenerated, setBriefGenerated] = useState(false);
-  const [showScrollBtn,  setShowScrollBtn]  = useState(false);
-  const [showAddSheet,   setShowAddSheet]   = useState(false);
+  const [menuOpen,      setMenuOpen]      = useState(false);
+  const [messages,      setMessages]      = useState<Msg[]>([]);
+  const [input,         setInput]         = useState('');
+  const [loading,       setLoading]       = useState(false);
+  const [isRecording,   setIsRecording]   = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [briefReplies,  setBriefReplies]  = useState<string[]>([]);
+  const [briefSeed,     setBriefSeed]     = useState('');
+  const [showAddSheet,  setShowAddSheet]  = useState(false);
+  const [pendingImage,  setPendingImage]  = useState<string | null>(null);
+  const [thumbs,        setThumbs]        = useState<Record<string, 'up'|'down'|null>>({});
+  const [keyboardOpen,  setKeyboardOpen]  = useState(false);
+  const [showMoreGrid,  setShowMoreGrid]  = useState(false);
+  const [liveCamera,    setLiveCamera]    = useState(false);
 
-  // Mic — first session tap → voice overlay (full-screen "Chat with Zaeli")
-  // Subsequent taps → zaeli-chat with voiceBarActive (types into input bar)
-  function handleMicPress() {
-    if (!voiceOverlayShownThisSession) {
-      voiceOverlayShownThisSession = true;
-      router.push('/(tabs)/voice-overlay' as any);
-    } else {
-      router.push({
-        pathname: '/(tabs)/zaeli-chat',
-        params: { channel: 'general', returnTo: '/(tabs)/', voiceBarActive: 'true' },
+  const scrollBtnAnim      = useRef(new Animated.Value(0)).current;
+  const pillsAnim          = useRef(new Animated.Value(1)).current;
+  const sheetAnim          = useRef(new Animated.Value(320)).current;
+  const recordingRef       = useRef<Audio.Recording | null>(null);
+  const isAtBottom         = useRef(true);
+  // Persist the last image description so follow-up messages retain image context
+  const lastImageDesc      = useRef<string>('');
+
+  // ── Keyboard listeners ────────────────────────────────────────────────────
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardWillShow', () => {
+      setKeyboardOpen(true);
+      Animated.timing(pillsAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start();
+    });
+    const hide = Keyboard.addListener('keyboardWillHide', () => {
+      setKeyboardOpen(false);
+      Animated.timing(pillsAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+    });
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
+  // ── Claude Vision — describe image before GPT call ────────────────────────
+  async function describeImageWithClaude(imageUri: string): Promise<string> {
+    try {
+      const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+      if (!claudeKey) return 'an image the user shared';
+      const base64   = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' as any });
+      const ext      = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeMap: Record<string, string> = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', gif:'image/gif', webp:'image/webp' };
+      const mimeType = mimeMap[ext] || 'image/jpeg';
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6', max_tokens: 400,
+          messages: [{ role:'user', content:[
+            { type:'image', source:{ type:'base64', media_type:mimeType, data:base64 } },
+            { type:'text', text:'Describe this image concisely in 2-4 sentences. Focus on what is shown, any text visible, and what the person might want help with. Be factual and specific.' },
+          ]}],
+        }),
       });
+      const json = await res.json();
+      return json?.content?.[0]?.text || 'an image the user shared';
+    } catch (e) { console.error('Claude vision failed:', e); return 'an image the user shared'; }
+  }
+
+  // ── Scroll ────────────────────────────────────────────────────────────────
+  function scrollToEnd(animated = true) {
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated }), 80);
+  }
+
+  function handleScroll(e: any) {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const dist = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    const atBottom = dist < 80;
+    isAtBottom.current = atBottom;
+    if (!atBottom && !showScrollBtn) {
+      setShowScrollBtn(true);
+      Animated.timing(scrollBtnAnim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    } else if (atBottom && showScrollBtn) {
+      Animated.timing(scrollBtnAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => setShowScrollBtn(false));
     }
   }
 
-  const scrollBtnOpacity = useRef(new Animated.Value(0)).current;
-  const briefOpacity     = useRef(new Animated.Value(0)).current;
-  const sheetAnim        = useRef(new Animated.Value(320)).current;
+  // ── Message helpers ───────────────────────────────────────────────────────
+  function addMsg(partial: Partial<Msg>): string {
+    const msg: Msg = { id: uid(), role: 'zaeli', text: '', ts: nowTs(), ...partial };
+    setMessages(prev => [...prev, msg]);
+    if (isAtBottom.current) scrollToEnd();
+    return msg.id;
+  }
 
-  // ── Add-to-chat sheet ──────────────────────────────────────
+  function updateMsg(id: string, patch: Partial<Msg>) {
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m));
+    if (isAtBottom.current) scrollToEnd();
+  }
+
+  function handleCopy(text: string) { Clipboard.setString(text); }
+  async function handleForward(text: string) { try { await Share.share({ message: text }); } catch {} }
+  function handleThumb(msgId: string, dir: 'up'|'down') {
+    setThumbs(prev => ({ ...prev, [msgId]: prev[msgId] === dir ? null : dir }));
+  }
+
+  // ── Build live context ────────────────────────────────────────────────────
+  async function buildContext() {
+    const td = localDateStr(now);
+    const frame = h < 6 ? 'late night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night';
+    const timeStr = now.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+    try {
+      const [
+        { count: shopCount },
+        { data: shopItems },
+        { data: events },
+        { count: todoCount },
+        { data: meals },
+      ] = await Promise.all([
+        supabase.from('shopping_items').select('*',{count:'exact',head:true}).eq('family_id',FAMILY_ID).eq('checked',false),
+        supabase.from('shopping_items').select('name').eq('family_id',FAMILY_ID).eq('checked',false).limit(50),
+        supabase.from('events').select('title,date,time').eq('family_id',FAMILY_ID).gte('date',td).order('date').order('time').limit(5),
+        supabase.from('todos').select('*',{count:'exact',head:true}).eq('family_id',FAMILY_ID).eq('done',false),
+        supabase.from('meal_plans').select('meal_name,date').eq('family_id',FAMILY_ID).gte('date',td).limit(7),
+      ]);
+
+      const shopNames = shopItems?.map((i:any) => i.name).join(', ') || '';
+      const shopStr   = shopCount
+        ? `${shopCount} items — ${shopNames}${(shopCount??0) > 50 ? ` + ${(shopCount??0) - 50} more` : ''}`
+        : 'list is clear';
+
+      const evStr = events?.length
+        ? events.map((e:any) => `${e.title} (${naturalDate(e.date,td)}${e.time?' at '+fmtTime(e.time):''})`).join(', ')
+        : 'nothing on the calendar';
+      const mealToday = meals?.find((m:any)=>m.date===td)?.meal_name ?? null;
+      const dinnerRule = h < 19
+        ? mealToday ? `Dinner sorted — ${mealToday} tonight.` : "Dinner tonight isn't planned — mention warmly if relevant."
+        : h < 21 ? "Don't mention tonight's dinner — too late. Tomorrow's is fair game." : "Don't mention dinner.";
+
+      const system = `You are Zaeli — a smart, warm, and quietly witty AI for a modern Australian family. You are confident, observant, and playful. You are a teammate, not just an assistant — when Anna's tired or crushing it, you're in it with her.
+
+PERSONALITY: A smart, capable, slightly mischievous best friend who is always one step ahead. Dry when the moment calls for it. Warm when it matters. Energetic and encouraging when Anna needs a boost — "we've got this", "let's knock it out", "you're doing great" feel natural and genuine. Occasionally surprising. Never try-hard, never corporate.
+
+VOICE: Vary tone deliberately — sometimes warm and encouraging, sometimes dry and understated, sometimes full camaraderie and energy, sometimes just a quick sharp acknowledgement. Never the same rhythm twice. Humour is subtle — if it needs to be announced it isn't funny.
+
+EMOJIS: Use 1–2 per message when the moment calls for it. Never a wall of emojis. The right one at the right moment adds warmth — 💪 for effort, 🙌 for wins, 👀 for observations, ✨ for delight. Never decorative padding.
+
+BEHAVIOUR: Guide, suggest, and anticipate. Celebrate effort and wins genuinely. Think ahead on Anna's behalf. When completing an action, mark the moment — "sorted — future you will be very pleased about that 🙌". Feel like a teammate alongside Anna, not a service responding to her.
+
+FAMILY: Anna (logged in), Richard, Poppy (Yr6, age 12), Gab (Yr4, age 10), Duke (Yr1, age 8).
+
+LIVE DATA — you have full access to all of this, always reference it specifically:
+- Date: ${dateLabel} (${frame}, ${timeStr})
+- Calendar: ${evStr}
+- Shopping list: ${shopStr}
+- To-dos: ${todoCount??0} open tasks
+- ${dinnerRule}
+
+CAPABILITIES: Add calendar events, shopping items, todos directly. Confirm before writing. Never tell Anna to do it herself — you handle it.
+
+FORMAT: 2–4 sentences by default. Expand only when genuinely useful. Always natural flowing prose. No bullet points, no lists, no asterisks, no markdown. Never start with "I". Never say "mate". Never say "Of course!", "Absolutely!", or any hollow affirmation. Never invent facts.`;
+      return { system, mealToday, shopCount: shopCount??0, shopStr, evStr, todoCount: todoCount??0 };
+    } catch {
+      return { system: `You are Zaeli — smart, warm, witty AI teammate for Anna's Australian family. Camaraderie, warmth, occasional dry wit. Prose only, no lists, no "mate".`, mealToday: null, shopCount:0, shopStr:'unknown', evStr:'nothing on calendar', todoCount:0 };
+    }
+  }
+
+  // ── Generate brief ────────────────────────────────────────────────────────
+  async function generateBrief(force = false) {
+    const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
+    if (!force && elapsed < 30*60*1000 && cachedBriefText) {
+      const cached = JSON.parse(cachedBriefText);
+      addMsg({ role:'zaeli', text: cached.text, isBrief:true, isLoading:false, quickReplies: cached.replies });
+      setBriefReplies(cached.replies ?? []);
+      setBriefSeed(cachedBriefSeed ?? '');
+      return;
+    }
+    lastBriefTime = Date.now();
+    const loadId = addMsg({ role:'zaeli', text:'', isBrief:true, isLoading:true });
+    try {
+      const { system } = await buildContext();
+      const greeting = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : h < 21 ? 'Evening' : 'Hey';
+      const isLate   = h >= 21 || h < 6;
+      const briefSys = `${system}
+
+You are writing Zaeli's opening home screen message for ${MEMBER_NAME}. The most important message in the app. A switched-on friend who's been paying attention, not a status report.
+
+RULES:
+1. Open with "${greeting}, ${MEMBER_NAME} —" flowing straight into the content
+2. Write exactly 3 more sentences (4 total). Warm, specific, alive. NO colour accent tags.
+3. Reference actual day names (Monday, this Thursday) — never raw dates
+4. Times naturally (this morning, tonight, at 9) — never "at 9:00 AM"
+5. Plain text only — no [ACCENT] tags, no bold, no markdown
+6. Never invent facts — only use data provided above
+7. Use the Zaeli voice — dry, observational, occasionally surprising, warm camaraderie
+${isLate ? '8. It is late — calm and quiet energy, focus on tomorrow.' : ''}
+
+QUICK REPLIES — generate exactly 3, time-aware and specific:
+- Short phrases Anna would tap (3-6 words each)
+- Based on what's actually in the data above
+- Time-appropriate: morning = today's events, evening = dinner/tomorrow
+- Examples: "What's on tomorrow", "Lock in dinner", "Suss the shopping", "Show me what's pressing", "Sort the week", "What's most urgent"
+- No colour, no punctuation at end
+
+SEED: What Anna says when tapping the first reply chip — first person, casual
+
+Return ONLY valid JSON (no markdown, no backticks):
+{"main":"${greeting}, ${MEMBER_NAME} — [3 more sentences]","replies":["chip 1","chip 2","chip 3"],"seed":"Anna natural response to first chip"}`;
+
+      const raw    = await callGPT(briefSys, [{ role:'user', content:'Generate now.' }], 500);
+      const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
+      const txt     = parsed.main    ?? `${greeting}, ${MEMBER_NAME} — let's see what the day has in store.`;
+      const replies = parsed.replies ?? ["What's on today", "Check the list", "All sorted"];
+      const seed    = parsed.seed    ?? replies[0] ?? "What's on today?";
+      // Cache as JSON string
+      cachedBriefText = JSON.stringify({ text: txt, replies });
+      cachedBriefSeed = seed;
+      updateMsg(loadId, { text: txt, isLoading: false, quickReplies: replies });
+      setBriefReplies(replies);
+      setBriefSeed(seed);
+    } catch (e) {
+      console.error('Brief error:', e);
+      const g = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
+      const fallbackReplies = ["What's on today", "Check the list", "All good"];
+      updateMsg(loadId, { text: `${g}, ${MEMBER_NAME} — let's see what the day has in store.`, isLoading: false, quickReplies: fallbackReplies });
+      setBriefReplies(fallbackReplies);
+    }
+  }
+
+  useFocusEffect(useCallback(() => {
+    if (messages.length === 0) {
+      generateBrief();
+    } else {
+      const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
+      if (elapsed > 30 * 60 * 1000) {
+        setMessages([]);
+        lastImageDesc.current = '';
+        generateBrief(true);
+      }
+    }
+  }, []));
+
+  // ── Quick reply tap ───────────────────────────────────────────────────────
+  function handleQuickReply(chip: string) {
+    send(chip);
+  }
+
+  // ── Send ──────────────────────────────────────────────────────────────────
+  async function send(overrideText?: string) {
+    const text = (overrideText ?? input).trim();
+    if ((!text && !pendingImage) || loading) return;
+    const imageUri = pendingImage || undefined;
+    const uMsg: Msg = { id: uid(), role: 'user', text: text || '', imageUri, ts: nowTs() };
+    const history = [...messages, uMsg];
+    setMessages(history); setInput(''); setPendingImage(null);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    const replyId = addMsg({ role:'zaeli', text:'', isLoading:true });
+    setLoading(true);
+    try {
+      const { system } = await buildContext();
+
+      // Describe new image via Claude Vision, or reuse last known description for follow-ups
+      let imageDescription = '';
+      if (imageUri) {
+        // Fresh image — describe it and cache the description
+        imageDescription = await describeImageWithClaude(imageUri);
+        lastImageDesc.current = imageDescription;
+      } else if (lastImageDesc.current) {
+        // No new image — but carry forward the last image context so follow-ups work
+        imageDescription = lastImageDesc.current;
+      }
+
+      
+      
+      const imgCtx = imageDescription
+        ? `\nIMAGE CONTEXT: The user shared a photo earlier in this conversation. Description: ${imageDescription}. Refer to this image when relevant to the user's question.`
+        : '';
+
+      const histMsgs = history.slice(-12).map(m => ({
+        role: m.role === 'zaeli' ? 'assistant' as const : 'user' as const,
+        content: m.imageUri
+          ? `[Shared a photo: ${lastImageDesc.current || 'image'}] ${m.text}`.trim()
+          : (m.text || '(message)'),
+      }));
+
+      const reply = await callGPT(system + imgCtx, histMsgs, 500);
+      updateMsg(replyId, { text: reply, isLoading: false });
+    } catch (e) {
+      console.error('send error:', e);
+      updateMsg(replyId, { text: "Something went wrong — try that again?", isLoading: false });
+    } finally { setLoading(false); }
+  }
+
+  // ── Recording ─────────────────────────────────────────────────────────────
+  async function startRecording() {
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef.current = recording;
+      setIsRecording(true);
+    } catch (e) { console.error('startRecording:', e); }
+  }
+  async function stopRecording() {
+    try {
+      setIsRecording(false);
+      if (!recordingRef.current) return;
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+      if (!uri) return;
+      const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+      if (!key) return;
+      const form = new FormData();
+      form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
+      form.append('model', 'whisper-1');
+      const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body: form });
+      const data = await resp.json();
+      const transcript = data?.text?.trim() ?? '';
+      // Walkie-talkie: auto-send immediately, no input field stop
+      if (transcript) send(transcript);
+    } catch (e) { console.error('stopRecording:', e); }
+  }
+  function handleMicPress() { if (isRecording) stopRecording(); else startRecording(); }
+
+  // ── Sheet ─────────────────────────────────────────────────────────────────
   function openSheet() {
     setShowAddSheet(true);
-    Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+    Animated.spring(sheetAnim, { toValue:0, useNativeDriver:true, tension:65, friction:11 }).start();
   }
-
-  // Animate out → hide modal → wait for iOS to fully dismiss → then run callback
   function closeSheet(cb?: () => void) {
-    Animated.timing(sheetAnim, { toValue: 320, duration: 200, useNativeDriver: true }).start(() => {
-      setShowAddSheet(false);
-      if (cb) {
-        // Wait for the Modal to fully unmount before launching any pickers
-        // iOS requires the presenting view controller to be gone first
-        setTimeout(cb, 350);
-      }
+    Animated.timing(sheetAnim, { toValue:320, duration:200, useNativeDriver:true }).start(() => {
+      setShowAddSheet(false); if (cb) setTimeout(cb, 350);
     });
   }
-
-  // Open camera → get image URI → navigate to chat with it
   async function openCamera() {
     closeSheet(async () => {
       try {
-        const { granted } = await ImagePicker.requestCameraPermissionsAsync();
-        if (!granted) return;
-        const result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.85,
-        });
-        if (!result.canceled && result.assets?.[0]) {
-          router.push({
-            pathname: '/(tabs)/zaeli-chat',
-            params: { channel: 'general', returnTo: '/(tabs)/', pendingImageUri: result.assets[0].uri },
-          });
-        }
-      } catch (e) { console.error('Camera error:', e); }
+        const { granted } = await ImagePicker.requestCameraPermissionsAsync(); if (!granted) return;
+        const r = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality:0.85 });
+        if (!r.canceled && r.assets?.[0]) setPendingImage(r.assets[0].uri);
+      } catch {}
     });
   }
-
-  // Open photo library → get image URI → navigate to chat with it
   async function openPhotos() {
     closeSheet(async () => {
       try {
-        const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!granted) return;
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.85,
-        });
-        if (!result.canceled && result.assets?.[0]) {
-          router.push({
-            pathname: '/(tabs)/zaeli-chat',
-            params: { channel: 'general', returnTo: '/(tabs)/', pendingImageUri: result.assets[0].uri },
-          });
-        }
-      } catch (e) { console.error('Photos error:', e); }
+        const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync(); if (!granted) return;
+        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality:0.85 });
+        if (!r.canceled && r.assets?.[0]) setPendingImage(r.assets[0].uri);
+      } catch {}
     });
   }
 
-  // Files — navigate to chat; zaeli-chat handles file picker from params
-  function openFiles() {
-    closeSheet(() => {
-      router.push({
-        pathname: '/(tabs)/zaeli-chat',
-        params: { channel: 'general', returnTo: '/(tabs)/', openFilePicker: 'true' },
-      });
-    });
-  }
-
-  // ── Scroll arrow ───────────────────────────────────────────
-  const handleScroll = useCallback((e: any) => {
-    const { contentSize, layoutMeasurement, contentOffset } = e.nativeEvent;
-    const dist = contentSize.height - layoutMeasurement.height - contentOffset.y;
-    const show = dist > SCROLL_THRESHOLD;
-    if (show !== showScrollBtn) {
-      setShowScrollBtn(show);
-      Animated.timing(scrollBtnOpacity, { toValue: show ? 1 : 0, duration: 200, useNativeDriver: true }).start();
-    }
-  }, [showScrollBtn]);
-
-  // ── Brief generation ───────────────────────────────────────
-  async function generateBrief() {
-    if (briefGenerated) return;
-    setBriefLoading(true);
-    setBriefGenerated(true);
-    try {
-      const td = localDateStr(now);
-      const [{ data: events }, { data: todos }, { data: meals }] = await Promise.all([
-        supabase.from('events').select('title,date,time').eq('family_id', FAMILY_ID).gte('date', td).order('date').limit(5),
-        supabase.from('todos').select('title,priority').eq('family_id', FAMILY_ID).eq('done', false).limit(5),
-        supabase.from('meal_plans').select('meal_name,date').eq('family_id', FAMILY_ID).gte('date', td).limit(2),
-      ]);
-      const todayMeal  = meals?.find(m => m.date === td)?.meal_name;
-      const dinnerRule = hour < 19
-        ? todayMeal ? `Dinner planned: ${todayMeal}.` : 'Dinner not planned yet — mention warmly.'
-        : 'Do not mention dinner.';
-      const evStr  = events?.length ? events.map(e=>`${e.title} (${e.date===td?'TODAY':e.date}${e.time?' '+e.time:''})`).join(', ') : 'Nothing on calendar';
-      const tdStr  = todos?.length  ? todos.slice(0,3).map(t=>t.title).join(', ') : 'No urgent tasks';
-      const frame  = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 21 ? 'evening' : 'night';
-
-      const sys = `You write the Zaeli home brief for ${MEMBER_NAME}. Zaeli is warm, witty, Australian — Anne Hathaway energy. No mate/guys. Never start with I.
-TIME: ${now.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})} (${frame})
-EVENTS: ${evStr}
-URGENT TASKS: ${tdStr}
-${dinnerRule}
-Return ONLY valid JSON (no markdown):
-{"main":"1-2 warm sentences. Wrap ONE key phrase in [ACCENT]...[/ACCENT] — the most important fact. Never start with I.","sub":"One warm specific question ending with ?","cta":"3-4 word button label","seed":"Message to send when CTA tapped"}`;
-
-      const raw    = await callGPT({ feature:'home_brief', familyId:FAMILY_ID, messages:[{role:'user',content:'Generate now.'}], systemPrompt:sys, maxTokens:300 });
-      const txt    = raw?.choices?.[0]?.message?.content ?? '';
-      const parsed = JSON.parse(txt.replace(/```json|```/g,'').trim());
-
-      const mainRaw: string    = parsed.main ?? '';
-      const accentMatch        = mainRaw.match(/\[ACCENT\](.*?)\[\/ACCENT\]/);
-      const accentPhrase       = accentMatch ? accentMatch[1] : '';
-      const mainClean          = mainRaw.replace(/\[ACCENT\](.*?)\[\/ACCENT\]/g, accentPhrase);
-
-      setBriefText(mainClean);
-      setBriefAccent(accentPhrase);
-      setBriefSub(parsed.sub ?? '');
-      setCtaLabel(parsed.cta ?? 'Yes please');
-      setCtaSeed(parsed.seed ?? '');
-    } catch {
-      setBriefText('Hope the tacos went down well! Soccer at 4pm and the dentist is done — one less thing.');
-      setBriefAccent('Soccer at 4pm');
-      setBriefSub("Dinner's still wide open — want me to sort something quick?");
-      setCtaLabel('Yes please');
-      setCtaSeed('Can you help sort dinner?');
-    } finally {
-      setBriefLoading(false);
-      Animated.timing(briefOpacity, { toValue:1, duration:400, useNativeDriver:true }).start();
-    }
-  }
-
-  useFocusEffect(useCallback(() => { generateBrief(); }, []));
-
-  function openChat(seed = '') {
-    router.push({ pathname:'/(tabs)/zaeli-chat', params:{ channel:'general', returnTo:'/(tabs)/', seedMessage:seed } });
-  }
-
-  // ── Brief render ──────────────────────────────────────────
-  function renderBrief() {
-    if (briefLoading) {
-      return (
-        <View style={s.loadingWrap}>
-          <Text style={s.loadingLabel}>Zaeli is thinking…</Text>
-          <TypingDots />
-        </View>
-      );
-    }
-    const parts = briefAccent && briefText.includes(briefAccent) ? briefText.split(briefAccent) : null;
-    return (
-      <Animated.View style={{ opacity: briefOpacity }}>
-        <Text style={s.briefMain}>
-          {parts
-            ? <>{parts[0]}<Text style={s.briefAccent}>{briefAccent}</Text>{parts[1] ?? ''}</>
-            : briefText
-          }
-        </Text>
-        {briefSub ? <Text style={s.briefSub}>{briefSub}</Text> : null}
-      </Animated.View>
-    );
-  }
-
-  // ─────────────────────────────────────────────────────────
-  return (
-    <View style={s.root}>
-      <ExpoStatusBar style="light" />
-      <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
-
-      {/* ══ COMPACT BLUE BANNER ══ */}
-      <SafeAreaView style={s.banner} edges={['top']}>
-        <View style={s.bannerOrb} />
-
-        {/* Top row */}
-        <View style={s.bannerTopRow}>
-          {/* Logo — exact calendar/tutor style */}
-          <TouchableOpacity style={s.logoMark} onPress={() => router.replace('/(tabs)/')} activeOpacity={0.8}>
-            <View style={s.logoStarBox}>
-              <Text style={s.logoStarTxt}>✦</Text>
+  // ── Render messages ───────────────────────────────────────────────────────
+  function renderMessages() {
+    return messages.map((msg, i) => {
+      // ── User bubble ──
+      if (msg.role === 'user') {
+        return (
+          <View key={msg.id} style={[s.userMsgWrap, { marginTop: 18 }]}>
+            {msg.imageUri && <Image source={{ uri: msg.imageUri }} style={s.msgImage} resizeMode="cover"/>}
+            {!!msg.text && (
+              <View style={[s.userBubble, { backgroundColor: T.userBubble }]}>
+                <Text style={[s.userMsgText, { color: T.userText }]}>{msg.text}</Text>
+              </View>
+            )}
+            <View style={s.userIconRow}>
+              <Text style={[s.msgTime, { color: T.ink3 }]}>{msg.ts}</Text>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleCopy(msg.text)} activeOpacity={0.6}><IcoCopy color={T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleForward(msg.text)} activeOpacity={0.6}><IcoForward color={T.ink3}/></TouchableOpacity>
             </View>
-            <Text style={s.logoWord}>
-              {'z'}<Text style={{ color: YELLOW }}>{'a'}</Text>{'el'}<Text style={{ color: YELLOW }}>{'i'}</Text>
-            </Text>
-          </TouchableOpacity>
-
-          <View style={s.bannerRight}>
-            {/* Date — same visual weight as hamburger */}
-            <Text style={s.bannerDate}>{dateStr}</Text>
-            <HamburgerButton onPress={() => setMenuOpen(true)} tint="#fff" />
           </View>
-        </View>
+        );
+      }
 
-        {/* Greeting — bigger, Anna in DM Serif */}
-        <Text style={s.bannerGreeting}>{getGreeting(hour)}</Text>
-        <Text style={s.bannerName}>
-          <Text style={s.bannerNameSerif}>{MEMBER_NAME}</Text>
-          {'  '}{getGreetingEmoji(hour)}
-        </Text>
-      </SafeAreaView>
+      // ── Zaeli message ──
+      const prevMsg = i > 0 ? messages[i - 1] : null;
+      const showEyebrow = !prevMsg || prevMsg.role === 'user';
+      const thumbState = thumbs[msg.id] || null;
 
-      {/* ══ SCROLLABLE BODY ══ */}
-      <View style={s.scrollWrap}>
-        <ScrollView
-          ref={scrollRef}
-          style={s.scroll}
-          contentContainerStyle={s.scrollContent}
-          showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-        >
-          {/* Brief */}
-          <View style={s.briefBlock}>{renderBrief()}</View>
+      // Split into paragraphs on sentence boundaries
+      const paragraphs = msg.text
+        ? msg.text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean)
+        : [];
 
-          {/* CTAs */}
-          {!briefLoading && (
-            <View style={s.ctas}>
-              <TouchableOpacity style={s.btnPrimary} onPress={() => openChat(ctaSeed)} activeOpacity={0.85}>
-                <Text style={s.btnPrimaryTxt}>{ctaLabel}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.btnSecondary} activeOpacity={0.7}>
-                <Text style={s.btnSecondaryTxt}>All good, thanks</Text>
+      return (
+        <View key={msg.id} style={[s.zaeliMsgWrap, !showEyebrow && { marginTop: 6 }]}>
+          {showEyebrow ? (
+            <View style={s.zEyebrow}>
+              <View style={[s.zStar, { backgroundColor: T.zaeliStar }]}>
+                <Svg width="9" height="9" viewBox="0 0 16 16" fill="white"><Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/></Svg>
+              </View>
+              <Text style={[s.zName, { color: T.zaeliName }]}>Zaeli</Text>
+              <Text style={[s.zTs, { color: T.ink3 }]}>{msg.ts}</Text>
+            </View>
+          ) : (
+            <Text style={[s.zTsOnly, { color: T.ink3 }]}>{msg.ts}</Text>
+          )}
+
+          {msg.isLoading ? (
+            <TypingDots color={CORAL}/>
+          ) : (
+            <View>
+              {paragraphs.map((para, pi) => (
+                <Text key={pi} style={[s.zaeliMsgText, { color: T.ink }, pi < paragraphs.length - 1 && { marginBottom: 10 }]}>
+                  {para}
+                </Text>
+              ))}
+            </View>
+          )}
+
+          {/* Quick replies — brief only */}
+          {msg.isBrief && !msg.isLoading && (msg.quickReplies ?? briefReplies).length > 0 && (
+            <View style={s.quickRepliesWrap}>
+              <Text style={[s.qrLabel, { color: T.ink3 }]}>Quick replies</Text>
+              <View style={s.qrChips}>
+                {(msg.quickReplies ?? briefReplies).map((chip, ci) => (
+                  <TouchableOpacity
+                    key={ci}
+                    style={[s.qrChip, { backgroundColor: T.replyBg, borderColor: T.replyBorder }]}
+                    onPress={() => handleQuickReply(chip)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.qrChipTxt, { color: T.replyText }]}>{chip}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                onPress={() => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isBrief: false } : m))}
+                activeOpacity={0.6}
+              >
+                <Text style={[s.qrDismiss, { color: T.dismiss }]}>All good →</Text>
               </TouchableOpacity>
             </View>
           )}
 
-          <View style={s.divider} />
+          {/* Icon row — non-brief completed messages only */}
+          {!msg.isLoading && !msg.isBrief && (
+            <View style={s.zaeliIconRow}>
+              <Text style={[s.msgTime, { color: T.ink3, marginRight: 6 }]}>{msg.ts}</Text>
+              <TouchableOpacity style={s.iconBtn} activeOpacity={0.6}><IcoPlay color={T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleCopy(msg.text)} activeOpacity={0.6}><IcoCopy color={T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleForward(msg.text)} activeOpacity={0.6}><IcoForward color={T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'up')} activeOpacity={0.6}><IcoThumbUp color={thumbState==='up' ? TEAL : T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'down')} activeOpacity={0.6}><IcoThumbDown color={thumbState==='down' ? CORAL : T.ink3}/></TouchableOpacity>
+            </View>
+          )}
+        </View>
+      );
+    });
+  }
 
-          {/* Nav rows — emoji + sub-notes */}
-          <View style={s.navRows}>
-            {NAV_ROWS.map((row, i) => (
-              <TouchableOpacity
-                key={row.key}
-                style={[s.navRow, i === NAV_ROWS.length - 1 && { borderBottomWidth: 0 }]}
-                onPress={() => router.push(row.route as any)}
-                activeOpacity={0.7}
-              >
-                <View style={s.navRowEmoji}>
-                  <Text style={s.navRowEmojiTxt}>{row.emoji}</Text>
-                </View>
-                <View style={s.navRowText}>
-                  <Text style={s.navRowLabel}>{row.label}</Text>
-                  <Text style={s.navRowSub}>{row.sub}</Text>
-                </View>
-                <IcoChevron />
-              </TouchableOpacity>
-            ))}
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <View style={[s.root, { backgroundColor: T.banner }]}>
+      <ExpoStatusBar style={T.statusBar} animated/>
+      <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)}/>
+
+      {/* BANNER */}
+      <SafeAreaView style={[s.banner, { backgroundColor: T.banner }]} edges={['top']}>
+        <View style={[s.bannerOrb, { backgroundColor: T.bannerOrb }]}/>
+        <View style={s.bannerRow}>
+          <View style={s.logo}>
+            <View style={s.logoBox}>
+              <Svg width="14" height="14" viewBox="0 0 16 16" fill="white"><Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/></Svg>
+            </View>
+            <Text style={s.logoWord}>z<Text style={{ color:YELLOW }}>a</Text>el<Text style={{ color:YELLOW }}>i</Text></Text>
           </View>
-
-          <View style={{ height: 36 }} />
-        </ScrollView>
-
-        {/* Scroll-to-bottom arrow — Claude style */}
-        <Animated.View
-          style={[s.scrollDownBtn, { opacity: scrollBtnOpacity }]}
-          pointerEvents={showScrollBtn ? 'auto' : 'none'}
-        >
-          <TouchableOpacity
-            style={s.scrollDownInner}
-            onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}
-            activeOpacity={0.85}
-          >
-            <IcoArrowDown />
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* ══ FLOATING BAR — bigger, Claude-style ══ */}
-        <View style={s.floatingBar}>
-          <View style={s.floatingBarInner}>
-
-            {/* + Add to Chat */}
-            <TouchableOpacity style={s.barIconBtn} onPress={openSheet} activeOpacity={0.75}>
-              <IcoPlus />
-            </TouchableOpacity>
-
-            <View style={s.barSep} />
-
-            {/* Placeholder text → opens chat */}
-            <TouchableOpacity style={{ flex: 1, paddingVertical: 4 }} onPress={() => openChat('')} activeOpacity={0.6}>
-              <Text style={s.barPlaceholder}>Chat with Zaeli…</Text>
-            </TouchableOpacity>
-
-            {/* Right side: mic — tapping navigates to zaeli-chat in voice mode */}
-            <TouchableOpacity style={s.barIconBtn} onPress={handleMicPress} activeOpacity={0.75}>
-              <IcoMic color={INK3} />
-            </TouchableOpacity>
+          <View style={s.bannerRight}>
+            <Text style={s.bannerDate}>{dateShort}</Text>
+            <HamburgerButton onPress={() => setMenuOpen(true)} tint="#fff"/>
           </View>
         </View>
-      </View>
+      </SafeAreaView>
 
-      {/* ══ ADD TO CHAT BOTTOM SHEET ══ */}
+      {/* CHAT */}
+      <KeyboardAvoidingView
+        style={s.kavWrap}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
+        <View style={[s.scrollWrap, { backgroundColor: T.bg }]}>
+          <ScrollView
+            ref={scrollRef}
+            style={[s.scroll, { backgroundColor: T.bg }]}
+            contentContainerStyle={s.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardDismissMode="interactive"
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            onContentSizeChange={() => {
+              if (isAtBottom.current) scrollRef.current?.scrollToEnd({ animated: false });
+            }}
+          >
+            <View style={s.dateRow}>
+              <View style={[s.dateLine, { backgroundColor: T.dateLine }]}/>
+              <Text style={[s.dateLabel, { color: T.ink3 }]}>{dateLabel.toUpperCase()}</Text>
+              <View style={[s.dateLine, { backgroundColor: T.dateLine }]}/>
+            </View>
+            {renderMessages()}
+            <View style={{ height: 16 }}/>
+          </ScrollView>
+
+          {showScrollBtn && (
+            <Animated.View style={[s.scrollDownBtn, { opacity: scrollBtnAnim }]} pointerEvents="box-none">
+              <TouchableOpacity style={s.scrollDownInner} onPress={() => scrollRef.current?.scrollToEnd({ animated:true })} activeOpacity={0.8}>
+                <IcoArrowDown/>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          {/* FLOATING BAR — grid icon + input */}
+          <View style={[s.inputArea, keyboardOpen && s.inputAreaKb]}>
+
+            {/* Grid icon — right-aligned above send button, hide when keyboard open */}
+            {!keyboardOpen && (
+              <Animated.View style={[s.gridRow, { opacity: pillsAnim }]}>
+                <TouchableOpacity
+                  style={[s.gridBtn, { backgroundColor: T.gridBg, borderColor: T.gridBorder }]}
+                  onPress={() => setShowMoreGrid(true)}
+                  activeOpacity={0.75}
+                >
+                  <View style={s.gridDots}>
+                    {Array.from({ length: 9 }).map((_, i) => (
+                      <View key={i} style={[s.gridDot, { backgroundColor: T.gridDot }]}/>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+
+            {/* Image preview */}
+            {pendingImage && (
+              <View style={s.imagePreviewWrap}>
+                <Image source={{ uri: pendingImage }} style={s.imagePreview} resizeMode="cover"/>
+                <TouchableOpacity style={s.imagePreviewRemove} onPress={() => setPendingImage(null)} activeOpacity={0.8}>
+                  <IcoX/>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Input bar */}
+            <View style={[s.barPill, { backgroundColor: T.barBg, borderColor: T.barBorder }]}>
+              <TouchableOpacity style={s.barBtn} onPress={openSheet} activeOpacity={0.75}>
+                <IcoPlus color={T.barIcon}/>
+              </TouchableOpacity>
+              <View style={[s.barSep, { backgroundColor: T.barSep }]}/>
+              <TextInput
+                ref={inputRef}
+                style={[s.barInput, { color: T.ink }]}
+                value={input}
+                onChangeText={setInput}
+                placeholder="Chat with Zaeli…"
+                placeholderTextColor={T.barPh}
+                multiline
+                returnKeyType="default"
+                keyboardAppearance="light"
+                selectionColor={CORAL}
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 350)}
+              />
+              {isRecording ? (
+                <TouchableOpacity style={[s.barWaveBtn, { backgroundColor: CORAL }]} onPress={handleMicPress} activeOpacity={0.85}>
+                  <WaveformBars/>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={s.barBtn} onPress={handleMicPress} activeOpacity={0.75}>
+                  <IcoMic color={T.barIcon}/>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[s.barSend, ((!input.trim() && !pendingImage) || loading) && { opacity: 0.4 }]}
+                onPress={() => send()}
+                disabled={(!input.trim() && !pendingImage) || loading}
+                activeOpacity={0.85}
+              >
+                <IcoSend/>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+
+      {/* ADD SHEET — Camera · Photos · Live */}
       <Modal visible={showAddSheet} transparent animationType="none" onRequestClose={() => closeSheet()}>
         <Pressable style={s.sheetOverlay} onPress={() => closeSheet()}>
-          <Animated.View style={[s.sheet, { transform: [{ translateY: sheetAnim }] }]}>
+          <Animated.View style={[s.sheet, { transform:[{ translateY:sheetAnim }] }]}>
             <Pressable onPress={() => {}}>
-              {/* Handle bar */}
-              <View style={s.sheetHandle} />
-
-              {/* Header */}
+              <View style={s.sheetHandle}/>
               <View style={s.sheetHeader}>
-                <TouchableOpacity style={s.sheetCloseBtn} onPress={() => closeSheet()} activeOpacity={0.7}>
-                  <IcoClose />
-                </TouchableOpacity>
+                <TouchableOpacity style={s.sheetCloseBtn} onPress={() => closeSheet()} activeOpacity={0.7}><IcoClose/></TouchableOpacity>
                 <Text style={s.sheetTitle}>Add to Chat</Text>
-                {/* Spacer to centre title */}
-                <View style={{ width: 44 }} />
+                <View style={{ width:44 }}/>
               </View>
-
-              {/* Tile row */}
               <View style={s.sheetTiles}>
-                <TouchableOpacity style={s.sheetTile} activeOpacity={0.75} onPress={openCamera}>
-                  <IcoCamera />
-                  <Text style={s.sheetTileLabel}>Camera</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.sheetTile} activeOpacity={0.75} onPress={openPhotos}>
-                  <IcoPhotos />
-                  <Text style={s.sheetTileLabel}>Photos</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.sheetTile} activeOpacity={0.75} onPress={openFiles}>
-                  <IcoFiles />
-                  <Text style={s.sheetTileLabel}>Files</Text>
+                <TouchableOpacity style={s.sheetTile} onPress={openCamera} activeOpacity={0.75}><IcoCamera/><Text style={s.sheetTileLabel}>Camera</Text></TouchableOpacity>
+                <TouchableOpacity style={s.sheetTile} onPress={openPhotos} activeOpacity={0.75}><IcoPhotos/><Text style={s.sheetTileLabel}>Photos</Text></TouchableOpacity>
+                <TouchableOpacity style={s.sheetTile} onPress={() => { closeSheet(() => setLiveCamera(true)); }} activeOpacity={0.75}>
+                  <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <Circle cx="12" cy="12" r="3"/>
+                    <Path d="M2 12C2 12 5 5 12 5s10 7 10 7-3 7-10 7S2 12 2 12z"/>
+                  </Svg>
+                  <Text style={s.sheetTileLabel}>Live</Text>
                 </TouchableOpacity>
               </View>
-
-              <View style={{ height: Platform.OS === 'ios' ? 32 : 20 }} />
+              <View style={{ height: Platform.OS === 'ios' ? 32 : 20 }}/>
             </Pressable>
           </Animated.View>
         </Pressable>
       </Modal>
+
+      {/* GRID MODAL — tapping injects context into chat, no navigation */}
+      <Modal visible={showMoreGrid} transparent animationType="fade" onRequestClose={() => setShowMoreGrid(false)}>
+        <Pressable style={s.moreOverlay} onPress={() => setShowMoreGrid(false)}>
+          <View style={[s.moreGrid, { backgroundColor: T.gridSheet }]}>
+            <View style={[s.moreHandle, { backgroundColor: T.gridHandle }]}/>
+            <Text style={[s.moreTitle, { color: T.gridTitle }]}>What do you want to talk about?</Text>
+            <View style={s.moreItems}>
+              {ALL_SCREENS.map(scr => (
+                <TouchableOpacity
+                  key={scr.key}
+                  style={[s.moreItem, { backgroundColor: T.gridItemBg, borderColor: T.gridItemBdr }]}
+                  onPress={() => {
+                    setShowMoreGrid(false);
+                    // Inject as a quick message into chat — keeps user in the conversation
+                    const seeds: Record<string, string> = {
+                      calendar:  "What's on the calendar?",
+                      shopping:  "Give me a shopping update.",
+                      meals:     "What's the meal plan looking like?",
+                      tutor:     "How are the kids going with study?",
+                      todos:     "What tasks are still open?",
+                      kids:      "How are the kids going with their jobs?",
+                      notes:     "Can you help me jot something down?",
+                      travel:    "What travel plans do we have coming up?",
+                      family:    "Give me a family overview.",
+                    };
+                    const msg = seeds[scr.key] ?? `Tell me about ${scr.label}.`;
+                    setTimeout(() => send(msg), 200);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={s.moreItemEmoji}>{scr.emoji}</Text>
+                  <Text style={[s.moreItemLabel, { color: T.gridItemLbl }]}>{scr.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* LIVE CAMERA OVERLAY */}
+      {liveCamera && (
+        <View style={s.liveCameraOverlay}>
+          <SafeAreaView style={{ flex:1 }} edges={['top']}>
+            <View style={s.liveCameraTop}>
+              <TouchableOpacity style={s.liveCameraClose} onPress={() => setLiveCamera(false)} activeOpacity={0.8}>
+                <IcoClose/>
+              </TouchableOpacity>
+              <Text style={s.liveCameraTitle}>Live · Point & Ask</Text>
+              <View style={{ width:44 }}/>
+            </View>
+            <View style={s.liveCameraBody}>
+              <Text style={s.liveCameraHint}>Open your camera and ask Zaeli about anything you see</Text>
+              <TouchableOpacity style={s.liveCameraBtn} onPress={async () => {
+                setLiveCamera(false);
+                await new Promise(r => setTimeout(r, 300));
+                openCamera();
+              }} activeOpacity={0.85}>
+                <Text style={s.liveCameraBtnTxt}>Open Camera</Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </View>
+      )}
     </View>
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────
+
+// ── Styles — theme-independent (colours injected via T at render time) ─────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BLUE },
+  root: { flex:1 },
 
-  // ── BANNER ──────────────────────────────────────────────────
-  banner: {
-    backgroundColor: BLUE,
-    paddingHorizontal: 22,
-    paddingBottom: 24,
-    overflow: 'hidden',
-  },
-  bannerOrb: {
-    position: 'absolute', width: 160, height: 160, borderRadius: 80,
-    backgroundColor: 'rgba(255,255,255,0.07)', top: -55, right: -35,
-  },
-  bannerTopRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 18, paddingTop: 6,
-  },
+  // Banner
+  banner:     { paddingHorizontal:20, paddingBottom:12, overflow:'hidden' },
+  bannerOrb:  { position:'absolute', width:150, height:150, borderRadius:75, top:-50, right:-30 },
+  bannerRow:  { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingTop:6 },
+  logo:       { flexDirection:'row', alignItems:'center', gap:8 },
+  logoBox:    { width:32, height:32, backgroundColor:'rgba(255,255,255,0.2)', borderRadius:9, alignItems:'center', justifyContent:'center' },
+  logoWord:   { fontFamily:'DMSerifDisplay_400Regular', fontSize:22, color:'#fff', letterSpacing:-0.4 },
+  bannerRight:{ flexDirection:'row', alignItems:'center', gap:12 },
+  bannerDate: { fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(255,255,255,0.65)' },
 
-  // Logo — bigger on home than other screens (was 32/17/22, now 40/21/28)
-  logoMark:    { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  logoStarBox: { width: 40, height: 40, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  logoStarTxt: { fontSize: 21, color: '#fff' },
-  logoWord:    { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 28, color: '#fff', letterSpacing: -0.5 },
+  // KAV + scroll
+  kavWrap:       { flex:1 },
+  scrollWrap:    { flex:1, position:'relative' },
+  scroll:        { flex:1 },
+  scrollContent: { paddingHorizontal:18, paddingTop:14, paddingBottom:170 },
 
-  bannerRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  // Date — Poppins SemiBold 14px matches hamburger visual weight
-  bannerDate: {
-    fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14, color: 'rgba(255,255,255,0.72)', letterSpacing: 0.1,
-  },
+  // Date divider
+  dateRow:  { flexDirection:'row', alignItems:'center', marginBottom:20, gap:10 },
+  dateLine: { flex:1, height:1 },
+  dateLabel:{ fontFamily:'Poppins_600SemiBold', fontSize:9, letterSpacing:1.2, textTransform:'uppercase' as const },
 
-  // Greeting — bigger overall
-  bannerGreeting: {
-    fontFamily: 'Poppins_500Medium',
-    fontSize: 17, color: 'rgba(255,255,255,0.82)', marginBottom: 3,
-  },
-  bannerName: {
-    // "Anna" is DMSerifDisplay Italic, emoji after is Poppins bold
-    fontSize: 30, color: '#fff', letterSpacing: -0.3,
-  },
-  // "Anna" rendered as nested Text with DM Serif Italic
-  bannerNameSerif: {
-    fontFamily: 'DMSerifDisplay_400Italic',
-    fontSize: 34, color: '#fff', letterSpacing: -0.8,
-  },
+  // Zaeli message
+  zaeliMsgWrap: { marginBottom:6 },
+  zEyebrow:     { flexDirection:'row', alignItems:'center', gap:5, marginBottom:6 },
+  zStar:        { width:16, height:16, borderRadius:5, alignItems:'center', justifyContent:'center', flexShrink:0 },
+  zName:        { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.2 },
+  zTs:          { fontFamily:'Poppins_400Regular', fontSize:9, marginLeft:'auto' as any },
+  zTsOnly:      { fontFamily:'Poppins_400Regular', fontSize:10, marginBottom:5 },
+  zaeliMsgText: { fontFamily:'Poppins_400Regular', fontSize:17, lineHeight:27, letterSpacing:-0.1 },
+  zaeliIconRow: { flexDirection:'row', alignItems:'center', marginTop:7, gap:2 },
 
-  // ── SCROLL ──────────────────────────────────────────────────
-  scrollWrap:    { flex: 1, backgroundColor: BG, position: 'relative' },
-  scroll:        { flex: 1, backgroundColor: BG },
-  scrollContent: { paddingBottom: 130 },
+  // Typing dots
+  dotsRow: { flexDirection:'row', gap:5, alignItems:'center', paddingVertical:4 },
+  dot:     { width:7, height:7, borderRadius:4 },
 
-  // ── BRIEF ───────────────────────────────────────────────────
-  briefBlock: { paddingHorizontal: 22, paddingTop: 28, paddingBottom: 4, minHeight: 130 },
-  loadingWrap: { paddingTop: 6 },
-  loadingLabel: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK3, marginBottom: 12 },
-  dotsRow: { flexDirection: 'row', gap: 7, alignItems: 'center' },
-  dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: CORAL },
+  // Quick replies
+  quickRepliesWrap: { marginTop:12 },
+  qrLabel:          { fontFamily:'Poppins_600SemiBold', fontSize:10, letterSpacing:0.2, marginBottom:7 },
+  qrChips:          { flexDirection:'row', flexWrap:'wrap', gap:6 },
+  qrChip:           { borderWidth:1.5, borderRadius:20, paddingVertical:7, paddingHorizontal:13 },
+  qrChipTxt:        { fontFamily:'Poppins_500Medium', fontSize:13 },
+  qrDismiss:        { fontFamily:'Poppins_400Regular', fontSize:12, marginTop:9 },
 
-  briefMain: {
-    fontFamily: 'DMSerifDisplay_400Regular',
-    fontSize: 48, color: INK, lineHeight: 54, letterSpacing: -2, marginBottom: 12,
-  },
-  briefAccent: { color: CORAL, fontStyle: 'italic' },
-  briefSub: {
-    fontFamily: 'DMSerifDisplay_400Italic',
-    fontSize: 20, color: INK2, lineHeight: 28, letterSpacing: -0.3,
-  },
+  // User bubble
+  userMsgWrap: { alignItems:'flex-end', marginBottom:6 },
+  userBubble:  { borderRadius:16, borderBottomRightRadius:3, paddingHorizontal:13, paddingVertical:9, maxWidth:'82%' as any },
+  userMsgText: { fontFamily:'Poppins_400Regular', fontSize:17, lineHeight:27 },
+  msgImage:    { width:'100%' as any, height:180, borderRadius:12, marginBottom:6 },
 
-  // ── CTAs ────────────────────────────────────────────────────
-  ctas: {
-    flexDirection: 'row', gap: 10, paddingHorizontal: 22, marginTop: 22, marginBottom: 26,
-  },
-  btnPrimary: {
-    flex: 1, paddingVertical: 16, backgroundColor: CORAL,
-    borderRadius: 14, alignItems: 'center',
-  },
-  btnPrimaryTxt: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' },
-  btnSecondary: {
-    flex: 1, paddingVertical: 15, borderWidth: 1.5, borderColor: BORDER,
-    borderRadius: 14, alignItems: 'center',
-  },
-  btnSecondaryTxt: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: INK3 },
+  // Icon rows
+  msgTime:     { fontFamily:'Poppins_400Regular', fontSize:10 },
+  userIconRow: { flexDirection:'row', alignItems:'center', marginTop:4, gap:2, justifyContent:'flex-end' },
+  iconBtn:     { width:26, height:26, alignItems:'center', justifyContent:'center', borderRadius:6 },
 
-  divider: { height: 1, backgroundColor: BORDER, marginHorizontal: 22 },
+  // Scroll down button
+  scrollDownBtn:   { position:'absolute', bottom:170, left:0, right:0, alignItems:'center', zIndex:50 },
+  scrollDownInner: { width:32, height:32, borderRadius:16, backgroundColor:'rgba(10,10,10,0.4)', alignItems:'center', justifyContent:'center' },
 
-  // ── NAV ROWS ────────────────────────────────────────────────
-  navRows: { paddingHorizontal: 22 },
-  navRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: BORDER,
-  },
-  navRowEmoji: {
-    width: 50, height: 50, borderRadius: 14,
-    backgroundColor: 'rgba(10,10,10,0.04)',
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  navRowEmojiTxt: { fontSize: 26 },
-  navRowText:  { flex: 1 },
-  navRowLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: INK, marginBottom: 3 },
-  navRowSub:   { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK3 },
+  // Input area — no fade line, clean background handled by scrollContent paddingBottom
+  inputArea:   { position:'absolute', bottom:0, left:0, right:0, paddingHorizontal:14, paddingBottom: Platform.OS==='ios' ? 30 : 18, paddingTop:10, backgroundColor:'transparent' },
+  inputAreaKb: { paddingBottom: Platform.OS==='ios' ? 8 : 6 },
 
-  // ── SCROLL-DOWN ARROW ───────────────────────────────────────
-  scrollDownBtn: {
-    position: 'absolute', bottom: 108, left: 0, right: 0,
-    alignItems: 'center', zIndex: 50,
-  },
-  scrollDownInner: {
-    width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(10,10,10,0.45)',
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
-  },
+  // Grid icon — bigger, centred above send button (right-aligned to match send position)
+  gridRow:  { flexDirection:'row', justifyContent:'flex-end', marginBottom:8, paddingRight:1 },
+  gridBtn:  { width:44, height:44, borderRadius:12, borderWidth:1, alignItems:'center', justifyContent:'center' },
+  gridDots: { flexDirection:'row', flexWrap:'wrap', width:18, gap:3 },
+  gridDot:  { width:4, height:4, borderRadius:1 },
 
-  // ── FLOATING BAR — bigger ────────────────────────────────────
-  floatingBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 20,
-    paddingTop: 12,
-  },
-  floatingBarInner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#fff',
-    borderRadius: 32,
-    paddingVertical: 16,   // bigger than before
-    paddingHorizontal: 18,
-    borderWidth: 1, borderColor: BORDER,
-    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 18,
-    shadowOffset: { width: 0, height: -2 }, elevation: 6,
-  },
-  barIconBtn: {
-    width: 36, height: 36, alignItems: 'center', justifyContent: 'center',
-  },
-  barSep: { width: 1, height: 20, backgroundColor: 'rgba(10,10,10,0.1)' },
-  barPlaceholder: {
-    fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK3,
-  },
+  // Image preview
+  imagePreviewWrap:   { marginBottom:8, alignSelf:'flex-start', position:'relative' },
+  imagePreview:       { width:80, height:80, borderRadius:10 },
+  imagePreviewRemove: { position:'absolute', top:-6, right:-6, width:22, height:22, borderRadius:11, backgroundColor:'#0A0A0A', alignItems:'center', justifyContent:'center' },
 
-  // Waveform — black circle with animated bars
-  barWaveBtn: {
-    width: 46, height: 46, borderRadius: 23,
-    backgroundColor: INK,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  waveRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  waveBar: {
-    width: 3.5, height: 18, borderRadius: 2,
-    backgroundColor: '#fff',
-  },
+  // Input bar
+  barPill:    { flexDirection:'row', alignItems:'center', gap:8, borderRadius:30, paddingVertical:14, paddingHorizontal:16, borderWidth:1, shadowColor:'#000', shadowOpacity:0.07, shadowRadius:16, shadowOffset:{ width:0, height:-2 }, elevation:4 },
+  barBtn:     { width:34, height:34, alignItems:'center', justifyContent:'center' },
+  barSep:     { width:1, height:18, flexShrink:0 },
+  barInput:   { flex:1, fontFamily:'Poppins_400Regular', fontSize:15, maxHeight:100, paddingVertical:0 },
+  barWaveBtn: { width:40, height:40, borderRadius:20, alignItems:'center', justifyContent:'center' },
+  waveRow:    { flexDirection:'row', alignItems:'center', gap:3 },
+  waveBar:    { width:3.5, height:18, borderRadius:2, backgroundColor:'#fff' },
+  barSend:    { width:32, height:32, borderRadius:16, backgroundColor:CORAL, alignItems:'center', justifyContent:'center', flexShrink:0 },
 
-  // ── ADD TO CHAT SHEET ────────────────────────────────────────
-  sheetOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.38)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: BG,
-    borderTopLeftRadius: 26, borderTopRightRadius: 26,
-    paddingHorizontal: 20,
-    shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 22, shadowOffset: { width: 0, height: -4 },
-  },
-  sheetHandle: {
-    width: 38, height: 4, borderRadius: 2,
-    backgroundColor: 'rgba(10,10,10,0.14)',
-    alignSelf: 'center', marginTop: 12, marginBottom: 4,
-  },
-  sheetHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingVertical: 18,
-  },
-  sheetCloseBtn: {
-    width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(10,10,10,0.07)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  sheetTitle: {
-    fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK,
-  },
-  sheetTiles: { flexDirection: 'row', gap: 12, marginBottom: 10 },
-  sheetTile: {
-    flex: 1,
-    backgroundColor: 'rgba(10,10,10,0.05)',
-    borderRadius: 20, paddingVertical: 32,
-    alignItems: 'center', justifyContent: 'center', gap: 14,
-  },
-  sheetTileLabel: {
-    fontFamily: 'Poppins_500Medium', fontSize: 15, color: INK,
-  },
+  // Sheet
+  sheetOverlay:  { flex:1, backgroundColor:'rgba(0,0,0,0.4)', justifyContent:'flex-end' },
+  sheet:         { backgroundColor:'#FAF8F5', borderTopLeftRadius:26, borderTopRightRadius:26, paddingHorizontal:20, shadowColor:'#000', shadowOpacity:0.2, shadowRadius:20, shadowOffset:{ width:0, height:-4 } },
+  sheetHandle:   { width:36, height:4, borderRadius:2, backgroundColor:'rgba(10,10,10,0.14)', alignSelf:'center', marginTop:12, marginBottom:4 },
+  sheetHeader:   { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:18 },
+  sheetCloseBtn: { width:44, height:44, borderRadius:22, backgroundColor:'rgba(10,10,10,0.07)', alignItems:'center', justifyContent:'center' },
+  sheetTitle:    { fontFamily:'Poppins_700Bold', fontSize:17, color:'#0A0A0A' },
+  sheetTiles:    { flexDirection:'row', gap:12, marginBottom:10 },
+  sheetTile:     { flex:1, backgroundColor:'rgba(10,10,10,0.05)', borderRadius:20, paddingVertical:30, alignItems:'center', justifyContent:'center', gap:12 },
+  sheetTileLabel:{ fontFamily:'Poppins_500Medium', fontSize:14, color:'#0A0A0A' },
+
+  // More grid modal
+  moreOverlay: { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end' },
+  moreGrid:    { borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, paddingBottom: Platform.OS==='ios' ? 40 : 24 },
+  moreHandle:  { width:34, height:4, borderRadius:2, alignSelf:'center', marginBottom:14 },
+  moreTitle:   { fontFamily:'Poppins_700Bold', fontSize:14, marginBottom:14 },
+  moreItems:   { flexDirection:'row', flexWrap:'wrap', gap:9 },
+  moreItem:    { width:'30%' as any, borderRadius:14, borderWidth:1, paddingVertical:14, alignItems:'center', gap:5 },
+  moreItemEmoji:{ fontSize:20 },
+  moreItemLabel:{ fontFamily:'Poppins_600SemiBold', fontSize:10, textAlign:'center' as const },
+
+  // Live camera overlay
+  liveCameraOverlay: { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#111', zIndex:200 },
+  liveCameraTop:     { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12 },
+  liveCameraClose:   { width:36, height:36, borderRadius:18, backgroundColor:'rgba(255,255,255,0.15)', alignItems:'center', justifyContent:'center' },
+  liveCameraTitle:   { fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' },
+  liveCameraBody:    { flex:1, alignItems:'center', justifyContent:'center', padding:32, gap:24 },
+  liveCameraHint:    { fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(255,255,255,0.55)', textAlign:'center' as const, lineHeight:25 },
+  liveCameraBtn:     { backgroundColor:CORAL, borderRadius:16, paddingVertical:15, paddingHorizontal:30 },
+  liveCameraBtnTxt:  { fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' },
 });
