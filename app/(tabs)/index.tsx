@@ -153,7 +153,39 @@ function nowTs() {
 function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
 
 // ── OpenAI ─────────────────────────────────────────────────────────────────
-async function callGPT(system: string, msgs: { role: string; content: string }[], maxTokens = 400): Promise<string> {
+// ── API logging ────────────────────────────────────────────────────────────
+// Fire-and-forget — never blocks the UI
+async function logApiCall(params: {
+  family_id: string;
+  feature: string;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cost_usd: number;
+}) {
+  try {
+    await supabase.from('api_logs').insert({
+      family_id:    params.family_id,
+      feature:      params.feature,
+      model:        params.model,
+      input_tokens:  params.prompt_tokens,
+      output_tokens: params.completion_tokens,
+      cost_usd:     params.cost_usd,
+      created_at:   new Date().toISOString(),
+    });
+  } catch (e) { /* silent */ }
+}
+
+// GPT-5.4-mini pricing (per 1M tokens, as of March 2026)
+const GPT_IN_PER_M  = 0.15;   // $0.15 / 1M input tokens
+const GPT_OUT_PER_M = 0.60;   // $0.60 / 1M output tokens
+
+async function callGPT(
+  system: string,
+  msgs: { role: string; content: string }[],
+  maxTokens = 400,
+  feature = 'chat_response'
+): Promise<string> {
   const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
   if (!key) throw new Error('No OpenAI key');
   const res = await fetch(OPENAI_URL, {
@@ -164,7 +196,26 @@ async function callGPT(system: string, msgs: { role: string; content: string }[]
   const json = await res.json();
   const text = json?.choices?.[0]?.message?.content?.trim();
   if (!text) throw new Error(`GPT empty: ${JSON.stringify(json)}`);
+  // Log usage
+  const pt = json?.usage?.prompt_tokens ?? 0;
+  const ct = json?.usage?.completion_tokens ?? 0;
+  const cost = (pt / 1_000_000 * GPT_IN_PER_M) + (ct / 1_000_000 * GPT_OUT_PER_M);
+  logApiCall({ family_id: FAMILY_ID, feature, model: 'gpt-5.4-mini', prompt_tokens: pt, completion_tokens: ct, cost_usd: cost });
   return text;
+}
+
+// Whisper: $0.006 / minute — approximate from audio duration
+function logWhisper(durationSeconds: number) {
+  const cost = (durationSeconds / 60) * 0.006;
+  logApiCall({ family_id: FAMILY_ID, feature: 'whisper_transcription', model: 'whisper-1', prompt_tokens: 0, completion_tokens: 0, cost_usd: cost });
+}
+
+// Claude Vision: claude-sonnet-4-6 pricing
+const CLAUDE_IN_PER_M  = 3.00;
+const CLAUDE_OUT_PER_M = 15.00;
+function logVision(inputTokens: number, outputTokens: number) {
+  const cost = (inputTokens / 1_000_000 * CLAUDE_IN_PER_M) + (outputTokens / 1_000_000 * CLAUDE_OUT_PER_M);
+  logApiCall({ family_id: FAMILY_ID, feature: 'chat_vision', model: 'claude-sonnet-4-6', prompt_tokens: inputTokens, completion_tokens: outputTokens, cost_usd: cost });
 }
 
 // ── Icons — exact set from zaeli-chat.tsx ─────────────────────────────────
@@ -290,6 +341,13 @@ export default function HomeScreen() {
   const [screen,        setScreen]        = useState<'splash'|'entry'|'chat'>('splash');
   const [focusTopic,    setFocusTopic]    = useState<string>('');
   const [entryRecording, setEntryRecording] = useState(false); // recording state within entry screen
+  const [entryProcessing, setEntryProcessing] = useState(false); // transcribing — hold screen
+
+  // Waveform animation for recording state
+  const waveAnims = useRef(
+    Array.from({ length: 13 }, () => new Animated.Value(0.3))
+  ).current;
+  const waveLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const scrollBtnAnim      = useRef(new Animated.Value(0)).current;
   const pillsAnim          = useRef(new Animated.Value(1)).current;
@@ -339,20 +397,13 @@ export default function HomeScreen() {
   }, []);
 
   // ── Move from entry to chat ───────────────────────────────────────────────
-  function enterChat(topic?: string, voiceTranscript?: string) {
-    if (topic && !voiceTranscript) setFocusTopic(topic);
+  function enterChat(topic?: string) {
     Animated.parallel([
       Animated.timing(entryOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
       Animated.timing(chatOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
     ]).start(() => {
       setScreen('chat');
-      // If voice transcript — add as first user message then let Zaeli respond
-      if (voiceTranscript) {
-        addMsg({ role:'user', text: voiceTranscript, isVoice: true });
-        setTimeout(() => generateBrief(true, voiceTranscript), 100);
-      } else {
-        generateBrief(true, topic);
-      }
+      generateBrief(true, topic);
     });
   }
 
@@ -390,6 +441,9 @@ export default function HomeScreen() {
         }),
       });
       const json = await res.json();
+      const outputTokens = json?.usage?.output_tokens ?? 0;
+      const inputTokens  = json?.usage?.input_tokens  ?? 0;
+      logVision(inputTokens, outputTokens);
       return json?.content?.[0]?.text || 'an image the user shared';
     } catch (e) { console.error('Claude vision failed:', e); return 'an image the user shared'; }
   }
@@ -536,7 +590,7 @@ QUICK REPLIES — generate exactly 3, time-aware and specific to focus topic if 
 Return ONLY valid JSON (no markdown, no backticks):
 {"main":"${greeting}, ${MEMBER_NAME} — [3 more sentences]","replies":["chip 1","chip 2","chip 3"],"seed":"Anna natural response to first chip"}`;
 
-      const raw    = await callGPT(briefSys, [{ role:'user', content:'Generate now.' }], 500);
+      const raw    = await callGPT(briefSys, [{ role:'user', content:'Generate now.' }], 500, 'home_brief');
       const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
       const txt     = parsed.main    ?? `${greeting}, ${MEMBER_NAME} — let's see what the day has in store.`;
       const replies = parsed.replies ?? ["What's on today", "Check the list", "All sorted"];
@@ -557,31 +611,28 @@ Return ONLY valid JSON (no markdown, no backticks):
   }
 
   useFocusEffect(useCallback(() => {
-    // Entry screen now handles cold start — only regenerate if returning after 30+ min
-    if (screen === 'chat' && messages.length > 0) {
-      const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
-      if (elapsed > 30 * 60 * 1000) {
-        setMessages([]);
-        lastImageDesc.current = '';
-        setScreen('splash');
-        // Re-run splash → entry → chat cycle
-        splashOpacity.setValue(1);
-        entryOpacity.setValue(0);
-        chatOpacity.setValue(0);
-        starScale.setValue(0.4);
-        wordmarkOpacity.setValue(0);
-        // Restart splash animation
-        Animated.spring(starScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8 }).start();
-        setTimeout(() => Animated.timing(wordmarkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start(), 350);
-        setTimeout(() => {
-          Animated.parallel([
-            Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
-            Animated.timing(entryOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
-          ]).start(() => setScreen('entry'));
-        }, 1500);
-      }
+    // Only trigger refresh logic when already in chat — never interrupt entry flow
+    if (screen !== 'chat') return;
+    const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
+    if (elapsed > 30 * 60 * 1000 && messages.length > 0) {
+      setMessages([]);
+      lastImageDesc.current = '';
+      setScreen('splash');
+      splashOpacity.setValue(1);
+      entryOpacity.setValue(0);
+      chatOpacity.setValue(0);
+      starScale.setValue(0.4);
+      wordmarkOpacity.setValue(0);
+      Animated.spring(starScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8 }).start();
+      setTimeout(() => Animated.timing(wordmarkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start(), 350);
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+          Animated.timing(entryOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
+        ]).start(() => setScreen('entry'));
+      }, 1500);
     }
-  }, [screen, messages.length]));
+  }, [])); // empty deps — fires on focus only, never re-runs mid-transition
 
   // ── Quick reply tap ───────────────────────────────────────────────────────
   function handleQuickReply(chip: string) {
@@ -626,7 +677,7 @@ Return ONLY valid JSON (no markdown, no backticks):
           : (m.text || '(message)'),
       }));
 
-      const reply = await callGPT(system + imgCtx, histMsgs, 500);
+      const reply = await callGPT(system + imgCtx, histMsgs, 500, 'chat_response');
       updateMsg(replyId, { text: reply, isLoading: false });
     } catch (e) {
       console.error('send error:', e);
@@ -649,12 +700,15 @@ Return ONLY valid JSON (no markdown, no backticks):
     try {
       setIsRecording(false);
       if (!recordingRef.current) return;
+      const status = await recordingRef.current.getStatusAsync();
+      const durationSec = (status as any)?.durationMillis ? (status as any).durationMillis / 1000 : 10;
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
       if (!uri) return;
       const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
       if (!key) return;
+      logWhisper(durationSec);
       const form = new FormData();
       form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
       form.append('model', 'whisper-1');
@@ -822,27 +876,84 @@ Return ONLY valid JSON (no markdown, no backticks):
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       recordingRef.current = recording;
       setEntryRecording(true);
+      // Start waveform animation
+      const loops = waveAnims.map((anim, i) =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(i * 60),
+            Animated.timing(anim, { toValue: 1, duration: 400 + (i % 4) * 80, useNativeDriver: true }),
+            Animated.timing(anim, { toValue: 0.15, duration: 400 + (i % 3) * 80, useNativeDriver: true }),
+          ])
+        )
+      );
+      waveLoopRef.current = Animated.parallel(loops);
+      waveLoopRef.current.start();
     } catch (e) { console.error('entry mic start:', e); }
   }
 
   async function handleEntryMicStop() {
+    waveLoopRef.current?.stop();
+    waveAnims.forEach(a => a.setValue(0.3));
+    setEntryProcessing(true);
     try {
-      setEntryRecording(false);
-      if (!recordingRef.current) return;
+      if (!recordingRef.current) { _finishEntry(); return; }
+      const status = await recordingRef.current.getStatusAsync();
+      const durationSec = (status as any)?.durationMillis ? (status as any).durationMillis / 1000 : 10;
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
-      if (!uri) { enterChat(); return; }
+      if (!uri) { _finishEntry(); return; }
       const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
-      if (!key) { enterChat(); return; }
+      if (!key) { _finishEntry(); return; }
+      logWhisper(durationSec);
       const form = new FormData();
       form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
       form.append('model', 'whisper-1');
       const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body: form });
       const data = await resp.json();
       const transcript = data?.text?.trim() ?? '';
-      enterChat(transcript || undefined, transcript);
-    } catch (e) { console.error('entry mic stop:', e); enterChat(); }
+      _finishEntry(transcript);
+    } catch (e) {
+      console.error('entry mic stop:', e);
+      _finishEntry();
+    }
+  }
+
+  function _finishEntry(transcript?: string) {
+    // Keep entryRecording/entryProcessing TRUE during the fade animation
+    // so the entry screen doesn't flash back to resting state mid-transition
+    Animated.parallel([
+      Animated.timing(entryOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+      Animated.timing(chatOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
+    ]).start(() => {
+      // Only NOW clear entry states — entry screen is fully invisible
+      setEntryRecording(false);
+      setEntryProcessing(false);
+      setScreen('chat');
+      if (transcript) {
+        setTimeout(() => {
+          const voiceMsg: Msg = { id: uid(), role:'user', text: transcript, isVoice: true, ts: nowTs() };
+          setMessages([voiceMsg]);
+          isAtBottom.current = true;
+          const replyId = uid();
+          setMessages(prev => [...prev, { id: replyId, role:'zaeli', text:'', isLoading:true, ts: nowTs() }]);
+          setLoading(true);
+          buildContext().then(({ system }) => {
+            const histMsgs = [{ role: 'user' as const, content: transcript }];
+            callGPT(system, histMsgs, 500)
+              .then(reply => {
+                setMessages(prev => prev.map(m => m.id === replyId ? { ...m, text: reply, isLoading: false } : m));
+              })
+              .catch(() => {
+                setMessages(prev => prev.map(m => m.id === replyId ? { ...m, text: "Something went wrong — try that again?", isLoading: false } : m));
+              })
+              .finally(() => setLoading(false));
+          });
+        }, 100);
+      } else {
+        generateBrief(true);
+      }
+    });
   }
 
   return (
@@ -885,28 +996,56 @@ Return ONLY valid JSON (no markdown, no backticks):
             <View style={s.entryOrb2}/>
 
             {/* ── RECORDING STATE — full screen takeover ── */}
-            {entryRecording ? (
+            {(entryRecording || entryProcessing) ? (
               <View style={s.entryRecordingWrap}>
-                <Text style={s.entryListeningLbl}>Listening…</Text>
-                <Text style={s.entryListeningSub}>Speak naturally — take your time.</Text>
+                <Text style={s.entryListeningLbl}>
+                  {entryProcessing ? 'Got it —' : 'Listening…'}
+                </Text>
+                <Text style={s.entryListeningSub}>
+                  {entryProcessing ? 'Just a second…' : 'Speak naturally — take your time.'}
+                </Text>
 
                 {/* Big coral mic circle with pulse rings */}
                 <View style={s.entryMicRingWrap}>
-                  <Animated.View style={s.entryMicRing1}/>
-                  <Animated.View style={s.entryMicRing2}/>
-                  <TouchableOpacity style={s.entryMicBig} onPress={handleEntryMicStop} activeOpacity={0.85}>
+                  <View style={[s.entryMicRing1, entryProcessing && { borderColor:'rgba(255,255,255,0.2)' }]}/>
+                  <View style={[s.entryMicRing2, entryProcessing && { borderColor:'rgba(255,255,255,0.1)' }]}/>
+                  <TouchableOpacity
+                    style={[s.entryMicBig, entryProcessing && { backgroundColor:'rgba(255,69,69,0.5)' }]}
+                    onPress={entryProcessing ? undefined : handleEntryMicStop}
+                    activeOpacity={entryProcessing ? 1 : 0.85}
+                  >
                     <IcoMic color="#fff"/>
                   </TouchableOpacity>
                 </View>
 
-                {/* Full width animated waveform */}
+                {/* Animated waveform — uses waveAnims for real motion */}
                 <View style={s.entryWaveWrap}>
-                  {[14,26,38,48,56,48,38,26,14,22,36,46,30].map((h, i) => (
-                    <Animated.View key={i} style={[s.entryWaveBar, { height: h }]}/>
+                  {[14,26,38,48,56,48,38,26,14,22,36,46,30].map((maxH, i) => (
+                    <Animated.View
+                      key={i}
+                      style={[
+                        s.entryWaveBar,
+                        {
+                          height: maxH,
+                          transform: [{ scaleY: waveAnims[i] }],
+                          opacity: entryProcessing ? 0.3 : 1,
+                        }
+                      ]}
+                    />
                   ))}
                 </View>
 
-                <Text style={s.entryStopHint}><Text style={{ color:'#fff', fontFamily:'Poppins_600SemiBold' }}>Tap the mic</Text> when you're done.</Text>
+                {!entryProcessing && (
+                  <Text style={s.entryStopHint}>
+                    <Text style={{ color:'#fff', fontFamily:'Poppins_600SemiBold' }}>Tap the mic</Text>
+                    {' '}when you're done.
+                  </Text>
+                )}
+                {entryProcessing && (
+                  <View style={{ flexDirection:'row', gap:6, alignItems:'center' }}>
+                    <TypingDots color="rgba(255,255,255,0.6)"/>
+                  </View>
+                )}
               </View>
             ) : (
               <>
@@ -985,7 +1124,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                     <TouchableOpacity style={s.barBtn} onPress={handleEntryMicStart} activeOpacity={0.75}>
                       <IcoMic color={INK3}/>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[s.sendBtn, { backgroundColor: CORAL }]} onPress={() => enterChat()} activeOpacity={0.85}>
+                    <TouchableOpacity style={s.barSend} onPress={() => enterChat()} activeOpacity={0.85}>
                       <IcoSend/>
                     </TouchableOpacity>
                   </View>
