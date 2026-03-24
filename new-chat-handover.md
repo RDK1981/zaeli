@@ -164,3 +164,70 @@ All mockups saved in outputs folder:
 - PowerShell: no `&&` — separate lines only
 - `gpt-5.4-mini` is correct model string
 - OpenAI: `max_completion_tokens` | Claude: `max_tokens` — NEVER mix
+
+---
+
+## Session update — 24 March 2026
+
+### Entry flow built (A1 splash → E2 entry → recording → chat)
+
+**Splash (State 1 — 1.5s):**
+- Full `#4D8BFF` blue screen
+- Coral star box (`#FF6B55`) spring-bounces in — `scale(0.4)` → `scale(1)`
+- Wordmark fades in 350ms after star lands
+- Typing dots pulse while brief pre-loads
+- After 1.5s → fades to entry screen
+
+**Entry (State 2 — resting):**
+- Big centred two-line greeting — time-based:
+  - Morning: "Morning, Anna! / How can I help you today?"
+  - Afternoon: "Hey, Anna! / How can I help you this afternoon?"
+  - Evening: "Evening, Anna! / How can I help you tonight?"
+  - Late: "Hey, Anna! / What do you need before tomorrow?"
+- Prominent coral mic card — static waveform, `Speak to Zaeli` title
+- "or tap a topic" divider
+- 5 focus chips (Today · Shopping & meals · What needs doing · Kids & family · What's coming up)
+- **Identical chat bar at bottom** — same barPill, same + icon, same mic, same send. Placeholder: "Ask Zaeli anything…"
+
+**Recording (State 3 — full screen):**
+- Tapping mic card → `handleEntryMicStart()` → `entryRecording = true`
+- Chips and content fade away, full-screen recording UI takes over
+- "Listening…" in large italic serif
+- 88px coral mic circle with two animated pulse rings
+- 13-bar waveform across full width
+- "Tap the mic when you're done" hint
+- Tapping mic → `handleEntryMicStop()` → Whisper transcribes
+
+**Chat (State 4):**
+- Entry fades out, chat fades in
+- Voice transcript added as first user message with 🎤 "Voice message" label above bubble
+- `generateBrief(true, transcript)` fires — Zaeli responds focused on what was said
+- If chip tapped → `generateBrief(true, chipSeed)` — brief focused on topic
+- If typed → text enters chat as normal message
+
+### Design fixes made
+- Blue banner restored `#4D8BFF`
+- Zaeli ✦ star + name: `#FF7B6B` light coral
+- 9-dot grid: `#FF4545` full coral with coral-tinted bg
+- Bar placeholder + plus icon: `rgba(10,10,10,0.5)` — darker/readable
+- White body (not cream)
+- Font: 17px / 27px line height on all messages
+- Coral keyboard (Expo Go only — fixed in dev build)
+- `setKbHeight` error removed
+- `ctx` reference error fixed
+
+### Colour decision pending
+Anna wants to move away from blue. Four complete palettes explored (Peach, Sage, Lavender, Sunshine) plus a mixed-palette system (Direction 3 — different combo per session). Decision deferred — will revisit after core features are stable.
+
+### Immediate next steps
+1. **Test entry flow on device** — splash → entry → recording → chat
+2. **Dev build** — `npx expo run:ios` once Apple Developer approved — fixes coral keyboard
+3. **Rich message rendering** — calendar grids, shopping lists, todos inline in chat
+4. **zaeli-chat.tsx design update** — bring in line with new home screen
+5. **Meal Planner** — connect to Supabase
+6. **API usage logging**
+7. **Colour palette decision** — mixed palette system ready to code once decided
+
+### Apple Developer Account
+- Registered 23 March 2026, Individual, $144.99 AUD/year
+- **Awaiting Apple approval** — check email

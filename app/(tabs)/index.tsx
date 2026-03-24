@@ -30,9 +30,9 @@ const INK3  = 'rgba(10,10,10,0.32)';  // fallback for icon default props
 const YELLOW      = '#FFE500';
 const TEAL        = '#1A5F7A';
 
-// Light mode — Option B (coral banner, warm neutral bubble)
+// Light mode — blue banner, coral accent touches
 const L = {
-  banner:      '#E8503A',
+  banner:      '#4D8BFF',
   bannerOrb:   'rgba(255,255,255,0.07)',
   bg:          '#FFFFFF',
   bg2:         '#FFFFFF',
@@ -42,21 +42,21 @@ const L = {
   border:      'rgba(10,10,10,0.09)',
   userBubble:  '#F2F2F2',
   userText:    '#0A0A0A',
-  zaeliStar:   '#4D8BFF',
-  zaeliName:   '#4D8BFF',
+  zaeliStar:   '#FF7B6B',   // light coral — warmth signal
+  zaeliName:   '#FF7B6B',   // light coral — matches star
   dateLine:    'rgba(10,10,10,0.09)',
   replyBg:     '#FFFFFF',
   replyBorder: 'rgba(10,10,10,0.13)',
   replyText:   '#0A0A0A',
   dismiss:     'rgba(10,10,10,0.32)',
-  gridBg:      'rgba(10,10,10,0.06)',
-  gridBorder:  'rgba(10,10,10,0.1)',
-  gridDot:     'rgba(10,10,10,0.4)',
+  gridBg:      'rgba(255,69,69,0.07)',    // coral tint
+  gridBorder:  'rgba(255,69,69,0.2)',     // coral border
+  gridDot:     '#FF4545',                 // full coral dots
   barBg:       '#FFFFFF',
   barBorder:   'rgba(10,10,10,0.09)',
-  barPh:       'rgba(10,10,10,0.28)',
+  barPh:       'rgba(10,10,10,0.5)',      // darker — easier to read
   barSep:      'rgba(10,10,10,0.1)',
-  barIcon:     'rgba(10,10,10,0.32)',
+  barIcon:     'rgba(10,10,10,0.55)',     // darker + icon
   gridSheet:   '#FFFFFF',
   gridHandle:  'rgba(10,10,10,0.12)',
   gridTitle:   '#0A0A0A',
@@ -127,6 +127,7 @@ interface Msg {
   ts: string;
   isLoading?: boolean;
   isBrief?: boolean;
+  isVoice?: boolean;
   quickReplies?: string[];   // contextual chips for brief
 }
 
@@ -285,14 +286,75 @@ export default function HomeScreen() {
   const [keyboardOpen,  setKeyboardOpen]  = useState(false);
   const [showMoreGrid,  setShowMoreGrid]  = useState(false);
   const [liveCamera,    setLiveCamera]    = useState(false);
+  // Entry flow: splash → entry → chat
+  const [screen,        setScreen]        = useState<'splash'|'entry'|'chat'>('splash');
+  const [focusTopic,    setFocusTopic]    = useState<string>('');
+  const [entryRecording, setEntryRecording] = useState(false); // recording state within entry screen
 
   const scrollBtnAnim      = useRef(new Animated.Value(0)).current;
   const pillsAnim          = useRef(new Animated.Value(1)).current;
   const sheetAnim          = useRef(new Animated.Value(320)).current;
+  const splashOpacity      = useRef(new Animated.Value(1)).current;
+  const entryOpacity       = useRef(new Animated.Value(0)).current;
+  const chatOpacity        = useRef(new Animated.Value(0)).current;
+  const starScale          = useRef(new Animated.Value(0.4)).current;
+  const wordmarkOpacity    = useRef(new Animated.Value(0)).current;
   const recordingRef       = useRef<Audio.Recording | null>(null);
   const isAtBottom         = useRef(true);
-  // Persist the last image description so follow-up messages retain image context
   const lastImageDesc      = useRef<string>('');
+
+  // ── Entry focus chips ─────────────────────────────────────────────────────
+  const FOCUS_CHIPS = [
+    { emoji: '📅', label: "What's on today",    sub: 'Calendar · schedule · reminders',  seed: "What's on today?" },
+    { emoji: '🛒', label: 'Shopping & meals',   sub: 'List · pantry · dinner tonight',   seed: 'Give me a shopping and meals update.' },
+    { emoji: '✅', label: 'What needs doing',   sub: 'Tasks · urgent · slipping',        seed: "What's most pressing right now?" },
+    { emoji: '👧', label: 'Kids & family',      sub: 'Jobs · homework · activities',     seed: 'How are the kids and family going?' },
+    { emoji: '🌅', label: "What's coming up",   sub: 'Week ahead · events · plan',       seed: "What's coming up this week?" },
+  ];
+
+  // ── Splash → Entry → Chat transitions ────────────────────────────────────
+  useEffect(() => {
+    // Star bounces in immediately
+    Animated.spring(starScale, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 60,
+      friction: 8,
+    }).start();
+
+    // Wordmark fades in after star lands
+    setTimeout(() => {
+      Animated.timing(wordmarkOpacity, {
+        toValue: 1, duration: 400, useNativeDriver: true,
+      }).start();
+    }, 350);
+
+    // After 1.5s — fade splash out, fade entry in
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.timing(entryOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]).start(() => setScreen('entry'));
+    }, 1500);
+  }, []);
+
+  // ── Move from entry to chat ───────────────────────────────────────────────
+  function enterChat(topic?: string, voiceTranscript?: string) {
+    if (topic && !voiceTranscript) setFocusTopic(topic);
+    Animated.parallel([
+      Animated.timing(entryOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+      Animated.timing(chatOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
+    ]).start(() => {
+      setScreen('chat');
+      // If voice transcript — add as first user message then let Zaeli respond
+      if (voiceTranscript) {
+        addMsg({ role:'user', text: voiceTranscript, isVoice: true });
+        setTimeout(() => generateBrief(true, voiceTranscript), 100);
+      } else {
+        generateBrief(true, topic);
+      }
+    });
+  }
 
   // ── Keyboard listeners ────────────────────────────────────────────────────
   useEffect(() => {
@@ -404,7 +466,9 @@ export default function HomeScreen() {
 
       const system = `You are Zaeli — a smart, warm, and quietly witty AI for a modern Australian family. You are confident, observant, and playful. You are a teammate, not just an assistant — when Anna's tired or crushing it, you're in it with her.
 
-PERSONALITY: A smart, capable, slightly mischievous best friend who is always one step ahead. Dry when the moment calls for it. Warm when it matters. Energetic and encouraging when Anna needs a boost — "we've got this", "let's knock it out", "you're doing great" feel natural and genuine. Occasionally surprising. Never try-hard, never corporate.
+PERSONALITY: A smart, capable, slightly mischievous best friend who is always one step ahead. Dry when the moment calls for it. Warm when it matters. Energetic and encouraging when Anna needs a boost. Occasionally surprising. Never try-hard, never corporate.
+
+POSITIVITY — this is important: Zaeli genuinely believes in this family and lets it show. Not every message, not forced — but often enough that Anna feels it. Celebrate small wins ("that's actually impressive"), acknowledge hard days ("big week — you're handling it"), notice effort ("two runs before 10am — the legs are earning it"). A little warmth goes a long way. Make Anna feel good about her day, her family, herself. She's doing a lot — Zaeli sees it.
 
 VOICE: Vary tone deliberately — sometimes warm and encouraging, sometimes dry and understated, sometimes full camaraderie and energy, sometimes just a quick sharp acknowledgement. Never the same rhythm twice. Humour is subtle — if it needs to be announced it isn't funny.
 
@@ -431,7 +495,7 @@ FORMAT: 2–4 sentences by default. Expand only when genuinely useful. Always na
   }
 
   // ── Generate brief ────────────────────────────────────────────────────────
-  async function generateBrief(force = false) {
+  async function generateBrief(force = false, focusHint?: string) {
     const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
     if (!force && elapsed < 30*60*1000 && cachedBriefText) {
       const cached = JSON.parse(cachedBriefText);
@@ -446,6 +510,9 @@ FORMAT: 2–4 sentences by default. Expand only when genuinely useful. Always na
       const { system } = await buildContext();
       const greeting = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : h < 21 ? 'Evening' : 'Hey';
       const isLate   = h >= 21 || h < 6;
+      const focusInstruction = focusHint
+        ? `\nFOCUS: Anna tapped "${focusHint}" on the entry screen. Lead with that topic — make it the heart of the brief.`
+        : '';
       const briefSys = `${system}
 
 You are writing Zaeli's opening home screen message for ${MEMBER_NAME}. The most important message in the app. A switched-on friend who's been paying attention, not a status report.
@@ -458,16 +525,13 @@ RULES:
 5. Plain text only — no [ACCENT] tags, no bold, no markdown
 6. Never invent facts — only use data provided above
 7. Use the Zaeli voice — dry, observational, occasionally surprising, warm camaraderie
-${isLate ? '8. It is late — calm and quiet energy, focus on tomorrow.' : ''}
+8. Genuine positivity — notice effort, celebrate small wins, make Anna feel seen
+${isLate ? '9. It is late — calm and quiet energy, focus on tomorrow.' : ''}
+${focusInstruction}
 
-QUICK REPLIES — generate exactly 3, time-aware and specific:
+QUICK REPLIES — generate exactly 3, time-aware and specific to focus topic if selected:
 - Short phrases Anna would tap (3-6 words each)
-- Based on what's actually in the data above
-- Time-appropriate: morning = today's events, evening = dinner/tomorrow
-- Examples: "What's on tomorrow", "Lock in dinner", "Suss the shopping", "Show me what's pressing", "Sort the week", "What's most urgent"
-- No colour, no punctuation at end
-
-SEED: What Anna says when tapping the first reply chip — first person, casual
+- No punctuation at end
 
 Return ONLY valid JSON (no markdown, no backticks):
 {"main":"${greeting}, ${MEMBER_NAME} — [3 more sentences]","replies":["chip 1","chip 2","chip 3"],"seed":"Anna natural response to first chip"}`;
@@ -493,17 +557,31 @@ Return ONLY valid JSON (no markdown, no backticks):
   }
 
   useFocusEffect(useCallback(() => {
-    if (messages.length === 0) {
-      generateBrief();
-    } else {
+    // Entry screen now handles cold start — only regenerate if returning after 30+ min
+    if (screen === 'chat' && messages.length > 0) {
       const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
       if (elapsed > 30 * 60 * 1000) {
         setMessages([]);
         lastImageDesc.current = '';
-        generateBrief(true);
+        setScreen('splash');
+        // Re-run splash → entry → chat cycle
+        splashOpacity.setValue(1);
+        entryOpacity.setValue(0);
+        chatOpacity.setValue(0);
+        starScale.setValue(0.4);
+        wordmarkOpacity.setValue(0);
+        // Restart splash animation
+        Animated.spring(starScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8 }).start();
+        setTimeout(() => Animated.timing(wordmarkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start(), 350);
+        setTimeout(() => {
+          Animated.parallel([
+            Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+            Animated.timing(entryOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
+          ]).start(() => setScreen('entry'));
+        }, 1500);
       }
     }
-  }, []));
+  }, [screen, messages.length]));
 
   // ── Quick reply tap ───────────────────────────────────────────────────────
   function handleQuickReply(chip: string) {
@@ -583,8 +661,14 @@ Return ONLY valid JSON (no markdown, no backticks):
       const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body: form });
       const data = await resp.json();
       const transcript = data?.text?.trim() ?? '';
-      // Walkie-talkie: auto-send immediately, no input field stop
-      if (transcript) send(transcript);
+      if (!transcript) return;
+      // If on entry screen, transition to chat with voice message
+      if (screen !== 'chat') {
+        enterChat(transcript);
+      } else {
+        // Walkie-talkie: auto-send immediately in chat
+        send(transcript);
+      }
     } catch (e) { console.error('stopRecording:', e); }
   }
   function handleMicPress() { if (isRecording) stopRecording(); else startRecording(); }
@@ -625,6 +709,12 @@ Return ONLY valid JSON (no markdown, no backticks):
       if (msg.role === 'user') {
         return (
           <View key={msg.id} style={[s.userMsgWrap, { marginTop: 18 }]}>
+            {msg.isVoice && (
+              <View style={s.voiceLabel}>
+                <IcoMic color={T.ink3}/>
+                <Text style={[s.voiceLabelTxt, { color: T.ink3 }]}>Voice message</Text>
+              </View>
+            )}
             {msg.imageUri && <Image source={{ uri: msg.imageUri }} style={s.msgImage} resizeMode="cover"/>}
             {!!msg.text && (
               <View style={[s.userBubble, { backgroundColor: T.userBubble }]}>
@@ -718,10 +808,197 @@ Return ONLY valid JSON (no markdown, no backticks):
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
+  const greeting = h < 12 ? 'Morning' : h < 17 ? 'Hey' : h < 21 ? 'Evening' : 'Hey';
+  const greetingSub = h < 12 ? 'How can I help you today?'
+    : h < 17 ? 'How can I help you this afternoon?'
+    : h < 21 ? 'How can I help you tonight?'
+    : 'What do you need before tomorrow?';
+
+  async function handleEntryMicStart() {
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef.current = recording;
+      setEntryRecording(true);
+    } catch (e) { console.error('entry mic start:', e); }
+  }
+
+  async function handleEntryMicStop() {
+    try {
+      setEntryRecording(false);
+      if (!recordingRef.current) return;
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+      if (!uri) { enterChat(); return; }
+      const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+      if (!key) { enterChat(); return; }
+      const form = new FormData();
+      form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
+      form.append('model', 'whisper-1');
+      const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body: form });
+      const data = await resp.json();
+      const transcript = data?.text?.trim() ?? '';
+      enterChat(transcript || undefined, transcript);
+    } catch (e) { console.error('entry mic stop:', e); enterChat(); }
+  }
+
   return (
     <View style={[s.root, { backgroundColor: T.banner }]}>
-      <ExpoStatusBar style={T.statusBar} animated/>
+      <ExpoStatusBar style="light" animated/>
       <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)}/>
+
+      {/* ── OPTION A1 SPLASH — coral star, 1.5 seconds ── */}
+      {screen !== 'chat' && (
+        <Animated.View style={[s.splashWrap, { opacity: splashOpacity, zIndex: screen === 'splash' ? 20 : 10 }]} pointerEvents={screen === 'splash' ? 'auto' : 'none'}>
+          <SafeAreaView style={{ flex:1, alignItems:'center', justifyContent:'center' }} edges={['top']}>
+            {/* Orbs */}
+            <View style={s.splashOrb1}/>
+            <View style={s.splashOrb2}/>
+            <View style={s.splashOrb3}/>
+            {/* Coral star — bounces in */}
+            <Animated.View style={[s.splashStarBox, { transform:[{ scale: starScale }] }]}>
+              <Svg width="42" height="42" viewBox="0 0 16 16" fill="white">
+                <Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/>
+              </Svg>
+            </Animated.View>
+            {/* Wordmark fades in */}
+            <Animated.View style={{ opacity: wordmarkOpacity, alignItems:'center', gap:14 }}>
+              <Text style={s.splashWordmark}>
+                z<Text style={{ color:YELLOW }}>a</Text>el<Text style={{ color:YELLOW }}>i</Text>
+              </Text>
+              <View style={s.splashDots}>
+                <TypingDots color="rgba(255,255,255,0.6)"/>
+              </View>
+            </Animated.View>
+          </SafeAreaView>
+        </Animated.View>
+      )}
+
+      {/* ── OPTION E2 ENTRY — mic hero, focus chips ── */}
+      {screen !== 'chat' && (
+        <Animated.View style={[s.entryWrap, { opacity: entryOpacity, zIndex: screen === 'entry' ? 20 : 5 }]} pointerEvents={screen === 'entry' ? 'auto' : 'none'}>
+          <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={['top','bottom']}>
+            <View style={s.splashOrb1}/>
+            <View style={s.entryOrb2}/>
+
+            {/* ── RECORDING STATE — full screen takeover ── */}
+            {entryRecording ? (
+              <View style={s.entryRecordingWrap}>
+                <Text style={s.entryListeningLbl}>Listening…</Text>
+                <Text style={s.entryListeningSub}>Speak naturally — take your time.</Text>
+
+                {/* Big coral mic circle with pulse rings */}
+                <View style={s.entryMicRingWrap}>
+                  <Animated.View style={s.entryMicRing1}/>
+                  <Animated.View style={s.entryMicRing2}/>
+                  <TouchableOpacity style={s.entryMicBig} onPress={handleEntryMicStop} activeOpacity={0.85}>
+                    <IcoMic color="#fff"/>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Full width animated waveform */}
+                <View style={s.entryWaveWrap}>
+                  {[14,26,38,48,56,48,38,26,14,22,36,46,30].map((h, i) => (
+                    <Animated.View key={i} style={[s.entryWaveBar, { height: h }]}/>
+                  ))}
+                </View>
+
+                <Text style={s.entryStopHint}><Text style={{ color:'#fff', fontFamily:'Poppins_600SemiBold' }}>Tap the mic</Text> when you're done.</Text>
+              </View>
+            ) : (
+              <>
+                {/* ── RESTING STATE ── */}
+                <View style={s.entryContent}>
+                  {/* Small star */}
+                  <View style={s.entryStarBox}>
+                    <Svg width="22" height="22" viewBox="0 0 16 16" fill="white">
+                      <Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/>
+                    </Svg>
+                  </View>
+
+                  {/* Big centred greeting — two lines */}
+                  <Text style={s.entryGreeting1}>{greeting}, {MEMBER_NAME}!</Text>
+                  <Text style={s.entryGreeting2}>{greetingSub}</Text>
+                  <Text style={s.entrySub}>Speak or tap a topic below.</Text>
+
+                  {/* Big mic card */}
+                  <TouchableOpacity style={s.entryMicCard} onPress={handleEntryMicStart} activeOpacity={0.85}>
+                    <View style={s.entryMicIcon}>
+                      <IcoMic color="#fff"/>
+                    </View>
+                    <View style={{ flex:1 }}>
+                      <Text style={s.entryMicTitle}>Speak to Zaeli</Text>
+                      <Text style={s.entryMicSub}>"What's on today?" · "What's for dinner?"</Text>
+                    </View>
+                    {/* Static waveform */}
+                    <View style={s.entryWaveStatic}>
+                      {[7,13,9,17,11].map((h, i) => (
+                        <View key={i} style={[s.entryWaveBarStatic, { height: h }]}/>
+                      ))}
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Divider */}
+                  <View style={s.entryDivider}>
+                    <View style={s.entryDivLine}/>
+                    <Text style={s.entryDivTxt}>or tap a topic</Text>
+                    <View style={s.entryDivLine}/>
+                  </View>
+
+                  {/* Focus chips — bigger, horizontal wrap */}
+                  <View style={s.entryChips}>
+                    {FOCUS_CHIPS.map(chip => (
+                      <TouchableOpacity
+                        key={chip.label}
+                        style={s.entryChip}
+                        onPress={() => enterChat(chip.seed)}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={s.entryChipEmoji}>{chip.emoji}</Text>
+                        <Text style={s.entryChipTxt}>{chip.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Bottom bar — IDENTICAL to chat bar */}
+                <View style={[s.inputArea, { position:'relative', bottom:'auto' as any, paddingBottom: Platform.OS==='ios' ? 24 : 16 }]}>
+                  <View style={[s.barPill, { backgroundColor:'#fff', borderColor:'rgba(10,10,10,0.09)' }]}>
+                    <TouchableOpacity style={s.barBtn} onPress={() => {}} activeOpacity={0.75}>
+                      <IcoPlus color={INK3}/>
+                    </TouchableOpacity>
+                    <View style={[s.barSep, { backgroundColor:'rgba(10,10,10,0.1)' }]}/>
+                    <TextInput
+                      style={[s.barInput, { color: INK }]}
+                      placeholder="Ask Zaeli anything…"
+                      placeholderTextColor="rgba(10,10,10,0.5)"
+                      keyboardAppearance="light"
+                      selectionColor={CORAL}
+                      onSubmitEditing={(e) => {
+                        const txt = e.nativeEvent.text.trim();
+                        if (txt) enterChat(txt);
+                      }}
+                    />
+                    <TouchableOpacity style={s.barBtn} onPress={handleEntryMicStart} activeOpacity={0.75}>
+                      <IcoMic color={INK3}/>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.sendBtn, { backgroundColor: CORAL }]} onPress={() => enterChat()} activeOpacity={0.85}>
+                      <IcoSend/>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </>
+            )}
+          </SafeAreaView>
+        </Animated.View>
+      )}
+
+      {/* ── MAIN CHAT ── */}
+      <Animated.View style={[{ flex:1 }, screen === 'chat' ? {} : { opacity: chatOpacity }]} pointerEvents={screen === 'chat' ? 'auto' : 'none'}>
+
 
       {/* BANNER */}
       <SafeAreaView style={[s.banner, { backgroundColor: T.banner }]} edges={['top']}>
@@ -938,6 +1215,7 @@ Return ONLY valid JSON (no markdown, no backticks):
           </SafeAreaView>
         </View>
       )}
+      </Animated.View>
     </View>
   );
 }
@@ -946,6 +1224,63 @@ Return ONLY valid JSON (no markdown, no backticks):
 // ── Styles — theme-independent (colours injected via T at render time) ─────
 const s = StyleSheet.create({
   root: { flex:1 },
+
+  // ── Splash (A1) ──
+  splashWrap:    { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' },
+  splashOrb1:    { position:'absolute', width:320, height:320, borderRadius:160, backgroundColor:'rgba(255,255,255,0.055)', top:-110, right:-90 },
+  splashOrb2:    { position:'absolute', width:200, height:200, borderRadius:100, backgroundColor:'rgba(255,255,255,0.04)', bottom:-70, left:-70 },
+  splashOrb3:    { position:'absolute', width:120, height:120, borderRadius:60, backgroundColor:'rgba(255,123,107,0.12)', bottom:80, right:-30 },
+  splashStarBox: { width:88, height:88, borderRadius:26, alignItems:'center', justifyContent:'center', marginBottom:22, shadowColor:'#FF4545', shadowOpacity:0.4, shadowRadius:24, shadowOffset:{ width:0, height:8 }, backgroundColor:'#FF6B55' },
+  splashWordmark:{ fontFamily:'DMSerifDisplay_400Regular', fontSize:42, color:'#fff', letterSpacing:-0.8, lineHeight:50 },
+  splashDots:    { alignItems:'center' },
+
+  // ── Entry (E2) ──
+  entryWrap:     { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#4D8BFF' },
+  entryOrb2:     { position:'absolute', width:180, height:180, borderRadius:90, backgroundColor:'rgba(255,69,69,0.1)', bottom:160, left:-50, pointerEvents:'none' as any },
+  entryContent:  { flex:1, paddingHorizontal:24, paddingTop:16, gap:10 },
+  entryStarBox:  { width:44, height:44, borderRadius:13, backgroundColor:'rgba(255,255,255,0.18)', alignItems:'center', justifyContent:'center', alignSelf:'center', marginBottom:4 },
+
+  // Greeting — big, centred, two lines
+  entryGreeting1:{ fontFamily:'DMSerifDisplay_400Regular', fontSize:34, color:'#fff', letterSpacing:-0.5, lineHeight:40, textAlign:'center' as const },
+  entryGreeting2:{ fontFamily:'DMSerifDisplay_400Regular', fontSize:28, color:'rgba(255,255,255,0.85)', letterSpacing:-0.4, lineHeight:34, textAlign:'center' as const, marginBottom:2 },
+  entrySub:      { fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(255,255,255,0.55)', textAlign:'center' as const, marginBottom:4 },
+
+  // Mic card
+  entryMicCard:  { flexDirection:'row', alignItems:'center', gap:14, backgroundColor:'rgba(255,123,107,0.22)', borderWidth:1.5, borderColor:'rgba(255,123,107,0.45)', borderRadius:20, padding:18 },
+  entryMicIcon:  { width:52, height:52, borderRadius:26, alignItems:'center', justifyContent:'center', backgroundColor:'#FF4545', shadowColor:'#FF4545', shadowOpacity:0.45, shadowRadius:14, shadowOffset:{ width:0, height:4 }, flexShrink:0 },
+  entryMicTitle: { fontFamily:'Poppins_700Bold', fontSize:16, color:'#fff', marginBottom:3 },
+  entryMicSub:   { fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(255,255,255,0.6)', lineHeight:18 },
+
+  // Static waveform in mic card
+  entryWaveStatic:  { flexDirection:'row', alignItems:'center', gap:3 },
+  entryWaveBarStatic:{ width:3.5, borderRadius:2, backgroundColor:'rgba(255,255,255,0.45)' },
+
+  // Divider
+  entryDivider:  { flexDirection:'row', alignItems:'center', gap:10 },
+  entryDivLine:  { flex:1, height:1, backgroundColor:'rgba(255,255,255,0.15)' },
+  entryDivTxt:   { fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(255,255,255,0.35)' },
+
+  // Focus chips — horizontal wrap, bigger
+  entryChips:    { flexDirection:'row', flexWrap:'wrap', gap:8 },
+  entryChip:     { flexDirection:'row', alignItems:'center', gap:7, backgroundColor:'rgba(255,255,255,0.13)', borderWidth:1.5, borderColor:'rgba(255,255,255,0.22)', borderRadius:24, paddingVertical:10, paddingHorizontal:15 },
+  entryChipEmoji:{ fontSize:15 },
+  entryChipTxt:  { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(255,255,255,0.92)' },
+
+  // ── Recording state ──
+  entryRecordingWrap: { flex:1, alignItems:'center', justifyContent:'center', gap:18, paddingHorizontal:28 },
+  entryListeningLbl:  { fontFamily:'DMSerifDisplay_400Regular', fontSize:34, color:'#fff', fontStyle:'italic' as const, textAlign:'center' as const },
+  entryListeningSub:  { fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(255,255,255,0.5)', textAlign:'center' as const },
+  entryMicRingWrap:   { position:'relative', width:110, height:110, alignItems:'center', justifyContent:'center' },
+  entryMicRing1:      { position:'absolute', width:110, height:110, borderRadius:55, borderWidth:2, borderColor:'rgba(255,123,107,0.4)' },
+  entryMicRing2:      { position:'absolute', width:110, height:110, borderRadius:55, borderWidth:2, borderColor:'rgba(255,123,107,0.22)' },
+  entryMicBig:        { width:88, height:88, borderRadius:44, backgroundColor:'#FF4545', alignItems:'center', justifyContent:'center', shadowColor:'#FF4545', shadowOpacity:0.5, shadowRadius:20, shadowOffset:{ width:0, height:6 }, zIndex:2 },
+  entryWaveWrap:      { flexDirection:'row', alignItems:'center', gap:5, height:60, width:'100%' as any, justifyContent:'center' },
+  entryWaveBar:       { width:5, borderRadius:3, backgroundColor:'rgba(255,255,255,0.7)' },
+  entryStopHint:      { fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(255,255,255,0.55)', textAlign:'center' as const },
+
+  // Voice message label
+  voiceLabel:    { flexDirection:'row', alignItems:'center', gap:4, justifyContent:'flex-end', marginBottom:4 },
+  voiceLabelTxt: { fontFamily:'Poppins_400Regular', fontSize:10 },
 
   // Banner
   banner:     { paddingHorizontal:20, paddingBottom:12, overflow:'hidden' },
