@@ -1,233 +1,147 @@
-# ZAELI-PRODUCT.md — Product Framework
-*Last updated: 23 March 2026*
+# ZAELI-PRODUCT.md — Product Vision & Decisions
+*Last updated: 24 March 2026 — Session 17*
 
 ---
 
 ## What Zaeli Is
 
-Zaeli is an AI-first family life platform. The AI is the product — not a feature bolted onto an app.
+Zaeli is an iOS-first AI family life platform for Australian families with children. It is not a task manager, not a calendar app, not a shopping list. It is a switched-on family assistant that knows your family's life and helps you stay on top of it — through conversation.
 
-**Positioning:** Zaeli is an AI assistant that happens to have screens — not an app that happens to have AI.
-
-**The 80/20 rule:** 80% of family interactions happen in the chat. 20% happen in the dedicated screens (Calendar, Shopping, Meals etc). The screens are data management tools, not the primary interface.
+**The core insight:** Most family coordination tools are data entry systems. Zaeli is a conversation. You talk to Zaeli, Zaeli acts. The screens (Calendar, Shopping, Meals, Todos) are data surfaces that Zaeli pulls from — not primary interfaces.
 
 ---
 
-## Who It's For
+## Zaeli's Voice
 
-**Primary market:** Australian families with children, dual-income couples with primary school-aged children in metro areas.
+Anne Hathaway energy — smart, warm, magnetic, a little witty. Never try-hard. Australian warmth without "mate" or "guys". Never starts with "I". Never sounds like a push notification. Plain text only — no asterisks or markdown.
 
-**Logged-in user:** Anna (the family organiser — typically the primary parent managing household logistics).
-
-**Family:** Anna, Richard, Poppy (Yr6, 12), Gab (Yr4, 10), Duke (Yr1, 8).
+**Critical rule added Session 17:** Zaeli never ends on a bare open question. "What do you need?" is explicitly forbidden. She always offers something specific before leaving the door open. She matches the user's energy all the way through — if they're light and playful, she stays there. No pivot to transactional mid-response.
 
 ---
 
-## The AI-First Chat Framework
+## Target Market
+
+Australian families with children. Highest-priority segment: dual-income couples with primary school-aged children in metro areas.
+
+**Revenue:**
+- Family plan: A$14.99/month
+- Homework add-on: A$9.99/child/month
+- 100% web sales — no App Store cut
+
+---
+
+## The Interface Philosophy
 
 ### Chat is home
-Zaeli opens every session. The brief IS the home screen. No dashboard, no tiles — just Zaeli speaking first.
+The home screen IS a chat with Zaeli. There is no dashboard, no overview, no status screen. You open the app, Zaeli greets you, and you're in conversation. Everything else is accessible through that conversation or through the hamburger menu.
 
-### The Brief
-Zaeli's opening message every session. Time-aware, data-driven, warm. Follows the spec in `zaeli-brief-logic-spec.md`.
+### Screens are data tools
+Calendar, Shopping, Meals, Todos — these screens exist for deep editing and management. For reading and quick actions, Zaeli handles everything in chat. Over time, users will rarely need to visit dedicated screens.
 
-**Brief JSON format (current):**
-```json
-{
-  "main": "Evening, Anna — [3 sentences]",
-  "replies": ["chip 1", "chip 2", "chip 3"],
-  "seed": "Anna's natural response to first chip"
-}
+### Rich rendering in chat
+When Zaeli surfaces data (calendar events, shopping list, meal plan), it renders **full-width, borderless, pixel-identical to the dedicated screen** — as if the screen extended into the conversation. No card wrappers, no borders added. Same component, same design, same code.
+
+### Conversational first, form as fallback
+Every action that can be done conversationally should be done conversationally. Forms exist as safety nets for edge cases. Example: editing a calendar event in chat takes 3 taps through Zaeli's questions — the edit form only opens if explicitly requested via "Manual edit".
+
+---
+
+## Screen-by-Screen Design Decisions
+
+### Home (index.tsx)
+- AI-first chat interface — chat IS the home screen
+- Entry state: big centred greeting, coral mic card, topic chips, chat bar
+- Brief generates on open (or return after 30+ min), fades in when ready
+- Thinking dots → fade in complete text (no typewriter)
+- Dismissed state: relaxed card, "Still here if you need me"
+- Calendar events render inline in chat — full width, no border
+- Month view renders inline in chat — tap date → day events appear below
+
+### Calendar (calendar.tsx) — BEING REBUILT
+- Accent colour: **Electric Red Coral #E8374B**
+- Day view: tinted event blocks (no left border), person avatars, family colour dots on strip
+- Month view: multi-colour dots per family member, legend, tinted bubble preview
+- Toggle: Day / Month only (Week removed)
+- No brief card — Zaeli chat handles that
+- Chat render: zero wrapper, full width, identical to dedicated screen
+- Event tap in chat: conversational edit flow (Time · Day · Who's coming · Title · Delete · Manual edit)
+- Event tap on dedicated screen: edit sheet opens immediately
+- Floating bar: `+` · divider · "Chat with Zaeli…" · mic · send
+
+### Shopping (shopping.tsx)
+- List tab: sticky toolbar, Recently Bought in magenta (no strikethrough)
+- Pantry tab: scan buttons auto-detect receipt vs pantry photo
+- Spend tab: monthly summary + receipt history
+- Ticking food items → auto-syncs to Pantry
+- Household/Other → do NOT sync to Pantry
+
+### Tutor Module
+- Hub: Zaeli noticed card speaks TO kids (not parents)
+- Homework Help: Socratic method — NEVER give the answer
+- Vision pipeline: Claude reads image → GPT responds with context
+
+---
+
+## Family Colour System (LOCKED)
+```
+Rich:  #4D8BFF  (blue)
+Anna:  #FF7B6B  (coral)
+Poppy: #A855F7  (purple)
+Gab:   #22C55E  (green)
+Duke:  #F59E0B  (amber)
+```
+Person-first, not calendar-first. External calendar events follow the person's colour, not the source calendar's colour.
+
+---
+
+## Screen Accent Colours
+```
+Home/Chat:    #0057FF  (Zaeli blue)
+Calendar:     #E8374B  (Electric Red Coral)
+Shopping:     #000000  (black)
+Meals:        #FF8C00  (orange)
+Todos:        #B8A400  (gold)
+Tutor:        #1A1A2E  (dark navy)
 ```
 
-### Quick Replies (not CTAs)
-3 contextual chips generated alongside the brief. Time-aware and specific. No colour — border only. "All good →" as muted dismiss below. Chips fire `send()` directly — conversation continues naturally.
+---
 
-### Grid Navigation
-3×3 dot grid icon (⊞) above input bar. Tapping opens a sheet with all 9 screens. Tapping a screen injects a seed message into chat — does NOT navigate away. Chat is always home.
+## Key Product Moments
 
-### Screens (data tools, not primary interface)
-Calendar · Shopping · Meals · Tutor · To-dos · Kids Hub · Notes · Travel · Our Family
+### "Zaeli noticed"
+The most powerful moments in the product are when Zaeli flags something the user didn't ask about. Conflict between Run with Ferg and Poppy's dance pickup. Shopping list sitting at 6 items for 3 days. These moments build trust and generate word of mouth.
+
+### The brief
+Zaeli's brief is the most important piece of communication in the app. It runs on open (or return after 30+ min). Four parts: callback → what's coming → what's slipping → contextual question. See zaeli-brief-logic-spec.md for full rules.
+
+### Real-time sync
+Supabase real-time subscriptions mean changes from Rich's chat update Anna's screen live. Both phones share the same family data. This is the shared calendar experience — not a separate feature, just how the whole platform works.
 
 ---
 
-## Design System (locked 23 March 2026)
-
-### Home screen
-- **Light mode:** Coral banner `#E8503A`, white body, neutral grey bubble `#F2F2F2`
-- **Dark mode:** Navy banner `#0D1B3E`, true black body, dark blue bubble
-- **Zaeli ✦ star:** always `#4D8BFF` light blue — AI identity signal
-- **Coral = send button ONLY** — no other use of coral anywhere on screen
-- **No accent colours in Zaeli text** — plain ink throughout
-- **No pills** — grid icon replaces them entirely
-- **No bottom tab bar** — hamburger navigation only
-- **Font:** 17px / 27px line height for all message text
-- **Sentence spacing:** paragraphs split on full stops, 10px gap between
-
-### User bubbles
-- Light: `#F2F2F2` warm neutral, `#0A0A0A` text
-- Dark: `#1E2D50` dark blue, `#A8C4FF` light text
-
-### Typography
-- **All UI:** Poppins (400/500/600/700)
-- **Logo + hero:** DM Serif Display italic only
-- **Message text:** 17px / 27px line height
-- **Quick reply chips:** 13px, border-only, no colour
+## Growth Strategy (when ready to scale)
+- Phase 1: Seed via personal networks and tight communities (0–500 families)
+- Phase 2: Referral engine + short-form content (500–3,000 families)
+- Phase 3: Micro-influencer + press + school/childcare partnerships (3,000–10,000)
+- Key retention insight: Zaeli's value is best understood through lived experience. Retaining active subscribers past day 3 is the real challenge, not installs.
+- 10,000 families = ~0.3% of Australian addressable market — achievable but retention-dependent
 
 ---
 
-## Zaeli's Voice (see ZAELI-PERSONA.md for full spec)
-
-Think: smart, capable, slightly mischievous best friend. Always one step ahead. Warm enough to celebrate with you. Dry enough to be real. Energetic enough to make you feel like you have backup.
-
-**The viral moment test:** Would Anna screenshot this and send it to a friend?
-
-**Key rules:**
-- Never say "mate"
-- Never start with "I"
-- No hollow affirmations ("Of course!", "Absolutely!")
-- Vary tone — never same rhythm twice
-- 1-2 emojis max per message, purposeful
-- Camaraderie: "we've got this", "let's knock it out"
+## Competitive Position
+- Not threatened by generic AI tools (ChatGPT, Gemini) — they don't know your family
+- Not threatened by calendar apps — they don't talk to you
+- Real threat: Apple. When agentic Siri ships (18-30 months), casual coordination gets absorbed
+- Strategy: build deep family-specific features (Tutor, brief intelligence, Zaeli noticed) that generic OS agents cannot replicate
+- Zaeli's moat is family context, memory, and the shared live experience
 
 ---
 
-## Data Architecture
-
-### getFamilyContext() / buildContext()
-Fetches all live data in one `Promise.all` before every GPT call:
-- Shopping item names + count (up to 50 items)
-- Calendar events (next 5, with natural date formatting)
-- Todo count
-- Meal plan (today + week)
-
-### Caching
-- Brief cached at module level for 30 minutes
-- `lastImageDesc` ref persists Claude Vision description across follow-up messages
-- Tab return < 30 min: serve cached brief
-- Tab return > 30 min: regenerate
-
-### Image handling
-- Claude Vision (`claude-sonnet-4-6`) describes images
-- Description injected into GPT system prompt
-- Persisted in `lastImageDesc` for entire session
-
----
-
-## AI Model Routing
-
-| Task | Model | Reason |
-|------|-------|--------|
-| All chat responses | GPT-5.4-mini (`max_completion_tokens`) | Speed + cost |
-| All briefs | GPT-5.4-mini | Speed + cost |
-| Image description | Claude claude-sonnet-4-6 (`max_tokens`) | Vision quality |
-| Voice transcription | Whisper-1 | Accuracy |
-
-**CRITICAL:** Never mix `max_tokens` (Claude) with `max_completion_tokens` (OpenAI)
-
----
-
-## Voice — Walkie-Talkie Mode
-Recording stops → Whisper transcribes → `send(transcript)` fires automatically. No input field step, no send button tap. Speak, release, Zaeli responds. Pure walkie-talkie.
-
----
-
-## Live Camera
-Accessible via `+` button in chat bar → "Live" option. Opens camera, user photographs something and asks a question. Claude Vision describes the image. GPT responds. Flows back into chat thread as a seamless message. Use cases: "Can I make dinner from this?", "Is this healthy?", "What am I missing?"
-
-Future (not yet built): simultaneous camera preview + voice recording via `expo-camera` + `expo-av`.
-
----
-
-## Navigation Model
-
-- **Chat is home** — `index.tsx` is the root
-- **Logo tap** → home on all screens
-- **Hamburger** → NavMenu (all screens)
-- **Grid icon ⊞** → injects context into chat (home only)
-- **No bottom tab bar** anywhere
-- **No floating FAB** anywhere
-
----
-
-## Pricing & Business Model
-
-| Plan | Price |
-|------|-------|
-| Family plan | $15 AUD/month |
-| Homework add-on | $10 AUD/child/month |
-
-**Distribution:** Web-first signup (zaeli.ai) to bypass App Store 15% cut. App free to download. 7-day free trial. Stripe for payments.
-
-**Target market penetration:** 10,000 families = ~0.3% of Australian addressable market. Achievable but retention-dependent.
-
-**Unit economics (GPT-5.4-mini):**
-- ~$0.004 AUD/message
-- ~$0.002 AUD/brief
-- Heavy family usage well within margin at $15/month
-
----
-
-## Growth Strategy
-
-| Phase | Target | Strategy |
-|-------|--------|----------|
-| Phase 1 | 0–500 families | Personal networks, tight communities |
-| Phase 2 | 500–3,000 | Referral engine, short-form content |
-| Phase 3 | 3,000–10,000 | Micro-influencers, press, school/childcare partnerships |
-
-**Key retention insight:** Zaeli's value is best understood through lived experience. Retaining active subscribers past the first few days is the real challenge, not acquiring installs.
-
----
-
-## Domains
-- **zaeli.ai** → marketing website (purchased 23 March 2026)
-- **zaeli.app** → app / deep link destination (purchased 23 March 2026)
-- Both registered via Cloudflare Registrar
-
-## Apple Developer Account
-- Individual account, registered 23 March 2026
-- $144.99 AUD/year
-- Pending Apple approval
-
----
-
-## Build Order
-
-### Layer 1 — Foundation ✅
-- [x] Auth + family setup
-- [x] Home screen (AI-first chat)
-- [x] Calendar
-- [x] Shopping (List + Pantry + Spend)
-- [x] Zaeli chat
-- [x] Navigation
-
-### Layer 2 — Core AI ✅
-- [x] Brief generation (time-aware)
-- [x] Quick replies replacing CTAs
-- [x] Claude Vision for images
-- [x] Walkie-talkie voice
-- [x] Full data context in every GPT call
-- [x] Light/dark mode theming
-
-### Layer 3 — Growth features (in progress)
-- [ ] Development build (replace Expo Go)
-- [ ] Meal Planner connected to Supabase
-- [ ] API usage logging (per-family cost tracking)
-- [ ] Kids Hub redesign
-- [ ] Live camera (simultaneous camera + voice)
-- [ ] Zaeli-chat.tsx design update
-
-### Layer 4 — Launch
-- [ ] Marketing website (zaeli.ai)
-- [ ] TestFlight beta
-- [ ] Stripe integration
-- [ ] App Store submission
-
----
-
-## Open Questions
-1. Should zaeli-chat.tsx be retired entirely now that index.tsx IS the chat?
-2. Live camera: build proper simultaneous camera+voice or defer to post-launch?
-3. Dark mode: when to make it user-selectable vs always following system?
-4. Kids context switch: how does Zaeli know she's talking to a child vs a parent?
+## Pre-Launch Checklist
+- [ ] Remove AI provider toggle from more.tsx
+- [ ] Replace DUMMY_FAMILY_ID with real Supabase auth
+- [ ] calendar.tsx rewrite complete
+- [ ] New EAS build (keyboard tint fix)
+- [ ] TestFlight build for Anna
+- [ ] Website + Stripe + onboarding flow
+- [ ] Real-time Supabase subscriptions wired up

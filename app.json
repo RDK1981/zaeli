@@ -12,8 +12,10 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Zaeli uses your camera to scan products and receipts.",
-        "NSPhotoLibraryUsageDescription": "Zaeli can add items from photos in your library."
-      }
+        "NSPhotoLibraryUsageDescription": "Zaeli can add items from photos in your library.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.zaeli.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +25,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -56,6 +61,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d9529bc9-9bb0-448f-8b1a-f259b6cd6afb"
+      }
     }
   }
 }

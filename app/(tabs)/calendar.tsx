@@ -1,53 +1,39 @@
 /**
- * Calendar Screen - V8
- * Visual redesign: cobalt blue · inline serif brief · floating pill bar
- * Day + Month views only · all logic preserved from V7
+ * Calendar Screen - V7
+ * app/(tabs)/calendar.tsx
  */
 
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Animated, Easing, KeyboardAvoidingView, Modal, Platform,
-  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Animated,
+  Easing,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Line, Path, Polyline, Rect, Circle } from 'react-native-svg';
+import Svg, { Line, Path, Polyline, Rect } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { HamburgerButton, NavMenu } from '../components/NavMenu';
 import { callClaude } from '../../lib/api-logger';
 import { getZaeliProvider } from '../../lib/zaeli-provider';
 
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+const ANTHROPIC_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
 
-// ── Colour system — Calendar is Cobalt Blue #2055F0 ───────────
-const CAL   = '#2055F0';   // primary hero colour
-const CORAL = '#FF4545';   // accent for brief / CTA
-const INK   = '#0A0A0A';
-const INK2  = 'rgba(10,10,10,0.5)';
-const INK3  = 'rgba(10,10,10,0.32)';
-const BORDER = 'rgba(10,10,10,0.08)';
-const BG    = '#FAF8F5';
-const YELLOW = '#FFE500';
-const GREEN  = '#00C97A';
-
-// Event accent colours (cycle)
-const EV_COLORS = [CAL, CORAL, '#E8601A', GREEN, '#9B6DD6', '#00B4D8'];
-
-// ── SVG Icons ─────────────────────────────────────────────────
-function IcoPlus({ color = '#fff', size = 20 }: { color?: string; size?: number }) {
+function IcoMic({ color = 'rgba(0,0,0,0.45)' }: { color?: string }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Line x1="12" y1="5" x2="12" y2="19" stroke={color} strokeWidth={2.2} strokeLinecap="round"/>
-      <Line x1="5" y1="12" x2="19" y2="12" stroke={color} strokeWidth={2.2} strokeLinecap="round"/>
-    </Svg>
-  );
-}
-function IcoMic({ color = INK3 }: { color?: string }) {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-      <Rect x="9" y="2" width="6" height="11" rx="3" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"/>
-      <Path d="M5 10a7 7 0 0014 0" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round"/>
+    <Svg width={18} height={18} viewBox="0 0 24 24">
+      <Rect x="9" y="2" width="6" height="11" rx="3" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M5 10a7 7 0 0014 0" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
       <Line x1="12" y1="19" x2="12" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
       <Line x1="8" y1="23" x2="16" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
     </Svg>
@@ -55,87 +41,78 @@ function IcoMic({ color = INK3 }: { color?: string }) {
 }
 function IcoSend() {
   return (
-    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+    <Svg width={16} height={16} viewBox="0 0 24 24">
       <Line x1="12" y1="19" x2="12" y2="5" stroke="#fff" strokeWidth={2.5} strokeLinecap="round"/>
       <Polyline points="5 12 12 5 19 12" stroke="#fff" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
     </Svg>
   );
 }
-function IcoChevronLeft() {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-      <Polyline points="15 18 9 12 15 6" stroke="rgba(255,255,255,0.7)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-function IcoChevronRight() {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-      <Polyline points="9 18 15 12 9 6" stroke="rgba(255,255,255,0.7)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
 
-// ── Constants ─────────────────────────────────────────────────
-const DAYS_HDR     = ['M','T','W','T','F','S','S'];
-const DAYS_SHORT   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-const MONTHS       = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const C = {
+  blue:   '#0057FF', mag:    '#E0007C', magL:   '#FF4B9E', ink:    '#0A0A0A',
+  ink2:   'rgba(0,0,0,0.50)', ink3:   'rgba(0,0,0,0.28)',
+  border: 'rgba(0,0,0,0.07)', bg:     '#F7F7F7',
+  card:   '#FFFFFF', green:  '#00C97A', orange: '#FF8C00',
+  yellow: '#FFE500',
+};
+
+const DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const DAYS_HDR   = ['M','T','W','T','F','S','S'];
+const MONTHS     = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December',
+];
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const EV_COLORS  = [C.mag, C.blue, C.orange, C.green, '#9B6DD6', '#00B4D8'];
 
-const DURATION_OPTIONS = ['15 min','30 min','45 min','1 hr','1.5 hr','2 hr','2.5 hr','3 hr','3.5 hr','4 hr','5 hr','6 hr','8 hr','All day'];
-const DURATION_MINS    = [15,30,45,60,90,120,150,180,210,240,300,360,480,1439];
-const REPEAT_OPTIONS   = ['Never','Every day','Every week','Every fortnight','Every month','Every year'];
-const ALERT_OPTIONS    = ['None','At time of event','5 min before','15 min before','30 min before','1 hour before','2 hours before','1 day before','1 week before'];
+const DURATION_OPTIONS = [
+  '15 min','30 min','45 min',
+  '1 hr','1.5 hr','2 hr','2.5 hr','3 hr','3.5 hr','4 hr',
+  '5 hr','6 hr','8 hr','All day',
+];
+const DURATION_MINS = [
+  15,30,45,
+  60,90,120,150,180,210,240,
+  300,360,480,1439,
+];
 
 const FAMILY_MEMBERS = [
-  { id:'1', name:'Anna',    color: CAL },
-  { id:'2', name:'Richard', color:'#E8601A' },
-  { id:'3', name:'Poppy',   color:'#9B6DD6' },
-  { id:'4', name:'Gab',     color:'#00B4D8' },
-  { id:'5', name:'Duke',    color:'#4A90E2' },
+  { id:'1', name:'Anna',   color:'#FF7B6B' },
+  { id:'2', name:'Rich',   color:'#4D8BFF' },
+  { id:'3', name:'Poppy',  color:'#A855F7' },
+  { id:'4', name:'Gab',    color:'#22C55E' },
+  { id:'5', name:'Duke',   color:'#F59E0B' },
 ];
 
 const HOURS   = Array.from({ length:12 }, (_, i) => i + 1);
-const MINUTES = [0,5,10,15,20,25,30,35,40,45,50,55];
-const ROW_H   = 52;
+const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
-// ── Brief session state (module-level) ────────────────────────
-let lastBriefTime:    number | null = null;
-let cachedBriefTokens: { text: string; isAccent: boolean }[] | null = null;
-let cachedBriefSub:   string | null = null;
-let cachedBriefCta:   string | null = null;
-let cachedBriefSeed:  string | null = null;
+// ── Brief session state (module-level — persists across tab switches) ──
+let lastBriefTime: number | null = null;
+let cachedBriefText: string | null = null;
+let cachedBriefCta: string | null = null;
 let briefDismissed = false;
 
-// ── Helpers ───────────────────────────────────────────────────
 function evColor(i: number) { return EV_COLORS[i % EV_COLORS.length]; }
 function sameDay(a: Date, b: Date) {
-  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
-}
-function addDays(date: Date, n: number) { const d = new Date(date); d.setDate(d.getDate() + n); return d; }
-function getDaysInMonth(y: number, m: number) { return new Date(y, m+1, 0).getDate(); }
-function getFirstDayOfMonth(y: number, m: number) { return (new Date(y, m, 1).getDay() + 6) % 7; }
-function toLocalDateStr(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-function naturalDate(dateStr: string, todayStr: string): string {
-  const today  = new Date(todayStr + 'T00:00:00');
-  const target = new Date(dateStr + 'T00:00:00');
-  const diff   = Math.round((target.getTime() - today.getTime()) / 86400000);
-  if (diff === 0) return 'today';
-  if (diff === 1) return 'tomorrow';
-  if (diff <= 6)  return target.toLocaleDateString('en-AU', { weekday: 'long' });
-  return target.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
 }
 function fmtTime(iso: string) {
   const timePart = iso ? iso.replace('T',' ').split(' ')[1] || '' : '';
   if (!timePart) return '';
   const [hStr, mStr] = timePart.split(':');
-  const h = parseInt(hStr, 10), m = parseInt(mStr, 10);
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
   const ampm = h >= 12 ? 'pm' : 'am';
   const h12  = h === 0 ? 12 : h > 12 ? h - 12 : h;
   return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
 }
+function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
+function getFirstDayOfMonth(y: number, m: number) { return (new Date(y, m, 1).getDay() + 6) % 7; }
+function addDays(date: Date, n: number) { const d = new Date(date); d.setDate(d.getDate() + n); return d; }
+
 function getTimeFrame(hour: number): string {
   if (hour >= 6  && hour < 12) return 'morning';
   if (hour >= 12 && hour < 16) return 'afternoon';
@@ -145,133 +122,333 @@ function getTimeFrame(hour: number): string {
   return 'late night';
 }
 
-// ── callBrief — GPT-5.4-mini or Claude ───────────────────────
-async function callBrief({ feature, system, userContent, maxTokens = 200 }: {
-  feature: string; system: string; userContent: string; maxTokens?: number;
-}): Promise<string> {
-  if (getZaeliProvider() === 'openai') {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY || ''}` },
-      body: JSON.stringify({ model: 'gpt-5.4-mini', max_completion_tokens: maxTokens,
-        messages: [{ role: 'system', content: system }, { role: 'user', content: userContent }] }),
-    });
-    const d = await res.json();
-    try {
-      const u = d.usage || {};
-      const costUsd = ((u.prompt_tokens||0)/1000000)*0.75 + ((u.completion_tokens||0)/1000000)*4.50;
-      supabase.from('api_logs').insert({ family_id: DUMMY_FAMILY_ID, feature, model: 'gpt-5.4-mini',
-        input_tokens: u.prompt_tokens||0, output_tokens: u.completion_tokens||0, cost_usd: costUsd });
-    } catch {}
-    return d.choices?.[0]?.message?.content || '';
-  } else {
-    const d = await callClaude({ feature, familyId: DUMMY_FAMILY_ID,
-      body: { model: 'claude-haiku-4-5-20251001', max_tokens: maxTokens,
-        system, messages: [{ role: 'user', content: userContent }] } });
-    return d.content?.[0]?.text || '';
-  }
-}
-
-// ── Brief token parser — [ACCENT1] and [ACCENT2] ─────────────
-interface BriefToken { text: string; isAccent: boolean; }
-function parseBriefTokens(text: string): BriefToken[] {
-  const tokens: BriefToken[] = [];
-  const parts = text.split(/(\[ACCENT[12]\].*?\[\/ACCENT[12]\])/gs);
-  for (const part of parts) {
-    const m = part.match(/\[ACCENT[12]\](.*?)\[\/ACCENT[12]\]/s);
-    if (m) {
-      tokens.push({ text: (tokens.length > 0 ? ' ' : '') + m[1].trim(), isAccent: true });
-    } else if (part.trim()) {
-      const needsSpace = tokens.length > 0 && tokens[tokens.length-1].isAccent && !part.startsWith(' ');
-      tokens.push({ text: needsSpace ? ' ' + part : part, isAccent: false });
-    }
-  }
-  return tokens;
-}
-
-// ── Split tokens into sentences for spacing ───────────────────
-interface BriefSentence { parts: BriefToken[]; }
-function splitBriefSentences(tokens: BriefToken[]): BriefSentence[] {
-  const sentences: BriefSentence[] = [];
-  let current: BriefToken[] = [];
-  for (const token of tokens) {
-    current.push(token);
-    if (/[.!?]\s*$/.test(token.text.trimEnd())) {
-      sentences.push({ parts: current });
-      current = [];
-    }
-  }
-  if (current.length > 0) sentences.push({ parts: current });
-  return sentences.length > 0 ? sentences : [{ parts: tokens }];
-}
-
-// ── Animated inline brief — sentence-split with cross-fade ────
-function AnimatedCalBrief({ tokens, sub, placeholder }: {
-  tokens: BriefToken[]; sub: string; placeholder: string;
-}) {
-  const placeholderAnim = useRef(new Animated.Value(1)).current;
-  const realAnim        = useRef(new Animated.Value(0)).current;
-  const subAnim         = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (tokens.length === 0) return;
-    Animated.sequence([
-      Animated.delay(100),
-      Animated.parallel([
-        Animated.timing(placeholderAnim, { toValue: 0, duration: 300, easing: Easing.in(Easing.ease), useNativeDriver: true }),
-        Animated.timing(realAnim, { toValue: 1, duration: 500, delay: 150, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-      ]),
-      Animated.timing(subAnim, { toValue: 1, duration: 400, delay: 60, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-    ]).start();
-  }, [tokens.length]);
-
-  const sentences = splitBriefSentences(tokens);
-
+function BoldText({ text, style, boldStyle }: { text: string; style: any; boldStyle: any }) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return (
-    <View style={s.briefBlock}>
-      {/* Placeholder */}
-      <Animated.View style={[s.briefPlaceholderWrap, { opacity: placeholderAnim }]} pointerEvents="none">
-        <Text style={s.briefPlaceholder}>{placeholder}</Text>
-      </Animated.View>
-      {/* Real brief — sentences with spacing between them */}
-      <Animated.View style={{ opacity: realAnim }}>
-        {sentences.map((sentence, si) => (
-          <Text key={si} style={[s.briefMain, si < sentences.length - 1 && { marginBottom: 10 }]}>
-            {sentence.parts.map((t, ti) => (
-              <Text key={ti} style={t.isAccent ? s.briefAccent : undefined}>{t.text}</Text>
-            ))}
-          </Text>
-        ))}
-        {sub ? (
-          <Animated.View style={{ opacity: subAnim }}>
-            <Text style={s.briefSub}>{sub}</Text>
-          </Animated.View>
-        ) : null}
-      </Animated.View>
+    <Text style={style}>
+      {parts.map((part, i) =>
+        part.startsWith('**') && part.endsWith('**')
+          ? <Text key={i} style={boldStyle}>{part.slice(2,-2)}</Text>
+          : <Text key={i}>{part}</Text>
+      )}
+    </Text>
+  );
+}
+
+// ── PULSING AVATAR ────────────────────────────────────────────
+function PulsingAvatar({ color = C.mag }: { color?: string }) {
+  const scale   = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(0.55)).current;
+  useEffect(() => {
+    Animated.loop(Animated.sequence([
+      Animated.parallel([
+        Animated.timing(scale,   { toValue:1.18, duration:900, easing:Easing.inOut(Easing.ease), useNativeDriver:true }),
+        Animated.timing(opacity, { toValue:0,    duration:900, easing:Easing.in(Easing.ease),    useNativeDriver:true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(scale,   { toValue:1,    duration:0, useNativeDriver:true }),
+        Animated.timing(opacity, { toValue:0.55, duration:0, useNativeDriver:true }),
+      ]),
+      Animated.delay(700),
+    ])).start();
+  }, []);
+  return (
+    <View style={{ width:30, height:30, alignItems:'center', justifyContent:'center' }}>
+      <Animated.View style={{ position:'absolute', width:30, height:30, borderRadius:10, backgroundColor:color, transform:[{scale}], opacity }}/>
+      <View style={{ width:30, height:30, borderRadius:10, backgroundColor:color, alignItems:'center', justifyContent:'center' }}>
+        <Text style={{ fontSize:15, color:'#fff' }}>{'✦'}</Text>
+      </View>
     </View>
   );
 }
 
-// ── MINI CAL PICKER (unchanged logic) ────────────────────────
-function MiniCalPicker({ dateStr, onChange }: { dateStr: string; onChange: (s: string) => void }) {
+// ── TYPING DOTS ───────────────────────────────────────────────
+function TypingDots() {
+  const d0 = useRef(new Animated.Value(0)).current;
+  const d1 = useRef(new Animated.Value(0)).current;
+  const d2 = useRef(new Animated.Value(0)).current;
+  const dots = [d0, d1, d2];
+  useEffect(() => {
+    const anims = dots.map((dot, i) =>
+      Animated.loop(Animated.sequence([
+        Animated.delay(i * 180),
+        Animated.timing(dot, { toValue:1, duration:300, useNativeDriver:true }),
+        Animated.timing(dot, { toValue:0, duration:300, useNativeDriver:true }),
+        Animated.delay((2 - i) * 180),
+      ]))
+    );
+    anims.forEach(a => a.start());
+    return () => anims.forEach(a => a.stop());
+  }, []);
+  return (
+    <View style={{ flexDirection:'row', gap:5, paddingVertical:8 }}>
+      {dots.map((dot, i) => (
+        <Animated.View key={i} style={{
+          width:7, height:7, borderRadius:4, backgroundColor:C.mag,
+          opacity: dot,
+          transform: [{ scale: dot.interpolate({ inputRange:[0,1], outputRange:[0.7,1] }) }],
+        }}/>
+      ))}
+    </View>
+  );
+}
+
+// ── BRIEF CARD ────────────────────────────────────────────────
+function BriefCard({ events, todos, onDismiss }: {
+  events: any[]; todos: any[]; onDismiss: () => void;
+}) {
+  const [loading,   setLoading]   = useState(true);
+  const [briefText, setBriefText] = useState('');
+  const [ctaLabel,  setCtaLabel]  = useState("Let's talk it through");
+  const cardFade  = useRef(new Animated.Value(0)).current;
+  const cardSlide = useRef(new Animated.Value(0)).current;
+  const router    = useRouter();
+
+  useEffect(() => {
+    Animated.timing(cardFade, { toValue:1, duration:400, useNativeDriver:true }).start();
+    const now = Date.now();
+    // Once-per-day brief — resets at 2am
+    // getBriefDayKey returns YYYY-MM-DD, treating hours 0-1 as previous day
+    const _now = new Date();
+    const _d = new Date(_now);
+    if (_now.getHours() < 2) _d.setDate(d.getDate() - 1);
+    const todayKey = _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');
+    const lastKey = lastBriefTime ? (()=>{
+      const ld=new Date(lastBriefTime);
+      if(ld.getHours()<2) ld.setDate(ld.getDate()-1);
+      return ld.getFullYear()+'-'+String(ld.getMonth()+1).padStart(2,'0')+'-'+String(ld.getDate()).padStart(2,'0');
+    })() : null;
+    if (cachedBriefText && lastKey && lastKey === todayKey) {
+      setBriefText(cachedBriefText);
+      setCtaLabel(cachedBriefCta || "Let's talk it through");
+      setLoading(false);
+      return;
+    }
+    generateBrief();
+  }, []);
+
+  const generateBrief = async () => {
+    try {
+      const now       = new Date();
+      const hour      = now.getHours();
+      const timeFrame = getTimeFrame(hour);
+      const timeStr   = now.toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit', hour12:true });
+      const dateStr   = now.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' });
+      // Use local date (not UTC) to avoid day-shift in AEST (UTC+10)
+      const todayStr  = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const in48h     = new Date(now.getFullYear(),now.getMonth(),now.getDate()+2);
+      const in48hStr  = `${in48h.getFullYear()}-${String(in48h.getMonth()+1).padStart(2,'0')}-${String(in48h.getDate()).padStart(2,'0')}`;
+
+      // Fetch events directly — don't rely on component state which may not be loaded yet
+      const evFetch = await supabase.from('events').select('*')
+        .eq('family_id', DUMMY_FAMILY_ID)
+        .gte('date', todayStr).lte('date', in48hStr)
+        .order('date').order('start_time').limit(10);
+      const freshEvents = evFetch.data || [];
+      
+      const upcomingEvs = freshEvents.filter(e => e.date >= todayStr && e.date <= in48hStr);
+      const recentPast  = freshEvents.filter(e => {
+        if (!e.start_time) return false;
+        const evTime = new Date(e.start_time.includes('T') ? e.start_time : e.start_time.replace(' ','T'));
+        const diff   = now.getTime() - evTime.getTime();
+        return diff > 0 && diff < 6 * 60 * 60 * 1000;
+      });
+      const urgentTodos = todos.filter(t =>
+        t.status !== 'done' && (t.priority === 'urgent' || (t.due_date && t.due_date <= todayStr))
+      ).slice(0, 2);
+
+      const toneMap: Record<string, string> = {
+        morning: 'energetic and practical',
+        afternoon: 'steady and helpful',
+        evening: 'warm, slightly urgent',
+        'winding down': 'warm and forward-looking',
+        night: 'calm and settling',
+        'late night': 'minimal and gentle',
+      };
+
+      const contextStr = [
+        `Current time: ${timeStr} on ${dateStr}`,
+        `Time frame: ${timeFrame}`,
+        upcomingEvs.length ? `Upcoming events (next 48h): ${upcomingEvs.map(e => `${e.title} at ${fmtTime(e.start_time)} on ${e.date}`).join(', ')}` : 'No upcoming events in next 48h',
+        recentPast.length  ? `Recent past events (last 6h): ${recentPast.map(e => e.title).join(', ')}` : '',
+        urgentTodos.length ? `Urgent/overdue todos: ${urgentTodos.map(t => t.title).join(', ')}` : 'No urgent todos',
+      ].filter(Boolean).join('\n');
+
+      const prompt = `Generate a calendar screen brief for Anna. CRITICAL: respond with valid JSON only — no preamble, no markdown, no backticks.
+
+TONE: Warm, alive, Australian. Like a switched-on friend who noticed things before you did. Cheeky opener when there's something to reference, always backed by helpful. Never dry or corporate.
+
+STRUCTURE (follow in order):
+1. CALLBACK (use if recent/past event in context): One warm sentence referencing something that just happened or was completed. "Hope the tacos went down well!" / "Great that soccer registration is sorted." SKIP only if nothing recent in context.
+2. WHAT'S COMING: Most important upcoming event — name, time, person. Be specific.
+3. WHAT'S SLIPPING (if relevant): One thing overdue or at risk. Like a friend flagging it, not a task manager.
+4. THE OFFER: One warm question offering something concrete right now.
+
+HARD RULES:
+- Max 4 sentences. Min 2.
+- Never start with "I"
+- Never vague — name things specifically
+- Bold **names/times** only, max 3
+- 12-hour time always
+- Tone: ${toneMap[timeFrame] || 'warm and helpful'}
+- If calendar empty: still say something warm and useful
+
+CONTEXT:
+${contextStr}
+
+Respond ONLY with: {"brief": "text here", "cta": "3-5 word label"}`;
+
+      const briefText = await callBrief({feature:'calendar_brief',system:'You are Zaeli, warm Australian family assistant writing a calendar brief.',userContent:prompt,maxTokens:200});
+      const data = {content:[{text:briefText}]};
+      const raw    = data?.content?.[0]?.text || '';
+      const clean  = raw.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+
+      cachedBriefText = parsed.brief || '';
+      cachedBriefCta  = parsed.cta   || "Let's talk it through";
+      lastBriefTime   = Date.now();
+
+      setBriefText(cachedBriefText!);
+      setCtaLabel(cachedBriefCta!);
+    } catch (e) {
+      console.log('Brief error:', e);
+      setBriefText("Calendar's looking clear — a good moment to get ahead of the week. Want me to take a look at what's coming up?");
+      setCtaLabel("Let's take a look");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const dismiss = () => {
+    Animated.parallel([
+      Animated.timing(cardFade,  { toValue:0,   duration:300, useNativeDriver:true }),
+      Animated.timing(cardSlide, { toValue:-12, duration:300, easing:Easing.in(Easing.ease), useNativeDriver:true }),
+    ]).start(() => {
+      briefDismissed = true;
+      onDismiss();
+    });
+  };
+
+  const handleCta = () => {
+    router.push({
+      pathname: '/(tabs)/',
+      params: { channel:'Calendar', returnTo:'/(tabs)/calendar', seedMessage: briefText },
+    });
+  };
+
+  const now     = new Date();
+  const timeStr = (now.getHours() % 12 || 12) + ':' + String(now.getMinutes()).padStart(2,'0') + ' ' + (now.getHours() < 12 ? 'am' : 'pm');
+
+  return (
+    <Animated.View style={[s.briefCard, { opacity:cardFade, transform:[{ translateY:cardSlide }] }]}>
+      <View style={s.briefHeader}>
+        <PulsingAvatar color={C.mag}/>
+        <Text style={s.briefName}>
+          {'Z'}<Text style={{ color:C.mag }}>{'a'}</Text>{'el'}<Text style={{ color:C.mag }}>{'i'}</Text>
+        </Text>
+        <View style={s.briefLiveDot}/>
+        <Text style={s.briefTime}>{timeStr}</Text>
+      </View>
+      <View style={s.briefBody}>
+        {loading ? (
+          <TypingDots/>
+        ) : (
+          <BoldText
+            text={briefText}
+            style={s.briefMsg}
+            boldStyle={[s.briefMsg, { fontFamily:'Poppins_700Bold' }]}
+          />
+        )}
+        {!loading && (
+          <View style={s.briefBtns}>
+            <TouchableOpacity style={s.btnPrimary} onPress={handleCta} activeOpacity={0.85}>
+              <Text style={s.btnPrimaryTxt}>{ctaLabel}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.btnGhost} onPress={dismiss} activeOpacity={0.7}>
+              <Text style={s.btnGhostTxt}>{"I'm sorted, thanks"}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </Animated.View>
+  );
+}
+
+// ── RELAXED CARD ──────────────────────────────────────────────
+const CAL_ACK_MSGS = ['No worries! 😊', 'Sorted! 🗓️', 'Got it! ✓', 'All good! 👍'];
+
+function RelaxedCard() {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const router = useRouter();
+  const ackMsg = useRef(CAL_ACK_MSGS[Math.floor(Math.random() * CAL_ACK_MSGS.length)]).current;
+
+  useEffect(() => {
+    setTimeout(() => {
+      Animated.timing(fadeAnim, { toValue:1, duration:350, useNativeDriver:true }).start();
+    }, 350);
+  }, []);
+
+  return (
+    <Animated.View style={[s.relaxedCard, { opacity:fadeAnim }]}>
+      <View style={s.relaxedHeader}>
+        <View style={s.relaxedAv}>
+          <Text style={{ fontSize:14, color:'#fff' }}>{'✦'}</Text>
+        </View>
+        <Text style={s.relaxedAck}>{ackMsg}</Text>
+      </View>
+      <View style={s.relaxedBody}>
+        <Text style={s.relaxedTitle}>{'Ask Zaeli anything'}</Text>
+        <Text style={s.relaxedMsg}>
+          {'Did you know I can set up recurring events for you? School pickup, footy training, piano lessons — tell me once and I\'ll remember every week. ♻️'}
+        </Text>
+        <TouchableOpacity
+          style={s.relaxedBtn}
+          onPress={() => router.replace('/(tabs)/')}
+          activeOpacity={0.8}
+        >
+          <Text style={s.relaxedBtnTxt}>{'Open Zaeli →'}</Text>
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ── ADD EVENT (sheet + form — single modal) ──────────────────
+const REPEAT_OPTIONS = ['Never','Every day','Every week','Every fortnight','Every month','Every year'];
+const ALERT_OPTIONS  = ['None','At time of event','5 min before','15 min before','30 min before','1 hour before','2 hours before','1 day before','1 week before'];
+
+function MiniCalPicker({ dateStr, onChange }: {
+  dateStr: string; onChange: (s: string) => void;
+}) {
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const [open, setOpen] = useState(false);
   const [navDate, setNavDate] = useState(() => new Date(dateStr + 'T12:00:00'));
+
   const calFirstDay = getFirstDayOfMonth(navDate.getFullYear(), navDate.getMonth());
   const calDim      = getDaysInMonth(navDate.getFullYear(), navDate.getMonth());
   const calPrevDim  = getDaysInMonth(navDate.getFullYear(), navDate.getMonth() - 1);
   const cells: { day:number; cur:boolean; date:Date }[] = [];
-  for (let i=calFirstDay-1; i>=0; i--) cells.push({ day:calPrevDim-i, cur:false, date:new Date(navDate.getFullYear(), navDate.getMonth()-1, calPrevDim-i) });
-  for (let d=1; d<=calDim; d++)        cells.push({ day:d, cur:true,  date:new Date(navDate.getFullYear(), navDate.getMonth(), d) });
-  while (cells.length%7!==0) { const n=cells.length-calFirstDay-calDim+1; cells.push({ day:n, cur:false, date:new Date(navDate.getFullYear(), navDate.getMonth()+1, n) }); }
-  const display = new Date(dateStr+'T12:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' });
+  for (let i = calFirstDay-1; i >= 0; i--)
+    cells.push({ day:calPrevDim-i, cur:false, date:new Date(navDate.getFullYear(), navDate.getMonth()-1, calPrevDim-i) });
+  for (let d = 1; d <= calDim; d++)
+    cells.push({ day:d, cur:true, date:new Date(navDate.getFullYear(), navDate.getMonth(), d) });
+  while (cells.length % 7 !== 0) {
+    const n = cells.length - calFirstDay - calDim + 1;
+    cells.push({ day:n, cur:false, date:new Date(navDate.getFullYear(), navDate.getMonth()+1, n) });
+  }
+
+  const display = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' });
+
   return (
     <>
       <TouchableOpacity style={s.gcPill} onPress={() => setOpen(true)} activeOpacity={0.7}>
-        <Text style={[s.gcPillTxt, open && { color: CAL }]}>{display}</Text>
+        <Text style={[s.gcPillTxt, open && { color: C.mag }]}>{display}</Text>
       </TouchableOpacity>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', alignItems:'center', padding:24 }}>
-          <View style={{ backgroundColor:'#fff', borderRadius:20, width:'100%', padding:16, shadowColor:'#000', shadowOpacity:0.15, shadowRadius:20, shadowOffset:{ width:0, height:8 } }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:20, width:'100%', padding:16,
+            shadowColor:'#000', shadowOpacity:0.15, shadowRadius:20, shadowOffset:{ width:0, height:8 } }}>
             <View style={s.miniCalNav}>
               <TouchableOpacity style={s.miniCalArrBtn} onPress={() => setNavDate(d => { const n=new Date(d); n.setMonth(n.getMonth()-1); return n; })}>
                 <Text style={s.miniCalArr}>{'‹'}</Text>
@@ -289,15 +466,15 @@ function MiniCalPicker({ dateStr, onChange }: { dateStr: string; onChange: (s: s
                 return (
                   <TouchableOpacity key={i} style={s.miniCalDay}
                     onPress={() => { onChange(toLocalDateStr(cell.date)); setOpen(false); }} activeOpacity={0.7}>
-                    <View style={[s.miniCalDayInner, isSel && { backgroundColor: CAL }, isToday && !isSel && { backgroundColor: `${CAL}20` }]}>
-                      <Text style={[s.miniCalDayTxt, !cell.cur && { color:INK3 }, isSel && { color:'#fff' }, isToday && !isSel && { color: CAL, fontFamily:'Poppins_700Bold' }]}>{cell.day}</Text>
+                    <View style={[s.miniCalDayInner, isSel && { backgroundColor: C.mag }, isToday && !isSel && { backgroundColor: 'rgba(224,0,124,0.12)' }]}>
+                      <Text style={[s.miniCalDayTxt, !cell.cur && { color:C.ink3 }, isSel && { color:'#fff' }, isToday && !isSel && { color: C.mag, fontFamily:'Poppins_700Bold' }]}>{cell.day}</Text>
                     </View>
                   </TouchableOpacity>
                 );
               })}
             </View>
             <TouchableOpacity onPress={() => setOpen(false)} style={{ alignItems:'center', paddingTop:12, paddingBottom:4 }} activeOpacity={0.7}>
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:INK2 }}>Cancel</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:C.ink2 }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -306,28 +483,70 @@ function MiniCalPicker({ dateStr, onChange }: { dateStr: string; onChange: (s: s
   );
 }
 
-// ── SNAP COL (unchanged logic) ────────────────────────────────
+const ROW_H = 52;
+
 function SnapCol({ items, selected, onSelect, fmtItem }: {
-  items: (string|number)[]; selected: string|number;
-  onSelect: (v: string|number) => void; fmtItem?: (v: string|number) => string;
+  items: (string|number)[];
+  selected: string|number;
+  onSelect: (v: string|number) => void;
+  fmtItem?: (v: string|number) => string;
 }) {
   const scrollRef = useRef<ScrollView>(null);
   const selIdx = items.indexOf(selected);
-  useEffect(() => { setTimeout(() => scrollRef.current?.scrollTo({ y: selIdx * ROW_H, animated: false }), 50); }, []);
+
+  useEffect(() => {
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: selIdx * ROW_H, animated: false });
+    }, 50);
+  }, []);
+
   return (
-    <View style={{ flex:1, height: ROW_H*5, overflow:'hidden' }}>
-      <View pointerEvents="none" style={{ position:'absolute', top:ROW_H*2, left:4, right:4, height:ROW_H, backgroundColor:`${CAL}12`, borderRadius:12, borderTopWidth:1.5, borderBottomWidth:1.5, borderColor:`${CAL}30`, zIndex:2 }}/>
-      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} snapToInterval={ROW_H} decelerationRate="fast"
-        contentContainerStyle={{ paddingVertical: ROW_H*2 }}
-        onMomentumScrollEnd={e => { const idx=Math.round(e.nativeEvent.contentOffset.y/ROW_H); onSelect(items[Math.max(0,Math.min(idx,items.length-1))]); }}
-        onScrollEndDrag={e => { const idx=Math.round(e.nativeEvent.contentOffset.y/ROW_H); onSelect(items[Math.max(0,Math.min(idx,items.length-1))]); }}>
+    <View style={{ flex:1, height: ROW_H * 5, overflow:'hidden' }}>
+      <View pointerEvents="none" style={{
+        position:'absolute', top: ROW_H * 2, left:4, right:4, height: ROW_H,
+        backgroundColor:'rgba(224,0,124,0.08)',
+        borderRadius:12,
+        borderTopWidth:1.5, borderBottomWidth:1.5,
+        borderColor:'rgba(224,0,124,0.20)',
+        zIndex:2,
+      }}/>
+      <ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ROW_H}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingVertical: ROW_H * 2 }}
+        onMomentumScrollEnd={e => {
+          const idx = Math.round(e.nativeEvent.contentOffset.y / ROW_H);
+          const clamped = Math.max(0, Math.min(idx, items.length - 1));
+          onSelect(items[clamped]);
+        }}
+        onScrollEndDrag={e => {
+          const idx = Math.round(e.nativeEvent.contentOffset.y / ROW_H);
+          const clamped = Math.max(0, Math.min(idx, items.length - 1));
+          onSelect(items[clamped]);
+        }}
+      >
         {items.map((item, i) => {
           const isSel = item === selected;
-          const label = fmtItem ? fmtItem(item) : (typeof item==='number' ? String(item).padStart(2,'0') : String(item).toUpperCase());
+          const label = fmtItem ? fmtItem(item) : (
+            typeof item === 'number' ? String(item).padStart(2,'0') : String(item).toUpperCase()
+          );
           return (
-            <TouchableOpacity key={i} style={{ height:ROW_H, alignItems:'center', justifyContent:'center' }}
-              onPress={() => { scrollRef.current?.scrollTo({ y:i*ROW_H, animated:true }); onSelect(item); }} activeOpacity={0.7}>
-              <Text style={{ fontFamily:isSel?'Poppins_700Bold':'Poppins_400Regular', fontSize:isSel?26:18, color:isSel?INK:INK3 }}>{label}</Text>
+            <TouchableOpacity
+              key={i}
+              style={{ height: ROW_H, alignItems:'center', justifyContent:'center' }}
+              onPress={() => {
+                scrollRef.current?.scrollTo({ y: i * ROW_H, animated: true });
+                onSelect(item);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={{
+                fontFamily: isSel ? 'Poppins_700Bold' : 'Poppins_400Regular',
+                fontSize: isSel ? 26 : 18,
+                color: isSel ? C.ink : C.ink3,
+              }}>{label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -336,33 +555,40 @@ function SnapCol({ items, selected, onSelect, fmtItem }: {
   );
 }
 
-// ── TIME PICKER MODAL (unchanged logic, blue accent) ──────────
 function TimePickerModal({ visible, hour, minute, ampm, onConfirm, onClose }: {
-  visible:boolean; hour:number; minute:number; ampm:'am'|'pm';
-  onConfirm:(h:number,m:number,ap:'am'|'pm')=>void; onClose:()=>void;
+  visible: boolean;
+  hour: number; minute: number; ampm: 'am'|'pm';
+  onConfirm: (h:number, m:number, ap:'am'|'pm') => void;
+  onClose: () => void;
 }) {
   const [h, setH] = useState(hour);
   const [m, setM] = useState(minute);
   const [ap, setAp] = useState<'am'|'pm'>(ampm);
-  useEffect(() => { if (visible) { setH(hour); setM(minute); setAp(ampm); } }, [visible]);
+
+  useEffect(() => {
+    if (visible) { setH(hour); setM(minute); setAp(ampm); }
+  }, [visible]);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', alignItems:'center', padding:32 }}>
-        <View style={{ backgroundColor:'#fff', borderRadius:24, width:'100%', padding:24, shadowColor:'#000', shadowOpacity:0.18, shadowRadius:24, shadowOffset:{ width:0, height:8 } }}>
-          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:INK, textAlign:'center', marginBottom:16 }}>Select time</Text>
-          <View style={{ flexDirection:'row', alignItems:'center' }}>
+        <View style={{ backgroundColor:'#fff', borderRadius:24, width:'100%', padding:24,
+          shadowColor:'#000', shadowOpacity:0.18, shadowRadius:24, shadowOffset:{ width:0, height:8 } }}>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:C.ink, textAlign:'center', marginBottom:16 }}>Select time</Text>
+          <View style={{ flexDirection:'row', alignItems:'center', gap:0 }}>
             <SnapCol items={HOURS}      selected={h}  onSelect={v => setH(v as number)}/>
-            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:28, color:INK3, paddingHorizontal:4 }}>:</Text>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:28, color:C.ink3, paddingHorizontal:4, marginBottom:4 }}>:</Text>
             <SnapCol items={MINUTES}    selected={m}  onSelect={v => setM(v as number)}/>
-            <View style={{ width:1, backgroundColor:BORDER, alignSelf:'stretch', marginHorizontal:8, marginVertical:8 }}/>
+            <View style={{ width:1, backgroundColor:C.border, alignSelf:'stretch', marginHorizontal:8, marginVertical:8 }}/>
             <SnapCol items={['am','pm']} selected={ap} onSelect={v => setAp(v as 'am'|'pm')}/>
           </View>
           <View style={{ flexDirection:'row', gap:12, marginTop:20 }}>
-            <TouchableOpacity style={{ flex:1, paddingVertical:14, borderRadius:14, borderWidth:1.5, borderColor:BORDER, alignItems:'center' }} onPress={onClose} activeOpacity={0.8}>
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:INK2 }}>Cancel</Text>
+            <TouchableOpacity style={{ flex:1, paddingVertical:14, borderRadius:14, borderWidth:1.5, borderColor:C.border, alignItems:'center' }}
+              onPress={onClose} activeOpacity={0.8}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:C.ink2 }}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={{ flex:1, paddingVertical:14, borderRadius:14, backgroundColor: CAL, alignItems:'center' }}
-              onPress={() => { onConfirm(h,m,ap); onClose(); }} activeOpacity={0.85}>
+            <TouchableOpacity style={{ flex:1, paddingVertical:14, borderRadius:14, backgroundColor:C.magL, alignItems:'center' }}
+              onPress={() => { onConfirm(h, m, ap); onClose(); }} activeOpacity={0.85}>
               <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' }}>Done</Text>
             </TouchableOpacity>
           </View>
@@ -377,36 +603,46 @@ function TimePill({ hour, minute, ampm, onHour, onMinute, onAmpm }: {
   onHour:(h:number)=>void; onMinute:(m:number)=>void; onAmpm:(a:'am'|'pm')=>void;
 }) {
   const [open, setOpen] = useState(false);
+  const display = `${hour}:${String(minute).padStart(2,'0')} ${ampm.toUpperCase()}`;
   return (
     <>
       <TouchableOpacity style={s.gcPill} onPress={() => setOpen(true)} activeOpacity={0.7}>
-        <Text style={[s.gcPillTxt, open && { color: CAL }]}>{`${hour}:${String(minute).padStart(2,'0')} ${ampm.toUpperCase()}`}</Text>
+        <Text style={[s.gcPillTxt, open && { color: C.mag }]}>{display}</Text>
       </TouchableOpacity>
-      <TimePickerModal visible={open} hour={hour} minute={minute} ampm={ampm}
-        onConfirm={(h,m,ap) => { onHour(h); onMinute(m); onAmpm(ap); }} onClose={() => setOpen(false)}/>
+      <TimePickerModal
+        visible={open}
+        hour={hour} minute={minute} ampm={ampm}
+        onConfirm={(h, m, ap) => { onHour(h); onMinute(m); onAmpm(ap); }}
+        onClose={() => setOpen(false)}
+      />
     </>
   );
 }
 
-function DropdownPicker({ options, value, onChange }: { options:string[]; value:string; onChange:(v:string)=>void }) {
+function DropdownPicker({ options, value, onChange }: {
+  options: string[]; value: string; onChange: (v: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <View>
       <TouchableOpacity style={s.gcRowRight} onPress={() => setOpen(true)} activeOpacity={0.7}>
         <Text style={s.gcRowRightTxt}>{value}</Text>
-        <Text style={{ color:INK3, fontSize:14, marginLeft:4 }}>{'⌄'}</Text>
+        <Text style={{ color: C.ink3, fontSize: 14, marginLeft: 4 }}>{'⌄'}</Text>
       </TouchableOpacity>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <TouchableOpacity style={{ flex:1, backgroundColor:'rgba(0,0,0,0.35)', justifyContent:'center', alignItems:'center', padding:32 }}
           onPress={() => setOpen(false)} activeOpacity={1}>
-          <View style={{ backgroundColor:'#fff', borderRadius:18, width:'100%', overflow:'hidden', shadowColor:'#000', shadowOpacity:0.15, shadowRadius:20, shadowOffset:{ width:0, height:8 } }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:18, width:'100%', overflow:'hidden',
+            shadowColor:'#000', shadowOpacity:0.15, shadowRadius:20, shadowOffset:{ width:0, height:8 } }}>
             {options.map((opt, i) => (
               <TouchableOpacity key={opt}
-                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:20, paddingVertical:16,
-                  borderBottomWidth: i<options.length-1 ? 1 : 0, borderBottomColor:BORDER }}
+                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
+                  paddingHorizontal:20, paddingVertical:16,
+                  borderBottomWidth: i < options.length-1 ? 1 : 0, borderBottomColor:C.border }}
                 onPress={() => { onChange(opt); setOpen(false); }} activeOpacity={0.7}>
-                <Text style={{ fontFamily: opt===value?'Poppins_600SemiBold':'Poppins_400Regular', fontSize:16, color:opt===value?CAL:INK }}>{opt}</Text>
-                {opt===value && <Text style={{ color:CAL, fontSize:16, fontFamily:'Poppins_700Bold' }}>{'✓'}</Text>}
+                <Text style={{ fontFamily: opt===value ? 'Poppins_600SemiBold' : 'Poppins_400Regular',
+                  fontSize:16, color: opt===value ? C.mag : C.ink }}>{opt}</Text>
+                {opt === value && <Text style={{ color: C.mag, fontSize: 16, fontFamily:'Poppins_700Bold' }}>{'✓'}</Text>}
               </TouchableOpacity>
             ))}
           </View>
@@ -416,11 +652,13 @@ function DropdownPicker({ options, value, onChange }: { options:string[]; value:
   );
 }
 
-// ── ADD EVENT FLOW (logic unchanged, blue accent) ─────────────
 function AddEventFlow({ visible, onClose, onSaved, selectedDate }: {
-  visible:boolean; onClose:()=>void; onSaved:()=>void; selectedDate:Date;
+  visible: boolean; onClose: () => void; onSaved: () => void; selectedDate: Date;
 }) {
   const router = useRouter();
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
   const [step,      setStep]      = useState<'sheet'|'form'>('sheet');
   const [title,     setTitle]     = useState('');
   const [location,  setLocation]  = useState('');
@@ -442,70 +680,115 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate }: {
 
   useEffect(() => {
     if (visible) {
-      setStep('sheet'); setTitle(''); setLocation(''); setNotes(''); setAllDay(false);
+      setStep('sheet'); setTitle(''); setLocation(''); setNotes('');
+      setAllDay(false);
       setStartDate(toLocalDateStr(selectedDate)); setEndDate(toLocalDateStr(selectedDate));
       setStartHour(9); setStartMin(0); setStartAmpm('am');
-      setEndHour(10); setEndMin(0); setEndAmpm('am');
-      setRepeat('Never'); setAlert('None'); setAssignees(['1']); setSaving(false); setTab('details');
+      setEndHour(10);  setEndMin(0);   setEndAmpm('am');
+      setRepeat('Never'); setAlert('None');
+      setAssignees(['1']); setSaving(false); setTab('details');
     }
   }, [visible]);
 
-  const toggleAssignee = (id: string) => setAssignees(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]);
-  const toH24 = (h:number, ap:'am'|'pm') => ap==='pm' ? (h===12?12:h+12) : (h===12?0:h);
+  const toggleAssignee = (id: string) =>
+    setAssignees(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const toH24 = (h: number, ap: 'am'|'pm') =>
+    ap === 'pm' ? (h===12 ? 12 : h+12) : (h===12 ? 0 : h);
 
   const save = async () => {
     if (!title.trim()) return;
     setSaving(true);
     try {
-      const pad = (n:number) => String(n).padStart(2,'0');
-      const sh24=toH24(startHour,startAmpm), eh24=toH24(endHour,endAmpm);
-      const startMs=new Date(startDate+'T'+pad(sh24)+':'+pad(startMin)+':00').getTime();
-      const endMs  =new Date(endDate  +'T'+pad(eh24)+':'+pad(endMin)  +':00').getTime();
-      const durMs  =endMs-startMs;
-      const base=new Date(startDate+'T12:00:00');
-      const addDaysLocal=(d:Date,n:number)=>{ const r=new Date(d); r.setDate(r.getDate()+n); return r; };
-      const addMonths=(d:Date,n:number)=>{ const r=new Date(d); r.setMonth(r.getMonth()+n); return r; };
-      const repeatDates:Date[]=[];
-      if      (repeat==='Never')        repeatDates.push(base);
-      else if (repeat==='Every day')    for(let i=0;i<60;i++) repeatDates.push(addDaysLocal(base,i));
-      else if (repeat==='Every week')   for(let i=0;i<52;i++) repeatDates.push(addDaysLocal(base,i*7));
-      else if (repeat==='Every fortnight') for(let i=0;i<26;i++) repeatDates.push(addDaysLocal(base,i*14));
-      else if (repeat==='Every month')  for(let i=0;i<12;i++) repeatDates.push(addMonths(base,i));
-      else if (repeat==='Every year')   for(let i=0;i<3;i++) repeatDates.push(addMonths(base,i*12));
-      const toStr=(d:Date)=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-      const rows=repeatDates.map(d => {
-        const dStr=toStr(d), sTime=allDay?`${dStr}T00:00:00`:`${dStr}T${pad(sh24)}:${pad(startMin)}:00`;
-        const eMs=new Date(sTime).getTime()+(allDay?0:durMs), eDate=new Date(eMs), eDStr=toStr(eDate);
-        const eTime=allDay?`${eDStr}T23:59:00`:`${eDStr}T${pad(eDate.getHours())}:${pad(eDate.getMinutes())}:00`;
-        return { family_id:DUMMY_FAMILY_ID, title:title.trim(), notes:[notes.trim(),location.trim()].filter(Boolean).join(' | '),
-          date:dStr, start_time:sTime, end_time:eTime, timezone:'Australia/Brisbane', repeat_rule:repeat, alert_rule:alert, assignees };
+      const pad   = (n: number) => String(n).padStart(2,'0');
+      const sh24  = toH24(startHour, startAmpm);
+      const eh24  = toH24(endHour, endAmpm);
+      const startMs = new Date(startDate + 'T' + pad(sh24) + ':' + pad(startMin) + ':00').getTime();
+      const endMs   = new Date(endDate   + 'T' + pad(eh24) + ':' + pad(endMin)   + ':00').getTime();
+      const durMs   = endMs - startMs;
+
+      const repeatDates: Date[] = [];
+      const base = new Date(startDate + 'T12:00:00');
+      const addDaysLocal  = (d: Date, n: number) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+      const addMonths= (d: Date, n: number) => { const r = new Date(d); r.setMonth(r.getMonth() + n); return r; };
+      if (repeat === 'Never') {
+        repeatDates.push(base);
+      } else if (repeat === 'Every day') {
+        for (let i = 0; i < 60; i++) repeatDates.push(addDaysLocal(base, i));
+      } else if (repeat === 'Every week') {
+        for (let i = 0; i < 52; i++) repeatDates.push(addDaysLocal(base, i * 7));
+      } else if (repeat === 'Every fortnight') {
+        for (let i = 0; i < 26; i++) repeatDates.push(addDaysLocal(base, i * 14));
+      } else if (repeat === 'Every month') {
+        for (let i = 0; i < 12; i++) repeatDates.push(addMonths(base, i));
+      } else if (repeat === 'Every year') {
+        for (let i = 0; i < 3; i++) repeatDates.push(addMonths(base, i * 12));
+      }
+
+      const toStr = (d: Date) =>
+        `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+      const rows = repeatDates.map(d => {
+        const dStr    = toStr(d);
+        const sTime   = allDay ? `${dStr}T00:00:00` : `${dStr}T${pad(sh24)}:${pad(startMin)}:00`;
+        const eMs     = new Date(sTime).getTime() + (allDay ? 0 : durMs);
+        const eDate   = new Date(eMs);
+        const eDStr   = toStr(eDate);
+        const eTime   = allDay ? `${eDStr}T23:59:00` : `${eDStr}T${pad(eDate.getHours())}:${pad(eDate.getMinutes())}:00`;
+        return {
+          family_id:   DUMMY_FAMILY_ID,
+          title:       title.trim(),
+          notes:       [notes.trim(), location.trim()].filter(Boolean).join(' | '),
+          date:        dStr,
+          start_time:  sTime,
+          end_time:    eTime,
+          timezone:    'Australia/Brisbane',
+          repeat_rule: repeat,
+          alert_rule:  alert,
+          assignees,
+        };
       });
-      for (let i=0; i<rows.length; i+=20) {
-        const batch=rows.slice(i,i+20);
-        let { error }=await supabase.from('events').insert(batch);
-        if (error && (error.message?.includes('assignees')||error.code==='42703')) {
-          const slim=batch.map(({ assignees:_a,...r })=>r);
-          const r2=await supabase.from('events').insert(slim); error=r2.error;
+
+      for (let i = 0; i < rows.length; i += 20) {
+        const batch = rows.slice(i, i + 20);
+        let { error } = await supabase.from('events').insert(batch);
+        if (error && (error.message?.includes('assignees') || error.code === '42703')) {
+          const slim = batch.map(({ assignees: _a, ...r }) => r);
+          const r2 = await supabase.from('events').insert(slim);
+          error = r2.error;
         }
         if (error) { setSaving(false); return; }
       }
-      lastBriefTime=null; cachedBriefTokens=null; onSaved();
-    } catch (e:any) { console.log('Save error:',e?.message); setSaving(false); }
+
+      lastBriefTime = null; cachedBriefText = null;
+      onSaved();
+    } catch (e: any) {
+      console.log('Save error:', e?.message);
+      setSaving(false);
+    }
   };
 
   const dateLabel = selectedDate.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' });
+
   const openZaeli = () => {
     onClose();
-    router.push({ pathname:'/(tabs)/zaeli-chat', params: { channel:'Calendar', returnTo:'/(tabs)/calendar',
-      seedMessage:`I want to add a new event on ${dateLabel}. Help me book it.` } });
+    const isoDate = selectedDate.toISOString().split('T')[0];
+    router.push({
+      pathname: '/(tabs)/',
+      params: {
+        channel: 'Calendar',
+        returnTo: '/(tabs)/calendar',
+        seedMessage: `I want to add a new event on ${dateLabel} (${isoDate}). Help me book it.`,
+      },
+    });
   };
 
   return (
     <>
-      <Modal visible={visible && step==='sheet'} transparent animationType="slide" onRequestClose={onClose}>
+      <Modal visible={visible && step === 'sheet'} transparent animationType="slide" onRequestClose={onClose}>
         <TouchableOpacity style={{ flex:1, backgroundColor:'rgba(0,0,0,0.4)' }} onPress={onClose} activeOpacity={1}/>
-        <View style={{ backgroundColor:'#fff', borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:14, paddingBottom:Platform.OS==='ios'?40:24, gap:16 }}>
-          <View style={{ width:36, height:4, borderRadius:2, backgroundColor:BORDER, alignSelf:'center', marginBottom:4 }}/>
+        <View style={{ backgroundColor:'#fff', borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:20, paddingTop:14, paddingBottom:Platform.OS==='ios' ? 40 : 24, gap:16 }}>
+          <View style={{ width:36, height:4, borderRadius:2, backgroundColor:C.border, alignSelf:'center', marginBottom:4 }}/>
           <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
             <View style={s.sheetAv}><Text style={{ fontSize:16, color:'#fff' }}>✦</Text></View>
             <View style={{ flex:1 }}>
@@ -525,7 +808,9 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate }: {
             <Text style={s.sheetPrimaryArrow}>→</Text>
           </TouchableOpacity>
           <View style={s.sheetDivider}>
-            <View style={s.sheetDividerLine}/><Text style={s.sheetDividerTxt}>or</Text><View style={s.sheetDividerLine}/>
+            <View style={s.sheetDividerLine}/>
+            <Text style={s.sheetDividerTxt}>or</Text>
+            <View style={s.sheetDividerLine}/>
           </View>
           <TouchableOpacity style={s.sheetSecondary} onPress={() => setStep('form')} activeOpacity={0.8}>
             <Text style={s.sheetSecondaryTxt}>Fill in manually</Text>
@@ -533,35 +818,41 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate }: {
         </View>
       </Modal>
 
-      <Modal visible={visible && step==='form'} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <Modal visible={visible && step === 'form'} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
         <SafeAreaView style={{ flex:1, backgroundColor:'#fff' }} edges={['top']}>
-          <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS==='ios'?'padding':'height'} keyboardVerticalOffset={0}>
+          <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS==='ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
             <View style={s.modalHdr}>
-              <TouchableOpacity onPress={onClose}><Text style={s.modalCancel}>← Back</Text></TouchableOpacity>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top:12,bottom:12,left:12,right:12 }}>
+                <Text style={s.modalCancel}>← Back</Text>
+              </TouchableOpacity>
               <Text style={s.modalTitle}>New Event</Text>
-              <TouchableOpacity onPress={save} disabled={!title.trim()||saving}>
-                <Text style={[s.modalSave, (!title.trim()||saving) && { opacity:0.35 }]}>{saving?'Saving…':'Save'}</Text>
+              <TouchableOpacity onPress={save} disabled={!title.trim() || saving}>
+                <Text style={[s.modalSave, (!title.trim()||saving) && { opacity:0.35 }]}>{saving ? 'Saving…' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
             <View style={s.modalTabs}>
               {(['details','people'] as const).map(t => (
                 <TouchableOpacity key={t} style={[s.modalTab, tab===t && s.modalTabOn]} onPress={() => setTab(t)} activeOpacity={0.8}>
-                  <Text style={[s.modalTabTxt, tab===t && s.modalTabTxtOn]}>{t==='details'?'Details':'People'}</Text>
+                  <Text style={[s.modalTabTxt, tab===t && s.modalTabTxtOn]}>{t==='details' ? 'Details' : 'People'}</Text>
                 </TouchableOpacity>
               ))}
             </View>
+
             <ScrollView contentContainerStyle={{ paddingBottom:48 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {tab==='details' ? (
+              {tab === 'details' ? (
                 <View>
                   <View style={s.gcBlock}>
-                    <TextInput style={s.gcTitleInput} value={title} onChangeText={setTitle} placeholder="Title" placeholderTextColor={INK3} autoFocus/>
+                    <TextInput style={s.gcTitleInput} value={title} onChangeText={setTitle}
+                      placeholder="Title" placeholderTextColor={C.ink3} autoFocus/>
                     <View style={s.gcSep}/>
-                    <TextInput style={s.gcSubInput} value={location} onChangeText={setLocation} placeholder="Location or video call" placeholderTextColor={INK3}/>
+                    <TextInput style={s.gcSubInput} value={location} onChangeText={setLocation}
+                      placeholder="Location or video call" placeholderTextColor={C.ink3}/>
                   </View>
+
                   <View style={s.gcBlock}>
                     <View style={s.gcRow}>
                       <Text style={s.gcRowLbl}>All day</Text>
-                      <TouchableOpacity onPress={() => setAllDay(v=>!v)} activeOpacity={0.8}>
+                      <TouchableOpacity onPress={() => setAllDay(v => !v)} activeOpacity={0.8}>
                         <View style={[s.gcToggle, allDay && s.gcToggleOn]}>
                           <View style={[s.gcToggleThumb, allDay && s.gcToggleThumbOn]}/>
                         </View>
@@ -571,7 +862,7 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate }: {
                     <View style={s.gcRow}>
                       <Text style={s.gcRowLbl}>Starts</Text>
                       <View style={{ flexDirection:'row', gap:8, alignItems:'center' }}>
-                        <MiniCalPicker dateStr={startDate} onChange={d => { setStartDate(d); if(d>endDate) setEndDate(d); }}/>
+                        <MiniCalPicker dateStr={startDate} onChange={d => { setStartDate(d); if (d > endDate) setEndDate(d); }}/>
                         {!allDay && <TimePill hour={startHour} minute={startMin} ampm={startAmpm} onHour={setStartHour} onMinute={setStartMin} onAmpm={setStartAmpm}/>}
                       </View>
                     </View>
@@ -579,11 +870,12 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate }: {
                     <View style={s.gcRow}>
                       <Text style={s.gcRowLbl}>Ends</Text>
                       <View style={{ flexDirection:'row', gap:8, alignItems:'center' }}>
-                        <MiniCalPicker dateStr={endDate} onChange={d => { if(d>=startDate) setEndDate(d); }}/>
+                        <MiniCalPicker dateStr={endDate} onChange={d => { if (d >= startDate) setEndDate(d); }}/>
                         {!allDay && <TimePill hour={endHour} minute={endMin} ampm={endAmpm} onHour={setEndHour} onMinute={setEndMin} onAmpm={setEndAmpm}/>}
                       </View>
                     </View>
                   </View>
+
                   <View style={s.gcBlock}>
                     <View style={s.gcRow}>
                       <Text style={s.gcRowLbl}>Repeat</Text>
@@ -595,15 +887,18 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate }: {
                       <DropdownPicker options={ALERT_OPTIONS} value={alert} onChange={setAlert}/>
                     </View>
                   </View>
+
                   <View style={s.gcBlock}>
-                    <TextInput style={s.gcSubInput} value={notes} onChangeText={setNotes} placeholder="Notes" placeholderTextColor={INK3} multiline numberOfLines={3} textAlignVertical="top"/>
+                    <TextInput style={s.gcSubInput} value={notes} onChangeText={setNotes}
+                      placeholder="Notes" placeholderTextColor={C.ink3}
+                      multiline numberOfLines={3} textAlignVertical="top"/>
                   </View>
                 </View>
               ) : (
                 <View style={{ padding:20, gap:12 }}>
-                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:INK2, lineHeight:20 }}>Who is this event for?</Text>
+                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:C.ink2, lineHeight:20 }}>Who is this event for?</Text>
                   {FAMILY_MEMBERS.map(m => {
-                    const on=assignees.includes(m.id);
+                    const on = assignees.includes(m.id);
                     return (
                       <TouchableOpacity key={m.id} style={[s.memberRow, on && { borderColor:m.color+'40', backgroundColor:m.color+'08' }]}
                         onPress={() => toggleAssignee(m.id)} activeOpacity={0.8}>
@@ -625,24 +920,31 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate }: {
   );
 }
 
-// ── EVENT DETAIL MODAL (logic unchanged, blue accent) ─────────
-function EventDetailModal({ event, onClose, onDeleted }: { event:any|null; onClose:()=>void; onDeleted:()=>void }) {
+function EventDetailModal({ event, onClose, onDeleted }: {
+  event: any | null; onClose: () => void; onDeleted: () => void;
+}) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  useEffect(() => { if (event) { setDeleting(false); setConfirmDelete(false); } }, [event?.id]);
+
+  useEffect(() => {
+    if (event) { setDeleting(false); setConfirmDelete(false); }
+  }, [event?.id]);
+
   if (!event) return null;
 
   const handleDelete = async () => {
     if (!confirmDelete) { setConfirmDelete(true); return; }
     setDeleting(true);
-    try { await supabase.from('events').delete().eq('id', event.id); onDeleted(); }
-    catch (e) { console.log('Delete error:', e); setDeleting(false); }
+    try {
+      await supabase.from('events').delete().eq('id', event.id);
+      onDeleted();
+    } catch (e) { console.log('Delete error:', e); setDeleting(false); }
   };
+
   const handleEditWithZaeli = () => {
     onClose();
-    router.push({ pathname:'/(tabs)/zaeli-chat', params: { channel:'Calendar', returnTo:'/(tabs)/calendar',
-      seedMessage:`I want to edit the "${event.title}" event on ${event.date}. Help me update it.` } });
+    router.replace('/(tabs)/');
   };
 
   return (
@@ -654,31 +956,72 @@ function EventDetailModal({ event, onClose, onDeleted }: { event:any|null; onClo
           <View style={{ width:60 }}/>
         </View>
         <ScrollView contentContainerStyle={{ padding:22, gap:18 }}>
-          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:INK, lineHeight:30 }}>{event.title}</Text>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:C.ink, lineHeight:30 }}>{event.title}</Text>
+
           {event.date && (
             <View style={s.detailRow}>
               <Text style={s.detailIcon}>📅</Text>
               <View>
                 <Text style={s.detailTxt}>{new Date(event.date+'T12:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</Text>
-                {event.end_time && (() => { const ed=event.end_time.split('T')[0]; return ed!==event.date ? <Text style={[s.detailTxt,{color:INK2}]}>{'→ '+new Date(ed+'T12:00:00').toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</Text> : null; })()}
+                {event.end_time && (() => {
+                  const endDate = event.end_time.split('T')[0];
+                  return endDate !== event.date
+                    ? <Text style={[s.detailTxt, { color:C.ink2 }]}>{'→ ' + new Date(endDate+'T12:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</Text>
+                    : null;
+                })()}
               </View>
             </View>
           )}
-          {event.start_time && <View style={s.detailRow}><Text style={s.detailIcon}>🕐</Text><Text style={s.detailTxt}>{fmtTime(event.start_time)}{event.end_time?` → ${fmtTime(event.end_time)}`:''}</Text></View>}
-          {event.repeat_rule && event.repeat_rule!=='Never' && <View style={s.detailRow}><Text style={s.detailIcon}>🔁</Text><Text style={s.detailTxt}>{event.repeat_rule}</Text></View>}
-          {event.alert_rule && event.alert_rule!=='None' && <View style={s.detailRow}><Text style={s.detailIcon}>🔔</Text><Text style={s.detailTxt}>{event.alert_rule}</Text></View>}
-          {event.notes ? <View style={s.detailRow}><Text style={s.detailIcon}>📝</Text><Text style={s.detailTxt}>{event.notes}</Text></View> : null}
+
+          {event.start_time && (
+            <View style={s.detailRow}>
+              <Text style={s.detailIcon}>🕐</Text>
+              <Text style={s.detailTxt}>{fmtTime(event.start_time)}{event.end_time ? ` → ${fmtTime(event.end_time)}` : ''}</Text>
+            </View>
+          )}
+
+          {event.repeat_rule && event.repeat_rule !== 'Never' && (
+            <View style={s.detailRow}>
+              <Text style={s.detailIcon}>🔁</Text>
+              <Text style={s.detailTxt}>{event.repeat_rule}</Text>
+            </View>
+          )}
+
+          {event.alert_rule && event.alert_rule !== 'None' && (
+            <View style={s.detailRow}>
+              <Text style={s.detailIcon}>🔔</Text>
+              <Text style={s.detailTxt}>{event.alert_rule}</Text>
+            </View>
+          )}
+
+          {event.notes ? (
+            <View style={s.detailRow}>
+              <Text style={s.detailIcon}>📝</Text>
+              <Text style={s.detailTxt}>{event.notes}</Text>
+            </View>
+          ) : null}
+
           <View style={{ height:12 }}/>
+
           <TouchableOpacity style={s.editBtn} onPress={handleEditWithZaeli} activeOpacity={0.8}>
             <Text style={s.editBtnTxt}>✨  Edit with Zaeli</Text>
           </TouchableOpacity>
+
           <View style={{ height:4 }}/>
-          <TouchableOpacity style={[s.deleteBtn, confirmDelete && s.deleteBtnConfirm]} onPress={handleDelete} disabled={deleting} activeOpacity={0.8}>
-            <Text style={s.deleteBtnTxt}>{deleting?'Deleting…':confirmDelete?'⚠️ Confirm delete':'🗑  Delete event'}</Text>
+
+          <TouchableOpacity
+            style={[s.deleteBtn, confirmDelete && s.deleteBtnConfirm]}
+            onPress={handleDelete}
+            disabled={deleting}
+            activeOpacity={0.8}
+          >
+            <Text style={s.deleteBtnTxt}>
+              {deleting ? 'Deleting...' : confirmDelete ? '⚠️ Confirm delete' : '🗑  Delete event'}
+            </Text>
           </TouchableOpacity>
           {confirmDelete && (
             <TouchableOpacity onPress={() => setConfirmDelete(false)} style={{ alignItems:'center', paddingVertical:8 }}>
-              <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:INK2 }}>Cancel</Text>
+              <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:C.ink2 }}>Cancel</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -688,42 +1031,72 @@ function EventDetailModal({ event, onClose, onDeleted }: { event:any|null; onClo
 }
 
 // ── MAIN SCREEN ───────────────────────────────────────────────
+
+// ── callBrief — routes to GPT-5.4 mini or Claude based on provider toggle ──
+async function callBrief({feature,system,userContent,maxTokens=200}:
+  {feature:string;system:string;userContent:string;maxTokens?:number}): Promise<string> {
+  if(getZaeliProvider()==='openai'){
+    const res=await fetch('https://api.openai.com/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY||''}`},
+      body:JSON.stringify({model:'gpt-5.4-mini',max_completion_tokens:maxTokens,
+        messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
+    });
+    const d=await res.json();
+    // Log GPT brief call to api_logs (non-blocking)
+    try{
+      const u=d.usage||{};
+      const costUsd=((u.prompt_tokens||0)/1000000)*0.75+((u.completion_tokens||0)/1000000)*4.50;
+      supabase.from('api_logs').insert({
+        family_id:DUMMY_FAMILY_ID,feature,model:'gpt-5.4-mini',
+        input_tokens:u.prompt_tokens||0,output_tokens:u.completion_tokens||0,cost_usd:costUsd,
+      });
+    }catch{}
+    return d.choices?.[0]?.message?.content||'';
+  } else {
+    const d=await callClaude({feature,familyId:DUMMY_FAMILY_ID,
+      body:{model:'claude-haiku-4-5-20251001',max_tokens:maxTokens,
+        system,messages:[{role:'user',content:userContent}]}});
+    return d.content?.[0]?.text||'';
+  }
+}
+
 export default function CalendarScreen() {
   const today  = new Date();
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   const openChat = (seed?: string) => router.push({
-    pathname: '/(tabs)/zaeli-chat',
+    pathname: '/(tabs)/',
     params: { channel:'Calendar', returnTo:'/(tabs)/calendar', ...(seed ? { seedMessage: seed } : {}) },
   });
 
-  const [view,          setView]          = useState<'day'|'month'>('day');
-  const [selectedDate,  setSelectedDate]  = useState(new Date(today));
-  const [calMonth,      setCalMonth]      = useState(today.getMonth());
-  const [calYear,       setCalYear]       = useState(today.getFullYear());
-  const [events,        setEvents]        = useState<any[]>([]);
-  const [todos,         setTodos]         = useState<any[]>([]);
-  const [menuOpen,      setMenuOpen]      = useState(false);
-  const [showSheet,     setShowSheet]     = useState(false);
+  const [view,         setView]         = useState<'day'|'week'|'month'>('day');
+  const [selectedDate, setSelectedDate] = useState(new Date(today));
+  const [calMonth,     setCalMonth]     = useState(today.getMonth());
+  const [calYear,      setCalYear]      = useState(today.getFullYear());
+  const [events,       setEvents]       = useState<any[]>([]);
+  const [todos,        setTodos]        = useState<any[]>([]);
+  const [dismissed,    setDismissed]    = useState(briefDismissed);
+  const [showRelaxed,  setShowRelaxed]  = useState(briefDismissed);
+  const [menuOpen,     setMenuOpen]     = useState(false);
+  const [showSheet,    setShowSheet]    = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
-
-  // Brief state
-  const [briefLoading,        setBriefLoading]        = useState(true);
-  const [briefTokens,         setBriefTokens]         = useState<BriefToken[]>([]);
-  const [briefSub,            setBriefSub]            = useState('');
-  const [briefCta,            setBriefCta]            = useState('Yes please');
-  const [briefSeed,           setBriefSeed]           = useState('');
-  const [briefDismissedLocal, setBriefDismissedLocal] = useState(false);
-  const [showRelaxed,         setShowRelaxed]         = useState(false);
-  const briefFadeAnim   = useRef(new Animated.Value(1)).current;
-  const relaxedFadeAnim = useRef(new Animated.Value(0)).current;
-  const lastBriefRef = useRef<number | null>(lastBriefTime);
 
   const params = useLocalSearchParams<{ eventId?: string }>();
   const handledEventId = useRef<string | null>(null);
 
-  // Week strip
+  useEffect(() => {
+    const id = params.eventId;
+    if (!id || id === handledEventId.current) return;
+    if (events.length === 0) return;
+    const found = events.find((e: any) => String(e.id) === String(id));
+    if (found) {
+      handledEventId.current = id;
+      setSelectedEvent(found);
+    }
+  }, [params.eventId, events]);
+
   const STRIP_BEFORE = 60;
   const PILL_W       = 56;
   const stripDays    = Array.from({ length:180 }, (_, i) => addDays(today, i - STRIP_BEFORE));
@@ -757,176 +1130,91 @@ export default function CalendarScreen() {
   useEffect(() => { loadEvents(); }, [loadEvents]);
   useEffect(() => { loadTodos();  }, [loadTodos]);
 
-  // Generate brief — 30-min refresh (matches home screen pattern)
-  const generateBrief = useCallback(async (force = false) => {
-    const now30 = Date.now();
-    const msSinceLast = lastBriefRef.current ? now30 - lastBriefRef.current : Infinity;
-    if (!force && msSinceLast < 30 * 60 * 1000 && cachedBriefTokens) {
-      setBriefTokens(cachedBriefTokens);
-      setBriefSub(cachedBriefSub || '');
-      setBriefCta(cachedBriefCta || 'Yes please');
-      setBriefSeed(cachedBriefSeed || '');
-      setBriefLoading(false);
-      return;
-    }
-    lastBriefRef.current = now30;
-    lastBriefTime = now30;
-    setBriefLoading(true);
-
-    try {
-      const now2    = new Date();
-      const td      = toLocalDateStr(now2);
-      const h       = now2.getHours();
-      const frame   = getTimeFrame(h);
-      const isLate  = h >= 21 || h < 6;
-      const greeting = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : h < 21 ? 'Evening' : 'Hey';
-      const dateCtx = now2.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' });
-      const timeStr = now2.toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit' });
-
-      // Fetch fresh events for brief
-      const in48hStr = toLocalDateStr(addDays(now2, 2));
-      const evFetch = await supabase.from('events').select('*').eq('family_id', DUMMY_FAMILY_ID)
-        .gte('date', td).lte('date', in48hStr).order('date').order('start_time').limit(8);
-      const freshEvents = evFetch.data || [];
-
-      const evStr = freshEvents.length > 0
-        ? freshEvents.map(e => `${e.title} (${naturalDate(e.date, td)}${e.start_time ? ' at ' + fmtTime(e.start_time) : ''})`).join(', ')
-        : 'Nothing on calendar';
-
-      const sys = `You are Zaeli — warm, switched-on, slightly witty Australian family assistant. Anne Hathaway energy. Writing the calendar brief for Anna. This is NOT a greeting — jump straight into what matters.
-
-CONTEXT:
-- Date: ${dateCtx} (${frame})
-- Time: ${timeStr}
-- Events next 48h: ${evStr}
-${isLate ? '- It is late — keep it calm, focus on tomorrow.' : ''}
-
-BRIEF RULES:
-1. Do NOT start with "Morning Anna" or any greeting
-2. Write exactly 3 sentences. Each MUST end with a full stop. No em-dashes joining sentences, no run-ons.
-3. Make them feel alive and warm — switched-on friend noticing things, not a status report
-4. Reference the ACTUAL day name (today, tomorrow, Monday etc) — never raw dates like "2026-03-23"
-5. Reference times naturally (this morning, tonight, at 9) — never "at 9:00 AM"
-6. Wrap ONE key fact in [ACCENT1]phrase[/ACCENT1] — the most important event
-7. Third sentence: flag something slipping, note a gap, or offer a warm observation
-8. Never invent events — only use data provided above
-
-CTA LABEL (the button Anna taps):
-- 3-5 words that make grammatical sense STANDALONE — something Anna would say
-- Good: "Yes, keep an eye", "Yes please!", "Sounds good", "Flag anything urgent"
-- Bad: "Want me to keep?", "Yes, nudge me for" — do NOT truncate a question
-
-SUB QUESTION (small italic text below brief):
-- A warm specific question Zaeli asks Anna — ends with ?
-
-SEED MESSAGE (what Anna says when she taps the CTA):
-- First-person, conversational, natural — NOT Zaeli's question repeated back
-- e.g. "Yes please, keep an eye out for anything that needs sorting"
-
-Return ONLY valid JSON (no markdown, no backticks):
-{"main":"[3 sentences each ending with full stop]","sub":"Warm question ending with ?","cta":"3-5 word label","seed":"What Anna says when tapping"}`;
-
-      const raw    = await callBrief({ feature:'calendar_brief', system:'You are Zaeli writing a tight calendar brief. Follow JSON format exactly.', userContent:sys, maxTokens:350 });
-      const clean  = raw.replace(/```json|```/g,'').trim();
-      const parsed = JSON.parse(clean);
-      const tokens = parseBriefTokens(parsed.main || '');
-      cachedBriefTokens = tokens;
-      cachedBriefSub    = parsed.sub || '';
-      cachedBriefCta    = parsed.cta || 'Yes please';
-      cachedBriefSeed   = parsed.seed || parsed.sub || '';
-      setBriefTokens(tokens);
-      setBriefSub(parsed.sub || '');
-      setBriefCta(parsed.cta || 'Yes please');
-      setBriefSeed(parsed.seed || parsed.sub || '');
-    } catch (e) {
-      console.log('Calendar brief error:', e);
-      const fb = parseBriefTokens("Calendar's looking clear right now. A good moment to get ahead of anything coming up. Nothing urgent is screaming for attention.");
-      setBriefTokens(fb);
-      setBriefSub("Want me to check what's coming up this week?");
-      setBriefCta('Yes please');
-      setBriefSeed("Yes please, pull up what's coming up this week.");
-    } finally {
-      setBriefLoading(false);
-    }
-  }, []);
-
   useFocusEffect(useCallback(() => {
-    // Reset any stale modal/sheet state when returning to screen
-    setSelectedEvent(null);
-    setShowSheet(false);
-    setMenuOpen(false);
-    // Reset dismissed state if it's been 2+ hours
-    if (briefDismissed && lastBriefTime && (Date.now() - lastBriefTime) > 2 * 60 * 60 * 1000) {
-      briefDismissed = false;
-      lastBriefTime = null;
-      cachedBriefTokens = null;
-      setBriefDismissedLocal(false);
-      setShowRelaxed(false);
-      briefFadeAnim.setValue(1);
-      relaxedFadeAnim.setValue(0);
-    }
     loadEvents();
     loadTodos();
-    generateBrief();
-    return () => {};
-  }, [loadEvents, loadTodos, generateBrief]));
-
-  const handleDismissBrief = () => {
-    Animated.timing(briefFadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
-      briefDismissed = true;
-      setBriefDismissedLocal(true);
-      setTimeout(() => {
-        setShowRelaxed(true);
-        Animated.timing(relaxedFadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start();
-      }, 350);
-    });
-  };
+    if (briefDismissed && lastBriefTime && (Date.now() - lastBriefTime) > 2*60*60*1000) {
+      briefDismissed = false; lastBriefTime = null; cachedBriefText = null;
+      setDismissed(false); setShowRelaxed(false);
+    }
+  }, [loadEvents, loadTodos]));
 
   useEffect(() => {
-    const id = params.eventId;
-    if (!id || id === handledEventId.current) return;
-    if (events.length === 0) return;
-    const found = events.find((e: any) => String(e.id) === String(id));
-    if (found) { handledEventId.current = id; setSelectedEvent(found); }
-  }, [params.eventId, events]);
+    setCalMonth(selectedDate.getMonth());
+    setCalYear(selectedDate.getFullYear());
+  }, [selectedDate]);
 
-  useEffect(() => { setCalMonth(selectedDate.getMonth()); setCalYear(selectedDate.getFullYear()); }, [selectedDate]);
+  const toLocalDateStr = (d: Date) =>
+    d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 
   const selectedDateStr = toLocalDateStr(selectedDate);
   const todayStr        = toLocalDateStr(today);
   const dayEvents       = events.filter(e => (e.date||'') === selectedDateStr);
   const daysWithEvSet   = new Set(events.map(e => e.date||''));
 
+
   const scrollToToday = () => {
     setSelectedDate(new Date(today));
     weekStripRef.current?.scrollTo({ x: STRIP_BEFORE * PILL_W, animated:true });
   };
 
-  // ── Render event row ─────────────────────────────────────────
+  const weekStart = new Date(selectedDate);
+  weekStart.setDate(selectedDate.getDate() - ((selectedDate.getDay()+6) % 7));
+  const weekDays7 = Array.from({ length:7 }, (_, i) => addDays(weekStart, i));
+
+  const getMemberColor = (assignees?: string[]): string => {
+    if (!assignees || assignees.length === 0) return C.magL;
+    const m = FAMILY_MEMBERS.find(m => assignees.includes(m.id));
+    return m?.color ?? C.magL;
+  };
+
   const renderEvent = (ev: any, i: number, allEventsForDay: any[]) => {
     const isClash = allEventsForDay.some((f, j) =>
-      i!==j && new Date(ev.start_time) < new Date(f.end_time||f.start_time) && new Date(f.start_time) < new Date(ev.end_time||ev.start_time)
+      i!==j && ev.start_time && f.start_time &&
+      new Date(ev.start_time) < new Date(f.end_time||f.start_time) &&
+      new Date(f.start_time) < new Date(ev.end_time||ev.start_time)
     );
-    const timeStr = fmtTime(ev.start_time);
-    const tp = timeStr.match(/(\d+:\d+)\s*(am|pm)/i);
-    const color = isClash ? CORAL : evColor(i);
+    const accent  = isClash ? '#E53935' : getMemberColor(ev.assignees);
+    const endStr  = ev.end_time ? ` – ${fmtTime(ev.end_time)}` : '';
     return (
-      <TouchableOpacity key={ev.id} style={s.eventItem} activeOpacity={0.7} onPress={() => setSelectedEvent(ev)}>
-        <View style={s.evTimeCol}>
-          <Text style={s.evT}>{tp ? tp[1] : timeStr}</Text>
-          <Text style={s.evD}>{tp ? tp[2] : ''}</Text>
-        </View>
-        <View style={[s.evLine, { backgroundColor: color }]}/>
-        <View style={s.evBody}>
-          <Text style={s.evName}>{ev.title}</Text>
-          {ev.notes ? <Text style={[s.evMeta, isClash && { color: CORAL }]} numberOfLines={1}>{isClash ? '⚡ Zaeli flagged — clash detected' : ev.notes}</Text> : null}
-        </View>
-        <Text style={{ fontSize:16, color:INK3, paddingRight:4 }}>›</Text>
-      </TouchableOpacity>
+      <View key={ev.id}>
+        <TouchableOpacity
+          style={[s.eventItem, { backgroundColor: accent + '14', borderLeftColor: accent }]}
+          activeOpacity={0.7}
+          onPress={() => setSelectedEvent(ev)}
+        >
+          <View style={{ flex:1 }}>
+            <Text style={s.evName}>{ev.title}</Text>
+            <Text style={s.evTime}>{fmtTime(ev.start_time)}{endStr}</Text>
+          </View>
+          {(ev.assignees||[]).length > 0 && (
+            <View style={{ flexDirection:'row', gap:3 }}>
+              {(ev.assignees||[]).slice(0,3).map((id: string) => {
+                const m = FAMILY_MEMBERS.find(m => m.id === id);
+                return m ? (
+                  <View key={id} style={{ width:22, height:22, borderRadius:11, backgroundColor:m.color, alignItems:'center', justifyContent:'center' }}>
+                    <Text style={{ fontSize:9, fontFamily:'Poppins_700Bold', color:'#fff' }}>{m.name[0]}</Text>
+                  </View>
+                ) : null;
+              })}
+            </View>
+          )}
+        </TouchableOpacity>
+        {isClash && (
+          <View style={s.clashBadge}>
+            <View style={s.clashDot}/>
+            <Text style={s.clashTxt}>
+              {(() => {
+                const other = allEventsForDay.find((f,j) => j!==i && ev.start_time && f.start_time && new Date(ev.start_time) < new Date(f.end_time||f.start_time) && new Date(f.start_time) < new Date(ev.end_time||ev.start_time));
+                return other ? `Overlaps with ${other.title}` : 'Zaeli flagged — clash detected';
+              })()}
+            </Text>
+          </View>
+        )}
+      </View>
     );
   };
 
-  // ── Build month cells ────────────────────────────────────────
   const buildMonthCells = () => {
     const dim=getDaysInMonth(calYear,calMonth), firstDay=getFirstDayOfMonth(calYear,calMonth), prevDim=getDaysInMonth(calYear,calMonth-1);
     const cells: { day:number; cur:boolean; date:Date }[] = [];
@@ -936,172 +1224,126 @@ Return ONLY valid JSON (no markdown, no backticks):
     return cells;
   };
 
-  const briefPlaceholder = (() => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Checking your morning…';
-    if (h < 17) return 'Pulling up your afternoon…';
-    if (h < 21) return 'Seeing what\'s on tonight…';
-    return 'Getting tomorrow together…';
-  })();
+  const handleAddEvent = () => setShowSheet(true);
 
-  // ── Random relaxed card content — chosen on dismiss ──────────
-  const CAL_RELAXED_VARS = [
-    { ack: 'Sorted! 📅', title: 'Ask Zaeli anything', msg: "Did you know I can set up recurring events? School pickup, footy training, piano lessons — tell me once and I'll remember every week." },
-    { ack: 'No worries! ✌️', title: 'Planning a trip?', msg: "I can block out a holiday, suggest what to pack for the kids, and build a day-by-day itinerary. Just tell me where and when." },
-    { ack: 'All good! 👍', title: 'Ask Zaeli anything', msg: "School holidays are coming up — want me to start thinking about activities and care arrangements before things book up?" },
-    { ack: 'Got it! 🙌', title: 'A little breathing room?', msg: "I noticed today is looking quite full. Want me to protect some buffer time so you're not running between everything?" },
-  ];
-  const relaxedVar = useRef(CAL_RELAXED_VARS[Math.floor(Math.random() * CAL_RELAXED_VARS.length)]).current;
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <StatusBar style="light"/>
-      <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)}/>
 
-      {/* ══ HERO BANNER ══ */}
       <View style={s.hero}>
-        <View style={s.heroOrb1}/>
+        <View style={s.heroOrbOuter}/>
+        <View style={s.heroOrbInner}/>
         <View style={s.heroOrb2}/>
-
-        {/* Row 1: logo (left) · Calendar title (centre) · hamburger (right) */}
         <View style={s.heroRow}>
           <TouchableOpacity style={s.logoMark} onPress={() => router.replace('/(tabs)/')} activeOpacity={0.75}>
-            <View style={s.logoStarBox}><Text style={s.logoStarTxt}>✦</Text></View>
-            <Text style={s.logoWord}>z<Text style={{ color:YELLOW }}>a</Text>el<Text style={{ color:YELLOW }}>i</Text></Text>
+            <View style={s.logoStarBox}><Text style={s.logoStarTxt}>{'✦'}</Text></View>
+            <Text style={s.logoWord}>{'z'}<Text style={{ color:C.yellow }}>{'a'}</Text>{'el'}<Text style={{ color:C.yellow }}>{'i'}</Text></Text>
           </TouchableOpacity>
           <Text style={s.heroTitle}>Calendar</Text>
-          <HamburgerButton onPress={() => setMenuOpen(true)} tint="#fff"/>
+          <HamburgerButton onPress={() => setMenuOpen(true)}/>
         </View>
-
-        {/* Row 2: toggle (centre) · + add (right, aligned with hamburger above) */}
-        <View style={s.heroRow2}>
-          <View style={{ width: 44 }}/>
-          <View style={s.viewToggle}>
-            {(['day','month'] as const).map(v => (
-              <TouchableOpacity key={v} style={[s.vt, view===v && s.vtOn]} onPress={() => setView(v)} activeOpacity={0.8}>
-                <Text style={[s.vtTxt, view===v && s.vtTxtOn]}>{v.charAt(0).toUpperCase()+v.slice(1)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity style={s.addBtnHero} onPress={() => setShowSheet(true)} activeOpacity={0.8}>
-            <IcoPlus color="#fff" size={16}/>
-          </TouchableOpacity>
+        <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)}/>
+        <View style={s.viewTog}>
+          {(['day','month'] as const).map(v => (
+            <TouchableOpacity key={v} style={[s.vt, view===v && s.vtOn]} onPress={() => setView(v)} activeOpacity={0.8}>
+              <Text style={[s.vtTxt, view===v && s.vtTxtOn]}>{v.charAt(0).toUpperCase()+v.slice(1)}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
-      {/* ══ WEEK STRIP ══ */}
-      <View style={s.stripBar}>
-        <ScrollView ref={weekStripRef} horizontal showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal:10, paddingVertical:8, gap:4 }}>
-          {stripDays.map((d, i) => {
-            const isToday=sameDay(d,today), isSelected=sameDay(d,selectedDate);
-            const key=toLocalDateStr(d), hasEv=daysWithEvSet.has(key), showMonth=d.getDate()===1;
-            return (
-              <View key={i} style={{ alignItems:'center' }}>
-                {showMonth ? <Text style={s.stripMonthLabel}>{MONTHS_SHORT[d.getMonth()]}</Text> : <View style={{ height:14 }}/>}
-                <TouchableOpacity style={[s.dayPill, isToday && s.dayPillToday, isSelected && !isToday && s.dayPillSelected]}
-                  onPress={() => { setSelectedDate(new Date(d)); if(view==='month') setView('day'); }} activeOpacity={0.8}>
-                  <Text style={[s.dpDay, (isToday||isSelected) && { color:'#fff', opacity:1 }]}>{DAYS_SHORT[(d.getDay()+6)%7]}</Text>
-                  <Text style={[s.dpNum, (isToday||isSelected) && { color:'#fff' }]}>{d.getDate()}</Text>
-                  <View style={[s.dpDot, hasEv && s.dpDotHas]}/>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
-        </ScrollView>
-        {!sameDay(selectedDate,today) && (
-          <TouchableOpacity style={s.todayBtn} onPress={scrollToToday} activeOpacity={0.8}>
-            <Text style={s.todayBtnTxt}>↑ Today</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* ══ MAIN CONTENT ══ */}
-      <View style={s.content}>
-
-        {/* ── DAY VIEW ── */}
-        {view === 'day' && (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:140 }}>
-
-            {/* Brief — fades out on dismiss */}
-            {!briefDismissedLocal && (
-              <Animated.View style={{ opacity: briefFadeAnim }}>
-                <AnimatedCalBrief tokens={briefTokens} sub={briefSub} placeholder={briefPlaceholder}/>
-                {!briefLoading && briefTokens.length > 0 && (
-                  <View style={s.briefBtns}>
-                    <TouchableOpacity style={s.btnPrimary}
-                      onPress={() => openChat(briefSeed)} activeOpacity={0.85}>
-                      <Text style={s.btnPrimaryTxt} numberOfLines={1} adjustsFontSizeToFit>{briefCta}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.btnGhost} onPress={handleDismissBrief} activeOpacity={0.7}>
-                      <Text style={s.btnGhostTxt} numberOfLines={1}>I'm sorted, thanks</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </Animated.View>
-            )}
-
-            {/* Relaxed card — fades in after dismiss */}
-            {showRelaxed && (
-              <Animated.View style={[s.relaxedCard, { opacity: relaxedFadeAnim }]}>
-                <View style={s.relaxedHeader}>
-                  <View style={s.relaxedAv}><Text style={{ fontSize:13, color:'#fff' }}>✦</Text></View>
-                  <Text style={s.relaxedAck}>{relaxedVar.ack}</Text>
-                </View>
-                <View style={s.relaxedBody}>
-                  <Text style={s.relaxedTitle}>{relaxedVar.title}</Text>
-                  <Text style={s.relaxedMsg}>{relaxedVar.msg}</Text>
-                  <TouchableOpacity style={s.relaxedBtn} onPress={() => openChat()} activeOpacity={0.8}>
-                    <Text style={s.relaxedBtnTxt}>Open Zaeli ✦</Text>
+      {view === 'day' && (
+        <View style={s.stripBar}>
+          <ScrollView ref={weekStripRef} horizontal showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal:10, paddingVertical:8, gap:4 }}>
+            {stripDays.map((d, i) => {
+              const isToday=sameDay(d,today), isSelected=sameDay(d,selectedDate);
+              const key=toLocalDateStr(d), hasEv=daysWithEvSet.has(key), showMonth=d.getDate()===1;
+              return (
+                <View key={i} style={{ alignItems:'center' }}>
+                  {showMonth ? <Text style={s.stripMonthLabel}>{MONTHS_SHORT[d.getMonth()]}</Text> : <View style={{ height:14 }}/>}
+                  <TouchableOpacity style={[s.dayPill, isToday && s.dayPillToday, isSelected && !isToday && s.dayPillSelected]}
+                    onPress={() => setSelectedDate(new Date(d))} activeOpacity={0.8}>
+                    <Text style={[s.dpDay, (isToday||isSelected) && { color:'#fff', opacity:1 }]}>{DAYS_SHORT[(d.getDay()+6)%7]}</Text>
+                    <Text style={[s.dpNum, (isToday||isSelected) && { color:'#fff' }]}>{d.getDate()}</Text>
+                    <View style={[s.dpDot, hasEv && s.dpDotHas]}/>
                   </TouchableOpacity>
                 </View>
-              </Animated.View>
-            )}
+              );
+            })}
+          </ScrollView>
+          {!sameDay(selectedDate,today) && (
+            <TouchableOpacity style={s.todayBtn} onPress={scrollToToday} activeOpacity={0.8}>
+              <Text style={s.todayBtnTxt}>Back to Today</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
-            {/* Date label */}
+      <View style={s.content}>
+        {view === 'day' && (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:110 }}>
             <Text style={s.slbl}>{selectedDate.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' }).toUpperCase()}</Text>
-            {/* Events */}
-            {dayEvents.length === 0 ? (
-              <Text style={s.emptyTxt}>Nothing on for this day</Text>
-            ) : (
-              dayEvents.map((ev,i) => renderEvent(ev,i,dayEvents))
-            )}
+            {dayEvents.map((ev,i) => renderEvent(ev,i,dayEvents))}
+            <TouchableOpacity style={s.addBtn} onPress={handleAddEvent} activeOpacity={0.7}>
+              <Text style={s.addPlus}>{'+  Add event'}</Text>
+            </TouchableOpacity>
           </ScrollView>
         )}
 
-        {/* ── MONTH VIEW — no brief, just grid + day events ── */}
+        {view === 'week' && (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:120 }}>
+            {weekDays7.map((d,di) => {
+              const devs=events.filter(e => (e.date||'')===toLocalDateStr(d)), isTod=sameDay(d,today);
+              return (
+                <TouchableOpacity key={di} activeOpacity={0.85} onPress={() => { setSelectedDate(new Date(d)); setView('day'); }}>
+                  <View style={[s.weekRow, isTod && { borderLeftColor:C.mag, borderLeftWidth:3 }]}>
+                    <View style={s.weekDayCol}>
+                      <Text style={[s.weekDayName, isTod && { color:C.mag }]}>{DAYS_SHORT[(d.getDay()+6)%7]}</Text>
+                      <View style={[s.weekDayNum, isTod && { backgroundColor:C.mag }]}>
+                        <Text style={[s.weekDayNumTxt, isTod && { color:'#fff' }]}>{d.getDate()}</Text>
+                      </View>
+                    </View>
+                    <View style={s.weekEvCol}>
+                      {devs.length===0 ? <Text style={s.weekEmpty}>Free</Text>
+                        : devs.map((ev,i) => (
+                          <View key={ev.id} style={[s.weekEvChip, { backgroundColor:evColor(i)+'18', borderLeftColor:evColor(i) }]}>
+                            <Text style={[s.weekEvTxt, { color:evColor(i) }]} numberOfLines={1}>{ev.title}</Text>
+                            <Text style={s.weekEvTime}>{fmtTime(ev.start_time)}</Text>
+                          </View>
+                        ))
+                      }
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity style={s.addBtn} onPress={handleAddEvent} activeOpacity={0.7}>
+              <Text style={s.addPlus}>{'+  Add event'}</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
+
         {view === 'month' && (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:140 }}>
-
-            {/* Month navigation header */}
-            <View style={s.monthNavBar}>
-              <TouchableOpacity style={s.monthNavBtn}
-                onPress={() => { if(calMonth===0){setCalMonth(11);setCalYear(y=>y-1);}else setCalMonth(m=>m-1); }}
-                activeOpacity={0.7}>
-                <Text style={s.monthNavArrow}>‹</Text>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:120 }}>
+            <View style={s.monthNav}>
+              <TouchableOpacity style={s.monthArr} onPress={() => { if(calMonth===0){setCalMonth(11);setCalYear(y=>y-1);}else setCalMonth(m=>m-1); }}>
+                <Text style={s.monthArrTxt}>{'<'}</Text>
               </TouchableOpacity>
-              <Text style={s.monthNavLabel}>{MONTHS[calMonth]} {calYear}</Text>
-              <TouchableOpacity style={s.monthNavBtn}
-                onPress={() => { if(calMonth===11){setCalMonth(0);setCalYear(y=>y+1);}else setCalMonth(m=>m+1); }}
-                activeOpacity={0.7}>
-                <Text style={s.monthNavArrow}>›</Text>
+              <Text style={s.monthLbl}>{MONTHS[calMonth]} {calYear}</Text>
+              <TouchableOpacity style={s.monthArr} onPress={() => { if(calMonth===11){setCalMonth(0);setCalYear(y=>y+1);}else setCalMonth(m=>m+1); }}>
+                <Text style={s.monthArrTxt}>{'>'}</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Day headers */}
-            <View style={s.calGrid}>
-              {DAYS_HDR.map((d,i) => <View key={i} style={s.calCell}><Text style={s.calHdr}>{d}</Text></View>)}
-            </View>
-
-            {/* Month cells */}
+            <View style={s.calGrid}>{DAYS_HDR.map((d,i) => <View key={i} style={s.calCell}><Text style={s.calHdr}>{d}</Text></View>)}</View>
             <View style={s.calGrid}>
               {buildMonthCells().map((cell,i) => {
                 const isToday=cell.cur && cell.day===today.getDate() && calMonth===today.getMonth() && calYear===today.getFullYear();
                 const isSel=toLocalDateStr(cell.date)===selectedDateStr;
                 const hasEv=cell.cur && daysWithEvSet.has(toLocalDateStr(cell.date));
                 return (
-                  <TouchableOpacity key={i} style={s.calCell}
-                    onPress={() => setSelectedDate(new Date(cell.date))} activeOpacity={0.7}>
+                  <TouchableOpacity key={i} style={s.calCell} onPress={() => { setSelectedDate(new Date(cell.date)); setView('day'); }} activeOpacity={0.7}>
                     <View style={[s.calDayInner, isToday && s.calDayToday, isSel && !isToday && s.calDaySel]}>
                       <Text style={[s.calDayTxt, !cell.cur && s.calDayOther, isToday && { color:'#fff', fontFamily:'Poppins_700Bold' }]}>{cell.day}</Text>
                       {hasEv && <View style={[s.calDot, isToday && { backgroundColor:'#fff' }]}/>}
@@ -1110,217 +1352,253 @@ Return ONLY valid JSON (no markdown, no backticks):
                 );
               })}
             </View>
-
-            {/* Selected day events — identical format to day view */}
-            <Text style={[s.slbl, { marginTop:16 }]}>{selectedDate.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' }).toUpperCase()}</Text>
             {(() => {
-              const sel = events.filter(e => (e.date||'') === selectedDateStr);
-              if (!sel.length) return <Text style={s.emptyTxt}>Nothing on for this day</Text>;
-              return sel.map((ev,i) => renderEvent(ev, i, sel));
+              const sel=events.filter(e => (e.date||'')===selectedDateStr);
+              if (!sel.length) return null;
+              return (
+                <View style={s.csdCard}>
+                  <Text style={s.csdTitle}>{selectedDate.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' })}</Text>
+                  {sel.map((ev,i) => (
+                    <TouchableOpacity key={ev.id} style={[s.csdRow, i===sel.length-1 && { borderBottomWidth:0 }]}
+                      onPress={() => setView('day')} activeOpacity={0.7}>
+                      <View style={[s.csdDot, { backgroundColor:evColor(i) }]}/>
+                      <Text style={s.csdName}>{ev.title}</Text>
+                      <Text style={s.csdTime}>{fmtTime(ev.start_time)}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
             })()}
+            <TouchableOpacity style={s.addBtn} onPress={handleAddEvent} activeOpacity={0.7}>
+              <Text style={s.addPlus}>{'+  Add event'}</Text>
+            </TouchableOpacity>
           </ScrollView>
         )}
       </View>
 
-      {/* ── MODALS ── */}
-      <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onDeleted={() => { setSelectedEvent(null); loadEvents(); }}/>
-      <AddEventFlow visible={showSheet} onClose={() => setShowSheet(false)} onSaved={() => { setShowSheet(false); loadEvents(); }} selectedDate={selectedDate}/>
+      <EventDetailModal
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        onDeleted={() => { setSelectedEvent(null); loadEvents(); }}
+      />
 
-      {/* ══ FLOATING BAR ══ */}
-      <View style={s.floatingBar}>
-        <View style={s.floatingBarInner}>
-          <TouchableOpacity style={s.barIconBtn} onPress={() => setShowSheet(true)} activeOpacity={0.75}>
-            <IcoPlus color={INK3} size={20}/>
+      <AddEventFlow
+        visible={showSheet}
+        onClose={() => setShowSheet(false)}
+        onSaved={() => { setShowSheet(false); loadEvents(); }}
+        selectedDate={selectedDate}
+      />
+
+      <View style={[s.askBarWrap, { paddingBottom: insets.bottom + 4 }]}>
+        <TouchableOpacity style={s.askBar} onPress={() => openChat()} activeOpacity={0.85}>
+          <View style={s.askDiamondWrap}>
+            <Text style={s.askDiamond}>{'\u2726'}</Text>
+          </View>
+          <Text style={s.askText}>Ask Zaeli anything...</Text>
+          <TouchableOpacity style={s.askMic} onPress={()=>router.replace('/(tabs)/')} activeOpacity={0.7}>
+            <IcoMic/>
           </TouchableOpacity>
-          <View style={s.barSep}/>
-          <TouchableOpacity style={{ flex:1, paddingVertical:4 }} onPress={() => openChat()} activeOpacity={0.6}>
-            <Text style={s.barPlaceholder}>Ask about your calendar…</Text>
+          <TouchableOpacity style={s.askSend} onPress={() => openChat()} activeOpacity={0.85}>
+            <IcoSend/>
           </TouchableOpacity>
-          <TouchableOpacity style={s.barMicBtn}
-            onPress={() => router.push({ pathname:'/(tabs)/zaeli-chat', params:{ channel:'Calendar', returnTo:'/(tabs)/calendar', autoMic:'true' } })}
-            activeOpacity={0.85}>
-            <IcoMic color="#fff"/>
-          </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </View>
 
     </SafeAreaView>
   );
 }
 
-// ── STYLES ────────────────────────────────────────────────────
-const CELL_SIZE = 42;
+// ── STYLES ───────────────────────────────────────────────────
+const CELL_SIZE = 44;
 
 const s = StyleSheet.create({
-  safe:    { flex:1, backgroundColor: CAL },
-  content: { flex:1, backgroundColor: BG },
+  safe:    { flex:1, backgroundColor:C.magL },
+  content: { flex:1, backgroundColor:C.bg },
 
-  // Hero — two clean rows
-  hero:          { backgroundColor: CAL, paddingHorizontal:20, paddingTop:10, paddingBottom:12, position:'relative', overflow:'hidden' },
-  heroOrb1:      { position:'absolute', width:200, height:200, borderRadius:100, top:-70, right:-50, backgroundColor:'rgba(255,255,255,0.07)' },
-  heroOrb2:      { position:'absolute', width:120, height:120, borderRadius:60, bottom:-30, left:-20, backgroundColor:'rgba(255,255,255,0.05)' },
-  // Row 1: logo | title | hamburger — all same height, title centred via flex
-  heroRow:       { flexDirection:'row', alignItems:'center', marginBottom:10 },
-  logoMark:      { flexDirection:'row', alignItems:'center', gap:8, zIndex:2 },
-  logoStarBox:   { width:36, height:36, backgroundColor:'rgba(255,255,255,0.2)', borderRadius:11, alignItems:'center', justifyContent:'center' },
-  logoStarTxt:   { fontSize:18, color:'#fff' },
-  logoWord:      { fontFamily:'DMSerifDisplay_400Regular', fontSize:24, color:'#fff', letterSpacing:-0.5 },
-  heroTitle:     { flex:1, fontFamily:'DMSerifDisplay_400Regular', fontSize:32, color:'#fff', letterSpacing:-0.8, textAlign:'center' },
-  // Row 2: spacer | toggle | + button — toggle centred, + right-aligned with hamburger
-  heroRow2:      { flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
-  heroToggleRow: { alignItems:'center' }, // kept for safety
-  heroRight:     { flexDirection:'row', alignItems:'center', gap:8 },
-  addBtnHero:    { width:36, height:36, borderRadius:10, backgroundColor:'rgba(255,255,255,0.2)', alignItems:'center', justifyContent:'center' },
+  hero:         { backgroundColor:C.magL, paddingHorizontal:22, paddingTop:14, paddingBottom:16, flexShrink:0, position:'relative', overflow:'hidden' },
+  heroOrbOuter: { position:'absolute', width:260, height:260, borderRadius:130, top:-80, right:-60, backgroundColor:'rgba(255,255,255,0.06)' },
+  heroOrbInner: { position:'absolute', width:160, height:160, borderRadius:80, top:-20, right:20, backgroundColor:'rgba(255,255,255,0.08)' },
+  heroOrb2:     { position:'absolute', width:100, height:100, borderRadius:50, bottom:10, left:-20, backgroundColor:'rgba(255,255,255,0.04)' },
+  heroRow:      { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 },
+  logoMark:     { flexDirection:'row', alignItems:'center', gap:8 },
+  logoStarBox:  { width:32, height:32, backgroundColor:'rgba(255,255,255,0.2)', borderRadius:10, alignItems:'center', justifyContent:'center' },
+  logoStarTxt:  { fontSize:17, color:'#fff' },
+  logoWord:     { fontFamily:'DMSerifDisplay_400Regular', fontSize:22, color:'#fff', letterSpacing:-0.5 },
+  heroTitle:    { fontFamily:'DMSerifDisplay_400Regular', fontSize:26, color:'#fff', letterSpacing:-0.5, position:'absolute', left:0, right:0, textAlign:'center' as const },
 
-  // Toggle — fixed width, symmetric, centred on own row
-  viewToggle: { flexDirection:'row', backgroundColor:'rgba(255,255,255,0.18)', borderRadius:10, padding:3, width:160 },
-  vt:         { flex:1, paddingVertical:7, borderRadius:8, alignItems:'center', justifyContent:'center' },
-  vtOn:       { backgroundColor:'#fff' },
-  vtTxt:      { fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(255,255,255,0.65)', textAlign:'center' },
-  vtTxtOn:    { color: INK },
+  viewTog: { flexDirection:'row', backgroundColor:'rgba(255,255,255,0.15)', borderRadius:14, padding:4, gap:3, marginBottom:4 },
+  vt:      { flex:1, paddingVertical:10, borderRadius:11, alignItems:'center' },
+  vtOn:    { backgroundColor:'#fff' },
+  vtTxt:   { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(255,255,255,0.6)' },
+  vtTxtOn: { color:C.ink },
 
-  // Week strip
-  stripBar:        { backgroundColor:'#fff', borderBottomWidth:1, borderBottomColor:BORDER },
-  stripMonthLabel: { fontFamily:'Poppins_700Bold', fontSize:9, color:CAL, textTransform:'uppercase', letterSpacing:1, textAlign:'center', height:14, paddingTop:1 },
+  stripBar:        { backgroundColor:'#fff', borderBottomWidth:1, borderBottomColor:C.border },
+  stripMonthLabel: { fontFamily:'Poppins_700Bold', fontSize:9, color:C.magL, textTransform:'uppercase', letterSpacing:1, textAlign:'center', height:14, paddingTop:1 },
   dayPill:         { width:52, alignItems:'center', gap:2, paddingVertical:8, borderRadius:14 },
-  dayPillToday:    { backgroundColor: CAL },
-  dayPillSelected: { backgroundColor:`${CAL}18` },
-  dpDay:           { fontFamily:'Poppins_700Bold', fontSize:9, textTransform:'uppercase', letterSpacing:0.3, color:INK3 },
-  dpNum:           { fontFamily:'Poppins_800ExtraBold', fontSize:17, color:INK },
+  dayPillToday:    { backgroundColor:C.magL },
+  dayPillSelected: { backgroundColor:'rgba(255,75,158,0.15)' },
+  dpDay:           { fontFamily:'Poppins_700Bold', fontSize:9, textTransform:'uppercase', letterSpacing:0.3, color:C.ink3 },
+  dpNum:           { fontFamily:'Poppins_800ExtraBold', fontSize:17, color:C.ink },
   dpDot:           { width:4, height:4, borderRadius:2, backgroundColor:'transparent' },
-  dpDotHas:        { backgroundColor: CAL },
-  todayBtn:        { alignSelf:'center', marginBottom:6, paddingHorizontal:14, paddingVertical:4, backgroundColor:CAL, borderRadius:20 },
-  todayBtnTxt:     { fontFamily:'Poppins_600SemiBold', fontSize:11, color:'#fff' },
+  dpDotHas:        { backgroundColor:C.mag },
 
-  // Brief — 26px with good sentence spacing
-  briefBlock:           { paddingHorizontal:22, paddingTop:24, paddingBottom:4, minHeight:110 },
-  briefPlaceholderWrap: { position:'absolute', top:24, left:22, right:22 },
-  briefPlaceholder:     { fontFamily:'DMSerifDisplay_400Italic', fontSize:26, color:INK3, lineHeight:34, letterSpacing:-0.8 },
-  briefMain:            { fontFamily:'DMSerifDisplay_400Regular', fontSize:26, color:INK, lineHeight:34, letterSpacing:-0.8 },
-  briefAccent:          { fontFamily:'DMSerifDisplay_400Regular', fontSize:26, color:CORAL },
-  briefSub:             { fontFamily:'DMSerifDisplay_400Italic', fontSize:15, color:INK2, lineHeight:22, letterSpacing:-0.2, marginTop:10, marginBottom:2 },
+  todayBtn:    { alignSelf:'center', marginBottom:6, paddingHorizontal:16, paddingVertical:5, backgroundColor:C.magL, borderRadius:20 },
+  todayBtnTxt: { fontFamily:'Poppins_600SemiBold', fontSize:11, color:'#fff' },
 
-  // CTA buttons — text centered, proper padding
-  briefBtns:    { flexDirection:'row', gap:10, paddingHorizontal:22, marginTop:16, marginBottom:22 },
-  btnPrimary:   { flex:1, backgroundColor:CAL, borderRadius:12, paddingVertical:13, paddingHorizontal:10, alignItems:'center', justifyContent:'center' },
-  btnPrimaryTxt:{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#fff', textAlign:'center' },
-  btnGhost:     { flex:1, backgroundColor:'rgba(0,0,0,0.05)', borderRadius:12, paddingVertical:13, paddingHorizontal:10, alignItems:'center', justifyContent:'center', borderWidth:1.5, borderColor:BORDER },
-  btnGhostTxt:  { fontFamily:'Poppins_600SemiBold', fontSize:13, color:INK2, textAlign:'center' },
+  briefCard: {
+    marginHorizontal:18, marginTop:14, marginBottom:6,
+    backgroundColor:'#fff', borderRadius:20,
+    borderWidth:1.5, borderColor:'rgba(224,0,124,0.15)',
+    shadowColor:C.mag, shadowOpacity:0.08, shadowRadius:16,
+    shadowOffset:{ width:0, height:4 }, elevation:3, overflow:'hidden',
+  },
+  briefHeader: {
+    flexDirection:'row', alignItems:'center', gap:10,
+    paddingHorizontal:16, paddingTop:14, paddingBottom:11,
+    borderBottomWidth:1, borderBottomColor:'rgba(224,0,124,0.08)',
+    backgroundColor:'rgba(224,0,124,0.03)',
+  },
+  briefName:    { fontFamily:'Poppins_700Bold', fontSize:13, color:C.ink, flex:1 },
+  briefLiveDot: { width:6, height:6, borderRadius:3, backgroundColor:C.green },
+  briefTime:    { fontFamily:'Poppins_400Regular', fontSize:10, color:C.ink3 },
+  briefBody:    { padding:16, paddingTop:14 },
+  briefMsg:     { fontFamily:'Poppins_400Regular', fontSize:14, color:C.ink, lineHeight:22, marginBottom:14 },
+  briefBtns:    { flexDirection:'row', gap:8 },
+  btnPrimary:    { flex:1, backgroundColor:C.mag, borderRadius:12, paddingVertical:11, alignItems:'center', justifyContent:'center' },
+  btnPrimaryTxt: { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#fff', textAlign:'center' },
+  btnGhost:      { flex:1, backgroundColor:'rgba(0,0,0,0.055)', borderRadius:12, paddingVertical:11, alignItems:'center', justifyContent:'center', borderWidth:1.5, borderColor:'rgba(0,0,0,0.09)' },
+  btnGhostTxt:   { fontFamily:'Poppins_600SemiBold', fontSize:13, color:C.ink2, textAlign:'center' },
 
-  // Relaxed card after dismiss — matches dismissed card spec
-  relaxedCard:   { marginHorizontal:22, marginTop:14, marginBottom:6, borderRadius:16, borderWidth:1.5, borderColor:`${CAL}20`, backgroundColor:`${CAL}06`, overflow:'hidden' },
-  relaxedHeader: { flexDirection:'row', alignItems:'center', gap:10, paddingTop:12, paddingHorizontal:14, paddingBottom:10, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.05)' },
-  relaxedAv:     { width:28, height:28, borderRadius:9, backgroundColor:CAL, alignItems:'center', justifyContent:'center', flexShrink:0 },
-  relaxedAck:    { fontFamily:'Poppins_700Bold', fontSize:12, color:CAL, flex:1 },
-  relaxedBody:   { padding:14, paddingTop:12 },
-  relaxedTitle:  { fontFamily:'Poppins_700Bold', fontSize:13, color:INK, marginBottom:5 },
-  relaxedMsg:    { fontFamily:'Poppins_400Regular', fontSize:13, color:INK2, lineHeight:20, marginBottom:12 },
-  relaxedBtn:    { paddingVertical:10, borderRadius:12, backgroundColor:`${CAL}10`, alignItems:'center' },
-  relaxedBtnTxt: { fontFamily:'Poppins_600SemiBold', fontSize:12, color:CAL },
+  relaxedCard:   { marginHorizontal:18, marginTop:14, marginBottom:6, borderRadius:20, borderWidth:1.5, borderColor:'rgba(0,87,255,0.14)', backgroundColor:'rgba(0,87,255,0.04)', overflow:'hidden' },
+  relaxedHeader: { flexDirection:'row', alignItems:'center', gap:10, paddingTop:11, paddingHorizontal:16, paddingBottom:10, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.05)' },
+  relaxedAv:     { width:28, height:28, borderRadius:9, backgroundColor:C.blue, alignItems:'center', justifyContent:'center', flexShrink:0 },
+  relaxedAck:    { fontFamily:'Poppins_700Bold', fontSize:12, color:C.blue, flex:1 },
+  relaxedBody:   { padding:12, paddingHorizontal:16, paddingBottom:14 },
+  relaxedTitle:  { fontFamily:'Poppins_700Bold', fontSize:13, color:C.ink, marginBottom:5 },
+  relaxedMsg:    { fontFamily:'Poppins_400Regular', fontSize:13, color:C.ink2, lineHeight:21, marginBottom:12 },
+  relaxedBtn:    { width:'100%', paddingVertical:10, borderRadius:12, backgroundColor:'rgba(0,87,255,0.08)', alignItems:'center' },
+  relaxedBtnTxt: { fontFamily:'Poppins_600SemiBold', fontSize:12, color:C.blue },
 
-  // Day label + events — identical in day view and month view
-  slbl:      { fontFamily:'Poppins_700Bold', fontSize:10, color:INK3, letterSpacing:1.2, textTransform:'uppercase', paddingHorizontal:22, paddingTop:4, paddingBottom:10 },
-  emptyTxt:  { fontFamily:'Poppins_400Regular', fontSize:14, color:INK3, paddingHorizontal:22, paddingTop:4, paddingBottom:16 },
-  eventItem: { flexDirection:'row', alignItems:'center', paddingHorizontal:22, paddingVertical:14, borderBottomWidth:1, borderBottomColor:BORDER, gap:12, backgroundColor:'#fff' },
-  evTimeCol: { width:36, alignItems:'flex-end' },
-  evT:       { fontFamily:'Poppins_600SemiBold', fontSize:13, color:INK },
-  evD:       { fontFamily:'Poppins_400Regular', fontSize:10, color:INK3 },
-  evLine:    { width:3, height:36, borderRadius:2, flexShrink:0 },
-  evBody:    { flex:1 },
-  evName:    { fontFamily:'Poppins_600SemiBold', fontSize:14, color:INK },
-  evMeta:    { fontFamily:'Poppins_400Regular', fontSize:12, color:INK3, marginTop:2 },
-
-  // Month view nav + grid
-  monthNavBar:   { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingTop:14, paddingBottom:8 },
-  monthNavBtn:   { width:40, height:40, alignItems:'center', justifyContent:'center' },
-  monthNavArrow: { fontFamily:'Poppins_400Regular', fontSize:28, color:INK2 },
-  monthNavLabel: { fontFamily:'Poppins_700Bold', fontSize:16, color:INK },
-  calGrid:       { flexDirection:'row', flexWrap:'wrap', paddingHorizontal:10 },
-  calCell:       { width:`${100/7}%` as any, aspectRatio:1, alignItems:'center', justifyContent:'center' },
-  calHdr:        { fontFamily:'Poppins_700Bold', fontSize:9, textTransform:'uppercase', color:INK3 },
-  calDayInner:   { width:CELL_SIZE, height:CELL_SIZE, borderRadius:CELL_SIZE/2, alignItems:'center', justifyContent:'center', position:'relative' },
-  calDayToday:   { backgroundColor: CAL },
-  calDaySel:     { backgroundColor:`${CAL}18` },
-  calDayTxt:     { fontFamily:'Poppins_500Medium', fontSize:13, color:INK },
-  calDayOther:   { color:INK3 },
-  calDot:        { position:'absolute', bottom:3, width:4, height:4, borderRadius:2, backgroundColor:CAL },
-
-  // Floating bar — matches home screen exactly
-  floatingBar:      { position:'absolute', bottom:0, left:0, right:0, paddingHorizontal:16, paddingBottom:Platform.OS==='ios' ? 32 : 20, paddingTop:12 },
-  floatingBarInner: { flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#fff', borderRadius:32, paddingVertical:16, paddingHorizontal:18, borderWidth:1, borderColor:BORDER, shadowColor:'#000', shadowOpacity:0.08, shadowRadius:18, shadowOffset:{ width:0, height:-2 }, elevation:6 },
-  barIconBtn:       { width:36, height:36, alignItems:'center', justifyContent:'center' },
-  barSep:           { width:1, height:20, backgroundColor:'rgba(10,10,10,0.1)' },
-  barPlaceholder:   { fontFamily:'Poppins_400Regular', fontSize:16, color:INK3, flex:1 },
-  barMicBtn:        { width:38, height:38, borderRadius:19, backgroundColor:CORAL, alignItems:'center', justifyContent:'center' },
-
-  // Add event sheet
-  sheetAv:           { width:40, height:40, borderRadius:13, backgroundColor:CAL, alignItems:'center', justifyContent:'center', flexShrink:0 },
-  sheetTitle:        { fontFamily:'Poppins_700Bold', fontSize:16, color:INK },
-  sheetSub:          { fontFamily:'Poppins_400Regular', fontSize:12, color:INK2, marginTop:1 },
+  sheetBackdrop:     { ...StyleSheet.absoluteFillObject, backgroundColor:'rgba(0,0,0,0.45)' },
+  sheetAv:           { width:40, height:40, borderRadius:13, backgroundColor:C.mag, alignItems:'center', justifyContent:'center', flexShrink:0 },
+  sheetTitle:        { fontFamily:'Poppins_700Bold', fontSize:16, color:C.ink },
+  sheetSub:          { fontFamily:'Poppins_400Regular', fontSize:12, color:C.ink2, marginTop:1 },
   sheetClose:        { width:32, height:32, borderRadius:10, backgroundColor:'rgba(0,0,0,0.06)', alignItems:'center', justifyContent:'center' },
-  sheetCloseTxt:     { fontFamily:'Poppins_600SemiBold', fontSize:13, color:INK2 },
-  sheetPrimary:      { flexDirection:'row', alignItems:'center', gap:14, backgroundColor:`${CAL}08`, borderWidth:1.5, borderColor:`${CAL}25`, borderRadius:18, padding:16, marginBottom:16 },
-  sheetPrimaryIcon:  { width:44, height:44, borderRadius:14, backgroundColor:CAL, alignItems:'center', justifyContent:'center', flexShrink:0 },
-  sheetPrimaryTitle: { fontFamily:'Poppins_700Bold', fontSize:15, color:INK, marginBottom:2 },
-  sheetPrimaryDesc:  { fontFamily:'Poppins_400Regular', fontSize:12, color:INK2, lineHeight:18 },
-  sheetPrimaryArrow: { fontFamily:'Poppins_700Bold', fontSize:18, color:CAL, flexShrink:0 },
+  sheetCloseTxt:     { fontFamily:'Poppins_600SemiBold', fontSize:13, color:C.ink2 },
+  sheetPrimary:      { flexDirection:'row', alignItems:'center', gap:14, backgroundColor:'rgba(224,0,124,0.05)', borderWidth:1.5, borderColor:'rgba(224,0,124,0.18)', borderRadius:18, padding:16, marginBottom:16 },
+  sheetPrimaryIcon:  { width:44, height:44, borderRadius:14, backgroundColor:C.mag, alignItems:'center', justifyContent:'center', flexShrink:0 },
+  sheetPrimaryTitle: { fontFamily:'Poppins_700Bold', fontSize:15, color:C.ink, marginBottom:2 },
+  sheetPrimaryDesc:  { fontFamily:'Poppins_400Regular', fontSize:12, color:C.ink2, lineHeight:18 },
+  sheetPrimaryArrow: { fontFamily:'Poppins_700Bold', fontSize:18, color:C.mag, flexShrink:0 },
   sheetDivider:      { flexDirection:'row', alignItems:'center', gap:10, marginBottom:14 },
   sheetDividerLine:  { flex:1, height:1, backgroundColor:'rgba(0,0,0,0.07)' },
-  sheetDividerTxt:   { fontFamily:'Poppins_400Regular', fontSize:12, color:INK3 },
-  sheetSecondary:    { paddingVertical:13, borderRadius:14, borderWidth:1.5, borderColor:BORDER, alignItems:'center', backgroundColor:BG },
-  sheetSecondaryTxt: { fontFamily:'Poppins_600SemiBold', fontSize:14, color:INK2 },
+  sheetDividerTxt:   { fontFamily:'Poppins_400Regular', fontSize:12, color:C.ink3 },
+  sheetSecondary:    { paddingVertical:13, borderRadius:14, borderWidth:1.5, borderColor:C.border, alignItems:'center', backgroundColor:C.bg },
+  sheetSecondaryTxt: { fontFamily:'Poppins_600SemiBold', fontSize:14, color:C.ink2 },
 
-  // Form modal
-  modalHdr:      { flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:16, borderBottomWidth:1, borderBottomColor:BORDER },
-  modalCancel:   { fontFamily:'Poppins_500Medium', fontSize:15, color:INK2 },
-  modalTitle:    { fontFamily:'Poppins_700Bold', fontSize:16, color:INK },
-  modalSave:     { fontFamily:'Poppins_700Bold', fontSize:15, color:CAL },
-  modalTabs:     { flexDirection:'row', paddingHorizontal:16, paddingTop:10, borderBottomWidth:1, borderBottomColor:BORDER },
+  slbl:       { fontFamily:'Poppins_700Bold', fontSize:10, textTransform:'uppercase', letterSpacing:1.5, color:C.ink3, paddingHorizontal:22, paddingTop:12, paddingBottom:8 },
+  eventItem:  { borderRadius:14, padding:14, marginHorizontal:18, marginBottom:6, borderLeftWidth:4, flexDirection:'row', alignItems:'center', gap:10 },
+  evName:     { fontFamily:'Poppins_600SemiBold', fontSize:14, color:C.ink, marginBottom:2 },
+  evTime:     { fontFamily:'Poppins_400Regular', fontSize:11, color:C.ink2 },
+  clashBadge: { flexDirection:'row', alignItems:'center', gap:6, marginHorizontal:18, marginBottom:8, paddingHorizontal:12, paddingVertical:6, backgroundColor:'rgba(229,57,53,0.08)', borderRadius:10 },
+  clashDot:   { width:6, height:6, borderRadius:3, backgroundColor:'#E53935', flexShrink:0 },
+  clashTxt:   { fontFamily:'Poppins_500Medium', fontSize:11, color:'#E53935', flex:1 },
+  addBtn:     { marginHorizontal:18, marginTop:8, marginBottom:16, backgroundColor:C.card, borderRadius:16, padding:16, borderWidth:2, borderColor:'rgba(255,75,158,0.3)', alignItems:'center', borderStyle:'dashed' },
+  addPlus:    { fontFamily:'Poppins_600SemiBold', fontSize:14, color:C.ink2 },
+
+  weekRow:       { flexDirection:'row', borderBottomWidth:1, borderBottomColor:C.border, paddingVertical:12, paddingHorizontal:18, gap:14, backgroundColor:C.card, marginBottom:1 },
+  weekDayCol:    { width:44, alignItems:'center', gap:4 },
+  weekDayName:   { fontFamily:'Poppins_700Bold', fontSize:10, textTransform:'uppercase', color:C.ink3 },
+  weekDayNum:    { width:30, height:30, borderRadius:9, alignItems:'center', justifyContent:'center' },
+  weekDayNumTxt: { fontFamily:'Poppins_700Bold', fontSize:15, color:C.ink },
+  weekEvCol:     { flex:1, gap:4, justifyContent:'center' },
+  weekEmpty:     { fontFamily:'Poppins_400Regular', fontSize:13, color:C.ink3 },
+  weekEvChip:    { borderRadius:8, borderLeftWidth:3, paddingHorizontal:8, paddingVertical:5, flexDirection:'row', justifyContent:'space-between', alignItems:'center' },
+  weekEvTxt:     { fontFamily:'Poppins_600SemiBold', fontSize:12, flex:1 },
+  weekEvTime:    { fontFamily:'Poppins_400Regular', fontSize:11, color:C.ink2 },
+
+  monthNav:    { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:18, paddingTop:10, paddingBottom:6 },
+  monthArr:    { padding:8 },
+  monthArrTxt: { fontSize:22, color:C.ink2, fontFamily:'Poppins_400Regular' },
+  monthLbl:    { fontFamily:'DMSerifDisplay_400Regular', fontSize:22, color:C.ink, letterSpacing:-0.3 },
+  calGrid:     { flexDirection:'row', flexWrap:'wrap', paddingHorizontal:10 },
+  calCell:     { width:`${100/7}%` as any, aspectRatio:1, alignItems:'center', justifyContent:'center' },
+  calHdr:      { fontFamily:'Poppins_700Bold', fontSize:9, textTransform:'uppercase', color:C.ink3 },
+  calDayInner: { width:CELL_SIZE, height:CELL_SIZE, borderRadius:CELL_SIZE/2, alignItems:'center', justifyContent:'center', position:'relative' },
+  calDayToday: { backgroundColor:C.magL },
+  calDaySel:   { backgroundColor:'rgba(255,75,158,0.12)' },
+  calDayTxt:   { fontFamily:'Poppins_500Medium', fontSize:16, color:C.ink },
+  calDayOther: { color:C.ink3 },
+  calDot:      { width:4, height:4, borderRadius:2, backgroundColor:C.magL },
+  csdCard:     { marginHorizontal:18, marginTop:8, backgroundColor:C.card, borderRadius:16, borderWidth:1, borderColor:C.border, overflow:'hidden', marginBottom:10 },
+  csdTitle:    { fontFamily:'Poppins_700Bold', fontSize:10, color:C.ink3, letterSpacing:0.8, padding:12, paddingBottom:6, textTransform:'uppercase' as const },
+  csdRow:      { flexDirection:'row', alignItems:'center', gap:10, paddingHorizontal:12, paddingVertical:10, borderBottomWidth:1, borderBottomColor:C.border },
+  csdAccent:   { width:3, height:36, borderRadius:2, flexShrink:0 },
+  csdName:     { fontFamily:'Poppins_600SemiBold', fontSize:13, color:C.ink },
+  csdTime:     { fontFamily:'Poppins_400Regular', fontSize:11, color:C.ink2, marginTop:1 },
+
+  modalHdr:      { flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:16, borderBottomWidth:1, borderBottomColor:C.border },
+  modalCancel:   { fontFamily:'Poppins_500Medium', fontSize:15, color:C.ink2 },
+  modalTitle:    { fontFamily:'Poppins_700Bold', fontSize:16, color:C.ink },
+  modalSave:     { fontFamily:'Poppins_700Bold', fontSize:15, color:C.magL },
+  modalTabs:     { flexDirection:'row', paddingHorizontal:16, paddingTop:10, borderBottomWidth:1, borderBottomColor:C.border },
   modalTab:      { flex:1, paddingVertical:10, alignItems:'center', borderBottomWidth:2, borderBottomColor:'transparent', marginBottom:-1 },
-  modalTabOn:    { borderBottomColor:CAL },
-  modalTabTxt:   { fontFamily:'Poppins_600SemiBold', fontSize:13, color:INK2 },
-  modalTabTxtOn: { color:CAL },
+  modalTabOn:    { borderBottomColor:C.magL },
+  modalTabTxt:   { fontFamily:'Poppins_600SemiBold', fontSize:13, color:C.ink2 },
+  modalTabTxtOn: { color:C.magL },
 
-  // Mini cal picker
-  miniCalNav:      { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8 },
-  miniCalArrBtn:   { padding:4 },
-  miniCalArr:      { fontSize:20, color:INK2, fontFamily:'Poppins_400Regular' },
-  miniCalLbl:      { fontFamily:'Poppins_700Bold', fontSize:14, color:INK },
+  miniCalNav:    { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8 },
+  miniCalArrBtn: { padding:4 },
+  miniCalArr:    { fontSize:20, color:C.ink2, fontFamily:'Poppins_400Regular' },
+  miniCalLbl:    { fontFamily:'Poppins_700Bold', fontSize:14, color:C.ink },
   miniCalGrid:     { flexDirection:'row', flexWrap:'wrap' },
-  miniCalHdr:      { width:`${100/7}%` as any, textAlign:'center', fontFamily:'Poppins_700Bold', fontSize:9, color:INK3, paddingVertical:4 },
+  miniCalHdr:      { width:`${100/7}%` as any, textAlign:'center', fontFamily:'Poppins_700Bold', fontSize:9, color:C.ink3, paddingVertical:4 },
   miniCalDay:      { width:`${100/7}%` as any, aspectRatio:1, alignItems:'center', justifyContent:'center' },
   miniCalDayInner: { width:32, height:32, borderRadius:16, alignItems:'center', justifyContent:'center' },
-  miniCalDayTxt:   { fontFamily:'Poppins_500Medium', fontSize:13, color:INK },
+  miniCalDayTxt:   { fontFamily:'Poppins_500Medium', fontSize:13, color:C.ink },
 
-  // Form fields
-  gcBlock:         { marginHorizontal:16, marginTop:14, backgroundColor:'#fff', borderRadius:16, borderWidth:1.5, borderColor:BORDER, overflow:'hidden' },
-  gcRow:           { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:14 },
-  gcRowLbl:        { fontFamily:'Poppins_500Medium', fontSize:15, color:INK },
-  gcRowRight:      { flexDirection:'row', alignItems:'center' },
-  gcRowRightTxt:   { fontFamily:'Poppins_500Medium', fontSize:15, color:INK2 },
-  gcSep:           { height:1, backgroundColor:BORDER, marginLeft:16 },
-  gcTitleInput:    { paddingHorizontal:16, paddingVertical:16, fontFamily:'Poppins_600SemiBold', fontSize:17, color:INK },
-  gcSubInput:      { paddingHorizontal:16, paddingVertical:14, fontFamily:'Poppins_400Regular', fontSize:15, color:INK },
-  gcPill:          { backgroundColor:BG, borderRadius:10, paddingHorizontal:12, paddingVertical:7, borderWidth:1.5, borderColor:BORDER },
-  gcPillTxt:       { fontFamily:'Poppins_500Medium', fontSize:13, color:INK },
-  gcToggle:        { width:44, height:26, borderRadius:13, backgroundColor:BORDER, justifyContent:'center', paddingHorizontal:2 },
-  gcToggleOn:      { backgroundColor:CAL },
-  gcToggleThumb:   { width:22, height:22, borderRadius:11, backgroundColor:'#fff', shadowColor:'#000', shadowOpacity:0.15, shadowRadius:2, shadowOffset:{ width:0, height:1 } },
-  gcToggleThumbOn: { transform:[{ translateX:18 }] },
+  gcBlock:        { marginHorizontal:16, marginTop:14, backgroundColor:'#fff', borderRadius:16, borderWidth:1.5, borderColor:C.border, overflow:'hidden' },
+  gcRow:          { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:14 },
+  gcRowLbl:       { fontFamily:'Poppins_500Medium', fontSize:15, color:C.ink },
+  gcRowRight:     { flexDirection:'row', alignItems:'center' },
+  gcRowRightTxt:  { fontFamily:'Poppins_500Medium', fontSize:15, color:C.ink2 },
+  gcSep:          { height:1, backgroundColor:C.border, marginLeft:16 },
+  gcTitleInput:   { paddingHorizontal:16, paddingVertical:16, fontFamily:'Poppins_600SemiBold', fontSize:17, color:C.ink },
+  gcSubInput:     { paddingHorizontal:16, paddingVertical:14, fontFamily:'Poppins_400Regular', fontSize:15, color:C.ink },
+  gcPill:         { backgroundColor:C.bg, borderRadius:10, paddingHorizontal:12, paddingVertical:7, borderWidth:1.5, borderColor:C.border },
+  gcPillTxt:      { fontFamily:'Poppins_500Medium', fontSize:13, color:C.ink },
+  gcToggle:       { width:44, height:26, borderRadius:13, backgroundColor:C.border, justifyContent:'center', paddingHorizontal:2 },
+  gcToggleOn:     { backgroundColor:C.magL },
+  gcToggleThumb:  { width:22, height:22, borderRadius:11, backgroundColor:'#fff', shadowColor:'#000', shadowOpacity:0.15, shadowRadius:2, shadowOffset:{ width:0, height:1 } },
+  gcToggleThumbOn:{ transform:[{ translateX:18 }] },
 
-  // People picker
-  memberRow:   { flexDirection:'row', alignItems:'center', gap:12, padding:14, backgroundColor:BG, borderRadius:14, borderWidth:1.5, borderColor:BORDER },
+  memberRow:   { flexDirection:'row', alignItems:'center', gap:12, padding:14, backgroundColor:C.bg, borderRadius:14, borderWidth:1.5, borderColor:C.border },
   memberDot:   { width:12, height:12, borderRadius:6, flexShrink:0 },
-  memberName:  { fontFamily:'Poppins_500Medium', fontSize:15, color:INK, flex:1 },
-  memberCheck: { width:24, height:24, borderRadius:7, borderWidth:2, borderColor:INK3, alignItems:'center', justifyContent:'center' },
+  memberName:  { fontFamily:'Poppins_500Medium', fontSize:15, color:C.ink, flex:1 },
+  memberCheck: { width:24, height:24, borderRadius:7, borderWidth:2, borderColor:C.ink3, alignItems:'center', justifyContent:'center' },
 
-  // Event detail modal
-  detailRow:        { flexDirection:'row', alignItems:'flex-start', gap:12 },
-  detailIcon:       { fontSize:18, width:26, textAlign:'center' as any, marginTop:1 },
-  detailTxt:        { fontFamily:'Poppins_400Regular', fontSize:15, color:INK, flex:1, lineHeight:22 },
-  deleteBtn:        { backgroundColor:'rgba(255,59,59,0.08)', borderRadius:14, paddingVertical:14, alignItems:'center', borderWidth:1.5, borderColor:'rgba(255,59,59,0.18)' },
-  deleteBtnConfirm: { backgroundColor:'rgba(255,59,59,0.15)', borderColor:'rgba(255,59,59,0.4)' },
-  deleteBtnTxt:     { fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#FF3B3B' },
-  editBtn:          { backgroundColor:`${CAL}10`, borderRadius:14, paddingVertical:14, alignItems:'center', borderWidth:1.5, borderColor:`${CAL}30` },
-  editBtnTxt:       { fontFamily:'Poppins_600SemiBold', fontSize:14, color:CAL },
+  detailRow:       { flexDirection:'row', alignItems:'flex-start', gap:12 },
+  detailIcon:      { fontSize:18, width:26, textAlign:'center' as any, marginTop:1 },
+  detailTxt:       { fontFamily:'Poppins_400Regular', fontSize:15, color:C.ink, flex:1, lineHeight:22 },
+  deleteBtn:       { backgroundColor:'rgba(255,59,59,0.08)', borderRadius:14, paddingVertical:14, alignItems:'center', borderWidth:1.5, borderColor:'rgba(255,59,59,0.18)' },
+  deleteBtnConfirm:{ backgroundColor:'rgba(255,59,59,0.15)', borderColor:'rgba(255,59,59,0.4)' },
+  deleteBtnTxt:    { fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#FF3B3B' },
+  editBtn:         { backgroundColor:'rgba(255,75,158,0.08)', borderRadius:14, paddingVertical:14, alignItems:'center', borderWidth:1.5, borderColor:'rgba(255,75,158,0.25)' },
+  editBtnTxt:      { fontFamily:'Poppins_600SemiBold', fontSize:14, color:C.magL },
+
+  askBarWrap:      { position:'absolute', bottom:0, left:0, right:0, paddingHorizontal:16, paddingBottom:Platform.OS==='ios' ? 32 : 16, paddingTop:8, backgroundColor:'transparent' },
+  askBar:          { backgroundColor:'#fff', borderRadius:28, paddingVertical:13, paddingHorizontal:16, flexDirection:'row', alignItems:'center', gap:8, shadowColor:'#000', shadowOpacity:0.1, shadowRadius:18, shadowOffset:{width:0,height:4}, elevation:5 },
+  askDiamondWrap:  { width:20, alignItems:'center', justifyContent:'center' },
+  askDiamond:      { fontSize:15, color:C.magL },
+  askText:         { flex:1, fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(0,0,0,0.28)' },
+  askMic:          { width:36, height:36, alignItems:'center', justifyContent:'center', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:11, flexShrink:0 },
+  askSend:         { width:36, height:36, borderRadius:11, backgroundColor:C.magL, alignItems:'center', justifyContent:'center', flexShrink:0, shadowColor:C.mag, shadowOpacity:0.3, shadowRadius:6, shadowOffset:{width:0,height:2} },
+
+  timeColon:    { fontFamily:'Poppins_700Bold', fontSize:26, color:C.ink3, marginBottom:0 },
+  dropdown:       { position:'absolute', right:0, top:36, backgroundColor:'#fff', borderRadius:14, borderWidth:1.5, borderColor:C.border, zIndex:100, minWidth:200, shadowColor:'#000', shadowOpacity:0.1, shadowRadius:12, shadowOffset:{ width:0, height:4 } },
+  dropdownItem:   { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:13, borderBottomWidth:1, borderBottomColor:C.border },
+  dropdownItemTxt:{ fontFamily:'Poppins_400Regular', fontSize:15, color:C.ink },
+  formField:     { gap:6 },
+  formLabel:     { fontFamily:'Poppins_600SemiBold', fontSize:11, color:C.ink2, textTransform:'uppercase', letterSpacing:0.5 },
+  formInput:     { backgroundColor:C.bg, borderRadius:12, borderWidth:1.5, borderColor:C.border, paddingHorizontal:14, paddingVertical:13, fontFamily:'Poppins_400Regular', fontSize:15, color:C.ink, justifyContent:'center' },
 });
