@@ -1,27 +1,27 @@
 ## Zaeli App — New Chat Handover
-*24 March 2026 — Session 17 complete. Copy this entire message to start a new chat.*
+*25 March 2026 — Session 18. Copy this entire message to start a new chat.*
 
 ---
 
-Hi! I'm continuing development of **Zaeli** — an iOS-first AI family life platform built in React Native / Expo. We've been building this together across many sessions. Please read this carefully before we start.
+Hi! I'm continuing development of **Zaeli** — an iOS-first AI family life platform built in React Native / Expo. Please read this fully before we start.
 
 ---
 
-### How I like to work
-- I'm a **beginner developer** — always give me **full file rewrites** I can copy-paste, never partial diffs
+### How I work
+- I'm a **beginner developer** — always give me **full file rewrites**, never partial diffs
 - One PowerShell command at a time, never chained with &&
-- Copy files with: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\(tabs)\file.tsx"`
-- **HTML mockup first, always** — agree on exact design in HTML before writing any React Native code
-- Explain what you're doing in plain English before diving into code
-- The **Zaeli persona is the most important thing** — every response must feel like a switched-on friend, never a chatbot
-- After every file copy: `npx expo start --dev-client` (R alone is not sufficient in dev build)
+- Copy files: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\(tabs)\file.tsx"`
+- **HTML mockup first, always** — agree on design in HTML before writing any React Native
+- Explain what you're doing in plain English before code
+- After every file copy: Ctrl+C then `npx expo start --dev-client`
+- New chat sessions have no file access — ask me to paste the relevant file before editing
 
 ---
 
 ### Who I am
-- My name is Richard, goes by **Rich**. Logged-in user in app is also **Rich**
+- **Richard**, goes by **Rich**. Logged-in user in app is **Rich**
 - Family: Anna, Rich, Poppy (Yr6, age 12, girl), Gab (Yr4, age 10, BOY — Gabriel, he/him), Duke (Yr1, age 8, boy)
-- Local path: C:\Users\richa\zaeli (Windows, PowerShell)
+- Local path: `C:\Users\richa\zaeli` (Windows, PowerShell)
 - Repo: https://github.com/RDK1981/zaeli (private)
 - Admin: https://incomparable-gumdrop-32e4ba.netlify.app
 
@@ -31,97 +31,119 @@ Hi! I'm continuing development of **Zaeli** — an iOS-first AI family life plat
 ```
 DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
 SONNET    = 'claude-sonnet-4-6'
-GPT_MODEL = 'gpt-5.4-mini'
+GPT_MODEL = 'gpt-4.1-mini'
 MEMBER_NAME = 'Rich'
-expo-file-system: always import from 'expo-file-system/legacy' (SDK 54)
+expo-file-system: always import from 'expo-file-system/legacy'
 api_logs columns: input_tokens / output_tokens (NOT prompt_tokens/completion_tokens)
 ```
 
 ---
 
-### Family colour system (LOCKED — used everywhere)
+### Family colours (LOCKED)
 ```
-Rich:  #4D8BFF  Anna: #FF7B6B  Poppy: #A855F7  Gab: #22C55E  Duke: #F59E0B
+Rich: #4D8BFF  Anna: #FF7B6B  Poppy: #A855F7  Gab: #22C55E  Duke: #F59E0B
 ```
 
 ---
 
-### What was accomplished in Session 17 (24 March 2026)
+### Session 18 — What was accomplished (25 March 2026)
 
-**Apple Developer + Dev Build:**
-- Apple Developer account approved, Bundle ID com.zaeli.app registered
-- EAS build configured, dev build installed on iPhone 11 Pro Max
-- App runs via `npx expo start --dev-client` — hot reload, no reinstall needed
-- After every file copy restart is needed: Ctrl+C then `npx expo start --dev-client`
+**Major design decision — Time Grid:**
+Moved from flat event list to true time grid for calendar day view. This was a foundational UX decision discussed at length. Key principles locked:
+- 48px per hour — true proportional height
+- 1-2 overlaps: side by side, full text
+- 3-4 overlaps: quarter columns, colour + avatar only, no text — tap for detail
+- 5+: show 3 + "+N more" pill
+- Conflict indicator: red ! badge at overlap point
+- All-day/multi-day: banner lane ABOVE the time grid (not in the grid)
+- Grid start: `max(6am, currentTime - 2 hours)` — shows 2 hours of past context (running events, recent pickups), then present + future
+- Now-line always visible near top third
 
-**API Logging Fixed:**
-- Root cause: `api_logs` table uses `input_tokens`/`output_tokens` not `prompt_tokens`/`completion_tokens`
-- All inserts were silently failing — now fixed in index.tsx
-- Feature keys: `home_brief`, `chat_response`, `whisper_transcription`, `chat_vision`
-- Admin dashboard restored and working with correct Supabase key
+**Three-layer reminder system designed:**
+- Layer 1 — Events: timed blocks in time grid
+- Layer 2 — Reminders: day-attached chips above grid + in brief. NOT time blocks. Tagged to person.
+- Layer 3 — Zaeli's knowledge: invisible, surfaces in brief contextually
 
-**Admin Dashboard:**
-- Old Operations Centre dashboard restored to Netlify
-- New Supabase anon key: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...9ssTEwSxgY4B7nXxTEyKB3QDIoeCLh8yMo9jO-m5i-w`
+**Chat render decisions locked:**
+- Pixel-identical to dedicated screen — same component, full width, zero wrapper
+- Fixed height with bottom fade — honest "more below" signal
+- NO nested scroll (deferred to post-v1 based on user testing)
+- NO date strip in chat (deferred to post-v1)
+- Navigation handled conversationally: "What's tomorrow", "Show me Wednesday"
+- Grid starts at same `max(6am, currentTime - 2 hours)` as dedicated screen
 
-**Persona fixes (index.tsx):**
-- MEMBER_NAME changed from Anna → Rich
-- Added rule: never end on bare question ("What do you need?" is explicitly forbidden)
-- Must always offer something specific before leaving door open
-- Match energy of what user sent all the way through
+**V1 philosophy agreed:**
+Ship clean, get in front of real users, listen to actual behaviour before over-engineering. Don't build nested scroll, date strip in chat, or real-time subscriptions until users ask for them.
 
-**Calendar screen — design fully locked in HTML mockup:**
-- Colour: **Electric Red Coral #E8374B** — warm, electric, not pink, not magenta
-- 4-version HTML mockup built (zaeli-calendar-v4.html) — this is gospel for the rewrite
-- Day view: tinted background per person, no left border, person avatars, darker time text
-- Month view: multi-colour family dots, legend, tinted bubble preview (same style as day view)
-- Day/Month toggle only (Week removed)
-- Floating chat bar: `+` · divider · "Chat with Zaeli…" · mic · send
-- No brief card — removed entirely
-- **Chat render: zero wrapper, full width, pixel-identical to dedicated screen**
-- **Conversational edit flow**: tap event in chat → Zaeli responds → edit in 3 taps → no form
-  - Quick replies: Time · Day · Who's coming · Title · Delete · Manual edit (last, faded)
-  - "Manual edit" opens edit sheet as last resort only
-- **Month tap in chat**: tap date → Zaeli responds → day events appear inline below month grid
-- Supabase: `assignees` jsonb column added to events table (24 March 2026)
-- Mock events inserted for all 5 family members across the week
+**Mockup files created (gospel — build from these):**
+- `zaeli-calendar-v4.html` — day view, month view, chat renders, add event, conversational edit
+- `zaeli-timegrid-v2.html` — time grid architecture, overlap states, all-day banners, reminder chips, chat renders for all 3 scenarios
 
-**What's still broken / pending:**
-- calendar.tsx needs full rewrite from scratch against zaeli-calendar-v4.html
-- Blue keyboard tint — needs new EAS build (tintColor already set in app.json)
-- zaeli-chat.tsx will become redundant once index.tsx handles everything
+**Session 17 recap (24 March 2026):**
+- Apple Developer account + dev build on iPhone 11 Pro Max
+- API logging fixed (input_tokens/output_tokens)
+- Admin dashboard restored
+- Persona updated: MEMBER_NAME = Rich, no bare questions, match energy
+- Calendar colour locked: Electric Red Coral #E8374B
+- assignees jsonb column added to events table
+- Mock events inserted for all 5 family members
 
 ---
 
 ### Immediate next step
-**Rewrite calendar.tsx from scratch** against `zaeli-calendar-v4.html` mockup. This is a clean rewrite — not a patch. All existing logic (Supabase queries, AddEventFlow, EventDetailModal, time picker, repeat rules) stays intact. Only the visual layer is replaced.
+**calendar.tsx full rewrite from scratch** against:
+1. `zaeli-calendar-v4.html` — overall layout, colours, add event flow, conversational edit
+2. `zaeli-timegrid-v2.html` — time grid specifics
+
+This is a **clean rewrite, not a patch**. All existing logic (Supabase queries, AddEventFlow, EventDetailModal, time picker, repeat rules) stays intact. Only the visual layer is replaced with the time grid architecture.
+
+Before starting the rewrite, ask Rich to:
+1. Upload his current `calendar.tsx` so you have the latest version
+2. Confirm the mockup files are in Downloads if needed
 
 ---
 
-### Key design decisions locked (do not revisit)
+### All locked design decisions
+
+**Calendar:**
+- Accent: Electric Red Coral #E8374B
+- True time grid (48px/hr), not flat list
+- Grid start: max(6am, currentTime - 2 hours)
+- No left border on event blocks — tinted background only
+- Person avatars on each event
+- Overlap: progressive disclosure (see above)
+- All-day: banner lane above grid
+- Reminders: chips, not time blocks
+- Day/Month toggle only (Week removed permanently)
+- No brief card
+- Chat render: zero wrapper, full width, fixed height, bottom fade, no nested scroll, no date strip
+- Conversational edit in chat (tap → Zaeli responds → 3 taps to done)
+- Edit form on dedicated screen: opens immediately on tap
+
+**General:**
 - No floating FAB anywhere
-- Hamburger menu only navigation  
-- Tiles on home: Option C coloured footer bars
-- To-dos: Gold `#B8A400`
-- Logo on every screen taps → home (`router.replace('/(tabs)/')`)
-- Chat bar: `+` · divider · placeholder · mic · send — matches home screen exactly
-- Calendar accent: Electric Red Coral `#E8374B`
+- Hamburger menu only navigation
+- Logo taps → home (router.replace('/(tabs)/'))
+- Chat bar: + · divider · "Chat with Zaeli…" · mic · send
 - Family colours locked (see above)
-- Calendar event blocks: tinted bg only, NO left border, person avatars
-- Chat renders: zero wrapper, full width, identical to dedicated screen
-- Conversational edit preferred; form is last resort
+- SafeAreaView edges={['top']} always
+- expo-file-system from 'expo-file-system/legacy'
+
+---
+
+### Supabase notes
+- events table: `assignees` jsonb column added 24 March 2026
+- reminders table: **needs to be created** (see CLAUDE.md for SQL)
+- api_logs: input_tokens / output_tokens columns
 
 ---
 
 ### Tech reminders
-- `npx expo start --dev-client` (not --clear) for dev build
+- `npx expo start --dev-client` (not --clear)
 - After EVERY file copy: Ctrl+C then restart
-- Supabase: rsvbzakyyrftezthlhtd (Sydney ap-southeast-2)
-- Admin file: C:\Users\richa\Downloads\zaeli-admin\index.html → drag to Netlify
-- KAV pattern: KAV (behavior='padding') → View (flex:1, position:relative) → [ScrollView + absolute inputArea]
-- SafeAreaView edges={['top']} always
-- events table needs assignees column (already added)
+- Bundle ID: com.zaeli.app
+- Device: iPhone 11 Pro Max (UDID: 00008030-0019116E1AC1802E)
 
 ---
 
-**First priority: calendar.tsx full rewrite against zaeli-calendar-v4.html mockup.**
+**First priority: calendar.tsx full rewrite against zaeli-calendar-v4.html + zaeli-timegrid-v2.html**
