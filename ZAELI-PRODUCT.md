@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 25 March 2026 — Session 18*
+*Last updated: 25 March 2026 — Sessions 17-18 complete*
 
 ---
 
@@ -35,6 +35,8 @@ Australian families with children. Highest-priority segment: dual-income couples
 ### Chat is home
 The home screen IS a chat with Zaeli. No dashboard, no overview. You open the app, Zaeli greets you, you're in conversation. Everything else is accessible through conversation or the hamburger menu.
 
+**Cold start flow (as of Sessions 17-18):** Splash → directly into chat. The intermediate "Hey Anna / Speak to Zaeli / tap a topic" entry screen has been removed — it was annoying and added no value. Zaeli's brief generates immediately on open.
+
 ### Screens are data tools
 Calendar, Shopping, Meals, Todos — these screens exist for deep editing and management. For reading and quick actions, Zaeli handles everything in chat. Over time, users will rarely need to visit dedicated screens.
 
@@ -42,58 +44,110 @@ Calendar, Shopping, Meals, Todos — these screens exist for deep editing and ma
 When Zaeli surfaces data (calendar events, shopping list, meal plan), it renders **full-width, borderless, pixel-identical to the dedicated screen** — as if the screen extended into the conversation. No card wrappers, no borders added. Same component, same design, same code.
 
 ### Conversational first, form as fallback
-Every action that can be done conversationally should be done conversationally. Forms exist as safety nets for edge cases. Calendar edits take 3 taps through Zaeli's questions — the edit form only opens if explicitly requested via "Manual edit".
+Every action that can be done conversationally should be done conversationally. Forms exist as safety nets for edge cases. Calendar edits happen through Zaeli — the manual form only opens if explicitly requested.
 
 ### V1 principle — ship clean, listen to users
-Do not over-engineer v1. Ship something clean and functional, get it in front of real families, and let actual behaviour tell you what to build next. Specific things deferred to post-v1 based on this principle:
-- Nested scroll in chat calendar grid
-- Date strip in chat calendar
+Do not over-engineer v1. Ship something clean and functional, get it in front of real families, and let actual behaviour tell you what to build next. Deferred to post-v1:
 - Real-time Supabase subscriptions
 - Week view in calendar
+- Nested scroll in chat calendar grid
 
 ---
 
-## Calendar — Full Design System (Locked Session 18)
+## Calendar — Full Design System (Locked Sessions 17-18)
 
-### The fundamental change from v1 design
-Moved from a **flat event list** to a **true time grid**. This was a foundational UX decision — a flat list makes a 15-minute task look identical to a 2-hour block. The time grid makes duration, overlap, and free time immediately readable without reading any text.
+### The fundamental change
+Moved from a **flat event list** to a **true time grid**. A flat list makes a 15-minute task look identical to a 2-hour block. The time grid makes duration, overlap, and free time immediately readable without reading any text.
 
 ### Time grid rules
 - 48px = 1 hour. Proportional height always.
-- Grid start: `max(6am, currentTime - 2 hours)` — shows recent past for context (running events, recent pickups) plus present and future
-- Now-line always visible near top third of grid
-- Empty hours are genuinely empty — free time is instantly readable
+- Full day rendered: 0am–midnight (24 hours). Auto-scrolls to `max(0, currentHour - 2)` on load.
+- Now-line: Electric Red Coral dot + line, always visible.
+- Half-hour dashed guidelines between hour lines.
+- Empty hours are genuinely empty — free time is instantly readable.
 
 ### Overlap handling — progressive disclosure
 - 1-2 overlapping: side by side, full text
-- 3-4 overlapping: quarter columns, colour + avatar only (no text) — tap for detail
-- 5+ overlapping: show 3 + "+N more" pill
-- Conflict indicator: red ! badge at overlap point
-- **The key insight:** with the family colour system, you don't need to read event titles to understand the shape of the day. Colour does the work. Text is secondary information, available on tap.
-
-### Three-layer reminder system
-This was a key product decision in Session 18. Not everything belongs as a calendar event:
-- **Layer 1 — Events:** timed commitments. Dentist at 9am. Soccer pickup at 3:15.
-- **Layer 2 — Reminders:** day-attached but not time-blocked. "Poppy's swimmers — Thursdays." "Bins out Monday." Shown as chips above the time grid and surfaced in the brief.
-- **Layer 3 — Zaeli's knowledge:** things Zaeli knows and factors into reasoning without surfacing constantly. "Duke has library Wednesdays." Zaeli mentions these when relevant in the brief.
+- 3-4 overlapping: compact columns, colour + avatar only — tap for detail
+- Conflict indicator: red `!` badge at overlap point
+- The family colour system means you don't need to read event titles to understand the shape of the day
 
 ### All-day / multi-day events
-Banner lane above the time grid. Anna's 4-day Melbourne trip = coral pill spanning all 4 days — unavailability is instantly obvious without reading anything.
+Banner lane above the time grid. Unavailability is instantly obvious without reading anything.
 
-### Chat render philosophy
-The calendar in Zaeli chat is a **preview, not a replacement**. Fixed height with a bottom fade — honest UI that communicates "there's more." The conversational interface handles navigation ("What's tomorrow", "Show me Wednesday") rather than UI controls. The dedicated screen is where you get full control.
+### Three-layer reminder system
+- **Layer 1 — Events:** timed commitments. Dentist at 9am. Soccer pickup at 3:15.
+- **Layer 2 — Reminders:** day-attached but not time-blocked. Shown as chips above the grid.
+- **Layer 3 — Zaeli's knowledge:** invisible context that surfaces in the brief when relevant.
+
+### Calendar chat bar
+- Identical structure to Zaeli home chat bar — see Chat Bar section below
+- Only difference: `+` button opens Add Event sheet (not attachment sheet)
+- Typed text navigates to Zaeli home with `seedMessage` param — Zaeli responds in context
+- Mic navigates to Zaeli home with `autoMic:'true'` — recording starts automatically
+
+### Calendar event CRUD via Zaeli
+Zaeli in home chat (index.tsx) uses Anthropic Claude with tool-calling to write directly to Supabase:
+- `add_calendar_event` — inserts with title, date, start_time, end_time, timezone
+- `update_calendar_event` — searches by title + optional `search_date`, updates in place
+- `delete_calendar_event` — deletes by title search
+- Duration is preserved when only start time is changed
+- Today's date is always passed to Claude so "tomorrow" calculations are correct
+
+### Photo scan → event creation
+1. User taps `+` → "Scan an invite or fixture"
+2. Camera or photo library opens
+3. Image URI stored in shared module variable
+4. Navigates to Zaeli home with `calendarScan:'true'` param
+5. Zaeli reads image via Anthropic vision (claude-sonnet-4-20250514)
+6. Extracts event details, confirms with user, adds to calendar via tool call
+
+---
+
+## The Canonical Chat Bar (LOCKED — all screens identical)
+
+This was a major focus of Sessions 17-18. Every screen must use exactly the same chat bar. See `ZAELI-CHAT-BAR-SPEC.md` for full detail.
+
+**Structure:**
+```
+inputArea (position:absolute, bottom:0, transparent background)
+└── barPill (borderRadius:30, paddingV:14, paddingH:16, border:1, shadow)
+    ├── barBtn 34×34 → IcoPlus 20×20 SVG    ← only this changes per screen
+    ├── barSep 1×18px
+    ├── TextInput (fontSize:15, Poppins_400Regular)
+    ├── barBtn 34×34 → IcoMic 20×20 SVG
+    └── barSend 32×32 borderRadius:16 #FF4545 → IcoSend 16×16 white
+```
+
+**Keyboard handling:** KAV wraps `contentWrap` (position:relative) which contains ScrollView + inputArea (position:absolute). `keyboardWillShow/Hide` listeners switch `inputAreaKb` (paddingBottom: iOS 8px vs 30px at rest).
+
+**Per-screen `+` action:**
+| Screen | + action |
+|--------|----------|
+| Home (index) | Opens attachment/action sheet |
+| Calendar | Opens Add Event sheet |
+| Shopping | Opens Add Item |
+| All others | Opens Zaeli attachment sheet |
 
 ---
 
 ## Screen-by-Screen Design Decisions
 
-### Home (index.tsx) — Complete
-- AI-first chat interface
-- Brief generates on open, thinking dots → fade in complete text
-- Calendar events render inline in chat — full width, no border
+### Home (index.tsx) — Active development
+- Zaeli IS the home screen — no separate chat screen
+- Cold start: Splash (1.5s) → chat immediately (entry screen removed)
+- Brief generates on open with thinking dots → fade in
+- Tool-calling: Zaeli writes calendar events, todos, shopping items directly to Supabase
+- Voice: Whisper transcribes → sends as first message → Zaeli responds
+- Calendar context: fetches `start_time` (not `time`) across 7-day window, limit 20 events
 
-### Calendar (calendar.tsx) — Being rebuilt
-See Calendar section above. Accent: Electric Red Coral #E8374B.
+### Calendar (calendar.tsx) — Active development
+- Time grid (48px/hour, 0am–midnight)
+- Day strip: multi-colour family dots, scrolls to today on load
+- Month view: larger numbers, multi-colour dots, family legend, day preview
+- Event detail: View mode + manual Edit mode + Edit with Zaeli
+- Add event: Zaeli path (with context) + photo scan + manual form
+- Accent: Electric Red Coral #E8374B
 
 ### Shopping (shopping.tsx) — Complete
 - List / Pantry / Spend tabs
@@ -102,15 +156,36 @@ See Calendar section above. Accent: Electric Red Coral #E8374B.
 
 ### Tutor Module — Complete
 - Socratic method — NEVER give the answer
-- Vision pipeline: Claude reads image → GPT responds
+- Vision pipeline: Claude reads image → GPT guides
+- Full-width document-style chat (not bubbles)
 
 ---
 
 ## Family Colour System (LOCKED)
 ```
-Rich:  #4D8BFF  Anna: #FF7B6B  Poppy: #A855F7  Gab: #22C55E  Duke: #F59E0B
+Rich:  #4D8BFF  
+Anna:  #FF7B6B  
+Poppy: #A855F7  
+Gab:   #22C55E  
+Duke:  #F59E0B
 ```
-Person-first. External calendar events follow the person's colour.
+Person-first. External calendar events follow the person's colour. Used for grid dots, event blocks, avatars throughout.
+
+---
+
+## Per-Screen Accent Colours (LOCKED)
+```
+Home & Chat:    Electric Coral  #FF4545   (send button, mic active)
+Calendar:       Electric Red    #E8374B
+Shopping:       Forest Green    #1A7A45
+Meal Planner:   Terracotta      #E8601A
+Tutor:          Deep Violet     #6B35D9
+To-do List:     Zaeli Gold      #C9A820
+Travel:         Ocean Cyan      #0096C7
+Notes:          Sage Olive      #5C8A3C
+Our Family:     Magenta Pink    #D4006A
+Settings:       Slate Grey      #6B7280
+```
 
 ---
 
@@ -121,6 +196,9 @@ The most powerful moments are when Zaeli flags something the user didn't ask abo
 
 ### The brief
 Four parts: callback → what's coming → what's slipping → contextual question. See zaeli-brief-logic-spec.md for full rules. The brief is the most important piece of communication in the app.
+
+### Instant action
+When Zaeli says she's done something — she actually did it. No "I'll remind you to do that" — she does it. Real writes to Supabase, confirmed immediately. This is the product's core promise.
 
 ---
 
@@ -134,10 +212,14 @@ Four parts: callback → what's coming → what's slipping → contextual questi
 ---
 
 ## Pre-Launch Checklist
-- [ ] calendar.tsx rewrite complete (time grid)
-- [ ] reminders Supabase table created
+- [ ] calendar.tsx rewrite complete (time grid) — in progress, mostly working
+- [ ] Calendar event CRUD verified end-to-end (add/update/delete via Zaeli)
+- [ ] Photo scan → event creation verified end-to-end
+- [ ] Console.log cleanup from debugging
 - [ ] New EAS build (keyboard tint fix)
 - [ ] TestFlight build for Anna
 - [ ] Remove AI toggle from more.tsx
 - [ ] Replace DUMMY_FAMILY_ID with real Supabase auth
 - [ ] Website + Stripe + onboarding flow
+- [ ] tutor-practice.tsx UX review
+- [ ] tutor-reading.tsx UX review
