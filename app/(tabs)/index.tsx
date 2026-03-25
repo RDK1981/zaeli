@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { getPendingCalendarImage, setPendingCalendarImage } from './calendar';
 import Svg, { Path, Line, Rect, Circle, Polyline, Polygon } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -23,7 +24,7 @@ import { NavMenu, HamburgerButton } from '../components/NavMenu';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
-const MEMBER_NAME = 'Rich';
+const MEMBER_NAME = 'Anna';
 const CORAL = '#FF4545';
 const INK   = '#0A0A0A';   // fallback for icon default props
 const INK3  = 'rgba(10,10,10,0.32)';  // fallback for icon default props
@@ -128,30 +129,7 @@ interface Msg {
   isLoading?: boolean;
   isBrief?: boolean;
   isVoice?: boolean;
-  quickReplies?: string[];
-  calendarEvents?: any[];         // day events to render inline
-  calendarDate?: string;          // YYYY-MM-DD for day view
-  calendarMonth?: boolean;        // true = render month view
-  calendarMonthDate?: string;     // YYYY-MM for month view
-}
-
-// ── Family colours (shared with calendar) ──────────────────────────────────
-const FAMILY_MEMBERS = [
-  { id: '1', name: 'Anna',  initial: 'A', color: '#FF7B6B' },
-  { id: '2', name: 'Rich',  initial: 'R', color: '#4D8BFF' },
-  { id: '3', name: 'Poppy', initial: 'P', color: '#A855F7' },
-  { id: '4', name: 'Gab',   initial: 'G', color: '#22C55E' },
-  { id: '5', name: 'Duke',  initial: 'D', color: '#F59E0B' },
-];
-function getMemberColor(assignees?: string[]): string {
-  if (!assignees || assignees.length === 0) return '#4D8BFF';
-  return FAMILY_MEMBERS.find(m => assignees.includes(m.id))?.color ?? '#4D8BFF';
-}
-function getMemberInitial(id: string): string {
-  return FAMILY_MEMBERS.find(m => m.id === id)?.initial ?? '?';
-}
-function getMemberColorById(id: string): string {
-  return FAMILY_MEMBERS.find(m => m.id === id)?.color ?? '#4D8BFF';
+  quickReplies?: string[];   // contextual chips for brief
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -188,15 +166,11 @@ async function logApiCall(params: {
 }) {
   try {
     await supabase.from('api_logs').insert({
-      family_id:    params.family_id,
-      feature:      params.feature,
-      model:        params.model,
-      input_tokens:  params.prompt_tokens,
-      output_tokens: params.completion_tokens,
-      cost_usd:     params.cost_usd,
-      created_at:   new Date().toISOString(),
+      ...params,
+      total_tokens: params.prompt_tokens + params.completion_tokens,
+      created_at: new Date().toISOString(),
     });
-  } catch (e) { /* silent */ }
+  } catch (e) { /* silent — never crash the app over logging */ }
 }
 
 // GPT-5.4-mini pricing (per 1M tokens, as of March 2026)
@@ -334,9 +308,154 @@ let cachedBriefSub:  string | null = null;
 let cachedBriefSeed: string | null = null;
 let lastBriefTime:   number | null = null;
 
+
+// ── TOOLS & EXECUTOR (ported from zaeli-chat.tsx) ─────────────────────────
+const DUMMY_FAMILY_ID_HOME = '00000000-0000-0000-0000-000000000001';
+
+const TOOLS = [
+  { name:'add_calendar_event',
+    description:'Add a single event to the family calendar. Use immediately when you have title + time.',
+    input_schema:{ type:'object', properties:{
+      title:      { type:'string', description:'Event title' },
+      start_time: { type:'string', description:'ISO 8601 local time e.g. 2026-03-26T09:00:00' },
+      end_time:   { type:'string', description:'ISO 8601 local end time' },
+      notes:      { type:'string' },
+      assignee:   { type:'string', description:'Family member name if relevant' },
+    }, required:['title','start_time'] } },
+  { name:'update_calendar_event',
+    description:'Update/reschedule an existing event. Always use this instead of adding a new one when editing. IMPORTANT: If user specifies a new end time, always include new_end_time. If user only specifies start time, omit new_end_time to preserve duration.',
+    input_schema:{ type:'object', properties:{
+      search_title:   { type:'string', description:'Title to search for (partial match ok)' },
+      search_date:    { type:'string', description:'YYYY-MM-DD — use this to find the right occurrence when multiple exist (e.g. tomorrow)' },
+      new_title:      { type:'string' },
+      new_start_time: { type:'string', description:'ISO 8601 local e.g. 2026-03-26T13:00:00 — MUST include full date+time' },
+      new_end_time:   { type:'string', description:'ISO 8601 local — include this when user explicitly specifies an end time' },
+      new_date:       { type:'string', description:'YYYY-MM-DD — use when only changing the date, not the time' },
+      new_notes:      { type:'string' },
+    }, required:['search_title'] } },
+  { name:'delete_calendar_event',
+    description:'Delete a calendar event by title.',
+    input_schema:{ type:'object', properties:{
+      search_title:{ type:'string' },
+      date:        { type:'string', description:'YYYY-MM-DD to narrow to specific occurrence' },
+    }, required:['search_title'] } },
+  { name:'add_todo',
+    description:'Add a task or to-do item.',
+    input_schema:{ type:'object', properties:{
+      title:    { type:'string' },
+      priority: { type:'string', enum:['normal','urgent'] },
+      due_date: { type:'string', description:'YYYY-MM-DD' },
+      assignee: { type:'string' },
+    }, required:['title'] } },
+  { name:'add_shopping_item',
+    description:'Add an item to the shopping list.',
+    input_schema:{ type:'object', properties:{
+      name:     { type:'string' },
+      category: { type:'string', description:'Produce, Dairy, Meat, Pantry, Frozen, Bakery, Drinks, Household, Other' },
+      quantity: { type:'string' },
+    }, required:['name'] } },
+];
+
+async function executeTool(name: string, input: any): Promise<string> {
+  try {
+    if (name === 'add_calendar_event') {
+      const localDt  = (input.start_time || '').replace('Z','').split('+')[0];
+      const dateOnly = localDt.split('T')[0] || new Date().toISOString().split('T')[0];
+      const { error } = await supabase.from('events').insert({
+        family_id:  DUMMY_FAMILY_ID_HOME,
+        title:      input.title,
+        date:       dateOnly,
+        start_time: localDt,
+        end_time:   (input.end_time || input.start_time).replace('Z','').split('+')[0],
+        notes:      input.notes || '',
+        timezone:   'Australia/Brisbane',
+      });
+      if (error) { console.error('[executeTool] add_calendar_event error:', error); throw error; }
+      console.log('[executeTool] added event:', input.title, 'date:', dateOnly);
+      return `✅ **${input.title}** added to the calendar.`;
+    }
+    if (name === 'update_calendar_event') {
+      let updateQuery = supabase.from('events').select('id,title,date,start_time,end_time')
+        .eq('family_id', DUMMY_FAMILY_ID_HOME)
+        .ilike('title', `%${input.search_title}%`);
+      if (input.search_date) updateQuery = (updateQuery as any).eq('date', input.search_date);
+      const { data } = await (updateQuery as any).order('date').limit(1);
+      if (!data || data.length === 0) return `Couldn't find an event matching "${input.search_title}".`;
+      const t = data[0];
+      const u: any = {};
+      if (input.new_title)      u.title = input.new_title;
+      if (input.new_notes)      u.notes = input.new_notes;
+      if (input.new_start_time) {
+        u.start_time = input.new_start_time.replace('Z','').split('+')[0];
+        u.date = u.start_time.split('T')[0];
+        // Preserve duration — shift end_time by same delta if not explicitly provided
+        if (!input.new_end_time && t.start_time && t.end_time) {
+          const oldStart = new Date(t.start_time).getTime();
+          const oldEnd   = new Date(t.end_time).getTime();
+          const duration = oldEnd - oldStart;
+          if (duration > 0) {
+            const newEnd = new Date(new Date(u.start_time).getTime() + duration);
+            const pad = (n: number) => String(n).padStart(2,'0');
+            u.end_time = `${newEnd.getFullYear()}-${pad(newEnd.getMonth()+1)}-${pad(newEnd.getDate())}T${pad(newEnd.getHours())}:${pad(newEnd.getMinutes())}:00`;
+          }
+        }
+      }
+      if (input.new_date) {
+        u.date = input.new_date;
+        if (t.start_time) u.start_time = `${input.new_date}T${t.start_time.split('T')[1]||'09:00:00'}`;
+        if (t.end_time)   u.end_time   = `${input.new_date}T${t.end_time.split('T')[1]||'10:00:00'}`;
+      }
+      if (input.new_end_time) u.end_time = input.new_end_time.replace('Z','').split('+')[0];
+      const { error } = await supabase.from('events').update(u).eq('id', t.id);
+      if (error) { console.error('[executeTool] update error:', error); throw error; }
+      console.log('[executeTool] updated event:', t.id, 'changes:', u);
+      return `✅ **${input.new_title || t.title}** updated.`;
+    }
+    if (name === 'delete_calendar_event') {
+      let q = supabase.from('events').select('id,title,date').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`);
+      if (input.date) q = (q as any).eq('date', input.date);
+      const { data } = await (q as any).order('date').limit(1);
+      if (!data || data.length === 0) return `Couldn't find "${input.search_title}".`;
+      await supabase.from('events').delete().eq('id', data[0].id);
+      return `✅ **${data[0].title}** deleted.`;
+    }
+    if (name === 'add_todo') {
+      const now = new Date();
+      const { error } = await supabase.from('todos').insert({
+        family_id: DUMMY_FAMILY_ID_HOME, title: input.title,
+        priority: input.priority || 'normal', status: 'active',
+        due_date: input.due_date || null, created_at: now.toISOString(),
+      });
+      if (error) throw error;
+      return `✅ **${input.title}** added to your to-do list.`;
+    }
+    if (name === 'add_shopping_item') {
+      const { error } = await supabase.from('shopping_items').insert({
+        family_id: DUMMY_FAMILY_ID_HOME, name: input.name,
+        category: input.category || 'Other', quantity: input.quantity || '',
+        checked: false, is_food: false,
+      });
+      if (error) throw error;
+      return `✅ **${input.name}** added to the shopping list.`;
+    }
+    return `Tool ${name} not yet implemented.`;
+  } catch (e: any) {
+    console.log(`Tool error [${name}]:`, e?.message);
+    return `I hit a snag — you may need to add it manually.`;
+  }
+}
+
+const CAPABILITY_RULES = `CRITICAL TOOL RULES:
+- USE TOOLS IMMEDIATELY when you have enough info. Never say "I'll add that" — just add it.
+- For "tomorrow" use tomorrow's actual date (today is provided in the system prompt).
+- update_calendar_event: use this to change time/date. NEVER delete and re-add.
+- If a tool call succeeds, confirm briefly ("Done — Poppy's dance moved to 4:30pm ✅").
+- Zaeli CANNOT make phone calls or send messages autonomously.`;
+
 // ── Main component ─────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router    = useRouter();
+  const params    = useLocalSearchParams<{ autoMic?: string; seedMessage?: string; calendarScan?: string }>();
   const scheme    = useColorScheme();
   const T         = scheme === 'dark' ? D : L;   // active theme tokens
   const scrollRef = useRef<ScrollView>(null);
@@ -383,6 +502,7 @@ export default function HomeScreen() {
   const recordingRef       = useRef<Audio.Recording | null>(null);
   const isAtBottom         = useRef(true);
   const lastImageDesc      = useRef<string>('');
+  const handledScanRef     = useRef<string | null>(null);
 
   // ── Entry focus chips ─────────────────────────────────────────────────────
   const FOCUS_CHIPS = [
@@ -410,12 +530,14 @@ export default function HomeScreen() {
       }).start();
     }, 350);
 
-    // After 1.5s — fade splash out, fade entry in
+    // After 1.5s — fade splash out, go straight to chat (skip entry screen)
     setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
-        Animated.timing(entryOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
-      ]).start(() => setScreen('entry'));
+      Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true })
+        .start(() => {
+          setScreen('chat');
+          chatOpacity.setValue(1);
+          generateBrief(true);
+        });
     }, 1500);
   }, []);
 
@@ -456,7 +578,7 @@ export default function HomeScreen() {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6', max_tokens: 400,
+          model: 'claude-sonnet-4-20250514', max_tokens: 400,
           messages: [{ role:'user', content:[
             { type:'image', source:{ type:'base64', media_type:mimeType, data:base64 } },
             { type:'text', text:'Describe this image concisely in 2-4 sentences. Focus on what is shown, any text visible, and what the person might want help with. Be factual and specific.' },
@@ -523,7 +645,7 @@ export default function HomeScreen() {
       ] = await Promise.all([
         supabase.from('shopping_items').select('*',{count:'exact',head:true}).eq('family_id',FAMILY_ID).eq('checked',false),
         supabase.from('shopping_items').select('name').eq('family_id',FAMILY_ID).eq('checked',false).limit(50),
-        supabase.from('events').select('title,date,time').eq('family_id',FAMILY_ID).gte('date',td).order('date').order('time').limit(5),
+        supabase.from('events').select('title,date,start_time').eq('family_id',FAMILY_ID).gte('date',td).lte('date', localDateStr(new Date(Date.now() + 7*24*60*60*1000))).order('date').order('start_time').limit(20),
         supabase.from('todos').select('*',{count:'exact',head:true}).eq('family_id',FAMILY_ID).eq('done',false),
         supabase.from('meal_plans').select('meal_name,date').eq('family_id',FAMILY_ID).gte('date',td).limit(7),
       ]);
@@ -534,7 +656,7 @@ export default function HomeScreen() {
         : 'list is clear';
 
       const evStr = events?.length
-        ? events.map((e:any) => `${e.title} (${naturalDate(e.date,td)}${e.time?' at '+fmtTime(e.time):''})`).join(', ')
+        ? events.map((e:any) => `${e.title} (${naturalDate(e.date,td)}${e.start_time?' at '+fmtTime(e.start_time):''})`).join(', ')
         : 'nothing on the calendar';
       const mealToday = meals?.find((m:any)=>m.date===td)?.meal_name ?? null;
       const dinnerRule = h < 19
@@ -553,8 +675,6 @@ EMOJIS: Use 1–2 per message when the moment calls for it. Never a wall of emoj
 
 BEHAVIOUR: Guide, suggest, and anticipate. Celebrate effort and wins genuinely. Think ahead on Anna's behalf. When completing an action, mark the moment — "sorted — future you will be very pleased about that 🙌". Feel like a teammate alongside Anna, not a service responding to her.
 
-NEVER end a response with a bare open question like "What do you need?" or "What would you like?" or "How can I help?". These are empty rooms — they put all the work back on Anna. Instead, always offer something specific first, then leave the door open warmly. Good: "Want me to check what's on today, or is there something specific on your mind?" Bad: "What do you need?" Match the energy of what Anna sent — if she's light and playful, stay there all the way through. Never pivot to transactional mid-response.
-
 FAMILY: Anna (logged in), Richard, Poppy (Yr6, age 12), Gab (Yr4, age 10), Duke (Yr1, age 8).
 
 LIVE DATA — you have full access to all of this, always reference it specifically:
@@ -564,7 +684,7 @@ LIVE DATA — you have full access to all of this, always reference it specifica
 - To-dos: ${todoCount??0} open tasks
 - ${dinnerRule}
 
-CAPABILITIES: Add calendar events, shopping items, todos directly. Confirm before writing. Never tell Anna to do it herself — you handle it.
+CAPABILITIES: Add/update/delete calendar events, shopping items, todos DIRECTLY using tools — no confirmation needed, just do it. Today is ${td}. Never tell Anna to do it herself — you handle it immediately.
 
 FORMAT: 2–4 sentences by default. Expand only when genuinely useful. Always natural flowing prose. No bullet points, no lists, no asterisks, no markdown. Never start with "I". Never say "mate". Never say "Of course!", "Absolutely!", or any hollow affirmation. Never invent facts.`;
       return { system, mealToday, shopCount: shopCount??0, shopStr, evStr, todoCount: todoCount??0 };
@@ -636,28 +756,81 @@ Return ONLY valid JSON (no markdown, no backticks):
   }
 
   useFocusEffect(useCallback(() => {
+    // Handle incoming params from calendar and other screens
+    // useFocusEffect fires every time screen comes into view — catches push() navigation
+    if (params.autoMic === 'true') {
+      const t = setTimeout(() => { startRecording(); }, 800);
+      return () => clearTimeout(t);
+    }
+    if (params.calendarScan === 'true') {
+      const imgUri = getPendingCalendarImage();
+      // Guard against double-firing — useFocusEffect runs on every focus
+      if (imgUri && handledScanRef.current !== imgUri) {
+        handledScanRef.current = imgUri;
+        setPendingCalendarImage(null);
+        const t = setTimeout(() => {
+          // Transition to chat screen first
+          setScreen('chat');
+          chatOpacity.setValue(1); entryOpacity.setValue(0);
+          setLoading(false); // ensure not locked from previous call
+          // Small delay then send — screen must be fully in chat state
+          setTimeout(() => {
+            send('Please help add this to the calendar.', imgUri);
+          }, 200);
+        }, 500);
+        return () => clearTimeout(t);
+      }
+    }
+    if (params.seedMessage) {
+      const msg = params.seedMessage as string;
+      const t = setTimeout(() => {
+        const uMsg: Msg = { id: uid(), role:'user', text: msg, ts: nowTs() };
+        setMessages(prev => [...prev, uMsg]);
+        setScreen('chat');
+        chatOpacity.setValue(1); entryOpacity.setValue(0);
+        // Generate a focused Zaeli reply (not the full 4-sentence brief)
+        const replyId = uid();
+        setMessages(prev => [...prev, { id: replyId, role:'zaeli', text:'', isLoading:true, ts: nowTs() }]);
+        const sysPrompt = `You are Zaeli, warm Australian family assistant. You CAN add events to the calendar using tools. Anna said: "${msg}". Reply in 1 sentence — ask what you need to take action. Give 3 short quick reply chips. Return ONLY JSON: {"main":"...","replies":["...","...","..."]}`;
+        callGPT(sysPrompt, [{ role:'user', content: msg }], 200, 'calendar_context')
+          .then(raw => {
+            try {
+              const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
+              updateMsg(replyId, { text: parsed.main ?? raw, isLoading: false, quickReplies: parsed.replies });
+            } catch {
+              updateMsg(replyId, { text: raw, isLoading: false });
+            }
+          })
+          .catch(() => updateMsg(replyId, { text: "I'm here — what would you like to add?", isLoading: false }));
+      }, 400);
+      return () => clearTimeout(t);
+    }
+
     // Only trigger refresh logic when already in chat — never interrupt entry flow
     if (screen !== 'chat') return;
     const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
     if (elapsed > 30 * 60 * 1000 && messages.length > 0) {
       setMessages([]);
       lastImageDesc.current = '';
-      setScreen('splash');
       splashOpacity.setValue(1);
       entryOpacity.setValue(0);
       chatOpacity.setValue(0);
       starScale.setValue(0.4);
       wordmarkOpacity.setValue(0);
+      setScreen('splash');
       Animated.spring(starScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8 }).start();
       setTimeout(() => Animated.timing(wordmarkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start(), 350);
+      // Skip entry — go straight from splash to chat
       setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
-          Animated.timing(entryOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
-        ]).start(() => setScreen('entry'));
+        Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true })
+          .start(() => {
+            setScreen('chat');
+            chatOpacity.setValue(1);
+            generateBrief(true);
+          });
       }, 1500);
     }
-  }, [])); // empty deps — fires on focus only, never re-runs mid-transition
+  }, [params.autoMic, params.seedMessage])); // re-runs when params change (calendar nav)
 
   // ── Quick reply tap ───────────────────────────────────────────────────────
   function handleQuickReply(chip: string) {
@@ -665,10 +838,10 @@ Return ONLY valid JSON (no markdown, no backticks):
   }
 
   // ── Send ──────────────────────────────────────────────────────────────────
-  async function send(overrideText?: string) {
+  async function send(overrideText?: string, overrideImage?: string) {
     const text = (overrideText ?? input).trim();
-    if ((!text && !pendingImage) || loading) return;
-    const imageUri = pendingImage || undefined;
+    const imageUri = overrideImage || pendingImage || undefined;
+    if ((!text && !imageUri) || loading) return;
     const uMsg: Msg = { id: uid(), role: 'user', text: text || '', imageUri, ts: nowTs() };
     const history = [...messages, uMsg];
     setMessages(history); setInput(''); setPendingImage(null);
@@ -678,89 +851,114 @@ Return ONLY valid JSON (no markdown, no backticks):
     try {
       const { system } = await buildContext();
 
-      // ── Calendar intent detection ─────────────────────────────────────────
-      const calDayIntent  = /\b(today|tonight|tomorrow|what'?s on|calendar|schedule|what do (i|we) have|events?|day|morning|afternoon|evening)\b/i.test(text);
-      const calMonthIntent = /\b(month|march|april|may|june|july|august|september|october|november|december|week|this week|next week|show me)\b/i.test(text);
-      const td = localDateStr();
-      let calEvents: any[] | undefined;
-      let calDate: string | undefined;
-      let isMonthView = false;
-
-      if (calDayIntent && !calMonthIntent) {
-        // Detect if asking about tomorrow
-        const isTomorrow = /tomorrow/i.test(text);
-        const targetDate = isTomorrow
-          ? localDateStr(new Date(Date.now() + 86400000))
-          : td;
-        const { data } = await supabase.from('events').select('*')
-          .eq('family_id', FAMILY_ID)
-          .eq('date', targetDate)
-          .order('start_time');
-        calEvents = data || [];
-        calDate = targetDate;
-      } else if (calMonthIntent) {
-        // Fetch full month
-        const now = new Date();
-        const fromDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-        const toYear = now.getMonth() === 11 ? now.getFullYear()+1 : now.getFullYear();
-        const toMonth = now.getMonth() === 11 ? 1 : now.getMonth()+2;
-        const toDate = `${toYear}-${String(toMonth).padStart(2,'0')}-01`;
-        const { data } = await supabase.from('events').select('*')
-          .eq('family_id', FAMILY_ID)
-          .gte('date', fromDate).lt('date', toDate)
-          .order('start_time');
-        calEvents = data || [];
-        calDate = td;
-        isMonthView = true;
+      // ── Read image ONCE upfront — temp files can expire on iOS ────────────
+      let imageBase64 = '';
+      let imageMimeType = 'image/jpeg';
+      if (imageUri) {
+        try {
+          console.log('[send] Reading image:', imageUri.substring(0, 80));
+          imageBase64 = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' as any });
+          console.log('[send] Image read OK, length:', imageBase64.length);
+          const ext = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
+          const mimeMap: Record<string,string> = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', heic:'image/jpeg', heif:'image/jpeg' };
+          imageMimeType = mimeMap[ext] || 'image/jpeg';
+          console.log('[send] MIME type:', imageMimeType);
+        } catch(e) { console.error('[send] Image read FAILED:', e); }
       }
 
-      // Describe new image via Claude Vision, or reuse last known description for follow-ups
+      // ── Describe image using already-read base64 ──────────────────────────
       let imageDescription = '';
-      if (imageUri) {
-        imageDescription = await describeImageWithClaude(imageUri);
-        lastImageDesc.current = imageDescription;
+      if (imageUri && imageBase64) {
+        try {
+          const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+          const descRes = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514', max_tokens: 300,
+              messages: [{ role:'user', content:[
+                { type:'image', source:{ type:'base64', media_type:imageMimeType, data:imageBase64 } },
+                { type:'text', text:'Describe this image in 2 sentences. Focus on any text, dates, times, or event names visible.' },
+              ]}],
+            }),
+          });
+          const descJson = await descRes.json();
+          imageDescription = descJson?.content?.[0]?.text || '';
+          lastImageDesc.current = imageDescription;
+          logVision(descJson?.usage?.input_tokens ?? 0, descJson?.usage?.output_tokens ?? 0);
+        } catch(e) { console.log('Vision describe failed:', e); }
       } else if (lastImageDesc.current) {
         imageDescription = lastImageDesc.current;
       }
 
-      const imgCtx = imageDescription
-        ? `\nIMAGE CONTEXT: The user shared a photo earlier in this conversation. Description: ${imageDescription}. Refer to this image when relevant to the user's question.`
-        : '';
-
-      // Add calendar context to system prompt if we fetched events
-      const calCtx = calEvents
-        ? `\n\nCALENDAR DATA: ${calEvents.length === 0
-            ? 'No events found for this period.'
-            : calEvents.map(e => `${e.title} on ${e.date} at ${e.start_time ? e.start_time.slice(11,16) : 'TBD'}${e.assignees?.length ? ` (${e.assignees.map((id: string) => FAMILY_MEMBERS.find(m => m.id === id)?.name ?? id).join(', ')})` : ''}`).join('; ')
-          }. Reference this data naturally in your response. Do NOT list every event robotically — mention what's relevant, flag any conflicts, end with an offer. Keep it to 2-3 sentences.`
-        : '';
+      const imgCtx = imageDescription ? `\nIMAGE CONTEXT: ${imageDescription}` : '';
 
       const histMsgs = history.slice(-12).map(m => ({
         role: m.role === 'zaeli' ? 'assistant' as const : 'user' as const,
         content: m.imageUri
-          ? `[Shared a photo: ${lastImageDesc.current || 'image'}] ${m.text}`.trim()
+          ? `[User shared a photo] ${m.text}`.trim()
           : (m.text || '(message)'),
       }));
 
-      const reply = await callGPT(system + imgCtx + calCtx, histMsgs, 500, 'chat_response');
+      // ── Tool-aware Anthropic call ─────────────────────────────────────────
+      const anthropicKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+      const toolSys = system + imgCtx + '\n\n' + CAPABILITY_RULES;
 
-      // Generate contextual quick replies for calendar
-      const calQuickReplies = calEvents
-        ? isMonthView
-          ? ['Busiest week?', 'Any free weekends?', 'Add something']
-          : calEvents.length === 0
-            ? ['Add an event', 'What\'s tomorrow', 'Show the week']
-            : ['Add something', `What's tomorrow`, 'Show the week']
-        : undefined;
+      // Message content — image already read as base64 above
+      const msgContent: any = imageUri && imageBase64
+        ? [
+            { type:'image', source:{ type:'base64', media_type:imageMimeType, data: imageBase64 }},
+            { type:'text', text: text || 'Please describe what you see.' }
+          ]
+        : text || '(message)';
 
-      updateMsg(replyId, {
-        text: reply,
-        isLoading: false,
-        calendarEvents: calEvents,
-        calendarDate: calDate,
-        calendarMonth: isMonthView || undefined,
-        quickReplies: calQuickReplies,
+            const apiMessages = [
+        ...histMsgs.slice(0, -1).map(m => ({ role: m.role, content: m.content as string })),
+        { role: 'user' as const, content: msgContent },
+      ];
+
+      console.log('[send] Calling Anthropic, hasImage:', !!imageBase64, 'msgContentType:', Array.isArray(msgContent) ? 'array' : 'string');
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'x-api-key': anthropicKey, 'anthropic-version':'2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: toolSys,
+          tools: TOOLS,
+          messages: apiMessages,
+        }),
       });
+      const data = await res.json();
+      console.log('[send] Anthropic response stop_reason:', data.stop_reason, 'error:', data.error);
+      
+      // Handle tool use
+      if (data.stop_reason === 'tool_use') {
+        const toolUses = data.content.filter((b: any) => b.type === 'tool_use');
+        const toolResults: string[] = [];
+        for (const tu of toolUses) {
+          const result = await executeTool(tu.name, tu.input);
+          toolResults.push(result);
+        }
+        // Get Zaeli's follow-up after tools ran
+        const toolResultContent = toolUses.map((tu: any, i: number) => ({
+          type: 'tool_result', tool_use_id: tu.id, content: toolResults[i]
+        }));
+        const followUp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', 'x-api-key': anthropicKey, 'anthropic-version':'2023-06-01' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514', max_tokens: 300, system: toolSys, tools: TOOLS,
+            messages: [...apiMessages, { role:'assistant', content: data.content }, { role:'user', content: toolResultContent }],
+          }),
+        });
+        const followData = await followUp.json();
+        const followText = followData.content?.find((b: any) => b.type === 'text')?.text ?? toolResults.join('\n');
+        updateMsg(replyId, { text: followText, isLoading: false });
+      } else {
+        const reply = data.content?.find((b: any) => b.type === 'text')?.text ?? 'Something went wrong — try again?';
+        updateMsg(replyId, { text: reply, isLoading: false });
+      }
     } catch (e) {
       console.error('send error:', e);
       updateMsg(replyId, { text: "Something went wrong — try that again?", isLoading: false });
@@ -844,7 +1042,7 @@ Return ONLY valid JSON (no markdown, no backticks):
       // ── User bubble ──
       if (msg.role === 'user') {
         return (
-          <View key={msg.id} style={[s.userMsgWrap, { marginTop: 6 }]}>
+          <View key={msg.id} style={[s.userMsgWrap, { marginTop: 18 }]}>
             {msg.isVoice && (
               <View style={s.voiceLabel}>
                 <IcoMic color={T.ink3}/>
@@ -899,161 +1097,11 @@ Return ONLY valid JSON (no markdown, no backticks):
                   {para}
                 </Text>
               ))}
-              {/* ── Inline calendar — day view ── */}
-              {msg.calendarEvents && !msg.calendarMonth && msg.calendarDate && (
-                <View style={{ marginTop: 10, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(10,10,10,0.08)' }}>
-                  <View style={{ backgroundColor: '#4D8BFF', paddingHorizontal: 14, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#fff' }}>
-                      {new Date(msg.calendarDate + 'T12:00:00').toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}
-                    </Text>
-                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10, color: 'rgba(255,255,255,0.65)' }}>
-                      {msg.calendarEvents.length} event{msg.calendarEvents.length !== 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                  {msg.calendarEvents.length === 0 ? (
-                    <View style={{ padding: 14 }}>
-                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(10,10,10,0.4)' }}>Nothing on — a free day ✨</Text>
-                    </View>
-                  ) : (
-                    msg.calendarEvents.map((ev, ei) => {
-                      const evColor = getMemberColor(ev.assignees);
-                      const hasConflict = msg.calendarEvents!.some((f, fi) =>
-                        fi !== ei && ev.start_time && f.end_time &&
-                        new Date(ev.start_time) < new Date(f.end_time) &&
-                        new Date(f.start_time) < new Date(ev.end_time || ev.start_time)
-                      );
-                      return (
-                        <TouchableOpacity
-                          key={ev.id}
-                          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: ei < msg.calendarEvents!.length - 1 ? 1 : 0, borderBottomColor: 'rgba(10,10,10,0.05)', backgroundColor: hasConflict ? 'rgba(229,57,53,0.03)' : '#fff' }}
-                          onPress={() => router.push({ pathname: '/(tabs)/calendar', params: { eventId: ev.id } })}
-                          activeOpacity={0.7}
-                        >
-                          <View style={{ width: 3, height: 40, borderRadius: 2, backgroundColor: hasConflict ? '#E53935' : evColor, marginRight: 10, flexShrink: 0 }}/>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#0a0a0a' }}>{ev.title}</Text>
-                            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10, color: 'rgba(10,10,10,0.4)', marginTop: 1 }}>
-                              {ev.start_time ? (() => { const t = ev.start_time.slice(11,16); const [h,m] = t.split(':').map(Number); return `${h%12||12}${m?':'+String(m).padStart(2,'0'):''}${h>=12?'pm':'am'}`; })() : ''}
-                              {hasConflict ? ' · ⚠️ conflict' : ''}
-                            </Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', gap: 2 }}>
-                            {(ev.assignees || []).slice(0,3).map((id: string) => (
-                              <View key={id} style={{ width: 18, height: 18, borderRadius: 9, backgroundColor: getMemberColorById(id), alignItems: 'center', justifyContent: 'center' }}>
-                                <Text style={{ fontSize: 8, fontFamily: 'Poppins_700Bold', color: '#fff' }}>{getMemberInitial(id)}</Text>
-                              </View>
-                            ))}
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })
-                  )}
-                  <TouchableOpacity
-                    style={{ paddingHorizontal: 14, paddingVertical: 9, borderTopWidth: 1, borderTopColor: 'rgba(10,10,10,0.06)', alignItems: 'flex-end' }}
-                    onPress={() => router.push('/(tabs)/calendar')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: '#4D8BFF' }}>Open full calendar →</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* ── Inline calendar — month view ── */}
-              {msg.calendarEvents && msg.calendarMonth && msg.calendarDate && (
-                <View style={{ marginTop: 10, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(10,10,10,0.08)' }}>
-                  <View style={{ backgroundColor: '#4D8BFF', paddingHorizontal: 14, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#fff' }}>
-                      {new Date(msg.calendarDate + 'T12:00:00').toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}
-                    </Text>
-                    <TouchableOpacity onPress={() => router.push('/(tabs)/calendar')} activeOpacity={0.7}>
-                      <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 10, color: 'rgba(255,255,255,0.75)' }}>Open full →</Text>
-                    </TouchableOpacity>
-                  </View>
-                  {/* Mini month grid */}
-                  {(() => {
-                    const now = new Date(msg.calendarDate + 'T12:00:00');
-                    const year = now.getFullYear(), month = now.getMonth();
-                    const dim = new Date(year, month+1, 0).getDate();
-                    const firstDay = (new Date(year, month, 1).getDay() + 6) % 7;
-                    const prevDim = new Date(year, month, 0).getDate();
-                    const cells: { day: number; cur: boolean; date: string }[] = [];
-                    for (let i = firstDay-1; i >= 0; i--) {
-                      const d = new Date(year, month-1, prevDim-i);
-                      cells.push({ day: prevDim-i, cur: false, date: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` });
-                    }
-                    for (let d = 1; d <= dim; d++) {
-                      const dt = new Date(year, month, d);
-                      cells.push({ day: d, cur: true, date: `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}` });
-                    }
-                    while (cells.length % 7 !== 0) {
-                      const n = cells.length - firstDay - dim + 1;
-                      const d = new Date(year, month+1, n);
-                      cells.push({ day: n, cur: false, date: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` });
-                    }
-                    const dotMap: Record<string, string[]> = {};
-                    (msg.calendarEvents || []).forEach((ev: any) => {
-                      if (!ev.date) return;
-                      if (!dotMap[ev.date]) dotMap[ev.date] = [];
-                      const c = getMemberColor(ev.assignees);
-                      if (!dotMap[ev.date].includes(c)) dotMap[ev.date].push(c);
-                    });
-                    const todayStr = localDateStr();
-                    const HDRS = ['S','M','T','W','T','F','S'];
-                    return (
-                      <View style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
-                        <View style={{ flexDirection: 'row', marginBottom: 4 }}>
-                          {HDRS.map((h, i) => (
-                            <View key={i} style={{ flex: 1, alignItems: 'center' }}>
-                              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 9, color: 'rgba(10,10,10,0.3)' }}>{h}</Text>
-                            </View>
-                          ))}
-                        </View>
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                          {cells.map((cell, i) => {
-                            const isToday = cell.date === todayStr && cell.cur;
-                            const dots = cell.cur ? (dotMap[cell.date] || []) : [];
-                            return (
-                              <TouchableOpacity
-                                key={i}
-                                style={{ width: `${100/7}%`, alignItems: 'center', paddingVertical: 2 }}
-                                onPress={() => cell.cur && router.push('/(tabs)/calendar')}
-                                activeOpacity={0.7}
-                              >
-                                <View style={[{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, isToday && { backgroundColor: '#4D8BFF' }]}>
-                                  <Text style={[{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: '#0a0a0a' }, !cell.cur && { color: 'rgba(10,10,10,0.2)' }, isToday && { color: '#fff', fontFamily: 'Poppins_700Bold' }]}>
-                                    {cell.day}
-                                  </Text>
-                                </View>
-                                {dots.length > 0 && (
-                                  <View style={{ flexDirection: 'row', gap: 1.5, marginTop: 1 }}>
-                                    {dots.slice(0,3).map((color, di) => (
-                                      <View key={di} style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: isToday ? 'rgba(255,255,255,0.8)' : color }}/>
-                                    ))}
-                                  </View>
-                                )}
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                        {/* Legend */}
-                        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(10,10,10,0.06)' }}>
-                          {FAMILY_MEMBERS.map(m => (
-                            <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: m.color }}/>
-                              <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 9, color: 'rgba(10,10,10,0.4)' }}>{m.name}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                    );
-                  })()}
-                </View>
-              )}
             </View>
           )}
 
-          {/* Quick replies — brief and calendar */}
-          {(msg.isBrief || msg.calendarEvents) && !msg.isLoading && (msg.quickReplies ?? (msg.isBrief ? briefReplies : [])).length > 0 && (
+          {/* Quick replies — brief only */}
+          {msg.isBrief && !msg.isLoading && (msg.quickReplies ?? briefReplies).length > 0 && (
             <View style={s.quickRepliesWrap}>
               <Text style={[s.qrLabel, { color: T.ink3 }]}>Quick replies</Text>
               <View style={s.qrChips}>
@@ -1104,8 +1152,6 @@ Return ONLY valid JSON (no markdown, no backticks):
     try {
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) return;
-      // Small delay to ensure app is fully in foreground before activating audio session
-      await new Promise(resolve => setTimeout(resolve, 200));
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       recordingRef.current = recording;
