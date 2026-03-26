@@ -9,7 +9,6 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Animated, Easing, TextInput, KeyboardAvoidingView,
   Platform, Modal, Pressable, Image, Share, Clipboard, Keyboard,
-  useColorScheme,
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,83 +23,33 @@ import { NavMenu, HamburgerButton } from '../components/NavMenu';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
-const MEMBER_NAME = 'Anna';
-const CORAL = '#FF4545';
-const INK   = '#0A0A0A';   // fallback for icon default props
-const INK3  = 'rgba(10,10,10,0.32)';  // fallback for icon default props
-const YELLOW      = '#FFE500';
-const TEAL        = '#1A5F7A';
+const MEMBER_NAME = 'Rich';
+const INK    = '#0A0A0A';
+const INK3   = 'rgba(10,10,10,0.32)';
+const HOME_AI = '#A8D8F0';  // Sky blue — Home channel ai colour
 
-// Light mode — blue banner, coral accent touches
-const L = {
-  banner:      '#4D8BFF',
-  bannerOrb:   'rgba(255,255,255,0.07)',
+// Home channel theme tokens
+const T = {
+  bannerBg:    '#F5EAD8',   // cream
   bg:          '#FFFFFF',
-  bg2:         '#FFFFFF',
   ink:         '#0A0A0A',
   ink2:        'rgba(10,10,10,0.5)',
   ink3:        'rgba(10,10,10,0.28)',
   border:      'rgba(10,10,10,0.09)',
   userBubble:  '#F2F2F2',
   userText:    '#0A0A0A',
-  zaeliStar:   '#FF7B6B',   // light coral — warmth signal
-  zaeliName:   '#FF7B6B',   // light coral — matches star
+  zaeliAi:     HOME_AI,     // eyebrow dot + name
   dateLine:    'rgba(10,10,10,0.09)',
-  replyBg:     '#FFFFFF',
-  replyBorder: 'rgba(10,10,10,0.13)',
-  replyText:   '#0A0A0A',
+  pillBg:      HOME_AI,     // quick reply pills
+  pillText:    '#0A0A0A',
   dismiss:     'rgba(10,10,10,0.32)',
-  gridBg:      'rgba(255,69,69,0.07)',    // coral tint
-  gridBorder:  'rgba(255,69,69,0.2)',     // coral border
-  gridDot:     '#FF4545',                 // full coral dots
   barBg:       '#FFFFFF',
   barBorder:   'rgba(10,10,10,0.09)',
-  barPh:       'rgba(10,10,10,0.5)',      // darker — easier to read
+  barPh:       'rgba(10,10,10,0.5)',
   barSep:      'rgba(10,10,10,0.1)',
-  barIcon:     'rgba(10,10,10,0.55)',     // darker + icon
-  gridSheet:   '#FFFFFF',
-  gridHandle:  'rgba(10,10,10,0.12)',
-  gridTitle:   '#0A0A0A',
-  gridItemBg:  'rgba(10,10,10,0.05)',
-  gridItemBdr: 'rgba(10,10,10,0.09)',
-  gridItemLbl: 'rgba(10,10,10,0.5)',
-  statusBar:   'light' as const,
-};
-
-// Dark mode — Option A
-const D = {
-  banner:      '#0D1B3E',
-  bannerOrb:   'rgba(255,255,255,0.06)',
-  bg:          '#111111',
-  bg2:         '#1C1C1C',
-  ink:         '#F0EDE8',
-  ink2:        'rgba(240,237,232,0.55)',
-  ink3:        'rgba(240,237,232,0.28)',
-  border:      'rgba(255,255,255,0.08)',
-  userBubble:  '#1E2D50',
-  userText:    '#A8C4FF',
-  zaeliStar:   '#4D8BFF',
-  zaeliName:   '#6BA3FF',
-  dateLine:    'rgba(255,255,255,0.08)',
-  replyBg:     '#1E1E1E',
-  replyBorder: 'rgba(255,255,255,0.1)',
-  replyText:   '#F0EDE8',
-  dismiss:     'rgba(240,237,232,0.28)',
-  gridBg:      'rgba(255,255,255,0.08)',
-  gridBorder:  'rgba(255,255,255,0.1)',
-  gridDot:     'rgba(240,237,232,0.45)',
-  barBg:       '#1C1C1C',
-  barBorder:   'rgba(255,255,255,0.08)',
-  barPh:       'rgba(240,237,232,0.28)',
-  barSep:      'rgba(255,255,255,0.08)',
-  barIcon:     'rgba(240,237,232,0.32)',
-  gridSheet:   '#1C1C1C',
-  gridHandle:  'rgba(255,255,255,0.1)',
-  gridTitle:   '#F0EDE8',
-  gridItemBg:  'rgba(255,255,255,0.06)',
-  gridItemBdr: 'rgba(255,255,255,0.09)',
-  gridItemLbl: 'rgba(240,237,232,0.45)',
-  statusBar:   'light' as const,
+  barIcon:     'rgba(10,10,10,0.4)',
+  sendBg:      HOME_AI,     // send button background
+  statusBar:   'dark' as const,
 };
 
 const OPENAI_URL  = 'https://api.openai.com/v1/chat/completions';
@@ -153,6 +102,17 @@ function nowTs() {
 }
 function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
 
+// Parse [bracketed text] in hero one-liner into sky blue highlighted spans
+function renderHeroText(text: string, highlightColor: string) {
+  const parts = text.split(/(\[[^\]]+\])/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('[') && part.endsWith(']')) {
+      return <Text key={i} style={{ color:'#0A0A0A', fontFamily:'DMSerifDisplay_400Regular', fontStyle:'italic' as const }}>{part.slice(1,-1)}</Text>;
+    }
+    return <Text key={i}>{part}</Text>;
+  });
+}
+
 // ── OpenAI ─────────────────────────────────────────────────────────────────
 // ── API logging ────────────────────────────────────────────────────────────
 // Fire-and-forget — never blocks the UI
@@ -160,17 +120,17 @@ async function logApiCall(params: {
   family_id: string;
   feature: string;
   model: string;
-  prompt_tokens: number;
-  completion_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
   cost_usd: number;
 }) {
   try {
-    await supabase.from('api_logs').insert({
+    const { error } = await supabase.from('api_logs').insert({
       ...params,
-      total_tokens: params.prompt_tokens + params.completion_tokens,
       created_at: new Date().toISOString(),
     });
-  } catch (e) { /* silent — never crash the app over logging */ }
+    if (error) console.error('[logApiCall] Supabase error:', JSON.stringify(error));
+  } catch (e: any) { console.error('[logApiCall] Exception:', e?.message); }
 }
 
 // GPT-5.4-mini pricing (per 1M tokens, as of March 2026)
@@ -197,14 +157,14 @@ async function callGPT(
   const pt = json?.usage?.prompt_tokens ?? 0;
   const ct = json?.usage?.completion_tokens ?? 0;
   const cost = (pt / 1_000_000 * GPT_IN_PER_M) + (ct / 1_000_000 * GPT_OUT_PER_M);
-  logApiCall({ family_id: FAMILY_ID, feature, model: 'gpt-5.4-mini', prompt_tokens: pt, completion_tokens: ct, cost_usd: cost });
+  logApiCall({ family_id: FAMILY_ID, feature, model: 'gpt-5.4-mini', input_tokens: pt, output_tokens: ct, cost_usd: cost });
   return text;
 }
 
 // Whisper: $0.006 / minute — approximate from audio duration
 function logWhisper(durationSeconds: number) {
   const cost = (durationSeconds / 60) * 0.006;
-  logApiCall({ family_id: FAMILY_ID, feature: 'whisper_transcription', model: 'whisper-1', prompt_tokens: 0, completion_tokens: 0, cost_usd: cost });
+  logApiCall({ family_id: FAMILY_ID, feature: 'whisper_transcription', model: 'whisper-1', input_tokens: 0, output_tokens: 0, cost_usd: cost });
 }
 
 // Claude Vision: claude-sonnet-4-6 pricing
@@ -212,18 +172,18 @@ const CLAUDE_IN_PER_M  = 3.00;
 const CLAUDE_OUT_PER_M = 15.00;
 function logVision(inputTokens: number, outputTokens: number) {
   const cost = (inputTokens / 1_000_000 * CLAUDE_IN_PER_M) + (outputTokens / 1_000_000 * CLAUDE_OUT_PER_M);
-  logApiCall({ family_id: FAMILY_ID, feature: 'chat_vision', model: 'claude-sonnet-4-6', prompt_tokens: inputTokens, completion_tokens: outputTokens, cost_usd: cost });
+  logApiCall({ family_id: FAMILY_ID, feature: 'chat_vision', model: 'claude-sonnet-4-6', input_tokens: inputTokens, output_tokens: outputTokens, cost_usd: cost });
 }
 
 // ── Icons — exact set from zaeli-chat.tsx ─────────────────────────────────
 function IcoPlus() {
   return <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={INK3} strokeWidth="2" strokeLinecap="round"><Line x1="12" y1="5" x2="12" y2="19"/><Line x1="5" y1="12" x2="19" y2="12"/></Svg>;
 }
-function IcoMic({ color = INK3 }: { color?: string }) {
-  return <Svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><Rect x="9" y="2" width="6" height="11" rx="3"/><Path d="M5 10a7 7 0 0014 0"/><Line x1="12" y1="19" x2="12" y2="23"/><Line x1="8" y1="23" x2="16" y2="23"/></Svg>;
+function IcoMic({ color = INK3, size = 20 }: { color?: string; size?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 26" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><Rect x="9" y="2" width="6" height="11" rx="3"/><Path d="M5 10a7 7 0 0014 0"/><Line x1="12" y1="19" x2="12" y2="23"/><Line x1="8" y1="23" x2="16" y2="23"/></Svg>;
 }
 function IcoSend() {
-  return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>;
+  return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>;
 }
 function IcoArrowDown() {
   return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="5" x2="12" y2="19"/><Polyline points="19 12 12 19 5 12"/></Svg>;
@@ -369,9 +329,9 @@ async function executeTool(name: string, input: any): Promise<string> {
         end_time:   (input.end_time || input.start_time).replace('Z','').split('+')[0],
         notes:      input.notes || '',
         timezone:   'Australia/Brisbane',
+        assignees:  ['2'],  // default to Rich (blue) — the logged-in user
       });
       if (error) { console.error('[executeTool] add_calendar_event error:', error); throw error; }
-      console.log('[executeTool] added event:', input.title, 'date:', dateOnly);
       return `✅ **${input.title}** added to the calendar.`;
     }
     if (name === 'update_calendar_event') {
@@ -408,7 +368,6 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (input.new_end_time) u.end_time = input.new_end_time.replace('Z','').split('+')[0];
       const { error } = await supabase.from('events').update(u).eq('id', t.id);
       if (error) { console.error('[executeTool] update error:', error); throw error; }
-      console.log('[executeTool] updated event:', t.id, 'changes:', u);
       return `✅ **${input.new_title || t.title}** updated.`;
     }
     if (name === 'delete_calendar_event') {
@@ -456,8 +415,6 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 export default function HomeScreen() {
   const router    = useRouter();
   const params    = useLocalSearchParams<{ autoMic?: string; seedMessage?: string; calendarScan?: string }>();
-  const scheme    = useColorScheme();
-  const T         = scheme === 'dark' ? D : L;   // active theme tokens
   const scrollRef = useRef<ScrollView>(null);
   const inputRef  = useRef<TextInput>(null);
   const now       = new Date();
@@ -472,18 +429,26 @@ export default function HomeScreen() {
   const [isRecording,   setIsRecording]   = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [briefReplies,  setBriefReplies]  = useState<string[]>([]);
+  const [briefHero,     setBriefHero]     = useState<string>('');
   const [briefSeed,     setBriefSeed]     = useState('');
   const [showAddSheet,  setShowAddSheet]  = useState(false);
   const [pendingImage,  setPendingImage]  = useState<string | null>(null);
   const [thumbs,        setThumbs]        = useState<Record<string, 'up'|'down'|null>>({});
   const [keyboardOpen,  setKeyboardOpen]  = useState(false);
-  const [showMoreGrid,  setShowMoreGrid]  = useState(false);
   const [liveCamera,    setLiveCamera]    = useState(false);
-  // Entry flow: splash → entry → chat
+  const [placeholderIdx, setPlaceholderIdx] = useState(0);
+  // Entry flow: splash → chat
   const [screen,        setScreen]        = useState<'splash'|'entry'|'chat'>('splash');
-  const [focusTopic,    setFocusTopic]    = useState<string>('');
-  const [entryRecording, setEntryRecording] = useState(false); // recording state within entry screen
-  const [entryProcessing, setEntryProcessing] = useState(false); // transcribing — hold screen
+  const [entryRecording, setEntryRecording] = useState(false);
+  const [entryProcessing, setEntryProcessing] = useState(false);
+
+  // Cycling placeholder texts — hints at voice input
+  const PLACEHOLDERS = [
+    'Chat with Zaeli…',
+    'Or just speak…',
+    'Chat with Zaeli…',
+    'Ask anything…',
+  ];
 
   // Waveform animation for recording state
   const waveAnims = useRef(
@@ -499,9 +464,11 @@ export default function HomeScreen() {
   const chatOpacity        = useRef(new Animated.Value(0)).current;
   const starScale          = useRef(new Animated.Value(0.4)).current;
   const wordmarkOpacity    = useRef(new Animated.Value(0)).current;
+  const micPulseLoop       = useRef<Animated.CompositeAnimation | null>(null);
   const recordingRef       = useRef<Audio.Recording | null>(null);
   const isAtBottom         = useRef(true);
   const lastImageDesc      = useRef<string>('');
+  const lastSendRef        = useRef<string>('');
   const handledScanRef     = useRef<string | null>(null);
 
   // ── Entry focus chips ─────────────────────────────────────────────────────
@@ -523,14 +490,14 @@ export default function HomeScreen() {
       friction: 8,
     }).start();
 
-    // Wordmark fades in after star lands
+    // Wordmark fades in after wordmark bounces in
     setTimeout(() => {
       Animated.timing(wordmarkOpacity, {
-        toValue: 1, duration: 400, useNativeDriver: true,
+        toValue: 1, duration: 500, useNativeDriver: true,
       }).start();
-    }, 350);
+    }, 250);
 
-    // After 1.5s — fade splash out, go straight to chat (skip entry screen)
+    // After 3s — fade splash out, go straight to chat
     setTimeout(() => {
       Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true })
         .start(() => {
@@ -538,7 +505,7 @@ export default function HomeScreen() {
           chatOpacity.setValue(1);
           generateBrief(true);
         });
-    }, 1500);
+    }, 3000);
   }, []);
 
   // ── Move from entry to chat ───────────────────────────────────────────────
@@ -565,7 +532,14 @@ export default function HomeScreen() {
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-  // ── Claude Vision — describe image before GPT call ────────────────────────
+  // ── Placeholder cycling — hints at voice input every 4 seconds ──────────
+  useEffect(() => {
+    if (input.length > 0 || isRecording) return;
+    const timer = setInterval(() => {
+      setPlaceholderIdx(i => (i + 1) % PLACEHOLDERS.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [input, isRecording]);
   async function describeImageWithClaude(imageUri: string): Promise<string> {
     try {
       const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
@@ -643,11 +617,11 @@ export default function HomeScreen() {
         { count: todoCount },
         { data: meals },
       ] = await Promise.all([
-        supabase.from('shopping_items').select('*',{count:'exact',head:true}).eq('family_id',FAMILY_ID).eq('checked',false),
-        supabase.from('shopping_items').select('name').eq('family_id',FAMILY_ID).eq('checked',false).limit(50),
-        supabase.from('events').select('title,date,start_time').eq('family_id',FAMILY_ID).gte('date',td).lte('date', localDateStr(new Date(Date.now() + 7*24*60*60*1000))).order('date').order('start_time').limit(20),
-        supabase.from('todos').select('*',{count:'exact',head:true}).eq('family_id',FAMILY_ID).eq('done',false),
-        supabase.from('meal_plans').select('meal_name,date').eq('family_id',FAMILY_ID).gte('date',td).limit(7),
+        supabase.from('shopping_items').select('*',{count:'exact',head:true}).eq('family_id',DUMMY_FAMILY_ID_HOME).eq('checked',false),
+        supabase.from('shopping_items').select('name').eq('family_id',DUMMY_FAMILY_ID_HOME).eq('checked',false).limit(50),
+        supabase.from('events').select('title,date,start_time').eq('family_id',DUMMY_FAMILY_ID_HOME).gte('date',td).lte('date', localDateStr(new Date(Date.now() + 7*24*60*60*1000))).order('date').order('start_time').limit(20),
+        supabase.from('todos').select('*',{count:'exact',head:true}).eq('family_id',DUMMY_FAMILY_ID_HOME).eq('done',false),
+        supabase.from('meal_plans').select('meal_name,date').eq('family_id',DUMMY_FAMILY_ID_HOME).gte('date',td).limit(7),
       ]);
 
       const shopNames = shopItems?.map((i:any) => i.name).join(', ') || '';
@@ -675,7 +649,7 @@ EMOJIS: Use 1–2 per message when the moment calls for it. Never a wall of emoj
 
 BEHAVIOUR: Guide, suggest, and anticipate. Celebrate effort and wins genuinely. Think ahead on Anna's behalf. When completing an action, mark the moment — "sorted — future you will be very pleased about that 🙌". Feel like a teammate alongside Anna, not a service responding to her.
 
-FAMILY: Anna (logged in), Richard, Poppy (Yr6, age 12), Gab (Yr4, age 10), Duke (Yr1, age 8).
+FAMILY: Rich (logged in), Anna, Poppy (Yr6, age 12), Gab (Yr4, age 10), Duke (Yr1, age 8).
 
 LIVE DATA — you have full access to all of this, always reference it specifically:
 - Date: ${dateLabel} (${frame}, ${timeStr})
@@ -698,7 +672,8 @@ FORMAT: 2–4 sentences by default. Expand only when genuinely useful. Always na
     const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
     if (!force && elapsed < 30*60*1000 && cachedBriefText) {
       const cached = JSON.parse(cachedBriefText);
-      addMsg({ role:'zaeli', text: cached.text, isBrief:true, isLoading:false, quickReplies: cached.replies });
+      setBriefHero(cached.hero ?? '');
+      addMsg({ role:'zaeli', text: cached.detail, isBrief:true, isLoading:false, quickReplies: cached.replies });
       setBriefReplies(cached.replies ?? []);
       setBriefSeed(cachedBriefSeed ?? '');
       return;
@@ -707,50 +682,55 @@ FORMAT: 2–4 sentences by default. Expand only when genuinely useful. Always na
     const loadId = addMsg({ role:'zaeli', text:'', isBrief:true, isLoading:true });
     try {
       const { system } = await buildContext();
-      const greeting = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : h < 21 ? 'Evening' : 'Hey';
-      const isLate   = h >= 21 || h < 6;
+      const timeGreeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 21 ? 'Good evening' : 'Hey';
+      const isLate = h >= 21 || h < 6;
       const focusInstruction = focusHint
-        ? `\nFOCUS: Anna tapped "${focusHint}" on the entry screen. Lead with that topic — make it the heart of the brief.`
+        ? `\nFOCUS: ${MEMBER_NAME} tapped "${focusHint}". Lead with that topic in both hero and detail.`
         : '';
+
       const briefSys = `${system}
 
-You are writing Zaeli's opening home screen message for ${MEMBER_NAME}. The most important message in the app. A switched-on friend who's been paying attention, not a status report.
+You are writing Zaeli's opening home screen message for ${MEMBER_NAME}. Two distinct parts:
 
-RULES:
-1. Open with "${greeting}, ${MEMBER_NAME} —" flowing straight into the content
-2. Write exactly 3 more sentences (4 total). Warm, specific, alive. NO colour accent tags.
-3. Reference actual day names (Monday, this Thursday) — never raw dates
-4. Times naturally (this morning, tonight, at 9) — never "at 9:00 AM"
-5. Plain text only — no [ACCENT] tags, no bold, no markdown
-6. Never invent facts — only use data provided above
-7. Use the Zaeli voice — dry, observational, occasionally surprising, warm camaraderie
-8. Genuine positivity — notice effort, celebrate small wins, make Anna feel seen
-${isLate ? '9. It is late — calm and quiet energy, focus on tomorrow.' : ''}
+PART 1 — HERO (banner one-liner):
+- ONE punchy sentence only. DM Serif italic feel. Sharp, specific, alive.
+- References real data — actual event names, day names, specific things
+- Wrap 2-3 key words or phrases in [square brackets] — these render in italic DM Serif for emphasis
+- Examples: "School photos, [Duke's library], and [Gab pickup] are all in play today."
+- No greeting prefix. Start straight into the content.
+- Max 15 words. Punchy. The kind of thing that makes you nod.
+${isLate ? '- It is late — calm and quiet energy, focus on tomorrow.' : ''}
+
+PART 2 — DETAIL (Poppins chat prose):
+- 2-3 sentences. Conversational follow-up that expands on the hero.
+- Zaeli's voice — warm, dry, occasionally surprising. Never hollow affirmations.
+- Ends with a specific offer or action, not a bare open question.
+- Plain text only — no asterisks, no markdown, no lists.
 ${focusInstruction}
 
-QUICK REPLIES — generate exactly 3, time-aware and specific to focus topic if selected:
-- Short phrases Anna would tap (3-6 words each)
-- No punctuation at end
+QUICK REPLIES — exactly 3 short chips ${MEMBER_NAME} would tap (3-6 words, no punctuation):
 
 Return ONLY valid JSON (no markdown, no backticks):
-{"main":"${greeting}, ${MEMBER_NAME} — [3 more sentences]","replies":["chip 1","chip 2","chip 3"],"seed":"Anna natural response to first chip"}`;
+{"hero":"[one punchy line]","detail":"[2-3 sentence follow-up]","replies":["chip 1","chip 2","chip 3"],"seed":"natural response to first chip"}`;
 
-      const raw    = await callGPT(briefSys, [{ role:'user', content:'Generate now.' }], 500, 'home_brief');
+      const raw    = await callGPT(briefSys, [{ role:'user', content:'Generate now.' }], 600, 'home_brief');
       const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
-      const txt     = parsed.main    ?? `${greeting}, ${MEMBER_NAME} — let's see what the day has in store.`;
+      const hero    = parsed.hero    ?? `${dateLabel} — let's see what the day has in store.`;
+      const detail  = parsed.detail  ?? `Here's what's coming up, ${MEMBER_NAME}.`;
       const replies = parsed.replies ?? ["What's on today", "Check the list", "All sorted"];
       const seed    = parsed.seed    ?? replies[0] ?? "What's on today?";
-      // Cache as JSON string
-      cachedBriefText = JSON.stringify({ text: txt, replies });
+
+      cachedBriefText = JSON.stringify({ hero, detail, replies });
       cachedBriefSeed = seed;
-      updateMsg(loadId, { text: txt, isLoading: false, quickReplies: replies });
+      setBriefHero(hero);
+      updateMsg(loadId, { text: detail, isLoading: false, quickReplies: replies });
       setBriefReplies(replies);
       setBriefSeed(seed);
     } catch (e) {
       console.error('Brief error:', e);
-      const g = h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening';
       const fallbackReplies = ["What's on today", "Check the list", "All good"];
-      updateMsg(loadId, { text: `${g}, ${MEMBER_NAME} — let's see what the day has in store.`, isLoading: false, quickReplies: fallbackReplies });
+      setBriefHero(`${dateLabel}.`);
+      updateMsg(loadId, { text: `Ready when you are, ${MEMBER_NAME}.`, isLoading: false, quickReplies: fallbackReplies });
       setBriefReplies(fallbackReplies);
     }
   }
@@ -819,7 +799,7 @@ Return ONLY valid JSON (no markdown, no backticks):
       wordmarkOpacity.setValue(0);
       setScreen('splash');
       Animated.spring(starScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8 }).start();
-      setTimeout(() => Animated.timing(wordmarkOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start(), 350);
+      setTimeout(() => Animated.timing(wordmarkOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start(), 250);
       // Skip entry — go straight from splash to chat
       setTimeout(() => {
         Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true })
@@ -828,7 +808,7 @@ Return ONLY valid JSON (no markdown, no backticks):
             chatOpacity.setValue(1);
             generateBrief(true);
           });
-      }, 1500);
+      }, 3000);
     }
   }, [params.autoMic, params.seedMessage])); // re-runs when params change (calendar nav)
 
@@ -842,6 +822,10 @@ Return ONLY valid JSON (no markdown, no backticks):
     const text = (overrideText ?? input).trim();
     const imageUri = overrideImage || pendingImage || undefined;
     if ((!text && !imageUri) || loading) return;
+    // Guard against double-fire — useFocusEffect can re-trigger within same session
+    const sendKey = `${text}|${imageUri || ''}|${Date.now().toString().slice(0,-3)}`; // 1-second bucket
+    if (lastSendRef.current === sendKey) return;
+    lastSendRef.current = sendKey;
     const uMsg: Msg = { id: uid(), role: 'user', text: text || '', imageUri, ts: nowTs() };
     const history = [...messages, uMsg];
     setMessages(history); setInput(''); setPendingImage(null);
@@ -856,13 +840,10 @@ Return ONLY valid JSON (no markdown, no backticks):
       let imageMimeType = 'image/jpeg';
       if (imageUri) {
         try {
-          console.log('[send] Reading image:', imageUri.substring(0, 80));
-          imageBase64 = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' as any });
-          console.log('[send] Image read OK, length:', imageBase64.length);
           const ext = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
           const mimeMap: Record<string,string> = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', heic:'image/jpeg', heif:'image/jpeg' };
+          imageBase64 = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' as any });
           imageMimeType = mimeMap[ext] || 'image/jpeg';
-          console.log('[send] MIME type:', imageMimeType);
         } catch(e) { console.error('[send] Image read FAILED:', e); }
       }
 
@@ -917,7 +898,6 @@ Return ONLY valid JSON (no markdown, no backticks):
         { role: 'user' as const, content: msgContent },
       ];
 
-      console.log('[send] Calling Anthropic, hasImage:', !!imageBase64, 'msgContentType:', Array.isArray(msgContent) ? 'array' : 'string');
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'x-api-key': anthropicKey, 'anthropic-version':'2023-06-01' },
@@ -930,8 +910,6 @@ Return ONLY valid JSON (no markdown, no backticks):
         }),
       });
       const data = await res.json();
-      console.log('[send] Anthropic response stop_reason:', data.stop_reason, 'error:', data.error);
-      
       // Handle tool use
       if (data.stop_reason === 'tool_use') {
         const toolUses = data.content.filter((b: any) => b.type === 'tool_use');
@@ -1069,19 +1047,20 @@ Return ONLY valid JSON (no markdown, no backticks):
       const showEyebrow = !prevMsg || prevMsg.role === 'user';
       const thumbState = thumbs[msg.id] || null;
 
-      // Split into paragraphs on sentence boundaries
-      const paragraphs = msg.text
-        ? msg.text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean)
+      // Split into paragraphs on sentence boundaries — strip any [brackets] GPT may have included
+      const cleanText = msg.text ? msg.text.replace(/\[([^\]]+)\]/g, '$1') : '';
+      const paragraphs = cleanText
+        ? cleanText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean)
         : [];
 
       return (
         <View key={msg.id} style={[s.zaeliMsgWrap, !showEyebrow && { marginTop: 6 }]}>
           {showEyebrow ? (
             <View style={s.zEyebrow}>
-              <View style={[s.zStar, { backgroundColor: T.zaeliStar }]}>
+              <View style={[s.zStar, { backgroundColor: T.zaeliAi }]}>
                 <Svg width="9" height="9" viewBox="0 0 16 16" fill="white"><Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/></Svg>
               </View>
-              <Text style={[s.zName, { color: T.zaeliName }]}>Zaeli</Text>
+              <Text style={[s.zName, { color: T.zaeliAi }]}>Zaeli</Text>
               <Text style={[s.zTs, { color: T.ink3 }]}>{msg.ts}</Text>
             </View>
           ) : (
@@ -1089,7 +1068,7 @@ Return ONLY valid JSON (no markdown, no backticks):
           )}
 
           {msg.isLoading ? (
-            <TypingDots color={CORAL}/>
+            <TypingDots color={HOME_AI}/>
           ) : (
             <View>
               {paragraphs.map((para, pi) => (
@@ -1100,28 +1079,21 @@ Return ONLY valid JSON (no markdown, no backticks):
             </View>
           )}
 
-          {/* Quick replies — brief only */}
-          {msg.isBrief && !msg.isLoading && (msg.quickReplies ?? briefReplies).length > 0 && (
+          {/* Quick reply chips — show on brief + any Zaeli message with chips */}
+          {!msg.isLoading && (msg.quickReplies ?? (msg.isBrief ? briefReplies : [])).length > 0 && (
             <View style={s.quickRepliesWrap}>
-              <Text style={[s.qrLabel, { color: T.ink3 }]}>Quick replies</Text>
               <View style={s.qrChips}>
                 {(msg.quickReplies ?? briefReplies).map((chip, ci) => (
                   <TouchableOpacity
                     key={ci}
-                    style={[s.qrChip, { backgroundColor: T.replyBg, borderColor: T.replyBorder }]}
+                    style={[s.qrChip, { borderColor:'rgba(10,10,10,0.18)' }]}
                     onPress={() => handleQuickReply(chip)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[s.qrChipTxt, { color: T.replyText }]}>{chip}</Text>
+                    <Text style={s.qrChipTxt}>{chip}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-              <TouchableOpacity
-                onPress={() => setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isBrief: false } : m))}
-                activeOpacity={0.6}
-              >
-                <Text style={[s.qrDismiss, { color: T.dismiss }]}>All good →</Text>
-              </TouchableOpacity>
             </View>
           )}
 
@@ -1132,8 +1104,8 @@ Return ONLY valid JSON (no markdown, no backticks):
               <TouchableOpacity style={s.iconBtn} activeOpacity={0.6}><IcoPlay color={T.ink3}/></TouchableOpacity>
               <TouchableOpacity style={s.iconBtn} onPress={() => handleCopy(msg.text)} activeOpacity={0.6}><IcoCopy color={T.ink3}/></TouchableOpacity>
               <TouchableOpacity style={s.iconBtn} onPress={() => handleForward(msg.text)} activeOpacity={0.6}><IcoForward color={T.ink3}/></TouchableOpacity>
-              <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'up')} activeOpacity={0.6}><IcoThumbUp color={thumbState==='up' ? TEAL : T.ink3}/></TouchableOpacity>
-              <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'down')} activeOpacity={0.6}><IcoThumbDown color={thumbState==='down' ? CORAL : T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'up')} activeOpacity={0.6}><IcoThumbUp color={thumbState==='up' ? HOME_AI : T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'down')} activeOpacity={0.6}><IcoThumbDown color={thumbState==='down' ? T.ink2 : T.ink3}/></TouchableOpacity>
             </View>
           )}
         </View>
@@ -1237,31 +1209,32 @@ Return ONLY valid JSON (no markdown, no backticks):
   }
 
   return (
-    <View style={[s.root, { backgroundColor: T.banner }]}>
-      <ExpoStatusBar style="light" animated/>
+    <View style={[s.root, { backgroundColor: T.bannerBg }]}>
+      <ExpoStatusBar style={T.statusBar} animated/>
       <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)}/>
 
-      {/* ── OPTION A1 SPLASH — coral star, 1.5 seconds ── */}
+      {/* ── SPLASH — aqua bg, ink+peach wordmark, greeting, tagline ── */}
       {screen !== 'chat' && (
         <Animated.View style={[s.splashWrap, { opacity: splashOpacity, zIndex: screen === 'splash' ? 20 : 10 }]} pointerEvents={screen === 'splash' ? 'auto' : 'none'}>
           <SafeAreaView style={{ flex:1, alignItems:'center', justifyContent:'center' }} edges={['top']}>
             {/* Orbs */}
             <View style={s.splashOrb1}/>
             <View style={s.splashOrb2}/>
-            <View style={s.splashOrb3}/>
-            {/* Coral star — bounces in */}
-            <Animated.View style={[s.splashStarBox, { transform:[{ scale: starScale }] }]}>
-              <Svg width="42" height="42" viewBox="0 0 16 16" fill="white">
-                <Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/>
-              </Svg>
+            {/* Greeting */}
+            <Animated.View style={{ opacity: wordmarkOpacity, alignItems:'center', gap:10 }}>
+              <Text style={s.splashGreeting}>{h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'}, {MEMBER_NAME} 👋</Text>
             </Animated.View>
-            {/* Wordmark fades in */}
-            <Animated.View style={{ opacity: wordmarkOpacity, alignItems:'center', gap:14 }}>
+            {/* Wordmark — bounces in */}
+            <Animated.View style={[{ transform:[{ scale: starScale }], alignItems:'center', marginTop:8 }]}>
               <Text style={s.splashWordmark}>
-                z<Text style={{ color:YELLOW }}>a</Text>el<Text style={{ color:YELLOW }}>i</Text>
+                z<Text style={{ color:'#FAC8A8' }}>a</Text>el<Text style={{ color:'#FAC8A8' }}>i</Text>
               </Text>
+            </Animated.View>
+            {/* Tagline + dots */}
+            <Animated.View style={{ opacity: wordmarkOpacity, alignItems:'center', gap:20, marginTop:16 }}>
+              <Text style={s.splashTagline}>LESS CHAOS. MORE FAMILY.</Text>
               <View style={s.splashDots}>
-                <TypingDots color="rgba(255,255,255,0.6)"/>
+                <TypingDots color="#FAC8A8"/>
               </View>
             </Animated.View>
           </SafeAreaView>
@@ -1395,7 +1368,7 @@ Return ONLY valid JSON (no markdown, no backticks):
                       placeholder="Ask Zaeli anything…"
                       placeholderTextColor="rgba(10,10,10,0.5)"
                       keyboardAppearance="light"
-                      selectionColor={CORAL}
+                      selectionColor={HOME_AI}
                       onSubmitEditing={(e) => {
                         const txt = e.nativeEvent.text.trim();
                         if (txt) enterChat(txt);
@@ -1419,21 +1392,29 @@ Return ONLY valid JSON (no markdown, no backticks):
       <Animated.View style={[{ flex:1 }, screen === 'chat' ? {} : { opacity: chatOpacity }]} pointerEvents={screen === 'chat' ? 'auto' : 'none'}>
 
 
-      {/* BANNER */}
-      <SafeAreaView style={[s.banner, { backgroundColor: T.banner }]} edges={['top']}>
-        <View style={[s.bannerOrb, { backgroundColor: T.bannerOrb }]}/>
-        <View style={s.bannerRow}>
-          <View style={s.logo}>
-            <View style={s.logoBox}>
-              <Svg width="14" height="14" viewBox="0 0 16 16" fill="white"><Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/></Svg>
+      {/* FIXED TOP BAR — wordmark + Home label + avatar */}
+      <SafeAreaView style={[s.topBar, { backgroundColor: T.bannerBg }]} edges={['top']}>
+        <View style={s.topBarRow}>
+          {/* Wordmark */}
+          <TouchableOpacity onPress={() => router.navigate('/(tabs)/')} activeOpacity={0.8}>
+            <Text style={s.logoWord}>
+              z<Text style={{ color: HOME_AI }}>a</Text>el<Text style={{ color: HOME_AI }}>i</Text>
+            </Text>
+          </TouchableOpacity>
+          {/* Right side — Home label + DEV cal shortcut + avatar */}
+          <View style={s.topBarRight}>
+            <Text style={s.topBarChannelName}>Home</Text>
+            {/* DEV ONLY — remove pre-launch */}
+            <TouchableOpacity onPress={() => router.navigate('/(tabs)/calendar')} activeOpacity={0.7}
+              style={{ width:32, height:32, borderRadius:10, backgroundColor:'rgba(184,237,208,0.4)', alignItems:'center', justifyContent:'center' }}>
+              <Text style={{ fontSize:16 }}>📅</Text>
+            </TouchableOpacity>
+            <View style={s.avatar}>
+              <Text style={s.avatarTxt}>R</Text>
             </View>
-            <Text style={s.logoWord}>z<Text style={{ color:YELLOW }}>a</Text>el<Text style={{ color:YELLOW }}>i</Text></Text>
-          </View>
-          <View style={s.bannerRight}>
-            <Text style={s.bannerDate}>{dateShort}</Text>
-            <HamburgerButton onPress={() => setMenuOpen(true)} tint="#fff"/>
           </View>
         </View>
+        <View style={s.topBarDivider}/>
       </SafeAreaView>
 
       {/* CHAT */}
@@ -1455,11 +1436,49 @@ Return ONLY valid JSON (no markdown, no backticks):
               if (isAtBottom.current) scrollRef.current?.scrollToEnd({ animated: false });
             }}
           >
+            {/* SCROLLABLE BRIEF SECTION — greeting + hero + pills, scrolls away */}
+            <View style={[s.briefSection, { backgroundColor: T.bannerBg }]}>
+              {/* Greeting */}
+              <Text style={s.briefGreeting}>
+                {h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'}, {MEMBER_NAME} 👋
+              </Text>
+
+              {/* Hero one-liner */}
+              {briefHero ? (
+                <Text style={s.briefHero}>{renderHeroText(briefHero, HOME_AI)}</Text>
+              ) : (
+                <View style={{ paddingVertical: 10 }}>
+                  <TypingDots color={HOME_AI}/>
+                </View>
+              )}
+
+              {/* Pills */}
+              {briefReplies.length > 0 && (
+                <View style={s.briefPills}>
+                  {briefReplies.map((chip, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={s.briefPill}
+                      onPress={() => handleQuickReply(chip)}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={s.briefPillTxt}>{chip}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* Closing divider */}
+              <View style={s.briefDivider}/>
+            </View>
+
+            {/* Date divider */}
             <View style={s.dateRow}>
               <View style={[s.dateLine, { backgroundColor: T.dateLine }]}/>
               <Text style={[s.dateLabel, { color: T.ink3 }]}>{dateLabel.toUpperCase()}</Text>
               <View style={[s.dateLine, { backgroundColor: T.dateLine }]}/>
             </View>
+
             {renderMessages()}
             <View style={{ height: 16 }}/>
           </ScrollView>
@@ -1474,23 +1493,6 @@ Return ONLY valid JSON (no markdown, no backticks):
 
           {/* FLOATING BAR — grid icon + input */}
           <View style={[s.inputArea, keyboardOpen && s.inputAreaKb]}>
-
-            {/* Grid icon — right-aligned above send button, hide when keyboard open */}
-            {!keyboardOpen && (
-              <Animated.View style={[s.gridRow, { opacity: pillsAnim }]}>
-                <TouchableOpacity
-                  style={[s.gridBtn, { backgroundColor: T.gridBg, borderColor: T.gridBorder }]}
-                  onPress={() => setShowMoreGrid(true)}
-                  activeOpacity={0.75}
-                >
-                  <View style={s.gridDots}>
-                    {Array.from({ length: 9 }).map((_, i) => (
-                      <View key={i} style={[s.gridDot, { backgroundColor: T.gridDot }]}/>
-                    ))}
-                  </View>
-                </TouchableOpacity>
-              </Animated.View>
-            )}
 
             {/* Image preview */}
             {pendingImage && (
@@ -1513,21 +1515,21 @@ Return ONLY valid JSON (no markdown, no backticks):
                 style={[s.barInput, { color: T.ink }]}
                 value={input}
                 onChangeText={setInput}
-                placeholder="Chat with Zaeli…"
+                placeholder={PLACEHOLDERS[placeholderIdx]}
                 placeholderTextColor={T.barPh}
                 multiline
                 returnKeyType="default"
                 keyboardAppearance="light"
-                selectionColor={CORAL}
+                selectionColor={HOME_AI}
                 onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 350)}
               />
               {isRecording ? (
-                <TouchableOpacity style={[s.barWaveBtn, { backgroundColor: CORAL }]} onPress={handleMicPress} activeOpacity={0.85}>
+                <TouchableOpacity style={[s.barWaveBtn, { backgroundColor: HOME_AI }]} onPress={handleMicPress} activeOpacity={0.85}>
                   <WaveformBars/>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity style={s.barBtn} onPress={handleMicPress} activeOpacity={0.75}>
-                  <IcoMic color={T.barIcon}/>
+                <TouchableOpacity style={s.barMicBtn} onPress={handleMicPress} activeOpacity={0.75}>
+                  <IcoMic color="#F5C8C8" size={26}/>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -1571,45 +1573,6 @@ Return ONLY valid JSON (no markdown, no backticks):
         </Pressable>
       </Modal>
 
-      {/* GRID MODAL — tapping injects context into chat, no navigation */}
-      <Modal visible={showMoreGrid} transparent animationType="fade" onRequestClose={() => setShowMoreGrid(false)}>
-        <Pressable style={s.moreOverlay} onPress={() => setShowMoreGrid(false)}>
-          <View style={[s.moreGrid, { backgroundColor: T.gridSheet }]}>
-            <View style={[s.moreHandle, { backgroundColor: T.gridHandle }]}/>
-            <Text style={[s.moreTitle, { color: T.gridTitle }]}>What do you want to talk about?</Text>
-            <View style={s.moreItems}>
-              {ALL_SCREENS.map(scr => (
-                <TouchableOpacity
-                  key={scr.key}
-                  style={[s.moreItem, { backgroundColor: T.gridItemBg, borderColor: T.gridItemBdr }]}
-                  onPress={() => {
-                    setShowMoreGrid(false);
-                    // Inject as a quick message into chat — keeps user in the conversation
-                    const seeds: Record<string, string> = {
-                      calendar:  "What's on the calendar?",
-                      shopping:  "Give me a shopping update.",
-                      meals:     "What's the meal plan looking like?",
-                      tutor:     "How are the kids going with study?",
-                      todos:     "What tasks are still open?",
-                      kids:      "How are the kids going with their jobs?",
-                      notes:     "Can you help me jot something down?",
-                      travel:    "What travel plans do we have coming up?",
-                      family:    "Give me a family overview.",
-                    };
-                    const msg = seeds[scr.key] ?? `Tell me about ${scr.label}.`;
-                    setTimeout(() => send(msg), 200);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={s.moreItemEmoji}>{scr.emoji}</Text>
-                  <Text style={[s.moreItemLabel, { color: T.gridItemLbl }]}>{scr.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
-
       {/* LIVE CAMERA OVERLAY */}
       {liveCamera && (
         <View style={s.liveCameraOverlay}>
@@ -1645,12 +1608,12 @@ const s = StyleSheet.create({
   root: { flex:1 },
 
   // ── Splash (A1) ──
-  splashWrap:    { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' },
-  splashOrb1:    { position:'absolute', width:320, height:320, borderRadius:160, backgroundColor:'rgba(255,255,255,0.055)', top:-110, right:-90 },
-  splashOrb2:    { position:'absolute', width:200, height:200, borderRadius:100, backgroundColor:'rgba(255,255,255,0.04)', bottom:-70, left:-70 },
-  splashOrb3:    { position:'absolute', width:120, height:120, borderRadius:60, backgroundColor:'rgba(255,123,107,0.12)', bottom:80, right:-30 },
-  splashStarBox: { width:88, height:88, borderRadius:26, alignItems:'center', justifyContent:'center', marginBottom:22, shadowColor:'#FF4545', shadowOpacity:0.4, shadowRadius:24, shadowOffset:{ width:0, height:8 }, backgroundColor:'#FF6B55' },
-  splashWordmark:{ fontFamily:'DMSerifDisplay_400Regular', fontSize:42, color:'#fff', letterSpacing:-0.8, lineHeight:50 },
+  splashWrap:    { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#A8E8CC', alignItems:'center', justifyContent:'center' },
+  splashOrb1:    { position:'absolute', width:420, height:420, borderRadius:210, backgroundColor:'rgba(255,255,255,0.18)', top:-140, right:-120 },
+  splashOrb2:    { position:'absolute', width:300, height:300, borderRadius:150, backgroundColor:'rgba(255,255,255,0.12)', bottom:-100, left:-100 },
+  splashGreeting:{ fontFamily:'Poppins_400Regular', fontSize:18, color:'rgba(10,10,10,0.55)', letterSpacing:0.1 },
+  splashWordmark:{ fontFamily:'DMSerifDisplay_400Regular', fontSize:96, color:'#0A0A0A', letterSpacing:-4, lineHeight:100 },
+  splashTagline: { fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(10,10,10,0.45)', letterSpacing:3, textTransform:'uppercase' as const },
   splashDots:    { alignItems:'center' },
 
   // ── Entry (E2) ──
@@ -1701,29 +1664,38 @@ const s = StyleSheet.create({
   voiceLabel:    { flexDirection:'row', alignItems:'center', gap:4, justifyContent:'flex-end', marginBottom:4 },
   voiceLabelTxt: { fontFamily:'Poppins_400Regular', fontSize:10 },
 
-  // Banner
-  banner:     { paddingHorizontal:20, paddingBottom:12, overflow:'hidden' },
-  bannerOrb:  { position:'absolute', width:150, height:150, borderRadius:75, top:-50, right:-30 },
-  bannerRow:  { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingTop:6 },
-  logo:       { flexDirection:'row', alignItems:'center', gap:8 },
-  logoBox:    { width:32, height:32, backgroundColor:'rgba(255,255,255,0.2)', borderRadius:9, alignItems:'center', justifyContent:'center' },
-  logoWord:   { fontFamily:'DMSerifDisplay_400Regular', fontSize:22, color:'#fff', letterSpacing:-0.4 },
-  bannerRight:{ flexDirection:'row', alignItems:'center', gap:12 },
-  bannerDate: { fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(255,255,255,0.65)' },
+  // Fixed top bar — wordmark + Home label + avatar
+  topBar:           { backgroundColor:'#F5EAD8' },
+  topBarRow:        { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:20, paddingTop:4, paddingBottom:10 },
+  topBarDivider:    { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
+  topBarRight:      { flexDirection:'row', alignItems:'center', gap:10 },
+  topBarChannelName:{ fontFamily:'Poppins_600SemiBold', fontSize:16, color:'rgba(10,10,10,0.45)' },
+  logoWord:         { fontFamily:'DMSerifDisplay_400Regular', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:44 },
+  avatar:           { width:36, height:36, borderRadius:18, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' },
+  avatarTxt:        { fontFamily:'Poppins_700Bold', fontSize:14, color:'#fff' },
+
+  // Scrollable brief section — greeting + hero + pills, scrolls away
+  briefSection:  { backgroundColor:'#F5EAD8', paddingHorizontal:20, paddingTop:14, paddingBottom:0 },
+  briefGreeting: { fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(10,10,10,0.45)', marginBottom:12 },
+  briefHero:     { fontFamily:'DMSerifDisplay_400Regular', fontSize:28, color:'#0A0A0A', lineHeight:36, letterSpacing:-0.3, marginBottom:14 },
+  briefPills:    { flexDirection:'row', flexWrap:'wrap', gap:7, marginBottom:14 },
+  briefPill:     { backgroundColor:HOME_AI, paddingVertical:7, paddingHorizontal:14, borderRadius:20 },
+  briefPillTxt:  { fontFamily:'Poppins_400Regular', fontSize:13, color:'#0A0A0A' },
+  briefDivider:  { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
 
   // KAV + scroll
   kavWrap:       { flex:1 },
   scrollWrap:    { flex:1, position:'relative' },
   scroll:        { flex:1 },
-  scrollContent: { paddingHorizontal:18, paddingTop:14, paddingBottom:170 },
+  scrollContent: { paddingHorizontal:0, paddingTop:0, paddingBottom:170 },
 
   // Date divider
-  dateRow:  { flexDirection:'row', alignItems:'center', marginBottom:20, gap:10 },
+  dateRow:  { flexDirection:'row', alignItems:'center', marginBottom:20, gap:10, paddingHorizontal:18, marginTop:16 },
   dateLine: { flex:1, height:1 },
   dateLabel:{ fontFamily:'Poppins_600SemiBold', fontSize:9, letterSpacing:1.2, textTransform:'uppercase' as const },
 
   // Zaeli message
-  zaeliMsgWrap: { marginBottom:6 },
+  zaeliMsgWrap: { marginBottom:6, paddingHorizontal:18 },
   zEyebrow:     { flexDirection:'row', alignItems:'center', gap:5, marginBottom:6 },
   zStar:        { width:16, height:16, borderRadius:5, alignItems:'center', justifyContent:'center', flexShrink:0 },
   zName:        { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.2 },
@@ -1736,16 +1708,16 @@ const s = StyleSheet.create({
   dotsRow: { flexDirection:'row', gap:5, alignItems:'center', paddingVertical:4 },
   dot:     { width:7, height:7, borderRadius:4 },
 
-  // Quick replies
-  quickRepliesWrap: { marginTop:12 },
+  // Quick replies — ghost style in chat
+  quickRepliesWrap: { marginTop:10 },
   qrLabel:          { fontFamily:'Poppins_600SemiBold', fontSize:10, letterSpacing:0.2, marginBottom:7 },
   qrChips:          { flexDirection:'row', flexWrap:'wrap', gap:6 },
-  qrChip:           { borderWidth:1.5, borderRadius:20, paddingVertical:7, paddingHorizontal:13 },
-  qrChipTxt:        { fontFamily:'Poppins_500Medium', fontSize:13 },
+  qrChip:           { borderWidth:1.5, borderRadius:20, paddingVertical:6, paddingHorizontal:12, backgroundColor:'white' },
+  qrChipTxt:        { fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.65)' },
   qrDismiss:        { fontFamily:'Poppins_400Regular', fontSize:12, marginTop:9 },
 
   // User bubble
-  userMsgWrap: { alignItems:'flex-end', marginBottom:6 },
+  userMsgWrap: { alignItems:'flex-end', marginBottom:6, paddingHorizontal:18 },
   userBubble:  { borderRadius:16, borderBottomRightRadius:3, paddingHorizontal:13, paddingVertical:9, maxWidth:'82%' as any },
   userMsgText: { fontFamily:'Poppins_400Regular', fontSize:17, lineHeight:27 },
   msgImage:    { width:'100%' as any, height:180, borderRadius:12, marginBottom:6 },
@@ -1755,9 +1727,9 @@ const s = StyleSheet.create({
   userIconRow: { flexDirection:'row', alignItems:'center', marginTop:4, gap:2, justifyContent:'flex-end' },
   iconBtn:     { width:26, height:26, alignItems:'center', justifyContent:'center', borderRadius:6 },
 
-  // Scroll down button
-  scrollDownBtn:   { position:'absolute', bottom:170, left:0, right:0, alignItems:'center', zIndex:50 },
-  scrollDownInner: { width:32, height:32, borderRadius:16, backgroundColor:'rgba(10,10,10,0.4)', alignItems:'center', justifyContent:'center' },
+  // Scroll down button — bigger, closer to chat bar
+  scrollDownBtn:   { position:'absolute', bottom:100, left:0, right:0, alignItems:'center', zIndex:50 },
+  scrollDownInner: { width:40, height:40, borderRadius:20, backgroundColor:'rgba(10,10,10,0.45)', alignItems:'center', justifyContent:'center' },
 
   // Input area — no fade line, clean background handled by scrollContent paddingBottom
   inputArea:   { position:'absolute', bottom:0, left:0, right:0, paddingHorizontal:14, paddingBottom: Platform.OS==='ios' ? 30 : 18, paddingTop:10, backgroundColor:'transparent' },
@@ -1777,12 +1749,13 @@ const s = StyleSheet.create({
   // Input bar
   barPill:    { flexDirection:'row', alignItems:'center', gap:8, borderRadius:30, paddingVertical:14, paddingHorizontal:16, borderWidth:1, shadowColor:'#000', shadowOpacity:0.07, shadowRadius:16, shadowOffset:{ width:0, height:-2 }, elevation:4 },
   barBtn:     { width:34, height:34, alignItems:'center', justifyContent:'center' },
+  barMicBtn:  { width:32, height:32, alignItems:'center', justifyContent:'center', flexShrink:0 },
   barSep:     { width:1, height:18, flexShrink:0 },
   barInput:   { flex:1, fontFamily:'Poppins_400Regular', fontSize:15, maxHeight:100, paddingVertical:0 },
   barWaveBtn: { width:40, height:40, borderRadius:20, alignItems:'center', justifyContent:'center' },
   waveRow:    { flexDirection:'row', alignItems:'center', gap:3 },
   waveBar:    { width:3.5, height:18, borderRadius:2, backgroundColor:'#fff' },
-  barSend:    { width:32, height:32, borderRadius:16, backgroundColor:CORAL, alignItems:'center', justifyContent:'center', flexShrink:0 },
+  barSend:    { width:32, height:32, borderRadius:16, backgroundColor:HOME_AI, alignItems:'center', justifyContent:'center', flexShrink:0 },
 
   // Sheet
   sheetOverlay:  { flex:1, backgroundColor:'rgba(0,0,0,0.4)', justifyContent:'flex-end' },
@@ -1812,6 +1785,6 @@ const s = StyleSheet.create({
   liveCameraTitle:   { fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' },
   liveCameraBody:    { flex:1, alignItems:'center', justifyContent:'center', padding:32, gap:24 },
   liveCameraHint:    { fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(255,255,255,0.55)', textAlign:'center' as const, lineHeight:25 },
-  liveCameraBtn:     { backgroundColor:CORAL, borderRadius:16, paddingVertical:15, paddingHorizontal:30 },
+  liveCameraBtn:     { backgroundColor:HOME_AI, borderRadius:16, paddingVertical:15, paddingHorizontal:30 },
   liveCameraBtnTxt:  { fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' },
 });

@@ -1,19 +1,21 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 25 March 2026 — Sessions 17-18 complete*
+*Last updated: 26 March 2026 — Session 21 complete*
 
 ---
 
 ## What Zaeli Is
 
-Zaeli is an iOS-first AI family life platform for Australian families with children. It is not a task manager, not a calendar app, not a shopping list. It is a switched-on family assistant that knows your family's life and helps you stay on top of it — through conversation.
+Zaeli is an iOS-first AI family life platform for Australian families with children. Not a task manager, not a calendar app, not a shopping list. A switched-on family assistant that knows your family's life and helps you stay on top of it — through conversation.
 
-**The core insight:** Most family coordination tools are data entry systems. Zaeli is a conversation. You talk to Zaeli, Zaeli acts. The screens (Calendar, Shopping, Meals, Todos) are data surfaces that Zaeli pulls from — not primary interfaces.
+**The core insight:** Most family coordination tools are data entry systems. Zaeli is a conversation. You talk to Zaeli, Zaeli acts. The channels (Calendar, Shopping, Meals, Todos) are data surfaces that Zaeli pulls from and renders inline — not screens you navigate to.
+
+**Tagline:** Less chaos. More family.
 
 ---
 
 ## Zaeli's Voice
 
-Anne Hathaway energy — smart, warm, magnetic, a little witty. Never try-hard. Australian warmth without "mate" or "guys". Never starts with "I". Never sounds like a push notification. Plain text only — no asterisks or markdown.
+Anne Hathaway energy — smart, warm, magnetic, a little witty. Never try-hard. Australian warmth without "mate" or "guys". Never starts with "I". Never sounds like a push notification. Plain text only — no asterisks, no markdown, no bold.
 
 **Critical rule:** Zaeli never ends on a bare open question. She always offers something specific before leaving the door open. She matches the user's energy all the way through. No pivot to transactional mid-response.
 
@@ -32,194 +34,174 @@ Australian families with children. Highest-priority segment: dual-income couples
 
 ## The Interface Philosophy
 
-### Chat is home
-The home screen IS a chat with Zaeli. No dashboard, no overview. You open the app, Zaeli greets you, you're in conversation. Everything else is accessible through conversation or the hamburger menu.
+### Everything is a channel
+No dedicated screens. Channels are persistent chats with Zaeli where relevant data renders inline. The user never leaves "chat". Zaeli takes them where they need to go.
 
-**Cold start flow (as of Sessions 17-18):** Splash → directly into chat. The intermediate "Hey Anna / Speak to Zaeli / tap a topic" entry screen has been removed — it was annoying and added no value. Zaeli's brief generates immediately on open.
+### There is no navigation UI
+No hamburger menu. No grid. No tab bar. No channel switcher. Zaeli is the only navigation mechanism. Only chrome: banner (wordmark + channel name + avatar) and avatar tap → Settings, Billing, Our Family, Tutor.
 
-### Screens are data tools
-Calendar, Shopping, Meals, Todos — these screens exist for deep editing and management. For reading and quick actions, Zaeli handles everything in chat. Over time, users will rarely need to visit dedicated screens.
+### Zaeli navigates via pills
+**Portal pills** — destination channel's bg colour + accent chevron. Max 3 at once.
+**Quick reply chips** — white bg, ink border. Continue conversation only.
 
-### Rich rendering in chat
-When Zaeli surfaces data (calendar events, shopping list, meal plan), it renders **full-width, borderless, pixel-identical to the dedicated screen** — as if the screen extended into the conversation. No card wrappers, no borders added. Same component, same design, same code.
+### Tutor is a standalone premium module
+NOT a channel. A$9.99/child/month. Own pages, avatar menu only. Socratic method — never gives the answer directly.
 
-### Conversational first, form as fallback
-Every action that can be done conversationally should be done conversationally. Forms exist as safety nets for edge cases. Calendar edits happen through Zaeli — the manual form only opens if explicitly requested.
-
-### V1 principle — ship clean, listen to users
-Do not over-engineer v1. Ship something clean and functional, get it in front of real families, and let actual behaviour tell you what to build next. Deferred to post-v1:
-- Real-time Supabase subscriptions
-- Week view in calendar
-- Nested scroll in chat calendar grid
+### Channel transitions — no new brief
+Conversation flows continuously. Background colour shifts. Only Home generates a brief on cold open.
 
 ---
 
-## Calendar — Full Design System (Locked Sessions 17-18)
+## Brand & Colour System (LOCKED)
 
-### The fundamental change
-Moved from a **flat event list** to a **true time grid**. A flat list makes a 15-minute task look identical to a 2-hour block. The time grid makes duration, overlap, and free time immediately readable without reading any text.
+### Wordmark rule
+DM Serif Display, always lowercase `zaeli`. The 'a' and 'i' carry a complementary colour — the AI easter egg.
 
-### Time grid rules
-- 48px = 1 hour. Proportional height always.
-- Full day rendered: 0am–midnight (24 hours). Auto-scrolls to `max(0, currentHour - 2)` on load.
-- Now-line: Electric Red Coral dot + line, always visible.
-- Half-hour dashed guidelines between hour lines.
-- Empty hours are genuinely empty — free time is instantly readable.
+### Per-channel colour system (LOCKED)
+| Channel | Banner bg | AI colour | Accent dark |
+|---------|-----------|-----------|-------------|
+| Home | `#F5EAD8` | `#A8D8F0` Sky Blue | `#0A7A3A` |
+| Calendar | `#B8EDD0` | `#F0C8C0` Warm Blush | `#0A7A3A` |
+| Shopping | `#F0E880` | `#D8CCFF` Lavender | `#6A6000` |
+| Meals | `#FAC8A8` | `#A8E8CC` Fresh Green | `#C84010` |
+| Kids Hub | `#A8E8CC` | `#FAC8A8` Warm Peach | `#0A6040` |
+| Tutor | `#D8CCFF` | `#A8E8CC` Fresh Green | `#5020C0` |
+| To-dos | `#F0DC80` | `#D8CCFF` Lavender | `#806000` |
+| Notes | `#C8E8A8` | `#F0C8C0` Warm Blush | `#2A6010` |
+| Travel | `#A8D8F0` | `#B8EDD0` Soft Mint | `#0060A0` |
+| Our Family | `#F0C8C0` | `#D8CCFF` Lavender | `#A01830` |
 
-### Overlap handling — progressive disclosure
-- 1-2 overlapping: side by side, full text
-- 3-4 overlapping: compact columns, colour + avatar only — tap for detail
-- Conflict indicator: red `!` badge at overlap point
-- The family colour system means you don't need to read event titles to understand the shape of the day
+AI colour = eyebrow = send button bg = portal pill bg. Send arrow always ink `#0A0A0A`.
+**Exception:** Calendar send button uses `#B8EDD0` mint (the page bg) for visual harmony.
 
-### All-day / multi-day events
-Banner lane above the time grid. Unavailability is instantly obvious without reading anything.
-
-### Three-layer reminder system
-- **Layer 1 — Events:** timed commitments. Dentist at 9am. Soccer pickup at 3:15.
-- **Layer 2 — Reminders:** day-attached but not time-blocked. Shown as chips above the grid.
-- **Layer 3 — Zaeli's knowledge:** invisible context that surfaces in the brief when relevant.
-
-### Calendar chat bar
-- Identical structure to Zaeli home chat bar — see Chat Bar section below
-- Only difference: `+` button opens Add Event sheet (not attachment sheet)
-- Typed text navigates to Zaeli home with `seedMessage` param — Zaeli responds in context
-- Mic navigates to Zaeli home with `autoMic:'true'` — recording starts automatically
-
-### Calendar event CRUD via Zaeli
-Zaeli in home chat (index.tsx) uses Anthropic Claude with tool-calling to write directly to Supabase:
-- `add_calendar_event` — inserts with title, date, start_time, end_time, timezone
-- `update_calendar_event` — searches by title + optional `search_date`, updates in place
-- `delete_calendar_event` — deletes by title search
-- Duration is preserved when only start time is changed
-- Today's date is always passed to Claude so "tomorrow" calculations are correct
-
-### Photo scan → event creation
-1. User taps `+` → "Scan an invite or fixture"
-2. Camera or photo library opens
-3. Image URI stored in shared module variable
-4. Navigates to Zaeli home with `calendarScan:'true'` param
-5. Zaeli reads image via Anthropic vision (claude-sonnet-4-20250514)
-6. Extracts event details, confirms with user, adds to calendar via tool call
-
----
-
-## The Canonical Chat Bar (LOCKED — all screens identical)
-
-This was a major focus of Sessions 17-18. Every screen must use exactly the same chat bar. See `ZAELI-CHAT-BAR-SPEC.md` for full detail.
-
-**Structure:**
+### Family member colours (LOCKED)
 ```
-inputArea (position:absolute, bottom:0, transparent background)
-└── barPill (borderRadius:30, paddingV:14, paddingH:16, border:1, shadow)
-    ├── barBtn 34×34 → IcoPlus 20×20 SVG    ← only this changes per screen
-    ├── barSep 1×18px
-    ├── TextInput (fontSize:15, Poppins_400Regular)
-    ├── barBtn 34×34 → IcoMic 20×20 SVG
-    └── barSend 32×32 borderRadius:16 #FF4545 → IcoSend 16×16 white
-```
-
-**Keyboard handling:** KAV wraps `contentWrap` (position:relative) which contains ScrollView + inputArea (position:absolute). `keyboardWillShow/Hide` listeners switch `inputAreaKb` (paddingBottom: iOS 8px vs 30px at rest).
-
-**Per-screen `+` action:**
-| Screen | + action |
-|--------|----------|
-| Home (index) | Opens attachment/action sheet |
-| Calendar | Opens Add Event sheet |
-| Shopping | Opens Add Item |
-| All others | Opens Zaeli attachment sheet |
-
----
-
-## Screen-by-Screen Design Decisions
-
-### Home (index.tsx) — Active development
-- Zaeli IS the home screen — no separate chat screen
-- Cold start: Splash (1.5s) → chat immediately (entry screen removed)
-- Brief generates on open with thinking dots → fade in
-- Tool-calling: Zaeli writes calendar events, todos, shopping items directly to Supabase
-- Voice: Whisper transcribes → sends as first message → Zaeli responds
-- Calendar context: fetches `start_time` (not `time`) across 7-day window, limit 20 events
-
-### Calendar (calendar.tsx) — Active development
-- Time grid (48px/hour, 0am–midnight)
-- Day strip: multi-colour family dots, scrolls to today on load
-- Month view: larger numbers, multi-colour dots, family legend, day preview
-- Event detail: View mode + manual Edit mode + Edit with Zaeli
-- Add event: Zaeli path (with context) + photo scan + manual form
-- Accent: Electric Red Coral #E8374B
-
-### Shopping (shopping.tsx) — Complete
-- List / Pantry / Spend tabs
-- Ticking food items → auto-syncs to Pantry
-- Receipt scan → saves to receipts table
-
-### Tutor Module — Complete
-- Socratic method — NEVER give the answer
-- Vision pipeline: Claude reads image → GPT guides
-- Full-width document-style chat (not bubbles)
-
----
-
-## Family Colour System (LOCKED)
-```
-Rich:  #4D8BFF  
-Anna:  #FF7B6B  
-Poppy: #A855F7  
-Gab:   #22C55E  
+Rich:  #4D8BFF  ← logged-in user
+Anna:  #FF7B6B
+Poppy: #A855F7
+Gab:   #22C55E
 Duke:  #F59E0B
 ```
-Person-first. External calendar events follow the person's colour. Used for grid dots, event blocks, avatars throughout.
 
 ---
 
-## Per-Screen Accent Colours (LOCKED)
+## Splash Screen (LOCKED)
+- Bg: `#A8E8CC` Aqua Green, 3 second hold
+- Wordmark: DM Serif 96px, ink + `#FAC8A8` peach on 'a' and 'i', bounces in
+- Greeting: "Good morning/afternoon/evening, Rich 👋" Poppins 400 18px
+- Tagline: "LESS CHAOS. MORE FAMILY." Poppins 500 12px uppercase
+- Peach loading dots, radial glow orbs
+
+---
+
+## Home Channel (LOCKED Session 20)
+
+- Two-row brief: DM Serif 28px hero with [italic highlights] + Poppins 15px follow-up
+- GPT returns `{"hero":"[bracketed] key words","detail":"prose","replies":["..."]}`
+- Placeholder cycles 4s: "Chat with Zaeli…" → "Or just speak…" → "Ask anything…"
+- Mic: `#F5C8C8` blush 26px, Send: `#A8D8F0` sky blue ink arrow
+
+---
+
+## Calendar Channel (LOCKED Session 21)
+
+### The key design decision: no time grid
+Full 24-hour grid tested and abandoned — too dense, unusable on mobile. Replaced with clean event cards. This was the right call and the design is stronger for it.
+
+### Layout
 ```
-Home & Chat:    Electric Coral  #FF4545   (send button, mic active)
-Calendar:       Electric Red    #E8374B
-Shopping:       Forest Green    #1A7A45
-Meal Planner:   Terracotta      #E8601A
-Tutor:          Deep Violet     #6B35D9
-To-do List:     Zaeli Gold      #C9A820
-Travel:         Ocean Cyan      #0096C7
-Notes:          Sage Olive      #5C8A3C
-Our Family:     Magenta Pink    #D4006A
-Settings:       Slate Grey      #6B7280
+Banner (mint #B8EDD0)
+  Row 1: zaeli wordmark | Calendar + avatar
+  Row 2: Day / Month toggle (full width)
+Day strip (white bg — DAY VIEW ONLY, pinned above divider)
+  Today anchors LEFT. 120 days forward. No past days.
+Fixed divider (permanent scroll boundary)
+Scrollable content:
+  Notes/all-day chips strip
+  Date label
+  Event cards
+  Zaeli opening prompt (client-side) + chips
+  Chat divider
+  Chat messages
+Chat bar (absolute bottom)
 ```
+
+### Event Card (ONE component — used everywhere)
+- Tinted bg: primary member colour at 9% opacity. No left accent bar.
+- Title: Poppins 600 18px
+- Time: Poppins 500 14px
+- Avatars: RIGHT side, column, 32×32, 12px initials
+- Conflict: red tinted panel + dot, inline on card
+- Tap → EventDetailModal
+- Used identically in Calendar Day, Calendar Month preview, Home inline render
+
+### Day view
+- Events then Zaeli opening prompt (no API call — smart client-side logic)
+- 0 events: warm empty state + "want to add something?"
+- Conflict detected: leads with the conflict
+- Scroll down into full chat window, banner + strip always pinned
+
+### Month view
+- No day strip
+- Tap date → same EventCards below grid (no view switch)
+- Toggle → Day jumps to selected date
+
+### Chat
+- One shared thread (Day and Month share same conversation)
+- Self-contained Anthropic tool-calling (Option A — duplicated from index.tsx)
+- Photo scan handled locally — no navigation to Home
+
+### Key product moments
+- **"Zaeli noticed"** — proactive conflict flagging on load
+- **Conflict card** — inline red warning on overlapping events
+- **Photo scan** — scan invite, Zaeli reads and adds event
 
 ---
 
 ## Key Product Moments
 
 ### "Zaeli noticed"
-The most powerful moments are when Zaeli flags something the user didn't ask about. Conflict between Run with Ferg and Poppy's dance pickup. Library books due for Gab today. Swimmers needed for Poppy on Thursdays. These moments build trust and generate word of mouth.
+Zaeli flags things the user didn't ask about. Conflict detection, library books due, swimmers needed. These build trust and drive word of mouth.
 
 ### The brief
-Four parts: callback → what's coming → what's slipping → contextual question. See zaeli-brief-logic-spec.md for full rules. The brief is the most important piece of communication in the app.
+Only on Home cold open. Never on channel transitions.
 
 ### Instant action
-When Zaeli says she's done something — she actually did it. No "I'll remind you to do that" — she does it. Real writes to Supabase, confirmed immediately. This is the product's core promise.
+When Zaeli says she's done something — she did it. Real Supabase write, confirmed immediately.
+
+---
+
+## Architecture Decisions (Locked)
+
+**No time grid.** Event cards only. Cleaner, readable, kid-friendly.
+**One EventCard component.** Calendar Day, Month, Home inline — identical. One fix fixes all.
+**One shared chat thread.** Day and Month views share conversation. No split history.
+**Scroll-to-chat model.** Events above chat in one ScrollView. "View events" pill shortcut pending.
+**Client-side opening prompt.** No API call on Calendar load. Cost saving.
 
 ---
 
 ## Competitive Position
-- Not threatened by generic AI tools — they don't know your family
+- Not threatened by generic AI — they don't know your family
 - Not threatened by calendar apps — they don't talk to you
 - Real threat: Apple agentic Siri (18-30 months)
-- Strategy: build deep family-specific features (Tutor, brief intelligence, Zaeli noticed) that generic OS agents cannot replicate
-- Zaeli's moat: family context, memory, shared live experience
+- Zaeli's moat: family context, memory, shared live experience, Tutor module
 
 ---
 
 ## Pre-Launch Checklist
-- [ ] calendar.tsx rewrite complete (time grid) — in progress, mostly working
-- [ ] Calendar event CRUD verified end-to-end (add/update/delete via Zaeli)
-- [ ] Photo scan → event creation verified end-to-end
-- [ ] Console.log cleanup from debugging
+- [x] Splash — new brand spec
+- [x] Home channel — complete
+- [x] API logging fixed
+- [x] Calendar channel — card design, day/month, self-contained chat
+- [x] Admin dashboard — feature badge colours
+- [ ] Calendar remaining fixes (past-date rules, location, mic, view-events pill)
+- [ ] Shopping channel colour refactor (`#F0E880` / `#D8CCFF`)
+- [ ] Meals channel colour refactor
+- [ ] New channels: kids, todos, notes, travel, family
 - [ ] New EAS build (keyboard tint fix)
 - [ ] TestFlight build for Anna
 - [ ] Remove AI toggle from more.tsx
-- [ ] Replace DUMMY_FAMILY_ID with real Supabase auth
-- [ ] Website + Stripe + onboarding flow
-- [ ] tutor-practice.tsx UX review
-- [ ] tutor-reading.tsx UX review
+- [ ] Replace DUMMY_FAMILY_ID with real auth
+- [ ] Website + Stripe + onboarding
+- [ ] Tutor UX review (tutor-practice.tsx, tutor-reading.tsx)
