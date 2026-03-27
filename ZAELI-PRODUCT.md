@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 26 March 2026 — Session 21 complete*
+*Last updated: 27 March 2026 — Session 22 complete*
 
 ---
 
@@ -55,7 +55,7 @@ Conversation flows continuously. Background colour shifts. Only Home generates a
 ## Brand & Colour System (LOCKED)
 
 ### Wordmark rule
-DM Serif Display, always lowercase `zaeli`. The 'a' and 'i' carry a complementary colour — the AI easter egg.
+DM Serif Display, always lowercase `zaeli`. The 'a' and 'i' carry a complementary colour — the AI easter egg. Never explain it in marketing.
 
 ### Per-channel colour system (LOCKED)
 | Channel | Banner bg | AI colour | Accent dark |
@@ -71,7 +71,7 @@ DM Serif Display, always lowercase `zaeli`. The 'a' and 'i' carry a complementar
 | Travel | `#A8D8F0` | `#B8EDD0` Soft Mint | `#0060A0` |
 | Our Family | `#F0C8C0` | `#D8CCFF` Lavender | `#A01830` |
 
-AI colour = eyebrow = send button bg = portal pill bg. Send arrow always ink `#0A0A0A`.
+AI colour = eyebrow star = send button bg = portal pill bg. Send arrow always ink `#0A0A0A`.
 **Exception:** Calendar send button uses `#B8EDD0` mint (the page bg) for visual harmony.
 
 ### Family member colours (LOCKED)
@@ -96,88 +96,77 @@ Duke:  #F59E0B
 
 ## Home Channel (LOCKED Session 20)
 
-- Two-row brief: DM Serif 28px hero with [italic highlights] + Poppins 15px follow-up
+- Two-part brief: DM Serif 28px hero with [italic highlights] + Poppins 17px follow-up
 - GPT returns `{"hero":"[bracketed] key words","detail":"prose","replies":["..."]}`
-- Placeholder cycles 4s: "Chat with Zaeli…" → "Or just speak…" → "Ask anything…"
-- Mic: `#F5C8C8` blush 26px, Send: `#A8D8F0` sky blue ink arrow
+- Placeholder cycles 4s. Mic 26px blush. Send sky blue ink arrow.
+- Tool-calling: add/update/delete events, todos, shopping items
+- Chat render: star eyebrow, 17px text, icon row (Play/Copy/Forward/ThumbUp/ThumbDown)
 
 ---
 
-## Calendar Channel (LOCKED Session 21)
+## Calendar Channel (LOCKED Session 22)
 
-### The key design decision: no time grid
-Full 24-hour grid tested and abandoned — too dense, unusable on mobile. Replaced with clean event cards. This was the right call and the design is stronger for it.
+### What we built
+The Calendar channel is a complete, production-quality channel with:
+- Two-row mint banner (wordmark + Day/Month toggle)
+- Pinned day strip (7 days back + 120 forward, today anchors left)
+- Clean event cards with auto-emoji, coloured time text, right-side dynamic avatars
+- Month view with Poppins numbers, tap-to-select dates
+- Self-contained Anthropic tool-calling for add/update/delete
+- Voice recording → Whisper → auto-send
+- Full chat render matching Home (star eyebrow, icon rows, thumbs)
+- Scroll-down arrow + "View events" frosted pill
+- All API calls logged to admin dashboard
 
-### Layout
-```
-Banner (mint #B8EDD0)
-  Row 1: zaeli wordmark | Calendar + avatar
-  Row 2: Day / Month toggle (full width)
-Day strip (white bg — DAY VIEW ONLY, pinned above divider)
-  Today anchors LEFT. 120 days forward. No past days.
-Fixed divider (permanent scroll boundary)
-Scrollable content:
-  Notes/all-day chips strip
-  Date label
-  Event cards
-  Zaeli opening prompt (client-side) + chips
-  Chat divider
-  Chat messages
-Chat bar (absolute bottom)
-```
+### Key design decisions (LOCKED)
+**No time grid.** Event cards only — cleaner, more readable, kid-friendly.
+**One EventCard component.** Calendar Day, Month, Home inline — identical.
+**One shared chat thread.** Day and Month share conversation.
+**Scroll-to-chat model.** Events above, chat below, all one ScrollView.
+**Client-side opening prompt.** No API cost on load.
+**7 days back in strip.** Month view is the escape hatch for older dates.
+**Dynamic avatar sizing.** 1-2: 28px col, 3: 24px col, 4+: 22px 2-col wrap.
 
-### Event Card (ONE component — used everywhere)
-- Tinted bg: primary member colour at 9% opacity. No left accent bar.
-- Title: Poppins 600 18px
-- Time: Poppins 500 14px
-- Avatars: RIGHT side, column, 32×32, 12px initials
-- Conflict: red tinted panel + dot, inline on card
-- Tap → EventDetailModal
-- Used identically in Calendar Day, Calendar Month preview, Home inline render
+### Event Card
+- 18% tint bg (family colour + '2E'), no accent bar
+- Auto-emoji by keyword (40+ patterns: sushi→🍣, dog walk→🐕, t-ball→⚾ etc.)
+- Time text coloured to primary assignee
+- Location shown as "📍 location" below time
+- Avatars right side, dynamic size by count
 
-### Day view
-- Events then Zaeli opening prompt (no API call — smart client-side logic)
-- 0 events: warm empty state + "want to add something?"
-- Conflict detected: leads with the conflict
-- Scroll down into full chat window, banner + strip always pinned
+### Tool-calling critical details
+- `assignees` is array — schema defines it as array type with family mapping
+- "whole family" → `['1','2','3','4','5']`, "the kids" → `['3','4','5']`
+- System prompt pre-computes next 7 days as exact YYYY-MM-DD dates
+- Past-date rule: Zaeli flags and suggests future alternative
+- Photo scan rule: flags past dates from images
 
-### Month view
-- No day strip
-- Tap date → same EventCards below grid (no view switch)
-- Toggle → Day jumps to selected date
+---
 
-### Chat
-- One shared thread (Day and Month share same conversation)
-- Self-contained Anthropic tool-calling (Option A — duplicated from index.tsx)
-- Photo scan handled locally — no navigation to Home
+## Next Major Feature: Home Inline Calendar Render
 
-### Key product moments
-- **"Zaeli noticed"** — proactive conflict flagging on load
-- **Conflict card** — inline red warning on overlapping events
-- **Photo scan** — scan invite, Zaeli reads and adds event
+**The concept:** When Zaeli in Home chat shows calendar information, EventCards render inline in the conversation thread — the same component used in Calendar channel. Below the cards, a portal pill "See full calendar →" navigates to Calendar.
+
+**Why this matters:** It's the first real demonstration of the channel philosophy — data comes to you, not the other way around. The user never has to leave Home to see what's on.
+
+**Approach to discuss:**
+- Trigger: GPT returns a structured calendar block in its response
+- Render: EventCard components inline in the Home ScrollView
+- Navigation: "See full calendar →" portal pill (mint bg, green chevron)
+- Scope: today's events + next 2-3 days max inline; full calendar via pill
 
 ---
 
 ## Key Product Moments
 
 ### "Zaeli noticed"
-Zaeli flags things the user didn't ask about. Conflict detection, library books due, swimmers needed. These build trust and drive word of mouth.
+Zaeli flags things the user didn't ask about — conflict between events, library books due, swimmers needed. These build trust and drive word of mouth. Calendar conflict detection is live.
 
 ### The brief
 Only on Home cold open. Never on channel transitions.
 
 ### Instant action
 When Zaeli says she's done something — she did it. Real Supabase write, confirmed immediately.
-
----
-
-## Architecture Decisions (Locked)
-
-**No time grid.** Event cards only. Cleaner, readable, kid-friendly.
-**One EventCard component.** Calendar Day, Month, Home inline — identical. One fix fixes all.
-**One shared chat thread.** Day and Month views share conversation. No split history.
-**Scroll-to-chat model.** Events above chat in one ScrollView. "View events" pill shortcut pending.
-**Client-side opening prompt.** No API call on Calendar load. Cost saving.
 
 ---
 
@@ -192,16 +181,17 @@ When Zaeli says she's done something — she did it. Real Supabase write, confir
 ## Pre-Launch Checklist
 - [x] Splash — new brand spec
 - [x] Home channel — complete
-- [x] API logging fixed
-- [x] Calendar channel — card design, day/month, self-contained chat
-- [x] Admin dashboard — feature badge colours
-- [ ] Calendar remaining fixes (past-date rules, location, mic, view-events pill)
-- [ ] Shopping channel colour refactor (`#F0E880` / `#D8CCFF`)
+- [x] API logging — all features working
+- [x] Calendar channel — complete (Session 22)
+- [x] Admin dashboard — all feature types showing
+- [ ] Home inline calendar render (next)
+- [ ] Shopping channel colour refactor
 - [ ] Meals channel colour refactor
 - [ ] New channels: kids, todos, notes, travel, family
 - [ ] New EAS build (keyboard tint fix)
 - [ ] TestFlight build for Anna
 - [ ] Remove AI toggle from more.tsx
+- [ ] Remove DEV 📅 button from Home
 - [ ] Replace DUMMY_FAMILY_ID with real auth
 - [ ] Website + Stripe + onboarding
 - [ ] Tutor UX review (tutor-practice.tsx, tutor-reading.tsx)

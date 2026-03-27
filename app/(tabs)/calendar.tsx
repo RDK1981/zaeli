@@ -14,9 +14,10 @@ import {
   TouchableOpacity, View, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Line, Path, Polyline, Rect } from 'react-native-svg';
+import Svg, { Line, Path, Polyline, Rect, Polygon, Circle } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 
 // ── Constants ─────────────────────────────────────────────────
@@ -28,6 +29,7 @@ const INK     = '#0A0A0A';
 const INK2    = 'rgba(0,0,0,0.50)';
 const INK3    = 'rgba(0,0,0,0.28)';
 const HR_PX   = 48;
+const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
 
 // Module-level pending image — kept for compatibility if index.tsx ever needs it
 let _pendingCalendarImage: string | null = null;
@@ -107,6 +109,24 @@ function IcoPlus() {
 function IcoSend() {
   return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>;
 }
+function IcoArrowDown() {
+  return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="5" x2="12" y2="19"/><Polyline points="19 12 12 19 5 12"/></Svg>;
+}
+function IcoPlay({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Polygon points="5 3 19 12 5 21 5 3"/></Svg>;
+}
+function IcoCopy({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Rect x="9" y="9" width="13" height="13" rx="2"/><Path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></Svg>;
+}
+function IcoForward({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Line x1="22" y1="2" x2="11" y2="13"/><Polygon points="22 2 15 22 11 13 2 9 22 2"/></Svg>;
+}
+function IcoThumbUp({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/><Path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></Svg>;
+}
+function IcoThumbDown({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/><Path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/></Svg>;
+}
 function IcoClose() {
   return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="2.2" strokeLinecap="round"><Line x1="18" y1="6" x2="6" y2="18"/><Line x1="6" y1="6" x2="18" y2="18"/></Svg>;
 }
@@ -147,7 +167,7 @@ const TOOLS = [
       start_time: { type:'string', description:'ISO 8601 local e.g. 2026-03-26T09:00:00' },
       end_time:   { type:'string' },
       notes:      { type:'string' },
-      assignee:   { type:'string' },
+      assignees:  { type:'array', items:{ type:'string' }, description:'Array of family member IDs. Anna=1, Rich=2, Poppy=3, Gab=4, Duke=5. Whole family=["1","2","3","4","5"]' },
     }, required:['title','start_time'] } },
   { name:'update_calendar_event',
     description:'Update/reschedule an existing event.',
@@ -173,11 +193,15 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
     if (name === 'add_calendar_event') {
       const localDt  = (input.start_time || '').replace('Z','').split('+')[0];
       const dateOnly = localDt.split('T')[0] || toLocalDateStr(new Date());
+      // Use assignees from model input, default to Rich only if not provided
+      const assignees = Array.isArray(input.assignees) && input.assignees.length > 0
+        ? input.assignees
+        : ['2'];
       const { error } = await supabase.from('events').insert({
         family_id: DUMMY_FAMILY_ID, title: input.title,
         date: dateOnly, start_time: localDt,
         end_time: (input.end_time || input.start_time).replace('Z','').split('+')[0],
-        notes: input.notes || '', timezone: 'Australia/Brisbane', assignees: ['2'],
+        notes: input.notes || '', timezone: 'Australia/Brisbane', assignees,
       });
       if (error) throw error;
       onReload();
@@ -533,7 +557,7 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate, onAskZaeli, onS
         }}>
           <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.07)', alignSelf:'center', marginBottom:4 }}/>
           <View style={{ paddingBottom:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.07)' }}>
-            <Text style={{ fontFamily:'DMSerifDisplay_400Regular', fontSize:20, color:INK }}>Add an event</Text>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:20, color:INK }}>Add an event</Text>
             <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:INK2, marginTop:2 }}>{dateLabel}</Text>
           </View>
           {/* Ask Zaeli — stays in channel */}
@@ -568,7 +592,7 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate, onAskZaeli, onS
       {/* Form — Step 2 */}
       <Modal visible={visible && step==='form'} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
         <SafeAreaView style={{ flex:1, backgroundColor:'#fff' }} edges={['top']}>
-          <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS==='ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
+          <KeyboardAvoidingView style={{ flex:1, backgroundColor:'#fff' }} behavior={Platform.OS==='ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
             <View style={s.modalHdr}>
               <TouchableOpacity onPress={onClose} hitSlop={{ top:12,bottom:12,left:12,right:12 }}>
                 <Text style={s.modalCancel}>← Back</Text>
@@ -678,6 +702,7 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
   const [saving,        setSaving]        = useState(false);
   const [editTitle,     setEditTitle]     = useState('');
   const [editNotes,     setEditNotes]     = useState('');
+  const [editLocation,  setEditLocation]  = useState('');
   const [editRepeat,    setEditRepeat]    = useState('Never');
   const [editAlert,     setEditAlert]     = useState('None');
   const [editAssignees, setEditAssignees] = useState<string[]>([]);
@@ -691,7 +716,11 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
   useEffect(() => {
     if (event) {
       setMode('view'); setDeleting(false); setConfirmDelete(false); setSaving(false);
-      setEditTitle(event.title || ''); setEditNotes(event.notes || '');
+      setEditTitle(event.title || '');
+      // notes stored as "notes | location" — split them out
+      const parts = (event.notes || '').split(' | ');
+      setEditNotes(parts[0] || '');
+      setEditLocation(parts.length > 1 ? parts[parts.length - 1] : '');
       setEditRepeat(event.repeat_rule || 'Never'); setEditAlert(event.alert_rule || 'None');
       setEditAssignees(event.assignees || []);
       if (event.start_time) {
@@ -725,7 +754,7 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
       const dateStr = event.date || toLocalDateStr(new Date());
       const updates: any = {
         title: editTitle.trim() || event.title,
-        notes: editNotes.trim(),
+        notes: [editNotes.trim(), editLocation.trim()].filter(Boolean).join(' | '),
         repeat_rule: editRepeat, alert_rule: editAlert,
         assignees: editAssignees,
         start_time: `${dateStr}T${pad(sh24)}:${pad(editStartM)}:00`,
@@ -773,8 +802,8 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
             {/* Tinted header */}
             <View style={{ backgroundColor:accent+'14', padding:20, paddingTop:14 }}>
               {mode==='view'
-                ? <Text style={{ fontFamily:'DMSerifDisplay_400Regular', fontSize:26, color:INK, letterSpacing:-0.3 }}>{event.title}</Text>
-                : <TextInput style={{ fontFamily:'DMSerifDisplay_400Regular', fontSize:24, color:INK, borderBottomWidth:1.5, borderBottomColor:accent, paddingBottom:6 }}
+                ? <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:INK, letterSpacing:-0.3 }}>{event.title}</Text>
+                : <TextInput style={{ fontFamily:'Poppins_600SemiBold', fontSize:20, color:INK, borderBottomWidth:1.5, borderBottomColor:accent, paddingBottom:6 }}
                     value={editTitle} onChangeText={setEditTitle} placeholder="Event title" placeholderTextColor={INK3}/>
               }
               {assignedMembers.length > 0 && (
@@ -796,12 +825,25 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
                     <Text style={s.detailTxt}>{fmtTime(event.start_time)}{event.end_time ? ` → ${fmtTime(event.end_time)}` : ''}</Text>
                   </View>
                 )}
-                {event.notes && (
-                  <View style={s.detailRow}>
-                    <Text style={s.detailIcon}>📝</Text>
-                    <Text style={s.detailTxt}>{event.notes}</Text>
-                  </View>
-                )}
+                {(() => {
+                  const parts = (event.notes || '').split(' | ');
+                  const loc   = parts.length > 1 ? parts[parts.length - 1] : '';
+                  const note  = parts[0] || '';
+                  return (<>
+                    {loc ? (
+                      <View style={s.detailRow}>
+                        <Text style={s.detailIcon}>📍</Text>
+                        <Text style={s.detailTxt}>{loc}</Text>
+                      </View>
+                    ) : null}
+                    {note ? (
+                      <View style={s.detailRow}>
+                        <Text style={s.detailIcon}>📝</Text>
+                        <Text style={s.detailTxt}>{note}</Text>
+                      </View>
+                    ) : null}
+                  </>);
+                })()}
                 <View style={{ padding:20, gap:10 }}>
                   {!confirmDelete
                     ? <TouchableOpacity style={s.deleteBtn} onPress={() => setConfirmDelete(true)} activeOpacity={0.8}>
@@ -838,6 +880,13 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
                   </View>
                 </View>
                 <View style={s.gcBlock}>
+                  <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingVertical:14, gap:10 }}>
+                    <Text style={{ fontSize:16, width:22, textAlign:'center' }}>📍</Text>
+                    <TextInput style={[s.gcSubInput, { flex:1, paddingHorizontal:0, paddingVertical:0 }]}
+                      value={editLocation} onChangeText={setEditLocation}
+                      placeholder="Location (optional)" placeholderTextColor={INK3}/>
+                  </View>
+                  <View style={s.gcSep}/>
                   <TextInput style={s.gcSubInput} value={editNotes} onChangeText={setEditNotes}
                     placeholder="Notes" placeholderTextColor={INK3} multiline numberOfLines={3} textAlignVertical="top"/>
                 </View>
@@ -1017,27 +1066,111 @@ interface Msg {
   quickReplies?: string[];
 }
 
+// ── WaveformBars ───────────────────────────────────────────────
+function WaveformBars() {
+  const anims = useRef(Array.from({ length: 5 }, (_, i) => new Animated.Value(0.3 + i * 0.1))).current;
+  useEffect(() => {
+    const loops = anims.map((anim, i) => {
+      const min = 0.2 + i * 0.05, max = 0.7 + (i % 3) * 0.15, spd = 180 + i * 55;
+      return Animated.loop(Animated.sequence([
+        Animated.timing(anim, { toValue: max, duration: spd, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(anim, { toValue: min, duration: spd + 40, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]));
+    });
+    loops.forEach(l => l.start());
+    return () => loops.forEach(l => l.stop());
+  }, []);
+  return (
+    <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+      {anims.map((anim, i) => (
+        <Animated.View key={i} style={{ width:3.5, height:18, borderRadius:2, backgroundColor:INK, transform:[{ scaleY:anim }] }}/>
+      ))}
+    </View>
+  );
+}
+
+function logWhisper(durationSeconds: number) {
+  const cost = (durationSeconds / 60) * 0.006;
+  supabase.from('api_logs').insert({ family_id: DUMMY_FAMILY_ID, feature: 'whisper_transcription', model: 'whisper-1', input_tokens: 0, output_tokens: 0, cost_usd: cost });
+}
+
+// ── Emoji picker by keyword ────────────────────────────────────
+function getEventEmoji(title: string): string {
+  const t = title.toLowerCase();
+  if (/soccer|football|footy/.test(t))              return '⚽';
+  if (/danc|ballet|recital/.test(t))                return '💃';
+  if (/run|jog|ferg|park run/.test(t))              return '🏃';
+  if (/swim|pool|squad/.test(t))                    return '🏊';
+  if (/gym|workout|weights|crossfit/.test(t))       return '🏋️';
+  if (/tennis/.test(t))                             return '🎾';
+  if (/cricket/.test(t))                            return '🏏';
+  if (/netball|basket/.test(t))                     return '🏀';
+  if (/rugby|afl|nrl/.test(t))                      return '🏉';
+  if (/golf/.test(t))                               return '⛳';
+  if (/bike|cycling|ride/.test(t))                  return '🚴';
+  if (/yoga|pilates|stretch/.test(t))               return '🧘';
+  if (/school|class|lesson|tutor|homework/.test(t)) return '🏫';
+  if (/photo|portrait/.test(t))                     return '📷';
+  if (/library|book/.test(t))                       return '📚';
+  if (/dentist|orthodon/.test(t))                   return '🦷';
+  if (/doctor|gp|hospital|physio|chiro/.test(t))    return '🏥';
+  if (/birthday|party|celebrat/.test(t))            return '🎂';
+  if (/sushi|japanese/.test(t))                     return '🍣';
+  if (/pizza/.test(t))                              return '🍕';
+  if (/burger|maccas|mcdonalds/.test(t))            return '🍔';
+  if (/taco|mexican/.test(t))                       return '🌮';
+  if (/pasta|italian/.test(t))                      return '🍝';
+  if (/bbq|barbe/.test(t))                          return '🍖';
+  if (/dinner|supper/.test(t))                      return '🍽';
+  if (/lunch/.test(t))                              return '🥗';
+  if (/breakfast/.test(t))                          return '🥞';
+  if (/coffee|cafe/.test(t))                        return '☕';
+  if (/takeaway|takeout/.test(t))                   return '🥡';
+  if (/dog|walk.*dog|dog.*walk|puppy|pup|pooch/.test(t)) return '🐕';
+  if (/cat|vet/.test(t))                            return '🐈';
+  if (/shop|supermarket|groceries|woolies|coles/.test(t)) return '🛒';
+  if (/haircut|hair|barber/.test(t))                return '✂️';
+  if (/flight|travel|airport|holiday|trip/.test(t)) return '✈️';
+  if (/meeting|call|zoom|teams/.test(t))            return '💼';
+  if (/pickup|drop.?off/.test(t))                   return '🚗';
+  if (/bins|rubbish|recycl|garbage/.test(t))        return '🗑';
+  if (/concert|show|theatre|movie|film/.test(t))    return '🎭';
+  if (/church|mass|service/.test(t))                return '⛪';
+  if (/t.?ball|tball/.test(t))                      return '⚾';
+  if (/gymnastics|gym.*kids/.test(t))               return '🤸';
+  return '📅';
+}
+
 // ── EventCard component ────────────────────────────────────────
 function EventCard({ ev, onPress }: { ev: any; onPress: () => void }) {
   const assignedMembers = (ev.assignees || [])
     .map((id: string) => FAMILY_MEMBERS.find(m => m.id === id))
     .filter(Boolean) as any[];
-  const bgColor = assignedMembers.length > 0
-    ? assignedMembers[0].color + '16'
-    : 'rgba(0,0,0,0.04)';
-
-  // Check for conflict stored in ev._conflict (set by caller)
+  const primaryColor = assignedMembers.length > 0 ? assignedMembers[0].color : null;
+  const bgColor = primaryColor ? primaryColor + '2E' : 'rgba(0,0,0,0.06)';
+  const timeColor = primaryColor ?? 'rgba(0,0,0,0.45)';
   const conflict = ev._conflict;
+  const emoji = getEventEmoji(ev.title || '');
+
+  // Extract location from notes field (stored as "notes | location")
+  const noteParts = (ev.notes || '').split(' | ');
+  const location = noteParts.length > 1 ? noteParts[noteParts.length - 1] : '';
 
   return (
     <TouchableOpacity style={[s.evCard, { backgroundColor: bgColor }]} onPress={onPress} activeOpacity={0.75}>
       <View style={s.evCardInner}>
-        {/* Left: title + time + conflict */}
+        {/* Left: emoji + title + time + location + conflict */}
         <View style={{ flex: 1 }}>
-          <Text style={s.evTitle}>{ev.title}</Text>
-          <Text style={s.evTime}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Text style={{ fontSize: 20 }}>{emoji}</Text>
+            <Text style={[s.evTitle, { marginBottom: 0, flex: 1 }]}>{ev.title}</Text>
+          </View>
+          <Text style={[s.evTime, { color: timeColor }]}>
             {fmtTime(ev.start_time)}{ev.end_time && ev.end_time !== ev.start_time ? ` – ${fmtTime(ev.end_time)}` : ''}
           </Text>
+          {location ? (
+            <Text style={s.evLocation}>📍 {location}</Text>
+          ) : null}
           {conflict && (
             <View style={s.evConflict}>
               <View style={s.evConflictDot}/>
@@ -1045,14 +1178,20 @@ function EventCard({ ev, onPress }: { ev: any; onPress: () => void }) {
             </View>
           )}
         </View>
-        {/* Right: avatars — bigger, stacked vertically if needed */}
+        {/* Right: avatars */}
         {assignedMembers.length > 0 && (
-          <View style={s.evAvatarCol}>
-            {assignedMembers.slice(0, 3).map((m: any) => (
-              <View key={m.id} style={[s.evAv, { backgroundColor: m.color }]}>
-                <Text style={s.evAvTxt}>{m.name[0]}</Text>
-              </View>
-            ))}
+          <View style={[s.evAvatarCol, {
+            maxWidth: assignedMembers.length <= 2 ? 32 : assignedMembers.length <= 3 ? 32 : 64,
+          }]}>
+            {assignedMembers.map((m: any) => {
+              const count = assignedMembers.length;
+              const size = count <= 2 ? 28 : count === 3 ? 24 : 22;
+              return (
+                <View key={m.id} style={[s.evAv, { backgroundColor: m.color, width: size, height: size, borderRadius: size / 2 }]}>
+                  <Text style={[s.evAvTxt, { fontSize: count >= 4 ? 9 : count === 3 ? 10 : 12 }]}>{m.name[0]}</Text>
+                </View>
+              );
+            })}
           </View>
         )}
       </View>
@@ -1106,23 +1245,32 @@ export default function CalendarScreen() {
   const [messages,    setMessages]    = useState<Msg[]>([]);
   const [chatInput,   setChatInput]   = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [isRecording,  setIsRecording]  = useState(false);
+  const recordingRef  = useRef<Audio.Recording | null>(null);
+  const [thumbs, setThumbs] = useState<Record<string, 'up'|'down'|null>>({});
   const chatInputRef  = useRef<TextInput>(null);
   const lastSendRef   = useRef<string>('');
   const mainScrollRef = useRef<ScrollView>(null);
   const handledEventId = useRef<string | null>(null);
   const [askZaeliPrompt, setAskZaeliPrompt] = useState('');
+  const [scrollY, setScrollY] = useState(0);
+  const eventsBottomY = useRef(0);
+  const [showScrollBtn,  setShowScrollBtn]  = useState(false);
+  const scrollBtnAnim = useRef(new Animated.Value(0)).current;
+  const isAtBottom    = useRef(true);
 
   // Day strip
-  const STRIP_BEFORE = 0;
+  const STRIP_BEFORE = 7;
   const PILL_W       = 54;
-  const stripDays    = Array.from({ length: 120 }, (_, i) => addDays(today, i));
+  const stripDays    = Array.from({ length: 127 }, (_, i) => addDays(today, i - STRIP_BEFORE));
   const stripRef      = useRef<ScrollView>(null);
   const stripScrolled = useRef(false);
 
   const scrollStripToToday = () => {
     if (stripScrolled.current) return;
     stripScrolled.current = true;
-    stripRef.current?.scrollTo({ x: 0, animated: false });
+    // Scroll so today is the leftmost visible day (offset by 7 past days)
+    stripRef.current?.scrollTo({ x: STRIP_BEFORE * PILL_W, animated: false });
   };
 
   // Load events
@@ -1171,6 +1319,41 @@ export default function CalendarScreen() {
       setAskZaeliPrompt('');
     }
   }, [askZaeliPrompt]);
+
+  // Seed opening prompt as a real Zaeli message once events are loaded
+  const openingSeeded = useRef(false);
+  useEffect(() => {
+    if (openingSeeded.current || events.length === 0) return;
+    // Only seed once, only in day view on today
+    const selectedStr = toLocalDateStr(selectedDate);
+    const tStr        = toLocalDateStr(today);
+    if (selectedStr !== tStr) return;
+    openingSeeded.current = true;
+
+    const dayEvs      = addConflicts(events.filter(e => (e.date || '') === tStr && !e.all_day));
+    const allDay      = events.filter(e => (e.date || '') === tStr && e.all_day);
+    const conflicts   = dayEvs.filter(e => e._conflict);
+    const count       = dayEvs.length + allDay.length;
+
+    let text = '';
+    let quickReplies: string[] = [];
+
+    if (count === 0) {
+      text = 'Nothing locked in today — want to add something, or shall I check what\'s coming up?';
+      quickReplies = ['Add an event', 'Show tomorrow', 'Show this week'];
+    } else if (conflicts.length > 0) {
+      text = `There's a clash worth sorting — ${conflicts[0].title} overlaps with something else. Want me to fix it?`;
+      quickReplies = ['Fix the clash', 'Leave it for now', 'Add an event'];
+    } else if (count === 1) {
+      text = `Quiet one — just ${dayEvs[0]?.title || allDay[0]?.title}. Anything to add or change?`;
+      quickReplies = ['Add an event', 'Edit this event', 'Show tomorrow'];
+    } else {
+      text = `${count} things on today. Need anything added, moved, or flagged?`;
+      quickReplies = ['Add an event', 'Show tomorrow', 'Any conflicts?'];
+    }
+
+    setMessages([{ id: uid(), role: 'zaeli', text, ts: nowTs(), quickReplies }]);
+  }, [events]);
 
   const selectedDateStr = toLocalDateStr(selectedDate);
   const todayStr        = toLocalDateStr(today);
@@ -1232,8 +1415,59 @@ export default function CalendarScreen() {
     } catch {}
   };
 
+  // ── Voice recording ───────────────────────────────────────────
+  async function startRecording() {
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef.current = recording;
+      setIsRecording(true);
+    } catch (e) { console.error('startRecording:', e); }
+  }
+
+  async function stopRecording() {
+    try {
+      setIsRecording(false);
+      if (!recordingRef.current) return;
+      const status = await recordingRef.current.getStatusAsync();
+      const durationSec = (status as any)?.durationMillis ? (status as any).durationMillis / 1000 : 10;
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+      if (!uri) return;
+      const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+      if (!key) return;
+      logWhisper(durationSec);
+      const form = new FormData();
+      form.append('file', { uri, type: 'audio/m4a', name: 'audio.m4a' } as any);
+      form.append('model', 'whisper-1');
+      const resp = await fetch(WHISPER_URL, { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form });
+      const data = await resp.json();
+      const transcript = data?.text?.trim() ?? '';
+      if (transcript) sendMessage(transcript);
+    } catch (e) { console.error('stopRecording:', e); }
+  }
+
+  function handleMicPress() { if (isRecording) stopRecording(); else startRecording(); }
+
   // ── Send message ─────────────────────────────────────────────
   const td = toLocalDateStr(today);
+
+  function handleScroll(e: any) {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const dist = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    const atBottom = dist < 80;
+    isAtBottom.current = atBottom;
+    setScrollY(contentOffset.y);
+    if (!atBottom && !showScrollBtn) {
+      setShowScrollBtn(true);
+      Animated.timing(scrollBtnAnim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    } else if (atBottom && showScrollBtn) {
+      Animated.timing(scrollBtnAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => setShowScrollBtn(false));
+    }
+  }
 
   async function sendMessage(overrideText?: string, overrideImage?: string) {
     const text     = (overrideText ?? chatInput).trim();
@@ -1265,15 +1499,39 @@ export default function CalendarScreen() {
         .map(e => `${e.title} (${e.date}${e.start_time ? ' at ' + fmtTime(e.start_time) : ''}${e.assignees?.length ? ' · ' + e.assignees.map((id: string) => FAMILY_MEMBERS.find(m => m.id === id)?.name).filter(Boolean).join(', ') : ''})`)
         .join('\n');
 
-      const systemPrompt = `You are Zaeli — a warm, smart AI managing a family calendar. You are in the Calendar channel. Today is ${td}. The user is viewing ${selectedLabel}.
+      // Calculate day of week context for relative date resolution
+      const todayDow = today.toLocaleDateString('en-AU', { weekday: 'long' });
+      const daysOfWeek = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const todayDowIdx = today.getDay();
+      const nextDays = daysOfWeek.map((name, i) => {
+        let daysAhead = i - todayDowIdx;
+        if (daysAhead <= 0) daysAhead += 7;
+        const d = addDays(today, daysAhead);
+        return `${name} = ${toLocalDateStr(d)}`;
+      }).join(', ');
+
+      const systemPrompt = `You are Zaeli — a warm, smart AI managing a family calendar. You are in the Calendar channel. Today is ${td} (${todayDow}). The current time is ${nowTs()}. The user is viewing ${selectedLabel}.
 
 UPCOMING EVENTS:\n${upcomingCtx || 'Nothing upcoming.'}
 
-FAMILY: Anna (1), Rich (2), Poppy (3), Gab (4), Duke (5).
+FAMILY MEMBERS — always use these exact assignee arrays:
+- Anna = ['1'], Rich = ['2'], Poppy = ['3'], Gab = ['4'], Duke = ['5']
+- "whole family" / "everyone" / "all of us" / "all" / "the whole family" → MUST use ['1','2','3','4','5']
+- "the kids" / "kids" / "children" → ['3','4','5']
+- "Rich and Anna" → ['1','2']
+- Default (no person specified) → ['2'] (Rich only)
 
-USE TOOLS IMMEDIATELY when you have enough info. Never say "I'll add that" — just add it. After a tool call, confirm briefly and naturally.
-For time-only updates use update_calendar_event — never delete and re-add.
-New events default to Rich's assignee ['2'] unless told otherwise.
+EXACT DATES FOR RELATIVE REFERENCES — use these, do not calculate yourself:
+${nextDays}
+- "this Sunday" / "this Monday" etc = the date listed above for that day
+- "tomorrow" = ${toLocalDateStr(addDays(today, 1))}
+- "next week" = week starting ${toLocalDateStr(addDays(today, 7 - todayDowIdx))}
+
+RULES:
+- USE TOOLS IMMEDIATELY when you have enough info. Never say "I'll add that" — just add it.
+- For time-only updates use update_calendar_event — never delete and re-add.
+- PAST DATE RULE: NEVER schedule or move an event to a date or time that has already passed. If the requested date/time is in the past, flag it: "That time has already passed — did you mean [suggest future date]?" Always confirm before acting.
+- PHOTO SCAN RULE: When reading a date from a scanned image, check if it is in the past relative to today (${td}). If it is, ask "This looks like it's from [date] which has passed — want me to add it for the next occurrence?" Do not add past-dated scan events without confirming first.
 
 Voice: warm, specific, Australian. Plain text only — no asterisks or markdown. 2-3 sentences max.`;
 
@@ -1343,13 +1601,20 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
         setMessages(prev => prev.map(m => m.id === replyId ? { ...m, text: reply, isLoading: false } : m));
       }
 
-      // API logging
+      // API logging — fires regardless of tool_use or direct response
       try {
-        const it   = data.usage?.input_tokens ?? 0;
-        const ot   = data.usage?.output_tokens ?? 0;
-        const cost = (it / 1000000) * 3.0 + (ot / 1000000) * 15.0;
-        supabase.from('api_logs').insert({ family_id: DUMMY_FAMILY_ID, feature: 'calendar_chat', model: 'claude-sonnet-4-20250514', input_tokens: it, output_tokens: ot, cost_usd: cost });
-      } catch {}
+        const it   = (data.usage?.input_tokens ?? 0);
+        const ot   = (data.usage?.output_tokens ?? 0);
+        const cost = (it / 1_000_000) * 3.0 + (ot / 1_000_000) * 15.0;
+        await supabase.from('api_logs').insert({
+          family_id: DUMMY_FAMILY_ID,
+          feature: 'calendar_chat',
+          model: 'claude-sonnet-4-20250514',
+          input_tokens: it,
+          output_tokens: ot,
+          cost_usd: cost,
+        });
+      } catch (logErr) { console.error('api_log error:', logErr); }
 
     } catch {
       setMessages(prev => prev.map(m => m.id === replyId ? { ...m, text: 'Something went wrong — try again?', isLoading: false } : m));
@@ -1357,32 +1622,63 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
   }
 
   // ── Render messages ───────────────────────────────────────────
-  const renderMessages = () => messages.map(msg => {
+  const renderMessages = () => messages.map((msg, i) => {
     if (msg.role === 'user') {
       return (
-        <View key={msg.id} style={{ alignItems: 'flex-end', marginBottom: 8 }}>
+        <View key={msg.id} style={[s.userMsgWrap, { marginTop: 18 }]}>
           {msg.imageUri && (
             <Image source={{ uri: msg.imageUri }} style={{ width: 130, height: 130, borderRadius: 12, marginBottom: 4 }} resizeMode="cover"/>
           )}
-          {msg.text ? (
-            <View style={s.ubub}>
-              <Text style={s.ububTxt}>{msg.text}</Text>
+          {!!msg.text && (
+            <View style={s.userBubble}>
+              <Text style={s.userMsgText}>{msg.text}</Text>
             </View>
-          ) : null}
+          )}
+          <View style={s.userIconRow}>
+            <Text style={s.msgTime}>{msg.ts}</Text>
+            <TouchableOpacity style={s.iconBtn} onPress={() => {}} activeOpacity={0.6}><IcoCopy color={INK3}/></TouchableOpacity>
+            <TouchableOpacity style={s.iconBtn} onPress={() => {}} activeOpacity={0.6}><IcoForward color={INK3}/></TouchableOpacity>
+          </View>
         </View>
       );
     }
+
+    // Zaeli message
+    const prevMsg = i > 0 ? messages[i - 1] : null;
+    const showEyebrow = !prevMsg || prevMsg.role === 'user';
+    const thumbState = thumbs[msg.id] || null;
+    const paragraphs = msg.text
+      ? msg.text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean)
+      : [];
+
     return (
-      <View key={msg.id} style={{ marginBottom: 10 }}>
-        <View style={s.zEyebrow}>
-          <View style={[s.zDot, { backgroundColor: CAL_AI }]}/>
-          <Text style={[s.zName, { color: CAL_AI }]}>Zaeli</Text>
-          <Text style={s.zTs}>{msg.ts}</Text>
-        </View>
+      <View key={msg.id} style={[s.zaeliMsgWrap, !showEyebrow && { marginTop: 6 }]}>
+        {showEyebrow ? (
+          <View style={s.zEyebrow}>
+            <View style={[s.zStar, { backgroundColor: CAL_AI }]}>
+              <Svg width="9" height="9" viewBox="0 0 16 16" fill="white"><Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/></Svg>
+            </View>
+            <Text style={[s.zName, { color: CAL_AI }]}>Zaeli</Text>
+            <Text style={s.zTs}>{msg.ts}</Text>
+          </View>
+        ) : (
+          <Text style={s.zTsOnly}>{msg.ts}</Text>
+        )}
+
         {msg.isLoading
           ? <TypingDots color={CAL_AI}/>
-          : <Text style={s.zText}>{msg.text}</Text>
+          : (
+            <View>
+              {paragraphs.map((para, pi) => (
+                <Text key={pi} style={[s.zaeliMsgText, pi < paragraphs.length - 1 && { marginBottom: 10 }]}>
+                  {para}
+                </Text>
+              ))}
+            </View>
+          )
         }
+
+        {/* Quick reply chips */}
         {!msg.isLoading && msg.quickReplies && msg.quickReplies.length > 0 && (
           <View style={s.chipsRow}>
             {msg.quickReplies.map((chip, ci) => (
@@ -1390,6 +1686,21 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
                 <Text style={s.chipTxt}>{chip}</Text>
               </TouchableOpacity>
             ))}
+          </View>
+        )}
+
+        {/* Icon row — completed messages */}
+        {!msg.isLoading && (
+          <View style={s.zaeliIconRow}>
+            <TouchableOpacity style={s.iconBtn} activeOpacity={0.6}><IcoPlay color={INK3}/></TouchableOpacity>
+            <TouchableOpacity style={s.iconBtn} activeOpacity={0.6}><IcoCopy color={INK3}/></TouchableOpacity>
+            <TouchableOpacity style={s.iconBtn} activeOpacity={0.6}><IcoForward color={INK3}/></TouchableOpacity>
+            <TouchableOpacity style={s.iconBtn} onPress={() => setThumbs(prev => ({ ...prev, [msg.id]: 'up' }))} activeOpacity={0.6}>
+              <IcoThumbUp color={thumbState === 'up' ? CAL_AI : INK3}/>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.iconBtn} onPress={() => setThumbs(prev => ({ ...prev, [msg.id]: 'down' }))} activeOpacity={0.6}>
+              <IcoThumbDown color={thumbState === 'down' ? INK2 : INK3}/>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -1498,7 +1809,9 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingBottom: 100 }}
             showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled">
+            keyboardShouldPersistTaps="handled"
+            onScroll={handleScroll}
+            scrollEventThrottle={16}>
 
             {/* ── DAY VIEW CONTENT ── */}
             {view === 'day' && (
@@ -1537,50 +1850,6 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
                     <EventCard key={ev.id} ev={ev} onPress={() => setSelectedEvent(ev)}/>
                   ))
                 )}
-
-                {/* Zaeli opening prompt — only shown when no chat yet */}
-                {messages.length === 0 && (() => {
-                  const conflicts = timedEvents.filter(e => e._conflict);
-                  const count = timedEvents.length + allDayEvents.length;
-                  let promptText = '';
-                  let chips: string[] = [];
-                  if (count === 0) {
-                    promptText = 'Nothing locked in — want to add something, or shall I check what\'s coming up?';
-                    chips = ['Add an event', 'Show tomorrow', 'Show this week'];
-                  } else if (conflicts.length > 0) {
-                    promptText = `There's a clash worth sorting — ${conflicts[0].title} overlaps with something else. Want me to fix it?`;
-                    chips = ['Fix the clash', 'Add an event', 'That\'s fine'];
-                  } else if (count === 1) {
-                    promptText = `Quiet one — just ${timedEvents[0]?.title || allDayEvents[0]?.title}. Anything to add or change?`;
-                    chips = ['Add an event', 'Edit this event', 'Show tomorrow'];
-                  } else {
-                    promptText = `${count} things on today. Need anything added, moved, or flagged?`;
-                    chips = ['Add an event', 'Show tomorrow', 'Any conflicts?'];
-                  }
-                  return (
-                    <>
-                      <View style={s.chatDivider}>
-                        <View style={s.chatDivLine}/>
-                        <Text style={s.chatDivTxt}>Zaeli</Text>
-                        <View style={s.chatDivLine}/>
-                      </View>
-                      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-                        <View style={s.zEyebrow}>
-                          <View style={[s.zDot, { backgroundColor: CAL_AI }]}/>
-                          <Text style={[s.zName, { color: CAL_AI }]}>Zaeli</Text>
-                        </View>
-                        <Text style={s.zText}>{promptText}</Text>
-                        <View style={[s.chipsRow, { marginTop: 10 }]}>
-                          {chips.map((chip, ci) => (
-                            <TouchableOpacity key={ci} style={s.chip} onPress={() => sendMessage(chip)} activeOpacity={0.7}>
-                              <Text style={s.chipTxt}>{chip}</Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </View>
-                    </>
-                  );
-                })()}
               </>
             )}
 
@@ -1674,7 +1943,9 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
 
             {/* ── CHAT DIVIDER — only shown when there are messages ── */}
             {messages.length > 0 && (
-              <View style={s.chatDivider}>
+              <View
+                style={s.chatDivider}
+                onLayout={e => { eventsBottomY.current = e.nativeEvent.layout.y; }}>
                 <View style={s.chatDivLine}/>
                 <Text style={s.chatDivTxt}>Zaeli</Text>
                 <View style={s.chatDivLine}/>
@@ -1687,6 +1958,25 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
             </View>
 
           </ScrollView>
+
+          {/* ── SCROLL DOWN ARROW — replicated from Home ── */}
+          {showScrollBtn && (
+            <Animated.View style={[s.scrollDownBtn, { opacity: scrollBtnAnim }]} pointerEvents="box-none">
+              <TouchableOpacity style={s.scrollDownInner} onPress={() => mainScrollRef.current?.scrollToEnd({ animated: true })} activeOpacity={0.8}>
+                <IcoArrowDown/>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          {/* ── VIEW EVENTS PILL — shown when scrolled past events ── */}
+          {messages.length > 0 && scrollY > eventsBottomY.current && eventsBottomY.current > 0 && (
+            <TouchableOpacity
+              style={[s.viewEventsPill, keyboardOpen && s.viewEventsPillKb]}
+              onPress={() => mainScrollRef.current?.scrollTo({ y: 0, animated: true })}
+              activeOpacity={0.85}>
+              <Text style={s.viewEventsPillTxt}>↑ View events</Text>
+            </TouchableOpacity>
+          )}
 
           {/* ── CHAT BAR — absolute bottom ── */}
           <View style={[s.inputArea, keyboardOpen && s.inputAreaKb]}>
@@ -1718,9 +2008,15 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
                 keyboardAppearance="light"
                 selectionColor={CAL_AI}
               />
-              <TouchableOpacity style={s.barMicBtn} activeOpacity={0.75}>
-                <IcoMic color="#F5C8C8" size={26}/>
-              </TouchableOpacity>
+              {isRecording ? (
+                <TouchableOpacity style={s.barWaveBtn} onPress={handleMicPress} activeOpacity={0.85}>
+                  <WaveformBars/>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={s.barMicBtn} onPress={handleMicPress} activeOpacity={0.75}>
+                  <IcoMic color="#F5C8C8" size={26}/>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={[s.barSend, ((!chatInput.trim() && !pendingImage) || chatLoading) && { opacity: 0.4 }]}
                 onPress={() => sendMessage()}
@@ -1816,7 +2112,7 @@ const s = StyleSheet.create({
   dpToday:        { backgroundColor: ACC },
   dpSel:          { backgroundColor: 'rgba(232,55,75,0.1)' },
   dpName:         { fontFamily: 'Poppins_700Bold', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.3, color: INK3 },
-  dpNum:          { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 22, color: INK, lineHeight: 26 },
+  dpNum:          { fontFamily: 'Poppins_700Bold', fontSize: 22, color: INK, lineHeight: 26 },
 
   // Fixed divider
   fixedDivider: { height: 1, backgroundColor: 'rgba(0,0,0,0.08)', flexShrink: 0 },
@@ -1830,7 +2126,7 @@ const s = StyleSheet.create({
   noteChipTxt:{ fontFamily: 'Poppins_500Medium', fontSize: 12 },
 
   // Date label
-  dateLbl: { fontFamily: 'Poppins_700Bold', fontSize: 9, letterSpacing: 0.15 * 9, color: 'rgba(0,0,0,0.28)', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6, textTransform: 'uppercase' as const },
+  dateLbl: { fontFamily: 'Poppins_700Bold', fontSize: 12, letterSpacing: 1.2, color: 'rgba(0,0,0,0.4)', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, textTransform: 'uppercase' as const },
 
   // Event cards — clean, no accent bar
   evCard:       { marginHorizontal: 16, marginBottom: 8, borderRadius: 14, padding: 14 },
@@ -1838,10 +2134,11 @@ const s = StyleSheet.create({
   evTitle:      { fontFamily: 'Poppins_600SemiBold', fontSize: 18, color: INK, marginBottom: 4 },
   evTime:       { fontFamily: 'Poppins_500Medium', fontSize: 14, color: 'rgba(0,0,0,0.45)' },
   evAvatarRow:  { flexDirection: 'row', gap: 5, marginTop: 9 },
-  evAvatarCol:  { flexDirection: 'column', gap: 5, alignItems: 'center', flexShrink: 0 },
-  evAv:         { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  evAvatarCol:  { flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignItems: 'center', flexShrink: 0, justifyContent: 'flex-end' },
+  evAv:         { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   evAvTxt:      { fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#fff' },
   evConflict:   { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 9, padding: 8, backgroundColor: 'rgba(232,55,75,0.07)', borderRadius: 9 },
+  evLocation:   { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(0,0,0,0.45)', marginTop: 4 },
   evConflictDot:{ width: 7, height: 7, borderRadius: 4, backgroundColor: ACC, flexShrink: 0, marginTop: 3 },
   evConflictTxt:{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: ACC, lineHeight: 16, flex: 1 },
 
@@ -1856,24 +2153,38 @@ const s = StyleSheet.create({
   chatDivLine: { flex: 1, height: 1, backgroundColor: 'rgba(0,0,0,0.06)' },
   chatDivTxt:  { fontFamily: 'Poppins_700Bold', fontSize: 9, letterSpacing: 0.15 * 9, textTransform: 'uppercase' as const, color: 'rgba(0,0,0,0.2)' },
 
-  // Chat messages
-  ubub:    { backgroundColor: '#F2F2F2', borderRadius: 14, borderBottomRightRadius: 3, paddingHorizontal: 13, paddingVertical: 9, maxWidth: '76%' as any },
-  ububTxt: { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, lineHeight: 22 },
-  zEyebrow:{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
-  zDot:    { width: 8, height: 8, borderRadius: 3 },
-  zName:   { fontFamily: 'Poppins_700Bold', fontSize: 9, letterSpacing: 0.08 * 9, textTransform: 'uppercase' as const },
-  zTs:     { fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK3, marginLeft: 'auto' as any },
-  zText:   { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, lineHeight: 24 },
+  // Chat messages — matching Home exactly
+  zaeliMsgWrap: { marginBottom: 6, paddingHorizontal: 16 },
+  userMsgWrap:  { alignItems: 'flex-end', marginBottom: 6, paddingHorizontal: 16 },
+  userBubble:   { backgroundColor: '#F2F2F2', borderRadius: 16, borderBottomRightRadius: 3, paddingHorizontal: 13, paddingVertical: 9, maxWidth: '82%' as any },
+  userMsgText:  { fontFamily: 'Poppins_400Regular', fontSize: 17, lineHeight: 27, color: INK },
+  zEyebrow:     { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
+  zStar:        { width: 16, height: 16, borderRadius: 5, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  zName:        { fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 0.2 },
+  zTs:          { fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK3, marginLeft: 'auto' as any },
+  zTsOnly:      { fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK3, marginBottom: 5 },
+  zaeliMsgText: { fontFamily: 'Poppins_400Regular', fontSize: 17, lineHeight: 27, letterSpacing: -0.1, color: INK },
+  zaeliIconRow: { flexDirection: 'row', alignItems: 'center', marginTop: 7, gap: 2 },
+  userIconRow:  { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 2, justifyContent: 'flex-end' },
+  msgTime:      { fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK3 },
+  iconBtn:      { width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
   chipsRow:{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   chip:    { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.15)', backgroundColor: '#fff' },
   chipTxt: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(10,10,10,0.65)' },
 
-  // Chat bar
+  // View events pill — right side, consistent gap above chat bar
+  viewEventsPill:    { position: 'absolute', bottom: Platform.OS === 'ios' ? 100 : 86, right: 16, backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 20, paddingVertical: 7, paddingHorizontal: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
+  viewEventsPillKb:  { bottom: Platform.OS === 'ios' ? 92 : 80 },
+  viewEventsPillTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK },
+  // Scroll down arrow — replicated from Home
+  scrollDownBtn:   { position: 'absolute', bottom: 100, left: 0, right: 0, alignItems: 'center', zIndex: 50 },
+  scrollDownInner: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(10,10,10,0.45)', alignItems: 'center', justifyContent: 'center' },
   inputArea:   { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 14, paddingBottom: Platform.OS === 'ios' ? 30 : 18, paddingTop: 10, backgroundColor: 'transparent' },
   inputAreaKb: { paddingBottom: Platform.OS === 'ios' ? 8 : 6 },
   barPill:     { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 30, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: -2 }, elevation: 4 },
   barBtn:      { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
   barMicBtn:   { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  barWaveBtn:  { width: 40, height: 40, borderRadius: 20, backgroundColor: CAL_AI, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   barSep:      { width: 1, height: 18, flexShrink: 0 },
   barInput:    { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, paddingVertical: 0, maxHeight: 100 },
   barSend:     { width: 32, height: 32, borderRadius: 16, backgroundColor: CAL_BG, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
@@ -1882,14 +2193,14 @@ const s = StyleSheet.create({
   monthNav:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8 },
   monthArr:    { width: 30, height: 30, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.06)', alignItems: 'center', justifyContent: 'center' },
   monthArrTxt: { fontSize: 18, color: INK2, fontFamily: 'Poppins_400Regular' },
-  monthLbl:    { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 22, color: INK, letterSpacing: -0.3 },
+  monthLbl:    { fontFamily: 'Poppins_700Bold', fontSize: 20, color: INK, letterSpacing: -0.3 },
   calGrid:     { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 4 },
   calCell:     { width: `${100 / 7}%` as any, alignItems: 'center', paddingBottom: 4 },
   calHdr:      { fontFamily: 'Poppins_700Bold', fontSize: 9, textTransform: 'uppercase' as const, color: INK3, paddingVertical: 5 },
   calInner:    { width: CELL_SIZE, height: CELL_SIZE, borderRadius: CELL_SIZE / 2, alignItems: 'center', justifyContent: 'center' },
   calToday:    { backgroundColor: ACC },
   calSel:      { backgroundColor: 'rgba(232,55,75,0.1)' },
-  calNum:      { fontFamily: 'Poppins_500Medium', fontSize: 18, color: INK },
+  calNum:      { fontFamily: 'Poppins_500Medium', fontSize: 20, color: INK },
   calNumOther: { color: 'rgba(0,0,0,0.2)', fontFamily: 'Poppins_400Regular' },
   legend:      { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', paddingHorizontal: 4, paddingTop: 10, paddingBottom: 8, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)' },
 
