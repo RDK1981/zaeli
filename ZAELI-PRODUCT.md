@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 30 March 2026 — Design session complete. Tutor ✅ Kids Hub ✅ Our Family ✅ Todos ✅ Notes ✅*
+*Last updated: 30 March 2026 — Session 23 complete (Home inline calendar, mic overlay, tool-calling fixes)*
 
 ---
 
@@ -15,7 +15,7 @@ Zaeli is an iOS-first AI family life platform for Australian families with child
 
 ## Zaeli's Voice
 
-Anne Hathaway energy — smart, warm, magnetic, a little witty. Australian warmth without "mate" or "guys". Never starts with "I". Never sounds like a push notification. Plain text only. Never ends on a bare open question.
+Anne Hathaway energy — smart, warm, magnetic, a little witty. Australian warmth without "mate" or "guys". Never starts with "I". Never sounds like a push notification. Plain text only. Never ends on a bare open question. Always offers something specific first.
 
 ---
 
@@ -50,6 +50,8 @@ Channel transitions: no new brief. Only Home generates a brief on cold open.
 
 **Card borders:** No left border stripes on any cards anywhere in the app. Priority, pinned status, and categories communicated via dots, icons, and badges only.
 
+**Send button:** Always `#FF4545` coral — never the channel AI colour.
+
 ---
 
 ## Brand & Colour System (LOCKED)
@@ -68,8 +70,6 @@ Channel transitions: no new brief. Only Home generates a brief on cold open.
 | Travel | `#A8D8F0` | `#B8EDD0` Soft Mint | `#0060A0` |
 | Our Family | `#F0C8C0` | `#D8CCFF` Lavender | `#A01830` |
 
-Chat bar send button = `#FF4545` coral always.
-
 ### Family member colours
 ```
 Rich: #4D8BFF · Anna: #FF7B6B · Poppy: #A855F7 · Gab: #22C55E · Duke: #F59E0B
@@ -85,15 +85,44 @@ Rich: #4D8BFF · Anna: #FF7B6B · Poppy: #A855F7 · Gab: #22C55E · Duke: #F59E0
 
 ---
 
-## Home Channel (LOCKED)
-- Two-part brief: DM Serif 28px hero + Poppins 17px follow-up
+## Home Channel (LOCKED — Session 23)
+
+- Two-part brief: DM Serif 28px hero with [italic highlights] + Poppins 17px follow-up
+- GPT returns `{"hero":"...","detail":"...","replies":["..."],"seed":"..."}`
+- **Brief pill colours:** matched to topic — calendar→mint, shopping→yellow, meals→peach, todos→gold, kids→aqua, default→sky blue
 - Tool-calling: add/update/delete events, todos, shopping items
-- **Next:** Home inline calendar render + inline todo cards
+- **Inline calendar render:** EventCards appear in chat thread when Zaeli answers calendar questions
+- **Proactive awareness (next):** Brief to flag upcoming events needing prep — school photos, early starts, dinner plans
+
+### Home inline calendar render (LOCKED)
+
+**Flow:** keyword detection → Supabase fetch → GPT picks relevant events → renders inline
+
+**Key rules:**
+- Action messages (`add`, `change`, `move` etc.) ALWAYS bypass to Anthropic tool-calling — never GPT path
+- Midnight/all-day events filtered out (reminder pills only)
+- GPT calendar prompt: max 2000 tokens (reasoning model needs headroom)
+- NO "See full calendar" portal chip — Zaeli offers Calendar conversationally in followUp text
+- Chips are always conversation continuations — context-appropriate, forward-looking
+- `refreshCalendarEvents()` fires silently on focus return — patches calEvents from Supabase
+
+**EventCard avatars:** 1-3 = column, 4+ = 2×2 grid with "+N" overflow chip
 
 ---
 
-## Calendar Channel (LOCKED Session 22)
-- Two-row mint banner, day strip, event cards, month view, tool-calling, Whisper
+## Calendar Channel (LOCKED — Session 23)
+
+- Two-row mint banner, day strip (7 back + 120 forward), event cards, month view
+- Self-contained tool-calling with `new_assignees` support
+- Whisper voice → mic recording overlay
+- API logging confirmed working
+
+### Mic recording overlay (LOCKED — both Home and Calendar)
+Frosted channel-tinted overlay (banner bg at 88% opacity) with centred white card:
+- 13-bar animated waveform in channel AI colour
+- Poppins 600 timer counting up (0:00)
+- Red stop button (coral, white square) / Cancel text link (discards)
+- Fades in/out smoothly — chat visible underneath
 
 ---
 
@@ -200,15 +229,7 @@ Same EventCard pattern as calendar. Todo cards render in Home chat thread when Z
 Greyed below "Done this week" collapsible divider. Recurring shows "↻ back next Tue".
 
 ### Mockup
-`zaeli-todos-mockup-v1.html` — 8 screens:
-1. Todos home (Mine + Family tabs)
-2. Inline render in Home chat
-3. Quick add (voice + text, smart due date inference)
-4. Todo detail sheet
-5. Shared handoff (Rich's side + Anna's side)
-6. Recurring setup
-7. Calendar block (Zaeli finds slot, confirms)
-8. Completed / archive view
+`zaeli-todos-mockup-v1.html` — 8 screens
 
 ---
 
@@ -236,12 +257,7 @@ Simple and beautiful. A family notepad. Not AI-connected — Zaeli only makes on
 Folders · nested notes · rich formatting · attachments · collaborative editing · AI-connected notes.
 
 ### Mockup
-`zaeli-notes-mockup-v1.html` — 5 screens:
-1. Notes home (pinned + recent, search bar)
-2. New note (blank capture + note in progress with colour tint)
-3. Note detail (reading view + Zaeli todo suggestion card)
-4. Voice note (recording state + transcribed result)
-5. Shared note (share flow + Anna's view with "from Rich · new")
+`zaeli-notes-mockup-v1.html` — 5 screens
 
 ---
 
@@ -251,6 +267,45 @@ Folders · nested notes · rich formatting · attachments · collaborative editi
 **The brief** — Home cold open + Our Family opening. Never on other channel transitions.
 **Instant action** — Real Supabase write, confirmed immediately.
 **Birthday awareness** — DOB stored, Zaeli mentions upcoming birthdays in Home brief.
+
+### Proactive awareness (PLANNED — next session)
+Zaeli's Home brief to actively scan next 7 days and flag things needing prep:
+- 2-3 days out: dinner plans, early starts, packed bags needed
+- First-occurrence events: school photos, excursions, sport registrations
+- Conflicts or gaps worth mentioning
+This is a prompt change only — no architecture change needed.
+
+---
+
+## Home Chat Philosophy (LOCKED — Session 23)
+
+The Home channel is a **conversation**, not a calendar viewer. Users should never feel pushed to leave it.
+
+**Calendar conversation flow:** Zaeli text → inline EventCards → follow-up remark/offer → contextual chips
+
+**Chips are always conversational continuations** — never navigation prompts, never restate visible info:
+- After busy day: "Move something around" / "Any clashes?" / "Add to this day"
+- After single event: "Change the time" / "Add someone" / "What's nearby?"
+- After week view: "Zoom into a day" / "Any gaps?" / "What needs prep?"
+
+**No portal chip** — Calendar channel offered conversationally in followUp text when appropriate, not as a UI button.
+
+**Zaeli leads every calendar response:** intro → cards → follow-up → chips. Always.
+
+---
+
+## Inline Data Render — Future Roadmap
+
+The `calEvents` pattern established in Session 23 is the template for all future inline renders:
+
+| Type | Trigger keywords | Component | Portal pill |
+|------|-----------------|-----------|-------------|
+| Calendar | today, tomorrow, week, schedule | EventCard | None (conversational) |
+| Todos | tasks, to-do, what needs doing | TodoCard | "See all todos →" |
+| Shopping | shopping, list, groceries | ShoppingCard | "See full list →" |
+| Meals | dinner, meal, recipe | MealCard | "See meal plan →" |
+
+**Before building the next inline type:** refactor `Msg` interface to generic `inlineData` field.
 
 ---
 
@@ -263,16 +318,32 @@ Folders · nested notes · rich formatting · attachments · collaborative editi
 ---
 
 ## Pre-Launch Checklist
-- [x] Home channel complete · Calendar channel complete · API logging working · Admin dashboard
-- [x] Tutor designed · Kids Hub designed · Our Family designed · Todos designed · Notes designed
-- [ ] Home inline renders (calendar + todos)
+- [x] Home channel complete
+- [x] Calendar channel complete
+- [x] API logging working
+- [x] Admin dashboard live
+- [x] Tutor designed (11 screens)
+- [x] Kids Hub designed (3 files)
+- [x] Our Family designed (6 screens)
+- [x] Todos designed (8 screens)
+- [x] Notes designed (5 screens)
+- [x] Home inline calendar render
+- [x] Mic recording overlay (Home + Calendar)
+- [x] Tool-calling assignee fixes (Home + Calendar)
+- [x] Brief pill colours by topic
+- [ ] Refactor Msg → inlineData (before next inline render)
+- [ ] Home inline todos render
 - [ ] Shopping + Meals colour refactor
-- [ ] Kids Hub build · Our Family build · Todos build · Notes build
+- [ ] Kids Hub build
+- [ ] Our Family build
+- [ ] Todos build
+- [ ] Notes build
 - [ ] Tutor rebuild to 11-screen spec
-- [ ] Travel channel (design session needed)
-- [ ] family_members: add dob, year_level, has_own_login columns
-- [ ] New Supabase tables: tutor_sessions, kids_jobs, kids_rewards, kids_points, notes
-- [ ] todos table: add shared_with, recurrence, calendar_event_id columns
+- [ ] Travel channel (design session first)
+- [ ] Proactive awareness in Home brief prompt
+- [ ] family_members: dob, year_level, has_own_login columns
+- [ ] New Supabase tables: kids_jobs, kids_rewards, kids_points, notes
+- [ ] todos table: shared_with, recurrence, calendar_event_id columns
 - [ ] EAS build · TestFlight for Anna
 - [ ] Remove AI toggle + DEV button · Real auth
 - [ ] Website + Stripe + onboarding

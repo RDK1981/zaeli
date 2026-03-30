@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 30 March 2026 — Design Session complete (Tutor ✅ Kids Hub ✅ Our Family ✅ Todos ✅ Notes ✅)*
+*Last updated: 30 March 2026 — Session 23 complete (Home inline calendar, mic overlay, tool-calling fixes)*
 
 ---
 
@@ -131,7 +131,6 @@ app/(tabs)/tutor.tsx       → Tutor (standalone premium module — NOT a channe
 
 AI colour = eyebrow = send pill bg = portal pill bg. Send arrow always ink `#0A0A0A`.
 **CRITICAL:** Chat bar send button = `#FF4545` coral always — never channel AI colour.
-**Exception:** Calendar send uses `#B8EDD0` mint for two-row banner visual harmony.
 
 **Channel colour bleed rule (LOCKED):**
 Channel bg colour lives ONLY in the status bar and banner. All list/chat body areas use warm white `#FAF8F5`. Channel colour used as tint for specific highlight moments only (brief strips, recording state, Zaeli suggestion cards). Never full bleed on scrollable content.
@@ -185,7 +184,7 @@ barPill: borderRadius:30, paddingV:14, paddingH:16, borderWidth:1, shadow
   ├── barBtn 34×34 → IcoPlus 20×20 SVG stroke rgba(0,0,0,0.4)
   ├── barSep 1×18px rgba(10,10,10,0.1)
   ├── TextInput fontSize:15 Poppins_400Regular
-  ├── barBtn 34×34 → IcoMic 20×20 SVG
+  ├── barBtn 34×34 → IcoMic 20×20 SVG (blush colour #F5C8C8)
   └── barSend 32×32 borderRadius:16 bg=#FF4545 arrow=white
 ```
 
@@ -201,12 +200,146 @@ KAV behavior=padding offset=0 backgroundColor='#fff'
 
 ---
 
-## Tool-Calling System (index.tsx)
-**Tools:** `add_calendar_event`, `update_calendar_event`, `delete_calendar_event`, `add_todo`, `add_shopping_item`
-- `search_date` (YYYY-MM-DD) narrows update/delete
-- New events default assignees: ['2'] (Rich)
-- Events table: `start_time` column (NOT `time`)
-- Context fetches 20 events across 7-day window
+## Mic Recording Overlay (LOCKED — Session 23)
+
+Both Home and Calendar now have a floating mic overlay when recording. Apply to all future channels.
+
+```
+Trigger: user taps mic button in chat bar → isRecording = true
+Overlay: position:absolute, top:0, left:0, right:0, bottom:0
+  backgroundColor: channel banner bg at 0.88 opacity (frosted tint)
+  Animated.Value fade in (220ms) / fade out (180ms)
+  zIndex: 100
+
+White card (centred):
+  borderRadius:28, paddingV:32, paddingH:36
+  MicWaveform (13 bars, channel AI colour, staggered animation)
+  Timer: Poppins_600SemiBold 30px, letterSpacing:1 — "0:00" counting up
+  Label: "Listening…" Poppins_400Regular 13px, ink 40%
+  Stop button: 60px circle, #FF4545, white 20px square icon, coral shadow
+  Cancel: Poppins_400Regular 13px, ink 35% — discards recording (cancel=true)
+
+State: micTimer (int, seconds), micTimerRef (setInterval), micOverlayAnim (Animated.Value)
+stopRecording(cancel = false) — cancel=true discards, cancel=false sends to Whisper
+```
+
+---
+
+## Home Inline Calendar Render (LOCKED — Session 23)
+
+When user asks a calendar question in Home chat, Zaeli renders EventCards inline.
+
+### Flow
+1. `isCalendarQuery(text)` detects calendar questions (keyword list)
+2. `isActionQuery(text)` checked FIRST — action messages always bypass to Anthropic tool-calling
+3. `fetchEventsForContext(days)` fetches from Supabase (14 days default, 60-120 for month queries)
+4. Midnight/all-day events filtered OUT — these are reminder pills in Calendar, not timed events
+5. GPT returns `{intro, events, followUp, replies}` — no portal pill, no showCalendarPill
+6. EventCards render inline: intro text → cards → followUp → chips
+
+### GPT calendar response format
+```json
+{
+  "intro": "1-2 sentence Zaeli lead-in",
+  "events": [...full event objects from Supabase...],
+  "followUp": "1 sentence specific offer or observation — never a bare question",
+  "replies": ["chip 1", "chip 2", "chip 3"]
+}
+```
+
+### Chip philosophy (LOCKED)
+Chips are ALWAYS conversation continuations — never navigation, never restate visible info.
+Context-appropriate: after busy day → "Move something around" / "Any clashes?" / "Add to this day"
+After single event → "Change the time" / "Add someone" / "What's nearby?"
+NO "See full calendar" portal chip — Zaeli can offer Calendar channel conversationally in followUp text.
+
+### Brief pill colours (LOCKED)
+Brief reply chips in the hero section are colour-matched to their topic:
+- Calendar/schedule → `#B8EDD0` mint
+- Shopping/grocery → `#F0E880` yellow
+- Meals/food/dinner → `#FAC8A8` peach
+- Todos/tasks → `#F0DC80` gold
+- Kids/family → `#A8E8CC` aqua
+- Default → `#A8D8F0` sky blue
+
+### Refresh on focus (LOCKED)
+`refreshCalendarEvents()` fires on every `useFocusEffect` return to Home.
+- Collects all event IDs from messages with `calEvents`
+- Single Supabase `.in('id', allIds)` fetch
+- Patches messages state silently — no GPT call, no flicker
+- Also called on `EventDetailModal` onReload and onDeleted
+- Handles deleted events (removes from calEvents if not returned)
+
+### Avatar layout in EventCard
+- 1: 28px single · 2: 26px column · 3: 22px column
+- 4+: 2×2 grid — first 3 avatars (20px) + grey "+N" overflow chip (20px)
+  Shows "+2" for 5 people, "+5" for 8 people, etc.
+
+---
+
+## Tool-Calling System (Home + Calendar)
+
+### Home (index.tsx) — Anthropic Claude tool-calling
+**Tools:** `add_calendar_event`, `update_calendar_event` (with `new_assignees`), `delete_calendar_event`, `add_todo`, `add_shopping_item`
+
+**CRITICAL routing rule:**
+- `isActionQuery()` runs BEFORE `isCalendarQuery()`
+- Action keywords: `add`, `remove`, `delete`, `change`, `move`, `update`, `edit`, `reschedule`, `cancel`, `rename`, `assign`, `invite` etc.
+- Action messages ALWAYS go to Anthropic tool-calling path — NEVER to calendar GPT path
+- This was the root cause of fake success confirmations from GPT
+
+**Assignee handling (LOCKED):**
+- `add_calendar_event`: accepts `assignee` (string) or `assignees` (array of names)
+- `update_calendar_event`: accepts `new_assignees` (array of names)
+- Name→ID mapping: `anna→1, rich→2, richard→2, poppy→3, gab→4, gabriel→4, duke→5`
+- Always merges with existing assignees (no accidental removals)
+- Assignees column fallback: if Supabase rejects with column error, retries without assignees
+
+**TOOL_FAILED signal:**
+- Catch block returns `TOOL_FAILED: ...` prefix
+- CAPABILITY_RULES instructs Claude to report failure honestly — never fake success
+- Empty update guard: if `u` has no fields after processing, returns TOOL_FAILED
+
+**Calendar GPT response:**
+- Max tokens: 2000 (gpt-5.4-mini reasoning model needs headroom)
+- Feature: `home_calendar`
+
+### Calendar (calendar.tsx) — also has new_assignees
+- `update_calendar_event` schema includes `new_assignees` (array of IDs — calendar uses IDs directly)
+- Same assignees merge logic and fallback retry pattern
+- Same TOOL_FAILED catch block
+
+### Conversation history fix (LOCKED)
+Calendar messages with `calEvents` were rendering as `"(message)"` in the history sent to Claude.
+Fixed: history now reconstructs calendar messages as readable context:
+`"[Events shown: "Gym session" on 2026-03-31 at 07:00 (assignees: ["2"])]"`
+This gives Claude full context for follow-up actions like "add Anna to that".
+
+---
+
+## Inline Data Render Architecture (LOCKED — Session 23)
+
+EventCard is the first inline render type. All future inline renders (shopping, todos, meals, kids jobs) follow the same pattern.
+
+### Msg interface fields for inline renders
+```typescript
+// Calendar (current)
+calIntro?: string;
+calEvents?: any[];
+calFollowUp?: string;
+showCalendarPill?: boolean; // deprecated — always false now
+
+// Future refactor target (before next inline type):
+// inlineData?: {
+//   type: 'calendar' | 'shopping' | 'todos' | 'meals' | 'kids';
+//   intro?: string;
+//   followUp?: string;
+//   items?: any[];
+//   showPortalPill?: boolean;
+// }
+```
+
+**Note:** Refactor Msg to use generic `inlineData` field before building the next inline render type (todos or shopping). This keeps the interface clean as channels multiply.
 
 ---
 
@@ -276,19 +409,10 @@ Colour: `#F0DC80` / `#D8CCFF` lavender / `#806000`.
 - Todo → Calendar integration — Zaeli finds a gap, blocks time, links todo to event
 
 **Two views:** Mine tab (personal) · Family tab (shared + others' todos)
-
-**Zaeli brief strip** at top of channel — most urgent item only, warm white bg tint.
-
+**Zaeli brief strip** at top — most urgent item only, warm white bg tint.
 **Priority dots:** Red (overdue/urgent) · Amber (today/soon) · Grey (someday). No left border stripes.
-
 **Badges:** ↻ Recurring · Shared · 📅 Calendar-linked.
-
-**Inline render in Home:** Todo cards render in chat thread (same EventCard pattern). Portal pill "See all todos →". Tappable to tick from Home.
-
-**Shared handoff:** Assign to Anna with option to make her primary owner. Anna sees highlighted with "from Rich · new" tag.
-
-**Completed:** Greyed below "Done this week" collapsible divider. Recurring shows "↻ back next Tue".
-
+**Inline render in Home:** Todo cards render in chat thread (same EventCard pattern). Tappable to tick from Home.
 **Mockup:** `zaeli-todos-mockup-v1.html` — 8 screens.
 
 ---
@@ -308,7 +432,6 @@ Colour: `#C8E8A8` / `#F0C8C0` blush / `#2A6010`. Simple and beautiful — not AI
 - Zaeli suggestion card on note detail: "Want me to add X to your todos?"
 
 **Deliberately excluded:** Folders, nested notes, rich formatting, attachments, collaborative editing.
-
 **Mockup:** `zaeli-notes-mockup-v1.html` — 5 screens.
 
 ---
@@ -333,12 +456,12 @@ Colour: `#C8E8A8` / `#F0C8C0` blush / `#2A6010`. Simple and beautiful — not AI
 
 | File | Status | Notes |
 |---|---|---|
-| index.tsx | ✅ Complete | Home channel |
-| calendar.tsx | ✅ Complete | Session 22 |
+| index.tsx | ✅ Complete | Home + inline calendar + mic overlay + tool-calling fixes |
+| calendar.tsx | ✅ Complete | Mic overlay + new_assignees fix |
 | shopping.tsx | Needs colour refactor | |
 | mealplanner.tsx | Needs colour refactor | |
 | more.tsx | Deprecating | Settings → avatar menu |
-| tutor/* | ✅ Design complete | Needs full rebuild |
+| tutor/* | ✅ Design complete | Needs full rebuild to 11-screen spec |
 | kids.tsx | ✅ Design complete | Not yet built |
 | family.tsx | ✅ Design complete | Not yet built |
 | todos.tsx | ✅ Design complete | Not yet built |
@@ -350,27 +473,26 @@ Colour: `#C8E8A8` / `#F0C8C0` blush / `#2A6010`. Simple and beautiful — not AI
 
 ## Next Priorities
 
-**Design sessions — complete for this session:**
-1. ✅ Tutor · 2. ✅ Kids Hub · 3. ✅ Our Family · 4. ✅ Todos · 5. ✅ Notes
-6. 🔜 Travel (design session needed)
-7. 🔜 Settings (deferred — design when billing/auth ready)
+**Immediate build (next session):**
+1. Refactor `Msg` interface to generic `inlineData` field before next inline render type
+2. Home inline todos render (same EventCard pattern — second inline type)
+3. Shopping channel colour refactor (`#F0E880` / `#D8CCFF` lavender)
+4. Meals channel colour refactor
 
-**Build chat — immediate:**
-1. Home inline calendar render
-2. Shopping colour refactor
-3. Meals colour refactor
+**Proactive awareness (prompt work — quick win):**
+5. Add "proactive awareness" instruction to Home brief prompt — scan next 7 days, flag upcoming things needing prep (2-3 days away: dinner plans, packed bags, early starts, school photos)
 
-**Build chat — new channels (in order):**
-4. Kids Hub (kids.tsx)
-5. Our Family (family.tsx)
-6. Todos (todos.tsx)
-7. Notes (notes.tsx)
-8. Tutor rebuild to new 11-screen spec
-9. Travel (design first)
+**New channels (design → build in order):**
+6. Kids Hub (kids.tsx)
+7. Our Family (family.tsx)
+8. Todos (todos.tsx)
+9. Notes (notes.tsx)
+10. Tutor rebuild to new 11-screen spec
+11. Travel (design session first)
 
 **Pre-launch:**
 - Remove AI toggle + DEV button
 - Real Supabase auth + child login model
 - EAS build, TestFlight for Anna
 - Website + Stripe + onboarding
-- Settings module (design + build)
+- Settings module (design + build — deferred)
