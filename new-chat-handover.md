@@ -1,11 +1,11 @@
 # Zaeli — New Chat Handover
-*30 March 2026 — Design session complete. Tutor ✅ Kids Hub ✅ Our Family ✅. Copy this entire file to start a new chat.*
+*30 March 2026 — Design session complete. Tutor ✅ Kids Hub ✅ Our Family ✅ Todos ✅ Notes ✅. Copy this entire file to start a new chat.*
 
 ---
 
 ## Hi! Continuing development of Zaeli.
 
-Zaeli is an iOS-first AI family life platform built in React Native / Expo. Please read **CLAUDE.md** before we start — full stack, architecture, colours, chat bar spec, coding rules. Then **ZAELI-PRODUCT.md** for product vision and all module specs (Tutor, Kids Hub, Our Family are fully designed).
+Zaeli is an iOS-first AI family life platform built in React Native / Expo. Please read **CLAUDE.md** before we start — full stack, architecture, colours, coding rules. Then **ZAELI-PRODUCT.md** for product vision and all module specs.
 
 ---
 
@@ -29,7 +29,7 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo. Plea
 
 ---
 
-## Key constants (CRITICAL — never get these wrong)
+## Key constants (CRITICAL)
 ```
 DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
 SONNET          = 'claude-sonnet-4-20250514'  ← NOT claude-sonnet-4-6
@@ -39,8 +39,10 @@ OpenAI = max_completion_tokens · Claude = max_tokens
 api_logs = input_tokens / output_tokens (NO total_tokens column)
 KAV must have backgroundColor:'#fff'
 always await supabase inserts
-Send button = #FF4545 coral ALWAYS — never channel AI colour
-Our Family = NO chat bar (only channel without one)
+Send button = #FF4545 coral ALWAYS
+Our Family = NO chat bar
+Channel body bg = #FAF8F5 warm white — never full channel colour bleed
+No left-border accent strips on cards
 ```
 
 ---
@@ -51,52 +53,38 @@ Our Family = NO chat bar (only channel without one)
 Splash → Home. DM Serif brief + Poppins follow-up. Tool-calling (events/todos/shopping). Whisper. API logging working.
 
 ### calendar.tsx — Calendar ✅ COMPLETE (Session 22)
-Two-row mint banner. Day strip (7 back + 120 forward). Event cards (auto-emoji, dynamic avatars). Month view. Tool-calling. Whisper. "View events" pill. API logging confirmed.
+Two-row mint banner. Day strip. Event cards. Month view. Tool-calling. Whisper. API logging confirmed.
 
 ### Admin dashboard ✅
-https://incomparable-gumdrop-32e4ba.netlify.app — home_brief, calendar_chat, whisper all confirmed.
+https://incomparable-gumdrop-32e4ba.netlify.app
 
 ### shopping.tsx, mealplanner.tsx
-Functional — need colour refactor to new channel colour system.
+Functional — need colour refactor.
 
-### Tutor ✅ FULLY DESIGNED — needs rebuild
-Old tutor.tsx files are outdated — full rebuild to new 11-screen spec required.
-- Mockup: `zaeli-tutor-final-mockup-v4.html`
-- Curriculum: `zaeli-tutor-curriculum-map-v1.html`
+### All designed, not yet built
+- Tutor: `zaeli-tutor-final-mockup-v4.html` (11 screens) + curriculum map
+- Kids Hub: `zaeli-kids-hub-mockup-v1.html` + parent management + rewards v2
+- Our Family: `zaeli-our-family-mockup-v1.html` (6 screens)
+- Todos: `zaeli-todos-mockup-v1.html` (8 screens)
+- Notes: `zaeli-notes-mockup-v1.html` (5 screens)
 
-### Kids Hub ✅ FULLY DESIGNED — not built
-- `zaeli-kids-hub-mockup-v1.html` (8 screens)
-- `zaeli-kids-hub-parent-management-v1.html` (5 screens)
-- `zaeli-kids-hub-rewards-v2.html` (5 screens)
-
-### Our Family ✅ FULLY DESIGNED — not built
-- `zaeli-our-family-mockup-v1.html` (6 screens)
-
-### Not yet built
-kids.tsx, family.tsx, todos.tsx, notes.tsx, travel.tsx
+### Travel — no design yet
 
 ---
 
-## Supabase schema
+## Supabase schema additions needed
 ```sql
--- Session 22 addition:
-alter table events add column all_day boolean default false;
-
--- notes field format: "notes text | location text" (split on ' | ')
-
--- family_members needs new columns (not yet added):
+-- family_members additions:
 alter table family_members add column dob date;
 alter table family_members add column year_level integer;
 alter table family_members add column has_own_login boolean default false;
 
--- New tables needed (not yet created):
--- tutor_sessions: family_id, child_id, subject, pillar, messages (jsonb),
---   difficulty_band, duration_seconds, hints_used (jsonb), title, created_at
--- kids_jobs: family_id, child_id, title, emoji, cadence (daily/weekly/oneoff),
---   reward_points, created_by, approved (bool), paused (bool), created_at
--- kids_rewards: family_id, child_id, name, emoji, points_cost,
---   redeemed_at, approved_by, created_at
--- kids_points: family_id, child_id, balance, lifetime_earned, updated_at
+-- New tables:
+-- todos: family_id, title, assigned_to, due_date, priority, status,
+--   recurrence, calendar_event_id, shared_with (jsonb), created_by
+-- notes: family_id, created_by, title, body, emoji, colour_tint,
+--   pinned (bool), shared_with (jsonb), is_voice (bool), created_at, updated_at
+-- tutor_sessions, kids_jobs, kids_rewards, kids_points — see CLAUDE.md
 ```
 
 ---
@@ -105,70 +93,57 @@ alter table family_members add column has_own_login boolean default false;
 No navigation UI. Zaeli is the only navigation.
 Avatar → Our Family · Tutor (premium) · Settings · Sign out.
 Portal pills = channel bg + accent chevron. Quick reply chips = white bg.
-**Our Family** = NO chat bar. Functional-first with Zaeli brief.
-**Tutor** = premium A$9.99/child/month. **Kids Hub** = family plan (not premium).
+**Our Family** = NO chat bar. **Tutor** = premium. **Kids Hub** = family plan.
 
 ---
 
-## Module decisions locked — quick reference
+## Module decisions — quick reference
 
-### Tutor
-- AI: GPT-5.4-mini (chat) · Sonnet (photos) · Whisper (voice)
-- 6 pillars: Homework · Practice · Read Aloud · Write & Review · Comprehension · Money & Life
-- Difficulty: Foundation/Core/Extension — silent adaptive — kids never see label
-- Hints: 3 levels, 25/75 split pill pinned above bar always
-- Parent review: summary in Tutor · full transcript auth-gated · progress → Our Family only
-- Curriculum: AC v9.0. Foundation ≠ Year 1. NAPLAN: Yrs 3,5,7,9.
-- Money & Life: 4 levels, amber #F59E0B, real Australian examples
+### Todos
+- 2 tabs: Mine · Family
+- 5 features: Smart due dates · Priority in Home brief · Recurring · Shared handoff · Calendar block
+- Inline render in Home (EventCard pattern)
+- Priority dots: red/amber/grey. Badges: ↻ Shared 📅
+- Completed: collapsible divider, recurring shows next date
 
-### Kids Hub
-- Age tiers: Little (Fn–Yr3) · Middle (Yr4–7) · Older (Yr8–12)
-- Jobs: Daily/Weekly/One-off · GIPHY on every tick · Archive · Pause toggle
-- Points: Philosophy B (currency) · spent on redemption · parent approves
-- Rewards: parent sets name+cost · green/amber/grey states · redemption confirm shows balance
-- Games (5, no points): Wordle · Word Scramble · Maths Sprint · Aussie Trivia · Mini Crossword
-- Leaderboard: parent-toggleable, monthly reset
-- Parent management: all in Our Family
+### Notes
+- Simple and beautiful — not AI-connected in v1
+- Instant capture, DM Serif titles, pinned (📌 icon, no left border), 6 colour tints
+- Voice → Whisper transcribes → Zaeli tidies → option to save as todo
+- Share with family: view-only default, edit toggle
+- Zaeli suggests todos from note content — never rewrites or summarises
+- Full channel colour only on recording screen — rest on #FAF8F5
 
-### Our Family
-- No chat bar
-- Opening brief: DM Serif hero + Poppins detail (active day vs quiet day variants)
-- 4 sections: Pending Actions · Our Kids · Family Profiles · (Settings moved out)
-- Pending types: Job proposals (green) · Reward requests (red) · Zaeli insights (purple)
-- Child detail: Tutor progress bars + Kids Hub summary
-- Profiles: DOB, age/year auto-calculated, colour swatches, login status
-- Login model: Parents = full account · Older kids = own login (parent enables) · Young kids = profile only
-- Avatar badge: red dot with count when actions pending
-- Settings: separate avatar destination, deferred until billing/auth ready
+### Tutor, Kids Hub, Our Family — see CLAUDE.md or ZAELI-PRODUCT.md
 
 ---
 
 ## Immediate build priorities
 
-**Build chat:**
-1. Home inline calendar render (EventCards inline + "See full calendar →" portal pill)
-2. Shopping colour refactor (`#F0E880` bg / `#D8CCFF` lavender)
+1. Home inline calendar render (EventCards + "See full calendar →" portal pill)
+2. Shopping colour refactor (`#F0E880` / `#D8CCFF` lavender)
 3. Meals colour refactor
-
-**Then new channels (design first if not in docs):**
-4. Kids Hub (kids.tsx) — full design in mockup files
-5. Our Family (family.tsx) — full design in mockup file
-6. Tutor rebuild — full design in mockup files
-7. Todos, Notes, Travel (design sessions needed)
+4. Kids Hub (kids.tsx)
+5. Our Family (family.tsx)
+6. Todos (todos.tsx)
+7. Notes (notes.tsx)
+8. Tutor rebuild
+9. Travel (design session first)
 
 ---
 
 ## Critical coding rules
-- `router.navigate()` only — never push() or replace()
+- `router.navigate()` only
 - Local date construction — NEVER toISOString()
 - `start_time` column NOT `time`
 - SafeAreaView `edges={['top']}` always
 - Image picker: `['images'] as any`
-- KAV → `backgroundColor:'#fff'` → contentWrap → ScrollView + inputArea (absolute)
-- Full file rewrites only — never partial diffs
+- KAV → `backgroundColor:'#fff'`
+- Full file rewrites only
 - Always await supabase inserts
-- Send button = `#FF4545` always
-- Our Family: no chat bar, no KAV needed
+- Send = `#FF4545` always
+- Body bg = `#FAF8F5` warm white
+- No left-border accent strips on cards
 
 ---
 
