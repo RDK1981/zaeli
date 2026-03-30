@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 30 March 2026 — Design Session (Tutor ✅, Kids Hub ✅, Our Family in progress)*
+*Last updated: 30 March 2026 — Design Session complete (Tutor ✅ Kids Hub ✅ Our Family ✅)*
 
 ---
 
@@ -29,7 +29,7 @@ Zaeli is an iOS-first AI family life platform for Australian families with child
 **Unit economics (confirmed 30 Mar 2026):**
 - GPT-5.4 mini chat: ~A$0.003/msg
 - Tutor hybrid (GPT mini chat + Sonnet vision): ~A$2.00/child/month at 500 turns
-- Tutor margin at 500 turns/month: ~80% gross margin — healthy even at 1,000 turns (~60%)
+- Tutor margin at 500 turns/month: ~80% gross — healthy even at 1,000 turns (~60%)
 - Only Home generates a brief on cold open — no brief on channel transitions (cost saving)
 
 ---
@@ -85,7 +85,7 @@ CRITICAL: total_tokens column does NOT exist — never insert it
 
 **There is no channel navigation UI anywhere in the app.**
 - Zaeli is the only navigation mechanism
-- Avatar (top right) opens: Settings, Billing, Our Family, Tutor (premium badge)
+- **Avatar (top right)** opens: Our Family, Tutor (premium badge), Settings, Sign out
 - Always `router.navigate()` — never `router.push()` or `router.replace()`
 
 ---
@@ -97,11 +97,11 @@ app/(tabs)/index.tsx       → Home channel ✅ COMPLETE
 app/(tabs)/calendar.tsx    → Calendar channel ✅ COMPLETE
 app/(tabs)/shopping.tsx    → Shopping channel (needs colour refactor)
 app/(tabs)/mealplanner.tsx → Meals channel (needs colour refactor)
-app/(tabs)/kids.tsx        → Kids Hub channel (design ✅ COMPLETE — not yet built)
+app/(tabs)/kids.tsx        → Kids Hub channel (design ✅ — not yet built)
 app/(tabs)/todos.tsx       → To-dos channel (not built)
 app/(tabs)/notes.tsx       → Notes channel (not built)
 app/(tabs)/travel.tsx      → Travel channel (not built)
-app/(tabs)/family.tsx      → Our Family channel (design in progress)
+app/(tabs)/family.tsx      → Our Family channel (design ✅ — not yet built)
 app/(tabs)/tutor.tsx       → Tutor (standalone premium module — NOT a channel)
 ```
 
@@ -109,7 +109,7 @@ app/(tabs)/tutor.tsx       → Tutor (standalone premium module — NOT a channe
 
 ## Pill System (LOCKED)
 
-**Portal pills:** Filled bg = destination channel's bg colour. Arrow = accent colour. Max 3.
+**Portal pills:** Filled bg = destination channel bg. Arrow = accent colour. Max 3.
 **Quick reply chips:** White bg, ink border `rgba(0,0,0,0.15)`. Conversation only.
 
 ---
@@ -168,7 +168,6 @@ Duke:  #F59E0B
 - Zaeli messages: **NO bubble** — open text, full width, Poppins 15px/400, line-height 1.6
 - User bubble: right-aligned, `#EDE8FF` bg, `border-radius: 16px 2px 16px 16px`
 - Message actions on Zaeli: Play + Copy + Forward + ThumbUp + ThumbDown (26px, opacity 0.35)
-- Message actions on user: Copy + Forward (right-aligned)
 - Quick reply chips below every Zaeli message that invites response
 
 ---
@@ -194,10 +193,11 @@ KAV behavior=padding offset=0 backgroundColor='#fff'
         └── inputArea position:absolute bottom:0
 ```
 
+**Our Family has NO chat bar** — the only channel without one.
+
 ---
 
 ## Tool-Calling System (index.tsx)
-
 **Tools:** `add_calendar_event`, `update_calendar_event`, `delete_calendar_event`, `add_todo`, `add_shopping_item`
 - `search_date` (YYYY-MM-DD) narrows update/delete
 - New events default assignees: ['2'] (Rich)
@@ -215,10 +215,10 @@ pantry_items    → family_id, name, category, stock_level
 receipts        → family_id, store, purchase_date, total_amount, items (jsonb)
 meal_plans      → family_id, date, meal_name, recipe_id
 recipes         → family_id, name, ingredients, instructions
-family_members  → family_id, name, colour, role
+family_members  → family_id, name, colour, role, dob, year_level, email, has_own_login (bool)
 api_logs        → family_id, feature, model, input_tokens, output_tokens, cost_usd, created_at
 tutor_sessions  → family_id, child_id, subject, pillar, messages (jsonb), difficulty_band, duration_seconds, hints_used (jsonb), title, created_at
-kids_jobs       → family_id, child_id, title, emoji, cadence (daily/weekly/oneoff), reward_points, created_by (parent/child), approved (bool), paused (bool), created_at
+kids_jobs       → family_id, child_id, title, emoji, cadence, reward_points, created_by, approved (bool), paused (bool), created_at
 kids_rewards    → family_id, child_id, name, emoji, points_cost, redeemed_at, approved_by, created_at
 kids_points     → family_id, child_id, balance, lifetime_earned, updated_at
 ```
@@ -226,67 +226,55 @@ kids_points     → family_id, child_id, balance, lifetime_earned, updated_at
 ---
 
 ## Tutor Module (DESIGNED ✅ — not yet built)
-
-See ZAELI-PRODUCT.md for full spec. Key build notes:
-- GPT-5.4-mini: conversation. Sonnet: photos. Whisper: voice.
+Full spec in ZAELI-PRODUCT.md. Key build notes:
+- GPT-5.4-mini: conversation · Sonnet: photos · Whisper: voice
 - Zaeli messages: open text, NO bubble
 - Persistent 25/75 split pill: `[💡 Hint (1/3)] [Next question →]`
-- Parent review: simple summary in Tutor, full transcript auth-gated, progress view → Our Family only
-- Curriculum: Australian Curriculum v9.0 (ACARA)
+- Parent review: summary in Tutor, full transcript auth-gated, progress → Our Family only
+- Curriculum: AC v9.0 ACARA · Foundation ≠ Year 1
 
 ---
 
 ## Kids Hub Channel (DESIGNED ✅ — not yet built)
-
-Family plan (NOT premium). Colour: `#A8E8CC` / `#FAC8A8` peach / `#0A6040` accent.
-
-**Age tiers:** Little (Fn–Yr3) / Middle (Yr4–7) / Older (Yr8–12) — driven by year_level in family_members.
-
-**Jobs (LOCKED):**
-- Cadences: Daily (midnight reset) / Weekly (chosen day reset) / One-off (archives on completion)
-- Kids can propose jobs → parent approves from Our Family
-- GIPHY celebration on every tick — full screen, curated tags, always different
-- Completed jobs grey and stay visible — clear achievement record
-- All-done: dark green hero card + Zaeli warm message
-- Archive: completed one-offs stored, re-add with one tap
-- Pause toggle: hide job temporarily without deleting
-
-**Points (LOCKED — Philosophy B: currency):**
-- Single pool per child. Points spent on redemption, balance drops.
-- Points never deduct until parent approves request.
-- History tab: earnings (green) + redemptions (red).
-
-**Rewards (LOCKED):**
-- Parents set name + point cost — completely flexible
-- Always show: one affordable now (green) + one to save toward (amber/grey)
-- Redemption confirm: shows before/after balance, cost, contextual nudge
-- Zaeli message after approval: warm and specific
-- Parent setup nudge on first open with age-appropriate suggestions
-
-**Games (LOCKED — 5 at launch, no points):**
-Wordle (daily family word) · Word Scramble · Maths Sprint · Aussie Trivia · Mini Crossword
-
-**Leaderboard:** Parent-toggleable. Monthly reset.
-
-**Mockup files:**
-- `zaeli-kids-hub-mockup-v1.html` — 8 screens
-- `zaeli-kids-hub-parent-management-v1.html` — 5 screens
-- `zaeli-kids-hub-rewards-v2.html` — 5 screens (Philosophy B, full flow)
+Family plan. Colour: `#A8E8CC` / `#FAC8A8` peach / `#0A6040`.
+- Age tiers: Little (Fn–Yr3) / Middle (Yr4–7) / Older (Yr8–12)
+- Jobs: Daily/Weekly/One-off · GIPHY on every tick · Archive for one-offs
+- Points: Philosophy B (currency) — spent on redemption, parent approves
+- Rewards: parent sets name + cost · always affordable-now + saving-toward visible
+- Games: Wordle · Word Scramble · Maths Sprint · Aussie Trivia · Mini Crossword (no points)
+- Leaderboard: parent-toggleable, monthly reset
+- Parent management: lives in Our Family
 
 ---
 
-## Our Family Channel (DESIGN IN PROGRESS)
+## Our Family Channel (DESIGNED ✅ — not yet built)
+Colour: `#F0C8C0` / `#D8CCFF` lavender / `#A01830`. Avatar menu entry. **NO chat bar.**
 
-Colour: `#F0C8C0` bg / `#D8CCFF` lavender / `#A01830` accent. Avatar menu entry.
+**Opening brief (LOCKED):** DM Serif hero + Poppins detail. Active day: "3 things need your attention." Quiet day: subtle green "all good" strip. Brief is always present — content adapts.
 
-Known content:
-- Family profiles — members, colours, roles
-- Tutor progress per child (full view lives here, not in Tutor)
-- Parent-authenticated Tutor session transcripts
-- Kids Hub management — jobs, rewards, pending approvals, leaderboard toggle
-- Settings and billing
+**Four sections:**
+1. **Pending Actions** — job proposals + reward requests. Collapses when empty.
+2. **Our Kids** — per-child cards: name, age, year level, streak, balance, jobs done today, Tutor band. Tap → child detail.
+3. **Family Profiles** — members with DOB, age auto-calculated, colour swatches, login status.
+4. *(Settings moved to separate avatar destination)*
 
-*Full design session active.*
+**Child detail view:** Tutor subject bars + difficulty bands + Zaeli written observation + recent sessions. Kids Hub stats + today's jobs mini-list.
+
+**Pending action types:**
+- Job proposals (green tag) — approve/edit points/decline
+- Reward requests (red tag) — approve (deducts points)/decline
+- Zaeli insights (purple tag) — occasional, actionable ("Poppy ready for Yr 7 Maths")
+
+**Avatar notification badge:** Red dot with count on avatar when actions pending. Count shown on Our Family in the menu.
+
+**Family member login model:**
+- Parents: full email + password account
+- Older kids (parent enables): own login, child-scoped view (Kids Hub + Tutor only)
+- Young kids: profile only, use parent's device
+
+**Settings:** Separate avatar menu destination (deferred — design when billing/auth ready).
+
+**Mockup:** `zaeli-our-family-mockup-v1.html` — 6 screens.
 
 ---
 
@@ -300,6 +288,7 @@ Known content:
 - Date: local construction only — NEVER toISOString()
 - KAV backgroundColor: `#fff`
 - Send button: `#FF4545` always
+- Our Family: no chat bar, no KAV needed
 
 ---
 
@@ -312,34 +301,38 @@ Known content:
 | shopping.tsx | Needs colour refactor | |
 | mealplanner.tsx | Needs colour refactor | |
 | more.tsx | Deprecating | Settings → avatar menu |
-| tutor/* | ✅ Design complete | Needs full rebuild to new spec |
+| tutor/* | ✅ Design complete | Needs full rebuild |
 | kids.tsx | ✅ Design complete | Not yet built |
+| family.tsx | ✅ Design complete | Not yet built |
 | todos.tsx | Not built | |
 | notes.tsx | Not built | |
 | travel.tsx | Not built | |
-| family.tsx | Design in progress | Our Family — active now |
 | zaeli-chat.tsx | DEPRECATED | |
 
 ---
 
 ## Next Priorities
 
-**Design sessions (this chat):**
-1. ✅ Tutor — fully designed
-2. ✅ Kids Hub — fully designed
-3. 🔄 Our Family — active now
+**Design sessions — COMPLETE for this session:**
+1. ✅ Tutor
+2. ✅ Kids Hub
+3. ✅ Our Family
+4. 🔜 Settings (deferred — design when billing/auth ready)
 
-**Build chat:**
-4. Home inline calendar render
-5. Shopping colour refactor
-6. Meals colour refactor
-7. Kids Hub build (kids.tsx)
-8. Our Family build (family.tsx)
-9. Tutor rebuild
-10. Todos, Notes, Travel
+**Build chat — immediate:**
+1. Home inline calendar render
+2. Shopping colour refactor
+3. Meals colour refactor
+
+**Build chat — new channels:**
+4. Kids Hub (kids.tsx)
+5. Our Family (family.tsx)
+6. Tutor rebuild to new 11-screen spec
+7. Todos, Notes, Travel
 
 **Pre-launch:**
 - Remove AI toggle + DEV button
-- Real Supabase auth
+- Real Supabase auth + family member login model
 - EAS build, TestFlight for Anna
 - Website + Stripe + onboarding
+- Settings module (design + build)
