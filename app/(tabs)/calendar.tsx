@@ -170,7 +170,7 @@ const TOOLS = [
       assignees:  { type:'array', items:{ type:'string' }, description:'Array of family member IDs. Anna=1, Rich=2, Poppy=3, Gab=4, Duke=5. Whole family=["1","2","3","4","5"]' },
     }, required:['title','start_time'] } },
   { name:'update_calendar_event',
-    description:'Update/reschedule an existing event.',
+    description:'Update/reschedule an existing event. Use this to change time, date, title, notes, or assignees.',
     input_schema:{ type:'object', properties:{
       search_title:   { type:'string' },
       search_date:    { type:'string', description:'YYYY-MM-DD' },
@@ -179,6 +179,7 @@ const TOOLS = [
       new_end_time:   { type:'string' },
       new_date:       { type:'string', description:'YYYY-MM-DD' },
       new_notes:      { type:'string' },
+      new_assignees:  { type:'array', items:{ type:'string' }, description:'Full list of family member IDs for the event. Anna=1, Rich=2, Poppy=3, Gab=4, Duke=5. Include ALL people who should be on the event — replaces existing assignees entirely.' },
     }, required:['search_title'] } },
   { name:'delete_calendar_event',
     description:'Delete a calendar event by title.',
@@ -208,7 +209,7 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
       return `✅ ${input.title} added to the calendar.`;
     }
     if (name === 'update_calendar_event') {
-      let q = supabase.from('events').select('id,title,date,start_time,end_time')
+      let q = supabase.from('events').select('id,title,date,start_time,end_time,assignees')
         .eq('family_id', DUMMY_FAMILY_ID).ilike('title', `%${input.search_title}%`);
       if (input.search_date) q = (q as any).eq('date', input.search_date);
       const { data } = await (q as any).order('date').limit(1);
@@ -216,6 +217,12 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
       const t = data[0]; const u: any = {};
       if (input.new_title) u.title = input.new_title;
       if (input.new_notes) u.notes = input.new_notes;
+      if (input.new_assignees && Array.isArray(input.new_assignees) && input.new_assignees.length > 0) {
+        // Calendar channel passes IDs directly (Anna=1 etc) — merge with existing
+        const existing: string[] = Array.isArray(t.assignees) ? t.assignees : [];
+        const merged = Array.from(new Set([...existing, ...input.new_assignees.map(String)]));
+        u.assignees = merged;
+      }
       if (input.new_start_time) {
         u.start_time = input.new_start_time.replace('Z','').split('+')[0];
         u.date = u.start_time.split('T')[0];
@@ -234,7 +241,12 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
         if (t.end_time)   u.end_time   = `${input.new_date}T${t.end_time.split('T')[1]||'10:00:00'}`;
       }
       if (input.new_end_time) u.end_time = input.new_end_time.replace('Z','').split('+')[0];
-      const { error } = await supabase.from('events').update(u).eq('id', t.id);
+      let { error } = await supabase.from('events').update(u).eq('id', t.id);
+      if (error && (error.message?.includes('assignees') || error.code === '42703')) {
+        const { assignees: _a, ...slim } = u;
+        const r2 = await supabase.from('events').update(slim).eq('id', t.id);
+        error = r2.error;
+      }
       if (error) throw error;
       onReload();
       return `✅ ${input.new_title || t.title} updated.`;
@@ -251,7 +263,8 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
     }
     return `Tool ${name} not implemented.`;
   } catch (e: any) {
-    return `Something went wrong — try again?`;
+    console.error(`[calendar executeTool] ${name} threw:`, e?.message);
+    return `TOOL_FAILED: Something went wrong — ${e?.message ?? 'unknown error'}`;
   }
 }
 
@@ -1094,6 +1107,32 @@ function logWhisper(durationSeconds: number) {
   supabase.from('api_logs').insert({ family_id: DUMMY_FAMILY_ID, feature: 'whisper_transcription', model: 'whisper-1', input_tokens: 0, output_tokens: 0, cost_usd: cost });
 }
 
+// ── MicWaveform — larger bars for the recording overlay ────────
+function MicWaveform() {
+  const anims = useRef(Array.from({ length: 13 }, (_, i) => new Animated.Value(0.15 + (i % 3) * 0.1))).current;
+  useEffect(() => {
+    const loops = anims.map((anim, i) => {
+      const min = 0.1 + (i % 4) * 0.05;
+      const max = 0.6 + (i % 5) * 0.08;
+      const spd = 280 + (i % 6) * 60;
+      return Animated.loop(Animated.sequence([
+        Animated.delay(i * 55),
+        Animated.timing(anim, { toValue: max, duration: spd, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(anim, { toValue: min, duration: spd + 40, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]));
+    });
+    loops.forEach(l => l.start());
+    return () => loops.forEach(l => l.stop());
+  }, []);
+  return (
+    <View style={{ flexDirection:'row', alignItems:'center', gap:4, height:52 }}>
+      {anims.map((anim, i) => (
+        <Animated.View key={i} style={{ width:4, borderRadius:3, backgroundColor:CAL_AI, transform:[{ scaleY:anim }], height:52 }}/>
+      ))}
+    </View>
+  );
+}
+
 // ── Emoji picker by keyword ────────────────────────────────────
 function getEventEmoji(title: string): string {
   const t = title.toLowerCase();
@@ -1246,6 +1285,9 @@ export default function CalendarScreen() {
   const [chatInput,   setChatInput]   = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [isRecording,  setIsRecording]  = useState(false);
+  const [micTimer,     setMicTimer]     = useState(0);
+  const micTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const micOverlayAnim = useRef(new Animated.Value(0)).current;
   const recordingRef  = useRef<Audio.Recording | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, 'up'|'down'|null>>({});
   const chatInputRef  = useRef<TextInput>(null);
@@ -1424,19 +1466,24 @@ export default function CalendarScreen() {
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       recordingRef.current = recording;
       setIsRecording(true);
+      setMicTimer(0);
+      Animated.timing(micOverlayAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+      micTimerRef.current = setInterval(() => setMicTimer(t => t + 1), 1000);
     } catch (e) { console.error('startRecording:', e); }
   }
 
-  async function stopRecording() {
+  async function stopRecording(cancel = false) {
     try {
       setIsRecording(false);
+      if (micTimerRef.current) { clearInterval(micTimerRef.current); micTimerRef.current = null; }
+      Animated.timing(micOverlayAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start();
       if (!recordingRef.current) return;
       const status = await recordingRef.current.getStatusAsync();
       const durationSec = (status as any)?.durationMillis ? (status as any).durationMillis / 1000 : 10;
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
-      if (!uri) return;
+      if (!uri || cancel) return;
       const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
       if (!key) return;
       logWhisper(durationSec);
@@ -2077,6 +2124,42 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* ── MIC RECORDING OVERLAY ── */}
+      {isRecording && (
+        <Animated.View
+          style={[{
+            position:'absolute', top:0, left:0, right:0, bottom:0,
+            backgroundColor:'rgba(184,237,208,0.88)',
+            alignItems:'center', justifyContent:'center', zIndex:100,
+          }, { opacity: micOverlayAnim }]}
+          pointerEvents="auto"
+        >
+          <View style={{
+            backgroundColor:'#fff', borderRadius:28,
+            paddingVertical:32, paddingHorizontal:36,
+            alignItems:'center', gap:18,
+            shadowColor:'#000', shadowOpacity:0.10, shadowRadius:24, shadowOffset:{ width:0, height:8 },
+            borderWidth:1, borderColor:'rgba(10,10,10,0.06)',
+          }}>
+            <MicWaveform/>
+            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:30, color:INK, letterSpacing:1 }}>
+              {Math.floor(micTimer / 60)}:{String(micTimer % 60).padStart(2, '0')}
+            </Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.40)' }}>Listening…</Text>
+            <TouchableOpacity
+              style={{ width:60, height:60, borderRadius:30, backgroundColor:'#FF4545', alignItems:'center', justifyContent:'center', shadowColor:'#FF4545', shadowOpacity:0.35, shadowRadius:14, shadowOffset:{ width:0, height:4 } }}
+              onPress={() => stopRecording(false)}
+              activeOpacity={0.85}
+            >
+              <View style={{ width:20, height:20, borderRadius:4, backgroundColor:'#fff' }}/>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => stopRecording(true)} activeOpacity={0.6}>
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.35)' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
 
     </SafeAreaView>
   );

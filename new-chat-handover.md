@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*30 March 2026 — Session 23 complete. Copy this entire file to start a new chat.*
+*30 March 2026 — Session 24 complete. Copy this entire file to start a new chat.*
 
 ---
 
@@ -44,25 +44,28 @@ Our Family = NO chat bar
 Channel body bg = #FAF8F5 warm white — never full channel colour bleed
 No left-border accent strips on cards
 isActionQuery() runs BEFORE isCalendarQuery() — action msgs go to Anthropic tool-calling
+Apostrophes in JSX: always use double-quoted strings e.g. "What's on today"
 ```
 
 ---
 
 ## What's built (30 Mar 2026)
 
-### index.tsx — Home ✅ COMPLETE (Sessions 20 + 23)
+### index.tsx — Home ✅ COMPLETE (Sessions 20–24)
 - Splash → Home. DM Serif brief + Poppins follow-up
-- **Brief pill colours** — matched to topic category (calendar→mint, shopping→yellow, meals→peach, todos→gold, kids→aqua)
-- Tool-calling (events/todos/shopping) via Anthropic Claude
-- **Inline calendar render** — EventCards in chat thread when Zaeli answers calendar questions
+- **Msg → inlineData refactor (Session 24)** — old `calIntro/calEvents/calFollowUp/showCalendarPill` fields replaced with generic `inlineData: { type, intro, items, followUp, showPortalPill }`
+- **Brief pill colours** — matched to topic via `getPillColor()`, expanded patterns (tomorrow/prep/morning/week all → mint). Brief chips render in hero banner ONLY — not duplicated in chat thread.
+- **Brief prompt rewrite (Session 24)** — 2-sentence hero (angle/irony + warm detail), 2-sentence detail, confident offers ("Say the word and I'll..."), banned words list, proactive awareness (scans 7 days), time-of-day awareness
+- **Persona update (Session 24)** — warm + enthusiastic, not dry. Finds funny angle through delight not detachment. Proportionate — never manufactures drama.
+- **Full calendar routing** — "show full calendar" → renders today/tomorrow events + mint "Open Calendar →" portal pill. All inline calendar renders show portal pill.
+- **Inline calendar render** — EventCards in chat thread (max 5), inlineData pattern
+- **Greeting fix (Session 24)** — fontSize:17, Poppins_500Medium, scrolls to top on brief load
 - **isActionQuery()** — action messages always bypass calendar GPT path to tool-calling
 - **new_assignees** support — add Anna/Duke etc. to events from Home chat
-- Name→ID mapping: `anna→1, rich→2, poppy→3, gab→4, duke→5`
-- Calendar conversation history fix — calEvents messages reconstructed for Claude context
 - **TOOL_FAILED signal** — honest error reporting, no fake successes
-- **refreshCalendarEvents()** — silently patches calEvents on focus return (zero API cost)
-- **Mic recording overlay** — frosted cream overlay, MicWaveform component, Poppins timer, stop/cancel
-- Whisper voice. API logging working
+- **refreshCalendarEvents()** — silently patches inlineData.items on focus return (zero API cost)
+- **Mic recording overlay** — frosted cream overlay, MicWaveform, Poppins timer, stop/cancel
+- Whisper voice. API logging working.
 
 ### calendar.tsx — Calendar ✅ COMPLETE (Sessions 22 + 23)
 - Two-row mint banner. Day strip. Event cards. Month view. Tool-calling. Whisper
@@ -72,11 +75,14 @@ isActionQuery() runs BEFORE isCalendarQuery() — action msgs go to Anthropic to
 - **Mic recording overlay** — mint-tinted, blush waveform bars
 - API logging confirmed
 
-### Admin dashboard ✅
+### Admin dashboard ✅ (Session 24 fixes)
 https://incomparable-gumdrop-32e4ba.netlify.app
+- Fixed: `thisMonthStart()` UTC bug → now local date construction
+- Fixed: Supabase 1000-row cap → now paginates to fetch all logs
+- Real MTD cost confirmed: A$3.17 / 1,048 calls for March 2026
 
 ### shopping.tsx, mealplanner.tsx
-Functional — need colour refactor.
+Functional — need colour refactor (`#F0E880` / `#D8CCFF` lavender for shopping).
 
 ### All designed, not yet built
 - Tutor: `zaeli-tutor-final-mockup-v4.html` (11 screens) + curriculum map
@@ -89,88 +95,62 @@ Functional — need colour refactor.
 
 ---
 
-## Critical architecture decisions locked in Session 23
+## Session 24 — Key decisions locked
 
-### Home calendar flow
-1. `isActionQuery(text)` checked FIRST — if true, goes to Anthropic tool-calling (never GPT)
-2. `isCalendarQuery(text)` — if true, fetches Supabase events → GPT renders inline cards
-3. Midnight/all-day events filtered OUT of inline render (they're reminder pills in Calendar)
-4. GPT calendar call: max 2000 tokens (reasoning model needs headroom)
-5. NO portal chip — Calendar offered conversationally in followUp text only
-6. Chips = conversation continuations only, context-appropriate
-
-### Mic overlay — apply to all future channels
-See CLAUDE.md for full spec. Key: `stopRecording(cancel=false)` → Whisper, `stopRecording(true)` → discard.
-
-### Msg interface — refactor before next inline type
-Current: `calIntro`, `calEvents`, `calFollowUp`, `showCalendarPill` (deprecated)
-Planned: generic `inlineData: { type, intro, followUp, items, showPortalPill }` — do this BEFORE building todos or shopping inline renders.
-
-### EventCard avatar layout
-- 1-3 people: single column (28/26/22px)
-- 4+ people: 2×2 grid — first 3 avatars (20px) + grey "+N" overflow chip
-
----
-
-## Supabase schema notes
-```sql
--- all_day column (added Session 22):
-alter table events add column all_day boolean default false;
-
--- notes stores both notes and location in events:
--- format: "notes text | location text" — split on ' | '
-
--- Needed (not yet created):
-alter table family_members add column dob date;
-alter table family_members add column year_level integer;
-alter table family_members add column has_own_login boolean default false;
--- New tables: todos (full), notes, kids_jobs, kids_rewards, kids_points
--- See CLAUDE.md for full column specs
-```
-
----
-
-## Immediate next steps (Session 24)
-
-**1. Refactor Msg → inlineData (do this first)**
-Before building any new inline render type, refactor the `Msg` interface in index.tsx:
+### inlineData architecture (LOCKED)
+Old `calIntro/calEvents/calFollowUp/showCalendarPill` fields are GONE from Msg interface.
+All inline renders use:
 ```typescript
 inlineData?: {
-  type: 'calendar' | 'shopping' | 'todos' | 'meals' | 'kids';
+  type: 'calendar' | 'todos' | 'shopping' | 'meals' | 'kids';
   intro?: string;
   followUp?: string;
   items?: any[];
   showPortalPill?: boolean;
 }
 ```
-This keeps the interface clean as more inline render types are added.
+`hasCalendarEvents` = true when `type === 'calendar'` AND (`items.length > 0` OR `showPortalPill === true`)
 
-**2. Proactive awareness in Home brief**
-Add instruction to `generateBrief()` prompt to scan next 7 days and flag:
-- Things 2-3 days away that might need prep (dinner plans, early starts, packed bags)
-- Conflicts worth mentioning
-- First-occurrence or unusual events (school photos, excursions)
-This is a prompt change only — no architecture change.
+### Open Calendar portal pill (LOCKED)
+- `showPortalPill: true` on ALL calendar inline renders
+- Mint `#B8EDD0`, full width, between cards and followUp text
+- Taps → `router.navigate('/(tabs)/calendar')`
 
-**3. Home inline todos render**
-Same pattern as calendar. Todo cards appear in Home chat thread. Tappable to tick from Home.
+### Full calendar requests (LOCKED)
+`isFullCalendarRequest()` detects "show full calendar", "all events", "open calendar" etc.
+Response: renders today's events (or tomorrow's if today empty), max 5, + Open Calendar pill.
 
-**4. Shopping colour refactor** — `#F0E880` bg / `#D8CCFF` lavender AI colour
+### Brief chips — no duplication (LOCKED)
+Brief chips render ONLY in hero banner (`briefReplies`).
+Chat thread chips (`!msg.isBrief && msg.quickReplies`) are for conversational responses only.
 
-**5. Meals colour refactor**
+### Zaeli persona (LOCKED)
+Warm + enthusiastic. Finds funny angle through delight not detachment. Proportionate.
+Banned: "queued up", "sorted", "tidy", "chaos", "ambush", "sprint", "stacked neatly".
+Confident offers: "Say the word and I'll..." never "Want me to...?"
+After 9pm: calm, one warm sentence about tomorrow only.
 
-**Then new channels in order:**
-6. Kids Hub (kids.tsx)
-7. Our Family (family.tsx)
-8. Todos (todos.tsx)
-9. Notes (notes.tsx)
-10. Tutor rebuild
+### Admin dashboard (LOCKED)
+`thisMonthStart()` uses local date: `` `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-01T00:00:00` ``
+Fetch paginates with `.range()` to bypass Supabase 1000-row cap.
 
 ---
 
-## Home chat philosophy (for context)
-Home is a conversation, not a calendar viewer. Zaeli always: text → cards → follow-up → chips.
-Chips = conversation continuations. No navigation chips. Calendar channel offered conversationally only.
+## Immediate next steps (Session 25)
+
+1. **Shopping colour refactor** — `shopping.tsx` onto `#F0E880` bg / `#D8CCFF` lavender AI colour
+2. **Meals colour refactor** — `mealplanner.tsx`
+3. **Todos channel** (`todos.tsx`) — design discussion + mockup review first, then build
+4. **Kids Hub** (`kids.tsx`) — after todos
+5. **Our Family** (`family.tsx`) — after kids hub
+6. **Notes** (`notes.tsx`)
+7. **Tutor rebuild** — 11-screen spec
+8. **Travel** — design session first
+
+**Deferred:**
+- Home inline todos render (same inlineData pattern)
+- Model cost review: home_chat + calendar_chat on Sonnet — evaluate GPT mini after load testing
+- Real auth, EAS build, TestFlight, website, Stripe
 
 ---
 
@@ -186,11 +166,13 @@ Chips = conversation continuations. No navigation chips. Calendar channel offere
 - Send = `#FF4545` always
 - Body bg = `#FAF8F5` warm white
 - No left-border accent strips on cards
+- Apostrophes in JSX strings: double-quoted e.g. `"What's on today"` not `'What's on today'`
 
 ---
 
 ## Tech reminders
 - `npx expo start --dev-client` after every change
+- Use `--clear` when fixing bundle/cache issues
 - Import paths from `app/(tabs)/`: `../../lib/supabase`
 - Supabase: `rsvbzakyyrftezthlhtd` (Sydney, ap-southeast-2)
 - Admin: drag `C:\Users\richa\Downloads\index.html` to Netlify
