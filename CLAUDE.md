@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 27 March 2026 — Session 22 complete (Calendar polish, mic wiring, admin logging, chat icons)*
+*Last updated: 30 March 2026 — Design Session (Tutor, Kids Hub, Our Family strategy)*
 
 ---
 
@@ -13,7 +13,7 @@
 - PowerShell rule: (tabs) folder needs backtick escaping: app\`(tabs`)\filename.tsx
 - Full file rewrites only — never partial diffs
 - Design before code — always discuss/mockup new screens before writing code
-- **Two fixes at a time max** — bulk changes create too many variables when something breaks
+- **Two fixes at a time** — bulk changes create too many variables when something breaks
 
 ---
 
@@ -23,14 +23,14 @@ Zaeli is an iOS-first AI family life platform for Australian families with child
 
 **Revenue model:**
 - Family plan: A$14.99/month
-- Homework add-on: A$9.99/child/month
+- Tutor add-on: A$9.99/child/month
 - 100% web sales (no App Store cut)
 
-**Unit economics (updated 27 Mar 2026):**
-- GPT-5.4 mini chat: ~A$0.003/msg (~250 in / 750 out tokens avg)
-- Calendar chat (Sonnet): ~A$0.009/msg (~1,800 in / 100 out tokens avg)
-- Realistic family monthly API cost: ~A$1.50–2.50 → ~83–85% margin
-- Only Home generates a brief on cold open — no brief on channel transitions
+**Unit economics (confirmed 30 Mar 2026):**
+- GPT-5.4 mini chat: ~A$0.003/msg
+- Tutor hybrid (GPT mini chat + Sonnet vision): ~A$2.00/child/month at 500 turns
+- Tutor margin at 500 turns/month: ~80% gross margin — healthy even at 1,000 turns (~60%)
+- Only Home generates a brief on cold open — no brief on channel transitions (cost saving)
 
 ---
 
@@ -48,11 +48,11 @@ Core: Anne Hathaway energy — smart, warm, magnetic.
 ## Stack
 - React Native + Expo (iOS-first), dev build on iPhone 11 Pro Max (bundle ID com.zaeli.app)
 - Supabase (Postgres, Sydney ap-southeast-2, ID: rsvbzakyyrftezthlhtd)
-- Claude Sonnet (`claude-sonnet-4-20250514`) — calendar tool-calling + vision/scan
-- OpenAI GPT-5.4 mini (`gpt-5.4-mini`) — Home chat/briefs
-- OpenAI Whisper-1 — voice transcription (Home + Calendar)
-- expo-router, expo-image-picker, expo-av, react-native-svg
-- Poppins font (UI), DMSerifDisplay (hero titles only)
+- Claude Sonnet (`claude-sonnet-4-20250514`) — vision/scan + Tutor photo checking
+- OpenAI GPT-5.4 mini (`gpt-5.4-mini`) — all chat/briefs/Tutor conversation
+- OpenAI Whisper-1 — voice transcription (all channels + Tutor Read Aloud)
+- expo-router, expo-image-picker, react-native-svg
+- Poppins font (UI), DMSerifDisplay (hero titles)
 - No bottom tab bar — no channel nav UI — Zaeli is the only navigation
 
 ---
@@ -63,69 +63,76 @@ DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
 FAMILY_ID       = '00000000-0000-0000-0000-000000000001'
 SONNET          = 'claude-sonnet-4-20250514'  ← CORRECT (NOT claude-sonnet-4-6)
 GPT_MINI        = 'gpt-5.4-mini'             ← CORRECT (NOT gpt-4.1-mini — retired Feb 2026)
-WHISPER_URL     = 'https://api.openai.com/v1/audio/transcriptions'
 CRITICAL: OpenAI = max_completion_tokens. Claude = max_tokens. Never mix.
+CRITICAL: KAV must have backgroundColor:'#fff' — prevents channel colour bleeding behind keyboard
+CRITICAL: always await supabase inserts — silent failures are the #1 logging bug
 ```
 
 ---
 
-## API Logging (WORKING as of 27 Mar 2026)
+## API Logging (FIXED 26 Mar 2026)
 ```
 Table: api_logs
 Columns: family_id, feature, model, input_tokens, output_tokens, cost_usd, created_at
 CRITICAL: column is input_tokens / output_tokens — NOT prompt_tokens / completion_tokens
 CRITICAL: total_tokens column does NOT exist — never insert it
-CRITICAL: always use await on supabase insert — silent failures were the logging bug
-
-Feature names in use:
-  home_brief            → Home cold-open brief (GPT)
-  chat_response         → Home chat messages (GPT)
-  calendar_chat         → Calendar Zaeli conversation (Sonnet)
-  chat_vision           → Claude vision photo scan (Sonnet)
-  whisper_transcription → Voice recording transcription (Whisper)
+Logging confirmed working as of 26 March 2026
 ```
 
 ---
 
-## Navigation Model (LOCKED)
+## Navigation Model (LOCKED 26 Mar 2026)
 
 **There is no channel navigation UI anywhere in the app.**
-- No hamburger menu, no grid, no tab bar, no channel switcher
-- Zaeli is the only navigation mechanism
-- Avatar (top right) opens: Settings, Billing, Our Family, Tutor (premium badge)
+- No hamburger menu listing channels
+- No grid, no tab bar, no channel switcher
+- **Zaeli is the only navigation mechanism** — she transitions channels based on conversation
+- **Avatar (top right)** opens: Settings, Billing, Our Family, Tutor (premium badge)
 - Always `router.navigate()` — never `router.push()` or `router.replace()`
-- DEV ONLY: 📅 button next to Home avatar → navigates to Calendar (remove pre-launch)
 
 ---
 
-## Channel Architecture (LOCKED)
+## Channel Architecture (LOCKED 26 Mar 2026)
+
+Everything is a channel. There are no dedicated screens. Each channel is a persistent chat with Zaeli where data renders inline.
 
 ```
-app/(tabs)/index.tsx       → Home channel          ✅ Complete (Session 20)
-app/(tabs)/calendar.tsx    → Calendar channel       ✅ Complete (Session 22)
-app/(tabs)/shopping.tsx    → Shopping channel       Needs colour refactor
-app/(tabs)/mealplanner.tsx → Meals channel          Needs colour refactor
-app/(tabs)/kids.tsx        → Kids Hub channel       Not built
-app/(tabs)/todos.tsx       → To-dos channel         Not built
-app/(tabs)/notes.tsx       → Notes channel          Not built
-app/(tabs)/travel.tsx      → Travel channel         Not built
-app/(tabs)/family.tsx      → Our Family channel     Not built
-app/(tabs)/tutor.tsx       → Tutor (standalone premium — NOT a channel)
+app/(tabs)/index.tsx       → Home channel
+app/(tabs)/calendar.tsx    → Calendar channel ✅ COMPLETE
+app/(tabs)/shopping.tsx    → Shopping channel
+app/(tabs)/mealplanner.tsx → Meals channel
+app/(tabs)/kids.tsx        → Kids Hub channel (NEW — design complete, not built)
+app/(tabs)/todos.tsx       → To-dos channel (NEW)
+app/(tabs)/notes.tsx       → Notes channel (NEW)
+app/(tabs)/travel.tsx      → Travel channel (NEW)
+app/(tabs)/family.tsx      → Our Family channel (NEW — design in progress)
+app/(tabs)/tutor.tsx       → Tutor (standalone premium module — NOT a channel)
 ```
+
+**Tutor is separate** — premium add-on, own dedicated pages, accessible from avatar menu only.
 
 ---
 
-## Pill System (LOCKED)
+## Pill System (LOCKED 26 Mar 2026)
 
-**Portal pills:** Filled bg = destination channel bg colour. Chevron in accent colour. Max 3.
-**Quick reply chips:** White bg, ink border `rgba(0,0,0,0.15)`. Never navigate.
+Two distinct types — users learn the difference instinctively:
+
+**Portal pills** (navigate to a channel / render data inline):
+- Filled bg = destination channel's bg colour
+- Arrow in channel's accent colour (dark)
+- Max 3 shown at once
+- Tap → data renders inline in current conversation
+
+**Quick reply chips** (continue conversation only):
+- White bg, ink border `rgba(0,0,0,0.15)`, ink text
+- Do not navigate anywhere
 
 ---
 
 ## Per-Channel Colour System (LOCKED)
 
-| Channel | Banner bg | AI colour (letters/eyebrow/send/pills) | Accent dark |
-|---------|-----------|----------------------------------------|-------------|
+| Channel | Banner bg | AI letter / eyebrow / send / portal pills | Accent (dark) |
+|---------|-----------|------------------------------------------|---------------|
 | Home | `#F5EAD8` | `#A8D8F0` Sky Blue | `#0A7A3A` |
 | Calendar | `#B8EDD0` | `#F0C8C0` Warm Blush | `#0A7A3A` |
 | Shopping | `#F0E880` | `#D8CCFF` Lavender | `#6A6000` |
@@ -137,8 +144,8 @@ app/(tabs)/tutor.tsx       → Tutor (standalone premium — NOT a channel)
 | Travel | `#A8D8F0` | `#B8EDD0` Soft Mint | `#0060A0` |
 | Our Family | `#F0C8C0` | `#D8CCFF` Lavender | `#A01830` |
 
-**The rule:** AI colour = eyebrow star = send button bg = portal pill bg. Send arrow always ink `#0A0A0A`.
-**Exception:** Calendar send button uses `#B8EDD0` mint (matches page bg).
+**The rule:** AI letter colour = eyebrow colour = send button bg = portal pill bg. Send button arrow is always ink `#0A0A0A`. Wordmark body always ink.
+**Exception:** Calendar send button uses `#B8EDD0` mint for visual harmony with the two-row banner.
 
 ---
 
@@ -153,193 +160,151 @@ Duke:  #F59E0B
 
 ---
 
-## Splash Screen (LOCKED)
-- Bg: `#A8E8CC` Aqua Green, hold 3s → Home channel
-- Wordmark: DM Serif 96px, ink + `#FAC8A8` peach on 'a' and 'i', bounces in
-- Greeting: "Good morning/afternoon/evening, Rich 👋" Poppins 400 18px
-- Tagline: "LESS CHAOS. MORE FAMILY." Poppins 500 12px uppercase
-- Dots: 3 × 6px `#FAC8A8` peach, orbs top-right and bottom-left
+## Splash Screen Spec (LOCKED — updated ZAELI-PRODUCT.md for latest values)
+- Background: `#A8E8CC` Aqua Green, 3 second hold
+- Wordmark: DM Serif Display 96px, ink body + `#FAC8A8` peach on 'a' and 'i', bounces in
+- Greeting: "Good morning/afternoon/evening, Rich 👋" — Poppins 400, 18px
+- Tagline: "LESS CHAOS. MORE FAMILY." — Poppins 500, 12px uppercase
+- Loading dots: peach, animated pulse
+- Radial glow orbs top-right and bottom-left for depth
 
 ---
 
-## Home Channel — Design (LOCKED Session 20)
-
-### Fixed top bar
-- Wordmark: DM Serif 40px, ink + sky blue ai letters
-- Right: "Home" Poppins 600 16px + Rich avatar 36×36 blue circle
-- DEV: 📅 calendar shortcut between label and avatar (remove pre-launch)
-- Divider `rgba(10,10,10,0.08)` below
-
-### Brief
-- GPT returns `{"hero":"[bracketed] key words","detail":"prose","replies":["..."]}`
-- Hero: DM Serif 28px, [brackets] → italic DM Serif spans
-- Detail: Poppins 17px / lineHeight 27 chat message, brackets stripped
-- Placeholder cycles 4s: "Chat with Zaeli…" → "Or just speak…" → "Ask anything…"
-- Mic: `#F5C8C8` blush 26px, 32×32 touch target — when recording shows animated WaveformBars
-- Send: `#A8D8F0` sky blue, ink arrow
-
-### Chat message render (Home — replicate in all channels)
-- Zaeli eyebrow: star icon (blush rounded square 16×16) + "ZAELI" label + timestamp right
-- Zaeli text: Poppins 400 17px / lineHeight 27 / letterSpacing -0.1
-- Zaeli icon row: Play, Copy, Forward, ThumbUp (highlights ai colour), ThumbDown
-- User bubble: `#F2F2F2` bg, Poppins 400 17px / lineHeight 27
-- User icon row (right-aligned): timestamp, Copy, Forward
+## Banner Spec (all channels, LOCKED)
+- Wordmark: DM Serif Display 34px, letter-spacing -1.5px, ink body, ai letters in channel colour
+- Channel name: Poppins 600, 13px, `rgba(0,0,0,0.5)`, right of wordmark
+- Avatar: 32×32px circle, Rich's colour `#4D8BFF` (logged-in user)
+- Background: always channel bg colour — does NOT go white on scroll
+- Divider: 1px `rgba(0,0,0,0.08)`
 
 ---
 
-## Calendar Channel — Design (LOCKED Session 22)
-
-### Banner — two rows, mint `#B8EDD0` bg
-- Row 1: zaeli 40px (blush ai letters) + "Calendar" 15px Poppins 600 + Rich avatar 36×36
-- Row 2: full-width Day/Month toggle
-
-### Day strip — white bg, PINNED above fixed divider
-- 7 days back + 120 days forward (127 total)
-- Auto-scrolls on load to position 7 × 54px = today anchors left edge
-- Month view = escape hatch for dates older than 7 days
-- ACC red today pill, Poppins 700 Bold numbers, family colour dots under dates
-
-### Fixed divider — permanent scroll boundary
-
-### Event Card spec (ONE component — used in Day, Month, Home inline)
-- Tinted bg: primary assignee colour + `'2E'` hex (18% opacity), no left accent bar
-- Emoji: auto-assigned by `getEventEmoji()` keyword matching (40+ patterns)
-- Title: Poppins 600 18px
-- Time: Poppins 500 14px, coloured to primary assignee colour
-- Location: shown below time as "📍 location" if present
-- Avatars: RIGHT side, dynamic sizing by count:
-  - 1-2 members: 28×28, col layout
-  - 3 members: 24×24, col layout
-  - 4+ members: 22×22, 2-col wrap grid, maxWidth 64
-- Conflict: red tinted panel + dot inline
-- Tap → EventDetailModal
-
-### Event Detail Modal
-- View mode: shows time, 📍 location (separate row), 📝 notes (separate row)
-- Edit mode: location field above notes field, saves as "notes | location"
-- Title: Poppins 700 Bold (not DM Serif)
-
-### Zaeli opening prompt — seeded as real message on mount (no API call)
-- Fires once when events load for today
-- 0 events: "Nothing locked in today — want to add something?"
-- 1 event: "Quiet one — just [title]. Anything to add or change?"
-- 3+ events: "[X] things on today. Need anything added, moved, or flagged?"
-- Conflict detected: leads with the conflict
-
-### Month view
-- Numbers: Poppins 500 Medium (not DM Serif)
-- Month name: Poppins 700 Bold
-- Tap date → events appear below grid; Toggle → Day jumps to selected date
-
-### Chat (Calendar)
-- Self-contained Anthropic tool-calling (Option A — Sonnet)
-- Tools: add/update/delete calendar_event
-- `assignees` is array type in schema with full family mapping in description
-- System prompt includes: today's date+day, pre-computed next 7 days dates, explicit family assignee shortcuts
-- PAST DATE RULE in prompt: never schedule to past, flag and suggest future alternative
-- PHOTO SCAN RULE in prompt: flag past dates from scans, ask for next occurrence
-- One shared thread across Day and Month views
-- Photo scan handled locally (no navigation to Home)
-- Mic: fully wired — tap to record → Whisper transcription → auto-send → logged
-
-### Chat message render (Calendar — matches Home exactly)
-- Zaeli: blush star icon eyebrow, Poppins 400 17px / lineHeight 27, icon row (Play/Copy/Forward/ThumbUp/ThumbDown)
-- User: `#F2F2F2` bubble, Poppins 400 17px, icon row (Copy/Forward)
-- Thumbs up highlights in `CAL_AI` blush
-
-### Scroll behaviour
-- Scroll-down arrow: dark circle, animated fade, taps to scroll to end (replicated from Home)
-- "View events" pill: white frosted, bottom-right corner, appears when scrolled past events
-- Keyboard open/closed: pill position adjusts to maintain consistent gap above chat bar
-
-### Known remaining issues / not yet built
-- Home inline calendar render — next major feature
-- Shopping channel colour refactor
-- Admin dashboard: photo scan (chat_vision) badge colour to add
+## Chat Interface Spec (LOCKED)
+- Zaeli message text: Poppins 15px/400, line-height 1.6
+- **Zaeli messages have NO bubble** — open text, full width. Only user messages are in bubbles.
+- User bubble: right-aligned, `#EDE8FF` bg, `border-radius: 16px 2px 16px 16px`
+- Message actions on Zaeli: Play + Copy + Forward + Thumbs Up + Thumbs Down (26px, opacity 0.35)
+- Message actions on user: Copy + Forward (right-aligned)
+- Quick reply chips below every Zaeli message that invites response
 
 ---
 
 ## CANONICAL CHAT BAR SPEC
+*Apply identically to every channel. Full detail in ZAELI-CHAT-BAR-SPEC.md*
 
 ```
-barPill (borderRadius:30, paddingVertical:14, paddingHorizontal:16, borderWidth:1, shadow)
-  ├── barBtn 34×34 → IcoPlus 20×20 stroke rgba(0,0,0,0.4)
+inputArea (position:absolute, bottom:0, transparent bg)
+  paddingH:14, paddingBottom: iOS?30:18, paddingTop:10
+
+barPill (borderRadius:30, paddingV:14, paddingH:16, borderWidth:1, shadow)
+  ├── barBtn 34×34 → IcoPlus 20×20 SVG stroke rgba(0,0,0,0.4)
   ├── barSep 1×18px rgba(10,10,10,0.1)
-  ├── TextInput fontSize:15 Poppins_400Regular
-  ├── barMicBtn 32×32 → IcoMic 26px #F5C8C8 (idle)
-  │   OR barWaveBtn 40×40 borderRadius 20 bg=channel ai colour → WaveformBars (recording)
-  └── barSend 32×32 borderRadius:16 bg=channel send colour → IcoSend 16×16 ink #0A0A0A
+  ├── TextInput fontSize:15, Poppins_400Regular
+  ├── barBtn 34×34 → IcoMic 20×20 SVG
+  └── barSend 32×32, borderRadius:16, bg=#FF4545 coral, arrow=white
 ```
 
-KAV `backgroundColor:'#fff'` → contentWrap (relative, `backgroundColor:'#fff'`) → ScrollView + inputArea (absolute bottom:0)
+**CRITICAL:** Send button is ALWAYS `#FF4545` coral across all channels — never the channel AI colour.
 
-**Green/colour bleed fix:** KAV must have `backgroundColor:'#fff'` to prevent channel bg colour bleeding behind keyboard.
-
----
-
-## Voice Recording Pattern (Home + Calendar)
-```typescript
-// State
-const [isRecording, setIsRecording] = useState(false);
-const recordingRef = useRef<Audio.Recording | null>(null);
-
-// Start
-await Audio.requestPermissionsAsync();
-await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-recordingRef.current = recording;
-setIsRecording(true);
-
-// Stop → Whisper → auto-send
-await recordingRef.current.stopAndUnloadAsync();
-const uri = recordingRef.current.getURI();
-// POST to WHISPER_URL → get transcript → sendMessage(transcript)
-
-// Log
-supabase.from('api_logs').insert({ feature: 'whisper_transcription', model: 'whisper-1', input_tokens: 0, output_tokens: 0, cost_usd: durationSec/60 * 0.006 });
+KAV structure (do not deviate):
+```
+KAV behavior=padding offset=0 backgroundColor='#fff'
+  └── contentWrap flex:1 position:relative
+        ├── ScrollView
+        └── inputArea position:absolute bottom:0
 ```
 
 ---
 
-## Tool-Calling
+## Tool-Calling System (index.tsx)
 
-**index.tsx:** add_calendar_event, update_calendar_event, delete_calendar_event, add_todo, add_shopping_item
-**calendar.tsx:** add_calendar_event, update_calendar_event, delete_calendar_event (self-contained Option A)
+**Tools:** `add_calendar_event`, `update_calendar_event` (with `search_date`), `delete_calendar_event`, `add_todo`, `add_shopping_item`
 
 **Critical rules:**
-- `assignees` is array type `['1','2','3','4','5']` — NOT a string
-- search_date (YYYY-MM-DD) narrows update/delete to right occurrence
-- New events default assignees: `['2']` (Rich only)
-- "whole family" → `['1','2','3','4','5']`, "the kids" → `['3','4','5']`
-- NEVER schedule to past — flag and ask user to confirm
-- System prompt pre-computes next 7 days as exact dates — model looks up, never calculates
+- `search_date` (YYYY-MM-DD) narrows update/delete to right occurrence
+- New events default to assignees: ['2'] (Rich, blue)
+- System prompt contains today's date as `${td}` for "tomorrow" calculations
+- Events context query uses `start_time` column (NOT `time`)
+- Context fetches 20 events across 7-day window
 
 ---
 
 ## Supabase Tables
 ```
-events         → date, start_time (ISO local), end_time, assignees (jsonb), notes, all_day (boolean)
-todos          → family_id, title, priority, status, due_date
-shopping_items → family_id, name, category, quantity, checked
-pantry_items   → family_id, name, category, stock_level
-receipts       → family_id, store, purchase_date, total_amount, items (jsonb)
-meal_plans     → family_id, date, meal_name, recipe_id
-recipes        → family_id, name, ingredients, instructions
-family_members → family_id, name, colour, role
-api_logs       → family_id, feature, model, input_tokens, output_tokens, cost_usd, created_at
-tutor_sessions → family_id, child_id, subject, messages (jsonb)
-
-NOTE: events.notes stores "notes | location" — split on ' | ' to separate
-NOTE: events.all_day added Session 22 — alter table events add column all_day boolean default false;
+events          → date, start_time (ISO local), end_time, assignees (jsonb), all_day (bool)
+todos           → family_id, title, priority, status, due_date
+shopping_items  → family_id, name, category, quantity, checked
+pantry_items    → family_id, name, category, stock_level
+receipts        → family_id, store, purchase_date, total_amount, items (jsonb)
+meal_plans      → family_id, date, meal_name, recipe_id
+recipes         → family_id, name, ingredients, instructions
+family_members  → family_id, name, colour, role
+api_logs        → family_id, feature, model, input_tokens, output_tokens, cost_usd, created_at
+tutor_sessions  → family_id, child_id, subject, messages (jsonb), pillar, difficulty_band, duration_seconds, hints_used, title, created_at
+kids_jobs       → family_id, child_id, title, status, reward_points, due_date (for Kids Hub)
 ```
 
 ---
 
-## Admin Dashboard
-- URL: https://incomparable-gumdrop-32e4ba.netlify.app
-- Deploy: drag `index.html` onto Netlify site dashboard
-- Feature badge colours: blue=home_brief/chat, green=calendar_chat, gold=shopping, pink=chat_vision, orange=whisper_transcription
-- Logging confirmed working for: home_brief, calendar_chat, whisper_transcription (27 Mar 2026)
+## Tutor Module (DESIGNED 30 Mar 2026 — not yet built)
+
+Full design spec in ZAELI-PRODUCT.md. Key technical notes for build:
+
+**AI model split:**
+- GPT-5.4-mini → all conversational turns (hints, encouragement, questions, feedback)
+- Claude Sonnet → any turn involving a photo (homework sheet, writing sample, book cover)
+- Whisper-1 → all voice input including Read Aloud sessions
+
+**Tutor screen files (to be built):**
+```
+app/tutor/index.tsx          → Child selector screen
+app/tutor/[child]/index.tsx  → Child home (6 pillars + sessions)
+app/tutor/[child]/session.tsx → Active session (all pillars)
+app/tutor/[child]/progress.tsx → Parent progress view
+```
+
+**Session UX — critical rules:**
+- Zaeli messages are open text (NO bubble) — same as all channels
+- Persistent 25/75 split pill above chat bar: `[💡 Hint (1/3)] [Next question →]`
+- Hint pill greys out after Hint 3 used — Next pill always stays active
+- Question progress bar below session header (coloured dots, Q3 of 6 label)
+- Money & Life sessions use amber `#F59E0B` for Next pill and progress dots instead of purple
+
+**Parent review split (LOCKED 30 Mar 2026):**
+- Child sees: session list + simple summary only ("18 min, 6 questions, great session")
+- Parent sees (authenticated): full transcript + hints used per question
+- Full progress view (subject bars, difficulty bands, Zaeli observations) → Our Family only
+
+**Curriculum source:** Australian Curriculum v9.0 (ACARA). All questions verified against official content descriptors. See zaeli-tutor-curriculum-map-v1.html for full Foundation–Year 12 mapping.
+
+---
+
+## Kids Hub Channel (DESIGNED 30 Mar 2026 — not yet built)
+
+Part of the family plan (NOT premium). Channel colour: `#A8E8CC` bg / `#FAC8A8` peach AI colour.
+
+Kids Hub is where children go for:
+- **Jobs/Chores** — assigned tasks with reward points
+- **Rewards** — redeem points, see progress toward goals
+- **Fun educational games** — crosswords, Wordle-style word games, other light games
+
+Kids Hub is completely separate from Tutor. No AI tutoring here — it's the kids' own space within the family plan.
+
+*Full design to be completed in next design session.*
+
+---
+
+## Our Family Channel (DESIGNED 30 Mar 2026 — not yet built)
+
+Channel colour: `#F0C8C0` bg / `#D8CCFF` lavender AI colour. Avatar menu entry.
+
+Our Family is the parent-facing hub containing:
+- **Family profiles** — members, colours, roles
+- **Tutor progress** — full subject progress view per child (difficulty bands, Zaeli observations, time spent)
+- **Session transcripts** — parent-authenticated full session review
+- **Settings / Billing** — subscription management
+
+*Full design to be completed in next design session.*
 
 ---
 
@@ -349,17 +314,62 @@ NOTE: events.all_day added Session 22 — alter table events add column all_day 
 - Logo taps = router.navigate('/(tabs)/')
 - PowerShell: no && — separate lines
 - Always npx expo start --dev-client after changes
-- Image picker: use `['images'] as any`
-- Date: always local construction — NEVER toISOString() (UTC/AEST shift)
-- KAV must have backgroundColor:'#fff' to prevent colour bleed behind keyboard
-- Always await supabase inserts — silent failures are the #1 logging bug
+- Image picker: use `['images'] as any` not deprecated MediaTypeOptions.Images
+- Date: always local date construction — NEVER toISOString() (UTC shifts in AEST)
+- KAV backgroundColor must be `#fff` — prevents channel bg bleeding behind keyboard
 
 ---
 
-## Next Priorities (Session 23)
+## Screen / Channel Status
 
-1. **Home inline calendar render** — EventCards render inline in Home chat when Zaeli shows calendar data; portal pill "See full calendar →" below. Discuss approach first.
-2. **Shopping channel colour refactor** — apply `#F0E880` / `#D8CCFF` colour system
-3. **Meals channel colour refactor**
-4. **New channels** — kids, todos, notes, travel, family
-5. **Pre-launch** — new EAS build (keyboard tint), remove AI toggle from more.tsx, replace DUMMY_FAMILY_ID with real auth, website + Stripe + onboarding
+| File | Status | Notes |
+|---|---|---|
+| index.tsx | ✅ Complete | Home channel — brief, mic, tool-calling, logging |
+| calendar.tsx | ✅ Complete | Calendar channel — Session 22 |
+| shopping.tsx | Needs colour refactor | Complete functionality |
+| mealplanner.tsx | Needs colour refactor | |
+| more.tsx | Deprecating | Settings moving to avatar menu |
+| tutor/* | Design complete, needs rebuild | Full 11-screen spec designed 30 Mar |
+| kids.tsx | Design pending | Next design session |
+| todos.tsx | Not built | |
+| notes.tsx | Not built | |
+| travel.tsx | Not built | |
+| family.tsx | Design pending | Next design session — holds Tutor progress |
+| zaeli-chat.tsx | DEPRECATED | Replaced by index.tsx |
+
+---
+
+## Next Priorities
+
+**Phase 1 — Stabilise:**
+1. ✅ API logging fixed
+2. ✅ Console.log cleanup
+3. ✅ Calendar channel complete (Session 22)
+4. Home inline calendar render (EventCards in Home chat thread)
+5. Shopping channel colour refactor
+6. Meals channel colour refactor
+
+**Phase 2 — Design sessions (complete before building):**
+7. Kids Hub design session → mockup → brief
+8. Our Family design session → mockup → brief
+
+**Phase 3 — New channel builds (after design):**
+9. Kids Hub channel
+10. Our Family channel
+11. Todos channel
+12. Notes channel
+13. Travel channel
+
+**Phase 4 — Tutor rebuild:**
+14. Rebuild all tutor/* screens to new 11-screen spec
+15. New Supabase tutor_sessions schema
+16. Adaptive difficulty system
+17. Parent review auth gate
+
+**Pre-launch:**
+- Remove AI toggle from more.tsx
+- Remove DEV 📅 button from Home
+- Replace DUMMY_FAMILY_ID with real Supabase auth
+- New EAS build (keyboard tint fix)
+- TestFlight build for Anna
+- Website + Stripe + onboarding

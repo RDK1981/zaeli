@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 27 March 2026 — Session 22 complete*
+*Last updated: 30 March 2026 — Tutor module fully designed. Kids Hub + Our Family design sessions queued.*
 
 ---
 
@@ -27,8 +27,15 @@ Australian families with children. Highest-priority segment: dual-income couples
 
 **Revenue:**
 - Family plan: A$14.99/month
-- Homework add-on: A$9.99/child/month
+- Tutor add-on: A$9.99/child/month
 - 100% web sales — no App Store cut
+
+**Tutor unit economics (verified 30 Mar 2026):**
+- 500 message turns/month per child = realistic heavy usage
+- Hybrid model cost: ~A$2.00/child/month (GPT-5.4-mini chat + Sonnet vision + Whisper)
+- Gross margin at 500 turns: ~80%
+- Margin stays above 60% even at 1,000 turns/month
+- Fair use soft cap at ~600 turns recommended (soft warning, never hard cut)
 
 ---
 
@@ -45,7 +52,10 @@ No hamburger menu. No grid. No tab bar. No channel switcher. Zaeli is the only n
 **Quick reply chips** — white bg, ink border. Continue conversation only.
 
 ### Tutor is a standalone premium module
-NOT a channel. A$9.99/child/month. Own pages, avatar menu only. Socratic method — never gives the answer directly.
+NOT a channel. A$9.99/child/month. Own pages, avatar menu only. Socratic method — guides without giving the answer directly. Full 11-screen spec designed 30 Mar 2026.
+
+### Kids Hub is a family plan channel
+NOT premium. Part of the base A$14.99/month family plan. Completely separate from Tutor.
 
 ### Channel transitions — no new brief
 Conversation flows continuously. Background colour shifts. Only Home generates a brief on cold open.
@@ -72,7 +82,8 @@ DM Serif Display, always lowercase `zaeli`. The 'a' and 'i' carry a complementar
 | Our Family | `#F0C8C0` | `#D8CCFF` Lavender | `#A01830` |
 
 AI colour = eyebrow star = send button bg = portal pill bg. Send arrow always ink `#0A0A0A`.
-**Exception:** Calendar send button uses `#B8EDD0` mint (the page bg) for visual harmony.
+**CRITICAL:** Chat bar send button is `#FF4545` coral across ALL channels — never the channel AI colour.
+**Exception:** Calendar send button uses `#B8EDD0` mint (the page bg) for visual harmony with its two-row banner.
 
 ### Family member colours (LOCKED)
 ```
@@ -101,59 +112,179 @@ Duke:  #F59E0B
 - Placeholder cycles 4s. Mic 26px blush. Send sky blue ink arrow.
 - Tool-calling: add/update/delete events, todos, shopping items
 - Chat render: star eyebrow, 17px text, icon row (Play/Copy/Forward/ThumbUp/ThumbDown)
+- **Next:** Home inline calendar render — EventCards render inline in Home chat thread when Zaeli returns calendar data. Portal pill "See full calendar →" below cards (mint bg).
 
 ---
 
 ## Calendar Channel (LOCKED Session 22)
 
 ### What we built
-The Calendar channel is a complete, production-quality channel with:
+Complete production-quality channel:
 - Two-row mint banner (wordmark + Day/Month toggle)
 - Pinned day strip (7 days back + 120 forward, today anchors left)
-- Clean event cards with auto-emoji, coloured time text, right-side dynamic avatars
-- Month view with Poppins numbers, tap-to-select dates
-- Self-contained Anthropic tool-calling for add/update/delete
-- Voice recording → Whisper → auto-send
-- Full chat render matching Home (star eyebrow, icon rows, thumbs)
+- Event cards: auto-emoji (40+ keywords), coloured time text, dynamic avatars
+- Month view with tap-to-select dates
+- Self-contained tool-calling: add/update/delete
+- Voice → Whisper → auto-send
+- Chat render matching Home exactly
 - Scroll-down arrow + "View events" frosted pill
-- All API calls logged to admin dashboard
+- All API calls logged
 
 ### Key design decisions (LOCKED)
-**No time grid.** Event cards only — cleaner, more readable, kid-friendly.
-**One EventCard component.** Calendar Day, Month, Home inline — identical.
-**One shared chat thread.** Day and Month share conversation.
-**Scroll-to-chat model.** Events above, chat below, all one ScrollView.
-**Client-side opening prompt.** No API cost on load.
-**7 days back in strip.** Month view is the escape hatch for older dates.
-**Dynamic avatar sizing.** 1-2: 28px col, 3: 24px col, 4+: 22px 2-col wrap.
-
-### Event Card
-- 18% tint bg (family colour + '2E'), no accent bar
-- Auto-emoji by keyword (40+ patterns: sushi→🍣, dog walk→🐕, t-ball→⚾ etc.)
-- Time text coloured to primary assignee
-- Location shown as "📍 location" below time
-- Avatars right side, dynamic size by count
-
-### Tool-calling critical details
-- `assignees` is array — schema defines it as array type with family mapping
-- "whole family" → `['1','2','3','4','5']`, "the kids" → `['3','4','5']`
-- System prompt pre-computes next 7 days as exact YYYY-MM-DD dates
-- Past-date rule: Zaeli flags and suggests future alternative
-- Photo scan rule: flags past dates from images
+No time grid. Event cards only. One EventCard component shared across Calendar Day, Month, Home inline. Shared chat thread across Day/Month views.
 
 ---
 
-## Next Major Feature: Home Inline Calendar Render
+## ══════════════════════════════════
+## TUTOR MODULE — FULL SPEC (LOCKED 30 Mar 2026)
+## ══════════════════════════════════
 
-**The concept:** When Zaeli in Home chat shows calendar information, EventCards render inline in the conversation thread — the same component used in Calendar channel. Below the cards, a portal pill "See full calendar →" navigates to Calendar.
+### What Tutor Is
+A personal AI tutor for Australian children from Kindergarten to Year 12. Premium add-on at A$9.99/child/month. Accessed from the avatar menu only — NOT a channel. Has its own dedicated screen architecture.
 
-**Why this matters:** It's the first real demonstration of the channel philosophy — data comes to you, not the other way around. The user never has to leave Home to see what's on.
+The Tutor experience is genuinely differentiated: it adapts its personality to the child's age, guides Socratically without being dogmatic (it will eventually give the answer, because real tutors do), and is fully transparent to parents.
 
-**Approach to discuss:**
-- Trigger: GPT returns a structured calendar block in its response
-- Render: EventCard components inline in the Home ScrollView
-- Navigation: "See full calendar →" portal pill (mint bg, green chevron)
-- Scope: today's events + next 2-3 days max inline; full calendar via pill
+### Tutor Persona
+Warm, encouraging, age-adaptive. Playful for younger children (Duke, Year 1). More peer-level and direct for older kids (Poppy, Year 6+). Never condescending. Never gives the answer on the first attempt. Never says "mate".
+
+### Access Model
+- Family account = one Zaeli login (parent owns it)
+- Each child profile has `tutor_enabled: boolean` in family_members table
+- Older kids with their own phone log in with family account credentials — land directly in their profile
+- Child selector shows locked profiles for unenrolled children with inline upsell
+- **No subscription cost shown next to the premium badge** — lives in Settings/Billing only
+
+### AI Architecture
+- **GPT-5.4-mini** → all conversational turns (questions, hints, encouragement, feedback)
+- **Claude Sonnet** → any turn involving a photo (homework sheets, writing samples, book covers, working photos)
+- **Whisper-1** → all voice input including Read Aloud sessions
+
+### The Six Pillars
+Every child sees the same six pillars on their Child Home screen. Content inside adapts to year level.
+
+| Pillar | What it does |
+|--------|-------------|
+| **Homework** | Photo/voice/type — Zaeli reads the worksheet via Sonnet vision and guides through it |
+| **Practice** | Structured curriculum sets — MC + working-out questions — adaptive difficulty |
+| **Read Aloud** | Voice-first — books, speeches, presentations. Whisper transcribes, Zaeli analyses fluency |
+| **Write & Review** | Submit writing, get structured feedback with before/after rewrites. Never rewrites the whole piece |
+| **Comprehension** | Passage renders inline, questions move literal → inferential → analytical. NAPLAN-aligned |
+| **Money & Life** | Australian financial literacy — 4 progressive levels from coins (Yr 1) to mortgages (Yr 12) |
+
+### Difficulty Band System (LOCKED)
+Three bands per year level. Zaeli adjusts silently — children never see a band label.
+
+- **Foundation** — below standard. More scaffolding, shorter questions, more visual aids.
+- **Core** — at achievement standard. Default starting point for all children.
+- **Extension** — above standard. Overlaps with next year level. Triggered after 3 consecutive correct answers with no hints.
+
+**Adaptive rules:**
+- Correct, no hints, 3× in a row → move up one band
+- Wrong twice on same question → auto-provide Hint 2
+- Wrong three times → full worked example (Hint 3), drop one band next question
+- 5 correct at Extension → flag "working above year level" in session notes
+
+### Hint System (LOCKED)
+Three progressive levels. The 25/75 split pill is always visible above the chat bar.
+
+- **Hint 1/3** — technique on a DIFFERENT equation. Never touches the child's actual question.
+- **Hint 2/3** — first step of their actual equation only. Stops there.
+- **Hint 3/3** — full worked example. Framed as "let's look at this together".
+
+Hint pill label updates: `Hint (1/3)` → `Hint (2/3)` → `Hint (3/3)` → `Hint (used)` (greyed out).
+Hint count per question is logged and shown in parent session review.
+
+### Persistent Pill Layout (LOCKED)
+Above the chat bar at all times — never requires scrolling to reach:
+```
+[💡 Hint (1/3)]  [      Next question →      ]
+    25%                      75%
+```
+Money & Life sessions: amber `#F59E0B` Next pill instead of purple `#5020C0`.
+Homework mode: NO hint/next pill — free-flowing conversation, not structured practice.
+
+### Maths Technique Cards
+Zaeli renders stacked multiplication and long division inline using monospace formatting. Because Zaeli messages are open text (no bubble), she has the full screen width — columns and spacing are legible.
+
+After showing the technique, Zaeli asks the child to do their working on paper and upload a photo. Sonnet analyses the photo for method accuracy, not just the final answer.
+
+### Session Saving
+Every session is saved with: auto-generated title, timestamp, duration, pillar, subject, difficulty band reached, hints used per question, full message transcript.
+
+Title is auto-generated by Zaeli at session end: descriptive, not generic. "Fractions — dividing by whole numbers" not "Session 14 March."
+
+### Parent vs Child View (LOCKED 30 Mar 2026)
+- **Child sees on Child Home:** Session list with simple summary only. "18 min, 6 questions."
+- **Parent sees (authenticated):** Full transcript + hints used per question + Zaeli's technique cards shown.
+- **Full progress view** (subject bars, difficulty bands, Zaeli written observations) → **Our Family channel only** — not in Tutor. This keeps the Tutor space feeling like the child's own space, not a surveillance system.
+
+### Curriculum Alignment
+All content verified against **Australian Curriculum v9.0 (ACARA)**. Full Foundation–Year 12 mapping in `zaeli-tutor-curriculum-map-v1.html`. Key notes:
+- Foundation (Prep/Kinder) content is simpler than Year 1 — never confuse the two
+- Year 1 maths: addition/subtraction to 20, skip counting, two-digit partitioning. NOT single CVC word matching (that's Foundation).
+- NAPLAN years are 3, 5, 7, 9. Practice sets for these years include NAPLAN-style question formats.
+- All word problems use Australian contexts: AUD, Australian geography, Australian cultural references.
+
+### Money & Life Module
+Four progressive levels that unlock sequentially:
+1. **Earning & Spending** — wages, GST, budgeting (Yrs 3–5)
+2. **Saving & Banking** — interest, compound growth, savings accounts (Yrs 5–8)
+3. **Investing & Super** — ASX shares, superannuation, compound interest (Yrs 8–12)
+4. **Big Life Decisions** — renting, mortgages, credit cards (Yrs 10–12)
+
+Real Australian examples throughout: ANZ savings rates, Woolworths casual wages, ASX, super guarantee rate. Based on ASIC MoneySmart curriculum framework.
+
+Money & Life sessions use warm amber tones `#FEF3C7` / `#F59E0B` to signal a different kind of learning from the standard Tutor lavender.
+
+### Tutor Screen Architecture (11 screens)
+Fully mocked up in `zaeli-tutor-final-mockup-v4.html`.
+
+1. Child Selector — enrolled children with streaks, locked upsell state
+2. Child Home — 6 pillars + week stats + recent sessions (resume/review)
+3. Pillar Select — Zaeli asks 1–2 orienting questions before session starts
+4. Homework Session — photo upload flow, free conversation, no hint/next pill
+5. Practice Session — MC + technique cards + 25/75 hint/next pill + adaptive band
+6. Read Aloud Session — voice-first, mic highlighted, fluency/presentation feedback
+7. Write & Review Session — structured before/after feedback cards
+8. Comprehension Session — passage inline card + layered questions + hint/next pill
+9. Money & Life Session — level select (4 levels) + active amber session
+10. Parent Review — session stats + Zaeli summary + full transcript (parent-authenticated)
+11. Parent Progress — subject bars + difficulty bands + Zaeli observations → lives in Our Family
+
+---
+
+## Kids Hub Channel (DESIGN PENDING — 30 Mar 2026)
+
+**What it is:** The kids' own space within the family plan. NOT premium. Part of base A$14.99/month.
+
+**What it contains:**
+- Jobs/Chores — tasks assigned by parents, reward points for completion
+- Rewards — redeem points, track progress toward goals
+- Fun educational games — crosswords, Wordle-style word games, other light games
+
+**What it is NOT:** An AI tutoring tool. That's Tutor. Kids Hub is lighter — jobs, rewards, fun.
+
+**Colour:** `#A8E8CC` bg / `#FAC8A8` peach AI colour / `#0A6040` accent dark.
+
+*Full design session to be completed — mockup and spec before build.*
+
+---
+
+## Our Family Channel (DESIGN PENDING — 30 Mar 2026)
+
+**What it is:** The parent-facing hub. Accessible from avatar menu.
+
+**What it contains:**
+- Family profiles — members, avatars, colours, roles
+- **Tutor Progress** — the full progress view that lives here, not in Tutor (subject bars, difficulty bands, Zaeli written observations per child)
+- **Session Review** — parent-authenticated full Tutor session transcripts
+- Settings & Billing — subscription management, add/remove children from Tutor
+
+**Why progress lives here:** Keeps Tutor feeling like the child's own space. A 12-year-old finding detailed session notes about her struggles would feel surveillance-y and discouraging.
+
+**Colour:** `#F0C8C0` bg / `#D8CCFF` lavender AI colour / `#A01830` accent dark.
+
+*Full design session to be completed — mockup and spec before build.*
 
 ---
 
@@ -173,8 +304,8 @@ When Zaeli says she's done something — she did it. Real Supabase write, confir
 ## Competitive Position
 - Not threatened by generic AI — they don't know your family
 - Not threatened by calendar apps — they don't talk to you
-- Real threat: Apple agentic Siri (18-30 months)
-- Zaeli's moat: family context, memory, shared live experience, Tutor module
+- Real threat: Apple agentic Siri (18–30 months)
+- Zaeli's moat: family context, memory, shared live experience, Tutor module, Kids Hub
 
 ---
 
@@ -184,14 +315,17 @@ When Zaeli says she's done something — she did it. Real Supabase write, confir
 - [x] API logging — all features working
 - [x] Calendar channel — complete (Session 22)
 - [x] Admin dashboard — all feature types showing
-- [ ] Home inline calendar render (next)
+- [x] Tutor module — fully designed (30 Mar 2026)
+- [ ] Home inline calendar render (next build task)
 - [ ] Shopping channel colour refactor
 - [ ] Meals channel colour refactor
-- [ ] New channels: kids, todos, notes, travel, family
+- [ ] Kids Hub — design session → mockup → build
+- [ ] Our Family — design session → mockup → build
+- [ ] New channels: todos, notes, travel
+- [ ] Tutor rebuild to new 11-screen spec
 - [ ] New EAS build (keyboard tint fix)
 - [ ] TestFlight build for Anna
 - [ ] Remove AI toggle from more.tsx
 - [ ] Remove DEV 📅 button from Home
 - [ ] Replace DUMMY_FAMILY_ID with real auth
 - [ ] Website + Stripe + onboarding
-- [ ] Tutor UX review (tutor-practice.tsx, tutor-reading.tsx)
