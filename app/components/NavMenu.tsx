@@ -187,7 +187,7 @@ const NAV_SECTIONS: NavSection[] = [
     label: 'Personal', dividerAfter: true,
     items: [
       { renderIcon: () => <IcoNotesNav s={20}/>,  label: 'Notes',      route: '/(tabs)/more', params: { initialPage: 'notes'  }, dotBg: '#F3EEFF' },
-      { renderIcon: () => <IcoTravelNav s={20}/>, label: 'Travel',     route: '/(tabs)/more', params: { initialPage: 'travel' }, dotBg: '#E8F8FF' },
+      { renderIcon: () => <IcoTravelNav s={20}/>, label: 'Travel',     route: '/(tabs)/travel', dotBg: '#E8F8FF' },
       { renderIcon: () => <IcoFamilyNav s={20}/>, label: 'Our Family', route: '/(tabs)/more', params: { initialPage: 'family' }, dotBg: '#EEF2FF' },
     ],
   },

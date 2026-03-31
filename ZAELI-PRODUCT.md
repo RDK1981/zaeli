@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 31 March 2026 — Shopping rebuild ✅ Chat persistence ✅ Calendar arrows ✅*
+*Last updated: 1 April 2026 — Meals full rebuild ✅ Recipe/Fav detail modals ✅ Shopping ingredient review ✅*
 
 ---
 
@@ -349,9 +349,15 @@ Moat: family context, persistent memory, Tutor + Kids Hub ecosystem, card stack 
 - [x] Kids Hub designed
 - [x] Our Family designed (6 screens)
 - [x] Notes designed (5 screens)
-- [ ] Meals colour refactor + persistence
+- [x] Meals full rebuild (Dinners/Recipes/Favourites, Sonnet tools, persistence, Calendar-style)
+- [x] Meals — Recipe detail modal (ingredients + method)
+- [x] Meals — Favourites detail/edit/plan modal
+- [x] Meals — Shopping ingredient review sheet
+- [x] Meals — Cook avatars 2×2 grid (CookAvatarsGrid)
+- [x] Meals — All 7 nights uniform (no special tonight hero)
+- [x] Meals — Date labels above each card
 - [ ] Home card stack rebuild (index.tsx)
-- [ ] Wire useChatPersistence to Home + Meals
+- [ ] Wire useChatPersistence to Home
 - [ ] Todos + Reminders build — create reminders table first
 - [ ] Kids Hub build
 - [ ] Our Family build
