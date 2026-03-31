@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
+import { useChatPersistence } from '../../lib/use-chat-persistence';
 
 // ── Constants ─────────────────────────────────────────────────
 const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
@@ -1280,8 +1281,8 @@ export default function CalendarScreen() {
   const [keyboardOpen,  setKeyboardOpen]  = useState(false);
   const [pendingImage,  setPendingImage]  = useState<string | null>(null);
 
-  // Chat state
-  const [messages,    setMessages]    = useState<Msg[]>([]);
+  // Chat state — persisted 24hr across navigation via expo-file-system
+  const { messages, setMessages, loaded: chatLoaded } = useChatPersistence('calendar');
   const [chatInput,   setChatInput]   = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [isRecording,  setIsRecording]  = useState(false);
@@ -1362,10 +1363,11 @@ export default function CalendarScreen() {
     }
   }, [askZaeliPrompt]);
 
-  // Seed opening prompt as a real Zaeli message once events are loaded
+  // Seed opening prompt — only if no persisted conversation after hook loads
   const openingSeeded = useRef(false);
   useEffect(() => {
-    if (openingSeeded.current || events.length === 0) return;
+    if (openingSeeded.current || events.length === 0 || !chatLoaded) return;
+    if (messages.length > 0) { openingSeeded.current = true; return; } // persisted chat exists
     // Only seed once, only in day view on today
     const selectedStr = toLocalDateStr(selectedDate);
     const tStr        = toLocalDateStr(today);
@@ -1382,16 +1384,16 @@ export default function CalendarScreen() {
 
     if (count === 0) {
       text = 'Nothing locked in today — want to add something, or shall I check what\'s coming up?';
-      quickReplies = ['Add an event', 'Show tomorrow', 'Show this week'];
+      quickReplies = ['Add an event', 'Add for the whole family', 'Move an event'];
     } else if (conflicts.length > 0) {
       text = `There's a clash worth sorting — ${conflicts[0].title} overlaps with something else. Want me to fix it?`;
-      quickReplies = ['Fix the clash', 'Leave it for now', 'Add an event'];
+      quickReplies = ['Fix the clash', 'Move one event', 'Add an event'];
     } else if (count === 1) {
       text = `Quiet one — just ${dayEvs[0]?.title || allDay[0]?.title}. Anything to add or change?`;
-      quickReplies = ['Add an event', 'Edit this event', 'Show tomorrow'];
+      quickReplies = ['Add an event', 'Edit this event', 'Delete this event'];
     } else {
       text = `${count} things on today. Need anything added, moved, or flagged?`;
-      quickReplies = ['Add an event', 'Show tomorrow', 'Any conflicts?'];
+      quickReplies = ['Add an event', 'Move an event', 'Edit an event'];
     }
 
     setMessages([{ id: uid(), role: 'zaeli', text, ts: nowTs(), quickReplies }]);
@@ -1579,6 +1581,8 @@ RULES:
 - For time-only updates use update_calendar_event — never delete and re-add.
 - PAST DATE RULE: NEVER schedule or move an event to a date or time that has already passed. If the requested date/time is in the past, flag it: "That time has already passed — did you mean [suggest future date]?" Always confirm before acting.
 - PHOTO SCAN RULE: When reading a date from a scanned image, check if it is in the past relative to today (${td}). If it is, ask "This looks like it's from [date] which has passed — want me to add it for the next occurrence?" Do not add past-dated scan events without confirming first.
+
+CHIP RULE: Never suggest chips like 'Show tomorrow', 'Show this week', 'Any conflicts?' or any chip implying you can display or list events — the user can already see events on screen. Chips must only suggest actions you can perform: adding, editing, moving, or deleting events.
 
 Voice: warm, specific, Australian. Plain text only — no asterisks or markdown. 2-3 sentences max.`;
 
@@ -2006,24 +2010,22 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
 
           </ScrollView>
 
-          {/* ── SCROLL DOWN ARROW — replicated from Home ── */}
+          {/* ── UP/DOWN SCROLL ARROWS — side by side ── */}
           {showScrollBtn && (
-            <Animated.View style={[s.scrollDownBtn, { opacity: scrollBtnAnim }]} pointerEvents="box-none">
-              <TouchableOpacity style={s.scrollDownInner} onPress={() => mainScrollRef.current?.scrollToEnd({ animated: true })} activeOpacity={0.8}>
+            <Animated.View style={[s.scrollArrowPair, { opacity: scrollBtnAnim }]} pointerEvents="box-none">
+              <TouchableOpacity style={s.scrollArrowBtn} onPress={() => mainScrollRef.current?.scrollTo({ y: 0, animated: true })} activeOpacity={0.8}>
+                <Svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <Line x1="12" y1="19" x2="12" y2="5" stroke="#fff" strokeWidth={2.5} strokeLinecap="round"/>
+                  <Polyline points="5 12 12 5 19 12" stroke="#fff" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                </Svg>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.scrollArrowBtn} onPress={() => mainScrollRef.current?.scrollToEnd({ animated: true })} activeOpacity={0.8}>
                 <IcoArrowDown/>
               </TouchableOpacity>
             </Animated.View>
           )}
 
-          {/* ── VIEW EVENTS PILL — shown when scrolled past events ── */}
-          {messages.length > 0 && scrollY > eventsBottomY.current && eventsBottomY.current > 0 && (
-            <TouchableOpacity
-              style={[s.viewEventsPill, keyboardOpen && s.viewEventsPillKb]}
-              onPress={() => mainScrollRef.current?.scrollTo({ y: 0, animated: true })}
-              activeOpacity={0.85}>
-              <Text style={s.viewEventsPillTxt}>↑ View events</Text>
-            </TouchableOpacity>
-          )}
+          {/* View events pill replaced by up/down arrow pair */}
 
           {/* ── CHAT BAR — absolute bottom ── */}
           <View style={[s.inputArea, keyboardOpen && s.inputAreaKb]}>
@@ -2262,6 +2264,8 @@ const s = StyleSheet.create({
   // Scroll down arrow — replicated from Home
   scrollDownBtn:   { position: 'absolute', bottom: 100, left: 0, right: 0, alignItems: 'center', zIndex: 50 },
   scrollDownInner: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(10,10,10,0.45)', alignItems: 'center', justifyContent: 'center' },
+  scrollArrowPair: { position: 'absolute', bottom: 110, right: 16, flexDirection: 'row', gap: 8, zIndex: 50 },
+  scrollArrowBtn:  { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(10,10,10,0.40)', alignItems: 'center', justifyContent: 'center' },
   inputArea:   { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 14, paddingBottom: Platform.OS === 'ios' ? 30 : 18, paddingTop: 10, backgroundColor: 'transparent' },
   inputAreaKb: { paddingBottom: Platform.OS === 'ios' ? 8 : 6 },
   barPill:     { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 30, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: -2 }, elevation: 4 },

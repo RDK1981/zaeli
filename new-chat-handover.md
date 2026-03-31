@@ -1,11 +1,11 @@
 # Zaeli — New Chat Handover
-*31 March 2026 — Home card stack ✅ Reminders tab ✅ design session complete. Copy this entire file to start a new chat.*
+*31 March 2026 — Shopping rebuild ✅ Chat persistence ✅ Calendar arrows + persistence ✅ Copy this entire message to start a new chat.*
 
 ---
 
 ## Hi! Continuing development of Zaeli.
 
-Zaeli is an iOS-first AI family life platform built in React Native / Expo. Please read **CLAUDE.md** before we start — full stack, architecture, colours, Home card stack spec, Reminders spec, coding rules. Then **ZAELI-PRODUCT.md** for product vision and all module specs.
+Zaeli is an iOS-first AI family life platform built in React Native / Expo. Please read **CLAUDE.md** before we start — full stack, architecture, colours, coding rules. Then **ZAELI-PRODUCT.md** for product vision and all module specs.
 
 ---
 
@@ -44,223 +44,150 @@ Channel body bg = #FAF8F5 warm white — never full colour bleed
 No left-border accent strips on cards — dots, icons, badges only
 isActionQuery() runs BEFORE isCalendarQuery()
 Apostrophes in JSX: always double-quoted strings
+expo-file-system: import as 'expo-file-system/legacy'
+Do NOT use @react-native-async-storage — requires native rebuild, use expo-file-system instead
 ```
 
 ---
 
 ## What's built (31 Mar 2026)
 
-### index.tsx — Home ✅ COMPLETE (Sessions 20–24)
+### index.tsx — Home ✅ COMPLETE
 - inlineData pattern for all inline renders
 - Tool-calling: add/update/delete events, todos, shopping items
 - isActionQuery() before isCalendarQuery() routing
 - isFullCalendarRequest() — renders today's events + Open Calendar portal pill
 - Brief chips in hero banner ONLY
 - Whisper voice. API logging working.
-- **HOME CARD STACK REDESIGN LOCKED (31 Mar 2026)** — full spec in CLAUDE.md
+- **HOME CARD STACK REDESIGN LOCKED** — full spec in CLAUDE.md
 
-### calendar.tsx — Calendar ✅ COMPLETE
+### calendar.tsx — Calendar ✅ COMPLETE (updated 31 Mar)
 Two-row mint banner. Day strip. Event cards. Month view. Tool-calling. Whisper. Mic overlay.
+**NEW:** Chat persistence (24hr via expo-file-system) · Up/down scroll arrows · Greeting guard (skips if returning user has messages) · Chip rules fixed (action-only, never "Show tomorrow")
+
+### shopping.tsx — Shopping ✅ MAJOR REBUILD COMPLETE (31 Mar)
+**Full rebuild this session:**
+- **Colour:** Yellow `#F0E880` → Lavender `#EDE8FF` (yellow looked mustard on iPhone)
+- **Logo 'a' and 'i':** `#A8E8CC` mint (not lavender — clashes)
+- **AI model:** GPT mini JSON hack → Claude Sonnet with proper two-pass tool-calling
+- **Chat:** Three separate chats → One shared chat across List/Pantry/Spend (Calendar model)
+- **Context:** Full live context every call — shopping list + pantry stock + receipts
+- **Tools:** add_shopping_item · remove_shopping_item · tick_shopping_item · clear_shopping_list
+- **guessCategory:** Now local keyword lookup — zero API calls (was 5× Sonnet calls per add)
+- **Persistence:** 24hr via useChatPersistence('shopping')
+- **Chat rendering:** Full Calendar-style (eyebrow, star, timestamp, icons, chips)
+- **Quick reply chips:** Claude appends [chips: a|b|c] → parseChips() strips before display
+- **Scroll arrows:** Up/down side-by-side floating pair (bottom-right)
+- **Pantry rows:** Flat design (no white card bubbles) matching list rows
+- **Spend card:** Mint `#A8E8CC` monthly summary
+
+### lib/use-chat-persistence.ts ✅ NEW (31 Mar)
+Shared hook for all channels. expo-file-system storage. 24hr TTL. 30-message rolling cap.
+Debounced saves. Strips stuck isLoading states. Greeting guard via `loaded` flag.
+```typescript
+const { messages, setMessages, clearMessages, loaded } = useChatPersistence('shopping');
+// Keys: 'shopping' | 'calendar' | 'home' (next) | 'meals' (next) | 'todos' (next)
+```
 
 ### Admin dashboard ✅
 https://incomparable-gumdrop-32e4ba.netlify.app · March 2026: A$3.17 / 1,048 calls.
 
-### shopping.tsx, mealplanner.tsx
-Functional — need colour refactor (`#F0E880` / `#D8CCFF` lavender for shopping).
-
-### All designed, not yet built
-- Home card stack: `zaeli-home-card-tweaks-v2.html` (final — 4 screens)
-- Todos + Reminders: `zaeli-todos-reminders-v2.html` (5 screens — includes Reminders tab)
-- Tutor: `zaeli-tutor-final-mockup-v4.html` (11 screens)
-- Kids Hub: `zaeli-kids-hub-rewards-v2.html`
-- Our Family: `zaeli-our-family-mockup-v1.html` (6 screens)
-- Notes: `zaeli-notes-mockup-v1.html` (5 screens)
-
-### Travel — no design yet
-
 ---
 
-## HOME CARD STACK — locked decisions summary
+## CANONICAL CHAT BAR SPEC (LOCKED ✅ — apply to every channel)
 
-### Banner hero line
-DM Serif 16px, ink black, italic emphasis. One or two sentences. NO sub-label. No greeting text.
-Tappable — Zaeli expands in chat.
-
-- **AM (5–12):** *"Hope the soccer went well, Gab. Big morning ahead, Rich."*
-- **PM (12–8):** *"Hope the surf ski was good. Nothing sorted for dinner yet — worth a thought."*
-- **Evening (8–5):** *"Gab scored the winner. Poppy's swimming at 8am — early one."*
-
-### Card stack on `#FAF8F5` warm white body
-
-**Card order:**
-- AM: Calendar → Weather+Shopping → Actions → Dinner
-- PM: Dinner (leads if unplanned) → Calendar → Actions → Weather+Shopping
-- Evening: Tomorrow calendar → Actions (with tomorrow AM section) → Weather+Shopping → Dinner tomorrow
-
-**Calendar — slate `#3A3D4A` (full width)**
-Header: eye label + weather · + Add · Full → top right
-Timeline rows · footer: context left · "Full calendar →" right
-
-**Weather — sky blue `#A8D8F0` (two-col, flex 0 0 88px)**
-DM Serif temp · condition · icon · extra. Read only.
-
-**Shopping — lavender `#D8CCFF` (two-col, flex 1)**
-Header: + Add · Full → top right (identical to calendar pattern)
-Top 3 items · **item count BIG bottom right** (large number + small "items" label)
-+ Add → Zaeli: "What do you need to pick up?"
-
-**Today's actions — gold `#F0DC80` (full width)**
-Header: count badge · + Add · Full → top right
-**Circle tick LEFT = ONLY completion mechanism.** No swipe labels. No "done" text.
-Rows: circle · urgency dot · text · avatar · badge
-Ticking: circle fills, text greys + strikethrough, count drops, Zaeli one-line acknowledgement
-Badges: Reminder (red) · Overdue (dark red) · Todo (gold) — remain visible when ticked
-**Evening: two sections in one card:**
-- "🌙 Put out tonight" — circle ticks, actionable
-- "🌅 Tomorrow morning" — NO circles, FYI awareness items
-Separated by labelled divider
-+ Add → Zaeli: "What do you need to remember or do?"
-
-**Dinner — terracotta `#FAC8A8` (full width)**
-Planned: emoji · name · prep note · "✓ Planned"
-Unplanned: nudge + "Quick idea 💡" · "Plan the week"
-**Footer: "Next 7 days ›"** — expands inline 7-day meal strip within the card
-Evening: shows tomorrow's dinner
-
-### + Add interaction (LOCKED)
-Tap + Add on any card → Zaeli opens inline prompt in chat below. No modal. No new screen. Cursor live immediately. Zaeli confirms, card updates. Never leaves Home.
-
----
-
-## TODOS + REMINDERS CHANNEL — locked decisions summary
-
-Channel: `#F0DC80` banner · `#D8CCFF` AI colour · `#806000` accent
-
-### Three tabs (LOCKED)
 ```
-Mine  |  Family  |  Reminders
-```
-**Mine** — personal todos only
-**Family** — shared todos, Anna's todos Rich can see, assigned to Rich
-**Reminders** — things to REMEMBER (distinct from todos = things to DO)
-
-### Todos (Mine + Family tabs) — unchanged from previous design
-- Priority dots: Red (overdue) · Amber (today/soon) · Grey (someday)
-- Badges: ↻ Recurring · Shared · 📅 Calendar-linked
-- Circle tick left — completion mechanism
-- Zaeli brief strip at top: most urgent item
-- "Done this week" collapsible divider
-- Features: smart due dates · priority in Home brief · recurring · shared handoff · calendar integration
-
-### Reminders tab (LOCKED ✅ 31 Mar 2026)
-
-**The distinction:** Todos = things you DO. Reminders = things you REMEMBER.
-
-**Visual language:**
-- Bell icon (🔔) instead of circle tick — same satisfying tap, different mental model
-- Urgency shown by time label colour: today (gold bold) · tonight (purple) · tomorrow (amber) · upcoming (muted)
-- Recurring badge: ↻ Weekly / Monthly
-
-**Bell states:**
-- 🔔 Active red tint — due today, unacknowledged
-- 🔔 Upcoming amber tint — due in future
-- 🔔 Recurring gold tint — auto-repeating
-- ✓ Done grey — acknowledged, below divider
-
-**Two-touch nudge system (LOCKED):**
-- Nudge 1: evening before the reminder date
-- Nudge 2: morning of (7am), only if not yet acknowledged
-- If acknowledged before morning fires → morning cancelled
-- Toggle per reminder (default ON)
-- Visible under each reminder: "Evening nudge sent · morning nudge at 7am if not done"
-
-**Recurrence:** None / Daily / Weekly (choose day) / Monthly. Auto-reappears.
-
-**Creating reminders:**
-1. Tell Zaeli: "Remind me Gab needs a gold coin Wednesday" → confirmed in chat with card
-2. Tap + Add → sheet: what · who (family member chips) · when chips · two-touch toggle
-
-**Acknowledging:** Tap the bell → greys, sinks below "Acknowledged" divider.
-
-**How reminders surface in Home actions card:**
-- Today's reminders: appear with "Reminder" badge (red)
-- Evening state: tomorrow's reminders in "🌅 Tomorrow morning" section — NO circles, FYI only
-
-### New Supabase table needed
-```sql
-create table reminders (
-  id uuid default gen_random_uuid() primary key,
-  family_id uuid not null,
-  title text not null,
-  about_member_id uuid,
-  remind_at timestamptz not null,
-  recurrence text default 'none', -- none/daily/weekly/monthly
-  recurrence_day integer,          -- 0=Sun, 1=Mon etc for weekly
-  two_touch bool default true,
-  evening_sent bool default false,
-  acknowledged bool default false,
-  acknowledged_at timestamptz,
-  created_by uuid,
-  created_at timestamptz default now()
-);
+barPill: borderRadius:30, paddingVertical:14, paddingHorizontal:16, borderWidth:1
+  bg:#fff, borderColor:rgba(10,10,10,0.09)
+  ├── barBtn 34×34 → IcoPlus
+  ├── barSep 1×18px rgba(10,10,10,0.1)
+  ├── TextInput fontSize:15 Poppins_400Regular maxHeight:100 multiline
+  ├── barMicBtn 32×32 → IcoMic color="#F5C8C8" size={26}   ← blush, size 26
+  │     OR barWaveBtn 40×40 borderRadius:20 bg=channel AI colour (when recording)
+  └── barSend 32×32 borderRadius:16 bg=#FF4545              ← CORAL ALWAYS
+inputArea: position:absolute bottom:0 paddingBottom: iOS?30:18 paddingHorizontal:14
+KAV: behavior=padding backgroundColor='#fff'
 ```
 
-**Mockup:** `zaeli-todos-reminders-v2.html` — 5 screens
-
 ---
 
-## Session 24 locked decisions (still current)
+## SCROLL ARROWS SPEC (LOCKED ✅ — apply to every channel)
 
-### inlineData (LOCKED)
-```typescript
-inlineData?: {
-  type: 'calendar' | 'todos' | 'shopping' | 'meals' | 'kids';
-  intro?: string; followUp?: string; items?: any[]; showPortalPill?: boolean;
-}
+All scrollable channels: side-by-side up/down floating arrows, bottom-right, above chat bar.
 ```
-
-### Zaeli persona (LOCKED)
-Warm + enthusiastic. Proportionate. Confident offers: "Say the word and I'll..."
-Banned: "queued up", "sorted", "tidy", "chaos", "ambush", "sprint", "stacked neatly", "locked in".
-
----
-
-## Build priorities — in order
-
-1. **Shopping colour refactor** — `#F0E880` bg / `#D8CCFF` lavender AI colour
-2. **Meals colour refactor**
-3. **Home card stack rebuild** — spec in CLAUDE.md + `zaeli-home-card-tweaks-v2.html`
-4. **Todos + Reminders** (`todos.tsx`) — spec above + `zaeli-todos-reminders-v2.html`
-5. **Kids Hub** (`kids.tsx`)
-6. **Our Family** (`family.tsx`)
-7. **Notes** (`notes.tsx`)
-8. **Tutor rebuild**
-9. **Travel** (design session first)
-
-**Deferred:** Home inline todos/reminders render · model cost review · real auth · EAS build · Stripe · Settings
+scrollArrowPair: position:absolute, bottom:110, right:16, flexDirection:row, gap:8, zIndex:50
+scrollArrowBtn:  width:38, height:38, borderRadius:19, bg:rgba(10,10,10,0.40)
+Up → scrollTo({y:0}) · Down → scrollToEnd()
+```
+**Implemented:** Shopping ✅ · Calendar ✅
+**Next:** Home (card stack rebuild) · Meals · Todos
 
 ---
 
-## Critical coding rules
-- `router.navigate()` only — NEVER push() or replace()
-- Local date construction — NEVER toISOString()
-- `start_time` NOT `time` in events table
-- SafeAreaView `edges={['top']}` always
-- Image picker: `['images'] as any`
-- KAV → `backgroundColor:'#fff'`
-- Full file rewrites only
-- Always await supabase inserts
-- Send = `#FF4545` always · Body bg = `#FAF8F5` · No left-border accent strips
-- Apostrophes in JSX: double-quoted strings
+## CHAT PERSISTENCE SPEC (LOCKED ✅)
+
+`lib/use-chat-persistence.ts` — expo-file-system (no native rebuild needed).
+24hr TTL · 30-message cap · debounced saves · strips isLoading on restore.
+**Greeting guard:** `if (!chatLoaded || messages.length > 0) return;` before firing opening brief.
+**Implemented:** Shopping ✅ · Calendar ✅
+**Next:** Home · Meals · Todos (wire during their respective builds)
+
+---
+
+## CHAT MESSAGE RENDERING SPEC (Calendar-style — all channels)
+
+**Zaeli:** Eyebrow row (star badge channel AI colour + "Zaeli" + timestamp right) · Poppins 400 17px lineHeight 27 · chips row · icon row (copy/forward/thumbUp/thumbDown)
+**User:** #F2F2F2 grey bubble right-aligned · timestamp + copy/forward below
+**Chips:** borderWidth:1.5, white bg, Poppins 400 12px — ACTION ONLY, never display/show/list
+
+---
+
+## QUICK REPLY CHIP RULES (ALL channels — LOCKED)
+
+Never suggest chips implying Zaeli can DISPLAY or LIST data the user already sees on screen.
+- Calendar: never "Show tomorrow", "Show this week", "Any conflicts?" → Add/Edit/Move/Delete only
+- Shopping: never "Check the pantry" (Zaeli has pantry data in context already)
+- All: chips = things Zaeli can actually DO
+
+---
+
+## Immediate next tasks (in priority order)
+
+1. **Meals colour refactor** — `mealplanner.tsx` · wire useChatPersistence('meals') during refactor
+2. **Home card stack rebuild** — `index.tsx` · wire useChatPersistence('home') · upgrade to up/down arrows · full spec in CLAUDE.md + `zaeli-home-card-tweaks-v2.html`
+3. **Create reminders Supabase table** (SQL in ZAELI-PRODUCT.md)
+4. **Todos + Reminders channel** — `todos.tsx` · 5-screen spec in `zaeli-todos-reminders-v2.html`
+5. **Kids Hub** — `kids.tsx`
+6. **Our Family** — `family.tsx`
+7. **Notes** — `notes.tsx`
+8. **Tutor rebuild** — `zaeli-tutor-final-mockup-v4.html`
+9. **Travel** — design session first
+
+---
+
+## Key design decisions (don't revisit without reason)
+- Shopping banner: `#EDE8FF` lavender (not yellow — looked mustard on iPhone)
+- Shopping logo 'a' and 'i': `#A8E8CC` mint (not lavender — clashes on banner)
+- Shopping send button: `#FF4545` coral (not lavender — locked rule)
+- Single chat across all shopping tabs (Calendar model)
+- Claude Sonnet for all tool-calling channels (not GPT mini — hallucination risk)
+- expo-file-system for persistence (not AsyncStorage — requires native rebuild)
+- Up/down arrows side-by-side bottom-right (not centred single arrow)
+- Chips = actions only, never display verbs
+- No floating FAB anywhere
+- Hamburger menu only navigation
+- Channel body bg = `#FAF8F5` warm white always
 
 ---
 
 ## Tech reminders
-- `npx expo start --dev-client` after every change (--clear for bundle issues)
+- `npx expo start --dev-client` after copying files (`--clear` for bundle issues)
 - Import paths from `app/(tabs)/`: `../../lib/supabase`
+- expo-file-system: `import * as FileSystem from 'expo-file-system/legacy'`
 - Supabase: `rsvbzakyyrftezthlhtd` (Sydney)
 - Admin deploy: drag `C:\Users\richa\Downloads\index.html` to Netlify
+- Windows dev environment — no && chaining in PowerShell
 
 ---
 
-**Read CLAUDE.md and ZAELI-PRODUCT.md first. Upload the current file before editing.**
+**Read CLAUDE.md and ZAELI-PRODUCT.md first. Always ask Richard to upload the current file before editing.**

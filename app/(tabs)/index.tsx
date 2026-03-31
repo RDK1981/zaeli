@@ -2195,6 +2195,7 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
                 style={{ width:32, height:32, borderRadius:10, backgroundColor:'rgba(184,237,208,0.4)', alignItems:'center', justifyContent:'center' }}>
                 <Text style={{ fontSize:16 }}>📅</Text>
               </TouchableOpacity>
+              <HamburgerButton onPress={() => setMenuOpen(true)} />
               <View style={s.avatar}><Text style={s.avatarTxt}>R</Text></View>
             </View>
           </View>

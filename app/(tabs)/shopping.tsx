@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Modal, Platform, KeyboardAvoidingView, Animated,
+  Modal, Platform, KeyboardAvoidingView, Animated, Easing,
   StyleSheet, Share, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,8 +14,10 @@ import {
   Poppins_700Bold, Poppins_800ExtraBold,
 } from '@expo-google-fonts/poppins';
 import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import Svg, { Rect, Path, Line, Polyline, Circle } from 'react-native-svg';
+import Svg, { Rect, Path, Line, Polyline, Circle, Polygon } from 'react-native-svg';
+import { Audio } from 'expo-av';
 import { NavMenu, HamburgerButton } from '../components/NavMenu';
+import { useChatPersistence, type PersistedMsg } from '../../lib/use-chat-persistence';
 import { supabase } from '../../lib/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { callClaude } from '../../lib/api-logger';
@@ -27,16 +29,23 @@ const IS_PARENT = true;
 const ANTHROPIC_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
 
 const C = {
-  bg: '#F7F7F7', card: '#FFFFFF', border: '#E0E0E0',
+  bg: '#FAF8F5', card: '#FFFFFF', border: '#E0E0E0',
   ink: '#0A0A0A', ink2: 'rgba(0,0,0,0.50)', ink3: 'rgba(0,0,0,0.28)',
   dark: '#0A0A0A',
-  blue: '#0057FF', blueL: 'rgba(0,87,255,0.08)', blueB: 'rgba(0,87,255,0.22)',
+  // Shopping channel colours
+  bannerBg: '#EDE8FF',      // light lavender banner
+  ai:  '#D8CCFF',           // lavender — Zaeli/AI accent
+  aiL: 'rgba(216,204,255,0.12)', // lavender light bg
+  aiB: 'rgba(216,204,255,0.35)', // lavender border
+  accent: '#5020C0',        // deep purple — accent text
+  // Keep blue alias pointing to ai colour for Zaeli elements
+  blue: '#D8CCFF', blueL: 'rgba(216,204,255,0.12)', blueB: 'rgba(216,204,255,0.35)',
   green: '#00C97A', greenL: 'rgba(0,201,122,0.10)', greenB: 'rgba(0,201,122,0.28)',
   orange: '#FF8C00', orangeL: 'rgba(255,140,0,0.10)',
   red: '#FF3B3B', redL: 'rgba(255,59,59,0.08)',
   yellow: '#FFE500', yellowD: '#B8A400',
   mag: '#E0007C',
-  shopTick: '#B8A400',
+  shopTick: '#5020C0',
 };
 
 const STOCK_META: Record<string, { label: string; color: string; bg: string; bars: number }> = {
@@ -51,6 +60,9 @@ type ShopItem = {
   checked: boolean; meal_source: string | null;
   created_at?: string;
 };
+
+// ChatMsg matches PersistedMsg from useChatPersistence
+type ChatMsg = PersistedMsg;
 
 type PantryItem = {
   id: string; name: string; emoji: string;
@@ -78,9 +90,9 @@ type Receipt = {
 const FOOD_CATEGORIES = ['Fruit & Veg','Dairy & Eggs','Meat & Seafood','Bakery','Pantry','Frozen','Drinks','Snacks'];
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
-function IcoMic({ color = 'rgba(0,0,0,0.45)' }: { color?: string }) {
+function IcoMic({ color = 'rgba(0,0,0,0.45)', size = 18 }: { color?: string; size?: number }) {
   return (
-    <Svg width={18} height={18} viewBox="0 0 24 24">
+    <Svg width={size} height={size} viewBox="0 0 24 24">
       <Rect x="9" y="2" width="6" height="11" rx="3" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
       <Path d="M5 10a7 7 0 0014 0" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
       <Line x1="12" y1="19" x2="12" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
@@ -103,7 +115,7 @@ function IcoTrash({ color = 'rgba(0,0,0,0.25)' }: { color?: string }) {
     </Svg>
   );
 }
-function IcoShare({ color = 'rgba(255,255,255,0.8)' }: { color?: string }) {
+function IcoShare({ color = 'rgba(0,0,0,0.55)' }: { color?: string }) {
   return (
     <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
       <Path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
@@ -137,23 +149,23 @@ function IcoPencil({ color = C.ink2 }: { color?: string }) {
   );
 }
 
-// ── Pulsing avatar ─────────────────────────────────────────────────────────────
-function PulsingAvatar() {
-  const pulse = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    Animated.loop(Animated.sequence([
-      Animated.timing(pulse, { toValue: 0.75, duration: 1200, useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 1,    duration: 1200, useNativeDriver: true }),
-    ])).start();
-  }, []);
-  return (
-    <View style={{ width: 30, height: 30 }}>
-      <Animated.View style={[s.briefAv, { opacity: pulse }]} />
-      <View style={[s.briefAv, { position: 'absolute' }]}>
-        <Text style={s.briefAvTxt}>✦</Text>
-      </View>
-    </View>
-  );
+// PulsingAvatar removed — Option B design uses ambient strip instead
+
+// ── Chat message icons (matching Calendar) ───────────────────────────────────
+const INK3_SHOP = 'rgba(0,0,0,0.28)';
+function IcoCopy() {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={INK3_SHOP} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Rect x="9" y="9" width="13" height="13" rx="2"/><Path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></Svg>;
+}
+function IcoForward() {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={INK3_SHOP} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Line x1="22" y1="2" x2="11" y2="13"/><Polygon points="22 2 15 22 11 13 2 9 22 2"/></Svg>;
+}
+function IcoThumbUp({ active }: { active: boolean }) {
+  const col = active ? C.accent : INK3_SHOP;
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z"/><Path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></Svg>;
+}
+function IcoThumbDown({ active }: { active: boolean }) {
+  const col = active ? C.ink2 : INK3_SHOP;
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z"/><Path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17"/></Svg>;
 }
 
 function TypingDots() {
@@ -237,17 +249,23 @@ function ScanningSheet({ visible }: { visible: boolean }) {
 }
 
 // ── AI helpers ────────────────────────────────────────────────────────────────
-async function guessCategory(itemName: string): Promise<string> {
-  const categories = ['Fruit & Veg', 'Dairy & Eggs', 'Meat & Seafood', 'Bakery', 'Pantry', 'Frozen', 'Drinks', 'Snacks', 'Household', 'Other'];
-  try {
-    const data = await callClaude({
-      feature: 'shopping_category',
-      familyId: DUMMY_FAMILY_ID,
-      body: { model: 'claude-sonnet-4-20250514', max_tokens: 20, messages: [{ role: 'user', content: `Which single category does "${itemName}" belong to? Reply with ONLY the category name. Categories: ${categories.join(', ')}` }] },
-    });
-    const guess = data?.content?.[0]?.text?.trim();
-    return categories.find(c => c.toLowerCase() === guess?.toLowerCase()) || 'Other';
-  } catch { return 'Other'; }
+function guessCategory(itemName: string): Promise<string> {
+  const n = itemName.toLowerCase();
+  const rules: [string[], string][] = [
+    [['apple','banana','orange','grape','berry','mango','avocado','tomato','potato','carrot','onion','garlic','lettuce','spinach','broccoli','zucchini','capsicum','cucumber','lemon','lime','pear','peach','melon','kiwi','pineapple','strawberry','mushroom','celery','corn','pea','bean','herb','ginger','rocket','leek','cauliflower','pumpkin','sweet potato','blueberry','raspberry','cherry','fig','nectarine','plum','fennel','beetroot','radish','silverbeet'], 'Fruit & Veg'],
+    [['milk','cheese','yoghurt','yogurt','butter','cream','egg','feta','mozzarella','parmesan','ricotta','sour cream','custard','dairy','cheddar','brie','haloumi'], 'Dairy & Eggs'],
+    [['chicken','beef','lamb','pork','mince','steak','sausage','bacon','ham','turkey','fish','salmon','tuna','prawn','shrimp','seafood','salami','pepperoni','chorizo','veal','duck','venison'], 'Meat & Seafood'],
+    [['bread','roll','bun','croissant','muffin','cake','pastry','bagel','wrap','pita','sourdough','loaf','toast','brioche','focaccia','crumpet'], 'Bakery'],
+    [['ice cream','frozen','edamame','gelato'], 'Frozen'],
+    [['water','juice','soft drink','soda','coffee','tea','kombucha','energy drink','wine','beer','alcohol','drink','beverage','cordial','coconut water','sparkling'], 'Drinks'],
+    [['chip','crisp','cracker','biscuit','chocolate','lolly','candy','nut','almond','cashew','popcorn','muesli bar','tim tam','snack','pretzel','rice cake'], 'Snacks'],
+    [['detergent','soap','shampoo','conditioner','toothpaste','toilet paper','tissue','cleaner','spray','sponge','bin bag','foil','wrap','nappy','pad','tampon','razor','deodorant','sunscreen','dishwasher','laundry','bleach','disinfectant'], 'Household'],
+    [['pasta','rice','flour','sugar','salt','pepper','oil','sauce','vinegar','stock','broth','can','tin','jar','cereal','oat','honey','jam','spread','mayonnaise','ketchup','mustard','soy','curry','spice','noodle','lentil','chickpea','quinoa','couscous','polenta','breadcrumb','coconut milk','tomato paste','peanut butter','vegemite'], 'Pantry'],
+  ];
+  for (const [keywords, cat] of rules) {
+    if (keywords.some(k => n.includes(k))) return Promise.resolve(cat);
+  }
+  return Promise.resolve('Other');
 }
 
 async function scanPantryImage(base64: string): Promise<ScannedPantryItem[]> {
@@ -346,138 +364,169 @@ const CAT_EMOJI: Record<string, string> = {
 };
 const CATEGORIES = Object.keys(CAT_EMOJI);
 
-// ── Brief card ────────────────────────────────────────────────────────────────
-let briefDismissed = false;
-let cachedBrief = '';
-let lastBriefCount = -1;
-let lastBriefTime: number | null = null;
+// ── Shopping Msg type ────────────────────────────────────────────────────────
+interface ShopMsg {
+  id: string; role: 'user' | 'zaeli'; text: string;
+  isLoading?: boolean; quickReplies?: string[];
+}
 
-// ── callBrief — routes to GPT-5.4 mini or Claude based on provider toggle ──
-async function callBrief({feature,system,userContent,maxTokens=200}:
-  {feature:string;system:string;userContent:string;maxTokens?:number}): Promise<string> {
-  if(getZaeliProvider()==='openai'){
-    const oaiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
-    console.log('[callBrief] provider=openai, key present:', oaiKey.length > 0, 'key prefix:', oaiKey.substring(0,8));
-    const res=await fetch('https://api.openai.com/v1/chat/completions',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${oaiKey}`},
-      body:JSON.stringify({model:'gpt-5.4-mini',max_completion_tokens:maxTokens,
-        messages:[{role:'system',content:system},{role:'user',content:userContent}]}),
-    });
-    console.log('[callBrief] status:', res.status);
-    const d=await res.json();
-    console.log('[callBrief] response keys:', Object.keys(d));
-    if(d.error) console.log('[callBrief] error:', JSON.stringify(d.error));
-    try{const u=d.usage||{};const costUsd=((u.prompt_tokens||0)/1000000)*0.75+((u.completion_tokens||0)/1000000)*4.50;supabase.from('api_logs').insert({family_id:DUMMY_FAMILY_ID,feature,model:'gpt-5.4-mini',input_tokens:u.prompt_tokens||0,output_tokens:u.completion_tokens||0,cost_usd:costUsd});}catch{}
-    return d.choices?.[0]?.message?.content||'';
-  } else {
-    const d=await callClaude({feature,familyId:DUMMY_FAMILY_ID,
-      body:{model:'claude-haiku-4-5-20251001',max_tokens:maxTokens,
-        system,messages:[{role:'user',content:userContent}]}});
-    return d.content?.[0]?.text||'';
+// ── Shopping Tools (Claude Sonnet) ────────────────────────────────────────────
+const SHOP_TOOLS = [
+  { name: 'add_shopping_item',
+    description: 'Add one or more items to the shopping list.',
+    input_schema: { type: 'object', properties: {
+      items: { type: 'array', items: { type: 'string' }, description: 'Item names to add' },
+    }, required: ['items'] } },
+  { name: 'remove_shopping_item',
+    description: 'Remove an item from the shopping list by name.',
+    input_schema: { type: 'object', properties: {
+      name: { type: 'string', description: 'Item name to remove (partial match ok)' },
+    }, required: ['name'] } },
+  { name: 'tick_shopping_item',
+    description: 'Mark a shopping item as bought/checked.',
+    input_schema: { type: 'object', properties: {
+      name: { type: 'string', description: 'Item name to tick (partial match ok)' },
+    }, required: ['name'] } },
+  { name: 'clear_shopping_list',
+    description: 'Mark all unchecked shopping items as bought.',
+    input_schema: { type: 'object', properties: {} } },
+];
+
+async function executeShopTool(
+  name: string, input: any,
+  shopItems: ShopItem[],
+  onRefresh: () => void,
+  guesscat: (n: string) => Promise<string>,
+): Promise<string> {
+  try {
+    if (name === 'add_shopping_item') {
+      const toAdd: string[] = input.items || [];
+      for (const itemName of toAdd) {
+        const already = shopItems.find(i => i.name.toLowerCase() === itemName.toLowerCase() && !i.checked);
+        if (already) continue;
+        const category = await guesscat(itemName);
+        await supabase.from('shopping_items').insert({
+          family_id: DUMMY_FAMILY_ID, name: itemName, item: itemName,
+          category, checked: false, completed: false, meal_source: null,
+        });
+      }
+      onRefresh();
+      return toAdd.length === 1 ? `Added ${toAdd[0]}.` : `Added ${toAdd.join(', ')}.`;
+    }
+    if (name === 'remove_shopping_item') {
+      const match = shopItems.find(i => i.name.toLowerCase().includes(input.name.toLowerCase()));
+      if (!match) return `Could not find "${input.name}" on the list.`;
+      await supabase.from('shopping_items').delete().eq('id', match.id);
+      onRefresh();
+      return `Removed ${match.name}.`;
+    }
+    if (name === 'tick_shopping_item') {
+      const match = shopItems.find(i => i.name.toLowerCase().includes(input.name.toLowerCase()) && !i.checked);
+      if (!match) return `Could not find "${input.name}" on the list.`;
+      await supabase.from('shopping_items').update({ checked: true, completed: true }).eq('id', match.id);
+      if (FOOD_CATEGORIES.includes(match.category)) {
+        syncItemsToPantry([{ name: match.name }]).catch(() => {});
+      }
+      onRefresh();
+      return `Ticked off ${match.name}.`;
+    }
+    if (name === 'clear_shopping_list') {
+      await supabase.from('shopping_items')
+        .update({ checked: true, completed: true })
+        .eq('family_id', DUMMY_FAMILY_ID).eq('checked', false);
+      onRefresh();
+      return 'All items marked as bought.';
+    }
+    return `Unknown tool: ${name}`;
+  } catch (e: any) {
+    return `Tool failed: ${e?.message ?? 'unknown error'}`;
   }
 }
 
-function ShoppingBriefCard({ itemCount, onDismiss }: { itemCount: number; onDismiss: () => void }) {
-  const [loading, setLoading]     = useState(true);
-  const [briefText, setBriefText] = useState('');
-  const [ctaLabel, setCtaLabel]   = useState("Here's what we need…");
-  const cardFade  = useRef(new Animated.Value(0)).current;
-  const cardSlide = useRef(new Animated.Value(8)).current;
-  const textFade  = useRef(new Animated.Value(0)).current;
-  const router = useRouter();
+// ── Inline chat GPT call ─────────────────────────────────────────────────────
+const OPENAI_URL_SHOP = 'https://api.openai.com/v1/chat/completions';
+const GPT_MINI = 'gpt-5.4-mini';
 
+async function callShopGPT(system: string, userMsg: string, maxTokens = 200): Promise<string> {
+  const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY || '';
+  if (!key) return '';
+  const res = await fetch(OPENAI_URL_SHOP, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify({ model: GPT_MINI, max_completion_tokens: maxTokens,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: userMsg }] }),
+  });
+  const d = await res.json();
+  try {
+    const u = d.usage || {};
+    const cost = ((u.prompt_tokens || 0) / 1e6 * 0.15) + ((u.completion_tokens || 0) / 1e6 * 0.60);
+    supabase.from('api_logs').insert({ family_id: DUMMY_FAMILY_ID, feature: 'shopping_chat',
+      model: GPT_MINI, input_tokens: u.prompt_tokens || 0, output_tokens: u.completion_tokens || 0, cost_usd: cost });
+  } catch {}
+  return d.choices?.[0]?.message?.content || '';
+}
+
+// ── Ambient strip text — pure local calculation, no API ───────────────────
+function getAmbientText(uncheckedItems: ShopItem[], lowItems: string[]): string {
+  const count = uncheckedItems.length;
+  if (count === 0) return 'List is clear — nothing needed right now.';
+  const lowPart = lowItems.length > 0
+    ? ` · ${lowItems.slice(0, 2).join(', ')}${lowItems.length > 2 ? ` +${lowItems.length - 2} more` : ''} flagged low`
+    : '';
+  return `${count} item${count !== 1 ? 's' : ''} on the list${lowPart}.`;
+}
+
+// ── WaveformBars (for bar mic active state) ──────────────────────────────────
+function WaveformBars() {
+  const anims = useRef(Array.from({ length: 5 }, (_, i) => new Animated.Value(0.3 + i * 0.1))).current;
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(cardFade,  { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.timing(cardSlide, { toValue: 0, duration: 400, useNativeDriver: true }),
-    ]).start();
-    const now = Date.now();
-    const countChanged = Math.abs(itemCount - lastBriefCount) >= 3;
-    if (cachedBrief && lastBriefTime && (now - lastBriefTime) < 30 * 60 * 1000 && !countChanged) {
-      setBriefText(cachedBrief); setLoading(false); return;
-    }
-    generateBrief();
+    const loops = anims.map((anim, i) => {
+      const min = 0.2 + i * 0.05, max = 0.7 + (i % 3) * 0.15, spd = 180 + i * 55;
+      return Animated.loop(Animated.sequence([
+        Animated.timing(anim, { toValue: max, duration: spd, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(anim, { toValue: min, duration: spd + 40, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]));
+    });
+    loops.forEach(l => l.start());
+    return () => loops.forEach(l => l.stop());
   }, []);
-
-  // Fade in text once loaded
-  useEffect(() => {
-    if (!loading && briefText) {
-      textFade.setValue(0);
-      Animated.timing(textFade, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-    }
-  }, [loading, briefText]);
-
-  const generateBrief = async () => {
-    try {
-      const sys = 'You are Zaeli, warm Australian family assistant. CRITICAL: respond with valid JSON only — no preamble, no markdown, no backticks. Just the JSON object.';
-      const userMsg = itemCount === 0
-        ? `Shopping list is empty. Write a warm 1-sentence invite to build it together. End with a question. Respond ONLY with: {"brief":"text","cta":"3-4 words"}`
-        : `Shopping list has ${itemCount} items. Write 1-2 warm sentences acknowledging this and offering something specific. End with a question. Australian warmth. Never start with "I". Respond ONLY with: {"brief":"text","cta":"3-4 words"}`;
-      const briefRaw = await callBrief({feature:'shopping_brief',system:sys,userContent:userMsg,maxTokens:150});
-      console.log('[shopping brief] raw:', briefRaw);
-      const rawStr = typeof briefRaw === 'string' ? briefRaw : '';
-      let parsed: any = {};
-      if (rawStr) {
-        try { parsed = JSON.parse(rawStr.replace(/```json|```/g,'').trim()); }
-        catch { parsed = { brief: rawStr.replace(/[{}"]/g,'').trim(), cta: "Let's sort the list" }; }
-      }
-      // Guaranteed fallback — never show empty
-      const finalBrief = parsed.brief || (itemCount === 0
-        ? "List is wide open — want me to help build it from this week's meals?"
-        : `${itemCount} thing${itemCount!==1?'s':''} on the list — want me to check the meal plan and fill any gaps?`);
-      cachedBrief = finalBrief;
-      lastBriefCount = itemCount;
-      lastBriefTime = Date.now();
-      setBriefText(finalBrief);
-      setCtaLabel(parsed.cta || (itemCount === 0 ? "Build the list" : "Fill the gaps"));
-    } catch (e) {
-      console.log('[shopping brief] error:', e);
-      const fallback = itemCount === 0
-        ? "List is wide open — want me to help build it from this week's meals?"
-        : `${itemCount} thing${itemCount!==1?'s':''} on the list — want me to check the meal plan and fill any gaps?`;
-      setBriefText(fallback);
-      setCtaLabel(itemCount === 0 ? "Build the list" : "Fill the gaps");
-    } finally { setLoading(false); }
-  };
-
-  const dismiss = () => {
-    Animated.parallel([
-      Animated.timing(cardFade,  { toValue: 0, duration: 280, useNativeDriver: true }),
-      Animated.timing(cardSlide, { toValue: -8, duration: 280, useNativeDriver: true }),
-    ]).start(() => { briefDismissed = true; onDismiss(); });
-  };
-
-  const now = new Date();
-  const timeStr = (now.getHours() % 12 || 12) + ':' + String(now.getMinutes()).padStart(2, '0') + ' ' + (now.getHours() < 12 ? 'am' : 'pm');
-
   return (
-    <Animated.View style={[s.briefCard, { opacity: cardFade, transform: [{ translateY: cardSlide }] }]}>
-      <View style={s.briefHeader}>
-        <PulsingAvatar />
-        <Text style={s.briefName}>{'Z'}<Text style={{ color: C.blue }}>{'a'}</Text>{'el'}<Text style={{ color: C.blue }}>{'i'}</Text></Text>
-        <View style={s.briefLiveDot} />
-        <Text style={s.briefTime}>{timeStr}</Text>
-      </View>
-      <View style={s.briefBody}>
-        {loading ? (
-          <TypingDots />
-        ) : (
-          <Animated.Text style={[s.briefMsg, { opacity: textFade }]}>{briefText}</Animated.Text>
-        )}
-        {!loading && (
-          <View style={s.briefBtns}>
-            <TouchableOpacity style={s.btnPrimary} activeOpacity={0.85} onPress={() =>
-              router.push({ pathname: '/(tabs)/zaeli-chat', params: { channel: 'Shopping', returnTo: '/(tabs)/shopping', seedMessage: briefText } })}>
-              <Text style={s.btnPrimaryTxt}>{ctaLabel}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.btnGhost} onPress={dismiss} activeOpacity={0.7}>
-              <Text style={s.btnGhostTxt}>List is sorted, thanks</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    </Animated.View>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+      {anims.map((anim, i) => <Animated.View key={i} style={{ width: 3.5, height: 18, borderRadius: 2, backgroundColor: '#fff', transform: [{ scaleY: anim }] }} />)}
+    </View>
+  );
+}
+
+// ── MicWaveform (large overlay bars) ─────────────────────────────────────────
+function MicWaveform() {
+  const anims = useRef(Array.from({ length: 13 }, (_, i) => new Animated.Value(0.15 + (i % 3) * 0.1))).current;
+  useEffect(() => {
+    const loops = anims.map((anim, i) => {
+      const min = 0.1 + (i % 4) * 0.05, max = 0.6 + (i % 5) * 0.08, spd = 280 + (i % 6) * 60;
+      return Animated.loop(Animated.sequence([
+        Animated.delay(i * 55),
+        Animated.timing(anim, { toValue: max, duration: spd, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(anim, { toValue: min, duration: spd + 40, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]));
+    });
+    loops.forEach(l => l.start());
+    return () => loops.forEach(l => l.stop());
+  }, []);
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, height: 52 }}>
+      {anims.map((anim, i) => (
+        <Animated.View key={i} style={{ width: 4, borderRadius: 3, backgroundColor: C.ai, transform: [{ scaleY: anim }], height: 52 }} />
+      ))}
+    </View>
+  );
+}
+
+function IcoArrowDown() {
+  return (
+    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+      <Line x1="12" y1="5" x2="12" y2="19" stroke="#fff" strokeWidth={2.5} strokeLinecap="round"/>
+      <Polyline points="19 12 12 19 5 12" stroke="#fff" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
   );
 }
 
@@ -509,33 +558,34 @@ function PantryRow({ item, shoppingItems, onEdit, onDelete, onAddToList }: {
 
   return (
     <TouchableOpacity style={s.pantryRow} onPress={onEdit} activeOpacity={0.7}>
-      <View style={s.pantryRowTop}>
-        <Text style={s.pantryEmoji}>{item.emoji}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={s.pantryName}>{item.name}</Text>
-          {item.quantity ? <Text style={s.pantryQty}>{item.quantity}</Text> : null}
-        </View>
-        {onList ? (
-          <View style={s.pantryOnListBadge}>
-            <Text style={s.pantryOnListTxt}>On list ✓</Text>
-          </View>
-        ) : (
-          <TouchableOpacity style={s.pantryListBtn} onPress={onAddToList} activeOpacity={0.8}>
-            <Text style={s.pantryListBtnTxt}>+ List</Text>
-          </TouchableOpacity>
-        )}
-        {IS_PARENT && (
-          <TouchableOpacity style={s.pantryDelBtn} onPress={onDelete} activeOpacity={0.7}>
-            <IcoTrash />
-          </TouchableOpacity>
-        )}
+      {/* Stock level indicator — 4 small bars, left side */}
+      <View style={{ flexDirection: 'row', gap: 2, alignItems: 'flex-end', flexShrink: 0, marginRight: 10 }}>
+        {[1,2,3,4].map(n => (
+          <View key={n} style={{ width: 4, height: 6 + n * 3, borderRadius: 2, backgroundColor: n <= meta.bars ? meta.color : C.border }} />
+        ))}
       </View>
-      <View style={s.pantryBarRow}>
-        <View style={s.pantryBarTrack}>
-          <View style={[s.pantryBarFill, { width: `${barPct * 100}%` as any, backgroundColor: meta.color }]} />
-        </View>
-        <Text style={[s.pantryStockLbl, { color: meta.color }]}>{meta.label}</Text>
+      {/* Emoji */}
+      <Text style={s.pantryEmoji}>{item.emoji}</Text>
+      {/* Name + qty */}
+      <View style={{ flex: 1 }}>
+        <Text style={s.pantryName}>{item.name}</Text>
+        {item.quantity ? <Text style={s.pantryQty}>{item.quantity}</Text> : null}
       </View>
+      {/* On list badge or + List button */}
+      {onList ? (
+        <View style={s.pantryOnListBadge}>
+          <Text style={s.pantryOnListTxt}>On list ✓</Text>
+        </View>
+      ) : (
+        <TouchableOpacity style={s.pantryListBtn} onPress={onAddToList} activeOpacity={0.8}>
+          <Text style={s.pantryListBtnTxt}>+ List</Text>
+        </TouchableOpacity>
+      )}
+      {IS_PARENT && (
+        <TouchableOpacity style={s.pantryDelBtn} onPress={onDelete} activeOpacity={0.7}>
+          <IcoTrash />
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 }
@@ -775,7 +825,9 @@ function AddPantryModal({ visible, onClose, onSaved }: {
 }
 
 // ── Pantry Tab ────────────────────────────────────────────────────────────────
-function PantryTab({ shoppingItems, onShoppingUpdate }: { shoppingItems: ShopItem[]; onShoppingUpdate: () => void }) {
+function PantryTab({ shoppingItems, onShoppingUpdate }: {
+  shoppingItems: ShopItem[]; onShoppingUpdate: () => void;
+}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [items, setItems]               = useState<PantryItem[]>([]);
@@ -967,7 +1019,7 @@ function PantryTab({ shoppingItems, onShoppingUpdate }: { shoppingItems: ShopIte
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
         {!loading && lowNames.length > 0 && (
           <View style={s.pantryInsightCard}>
             <View style={{ padding: 16 }}>
@@ -1077,18 +1129,9 @@ function PantryTab({ shoppingItems, onShoppingUpdate }: { shoppingItems: ShopIte
             );
           })()
         )}
-      </ScrollView>
 
-      {/* Ask Zaeli bar — replaces old Add manually bottom bar */}
-      <View style={[s.pantryBottomBar, { paddingBottom: insets.bottom + 4 }]}>
-        <TouchableOpacity style={s.pantryAskBtn}
-          onPress={() => router.push({ pathname: '/(tabs)/zaeli-chat', params: { channel: 'Shopping', returnTo: '/(tabs)/shopping' } })}
-          activeOpacity={0.85}>
-          <View style={s.pantryAskDiamond}><Text style={{ fontSize: 13, color: C.blue }}>✦</Text></View>
-          <Text style={s.pantryAskTxt}>Ask Zaeli anything…</Text>
-          <View style={s.pantryAskSendBtn}><IcoSend /></View>
-        </TouchableOpacity>
-      </View>
+        {/* Chat thread rendered by parent — pantry content only here */}
+      </ScrollView>
 
       <ScanningSheet visible={scanning} />
       <PantryScanReviewModal visible={showReview} scanned={scannedItems} existing={items} onConfirm={confirmScan} onCancel={() => setShowReview(false)} />
@@ -1314,27 +1357,28 @@ function ItemRow({ item, onToggle, onDelete, onEdit }: {
 
   return (
     <Animated.View style={[s.itemRow, { transform: [{ scale: scaleAnim }] }]}>
+      {/* Circle tick */}
       <TouchableOpacity style={s.chkWrap} onPress={handleToggle} activeOpacity={0.7}>
         <View style={[s.chk, item.checked && s.chkDone]}>
           {item.checked && <Text style={s.chkTick}>✓</Text>}
         </View>
       </TouchableOpacity>
+      {/* Emoji */}
+      <Text style={s.itemEmoji}>{CAT_EMOJI[item.category] || '🛒'}</Text>
+      {/* Name + detail */}
       <TouchableOpacity style={s.itemBody} onPress={onEdit} activeOpacity={0.7}>
-        <Text style={s.itemEmoji}>{CAT_EMOJI[item.category] || '🛒'}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.itemName, item.checked && s.itemNameBought]}>{item.name}</Text>
-          {qty ? <Text style={s.itemQty}>{qty}</Text> : null}
-          {note ? <Text style={s.itemSub}>{note}</Text> : null}
-          {/* Meal source shown as small pill below name */}
-          {item.meal_source && !item.meal_source.includes(' · ') ? (
-            <View style={{flexDirection:'row',marginTop:3}}>
-              <View style={{backgroundColor:'rgba(255,140,0,0.1)',borderRadius:5,paddingHorizontal:6,paddingVertical:1}}>
-                <Text style={{fontFamily:'Poppins_500Medium',fontSize:10,color:'rgba(180,90,0,0.8)'}}>{item.meal_source}</Text>
-              </View>
+        <Text style={[s.itemName, item.checked && s.itemNameBought]}>{item.name}</Text>
+        {item.meal_source && !item.meal_source.includes(' · ') ? (
+          <View style={{ flexDirection: 'row', marginTop: 2 }}>
+            <View style={{ backgroundColor: 'rgba(216,204,255,0.3)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1 }}>
+              <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 10, color: '#5A4800' }}>Meal</Text>
             </View>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
       </TouchableOpacity>
+      {/* Qty badge right */}
+      {qty ? <Text style={s.itemQtyRight}>{qty}</Text> : null}
+      {/* Delete */}
       <TouchableOpacity style={s.delBtn} onPress={onDelete} activeOpacity={0.7}>
         <IcoTrash />
       </TouchableOpacity>
@@ -1361,7 +1405,8 @@ function SpendTab() {
 
   // Monthly spend summary
   const now = new Date();
-  const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const n = new Date();
+  const thisMonthKey = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
   const thisMonthTotal = receipts
     .filter(r => r.purchase_date?.startsWith(thisMonthKey) && r.total_amount)
     .reduce((sum, r) => sum + (r.total_amount || 0), 0);
@@ -1374,7 +1419,7 @@ function SpendTab() {
   };
 
   const STORE_EMOJI: Record<string, string> = {
-    woolworths: '🟢', coles: '🔴', aldi: '🟡', iga: '🔵', costco: '🟠',
+    woolworths: '🛒', coles: '🛒', aldi: '🛒', iga: '🛒', costco: '🛒',
   };
   const storeEmoji = (store: string) => {
     const key = store.toLowerCase().split(' ')[0];
@@ -1383,7 +1428,7 @@ function SpendTab() {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
         {/* Monthly insight card */}
         {!loading && thisMonthTotal > 0 && (
@@ -1460,6 +1505,8 @@ function SpendTab() {
             })}
           </View>
         )}
+
+      {/* Chat thread and bar rendered by parent */}
       </ScrollView>
     </View>
   );
@@ -1481,8 +1528,21 @@ export default function ShoppingScreen() {
   const [editItem, setEditItem]     = useState<ShopItem | null>(null);
   const [nudgeItemName, setNudgeItemName] = useState<string | null>(null);
   const [viewMode, setViewMode]     = useState<'list' | 'aisle'>('list');
-  const [showBrief, setShowBrief]   = useState(!briefDismissed);
   const [navOpen, setNavOpen]       = useState(false);
+  const [rbExpanded, setRbExpanded] = useState(false);       // Recently Bought collapsed by default
+  // ── Single shared chat state — persisted 24hr via AsyncStorage ──────────────
+  const { messages, setMessages, clearMessages } = useChatPersistence('shopping');
+  const [chatInput,    setChatInput]    = useState('');
+  const [chatLoading,  setChatLoading]  = useState(false);
+  const mainScrollRef  = useRef<ScrollView>(null);
+  const chatInputRef   = useRef<TextInput>(null);
+  const [thumbs, setThumbs] = useState<Record<string, 'up'|'down'|null>>({});
+  const [isRecording,    setIsRecording]    = useState(false);
+  const [micTimer,       setMicTimer]       = useState(0);
+  const micTimerRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const micOverlayAnim   = useRef(new Animated.Value(0)).current;
+  const recordingRef     = useRef<Audio.Recording | null>(null);
+  const [showScrollDown, setShowScrollDown] = useState(false);
 
   const isMounted = useRef(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1548,7 +1608,249 @@ export default function ShoppingScreen() {
 
   if (!fontsLoaded) return null;
 
+  const nowTs = () => { const d = new Date(); return `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2,'0')} ${d.getHours() < 12 ? 'am' : 'pm'}`; };
+
+  function handleScroll(e: any) {
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    const dist = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    setShowScrollDown(dist > 50);
+  }
+
+  // ── Mic recording — matches Home ─────────────────────────────────────────────
+  async function startRecording() {
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef.current = recording;
+      setIsRecording(true);
+      setMicTimer(0);
+      Animated.timing(micOverlayAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+      micTimerRef.current = setInterval(() => setMicTimer(t => t + 1), 1000);
+    } catch (e) { console.error('startRecording:', e); }
+  }
+
+  async function stopRecording(cancel = false) {
+    try {
+      setIsRecording(false);
+      if (micTimerRef.current) { clearInterval(micTimerRef.current); micTimerRef.current = null; }
+      Animated.timing(micOverlayAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start();
+      if (!recordingRef.current) return;
+      const status = await recordingRef.current.getStatusAsync();
+      const durationSec = (status as any)?.durationMillis ? (status as any).durationMillis / 1000 : 10;
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+      if (!uri || cancel) return;
+      const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+      if (!key) return;
+      const form = new FormData();
+      form.append('file', { uri, type: 'audio/m4a', name: 'audio.m4a' } as any);
+      form.append('model', 'whisper-1');
+      const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form });
+      const data = await resp.json();
+      const transcript = data?.text?.trim() ?? '';
+      if (transcript) sendMessage(transcript);
+    } catch (e) { console.error('stopRecording:', e); }
+  }
+
+  // ── Ambient strip text ──────────────────────────────────────────────────────
+  // Reads pantry low items from items state — we need pantry data too
+  // For now derive lowFlags from item names that match pantry logic
+  const ambientText = getAmbientText(unchecked, []);
+
+  // ── Parse chips from Claude reply — strips [chips: a | b | c] suffix ─────────
+  function parseChips(raw: string): { text: string; chips: string[] } {
+    const match = raw.match(/\[chips:\s*([^\]]+)\]/i);
+    if (!match) return { text: raw.trim(), chips: [] };
+    const chips = match[1].split('|').map(s => s.trim()).filter(Boolean).slice(0, 4);
+    const text = raw.replace(match[0], '').trim();
+    return { text, chips };
+  }
+
+  // ── Single sendMessage — Claude Sonnet with real tools ──────────────────────
+  const sendMessage = async (overrideText?: string) => {
+    const text = (overrideText ?? chatInput).trim();
+    if (!text || chatLoading) return;
+    setChatInput('');
+    const uidFn = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const replyId = uidFn();
+    const ts = nowTs();
+    setMessages(prev => [...prev,
+      { id: uidFn(), role: 'user', text, ts },
+      { id: replyId, role: 'zaeli', text: '', isLoading: true, ts },
+    ]);
+    setChatLoading(true);
+    setTimeout(() => mainScrollRef.current?.scrollToEnd({ animated: true }), 100);
+
+    try {
+      const anthropicKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+
+      // ── Build full context — all data injected so Zaeli always knows everything
+      const uncheckedItems = items.filter(i => !i.checked);
+      const checkedItems   = items.filter(i => i.checked);
+      const listCtx = uncheckedItems.length === 0
+        ? 'Shopping list: empty.'
+        : `Shopping list (${uncheckedItems.length} items): ${uncheckedItems.map(i => i.name).join(', ')}.`;
+      const boughtCtx = checkedItems.length > 0
+        ? `Recently bought: ${checkedItems.slice(0, 8).map(i => i.name).join(', ')}.`
+        : '';
+
+      // Fetch pantry items fresh
+      const { data: pantryData } = await supabase.from('pantry_items')
+        .select('name,stock,quantity').eq('family_id', DUMMY_FAMILY_ID).order('name');
+      const pantryCtx = pantryData && pantryData.length > 0
+        ? `Pantry stock: ${pantryData.map((p: any) => `${p.name} (${p.stock}${p.quantity ? ', ' + p.quantity : ''})`).join(', ')}.`
+        : 'Pantry: no items recorded yet.';
+
+      // Fetch receipts fresh
+      const now = new Date();
+      const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      const { data: receiptData } = await supabase.from('receipts')
+        .select('store,purchase_date,total_amount,item_count')
+        .eq('family_id', DUMMY_FAMILY_ID)
+        .order('purchase_date', { ascending: false }).limit(10);
+      const thisMonthReceipts = (receiptData || []).filter((r: any) => r.purchase_date?.startsWith(monthKey));
+      const monthTotal = thisMonthReceipts.reduce((s: number, r: any) => s + (r.total_amount || 0), 0);
+      const receiptCtx = receiptData && receiptData.length > 0
+        ? `Receipts this month (${thisMonthReceipts.length} shops, $${monthTotal.toFixed(2)} total): ${thisMonthReceipts.map((r: any) => `${r.store} $${r.total_amount?.toFixed(2)} on ${r.purchase_date}`).join('; ')}. All receipts: ${(receiptData || []).map((r: any) => `${r.store} $${r.total_amount?.toFixed(2) || '?'} (${r.purchase_date})`).join(', ')}.`
+        : 'No receipts scanned yet.';
+
+      const activeTabCtx = activeTab === 'list'
+        ? 'User is on the List tab viewing the shopping list.'
+        : activeTab === 'pantry'
+        ? 'User is on the Pantry tab viewing pantry stock.'
+        : 'User is on the Spend tab reviewing grocery spending.';
+
+      const systemPrompt = `You are Zaeli — warm, sharp, slightly cheeky AI heart of a family app. You have FULL visibility across the entire shopping module.
+
+CURRENT CONTEXT:
+${activeTabCtx}
+${listCtx}
+${boughtCtx}
+${pantryCtx}
+${receiptCtx}
+
+TOOLS — use them immediately when the intent is clear, never say "I'll do that":
+- add_shopping_item: add items to shopping list
+- remove_shopping_item: remove an item from shopping list
+- tick_shopping_item: mark an item as bought
+- clear_shopping_list: clear the whole list
+
+PERSONALITY:
+- Warm, specific, punchy — 1-2 sentences max
+- Vary openers: "Done!", "On it!", "Added!", "Sorted!", "Got it —"
+- Never start with "I". Never say "mate". Never be sycophantic.
+- Reference actual item names in your reply
+- For pantry questions: answer from the pantry data above — never say you can't see it
+- For spend questions: calculate from the receipt data above — give real numbers
+
+QUICK REPLY CHIPS: End EVERY reply with [chips: chip1 | chip2 | chip3] — 2-4 short contextual follow-up suggestions (3-6 words each). These are stripped from displayed text. Examples: [chips: Add more items | Clear the list | What's running low?]`;
+
+      const histMsgs = messages.slice(-8).map(m => ({
+        role: m.role === 'zaeli' ? 'assistant' as const : 'user' as const,
+        content: m.text || '(message)',
+      }));
+      const apiMessages = [
+        ...histMsgs.filter(m => m.content !== '(message)'),
+        { role: 'user' as const, content: text },
+      ];
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: systemPrompt,
+          tools: SHOP_TOOLS,
+          messages: apiMessages,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.stop_reason === 'tool_use') {
+        const toolUses = data.content.filter((b: any) => b.type === 'tool_use');
+        const toolResults: string[] = [];
+        for (const tu of toolUses) {
+          const result = await executeShopTool(tu.name, tu.input, items, fetchItems, guessCategory);
+          toolResults.push(result);
+        }
+        const toolResultContent = toolUses.map((tu: any, i: number) => ({
+          type: 'tool_result', tool_use_id: tu.id, content: toolResults[i],
+        }));
+        const followUp = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': anthropicKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514', max_tokens: 300,
+            system: systemPrompt, tools: SHOP_TOOLS,
+            messages: [
+              ...apiMessages,
+              { role: 'assistant', content: data.content },
+              { role: 'user', content: toolResultContent },
+            ],
+          }),
+        });
+        const followData = await followUp.json();
+        const rawFollow = followData.content?.find((b: any) => b.type === 'text')?.text
+          ?? toolResults.join(' ');
+        const { text: followText, chips: followChips } = parseChips(rawFollow);
+        setMessages(prev => prev.map(m => m.id === replyId
+          ? { ...m, text: followText, isLoading: false, quickReplies: followChips }
+          : m
+        ));
+        // Log both calls
+        try {
+          const it = (data.usage?.input_tokens ?? 0) + (followData.usage?.input_tokens ?? 0);
+          const ot = (data.usage?.output_tokens ?? 0) + (followData.usage?.output_tokens ?? 0);
+          const cost = (it / 1_000_000) * 3.0 + (ot / 1_000_000) * 15.0;
+          await supabase.from('api_logs').insert({
+            family_id: DUMMY_FAMILY_ID, feature: 'shopping_chat',
+            model: 'claude-sonnet-4-20250514', input_tokens: it, output_tokens: ot, cost_usd: cost,
+          });
+        } catch {}
+      } else {
+        const rawReply = data.content?.find((b: any) => b.type === 'text')?.text
+          ?? 'Something went wrong — try again?';
+        const { text: reply, chips: replyChips } = parseChips(rawReply);
+        setMessages(prev => prev.map(m => m.id === replyId
+          ? { ...m, text: reply, isLoading: false, quickReplies: replyChips }
+          : m
+        ));
+        try {
+          const it = data.usage?.input_tokens ?? 0;
+          const ot = data.usage?.output_tokens ?? 0;
+          const cost = (it / 1_000_000) * 3.0 + (ot / 1_000_000) * 15.0;
+          await supabase.from('api_logs').insert({
+            family_id: DUMMY_FAMILY_ID, feature: 'shopping_chat',
+            model: 'claude-sonnet-4-20250514', input_tokens: it, output_tokens: ot, cost_usd: cost,
+          });
+        } catch {}
+      }
+    } catch (e) {
+      console.error('sendMessage error:', e);
+      setMessages(prev => prev.map(m => m.id === replyId
+        ? { ...m, text: 'Something went wrong — try again?', isLoading: false }
+        : m
+      ));
+    } finally {
+      setChatLoading(false);
+      setTimeout(() => mainScrollRef.current?.scrollToEnd({ animated: true }), 150);
+    }
+  };
+
   const renderItems = (list: ShopItem[]) => list.map(item => (
+
     <ItemRow key={item.id} item={item} onToggle={() => toggleItem(item)} onDelete={() => deleteItem(item.id)} onEdit={() => setEditItem(item)} />
   ));
 
@@ -1595,24 +1897,20 @@ export default function ShoppingScreen() {
   ) : null;
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.dark }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: C.bannerBg }}>
+      <StatusBar style="dark" />
 
-      {/* Hero */}
-      <SafeAreaView edges={['top']} style={{ backgroundColor: C.dark }}>
+      {/* ── Banner ── */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: C.bannerBg }}>
         <View style={s.hero}>
           <View style={s.heroRow}>
-            {/* ── LOGO — taps to go home ── */}
-            <TouchableOpacity style={s.logoWrap} onPress={() => router.replace('/(tabs)/')} activeOpacity={0.75}>
-              <View style={s.logoMark}>
-                <Text style={{ fontSize: 18, color: '#fff' }}>✦</Text>
-              </View>
+            <TouchableOpacity style={s.logoWrap} onPress={() => router.navigate('/(tabs)/')} activeOpacity={0.75}>
               <Text style={s.logoWord}>
-                {'z'}<Text style={{ color: '#FFE500' }}>{'a'}</Text>{'el'}<Text style={{ color: '#FFE500' }}>{'i'}</Text>
+                {'z'}<Text style={{ color: '#A8E8CC' }}>{'a'}</Text>{'el'}<Text style={{ color: '#A8E8CC' }}>{'i'}</Text>
               </Text>
             </TouchableOpacity>
-            <Text style={s.heroTitle}>Shopping</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 1 }}>
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: 'rgba(0,0,0,0.45)' }}>Shopping</Text>
               {activeTab === 'list' && (
                 <TouchableOpacity style={s.shareBtn} onPress={shareList} activeOpacity={0.8}>
                   <IcoShare />
@@ -1621,6 +1919,7 @@ export default function ShoppingScreen() {
               <HamburgerButton onPress={() => setNavOpen(true)} />
             </View>
           </View>
+
 
           {/* Sub-tabs */}
           <View style={s.subTabs}>
@@ -1635,46 +1934,36 @@ export default function ShoppingScreen() {
         </View>
       </SafeAreaView>
 
-      {/* Body */}
-      <View style={{ flex: 1, backgroundColor: C.bg }}>
+      {/* ── Body — single KAV wrapping all tabs + shared chat ── */}
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={{ flex: 1, position: 'relative' }}>
 
-        {/* ── List tab ── */}
-        {activeTab === 'list' && (
-          <View style={{ flex: 1 }}>
+          {/* ── Per-tab toolbar (List only) ── */}
+          {activeTab === 'list' && (
             <View style={s.stickyToolRow}>
               {nudgeItemName && (
                 <View style={s.pantryNudgeBanner}>
                   <Text style={s.pantryNudgeTxt}>✦  <Text style={{ fontFamily: 'Poppins_600SemiBold' }}>{nudgeItemName}</Text> is already in your pantry</Text>
                 </View>
               )}
-              {/* Search bar */}
-              <View style={s.listSearchRow}>
-                <View style={s.listSearchBox}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 8, marginBottom: 4 }}>
+                <View style={{ backgroundColor: '#A8E8CC', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4, flexShrink: 0 }}>
+                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#0A3A2A' }}>
+                    {unchecked.length} item{unchecked.length !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+                <View style={[s.listSearchBox, { flex: 1, marginBottom: 0 }]}>
                   <Text style={s.searchIco}>⌕</Text>
                   <TextInput
                     style={s.searchInput}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
-                    placeholder="Search list…"
+                    placeholder="Search…"
                     placeholderTextColor={C.ink3}
                     clearButtonMode="while-editing"
                     autoCorrect={false}
                   />
-                  {searchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
-                      <Text style={s.searchClear}>✕</Text>
-                    </TouchableOpacity>
-                  )}
                 </View>
-              </View>
-              <View style={s.toolRow}>
-                <TouchableOpacity style={s.addBar} onPress={() => setAddVisible(true)} activeOpacity={0.7}>
-                  <Text style={s.addBarPlus}>＋</Text>
-                  <Text style={s.addBarTxt}>Add item…</Text>
-                  <TouchableOpacity style={s.micBtn} onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Shopping',returnTo:'/(tabs)/shopping',autoMic:'true'}})} activeOpacity={0.7}>
-                    <IcoMic color="rgba(0,0,0,0.40)" />
-                  </TouchableOpacity>
-                </TouchableOpacity>
                 <View style={s.viewToggle}>
                   <TouchableOpacity style={[s.viewBtn, viewMode === 'list' && s.viewBtnOn]} onPress={() => setViewMode('list')} activeOpacity={0.8}>
                     <Text style={[s.viewBtnTxt, viewMode === 'list' && s.viewBtnTxtOn]}>List</Text>
@@ -1684,64 +1973,220 @@ export default function ShoppingScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+              <View style={s.toolRow}>
+                <TouchableOpacity style={s.addBar} onPress={() => setAddVisible(true)} activeOpacity={0.7}>
+                  <Text style={s.addBarPlus}>＋</Text>
+                  <Text style={s.addBarTxt}>Add item…</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <ScrollView contentContainerStyle={{ paddingBottom: 110, paddingTop: 6 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {showBrief && !loading && (
-                <ShoppingBriefCard itemCount={unchecked.length} onDismiss={() => setShowBrief(false)} />
-              )}
-              {loading ? (
-                <Text style={s.emptyTxt}>Loading…</Text>
-              ) : items.length === 0 ? (
-                <View style={s.emptyState}>
-                  <Text style={s.emptyEmoji}>🛒</Text>
-                  <Text style={s.emptyTitle}>List is empty</Text>
-                  <Text style={s.emptyBody}>Tap "Add item" above or ask Zaeli to build the list for you.</Text>
-                </View>
-              ) : viewMode === 'list' ? (
-                <>{renderItems(unchecked)}{renderPurchased()}</>
-              ) : (
-                <>
-                  {Object.entries(byCategory).map(([cat, ci]) => (
+          )}
+
+          {/* ── Single scrollable area — tab content + shared chat thread ── */}
+          <ScrollView
+            ref={mainScrollRef}
+            contentContainerStyle={{ paddingBottom: 120 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          >
+            {/* Tab content */}
+            {activeTab === 'list' && (
+              <>
+                {loading ? (
+                  <Text style={s.emptyTxt}>Loading…</Text>
+                ) : items.length === 0 ? (
+                  <View style={s.emptyState}>
+                    <Text style={s.emptyEmoji}>🛒</Text>
+                    <Text style={s.emptyTitle}>List is empty</Text>
+                    <Text style={s.emptyBody}>Tap "Add item" above or ask Zaeli below.</Text>
+                  </View>
+                ) : viewMode === 'list' ? (
+                  renderItems(unchecked)
+                ) : (
+                  Object.entries(byCategory).map(([cat, ci]) => (
                     <View key={cat}>
                       <Text style={s.sectionLbl}>{cat}</Text>
                       {renderItems(ci)}
                     </View>
-                  ))}
-                  {renderPurchased()}
-                </>
-              )}
-            </ScrollView>
-          </View>
-        )}
+                  ))
+                )}
+                {checked.length > 0 && (
+                  <View style={{ marginTop: 8 }}>
+                    <TouchableOpacity style={s.rbHeader} onPress={() => setRbExpanded(v => !v)} activeOpacity={0.7}>
+                      <View style={s.purchasedLine} />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={s.purchasedTxt}>Recently Bought</Text>
+                        <Text style={{ fontSize: 11, color: C.mag, fontFamily: 'Poppins_600SemiBold' }}>({checked.length})</Text>
+                      </View>
+                      <Text style={{ fontSize: 13, color: C.mag, fontFamily: 'Poppins_600SemiBold' }}>{rbExpanded ? '▲' : '▼'}</Text>
+                      <View style={s.purchasedLine} />
+                    </TouchableOpacity>
+                    {rbExpanded && (
+                      viewMode === 'aisle' ? (
+                        (() => {
+                          const byCat = CATEGORIES.reduce<Record<string, ShopItem[]>>((acc, cat) => {
+                            const ci = checked.filter(i => i.category === cat);
+                            if (ci.length) acc[cat] = ci;
+                            return acc;
+                          }, {});
+                          return Object.entries(byCat).map(([cat, ci]) => (
+                            <View key={cat}><Text style={s.sectionLbl}>{cat}</Text>{renderItems(ci)}</View>
+                          ));
+                        })()
+                      ) : renderItems(checked)
+                    )}
+                  </View>
+                )}
+              </>
+            )}
+            {activeTab === 'pantry' && <PantryTab shoppingItems={items} onShoppingUpdate={fetchItems} />}
+            {activeTab === 'spend'  && <SpendTab />}
 
-        {/* ── Pantry tab ── */}
-        {activeTab === 'pantry' && (
-          <PantryTab shoppingItems={items} onShoppingUpdate={fetchItems} />
-        )}
+            {/* Shared chat thread — Calendar-style with eyebrow, timestamps, icons */}
+            {messages.length > 0 && (
+              <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)', paddingTop: 4 }}>
+                {messages.map((msg, i) => {
+                  if (msg.role === 'user') {
+                    return (
+                      <View key={msg.id} style={s.shopUserMsgWrap}>
+                        <View style={s.shopUserBubble}>
+                          <Text style={s.shopUserMsgText}>{msg.text}</Text>
+                        </View>
+                        <View style={s.shopUserIconRow}>
+                          <Text style={s.shopMsgTime}>{msg.ts || ''}</Text>
+                          <TouchableOpacity style={s.shopIconBtn} activeOpacity={0.6}><IcoCopy /></TouchableOpacity>
+                          <TouchableOpacity style={s.shopIconBtn} activeOpacity={0.6}><IcoForward /></TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  }
+                  const prevMsg = i > 0 ? messages[i-1] : null;
+                  const showEyebrow = !prevMsg || prevMsg.role === 'user';
+                  const thumbState = thumbs[msg.id] || null;
+                  const paragraphs = msg.text
+                    ? msg.text.split(/(?<=[.!?])\s+/).map((s: string) => s.trim()).filter(Boolean)
+                    : [];
+                  return (
+                    <View key={msg.id} style={[s.shopZaeliMsgWrap, !showEyebrow && { marginTop: 6 }]}>
+                      {showEyebrow ? (
+                        <View style={s.shopZEyebrow}>
+                          <View style={[s.shopZStar, { backgroundColor: C.ai }]}>
+                            <Svg width="9" height="9" viewBox="0 0 16 16" fill="white"><Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/></Svg>
+                          </View>
+                          <Text style={[s.shopZName, { color: C.ai }]}>Zaeli</Text>
+                          <Text style={s.shopZTs}>{msg.ts || ''}</Text>
+                        </View>
+                      ) : (
+                        <Text style={s.shopZTsOnly}>{msg.ts || ''}</Text>
+                      )}
+                      {msg.isLoading ? (
+                        <TypingDots />
+                      ) : (
+                        <View>
+                          {paragraphs.map((para: string, pi: number) => (
+                            <Text key={pi} style={[s.shopZaeliMsgText, pi < paragraphs.length - 1 && { marginBottom: 10 }]}>{para}</Text>
+                          ))}
+                        </View>
+                      )}
+                      {(msg.quickReplies || []).length > 0 && !msg.isLoading && (
+                        <View style={s.shopChipsRow}>
+                          {(msg.quickReplies || []).map((chip: string, ci: number) => (
+                            <TouchableOpacity key={ci} style={s.shopChip} onPress={() => sendMessage(chip)} activeOpacity={0.7}>
+                              <Text style={s.shopChipTxt}>{chip}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                      {!msg.isLoading && (
+                        <View style={s.shopZaeliIconRow}>
+                          <TouchableOpacity style={s.shopIconBtn} activeOpacity={0.6}><IcoCopy /></TouchableOpacity>
+                          <TouchableOpacity style={s.shopIconBtn} activeOpacity={0.6}><IcoForward /></TouchableOpacity>
+                          <TouchableOpacity style={s.shopIconBtn} onPress={() => setThumbs(prev => ({ ...prev, [msg.id]: 'up' }))} activeOpacity={0.6}><IcoThumbUp active={thumbState === 'up'} /></TouchableOpacity>
+                          <TouchableOpacity style={s.shopIconBtn} onPress={() => setThumbs(prev => ({ ...prev, [msg.id]: 'down' }))} activeOpacity={0.6}><IcoThumbDown active={thumbState === 'down'} /></TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+                <View style={{ height: 16 }} />
+              </View>
+            )}
+          </ScrollView>
 
-        {/* ── Spend tab ── */}
-        {activeTab === 'spend' && <SpendTab />}
-
-        {/* Ask Zaeli bar */}
-        {activeTab !== 'pantry' && (
-          <View style={[s.askBarWrap, { paddingBottom: insets.bottom + 4 }]}>
-            <TouchableOpacity style={s.askBar2}
-              onPress={() => router.push({ pathname: '/(tabs)/zaeli-chat', params: { channel: 'Shopping', returnTo: '/(tabs)/shopping' } })}
-              activeOpacity={0.85}>
-              <View style={s.askDiamondWrap}><Text style={s.askDiamond}>✦</Text></View>
-              <Text style={s.askText}>Ask Zaeli anything…</Text>
-              <TouchableOpacity style={s.askMic} onPress={()=>router.push({pathname:'/(tabs)/zaeli-chat',params:{channel:'Shopping',returnTo:'/(tabs)/shopping',autoMic:'true'}})} activeOpacity={0.7}>
-                <IcoMic color="rgba(0,0,0,0.45)" />
+          {/* Up/down scroll arrows — side by side, show when content is scrollable */}
+          {showScrollDown && (
+            <View style={s.scrollArrowPair} pointerEvents="box-none">
+              <TouchableOpacity style={s.scrollArrowBtn} onPress={() => mainScrollRef.current?.scrollTo({ y: 0, animated: true })} activeOpacity={0.8}>
+                <Svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <Line x1="12" y1="19" x2="12" y2="5" stroke="#fff" strokeWidth={2.5} strokeLinecap="round"/>
+                  <Polyline points="5 12 12 5 19 12" stroke="#fff" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                </Svg>
               </TouchableOpacity>
-              <TouchableOpacity style={s.askSend}
-                onPress={() => router.push({ pathname: '/(tabs)/zaeli-chat', params: { channel: 'Shopping', returnTo: '/(tabs)/shopping' } })}
-                activeOpacity={0.85}>
+              <TouchableOpacity style={s.scrollArrowBtn} onPress={() => mainScrollRef.current?.scrollToEnd({ animated: true })} activeOpacity={0.8}>
+                <IcoArrowDown />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ── Single chat bar — always visible across all tabs ── */}
+          <View style={s.inputArea}>
+            <View style={[s.barPill, { backgroundColor: '#fff', borderColor: 'rgba(10,10,10,0.09)' }]}>
+              <TouchableOpacity style={s.barBtn} onPress={() => setAddVisible(true)} activeOpacity={0.75}>
+                <IcoPlus color="rgba(0,0,0,0.4)" />
+              </TouchableOpacity>
+              <View style={[s.barSep, { backgroundColor: 'rgba(10,10,10,0.1)' }]} />
+              <TextInput
+                ref={chatInputRef}
+                style={[s.barInput, { color: C.ink }]}
+                value={chatInput}
+                onChangeText={setChatInput}
+                placeholder={activeTab === 'spend' ? 'Ask Zaeli about your spend…' : activeTab === 'pantry' ? 'Ask Zaeli about your pantry…' : 'Ask Zaeli…'}
+                placeholderTextColor="rgba(0,0,0,0.5)"
+                multiline
+                returnKeyType="default"
+                keyboardAppearance="light"
+                onFocus={() => setTimeout(() => mainScrollRef.current?.scrollToEnd({ animated: true }), 350)}
+              />
+              {isRecording ? (
+                <TouchableOpacity style={[s.barWaveBtn, { backgroundColor: C.ai }]} onPress={() => stopRecording(false)} activeOpacity={0.85}>
+                  <WaveformBars />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={s.barMicBtn} onPress={startRecording} activeOpacity={0.75}>
+                  <IcoMic color="#F5C8C8" size={26} />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[s.barSend, { backgroundColor: C.ai }, (!chatInput.trim() || chatLoading) && { opacity: 0.4 }]}
+                onPress={() => sendMessage()}
+                disabled={!chatInput.trim() || chatLoading}
+                activeOpacity={0.85}
+              >
                 <IcoSend />
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+
+      {/* Mic overlay — root level, works across all tabs */}
+      {isRecording && (
+        <Animated.View style={[s.micOverlay, { opacity: micOverlayAnim }]}>
+          <View style={s.micCard}>
+            <MicWaveform />
+            <Text style={s.micTimer}>{`${Math.floor(micTimer/60)}:${String(micTimer%60).padStart(2,'0')}`}</Text>
+            <Text style={s.micLabel}>Listening…</Text>
+            <TouchableOpacity style={s.micStopBtn} onPress={() => stopRecording(false)} activeOpacity={0.85}>
+              <View style={s.micStopSquare} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => stopRecording(true)} activeOpacity={0.7}>
+              <Text style={s.micCancel}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        )}
-      </View>
+        </Animated.View>
+      )}
 
       <AddItemFlow visible={addVisible} onClose={() => setAddVisible(false)} onSaved={fetchItems}
         onNudge={(name) => { setNudgeItemName(name); setTimeout(() => setNudgeItemName(null), 4000); }} />
@@ -1755,16 +2200,16 @@ export default function ShoppingScreen() {
 const s = StyleSheet.create({
   hero:           { paddingHorizontal: 22, paddingBottom: 16 },
   heroRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4, marginBottom: 14 },
-  heroTitle:      { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 34, color: '#fff', letterSpacing: -0.5, position: 'absolute', left: 0, right: 0, textAlign: 'center' },
+  heroTitle:      { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 34, color: '#0A0A0A', letterSpacing: -0.5, position: 'absolute', left: 0, right: 0, textAlign: 'center' },
   logoWrap:       { flexDirection: 'row', alignItems: 'center', gap: 8, zIndex: 1 },
-  logoMark:       { width: 34, height: 34, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  logoWord:       { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 24, color: '#fff', letterSpacing: -0.5 },
-  shareBtn:       { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.20)', alignItems: 'center', justifyContent: 'center' },
+  logoMark:       { width: 34, height: 34, backgroundColor: 'rgba(0,0,0,0.10)', borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  logoWord:       { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 40, color: '#0A0A0A', letterSpacing: -1.5, lineHeight: 44 },
+  shareBtn:       { width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.08)', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.12)', alignItems: 'center', justifyContent: 'center' },
 
-  subTabs:        { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 22, padding: 3, gap: 2 },
+  subTabs:        { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 22, padding: 3, gap: 2 },
   subTab:         { flex: 1, paddingVertical: 8, borderRadius: 19, alignItems: 'center' },
   subTabOn:       { backgroundColor: '#fff' },
-  subTabTxt:      { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: 'rgba(255,255,255,0.60)' },
+  subTabTxt:      { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: 'rgba(0,0,0,0.40)' },
   subTabTxtOn:    { color: C.dark },
 
   briefCard:      { marginHorizontal: 18, marginTop: 14, marginBottom: 6, backgroundColor: '#fff', borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(0,87,255,0.15)', shadowColor: C.blue, shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 4 }, overflow: 'hidden' },
@@ -1796,20 +2241,21 @@ const s = StyleSheet.create({
 
   sectionLbl:     { fontFamily: 'Poppins_700Bold', fontSize: 10, color: C.ink3, letterSpacing: 1.5, textTransform: 'uppercase', paddingHorizontal: 22, paddingTop: 14, paddingBottom: 6 },
 
-  itemRow:        { backgroundColor: C.card, borderRadius: 14, marginHorizontal: 16, marginBottom: 7, borderWidth: 1.5, borderColor: C.border, flexDirection: 'row', alignItems: 'center', overflow: 'hidden' },
+  itemRow:        { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.055)' },
   itemRowDone:    { opacity: 0.5 },
   chkWrap:        { width: 52, alignSelf: 'stretch', justifyContent: 'center', alignItems: 'center' },
   chk:            { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: C.ink3, justifyContent: 'center', alignItems: 'center' },
   chkDone:        { backgroundColor: '#B8A400', borderColor: '#B8A400' },
   chkTick:        { color: '#fff', fontSize: 11, fontFamily: 'Poppins_700Bold' },
-  itemBody:       { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 13, paddingRight: 12 },
-  itemEmoji:      { fontSize: 20, flexShrink: 0, marginTop: 1 },
-  itemName:       { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: C.ink, flexWrap: 'wrap' },
+  itemBody:       { flex: 1, paddingRight: 8 },
+  itemEmoji:      { fontSize: 18, flexShrink: 0, marginRight: 10 },
+  itemName:       { fontFamily: 'Poppins_500Medium', fontSize: 14, color: C.ink },
   itemNameDone:   { textDecorationLine: 'line-through', color: C.ink2 },
   itemNameBought: { color: C.mag },
   itemSub:        { fontFamily: 'Poppins_400Regular', fontSize: 11, color: C.ink3, marginTop: 2 },
-  itemQty:        { fontFamily: 'Poppins_500Medium', fontSize: 13, color: C.ink2, flexShrink: 0 },
-  delBtn:         { width: 44, alignSelf: 'stretch', justifyContent: 'center', alignItems: 'center', borderLeftWidth: 1, borderLeftColor: C.border },
+  itemQty:        { fontFamily: 'Poppins_400Regular', fontSize: 12, color: C.ink3, marginTop: 1 },
+  itemQtyRight:   { fontFamily: 'Poppins_400Regular', fontSize: 13, color: C.ink3, flexShrink: 0, marginRight: 6 },
+  delBtn:         { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
 
   purchasedBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 10 },
   purchasedLine:   { flex: 1, height: 1, backgroundColor: C.border },
@@ -1836,10 +2282,10 @@ const s = StyleSheet.create({
   askDiamond:     { fontSize: 15, color: C.blue },
   askText:        { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 15, color: 'rgba(0,0,0,0.28)' },
   askMic:         { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 11, flexShrink: 0 },
-  askSend:        { width: 36, height: 36, borderRadius: 11, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', flexShrink: 0, shadowColor: C.blue, shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  askSend:        { width: 36, height: 36, borderRadius: 11, backgroundColor: '#FF4545', alignItems: 'center', justifyContent: 'center', flexShrink: 0, shadowColor: '#FF4545', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
 
   pantryInsightCard:    { marginHorizontal: 18, marginTop: 14, marginBottom: 4, backgroundColor: '#fff', borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(255,140,0,0.18)', shadowColor: C.orange, shadowOpacity: 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 3 }, overflow: 'hidden' },
-  pantryInsightAv:      { width: 28, height: 28, borderRadius: 9, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' },
+  pantryInsightAv:      { width: 28, height: 28, borderRadius: 9, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
   pantryInsightTitle:   { fontFamily: 'Poppins_700Bold', fontSize: 14, color: C.ink },
   pantryInsightBody:    { fontFamily: 'Poppins_400Regular', fontSize: 13, color: C.ink2, lineHeight: 20, marginBottom: 12 },
   pantryInsightBtn:     { backgroundColor: C.orange, borderRadius: 11, paddingVertical: 11, alignItems: 'center' },
@@ -1850,16 +2296,16 @@ const s = StyleSheet.create({
   pantryScanLbl:        { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: C.ink2 },
   pantryScanSub:        { fontFamily: 'Poppins_400Regular', fontSize: 11, color: C.ink3, marginTop: 1 },
 
-  pantryRow:            { backgroundColor: C.card, borderRadius: 14, marginHorizontal: 18, marginBottom: 7, borderWidth: 1.5, borderColor: C.border, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10 },
-  pantryRowTop:         { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  pantryEmoji:          { fontSize: 22, flexShrink: 0 },
-  pantryName:           { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: C.ink },
+  pantryRow:            { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.055)' },
+  pantryRowTop:         { flexDirection: 'row', alignItems: 'center', gap: 10 }, /* legacy — row is now flat */
+  pantryEmoji:          { fontSize: 18, flexShrink: 0, marginRight: 10 },
+  pantryName:           { fontFamily: 'Poppins_500Medium', fontSize: 14, color: C.ink },
   pantryQty:            { fontFamily: 'Poppins_400Regular', fontSize: 11, color: C.ink3, marginTop: 2 },
   pantryListBtn:        { paddingHorizontal: 10, paddingVertical: 5, backgroundColor: C.blueL, borderRadius: 9, borderWidth: 1.5, borderColor: C.blueB, flexShrink: 0 },
   pantryListBtnTxt:     { fontFamily: 'Poppins_700Bold', fontSize: 11, color: C.blue },
   pantryOnListBadge:    { paddingHorizontal: 10, paddingVertical: 5, backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 9, borderWidth: 1.5, borderColor: C.border, flexShrink: 0 },
   pantryOnListTxt:      { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: C.ink3 },
-  pantryDelBtn:         { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', marginLeft: 4, flexShrink: 0 },
+  pantryDelBtn:         { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   pantryBarRow:         { flexDirection: 'row', alignItems: 'center', gap: 10 },
   pantryBarTrack:       { flex: 1, height: 4, backgroundColor: C.border, borderRadius: 2, overflow: 'hidden' },
   pantryBarFill:        { height: 4, borderRadius: 2 },
@@ -1874,7 +2320,7 @@ const s = StyleSheet.create({
   pantryAskBtn:         { backgroundColor: '#fff', borderRadius: 22, paddingVertical: 11, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.10)', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 2 } },
   pantryAskDiamond:     { width: 20, alignItems: 'center', justifyContent: 'center' },
   pantryAskTxt:         { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 15, color: 'rgba(0,0,0,0.28)' },
-  pantryAskSendBtn:     { width: 36, height: 36, borderRadius: 11, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', flexShrink: 0, shadowColor: C.blue, shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  pantryAskSendBtn:     { width: 36, height: 36, borderRadius: 11, backgroundColor: '#FF4545', alignItems: 'center', justifyContent: 'center', flexShrink: 0, shadowColor: '#FF4545', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
 
   reviewSectionTitle:   { fontFamily: 'Poppins_700Bold', fontSize: 12, color: C.ink3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 },
   reviewRow:            { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.bg, borderRadius: 12, padding: 12, marginBottom: 7 },
@@ -1922,10 +2368,10 @@ const s = StyleSheet.create({
   pantryNudgeTxt:    { fontFamily: 'Poppins_400Regular', fontSize: 13, color: C.blue, lineHeight: 19 },
 
   // Spend tab
-  spendInsightCard:  { marginHorizontal: 18, marginTop: 14, marginBottom: 4, backgroundColor: '#fff', borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(0,87,255,0.15)', padding: 18, shadowColor: C.blue, shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 3 } },
-  spendTotal:        { fontFamily: 'Poppins_700Bold', fontSize: 34, color: C.ink, marginBottom: 2 },
+  spendInsightCard:  { marginHorizontal: 18, marginTop: 14, marginBottom: 4, backgroundColor: '#A8E8CC', borderRadius: 20, padding: 18 },
+  spendTotal:        { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 38, color: C.ink, marginBottom: 2, letterSpacing: -0.5 },
   spendSubtitle:     { fontFamily: 'Poppins_400Regular', fontSize: 13, color: C.ink2 },
-  receiptCard:       { backgroundColor: C.card, borderRadius: 16, borderWidth: 1.5, borderColor: C.border, marginBottom: 10, overflow: 'hidden' },
+  receiptCard:       { backgroundColor: C.card, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(216,204,255,0.4)', marginBottom: 10, overflow: 'hidden' },
   receiptHdr:        { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
   receiptEmoji:      { fontSize: 26, flexShrink: 0 },
   receiptStore:      { fontFamily: 'Poppins_700Bold', fontSize: 15, color: C.ink },
@@ -1946,4 +2392,62 @@ const s = StyleSheet.create({
   scanSheetAv:       { width: 42, height: 42, borderRadius: 13, backgroundColor: C.blue, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   scanSheetTitle:    { fontFamily: 'Poppins_700Bold', fontSize: 16, color: C.ink, marginBottom: 3 },
   scanSheetStep:     { fontFamily: 'Poppins_400Regular', fontSize: 13, color: C.ink2 },
+
+  // ── Calendar-style chat message styles ─────────────────────────────────────
+  shopUserMsgWrap:  { alignItems: 'flex-end', marginBottom: 6, paddingHorizontal: 16, marginTop: 18 },
+  shopUserBubble:   { backgroundColor: '#F2F2F2', borderRadius: 16, borderBottomRightRadius: 3, paddingHorizontal: 13, paddingVertical: 9, maxWidth: '82%' as any },
+  shopUserMsgText:  { fontFamily: 'Poppins_400Regular', fontSize: 17, lineHeight: 27, letterSpacing: -0.1, color: '#0A0A0A' },
+  shopUserIconRow:  { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 2, justifyContent: 'flex-end' },
+  shopZaeliMsgWrap: { marginBottom: 6, paddingHorizontal: 16, marginTop: 18 },
+  shopZEyebrow:     { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
+  shopZStar:        { width: 16, height: 16, borderRadius: 5, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  shopZName:        { fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 0.2 },
+  shopZTs:          { fontFamily: 'Poppins_400Regular', fontSize: 9, color: 'rgba(0,0,0,0.28)', marginLeft: 'auto' as any },
+  shopZTsOnly:      { fontFamily: 'Poppins_400Regular', fontSize: 10, color: 'rgba(0,0,0,0.28)', marginBottom: 5 },
+  shopZaeliMsgText: { fontFamily: 'Poppins_400Regular', fontSize: 17, lineHeight: 27, letterSpacing: -0.1, color: '#0A0A0A' },
+  shopZaeliIconRow: { flexDirection: 'row', alignItems: 'center', marginTop: 7, gap: 2 },
+  shopMsgTime:      { fontFamily: 'Poppins_400Regular', fontSize: 10, color: 'rgba(0,0,0,0.28)' },
+  shopIconBtn:      { width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+  shopChipsRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  shopChip:         { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.15)', backgroundColor: '#fff' },
+  shopChipTxt:      { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(10,10,10,0.65)' },
+
+  // ── Up/down scroll arrows ─────────────────────────────────────────────────
+  scrollArrowPair:  { position: 'absolute', bottom: 110, right: 16, flexDirection: 'row', gap: 8, zIndex: 50 },
+  scrollArrowBtn:   { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(10,10,10,0.40)', alignItems: 'center', justifyContent: 'center' },
+
+  // ── Mic overlay — matches Home ───────────────────────────────────────────────
+  micOverlay:    { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(237,232,255,0.92)', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+  micCard:       { backgroundColor: '#fff', borderRadius: 28, paddingVertical: 32, paddingHorizontal: 36, alignItems: 'center', gap: 18, shadowColor: '#000', shadowOpacity: 0.10, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, borderWidth: 1, borderColor: 'rgba(10,10,10,0.06)' },
+  micTimer:      { fontFamily: 'Poppins_600SemiBold', fontSize: 30, color: '#0A0A0A', letterSpacing: 1 },
+  micLabel:      { fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(10,10,10,0.40)' },
+  micStopBtn:    { width: 60, height: 60, borderRadius: 30, backgroundColor: '#FF4545', alignItems: 'center', justifyContent: 'center', shadowColor: '#FF4545', shadowOpacity: 0.35, shadowRadius: 14, shadowOffset: { width: 0, height: 4 } },
+  micStopSquare: { width: 20, height: 20, borderRadius: 4, backgroundColor: '#fff' },
+  micCancel:     { fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(10,10,10,0.35)' },
+
+  // ── Scroll-down button ────────────────────────────────────────────────────
+  scrollDownBtn:   { position: 'absolute', bottom: 100, left: 0, right: 0, alignItems: 'center', zIndex: 50 },
+  scrollDownInner: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(10,10,10,0.45)', alignItems: 'center', justifyContent: 'center' },
+
+  // ── Waveform bar (active mic in pill) ────────────────────────────────────
+  barWaveBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+
+  // ── Ambient strip ─────────────────────────────────────────────────────────
+  ambientStrip:   { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 11, backgroundColor: 'rgba(216,204,255,0.12)', borderBottomWidth: 1, borderBottomColor: 'rgba(216,204,255,0.22)', flexShrink: 0 },
+  ambientStar:    { width: 22, height: 22, borderRadius: 6, backgroundColor: 'rgba(216,204,255,0.25)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  ambientTxt:     { fontFamily: 'Poppins_400Regular', fontSize: 13, color: C.ink, flex: 1 },
+  ambientChip:    { backgroundColor: C.ai, borderRadius: 14, paddingVertical: 5, paddingHorizontal: 12, flexShrink: 0 },
+  ambientChipTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: C.ink },
+
+  // ── Recently Bought header ────────────────────────────────────────────────
+  rbHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+
+  // ── Inline chat bar — matches Home exactly ──────────────────────────────────
+  inputArea: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 14, paddingBottom: Platform.OS === 'ios' ? 30 : 18, paddingTop: 10, backgroundColor: 'transparent' },
+  barPill:   { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 30, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: -2 }, elevation: 4 },
+  barBtn:    { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+  barSep:    { width: 1, height: 18, backgroundColor: 'rgba(10,10,10,0.1)', flexShrink: 0 },
+  barInput:  { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 15, color: C.ink, paddingVertical: 0, maxHeight: 100 },
+  barMicBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  barSend:   { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FF4545', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 });
