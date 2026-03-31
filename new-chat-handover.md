@@ -1,11 +1,11 @@
 # Zaeli — New Chat Handover
-*30 March 2026 — Session 24 complete. Copy this entire file to start a new chat.*
+*31 March 2026 — Home card stack ✅ Reminders tab ✅ design session complete. Copy this entire file to start a new chat.*
 
 ---
 
 ## Hi! Continuing development of Zaeli.
 
-Zaeli is an iOS-first AI family life platform built in React Native / Expo. Please read **CLAUDE.md** before we start — full stack, architecture, colours, coding rules, all locked decisions. Then **ZAELI-PRODUCT.md** for product vision and all module specs.
+Zaeli is an iOS-first AI family life platform built in React Native / Expo. Please read **CLAUDE.md** before we start — full stack, architecture, colours, Home card stack spec, Reminders spec, coding rules. Then **ZAELI-PRODUCT.md** for product vision and all module specs.
 
 ---
 
@@ -34,149 +34,233 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo. Plea
 DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
 SONNET          = 'claude-sonnet-4-20250514'  ← NOT claude-sonnet-4-6
 GPT_MINI        = 'gpt-5.4-mini'             ← NOT gpt-4.1-mini (retired)
-WHISPER_URL     = 'https://api.openai.com/v1/audio/transcriptions'
 OpenAI = max_completion_tokens · Claude = max_tokens
 api_logs = input_tokens / output_tokens (NO total_tokens column)
 KAV must have backgroundColor:'#fff'
 always await supabase inserts
-Send button = #FF4545 coral ALWAYS (never channel AI colour)
+Send button = #FF4545 coral ALWAYS
 Our Family = NO chat bar
-Channel body bg = #FAF8F5 warm white — never full channel colour bleed
-No left-border accent strips on cards
-isActionQuery() runs BEFORE isCalendarQuery() — action msgs go to Anthropic tool-calling
-Apostrophes in JSX: always use double-quoted strings e.g. "What's on today"
+Channel body bg = #FAF8F5 warm white — never full colour bleed
+No left-border accent strips on cards — dots, icons, badges only
+isActionQuery() runs BEFORE isCalendarQuery()
+Apostrophes in JSX: always double-quoted strings
 ```
 
 ---
 
-## What's built (30 Mar 2026)
+## What's built (31 Mar 2026)
 
 ### index.tsx — Home ✅ COMPLETE (Sessions 20–24)
-- Splash → Home. DM Serif brief + Poppins follow-up
-- **Msg → inlineData refactor (Session 24)** — old `calIntro/calEvents/calFollowUp/showCalendarPill` fields replaced with generic `inlineData: { type, intro, items, followUp, showPortalPill }`
-- **Brief pill colours** — matched to topic via `getPillColor()`, expanded patterns (tomorrow/prep/morning/week all → mint). Brief chips render in hero banner ONLY — not duplicated in chat thread.
-- **Brief prompt rewrite (Session 24)** — 2-sentence hero (angle/irony + warm detail), 2-sentence detail, confident offers ("Say the word and I'll..."), banned words list, proactive awareness (scans 7 days), time-of-day awareness
-- **Persona update (Session 24)** — warm + enthusiastic, not dry. Finds funny angle through delight not detachment. Proportionate — never manufactures drama.
-- **Full calendar routing** — "show full calendar" → renders today/tomorrow events + mint "Open Calendar →" portal pill. All inline calendar renders show portal pill.
-- **Inline calendar render** — EventCards in chat thread (max 5), inlineData pattern
-- **Greeting fix (Session 24)** — fontSize:17, Poppins_500Medium, scrolls to top on brief load
-- **isActionQuery()** — action messages always bypass calendar GPT path to tool-calling
-- **new_assignees** support — add Anna/Duke etc. to events from Home chat
-- **TOOL_FAILED signal** — honest error reporting, no fake successes
-- **refreshCalendarEvents()** — silently patches inlineData.items on focus return (zero API cost)
-- **Mic recording overlay** — frosted cream overlay, MicWaveform, Poppins timer, stop/cancel
+- inlineData pattern for all inline renders
+- Tool-calling: add/update/delete events, todos, shopping items
+- isActionQuery() before isCalendarQuery() routing
+- isFullCalendarRequest() — renders today's events + Open Calendar portal pill
+- Brief chips in hero banner ONLY
 - Whisper voice. API logging working.
+- **HOME CARD STACK REDESIGN LOCKED (31 Mar 2026)** — full spec in CLAUDE.md
 
-### calendar.tsx — Calendar ✅ COMPLETE (Sessions 22 + 23)
-- Two-row mint banner. Day strip. Event cards. Month view. Tool-calling. Whisper
-- **new_assignees** in update_calendar_event schema + executor
-- **Assignees fallback** — retries without assignees column if Supabase rejects
-- **TOOL_FAILED catch block** — honest error reporting
-- **Mic recording overlay** — mint-tinted, blush waveform bars
-- API logging confirmed
+### calendar.tsx — Calendar ✅ COMPLETE
+Two-row mint banner. Day strip. Event cards. Month view. Tool-calling. Whisper. Mic overlay.
 
-### Admin dashboard ✅ (Session 24 fixes)
-https://incomparable-gumdrop-32e4ba.netlify.app
-- Fixed: `thisMonthStart()` UTC bug → now local date construction
-- Fixed: Supabase 1000-row cap → now paginates to fetch all logs
-- Real MTD cost confirmed: A$3.17 / 1,048 calls for March 2026
+### Admin dashboard ✅
+https://incomparable-gumdrop-32e4ba.netlify.app · March 2026: A$3.17 / 1,048 calls.
 
 ### shopping.tsx, mealplanner.tsx
 Functional — need colour refactor (`#F0E880` / `#D8CCFF` lavender for shopping).
 
 ### All designed, not yet built
-- Tutor: `zaeli-tutor-final-mockup-v4.html` (11 screens) + curriculum map
-- Kids Hub: `zaeli-kids-hub-mockup-v1.html` + parent management + rewards v2
+- Home card stack: `zaeli-home-card-tweaks-v2.html` (final — 4 screens)
+- Todos + Reminders: `zaeli-todos-reminders-v2.html` (5 screens — includes Reminders tab)
+- Tutor: `zaeli-tutor-final-mockup-v4.html` (11 screens)
+- Kids Hub: `zaeli-kids-hub-rewards-v2.html`
 - Our Family: `zaeli-our-family-mockup-v1.html` (6 screens)
-- Todos: `zaeli-todos-mockup-v1.html` (8 screens)
 - Notes: `zaeli-notes-mockup-v1.html` (5 screens)
 
 ### Travel — no design yet
 
 ---
 
-## Session 24 — Key decisions locked
+## HOME CARD STACK — locked decisions summary
 
-### inlineData architecture (LOCKED)
-Old `calIntro/calEvents/calFollowUp/showCalendarPill` fields are GONE from Msg interface.
-All inline renders use:
-```typescript
-inlineData?: {
-  type: 'calendar' | 'todos' | 'shopping' | 'meals' | 'kids';
-  intro?: string;
-  followUp?: string;
-  items?: any[];
-  showPortalPill?: boolean;
-}
-```
-`hasCalendarEvents` = true when `type === 'calendar'` AND (`items.length > 0` OR `showPortalPill === true`)
+### Banner hero line
+DM Serif 16px, ink black, italic emphasis. One or two sentences. NO sub-label. No greeting text.
+Tappable — Zaeli expands in chat.
 
-### Open Calendar portal pill (LOCKED)
-- `showPortalPill: true` on ALL calendar inline renders
-- Mint `#B8EDD0`, full width, between cards and followUp text
-- Taps → `router.navigate('/(tabs)/calendar')`
+- **AM (5–12):** *"Hope the soccer went well, Gab. Big morning ahead, Rich."*
+- **PM (12–8):** *"Hope the surf ski was good. Nothing sorted for dinner yet — worth a thought."*
+- **Evening (8–5):** *"Gab scored the winner. Poppy's swimming at 8am — early one."*
 
-### Full calendar requests (LOCKED)
-`isFullCalendarRequest()` detects "show full calendar", "all events", "open calendar" etc.
-Response: renders today's events (or tomorrow's if today empty), max 5, + Open Calendar pill.
+### Card stack on `#FAF8F5` warm white body
 
-### Brief chips — no duplication (LOCKED)
-Brief chips render ONLY in hero banner (`briefReplies`).
-Chat thread chips (`!msg.isBrief && msg.quickReplies`) are for conversational responses only.
+**Card order:**
+- AM: Calendar → Weather+Shopping → Actions → Dinner
+- PM: Dinner (leads if unplanned) → Calendar → Actions → Weather+Shopping
+- Evening: Tomorrow calendar → Actions (with tomorrow AM section) → Weather+Shopping → Dinner tomorrow
 
-### Zaeli persona (LOCKED)
-Warm + enthusiastic. Finds funny angle through delight not detachment. Proportionate.
-Banned: "queued up", "sorted", "tidy", "chaos", "ambush", "sprint", "stacked neatly".
-Confident offers: "Say the word and I'll..." never "Want me to...?"
-After 9pm: calm, one warm sentence about tomorrow only.
+**Calendar — slate `#3A3D4A` (full width)**
+Header: eye label + weather · + Add · Full → top right
+Timeline rows · footer: context left · "Full calendar →" right
 
-### Admin dashboard (LOCKED)
-`thisMonthStart()` uses local date: `` `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-01T00:00:00` ``
-Fetch paginates with `.range()` to bypass Supabase 1000-row cap.
+**Weather — sky blue `#A8D8F0` (two-col, flex 0 0 88px)**
+DM Serif temp · condition · icon · extra. Read only.
+
+**Shopping — lavender `#D8CCFF` (two-col, flex 1)**
+Header: + Add · Full → top right (identical to calendar pattern)
+Top 3 items · **item count BIG bottom right** (large number + small "items" label)
++ Add → Zaeli: "What do you need to pick up?"
+
+**Today's actions — gold `#F0DC80` (full width)**
+Header: count badge · + Add · Full → top right
+**Circle tick LEFT = ONLY completion mechanism.** No swipe labels. No "done" text.
+Rows: circle · urgency dot · text · avatar · badge
+Ticking: circle fills, text greys + strikethrough, count drops, Zaeli one-line acknowledgement
+Badges: Reminder (red) · Overdue (dark red) · Todo (gold) — remain visible when ticked
+**Evening: two sections in one card:**
+- "🌙 Put out tonight" — circle ticks, actionable
+- "🌅 Tomorrow morning" — NO circles, FYI awareness items
+Separated by labelled divider
++ Add → Zaeli: "What do you need to remember or do?"
+
+**Dinner — terracotta `#FAC8A8` (full width)**
+Planned: emoji · name · prep note · "✓ Planned"
+Unplanned: nudge + "Quick idea 💡" · "Plan the week"
+**Footer: "Next 7 days ›"** — expands inline 7-day meal strip within the card
+Evening: shows tomorrow's dinner
+
+### + Add interaction (LOCKED)
+Tap + Add on any card → Zaeli opens inline prompt in chat below. No modal. No new screen. Cursor live immediately. Zaeli confirms, card updates. Never leaves Home.
 
 ---
 
-## Immediate next steps (Session 25)
+## TODOS + REMINDERS CHANNEL — locked decisions summary
 
-1. **Shopping colour refactor** — `shopping.tsx` onto `#F0E880` bg / `#D8CCFF` lavender AI colour
-2. **Meals colour refactor** — `mealplanner.tsx`
-3. **Todos channel** (`todos.tsx`) — design discussion + mockup review first, then build
-4. **Kids Hub** (`kids.tsx`) — after todos
-5. **Our Family** (`family.tsx`) — after kids hub
-6. **Notes** (`notes.tsx`)
-7. **Tutor rebuild** — 11-screen spec
-8. **Travel** — design session first
+Channel: `#F0DC80` banner · `#D8CCFF` AI colour · `#806000` accent
 
-**Deferred:**
-- Home inline todos render (same inlineData pattern)
-- Model cost review: home_chat + calendar_chat on Sonnet — evaluate GPT mini after load testing
-- Real auth, EAS build, TestFlight, website, Stripe
+### Three tabs (LOCKED)
+```
+Mine  |  Family  |  Reminders
+```
+**Mine** — personal todos only
+**Family** — shared todos, Anna's todos Rich can see, assigned to Rich
+**Reminders** — things to REMEMBER (distinct from todos = things to DO)
+
+### Todos (Mine + Family tabs) — unchanged from previous design
+- Priority dots: Red (overdue) · Amber (today/soon) · Grey (someday)
+- Badges: ↻ Recurring · Shared · 📅 Calendar-linked
+- Circle tick left — completion mechanism
+- Zaeli brief strip at top: most urgent item
+- "Done this week" collapsible divider
+- Features: smart due dates · priority in Home brief · recurring · shared handoff · calendar integration
+
+### Reminders tab (LOCKED ✅ 31 Mar 2026)
+
+**The distinction:** Todos = things you DO. Reminders = things you REMEMBER.
+
+**Visual language:**
+- Bell icon (🔔) instead of circle tick — same satisfying tap, different mental model
+- Urgency shown by time label colour: today (gold bold) · tonight (purple) · tomorrow (amber) · upcoming (muted)
+- Recurring badge: ↻ Weekly / Monthly
+
+**Bell states:**
+- 🔔 Active red tint — due today, unacknowledged
+- 🔔 Upcoming amber tint — due in future
+- 🔔 Recurring gold tint — auto-repeating
+- ✓ Done grey — acknowledged, below divider
+
+**Two-touch nudge system (LOCKED):**
+- Nudge 1: evening before the reminder date
+- Nudge 2: morning of (7am), only if not yet acknowledged
+- If acknowledged before morning fires → morning cancelled
+- Toggle per reminder (default ON)
+- Visible under each reminder: "Evening nudge sent · morning nudge at 7am if not done"
+
+**Recurrence:** None / Daily / Weekly (choose day) / Monthly. Auto-reappears.
+
+**Creating reminders:**
+1. Tell Zaeli: "Remind me Gab needs a gold coin Wednesday" → confirmed in chat with card
+2. Tap + Add → sheet: what · who (family member chips) · when chips · two-touch toggle
+
+**Acknowledging:** Tap the bell → greys, sinks below "Acknowledged" divider.
+
+**How reminders surface in Home actions card:**
+- Today's reminders: appear with "Reminder" badge (red)
+- Evening state: tomorrow's reminders in "🌅 Tomorrow morning" section — NO circles, FYI only
+
+### New Supabase table needed
+```sql
+create table reminders (
+  id uuid default gen_random_uuid() primary key,
+  family_id uuid not null,
+  title text not null,
+  about_member_id uuid,
+  remind_at timestamptz not null,
+  recurrence text default 'none', -- none/daily/weekly/monthly
+  recurrence_day integer,          -- 0=Sun, 1=Mon etc for weekly
+  two_touch bool default true,
+  evening_sent bool default false,
+  acknowledged bool default false,
+  acknowledged_at timestamptz,
+  created_by uuid,
+  created_at timestamptz default now()
+);
+```
+
+**Mockup:** `zaeli-todos-reminders-v2.html` — 5 screens
+
+---
+
+## Session 24 locked decisions (still current)
+
+### inlineData (LOCKED)
+```typescript
+inlineData?: {
+  type: 'calendar' | 'todos' | 'shopping' | 'meals' | 'kids';
+  intro?: string; followUp?: string; items?: any[]; showPortalPill?: boolean;
+}
+```
+
+### Zaeli persona (LOCKED)
+Warm + enthusiastic. Proportionate. Confident offers: "Say the word and I'll..."
+Banned: "queued up", "sorted", "tidy", "chaos", "ambush", "sprint", "stacked neatly", "locked in".
+
+---
+
+## Build priorities — in order
+
+1. **Shopping colour refactor** — `#F0E880` bg / `#D8CCFF` lavender AI colour
+2. **Meals colour refactor**
+3. **Home card stack rebuild** — spec in CLAUDE.md + `zaeli-home-card-tweaks-v2.html`
+4. **Todos + Reminders** (`todos.tsx`) — spec above + `zaeli-todos-reminders-v2.html`
+5. **Kids Hub** (`kids.tsx`)
+6. **Our Family** (`family.tsx`)
+7. **Notes** (`notes.tsx`)
+8. **Tutor rebuild**
+9. **Travel** (design session first)
+
+**Deferred:** Home inline todos/reminders render · model cost review · real auth · EAS build · Stripe · Settings
 
 ---
 
 ## Critical coding rules
 - `router.navigate()` only — NEVER push() or replace()
-- Date: local construction only — NEVER toISOString() (UTC/AEST shift)
-- Events table: `start_time` NOT `time`
-- SafeAreaView: `edges={['top']}` always
+- Local date construction — NEVER toISOString()
+- `start_time` NOT `time` in events table
+- SafeAreaView `edges={['top']}` always
 - Image picker: `['images'] as any`
-- KAV → `backgroundColor:'#fff'` → contentWrap (relative) → ScrollView + inputArea (absolute)
+- KAV → `backgroundColor:'#fff'`
 - Full file rewrites only
 - Always await supabase inserts
-- Send = `#FF4545` always
-- Body bg = `#FAF8F5` warm white
-- No left-border accent strips on cards
-- Apostrophes in JSX strings: double-quoted e.g. `"What's on today"` not `'What's on today'`
+- Send = `#FF4545` always · Body bg = `#FAF8F5` · No left-border accent strips
+- Apostrophes in JSX: double-quoted strings
 
 ---
 
 ## Tech reminders
-- `npx expo start --dev-client` after every change
-- Use `--clear` when fixing bundle/cache issues
+- `npx expo start --dev-client` after every change (--clear for bundle issues)
 - Import paths from `app/(tabs)/`: `../../lib/supabase`
-- Supabase: `rsvbzakyyrftezthlhtd` (Sydney, ap-southeast-2)
-- Admin: drag `C:\Users\richa\Downloads\index.html` to Netlify
+- Supabase: `rsvbzakyyrftezthlhtd` (Sydney)
+- Admin deploy: drag `C:\Users\richa\Downloads\index.html` to Netlify
 
 ---
 
-**Read CLAUDE.md and ZAELI-PRODUCT.md first. Upload the file before editing.**
+**Read CLAUDE.md and ZAELI-PRODUCT.md first. Upload the current file before editing.**
