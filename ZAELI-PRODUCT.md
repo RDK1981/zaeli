@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 1 April 2026 — Meals full rebuild ✅ Recipe/Fav detail modals ✅ Shopping ingredient review ✅*
+*Last updated: 1 April 2026 — Home card stack rebuild ✅ Pass 1 + Pass 2 complete ✅*
 
 ---
 
@@ -62,8 +62,8 @@ Only Home generates a brief on cold open. No brief on channel transitions.
 | Travel | `#A8D8F0` | `#B8EDD0` Soft Mint | `#0060A0` |
 | Our Family | `#F0C8C0` | `#D8CCFF` Lavender | `#A01830` |
 
-**Note — Shopping updated 31 Mar:** banner changed from `#F0E880` yellow to `#EDE8FF` lavender (yellow looked mustard on iPhone).
-**Shopping 'a' and 'i':** `#A8E8CC` mint (not lavender — would clash on lavender banner).
+**Note — Shopping updated 31 Mar:** banner changed from `#F0E880` yellow to `#EDE8FF` lavender.
+**Shopping 'a' and 'i':** `#A8E8CC` mint.
 
 Family: Rich `#4D8BFF` · Anna `#FF7B6B` · Poppy `#A855F7` · Gab `#22C55E` · Duke `#F59E0B`
 
@@ -75,43 +75,49 @@ Greeting: Poppins 400 18px · Tagline: "LESS CHAOS. MORE FAMILY." Poppins 500 12
 
 ---
 
-## ══════════════════════════════════
 ## CHAT EXPERIENCE PRINCIPLES (LOCKED ✅ 31 Mar 2026)
-## ══════════════════════════════════
 
 ### Single chat per channel (Calendar model)
-Each channel has ONE shared chat thread across all its views/tabs. Shopping's List, Pantry and Spend tabs share one conversation. Calendar's Day and Month views share one conversation. The chat persists as you switch views within a channel.
+Each channel has ONE shared chat thread across all its views/tabs.
 
 ### Chat persistence (24hr TTL)
-Conversations persist across navigation using `lib/use-chat-persistence.ts`. Leave shopping to check the calendar, come back — conversation is still there. TTL: 24 hours. Cap: 30 messages rolling. Storage: expo-file-system (no native rebuild needed).
+`lib/use-chat-persistence.ts` — expo-file-system, 24hr TTL, 30-msg cap, debounced saves.
+Keys in use: `'home'` | `'shopping'` | `'calendar'` | `'meals'`
 
 ### Quick reply chips — actions only
-Chips must only suggest things Zaeli can actually DO. Never suggest displaying or listing data that's already visible on screen. Calendar: never "Show tomorrow" — only add/edit/move/delete. Shopping: never "Check the pantry" — Zaeli already has pantry data in context.
+Chips must only suggest things Zaeli can actually DO. Never suggest displaying data already visible.
 
 ### Claude Sonnet for tool-calling channels
-Shopping and Calendar both use Claude Sonnet with proper two-pass tool-calling. GPT-mini is for briefs and lightweight summaries only. Quality and accuracy matter more than marginal cost savings for agentic actions.
+Shopping, Calendar, Meals, Home chat all use Claude Sonnet. GPT-mini for briefs only.
 
 ### Up/down scroll arrows
-All scrollable channels use side-by-side floating up/down arrows (bottom-right, above chat bar). Up → top of content. Down → bottom of chat thread. Implemented: Shopping, Calendar. Planned: Home, Meals, Todos during their respective builds.
+All scrollable channels: side-by-side floating up/down arrows (bottom-right, above chat bar).
+Implemented: Shopping ✅ · Calendar ✅ · Meals ✅ · Home ✅
 
 ---
 
 ## ══════════════════════════════════
-## HOME CHANNEL — CARD STACK (LOCKED ✅ 31 Mar 2026)
+## HOME CHANNEL — CARD STACK (LOCKED ✅ 1 Apr 2026)
 ## ══════════════════════════════════
 
 ### The shift
-Home is a hybrid: glanceable card stack at top, Zaeli conversation below. Two layers:
-- **Layer 1 — The Glance:** Card stack. 0–4 seconds. What's happening, what do I need to do, is dinner sorted.
-- **Layer 2 — The Engage:** Zaeli brief + chat. Short. Cards do the heavy lifting.
+Home is a hybrid: glanceable card stack scrolls away, Zaeli conversation below.
 
-### Banner hero line (LOCKED)
-Row 1: wordmark left, avatar right. Row 2: DM Serif 16px, ink black, italic emphasis. No sub-label. Tappable.
+### Layout (scrollable — hero no longer fixed)
+1. **Fixed banner** — slim warm bar, wordmark + nav only
+2. **Date divider** — thin line + date label
+3. **Zaeli eyebrow** — ✦ Zaeli + timestamp (Option B)
+4. **Hero text** — DM Serif italic, brief opener
+5. **Card stack** — time-state ordered
+6. **"Earlier today" divider**
+7. **Chat thread** — brief detail + messages
 
-**AM (5–12):** *"Hope the soccer went well, Gab. Big morning ahead, Rich."*
-**PM (12–8):** *"Hope the surf ski was good. Nothing sorted for dinner yet — worth a thought."*
-**Evening (8–5):** *"Gab scored the winner. Poppy's swimming at 8am — early one."*
-All done: *"Everything sorted. Nothing left to do — enjoy the evening."*
+### Banner hero line (LOCKED — in scrollable section, not fixed banner)
+DM Serif 22px. Rendered with `renderHeroText()` — [bracketed] words render italic.
+
+**AM:** *"Hope the soccer went well, Gab. [Big morning ahead], Rich."*
+**PM:** *"Hope the surf ski was good. [Nothing sorted for dinner yet] — worth a thought."*
+**Evening:** *"Gab scored the winner. [Poppy's swimming at 8am] — early one."*
 
 ### Card order by time state
 **AM (5am–12pm):** Calendar → Weather+Shopping → Actions → Dinner
@@ -120,88 +126,90 @@ All done: *"Everything sorted. Nothing left to do — enjoy the evening."*
 
 ### Card specs (ALL LOCKED)
 
-**Calendar — slate `#3A3D4A` (full width)**
-Header: eye label + weather inline · + Add · Full → top right
-Timeline: time (muted) · colour dot · event · family member avatar
-Footer: context note left · "Full calendar →" right
-AM = today full · PM = rest of today · Evening = tomorrow
+**Calendar — slate `#3A3D4A` (full width, padding 20)**
+- Eye label: "📅 Today · Tue 1 Apr" + weather inline
+- 4 events default. "X more ›" expands inline. "Show less ∧" collapses.
+- Rows: time left-aligned (Poppins 500 13px muted) · colour dot · event title + emoji AFTER (Poppins 400 17px) · member avatars (30px)
+- + Add → Zaeli inline. Full → Calendar channel.
+- AM = today full · PM = rest of today · Evening = tomorrow
 
-**Weather — sky blue `#A8D8F0` (two-col, flex 0 0 88px)**
-DM Serif temp large · condition · icon · extra detail. Read only, no + Add.
+**Weather — sky blue `#A8D8F0` (two-col, fixed 115px)**
+- Open-Meteo, Tewantin coords until real location wired
+- Animated icons: sun pulses, cloud drifts, rain drops, storm flashes
+- Read only, no + Add.
 
 **Shopping — lavender `#D8CCFF` (two-col, flex 1)**
-Header: + Add · Full → top right (identical pattern to calendar)
-Top 3 items listed
-**Item count BIG bottom right** — large DM Serif number + small "items" label
-+ Add → Zaeli inline: "What do you need to pick up?"
+- Header: + Add · Full → top right
+- Up to 3 items (Poppins 400 17px). Render: `item.name || item.item`
+- **Item count BIG bottom right** — large Poppins 800 number + "items" label
+- + Add → Zaeli inline: "What do you need to pick up?"
 
-**Today's actions — gold `#F0DC80` (full width)**
-Header: count badge · + Add · Full → top right
-Rows: **circle tick LEFT** (ONLY completion mechanism) · urgency dot · text · family avatar · badge
-Ticking: circle fills, text greys + strikethrough, avatar/badge fade, count drops
-Zaeli quietly acknowledges: one warm specific line in chat thread
-Badges: Reminder (red) · Overdue (dark red) · Todo (gold) — remain visible when ticked
-No swipe labels. No "done" text anywhere.
-**Evening state — two sections in one card, separated by labelled divider:**
-- "🌙 Put out tonight" — circle ticks, actionable
-- "🌅 Tomorrow morning" — NO circles, FYI awareness items only (e.g. "Anna on school run 8:30")
-+ Add → Zaeli inline: "What do you need to remember or do?"
+**Today's actions — gold `#F0DC80` (full width, padding 20)**
+- Header: count badge · + Add · Full → top right
+- Circle tick LEFT — tapping writes `done:true` to Supabase, optimistic UI, Zaeli quiet ack in chat
+- Ticked: circle fills dark, text greys + strikethrough, 0.45 opacity — stays visible
+- Content text: Poppins 400 17px
+- Badges: Reminder (red) · Overdue (dark red) · Todo (gold)
+- **Evening state — two sections:**
+  - "🌙 Put out tonight" — circle ticks, actionable
+  - "🌅 Tomorrow morning" — NO circles, FYI only (pulled from early tomorrow calendar events)
+- + Add → Zaeli inline: "What do you need to remember or do?"
 
-**Dinner — terracotta `#FAC8A8` (full width)**
-Planned: emoji · meal name · prep note · "✓ Planned" right
-Unplanned: gentle nudge + "Quick idea 💡" (Zaeli suggests) · "Plan the week"
-**Footer: "Next 7 days ›"** — expands inline 7-day meal strip within the card (no navigation away)
-7-day strip: day label · meal + emoji · ✓ planned or ⚠ unplanned · Zaeli notices gaps in chat
-Evening: shows tomorrow's dinner
+**Dinner — terracotta `#FAC8A8` (full width, padding 20)**
+- Planned: emoji · meal name (Poppins 800 19px) · prep note · "✓ Planned" right
+- Unplanned: gentle nudge + "Quick idea 💡"
+- **Footer: "Next 7 days ›"** — expands inline 7-day meal strip within the card (zero extra API calls)
+- 7-day strip: day label · meal + emoji · ✓ or "Nothing yet ⚠" · unplanned count in footer
+- "Open meal planner ›" → Meals channel. "Close ∧" collapses.
+- Evening: shows tomorrow's dinner
 
 ### + Add interaction (LOCKED)
-Tap + Add on any card → Zaeli opens inline prompt in chat thread. No modal, no new screen.
-Cursor live immediately. Chips: context-relevant suggestions + Cancel.
-Zaeli confirms and card updates. User never leaves Home.
+Tap + Add → Zaeli opens inline prompt in chat thread. Scrolls to bottom. Focuses input.
+Never opens a modal, never navigates away.
 
-### Mockup files
-- `zaeli-home-card-tweaks-v2.html` — final card designs (4 screens)
-- `zaeli-home-three-states-v1.html` — AM/PM/Evening states
-- `zaeli-home-refined-interactions-v1.html` — + Add, tick, evening reminders
+### Font sizes in cards (LOCKED)
+- Content text: Poppins 400 17px (matches chat thread text size)
+- Dinner meal name: Poppins 800 19px (hero)
+- Eye labels / times / buttons: 11–13px (UI chrome, smaller by design)
+- Empty states: 16px italic
+
+### Live data
+- All cards fetch fresh on mount + every `useFocusEffect` via `loadCardData()`
+- After any tool action: `setTimeout(loadCardData, 1200)`
+- Weather: Open-Meteo free API, no key, Tewantin coords
+
+### Deferred / next Home session
+- Wire weather to real user location
+- Actions circle un-tick (Todos channel handles for now)
+- "All done" evening state — green card
+- Review individual card UX based on device usage
 
 ---
 
 ## Calendar Channel (LOCKED ✅)
 Two-row mint banner. Day strip. Event cards. Month view. Tool-calling. Whisper mic overlay. API logging.
-**31 Mar 2026 additions:** Chat persistence (24hr) · Up/down scroll arrows · Greeting guard (skips if returning user) · Chip rules (action-only, never display chips).
+Chat persistence (24hr) · Up/down scroll arrows · Greeting guard · Action-only chips.
 
 ---
 
-## ══════════════════════════════════
 ## SHOPPING CHANNEL (REBUILT ✅ 31 Mar 2026)
-## ══════════════════════════════════
 
-### What changed from old design
-- **Colour:** Yellow `#F0E880` → Lavender `#EDE8FF` (looked mustard on iPhone)
-- **AI model:** GPT mini JSON hack → Claude Sonnet with proper tool-calling
-- **Chat:** Three separate chats → One shared chat (Calendar model)
-- **Context:** None → Full live context (list + pantry + receipts) every call
-- **Category guessing:** 5 Sonnet API calls per add → Local keyword lookup (zero cost)
-- **Persistence:** Session-only → 24hr via expo-file-system
+### Critical column names
+```
+shopping_items: id, family_id, name, item, checked, completed, category, meal_source, created_at
+NO 'quantity' column. Render: item.name || item.item
+Query unchecked: .neq('checked', true)
+```
 
 ### Three tabs, one chat
-List · Pantry · Spend — all share one conversation. Chat bar always visible. Single ScrollView per tab contains content + chat thread.
+List · Pantry · Spend — all share one conversation.
 
 ### Tools
 `add_shopping_item` · `remove_shopping_item` · `tick_shopping_item` · `clear_shopping_list`
-Two-pass: Claude calls tool → Supabase executes → Claude confirms in natural language.
-
-### Pantry tab
-Flat rows (no white card bubbles). 4 ascending stock bars. Scan (camera/library) auto-detects receipt vs pantry photo. Receipt scan → saves to `receipts` table + syncs to Pantry + adds to Recently Bought.
-
-### Spend tab
-Mint `#A8E8CC` monthly summary card (DM Serif total). Receipt list with expandable items. Zaeli has live receipt data in context — can answer spend questions accurately.
 
 ---
 
-## ══════════════════════════════════
-## TODOS + REMINDERS CHANNEL (LOCKED ✅ 31 Mar 2026 — not yet built)
-## ══════════════════════════════════
+## TODOS + REMINDERS CHANNEL (LOCKED ✅ — not yet built)
 
 `#F0DC80` gold banner · `#D8CCFF` lavender AI colour · `#806000` accent · `#FAF8F5` body.
 
@@ -210,37 +218,10 @@ Mint `#A8E8CC` monthly summary card (DM Serif total). Receipt list with expandab
 
 ### Three tabs: Mine | Family | Reminders
 
-### Mine tab — personal todos
-- Priority dots: Red (overdue) · Amber (today/soon) · Grey (someday)
-- Badges: ↻ Recurring · Shared · 📅 Calendar-linked
-- Circle tick left — completion mechanism
-- Zaeli brief strip at top
-- "Done this week" collapsible divider
-
-### Family tab
-- Anna's todos Rich can see + todos assigned to Rich by Anna
-- "from Anna · new" tag on arrival
-
 ### Reminders tab (LOCKED ✅)
-
-**Bell states:**
-- 🔔 Active (red tint) — due today, unacknowledged
-- 🔔 Upcoming (amber tint) — due future
-- 🔔 Recurring (gold tint) — repeating
-- ✓ Acknowledged (grey) — sinks below divider
-
-**Two-touch nudge system:**
-- Nudge 1: evening before
-- Nudge 2: morning of (7am), only if not yet acknowledged
-- Toggle per reminder (default ON)
-
-**Recurrence:** None / Daily / Weekly (choose day) / Monthly. Auto-reappears.
-
-**Creating:** Tell Zaeli in chat, or tap + Add → sheet with what/who/when/two-touch toggle.
-
-**How reminders surface in Home:**
-- Today's → gold actions card with "Reminder" badge (red)
-- Evening → "🌅 Tomorrow morning" section (no circles — FYI only)
+Bell states: 🔔 Active (red) · 🔔 Upcoming (amber) · 🔔 Recurring (gold) · ✓ Acknowledged (grey)
+Two-touch nudge: evening before + morning of (7am) if not acknowledged.
+Recurrence: None / Daily / Weekly / Monthly.
 
 ### Supabase table (NOT YET CREATED)
 ```sql
@@ -263,52 +244,36 @@ create table reminders (
 
 **Mockup:** `zaeli-todos-reminders-v2.html` — 5 screens
 
+### Connection to Home card
+- Today's reminders → gold Actions card with "Reminder" badge (red)
+- Evening → "🌅 Tomorrow morning" section (no circles — FYI only)
+- Tomorrow morning events currently pulled from calendar events before 10am as a proxy until reminders table is built
+
 ---
 
-## ══════════════════════════════════
 ## TUTOR MODULE (LOCKED ✅)
-## ══════════════════════════════════
-
-Premium A$9.99/child/month. Standalone. Avatar menu. Socratic method. Foundation–Year 12.
+Premium A$9.99/child/month. Standalone. Socratic method. Foundation–Year 12.
 GPT-5.4-mini (chat) · Sonnet (photos) · Whisper (voice). 6 pillars. 3 difficulty bands.
-Hints: 25/75 split pill. Parent review: summary in Tutor · full transcript auth-gated.
-Curriculum: AC v9.0 ACARA. Mockup: `zaeli-tutor-final-mockup-v4.html` (11 screens).
+Mockup: `zaeli-tutor-final-mockup-v4.html` (11 screens).
 
 ---
 
-## ══════════════════════════════════
 ## KIDS HUB (LOCKED ✅)
-## ══════════════════════════════════
-
 Family plan. `#A8E8CC` / `#FAC8A8` / `#0A6040`.
-Age tiers: Little (Fn–Yr3) · Middle (Yr4–7) · Older (Yr8–12).
 Jobs: Daily/Weekly/One-off · GIPHY on every tick · archive · pause.
 Points (Philosophy B): spent on redemption, parent approves, games earn zero.
-Rewards: green (can afford) · amber (saving toward) · grey.
-Games: Wordle · Word Scramble · Maths Sprint · Aussie Trivia · Mini Crossword (no points).
 Mockup: `zaeli-kids-hub-rewards-v2.html`.
 
 ---
 
-## ══════════════════════════════════
 ## OUR FAMILY (LOCKED ✅)
-## ══════════════════════════════════
-
 `#F0C8C0` / `#D8CCFF` / `#A01830`. Avatar menu. **NO chat bar.**
-Opening brief: DM Serif hero. 4 sections: Pending Actions · Our Kids · Family Profiles · (Settings separate).
-Child detail: Tutor progress bars + Kids Hub stats. DOB stored, age/year auto-calculated.
 Mockup: `zaeli-our-family-mockup-v1.html` (6 screens).
 
 ---
 
-## ══════════════════════════════════
 ## NOTES CHANNEL (LOCKED ✅)
-## ══════════════════════════════════
-
 `#C8E8A8` / `#F0C8C0` / `#2A6010`. Simple and beautiful — not AI-connected v1.
-Instant capture · DM Serif titles · pinned (📌 icon, no left stripe) · 6 colour tints · emoji tag.
-Minimal formatting: Bold · Italic · Bullets · Numbered · Pin · Share.
-Voice notes: Whisper · Zaeli tidies filler words · offers to save as todo.
 Mockup: `zaeli-notes-mockup-v1.html` (5 screens).
 
 ---
@@ -321,6 +286,7 @@ Mockup: `zaeli-notes-mockup-v1.html` (5 screens).
 **The all-done moment** — Evening state, everything sorted. "Enjoy the evening." Should feel like a reward.
 **The tomorrow morning section** — Seeing "Anna on school run 8:30" at 9pm. Zaeli knows what matters before you wake up.
 **Persistent conversation** — Leave a channel and come back, your conversation is still there. 24hr memory.
+**Card overflow** — "3 more ›" on calendar. Dinner accordion. Keeps cards glanceable but data accessible.
 
 ---
 
@@ -331,40 +297,35 @@ Moat: family context, persistent memory, Tutor + Kids Hub ecosystem, card stack 
 ---
 
 ## Pre-Launch Checklist
-- [x] Home channel complete
+- [x] Home channel — card stack complete (Pass 1 + Pass 2)
 - [x] Calendar channel complete + persistence + arrows
-- [x] Shopping channel major rebuild complete (lavender, Sonnet, persistence, Calendar-style)
+- [x] Shopping channel major rebuild complete (lavender, Sonnet, persistence)
+- [x] Meals channel full rebuild complete
 - [x] API logging working
 - [x] Admin dashboard live
-- [x] Chat persistence hook (lib/use-chat-persistence.ts)
-- [x] Up/down scroll arrows (Shopping + Calendar)
+- [x] Chat persistence hook (lib/use-chat-persistence.ts) — wired to all 4 main channels
+- [x] Up/down scroll arrows (Shopping + Calendar + Meals + Home)
 - [x] Mic recording overlay (Home + Calendar + Shopping)
-- [x] Tool-calling (Home + Calendar + Shopping)
-- [x] Chat message Calendar-style rendering (Shopping)
-- [x] Quick reply chips from Claude (Shopping)
-- [x] guessCategory → local lookup (zero API cost)
-- [x] Home card stack redesign locked
+- [x] Tool-calling (Home + Calendar + Shopping + Meals)
+- [x] Weather card — Open-Meteo live, animated icons
+- [x] Calendar card overflow expand/collapse
+- [x] Dinner 7-day accordion inline
+- [x] Actions card circle tick → Supabase + Zaeli ack
+- [x] Home card data refresh after tool actions
 - [x] Todos + Reminders designed (5 screens)
 - [x] Tutor designed (11 screens)
 - [x] Kids Hub designed
 - [x] Our Family designed (6 screens)
 - [x] Notes designed (5 screens)
-- [x] Meals full rebuild (Dinners/Recipes/Favourites, Sonnet tools, persistence, Calendar-style)
-- [x] Meals — Recipe detail modal (ingredients + method)
-- [x] Meals — Favourites detail/edit/plan modal
-- [x] Meals — Shopping ingredient review sheet
-- [x] Meals — Cook avatars 2×2 grid (CookAvatarsGrid)
-- [x] Meals — All 7 nights uniform (no special tonight hero)
-- [x] Meals — Date labels above each card
-- [ ] Home card stack rebuild (index.tsx)
-- [ ] Wire useChatPersistence to Home
-- [ ] Todos + Reminders build — create reminders table first
-- [ ] Kids Hub build
-- [ ] Our Family build
-- [ ] Notes build
+- [ ] Create reminders Supabase table (SQL above)
+- [ ] Todos + Reminders build (todos.tsx)
+- [ ] Kids Hub build (kids.tsx)
+- [ ] Our Family build (family.tsx)
+- [ ] Notes build (notes.tsx)
 - [ ] Tutor rebuild to 11-screen spec
 - [ ] Travel (design + build)
 - [ ] EAS build · TestFlight for Anna
 - [ ] Real auth · Remove dev toggle
 - [ ] Website + Stripe + onboarding
 - [ ] Settings module
+- [ ] Wire weather to real user location

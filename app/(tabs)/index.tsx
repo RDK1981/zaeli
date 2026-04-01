@@ -1,13 +1,20 @@
 /**
- * index.tsx — Zaeli Home · AI-First Chat Interface
- * Chat is home. Zaeli opens every session. Pills bring screens into chat.
- * See ZAELI-PRODUCT.md for full framework.
+ * index.tsx — Zaeli Home · Card Stack + AI Chat
  *
- * Session 23: Inline calendar EventCard rendering
- * - isCalendarQuery() detects calendar questions
- * - fetchEventsForContext() loads Supabase events into GPT context
- * - GPT returns {intro, events, followUp, showCalendarPill, replies}
- * - EventCard + EventDetailModal ported from calendar.tsx for inline render
+ * Pass 1 (1 Apr 2026):
+ * - Card stack: Calendar, Weather+Shopping, Actions, Dinner
+ * - Live Supabase data for all cards
+ * - Open-Meteo weather (Tewantin lat/lon, no API key needed)
+ * - Animated weather icons
+ * - Time-state driven card order (AM / PM / Evening)
+ * - + Add on each card → seeds Zaeli chat inline
+ * - useChatPersistence('home') wired with greeting guard
+ * - Up / down scroll arrows (locked spec)
+ * - All existing chat, tool-calling, brief, EventCard, modals preserved
+ *
+ * Pass 2 (next session):
+ * - Circle tick → Supabase write + Zaeli acknowledgement
+ * - 7-day dinner accordion expansion
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -26,43 +33,46 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import { NavMenu, HamburgerButton } from '../components/NavMenu';
+import { useChatPersistence } from '../../lib/use-chat-persistence';
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
-const MEMBER_NAME = 'Rich';
-const INK    = '#0A0A0A';
-const INK3   = 'rgba(10,10,10,0.32)';
-const HOME_AI = '#A8D8F0';  // Sky blue — Home channel ai colour
+const FAMILY_ID        = '00000000-0000-0000-0000-000000000001';
+const DUMMY_FAMILY_ID_HOME = FAMILY_ID;
+const MEMBER_NAME      = 'Rich';
+const INK              = '#0A0A0A';
+const INK3             = 'rgba(10,10,10,0.32)';
+const HOME_AI          = '#A8D8F0';
 
-// Home channel theme tokens
+// Tewantin (Noosa) coords for weather — update to real user location later
+const WEATHER_LAT = -26.39;
+const WEATHER_LON = 153.03;
+
 const T = {
-  bannerBg:    '#F5EAD8',
-  bg:          '#FFFFFF',
-  ink:         '#0A0A0A',
-  ink2:        'rgba(10,10,10,0.5)',
-  ink3:        'rgba(10,10,10,0.28)',
-  border:      'rgba(10,10,10,0.09)',
-  userBubble:  '#F2F2F2',
-  userText:    '#0A0A0A',
-  zaeliAi:     HOME_AI,
-  dateLine:    'rgba(10,10,10,0.09)',
-  pillBg:      HOME_AI,
-  pillText:    '#0A0A0A',
-  dismiss:     'rgba(10,10,10,0.32)',
-  barBg:       '#FFFFFF',
-  barBorder:   'rgba(10,10,10,0.09)',
-  barPh:       'rgba(10,10,10,0.5)',
-  barSep:      'rgba(10,10,10,0.1)',
-  barIcon:     'rgba(10,10,10,0.4)',
-  sendBg:      HOME_AI,
-  statusBar:   'dark' as const,
+  bannerBg:   '#F5EAD8',
+  bg:         '#FAF8F5',
+  ink:        '#0A0A0A',
+  ink2:       'rgba(10,10,10,0.5)',
+  ink3:       'rgba(10,10,10,0.28)',
+  border:     'rgba(10,10,10,0.09)',
+  userBubble: '#F2F2F2',
+  userText:   '#0A0A0A',
+  zaeliAi:    HOME_AI,
+  dateLine:   'rgba(10,10,10,0.09)',
+  pillBg:     HOME_AI,
+  pillText:   '#0A0A0A',
+  dismiss:    'rgba(10,10,10,0.32)',
+  barBg:      '#FFFFFF',
+  barBorder:  'rgba(10,10,10,0.09)',
+  barPh:      'rgba(10,10,10,0.5)',
+  barSep:     'rgba(10,10,10,0.1)',
+  barIcon:    'rgba(10,10,10,0.4)',
+  sendBg:     HOME_AI,
+  statusBar:  'dark' as const,
 };
 
-// ── Calendar colour constants (for EventCard) ──────────────────────────────
-const CAL_AI  = '#F0C8C0'; // blush — used as portal pill bg
-const CAL_BG  = '#B8EDD0'; // mint — calendar pill bg
+const CAL_AI = '#F0C8C0';
+const CAL_BG = '#B8EDD0';
 
-// ── Family members (for EventCard avatars) ────────────────────────────────
 const FAMILY_MEMBERS = [
   { id:'1', name:'Anna',  color:'#FF7B6B' },
   { id:'2', name:'Rich',  color:'#4D8BFF' },
@@ -77,22 +87,21 @@ const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
 const ALL_SCREENS = [
   { key: 'calendar', label: 'Calendar',   emoji: '📅', route: '/(tabs)/calendar' },
   { key: 'shopping', label: 'Shopping',   emoji: '🛒', route: '/(tabs)/shopping' },
-  { key: 'meals',    label: 'Meals',      emoji: '🍽',  route: '/(tabs)/shopping' },
+  { key: 'meals',    label: 'Meals',      emoji: '🍽',  route: '/(tabs)/mealplanner' },
   { key: 'tutor',    label: 'Tutor',      emoji: '🎓', route: '/(tabs)/tutor' },
-  { key: 'todos',    label: 'To-dos',     emoji: '✅', route: '/(tabs)/more' },
-  { key: 'kids',     label: 'Kids Hub',   emoji: '👧', route: '/(tabs)/more' },
-  { key: 'notes',    label: 'Notes',      emoji: '📝', route: '/(tabs)/more' },
-  { key: 'travel',   label: 'Travel',     emoji: '✈️', route: '/(tabs)/more' },
-  { key: 'family',   label: 'Our Family', emoji: '👨‍👩‍👧', route: '/(tabs)/more' },
+  { key: 'todos',    label: 'To-dos',     emoji: '✅', route: '/(tabs)/todos' },
+  { key: 'kids',     label: 'Kids Hub',   emoji: '👧', route: '/(tabs)/kids' },
+  { key: 'notes',    label: 'Notes',      emoji: '📝', route: '/(tabs)/notes' },
+  { key: 'travel',   label: 'Travel',     emoji: '✈️', route: '/(tabs)/travel' },
+  { key: 'family',   label: 'Our Family', emoji: '👨‍👩‍👧', route: '/(tabs)/family' },
 ];
 
-// ── Repeat / Alert options for EventDetailModal ───────────────────────────
 const REPEAT_OPTIONS = ['Never','Every day','Every week','Every fortnight','Every month','Every year'];
 const ALERT_OPTIONS  = ['None','At time of event','5 min before','15 min before','30 min before','1 hour before','2 hours before','1 day before','1 week before'];
 const HOURS   = Array.from({ length:12 }, (_, i) => i + 1);
 const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
-// ── Message type ───────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────
 interface InlineData {
   type: 'calendar' | 'todos' | 'shopping' | 'meals' | 'kids';
   intro?: string;
@@ -114,9 +123,36 @@ interface Msg {
   inlineData?: InlineData;
 }
 
+interface CardData {
+  // Calendar
+  todayEvents: any[];
+  tomorrowEvents: any[];
+  // Shopping
+  shopItems: any[];
+  shopCount: number;
+  // Actions / todos
+  todos: any[];
+  // Dinner / meals
+  meals: any[]; // 7 days of meal_plans rows
+  // Weather
+  weather: WeatherData | null;
+}
+
+interface WeatherData {
+  temp: number;
+  condition: string;
+  code: number;
+  windspeed: number;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function localDatePlusDays(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return localDateStr(d);
 }
 function fmtTime(t?: string | null): string {
   if (!t) return '';
@@ -158,7 +194,6 @@ function getEvAssignees(ev: any): any[] {
     .filter(Boolean) as any[];
 }
 
-// Parse [bracketed text] in hero into italic DM Serif spans
 function renderHeroText(text: string, highlightColor: string) {
   const parts = text.split(/(\[[^\]]+\])/g);
   return parts.map((part, i) => {
@@ -169,9 +204,168 @@ function renderHeroText(text: string, highlightColor: string) {
   });
 }
 
+// ── Weather helpers ────────────────────────────────────────────────────────
+function weatherCondition(code: number): string {
+  if (code === 0) return 'Clear';
+  if (code <= 3)  return 'Partly cloudy';
+  if (code <= 48) return 'Foggy';
+  if (code <= 57) return 'Drizzle';
+  if (code <= 67) return 'Rain';
+  if (code <= 77) return 'Snow';
+  if (code <= 82) return 'Showers';
+  if (code <= 86) return 'Heavy showers';
+  return 'Stormy';
+}
+
+// WMO code → weather type for animated icon
+function weatherType(code: number): 'sunny' | 'partly' | 'cloudy' | 'rain' | 'storm' {
+  if (code === 0) return 'sunny';
+  if (code <= 2)  return 'partly';
+  if (code <= 48) return 'cloudy';
+  if (code <= 82) return 'rain';
+  return 'storm';
+}
+
+// Extra context line for weather card
+function weatherExtra(code: number, windspeed: number): string {
+  if (code === 0 && windspeed > 15) return 'Breezy · good beach day';
+  if (code === 0) return 'Perfect day';
+  if (code <= 2)  return windspeed > 20 ? 'Windy · jacket handy' : 'Nice day';
+  if (code <= 48) return 'May need a jacket';
+  if (code <= 67) return 'Umbrella recommended';
+  if (code <= 82) return 'Keep the kids inside';
+  return 'Stay dry today';
+}
+
+// ── Animated weather icon ─────────────────────────────────────────────────
+function WeatherIcon({ type }: { type: 'sunny' | 'partly' | 'cloudy' | 'rain' | 'storm' }) {
+  const pulse = useRef(new Animated.Value(1)).current;
+  const drift = useRef(new Animated.Value(0)).current;
+  const drop1 = useRef(new Animated.Value(0)).current;
+  const drop2 = useRef(new Animated.Value(0)).current;
+  const flash = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let anim: Animated.CompositeAnimation | null = null;
+    if (type === 'sunny') {
+      anim = Animated.loop(Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.15, duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1,    duration: 1800, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]));
+    } else if (type === 'partly' || type === 'cloudy') {
+      anim = Animated.loop(Animated.sequence([
+        Animated.timing(drift, { toValue: 3,  duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(drift, { toValue: -3, duration: 2200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ]));
+    } else if (type === 'rain') {
+      const d1 = Animated.loop(Animated.sequence([
+        Animated.timing(drop1, { toValue: 1, duration: 700, easing: Easing.ease, useNativeDriver: true }),
+        Animated.timing(drop1, { toValue: 0, duration: 100, useNativeDriver: true }),
+        Animated.delay(300),
+      ]));
+      const d2 = Animated.loop(Animated.sequence([
+        Animated.delay(400),
+        Animated.timing(drop2, { toValue: 1, duration: 700, easing: Easing.ease, useNativeDriver: true }),
+        Animated.timing(drop2, { toValue: 0, duration: 100, useNativeDriver: true }),
+        Animated.delay(200),
+      ]));
+      anim = Animated.parallel([d1, d2]);
+    } else if (type === 'storm') {
+      anim = Animated.loop(Animated.sequence([
+        Animated.timing(flash, { toValue: 0.4, duration: 100, useNativeDriver: true }),
+        Animated.timing(flash, { toValue: 1,   duration: 100, useNativeDriver: true }),
+        Animated.delay(2000),
+      ]));
+    }
+    anim?.start();
+    return () => anim?.stop();
+  }, [type]);
+
+  const EMOJI_SIZE = 26;
+
+  if (type === 'sunny') {
+    return (
+      <Animated.Text style={{ fontSize: EMOJI_SIZE, transform: [{ scale: pulse }] }}>☀️</Animated.Text>
+    );
+  }
+  if (type === 'partly') {
+    return (
+      <Animated.Text style={{ fontSize: EMOJI_SIZE, transform: [{ translateX: drift }] }}>⛅</Animated.Text>
+    );
+  }
+  if (type === 'cloudy') {
+    return (
+      <Animated.Text style={{ fontSize: EMOJI_SIZE, transform: [{ translateX: drift }] }}>☁️</Animated.Text>
+    );
+  }
+  if (type === 'rain') {
+    return (
+      <View>
+        <Text style={{ fontSize: EMOJI_SIZE }}>🌧</Text>
+        <View style={{ flexDirection:'row', gap:5, marginTop:2 }}>
+          <Animated.View style={{ width:2, height:6, borderRadius:1, backgroundColor:'rgba(0,100,200,0.4)', opacity: drop1, transform:[{ translateY: Animated.multiply(drop1, 4) }] }}/>
+          <Animated.View style={{ width:2, height:6, borderRadius:1, backgroundColor:'rgba(0,100,200,0.4)', opacity: drop2, transform:[{ translateY: Animated.multiply(drop2, 4) }] }}/>
+          <Animated.View style={{ width:2, height:6, borderRadius:1, backgroundColor:'rgba(0,100,200,0.4)', opacity: drop1, transform:[{ translateY: Animated.multiply(drop1, 4) }] }}/>
+        </View>
+      </View>
+    );
+  }
+  // storm
+  return (
+    <Animated.Text style={{ fontSize: EMOJI_SIZE, opacity: flash }}>⛈</Animated.Text>
+  );
+}
+
+// ── Todo urgency dot colour ────────────────────────────────────────────────
+function todoPriorityColor(todo: any): string {
+  const today = localDateStr();
+  const due = todo.due_date || null;
+  if (todo.priority === 'urgent' || (due && due < today)) return '#FF4545'; // red = overdue
+  if (due && due === today) return '#F59E0B';                                // amber = today
+  if (todo.priority === 'high') return '#F59E0B';
+  return 'rgba(0,0,0,0.15)';                                                // grey = normal
+}
+
+function todoBadge(todo: any): { label: string; style: 'rem' | 'ovd' | 'td' } | null {
+  const today = localDateStr();
+  const due = todo.due_date || null;
+  if (due && due < today) return { label: 'Overdue', style: 'ovd' };
+  if (todo.reminder_type === 'reminder') return { label: 'Reminder', style: 'rem' };
+  return { label: 'Todo', style: 'td' };
+}
+
+// ── Meal emoji helper ──────────────────────────────────────────────────────
+function getMealEmoji(name: string): string {
+  const n = (name || '').toLowerCase();
+  if (/pasta|bolognese|spaghetti|fettuccine/.test(n)) return '🍝';
+  if (/pizza/.test(n)) return '🍕';
+  if (/burger|maccas/.test(n)) return '🍔';
+  if (/taco|mexican|burrito/.test(n)) return '🌮';
+  if (/sushi|japanese/.test(n)) return '🍣';
+  if (/stir.?fry|noodle|fried rice|asian/.test(n)) return '🍜';
+  if (/roast|lamb|chicken|pork/.test(n)) return '🍗';
+  if (/salad|veg|vegetable/.test(n)) return '🥗';
+  if (/fish|salmon|tuna|seafood/.test(n)) return '🐟';
+  if (/curry|indian/.test(n)) return '🍛';
+  if (/soup|stew/.test(n)) return '🍲';
+  if (/bbq|grill/.test(n)) return '🍖';
+  if (/sandwich|wrap/.test(n)) return '🥙';
+  if (/breakfast|eggs|pancake/.test(n)) return '🥞';
+  return '🍽';
+}
+
+// ── Day label for dinner card ─────────────────────────────────────────────
+function fmtDayLabel(dateStr: string): string {
+  const today = localDateStr();
+  const diff = Math.round((new Date(dateStr+'T00:00:00').getTime() - new Date(today+'T00:00:00').getTime()) / 86400000);
+  if (diff === 0) return 'Tonight';
+  const d = new Date(dateStr+'T00:00:00');
+  return d.toLocaleDateString('en-AU', { weekday: 'short' });
+}
+
 // ── Calendar keyword detection ─────────────────────────────────────────────
 const CALENDAR_KEYWORDS = [
-  "what's on", "whats on", "what is on", "calendar", "schedule", "schedule",
+  "what's on", "whats on", "what is on", "calendar", "schedule",
   "this week", "next week", "this weekend", "today", "tomorrow", "tonight",
   "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
   "mon", "tue", "wed", "thu", "fri", "sat", "sun",
@@ -183,7 +377,6 @@ const CALENDAR_KEYWORDS = [
   "week ahead", "what have we got", "busy", "free",
 ];
 
-// Action intent — these must ALWAYS go to Anthropic tool-calling, never the calendar GPT path
 const ACTION_KEYWORDS = [
   'add ', 'remove ', 'delete ', 'change ', 'move ', 'update ', 'edit ',
   'reschedule', 'cancel ', 'rename ', 'shift ', 'put ', 'book ',
@@ -195,21 +388,15 @@ function isActionQuery(text: string): boolean {
   const lower = text.toLowerCase();
   return ACTION_KEYWORDS.some(kw => lower.includes(kw));
 }
-
 function isCalendarQuery(text: string): boolean {
   const lower = text.toLowerCase();
-  // Action messages must go to tool-calling — never calendar GPT path
   if (isActionQuery(lower)) return false;
   return CALENDAR_KEYWORDS.some(kw => lower.includes(kw));
 }
-
-// Detects requests for the full calendar — these should route conversationally, not dump all events inline
 function isFullCalendarRequest(text: string): boolean {
   const lower = text.toLowerCase();
   return /full calendar|whole calendar|all events|all my events|everything on|show.{0,10}calendar|open calendar|see.{0,10}calendar|view.{0,10}calendar/.test(lower);
 }
-
-// How many days forward to fetch based on query
 function getEventFetchDays(text: string): number {
   const lower = text.toLowerCase();
   const MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
@@ -219,17 +406,16 @@ function getEventFetchDays(text: string): number {
   return 14;
 }
 
-// ── Brief pill colour by topic ─────────────────────────────────────────────
-// Maps chip text to channel bg colour so pills reflect their topic
 function getPillColor(chip: string): string {
   const t = chip.toLowerCase();
-  if (/calendar|schedule|on today|on tomorrow|on this|on next|what's on|what have|coming up|week ahead|event|clashes?|clashing|busy|free day|show me|tomorrow|prep|morning|week|day ahead|first up|what's first|see next|next day/.test(t)) return '#B8EDD0'; // Calendar mint
-  if (/shop|list|groceries|pantry|buy|milk|eggs|coles|woolies|supermarket|receipt|spend|spending|stock/.test(t)) return '#F0E880'; // Shopping yellow
-  if (/dinner|lunch|breakfast|meal|recipe|food|eat|cook|tonight/.test(t)) return '#FAC8A8'; // Meals peach
-  if (/todo|task|urgent|pressing|to.do|remind|due|overdue|sort|what needs|needs doing/.test(t)) return '#F0DC80'; // Todos gold
-  if (/kids?|family|homework|school|poppy|gab|duke|anna|children|sport|activity|jobs/.test(t)) return '#A8E8CC'; // Kids/family aqua
-  return HOME_AI; // Default sky blue
+  if (/calendar|schedule|on today|on tomorrow|on this|on next|what's on|what have|coming up|week ahead|event|clashes?|clashing|busy|free day|show me|tomorrow|prep|morning|week|day ahead|first up|what's first|see next|next day/.test(t)) return '#B8EDD0';
+  if (/shop|list|groceries|pantry|buy|milk|eggs|coles|woolies|supermarket|receipt|spend|spending|stock/.test(t)) return '#F0E880';
+  if (/dinner|lunch|breakfast|meal|recipe|food|eat|cook|tonight/.test(t)) return '#FAC8A8';
+  if (/todo|task|urgent|pressing|to.do|remind|due|overdue|sort|what needs|needs doing/.test(t)) return '#F0DC80';
+  if (/kids?|family|homework|school|poppy|gab|duke|anna|children|sport|activity|jobs/.test(t)) return '#A8E8CC';
+  return HOME_AI;
 }
+
 async function fetchEventsForContext(days: number): Promise<{ eventsJson: string; eventsRaw: any[] }> {
   try {
     const today = localDateStr();
@@ -245,8 +431,6 @@ async function fetchEventsForContext(days: number): Promise<{ eventsJson: string
       .order('date')
       .order('start_time')
       .limit(50);
-    // Filter out all-day events and midnight-anchored reminders (T00:00:00)
-    // These show as pills in Calendar day strip, not as timed events
     const eventsRaw = (data ?? []).filter((e: any) => {
       if (e.all_day) return false;
       const st = e.start_time || '';
@@ -254,13 +438,9 @@ async function fetchEventsForContext(days: number): Promise<{ eventsJson: string
       return true;
     });
     const eventsJson = eventsRaw.map(e => ({
-      id: e.id,
-      title: e.title,
-      date: e.date,
-      start_time: e.start_time,
-      end_time: e.end_time,
-      notes: e.notes || '',
-      assignees: e.assignees || [],
+      id: e.id, title: e.title, date: e.date,
+      start_time: e.start_time, end_time: e.end_time,
+      notes: e.notes || '', assignees: e.assignees || [],
     }));
     return { eventsJson: JSON.stringify(eventsJson), eventsRaw };
   } catch {
@@ -268,20 +448,19 @@ async function fetchEventsForContext(days: number): Promise<{ eventsJson: string
   }
 }
 
-// ── OpenAI / API logging ────────────────────────────────────────────────────
-const GPT_IN_PER_M  = 0.15;
-const GPT_OUT_PER_M = 0.60;
+// ── API logging ────────────────────────────────────────────────────────────
+const GPT_IN_PER_M     = 0.15;
+const GPT_OUT_PER_M    = 0.60;
+const CLAUDE_IN_PER_M  = 3.00;
+const CLAUDE_OUT_PER_M = 15.00;
 
 async function logApiCall(params: {
   family_id: string; feature: string; model: string;
   input_tokens: number; output_tokens: number; cost_usd: number;
 }) {
   try {
-    const { error } = await supabase.from('api_logs').insert({
-      ...params, created_at: new Date().toISOString(),
-    });
-    if (error) console.error('[logApiCall] Supabase error:', JSON.stringify(error));
-  } catch (e: any) { console.error('[logApiCall] Exception:', e?.message); }
+    await supabase.from('api_logs').insert({ ...params, created_at: new Date().toISOString() });
+  } catch {}
 }
 
 async function callGPT(
@@ -294,8 +473,8 @@ async function callGPT(
   if (!key) throw new Error('No OpenAI key');
   const res = await fetch(OPENAI_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model: 'gpt-5.4-mini', max_completion_tokens: maxTokens, messages: [{ role: 'system', content: system }, ...msgs] }),
+    headers: { 'Content-Type':'application/json', Authorization:`Bearer ${key}` },
+    body: JSON.stringify({ model:'gpt-5.4-mini', max_completion_tokens:maxTokens, messages:[{ role:'system', content:system }, ...msgs] }),
   });
   const json = await res.json();
   const text = json?.choices?.[0]?.message?.content?.trim();
@@ -303,20 +482,17 @@ async function callGPT(
   const pt = json?.usage?.prompt_tokens ?? 0;
   const ct = json?.usage?.completion_tokens ?? 0;
   const cost = (pt / 1_000_000 * GPT_IN_PER_M) + (ct / 1_000_000 * GPT_OUT_PER_M);
-  logApiCall({ family_id: FAMILY_ID, feature, model: 'gpt-5.4-mini', input_tokens: pt, output_tokens: ct, cost_usd: cost });
+  logApiCall({ family_id: FAMILY_ID, feature, model:'gpt-5.4-mini', input_tokens:pt, output_tokens:ct, cost_usd:cost });
   return text;
 }
 
 function logWhisper(durationSeconds: number) {
   const cost = (durationSeconds / 60) * 0.006;
-  logApiCall({ family_id: FAMILY_ID, feature: 'whisper_transcription', model: 'whisper-1', input_tokens: 0, output_tokens: 0, cost_usd: cost });
+  logApiCall({ family_id:FAMILY_ID, feature:'whisper_transcription', model:'whisper-1', input_tokens:0, output_tokens:0, cost_usd:cost });
 }
-
-const CLAUDE_IN_PER_M  = 3.00;
-const CLAUDE_OUT_PER_M = 15.00;
 function logVision(inputTokens: number, outputTokens: number) {
   const cost = (inputTokens / 1_000_000 * CLAUDE_IN_PER_M) + (outputTokens / 1_000_000 * CLAUDE_OUT_PER_M);
-  logApiCall({ family_id: FAMILY_ID, feature: 'chat_vision', model: 'claude-sonnet-4-20250514', input_tokens: inputTokens, output_tokens: outputTokens, cost_usd: cost });
+  logApiCall({ family_id:FAMILY_ID, feature:'chat_vision', model:'claude-sonnet-4-20250514', input_tokens:inputTokens, output_tokens:outputTokens, cost_usd:cost });
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -327,7 +503,10 @@ function IcoMic({ color = INK3, size = 20 }: { color?: string; size?: number }) 
   return <Svg width={size} height={size} viewBox="0 0 24 26" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><Rect x="9" y="2" width="6" height="11" rx="3"/><Path d="M5 10a7 7 0 0014 0"/><Line x1="12" y1="19" x2="12" y2="23"/><Line x1="8" y1="23" x2="16" y2="23"/></Svg>;
 }
 function IcoSend() {
-  return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>;
+  return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>;
+}
+function IcoArrowUp() {
+  return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>;
 }
 function IcoArrowDown() {
   return <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="5" x2="12" y2="19"/><Polyline points="19 12 12 19 5 12"/></Svg>;
@@ -367,8 +546,8 @@ function TypingDots({ color = '#FF4545' }: { color?: string }) {
     const anims = dots.map((dot, i) =>
       Animated.loop(Animated.sequence([
         Animated.delay(i * 160),
-        Animated.timing(dot, { toValue: 1, duration: 300, easing: Easing.ease, useNativeDriver: true }),
-        Animated.timing(dot, { toValue: 0.25, duration: 300, easing: Easing.ease, useNativeDriver: true }),
+        Animated.timing(dot, { toValue:1, duration:300, easing:Easing.ease, useNativeDriver:true }),
+        Animated.timing(dot, { toValue:0.25, duration:300, easing:Easing.ease, useNativeDriver:true }),
         Animated.delay(500 - i * 160),
       ]))
     );
@@ -377,20 +556,20 @@ function TypingDots({ color = '#FF4545' }: { color?: string }) {
   }, []);
   return (
     <View style={s.dotsRow}>
-      {dots.map((op, i) => <Animated.View key={i} style={[s.dot, { opacity: op, backgroundColor: color }]} />)}
+      {dots.map((op, i) => <Animated.View key={i} style={[s.dot, { opacity:op, backgroundColor:color }]}/>)}
     </View>
   );
 }
 
-// ── Waveform ───────────────────────────────────────────────────────────────
+// ── WaveformBars ────────────────────────────────────────────────────────────
 function WaveformBars() {
-  const anims = useRef(Array.from({ length: 5 }, (_, i) => new Animated.Value(0.3 + i * 0.1))).current;
+  const anims = useRef(Array.from({ length:5 }, (_, i) => new Animated.Value(0.3 + i * 0.1))).current;
   useEffect(() => {
     const loops = anims.map((anim, i) => {
       const min = 0.2 + i * 0.05, max = 0.7 + (i % 3) * 0.15, spd = 180 + i * 55;
       return Animated.loop(Animated.sequence([
-        Animated.timing(anim, { toValue: max, duration: spd, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(anim, { toValue: min, duration: spd + 40, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(anim, { toValue:max, duration:spd, easing:Easing.inOut(Easing.ease), useNativeDriver:true }),
+        Animated.timing(anim, { toValue:min, duration:spd+40, easing:Easing.inOut(Easing.ease), useNativeDriver:true }),
       ]));
     });
     loops.forEach(l => l.start());
@@ -398,23 +577,21 @@ function WaveformBars() {
   }, []);
   return (
     <View style={s.waveRow}>
-      {anims.map((anim, i) => <Animated.View key={i} style={[s.waveBar, { transform: [{ scaleY: anim }] }]} />)}
+      {anims.map((anim, i) => <Animated.View key={i} style={[s.waveBar, { transform:[{ scaleY:anim }] }]}/>)}
     </View>
   );
 }
 
-// ── MicWaveform — larger animated bars for the recording overlay ──────────
+// ── MicWaveform ─────────────────────────────────────────────────────────────
 function MicWaveform() {
-  const anims = useRef(Array.from({ length: 13 }, (_, i) => new Animated.Value(0.15 + (i % 3) * 0.1))).current;
+  const anims = useRef(Array.from({ length:13 }, (_, i) => new Animated.Value(0.15 + (i % 3) * 0.1))).current;
   useEffect(() => {
     const loops = anims.map((anim, i) => {
-      const min = 0.1 + (i % 4) * 0.05;
-      const max = 0.6 + (i % 5) * 0.08;
-      const spd = 280 + (i % 6) * 60;
+      const min = 0.1 + (i % 4) * 0.05, max = 0.6 + (i % 5) * 0.08, spd = 280 + (i % 6) * 60;
       return Animated.loop(Animated.sequence([
         Animated.delay(i * 55),
-        Animated.timing(anim, { toValue: max, duration: spd, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(anim, { toValue: min, duration: spd + 40, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(anim, { toValue:max, duration:spd, easing:Easing.inOut(Easing.ease), useNativeDriver:true }),
+        Animated.timing(anim, { toValue:min, duration:spd+40, easing:Easing.inOut(Easing.ease), useNativeDriver:true }),
       ]));
     });
     loops.forEach(l => l.start());
@@ -423,19 +600,13 @@ function MicWaveform() {
   return (
     <View style={{ flexDirection:'row', alignItems:'center', gap:4, height:52 }}>
       {anims.map((anim, i) => (
-        <Animated.View
-          key={i}
-          style={{
-            width: 4, borderRadius: 3,
-            backgroundColor: HOME_AI,
-            transform: [{ scaleY: anim }],
-            height: 52,
-          }}
-        />
+        <Animated.View key={i} style={{ width:4, borderRadius:3, backgroundColor:HOME_AI, transform:[{ scaleY:anim }], height:52 }}/>
       ))}
     </View>
   );
 }
+
+// ── getEventEmoji ─────────────────────────────────────────────────────────
 function getEventEmoji(title: string): string {
   const t = title.toLowerCase();
   if (/soccer|football|footy/.test(t))              return '⚽';
@@ -451,38 +622,29 @@ function getEventEmoji(title: string): string {
   if (/bike|cycling|ride/.test(t))                  return '🚴';
   if (/yoga|pilates|stretch/.test(t))               return '🧘';
   if (/school|class|lesson|tutor|homework/.test(t)) return '🏫';
+  if (/surf|ski|kayak|paddle/.test(t))              return '🏄';
   if (/photo|portrait/.test(t))                     return '📷';
   if (/library|book/.test(t))                       return '📚';
   if (/dentist|orthodon/.test(t))                   return '🦷';
   if (/doctor|gp|hospital|physio|chiro/.test(t))    return '🏥';
   if (/birthday|party|celebrat/.test(t))            return '🎂';
-  if (/sushi|japanese/.test(t))                     return '🍣';
-  if (/pizza/.test(t))                              return '🍕';
-  if (/burger|maccas|mcdonalds/.test(t))            return '🍔';
-  if (/taco|mexican/.test(t))                       return '🌮';
-  if (/pasta|italian/.test(t))                      return '🍝';
-  if (/bbq|barbe/.test(t))                          return '🍖';
   if (/dinner|supper/.test(t))                      return '🍽';
   if (/lunch/.test(t))                              return '🥗';
   if (/breakfast/.test(t))                          return '🥞';
   if (/coffee|cafe/.test(t))                        return '☕';
-  if (/takeaway|takeout/.test(t))                   return '🥡';
-  if (/dog|walk.*dog|dog.*walk|puppy/.test(t))      return '🐕';
-  if (/cat|vet/.test(t))                            return '🐈';
-  if (/shop|supermarket|groceries|woolies|coles/.test(t)) return '🛒';
-  if (/haircut|hair|barber/.test(t))                return '✂️';
+  if (/dog|walk.*dog/.test(t))                      return '🐕';
+  if (/haircut|barber/.test(t))                     return '✂️';
   if (/flight|travel|airport|holiday|trip/.test(t)) return '✈️';
   if (/meeting|call|zoom|teams/.test(t))            return '💼';
   if (/pickup|drop.?off/.test(t))                   return '🚗';
-  if (/bins|rubbish|recycl|garbage/.test(t))        return '🗑';
-  if (/concert|show|theatre|movie|film/.test(t))    return '🎭';
-  if (/church|mass|service/.test(t))                return '⛪';
+  if (/bins|rubbish|recycl/.test(t))                return '🗑';
+  if (/concert|show|theatre|movie/.test(t))         return '🎭';
   if (/t.?ball|tball/.test(t))                      return '⚾';
   if (/gymnastics/.test(t))                         return '🤸';
   return '📅';
 }
 
-// ── EventCard (ported from calendar.tsx, adapted for Home inline use) ─────
+// ── EventCard ─────────────────────────────────────────────────────────────
 function EventCard({ ev, onPress }: { ev: any; onPress: () => void }) {
   const assignedMembers = (ev.assignees || [])
     .map((id: string) => FAMILY_MEMBERS.find(m => m.id === id))
@@ -493,16 +655,15 @@ function EventCard({ ev, onPress }: { ev: any; onPress: () => void }) {
   const emoji = getEventEmoji(ev.title || '');
   const noteParts = (ev.notes || '').split(' | ');
   const location = noteParts.length > 1 ? noteParts[noteParts.length - 1] : '';
-
   return (
-    <TouchableOpacity style={[s.evCard, { backgroundColor: bgColor }]} onPress={onPress} activeOpacity={0.75}>
+    <TouchableOpacity style={[s.evCard, { backgroundColor:bgColor }]} onPress={onPress} activeOpacity={0.75}>
       <View style={s.evCardInner}>
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Text style={{ fontSize: 20 }}>{emoji}</Text>
-            <Text style={[s.evTitle, { marginBottom: 0, flex: 1 }]}>{ev.title}</Text>
+        <View style={{ flex:1 }}>
+          <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+            <Text style={{ fontSize:20 }}>{emoji}</Text>
+            <Text style={[s.evTitle, { marginBottom:0, flex:1 }]}>{ev.title}</Text>
           </View>
-          <Text style={[s.evTime, { color: timeColor }]}>
+          <Text style={[s.evTime, { color:timeColor }]}>
             {fmtTime(ev.start_time)}{ev.end_time && ev.end_time !== ev.start_time ? ` – ${fmtTime(ev.end_time)}` : ''}
           </Text>
           {location ? <Text style={s.evLocation}>📍 {location}</Text> : null}
@@ -510,25 +671,23 @@ function EventCard({ ev, onPress }: { ev: any; onPress: () => void }) {
         {assignedMembers.length > 0 && (
           <View style={s.evAvatarCol}>
             {assignedMembers.length <= 3 ? (
-              // 1-3: single column
               assignedMembers.map((m: any) => {
-                const size = assignedMembers.length === 1 ? 28 : assignedMembers.length === 2 ? 26 : 22;
+                const size = assignedMembers.length === 1 ? 28 : 22;
                 return (
-                  <View key={m.id} style={[s.evAv, { backgroundColor: m.color, width: size, height: size, borderRadius: size / 2 }]}>
-                    <Text style={[s.evAvTxt, { fontSize: assignedMembers.length === 1 ? 12 : assignedMembers.length === 2 ? 11 : 10 }]}>{m.name[0]}</Text>
+                  <View key={m.id} style={[s.evAv, { backgroundColor:m.color, width:size, height:size, borderRadius:size/2 }]}>
+                    <Text style={[s.evAvTxt, { fontSize:assignedMembers.length === 1 ? 12 : 10 }]}>{m.name[0]}</Text>
                   </View>
                 );
               })
             ) : (
-              // 4+: show 3 avatars + "+N" overflow chip in 2×2 grid
               <View style={s.evAvatarGrid}>
-                {assignedMembers.slice(0, 3).map((m: any) => (
-                  <View key={m.id} style={[s.evAv, { backgroundColor: m.color, width: 20, height: 20, borderRadius: 10 }]}>
-                    <Text style={[s.evAvTxt, { fontSize: 8 }]}>{m.name[0]}</Text>
+                {assignedMembers.slice(0,3).map((m: any) => (
+                  <View key={m.id} style={[s.evAv, { backgroundColor:m.color, width:20, height:20, borderRadius:10 }]}>
+                    <Text style={[s.evAvTxt, { fontSize:8 }]}>{m.name[0]}</Text>
                   </View>
                 ))}
-                <View style={[s.evAv, { backgroundColor: 'rgba(10,10,10,0.12)', width: 20, height: 20, borderRadius: 10 }]}>
-                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 7, color: 'rgba(10,10,10,0.55)' }}>+{assignedMembers.length - 3}</Text>
+                <View style={[s.evAv, { backgroundColor:'rgba(10,10,10,0.12)', width:20, height:20, borderRadius:10 }]}>
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:7, color:'rgba(10,10,10,0.55)' }}>+{assignedMembers.length - 3}</Text>
                 </View>
               </View>
             )}
@@ -539,7 +698,7 @@ function EventCard({ ev, onPress }: { ev: any; onPress: () => void }) {
   );
 }
 
-// ── Picker subcomponents for EventDetailModal ─────────────────────────────
+// ── Picker subcomponents ───────────────────────────────────────────────────
 const ROW_H = 52;
 
 function SnapCol({ items, selected, onSelect, fmtItem }: {
@@ -549,18 +708,18 @@ function SnapCol({ items, selected, onSelect, fmtItem }: {
   const scrollRef = useRef<ScrollView>(null);
   const selIdx = items.indexOf(selected);
   useEffect(() => {
-    setTimeout(() => scrollRef.current?.scrollTo({ y: selIdx * ROW_H, animated: false }), 50);
+    setTimeout(() => scrollRef.current?.scrollTo({ y:selIdx * ROW_H, animated:false }), 50);
   }, []);
   return (
-    <View style={{ flex:1, height: ROW_H * 5, overflow:'hidden' }}>
+    <View style={{ flex:1, height:ROW_H * 5, overflow:'hidden' }}>
       <View pointerEvents="none" style={{
-        position:'absolute', top: ROW_H * 2, left:4, right:4, height: ROW_H,
+        position:'absolute', top:ROW_H*2, left:4, right:4, height:ROW_H,
         backgroundColor:'rgba(168,216,240,0.12)', borderRadius:12,
         borderTopWidth:1.5, borderBottomWidth:1.5, borderColor:'rgba(168,216,240,0.3)', zIndex:2,
       }}/>
       <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false}
         snapToInterval={ROW_H} decelerationRate="fast"
-        contentContainerStyle={{ paddingVertical: ROW_H * 2 }}
+        contentContainerStyle={{ paddingVertical:ROW_H*2 }}
         onMomentumScrollEnd={e => {
           const idx = Math.round(e.nativeEvent.contentOffset.y / ROW_H);
           onSelect(items[Math.max(0, Math.min(idx, items.length-1))]);
@@ -575,13 +734,10 @@ function SnapCol({ items, selected, onSelect, fmtItem }: {
             typeof item === 'number' ? String(item).padStart(2,'0') : String(item).toUpperCase()
           );
           return (
-            <TouchableOpacity key={i} style={{ height: ROW_H, alignItems:'center', justifyContent:'center' }}
-              onPress={() => { scrollRef.current?.scrollTo({ y: i * ROW_H, animated: true }); onSelect(item); }}
+            <TouchableOpacity key={i} style={{ height:ROW_H, alignItems:'center', justifyContent:'center' }}
+              onPress={() => { scrollRef.current?.scrollTo({ y:i*ROW_H, animated:true }); onSelect(item); }}
               activeOpacity={0.7}>
-              <Text style={{
-                fontFamily: isSel ? 'Poppins_700Bold' : 'Poppins_400Regular',
-                fontSize: isSel ? 26 : 18, color: isSel ? INK : INK3,
-              }}>{label}</Text>
+              <Text style={{ fontFamily:isSel ? 'Poppins_700Bold' : 'Poppins_400Regular', fontSize:isSel ? 26 : 18, color:isSel ? INK : INK3 }}>{label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -592,7 +748,7 @@ function SnapCol({ items, selected, onSelect, fmtItem }: {
 
 function TimePickerModal({ visible, hour, minute, ampm, onConfirm, onClose }: {
   visible: boolean; hour: number; minute: number; ampm: 'am'|'pm';
-  onConfirm: (h:number, m:number, ap:'am'|'pm') => void; onClose: () => void;
+  onConfirm: (h:number,m:number,ap:'am'|'pm') => void; onClose: () => void;
 }) {
   const [h, setH] = useState(hour);
   const [m, setM] = useState(minute);
@@ -600,47 +756,39 @@ function TimePickerModal({ visible, hour, minute, ampm, onConfirm, onClose }: {
   useEffect(() => { if (visible) { setH(hour); setM(minute); setAp(ampm); } }, [visible]);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', alignItems:'center', padding:32 }}>
-        <View style={{ backgroundColor:'#fff', borderRadius:24, width:'100%', padding:24,
-          shadowColor:'#000', shadowOpacity:0.18, shadowRadius:24, shadowOffset:{ width:0, height:8 } }}>
-          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:INK, textAlign:'center', marginBottom:16 }}>Select time</Text>
-          <View style={{ flexDirection:'row', alignItems:'center' }}>
+      <Pressable style={{ flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', alignItems:'center' }} onPress={onClose}>
+        <Pressable style={{ backgroundColor:'#fff', borderRadius:24, padding:20, width:300 }} onPress={() => {}}>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:INK, marginBottom:12, textAlign:'center' as const }}>Set time</Text>
+          <View style={{ flexDirection:'row', gap:4, marginBottom:16 }}>
             <SnapCol items={HOURS} selected={h} onSelect={v => setH(v as number)}/>
-            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:28, color:INK3, paddingHorizontal:4 }}>:</Text>
-            <SnapCol items={MINUTES} selected={m} onSelect={v => setM(v as number)}/>
-            <View style={{ width:1, backgroundColor:'rgba(0,0,0,0.07)', alignSelf:'stretch', marginHorizontal:8, marginVertical:8 }}/>
-            <SnapCol items={['am','pm']} selected={ap} onSelect={v => setAp(v as 'am'|'pm')}/>
+            <View style={{ alignSelf:'center', paddingBottom:4 }}><Text style={{ fontFamily:'Poppins_700Bold', fontSize:28, color:INK }}>:</Text></View>
+            <SnapCol items={MINUTES} selected={m} onSelect={v => setM(v as number)} fmtItem={v => String(v).padStart(2,'0')}/>
+            <SnapCol items={['am','pm']} selected={ap} onSelect={v => setAp(v as 'am'|'pm')} fmtItem={v => String(v).toUpperCase()}/>
           </View>
-          <View style={{ flexDirection:'row', gap:12, marginTop:20 }}>
-            <TouchableOpacity style={{ flex:1, paddingVertical:14, borderRadius:14, borderWidth:1.5, borderColor:'rgba(0,0,0,0.07)', alignItems:'center' }}
-              onPress={onClose} activeOpacity={0.8}>
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(10,10,10,0.5)' }}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ flex:1, paddingVertical:14, borderRadius:14, backgroundColor:HOME_AI, alignItems:'center' }}
-              onPress={() => { onConfirm(h, m, ap); onClose(); }} activeOpacity={0.85}>
-              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:INK }}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+          <TouchableOpacity style={{ backgroundColor:HOME_AI, borderRadius:14, paddingVertical:13, alignItems:'center' }}
+            onPress={() => onConfirm(h, m, ap)} activeOpacity={0.85}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:INK }}>Confirm</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
 
 function TimePill({ hour, minute, ampm, onHour, onMinute, onAmpm }: {
-  hour:number; minute:number; ampm:'am'|'pm';
-  onHour:(h:number)=>void; onMinute:(m:number)=>void; onAmpm:(a:'am'|'pm')=>void;
+  hour: number; minute: number; ampm: 'am'|'pm';
+  onHour: (v:number)=>void; onMinute: (v:number)=>void; onAmpm: (v:'am'|'pm')=>void;
 }) {
   const [open, setOpen] = useState(false);
-  const display = `${hour}:${String(minute).padStart(2,'0')} ${ampm.toUpperCase()}`;
+  const label = `${hour}:${String(minute).padStart(2,'0')} ${ampm.toUpperCase()}`;
   return (
     <>
       <TouchableOpacity style={s.gcPill} onPress={() => setOpen(true)} activeOpacity={0.7}>
-        <Text style={[s.gcPillTxt, open && { color: HOME_AI }]}>{display}</Text>
+        <Text style={s.gcPillTxt}>{label}</Text>
       </TouchableOpacity>
       <TimePickerModal visible={open} hour={hour} minute={minute} ampm={ampm}
-        onConfirm={(h,m,ap) => { onHour(h); onMinute(m); onAmpm(ap); }}
-        onClose={() => setOpen(false)}/>
+        onClose={() => setOpen(false)}
+        onConfirm={(h,m,ap) => { onHour(h); onMinute(m); onAmpm(ap); setOpen(false); }}/>
     </>
   );
 }
@@ -648,54 +796,46 @@ function TimePill({ hour, minute, ampm, onHour, onMinute, onAmpm }: {
 function DropdownPicker({ options, value, onChange }: { options:string[]; value:string; onChange:(v:string)=>void }) {
   const [open, setOpen] = useState(false);
   return (
-    <View>
-      <TouchableOpacity style={s.gcRowRight} onPress={() => setOpen(true)} activeOpacity={0.7}>
-        <Text style={s.gcRowRightTxt}>{value}</Text>
-        <Text style={{ color:INK3, fontSize:14, marginLeft:4 }}>⌄</Text>
+    <>
+      <TouchableOpacity style={s.gcPill} onPress={() => setOpen(true)} activeOpacity={0.7}>
+        <Text style={s.gcPillTxt}>{value}</Text>
       </TouchableOpacity>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <TouchableOpacity style={{ flex:1, backgroundColor:'rgba(0,0,0,0.35)', justifyContent:'center', alignItems:'center', padding:32 }}
-          onPress={() => setOpen(false)} activeOpacity={1}>
-          <View style={{ backgroundColor:'#fff', borderRadius:18, width:'100%', overflow:'hidden',
-            shadowColor:'#000', shadowOpacity:0.15, shadowRadius:20, shadowOffset:{ width:0, height:8 } }}>
-            {options.map((opt, i) => (
-              <TouchableOpacity key={opt}
-                style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                  paddingHorizontal:20, paddingVertical:16,
-                  borderBottomWidth: i < options.length-1 ? 1 : 0, borderBottomColor:'rgba(0,0,0,0.07)' }}
+        <Pressable style={{ flex:1, backgroundColor:'rgba(0,0,0,0.45)', justifyContent:'center', alignItems:'center' }} onPress={() => setOpen(false)}>
+          <Pressable style={{ backgroundColor:'#fff', borderRadius:20, paddingVertical:8, width:260 }} onPress={()=>{}}>
+            {options.map(opt => (
+              <TouchableOpacity key={opt} style={{ paddingVertical:13, paddingHorizontal:20, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.06)' }}
                 onPress={() => { onChange(opt); setOpen(false); }} activeOpacity={0.7}>
-                <Text style={{ fontFamily: opt===value ? 'Poppins_600SemiBold' : 'Poppins_400Regular',
-                  fontSize:16, color: opt===value ? HOME_AI : INK }}>{opt}</Text>
-                {opt === value && <Text style={{ color:HOME_AI, fontSize:16, fontFamily:'Poppins_700Bold' }}>✓</Text>}
+                <Text style={{ fontFamily: opt===value ? 'Poppins_700Bold' : 'Poppins_400Regular', fontSize:15, color:opt===value ? HOME_AI : INK }}>{opt}</Text>
               </TouchableOpacity>
             ))}
-          </View>
-        </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
-    </View>
+    </>
   );
 }
 
-// ── EventDetailModal (ported from calendar.tsx) ────────────────────────────
+// ── EventDetailModal ───────────────────────────────────────────────────────
 function EventDetailModal({ event, onClose, onDeleted, onReload }: {
-  event: any | null; onClose: () => void; onDeleted: () => void; onReload: () => void;
+  event: any; onClose:()=>void; onDeleted:()=>void; onReload:()=>void;
 }) {
-  const [mode,          setMode]          = useState<'view'|'edit'>('view');
-  const [deleting,      setDeleting]      = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [saving,        setSaving]        = useState(false);
-  const [editTitle,     setEditTitle]     = useState('');
-  const [editNotes,     setEditNotes]     = useState('');
-  const [editLocation,  setEditLocation]  = useState('');
-  const [editRepeat,    setEditRepeat]    = useState('Never');
-  const [editAlert,     setEditAlert]     = useState('None');
-  const [editAssignees, setEditAssignees] = useState<string[]>([]);
-  const [editStartH,    setEditStartH]    = useState(9);
-  const [editStartM,    setEditStartM]    = useState(0);
-  const [editStartAp,   setEditStartAp]   = useState<'am'|'pm'>('am');
-  const [editEndH,      setEditEndH]      = useState(10);
-  const [editEndM,      setEditEndM]      = useState(0);
-  const [editEndAp,     setEditEndAp]     = useState<'am'|'pm'>('am');
+  const [mode, setMode] = useState<'view'|'edit'>('view');
+  const [editTitle,    setEditTitle]    = useState('');
+  const [editNotes,    setEditNotes]    = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editRepeat,   setEditRepeat]   = useState('Never');
+  const [editAlert,    setEditAlert]    = useState('None');
+  const [editAssignees,setEditAssignees]= useState<string[]>([]);
+  const [editStartH,   setEditStartH]   = useState(9);
+  const [editStartM,   setEditStartM]   = useState(0);
+  const [editStartAp,  setEditStartAp]  = useState<'am'|'pm'>('am');
+  const [editEndH,     setEditEndH]     = useState(10);
+  const [editEndM,     setEditEndM]     = useState(0);
+  const [editEndAp,    setEditEndAp]    = useState<'am'|'pm'>('am');
+  const [saving,       setSaving]       = useState(false);
+  const [deleting,     setDeleting]     = useState(false);
+  const [confirmDelete,setConfirmDelete]= useState(false);
 
   useEffect(() => {
     if (event) {
@@ -709,30 +849,27 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
       setEditAssignees(event.assignees || []);
       if (event.start_time) {
         const mins = isoToMinutes(event.start_time);
-        const h24 = Math.floor(mins / 60); const m = mins % 60;
-        setEditStartH(h24 === 0 ? 12 : h24 > 12 ? h24-12 : h24);
-        setEditStartM(m);
-        setEditStartAp(h24 >= 12 ? 'pm' : 'am');
+        const h24 = Math.floor(mins/60); const m = mins%60;
+        setEditStartH(h24===0?12:h24>12?h24-12:h24); setEditStartM(m);
+        setEditStartAp(h24>=12?'pm':'am');
       }
       if (event.end_time) {
         const mins = isoToMinutes(event.end_time);
-        const h24 = Math.floor(mins / 60); const m = mins % 60;
-        setEditEndH(h24 === 0 ? 12 : h24 > 12 ? h24-12 : h24);
-        setEditEndM(m);
-        setEditEndAp(h24 >= 12 ? 'pm' : 'am');
+        const h24 = Math.floor(mins/60); const m = mins%60;
+        setEditEndH(h24===0?12:h24>12?h24-12:h24); setEditEndM(m);
+        setEditEndAp(h24>=12?'pm':'am');
       }
     }
   }, [event?.id]);
 
   if (!event) return null;
 
-  const toH24 = (h: number, ap: 'am'|'pm') =>
-    ap === 'pm' ? (h===12 ? 12 : h+12) : (h===12 ? 0 : h);
+  const toH24 = (h:number, ap:'am'|'pm') => ap==='pm' ? (h===12?12:h+12) : (h===12?0:h);
 
   const saveEdit = async () => {
     setSaving(true);
     try {
-      const pad = (n: number) => String(n).padStart(2,'0');
+      const pad = (n:number) => String(n).padStart(2,'0');
       const sh24 = toH24(editStartH, editStartAp);
       const eh24 = toH24(editEndH, editEndAp);
       const dateStr = event.date || localDateStr();
@@ -783,7 +920,6 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
             }
           </View>
           <ScrollView contentContainerStyle={{ paddingBottom:48 }} keyboardShouldPersistTaps="handled">
-            {/* Tinted header */}
             <View style={{ backgroundColor:accent+'14', padding:20, paddingTop:14 }}>
               {mode==='view'
                 ? <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:INK, letterSpacing:-0.3 }}>{event.title}</Text>
@@ -814,18 +950,14 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
                   const loc  = parts.length > 1 ? parts[parts.length - 1] : '';
                   const note = parts[0] || '';
                   return (<>
-                    {loc ? <View style={s.detailRow}><Text style={s.detailIcon}>📍</Text><Text style={s.detailTxt}>{loc}</Text></View> : null}
+                    {loc  ? <View style={s.detailRow}><Text style={s.detailIcon}>📍</Text><Text style={s.detailTxt}>{loc}</Text></View> : null}
                     {note ? <View style={s.detailRow}><Text style={s.detailIcon}>📝</Text><Text style={s.detailTxt}>{note}</Text></View> : null}
                   </>);
                 })()}
                 <View style={{ padding:20, gap:10 }}>
                   {!confirmDelete
-                    ? <TouchableOpacity style={s.deleteBtn} onPress={() => setConfirmDelete(true)} activeOpacity={0.8}>
-                        <Text style={s.deleteBtnTxt}>Delete event</Text>
-                      </TouchableOpacity>
-                    : <TouchableOpacity style={[s.deleteBtn, s.deleteBtnConfirm]} onPress={doDelete} disabled={deleting} activeOpacity={0.8}>
-                        <Text style={s.deleteBtnTxt}>{deleting ? 'Deleting…' : 'Tap again to confirm delete'}</Text>
-                      </TouchableOpacity>
+                    ? <TouchableOpacity style={s.deleteBtn} onPress={() => setConfirmDelete(true)} activeOpacity={0.8}><Text style={s.deleteBtnTxt}>Delete event</Text></TouchableOpacity>
+                    : <TouchableOpacity style={[s.deleteBtn, s.deleteBtnConfirm]} onPress={doDelete} disabled={deleting} activeOpacity={0.8}><Text style={s.deleteBtnTxt}>{deleting ? 'Deleting…' : 'Tap again to confirm delete'}</Text></TouchableOpacity>
                   }
                 </View>
               </View>
@@ -854,28 +986,22 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
                   </View>
                 </View>
                 <View style={s.gcBlock}>
-                  <View style={{ flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingVertical:14, gap:10 }}>
-                    <Text style={{ fontSize:16, width:22, textAlign:'center' }}>📍</Text>
-                    <TextInput style={[s.gcSubInput, { flex:1, paddingHorizontal:0, paddingVertical:0 }]}
-                      value={editLocation} onChangeText={setEditLocation}
-                      placeholder="Location (optional)" placeholderTextColor={INK3}/>
-                  </View>
+                  <TextInput style={s.gcTitleInput} placeholder="Notes" placeholderTextColor={INK3}
+                    value={editNotes} onChangeText={setEditNotes} multiline/>
                   <View style={s.gcSep}/>
-                  <TextInput style={s.gcSubInput} value={editNotes} onChangeText={setEditNotes}
-                    placeholder="Notes" placeholderTextColor={INK3} multiline numberOfLines={3} textAlignVertical="top"/>
+                  <TextInput style={s.gcSubInput} placeholder="Location" placeholderTextColor={INK3}
+                    value={editLocation} onChangeText={setEditLocation}/>
                 </View>
-                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(10,10,10,0.5)' }}>Who is this for?</Text>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:INK, marginBottom:6 }}>People</Text>
                 {FAMILY_MEMBERS.map(m => {
                   const on = editAssignees.includes(m.id);
                   return (
-                    <TouchableOpacity key={m.id}
-                      style={[s.memberRow, on && { borderColor:m.color+'40', backgroundColor:m.color+'08' }]}
-                      onPress={() => setEditAssignees(prev => prev.includes(m.id) ? prev.filter(x=>x!==m.id) : [...prev, m.id])}
-                      activeOpacity={0.8}>
+                    <TouchableOpacity key={m.id} style={[s.memberRow, on && { borderColor:m.color, backgroundColor:m.color+'0A' }]}
+                      onPress={() => setEditAssignees(prev => on ? prev.filter(id=>id!==m.id) : [...prev,m.id])} activeOpacity={0.7}>
                       <View style={[s.memberDot, { backgroundColor:m.color }]}/>
                       <Text style={s.memberName}>{m.name}</Text>
                       <View style={[s.memberCheck, on && { backgroundColor:m.color, borderColor:m.color }]}>
-                        {on && <Text style={{ color:'#fff', fontSize:12, fontFamily:'Poppins_700Bold' }}>✓</Text>}
+                        {on && <Text style={{ color:'#fff', fontSize:12 }}>✓</Text>}
                       </View>
                     </TouchableOpacity>
                   );
@@ -889,124 +1015,54 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
   );
 }
 
-// ── Brief cache ────────────────────────────────────────────────────────────
-let cachedBriefText: string | null = null;
-let cachedBriefSub:  string | null = null;
-let cachedBriefSeed: string | null = null;
-let lastBriefTime:   number | null = null;
-
-// ── TOOLS & EXECUTOR ───────────────────────────────────────────────────────
-const DUMMY_FAMILY_ID_HOME = '00000000-0000-0000-0000-000000000001';
-
+// ── Tool execution ─────────────────────────────────────────────────────────
 const TOOLS = [
-  { name:'add_calendar_event',
-    description:'Add a single event to the family calendar. Use immediately when you have title + time.',
-    input_schema:{ type:'object', properties:{
-      title:      { type:'string', description:'Event title' },
-      start_time: { type:'string', description:'ISO 8601 local time e.g. 2026-03-26T09:00:00' },
-      end_time:   { type:'string', description:'ISO 8601 local end time' },
-      notes:      { type:'string' },
-      assignees:  { type:'array', items:{ type:'string' }, description:'Family member names to assign e.g. ["Anna","Rich"]. If not specified, defaults to Rich only. Use names: Anna, Rich, Poppy, Gab, Duke.' },
-    }, required:['title','start_time'] } },
-  { name:'update_calendar_event',
-    description:'Update/reschedule an existing event. Always use this instead of adding a new one when editing. IMPORTANT: If user specifies a new end time, always include new_end_time. If user only specifies start time, omit new_end_time to preserve duration.',
-    input_schema:{ type:'object', properties:{
-      search_title:   { type:'string', description:'Title to search for (partial match ok)' },
-      search_date:    { type:'string', description:'YYYY-MM-DD — use this to find the right occurrence when multiple exist (e.g. tomorrow)' },
-      new_title:      { type:'string' },
-      new_start_time: { type:'string', description:'ISO 8601 local e.g. 2026-03-26T13:00:00 — MUST include full date+time' },
-      new_end_time:   { type:'string', description:'ISO 8601 local — include this when user explicitly specifies an end time' },
-      new_date:       { type:'string', description:'YYYY-MM-DD — use when only changing the date, not the time' },
-      new_notes:      { type:'string' },
-      new_assignees:  { type:'array', items:{ type:'string' }, description:'Family member names to assign. Use names: Anna, Rich, Poppy, Gab, Duke. To ADD someone, include all current people plus the new one. To REMOVE someone, list only the people who should remain.' },
-    }, required:['search_title'] } },
-  { name:'delete_calendar_event',
-    description:'Delete a calendar event by title.',
-    input_schema:{ type:'object', properties:{
-      search_title:{ type:'string' },
-      date:        { type:'string', description:'YYYY-MM-DD to narrow to specific occurrence' },
-    }, required:['search_title'] } },
-  { name:'add_todo',
-    description:'Add a task or to-do item.',
-    input_schema:{ type:'object', properties:{
-      title:    { type:'string' },
-      priority: { type:'string', enum:['normal','urgent'] },
-      due_date: { type:'string', description:'YYYY-MM-DD' },
-      assignee: { type:'string' },
-    }, required:['title'] } },
-  { name:'add_shopping_item',
-    description:'Add an item to the shopping list.',
-    input_schema:{ type:'object', properties:{
-      name:     { type:'string' },
-      category: { type:'string', description:'Produce, Dairy, Meat, Pantry, Frozen, Bakery, Drinks, Household, Other' },
-      quantity: { type:'string' },
-    }, required:['name'] } },
+  { name:'add_calendar_event', description:'Add a new calendar event', input_schema:{ type:'object', properties:{ title:{type:'string'}, start_time:{type:'string',description:'ISO datetime local'}, end_time:{type:'string'}, notes:{type:'string'}, assignees:{type:'array',items:{type:'string'}} }, required:['title','start_time'] } },
+  { name:'update_calendar_event', description:'Update an existing event', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, search_date:{type:'string'}, new_title:{type:'string'}, new_start_time:{type:'string'}, new_end_time:{type:'string'}, new_date:{type:'string'}, new_notes:{type:'string'}, new_assignees:{type:'array',items:{type:'string'}} }, required:['search_title'] } },
+  { name:'delete_calendar_event', description:'Delete a calendar event', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, date:{type:'string'} }, required:['search_title'] } },
+  { name:'add_todo', description:'Add a todo item', input_schema:{ type:'object', properties:{ title:{type:'string'}, priority:{type:'string',enum:['low','normal','high','urgent']}, due_date:{type:'string'} }, required:['title'] } },
+  { name:'add_shopping_item', description:'Add item to shopping list', input_schema:{ type:'object', properties:{ name:{type:'string'}, category:{type:'string'}, quantity:{type:'string'} }, required:['name'] } },
 ];
 
 async function executeTool(name: string, input: any): Promise<string> {
   try {
     if (name === 'add_calendar_event') {
       const raw = (input.start_time || '').replace('Z','').split('+')[0];
-      // Robust date extraction — never let dateOnly be empty
       let dateOnly = raw.includes('T') ? raw.split('T')[0] : raw.slice(0,10);
       if (!dateOnly || dateOnly.length < 8) {
         const n = new Date();
         dateOnly = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
       }
       const localDt = raw.includes('T') ? raw : `${dateOnly}T09:00:00`;
-      // Simple end_time: start + 1 hour, no regex
       let endDt = localDt;
       if (input.end_time) {
         endDt = input.end_time.replace('Z','').split('+')[0];
       } else {
         try {
           const startMs = new Date(localDt).getTime();
-          const endMs = startMs + 60 * 60 * 1000;
-          const e = new Date(endMs);
-          const pad = (n: number) => String(n).padStart(2,'0');
+          const e = new Date(startMs + 60*60*1000);
+          const pad = (n:number) => String(n).padStart(2,'0');
           endDt = `${e.getFullYear()}-${pad(e.getMonth()+1)}-${pad(e.getDate())}T${pad(e.getHours())}:${pad(e.getMinutes())}:00`;
         } catch { endDt = localDt; }
       }
-      // Map family member names → IDs
-      const NAME_TO_ID: Record<string,string> = {
-        anna:'1', rich:'2', richard:'2', poppy:'3', gab:'4', gabriel:'4', duke:'5',
-      };
-      let assigneeIds: string[] = ['2']; // default: Rich
+      const NAME_TO_ID: Record<string,string> = { anna:'1', rich:'2', richard:'2', poppy:'3', gab:'4', gabriel:'4', duke:'5' };
+      let assigneeIds: string[] = ['2'];
       if (input.assignees && Array.isArray(input.assignees) && input.assignees.length > 0) {
-        const mapped = input.assignees
-          .map((n: string) => NAME_TO_ID[n.toLowerCase().trim()])
-          .filter(Boolean);
+        const mapped = input.assignees.map((n:string) => NAME_TO_ID[n.toLowerCase().trim()]).filter(Boolean);
         if (mapped.length > 0) assigneeIds = mapped;
       }
-      const row: any = {
-        family_id:  DUMMY_FAMILY_ID_HOME,
-        title:      input.title,
-        date:       dateOnly,
-        start_time: localDt,
-        end_time:   endDt,
-        notes:      input.notes || '',
-        timezone:   'Australia/Brisbane',
-        assignees:  assigneeIds,
-      };
+      const row: any = { family_id:DUMMY_FAMILY_ID_HOME, title:input.title, date:dateOnly, start_time:localDt, end_time:endDt, notes:input.notes||'', timezone:'Australia/Brisbane', assignees:assigneeIds };
       let { error } = await supabase.from('events').insert(row);
-      // If assignees column causes error, retry without it
-      if (error && (error.message?.includes('assignees') || error.code === '42703')) {
-        console.warn('[executeTool] assignees column issue, retrying without it');
-        const { assignees: _a, ...slim } = row;
+      if (error && (error.message?.includes('assignees') || error.code==='42703')) {
+        const { assignees:_a, ...slim } = row;
         const r2 = await supabase.from('events').insert(slim);
         error = r2.error;
       }
-      if (error) {
-        console.error('[executeTool] add_calendar_event FAILED:', JSON.stringify(error));
-        return `TOOL_FAILED: Couldn't save "${input.title}" — ${error.message}`;
-      }
+      if (error) return `TOOL_FAILED: Couldn't save "${input.title}" — ${error.message}`;
       return `✅ "${input.title}" added on ${dateOnly} at ${localDt.split('T')[1]?.slice(0,5) ?? 'the time you specified'}.`;
     }
     if (name === 'update_calendar_event') {
-      console.log('[DEBUG] update_calendar_event called with:', JSON.stringify(input));
-      let updateQuery = supabase.from('events').select('id,title,date,start_time,end_time,assignees')
-        .eq('family_id', DUMMY_FAMILY_ID_HOME)
-        .ilike('title', `%${input.search_title}%`);
+      let updateQuery = supabase.from('events').select('id,title,date,start_time,end_time,assignees').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`);
       if (input.search_date) updateQuery = (updateQuery as any).eq('date', input.search_date);
       const { data } = await (updateQuery as any).order('date').limit(1);
       if (!data || data.length === 0) return `Couldn't find an event matching "${input.search_title}".`;
@@ -1015,29 +1071,21 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (input.new_title)      u.title = input.new_title;
       if (input.new_notes)      u.notes = input.new_notes;
       if (input.new_assignees && Array.isArray(input.new_assignees)) {
-        const NAME_TO_ID: Record<string,string> = {
-          anna:'1', rich:'2', richard:'2', poppy:'3', gab:'4', gabriel:'4', duke:'5',
-        };
-        const mapped = input.new_assignees
-          .map((n: string) => NAME_TO_ID[n.toLowerCase().trim()])
-          .filter(Boolean);
+        const NAME_TO_ID: Record<string,string> = { anna:'1', rich:'2', richard:'2', poppy:'3', gab:'4', gabriel:'4', duke:'5' };
+        const mapped = input.new_assignees.map((n:string) => NAME_TO_ID[n.toLowerCase().trim()]).filter(Boolean);
         if (mapped.length > 0) {
-          // Merge with existing assignees — union of old + new, no duplicates
           const existing: string[] = Array.isArray(t.assignees) ? t.assignees : [];
-          const merged = Array.from(new Set([...existing, ...mapped]));
-          u.assignees = merged;
+          u.assignees = Array.from(new Set([...existing, ...mapped]));
         }
       }
       if (input.new_start_time) {
         u.start_time = input.new_start_time.replace('Z','').split('+')[0];
         u.date = u.start_time.split('T')[0];
         if (!input.new_end_time && t.start_time && t.end_time) {
-          const oldStart = new Date(t.start_time).getTime();
-          const oldEnd   = new Date(t.end_time).getTime();
-          const duration = oldEnd - oldStart;
+          const duration = new Date(t.end_time).getTime() - new Date(t.start_time).getTime();
           if (duration > 0) {
             const newEnd = new Date(new Date(u.start_time).getTime() + duration);
-            const pad = (n: number) => String(n).padStart(2,'0');
+            const pad = (n:number) => String(n).padStart(2,'0');
             u.end_time = `${newEnd.getFullYear()}-${pad(newEnd.getMonth()+1)}-${pad(newEnd.getDate())}T${pad(newEnd.getHours())}:${pad(newEnd.getMinutes())}:00`;
           }
         }
@@ -1048,19 +1096,15 @@ async function executeTool(name: string, input: any): Promise<string> {
         if (t.end_time)   u.end_time   = `${input.new_date}T${t.end_time.split('T')[1]||'10:00:00'}`;
       }
       if (input.new_end_time) u.end_time = input.new_end_time.replace('Z','').split('+')[0];
-      console.log('[DEBUG] update payload:', JSON.stringify(u), '— event id:', t.id);
-      // Guard: if nothing to update, tell Claude clearly
-      if (Object.keys(u).length === 0) {
-        return `TOOL_FAILED: No valid fields to update — Claude did not send new_assignees, new_title, new_start_time, new_date, new_end_time, or new_notes.`;
-      }
+      if (Object.keys(u).length === 0) return `TOOL_FAILED: No valid fields to update.`;
       let { error } = await supabase.from('events').update(u).eq('id', t.id);
-      if (error && (error.message?.includes('assignees') || error.code === '42703')) {
-        const { assignees: _a, ...slim } = u;
+      if (error && (error.message?.includes('assignees') || error.code==='42703')) {
+        const { assignees:_a, ...slim } = u;
         const r2 = await supabase.from('events').update(slim).eq('id', t.id);
         error = r2.error;
       }
-      if (error) { console.error('[executeTool] update error:', JSON.stringify(error)); throw error; }
-      const what = input.new_assignees ? `assignees updated to: ${input.new_assignees.join(', ')}` : input.new_title ? `renamed to "${input.new_title}"` : 'updated';
+      if (error) throw error;
+      const what = input.new_assignees ? `assignees updated` : input.new_title ? `renamed to "${input.new_title}"` : 'updated';
       return `✅ "${input.new_title || t.title}" — ${what}.`;
     }
     if (name === 'delete_calendar_event') {
@@ -1074,25 +1118,24 @@ async function executeTool(name: string, input: any): Promise<string> {
     if (name === 'add_todo') {
       const now = new Date();
       const { error } = await supabase.from('todos').insert({
-        family_id: DUMMY_FAMILY_ID_HOME, title: input.title,
-        priority: input.priority || 'normal', status: 'active',
-        due_date: input.due_date || null, created_at: now.toISOString(),
+        family_id:DUMMY_FAMILY_ID_HOME, title:input.title,
+        priority:input.priority||'normal', status:'active',
+        due_date:input.due_date||null, created_at:now.toISOString(),
       });
       if (error) throw error;
       return `✅ **${input.title}** added to your to-do list.`;
     }
     if (name === 'add_shopping_item') {
       const { error } = await supabase.from('shopping_items').insert({
-        family_id: DUMMY_FAMILY_ID_HOME, name: input.name,
-        category: input.category || 'Other', quantity: input.quantity || '',
-        checked: false, is_food: false,
+        family_id:DUMMY_FAMILY_ID_HOME, name:input.name,
+        category:input.category||'Other', quantity:input.quantity||'',
+        checked:false, is_food:false,
       });
       if (error) throw error;
       return `✅ **${input.name}** added to the shopping list.`;
     }
     return `Tool ${name} not yet implemented.`;
   } catch (e: any) {
-    console.error(`[executeTool] ${name} threw:`, e?.message);
     return `TOOL_FAILED: Something went wrong with ${name} — ${e?.message ?? 'unknown error'}`;
   }
 }
@@ -1101,12 +1144,379 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - USE TOOLS IMMEDIATELY when you have enough info. Never say "I'll add that" — just add it.
 - For "tomorrow" use tomorrow's actual date (today is provided in the system prompt).
 - update_calendar_event: use this to change time/date/assignees. NEVER delete and re-add.
-- When adding a person to an event, use new_assignees and include ALL people who should be on the event (existing + new). The executor merges automatically, but include everyone to be safe.
-- If a tool result starts with "TOOL_FAILED", tell the user honestly it didn't work and suggest they try again or add it manually. Never claim success if the tool failed.
-- If a tool call succeeds, confirm briefly ("Done — Anna's now on the gym session ✅").
+- If a tool result starts with "TOOL_FAILED", tell the user honestly it didn't work.
 - Zaeli CANNOT make phone calls or send messages autonomously.`;
 
-// ── Main component ─────────────────────────────────────────────────────────
+// ── Brief cache (module-level) ─────────────────────────────────────────────
+let lastBriefTime: number | null = null;
+let cachedBriefText: string | null = null;
+let cachedBriefSeed: string | null = null;
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── CARD COMPONENTS ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── CalendarCard ──────────────────────────────────────────────────────────
+function CalendarCard({
+  events, isEvening, onAdd, onFullCalendar, onEventPress,
+}: {
+  events: any[]; isEvening: boolean;
+  onAdd: () => void; onFullCalendar: () => void;
+  onEventPress: (ev: any) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const INITIAL_SHOW = 4;
+  const now = new Date();
+  const todayLabel = now.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+  const tomorrowDate = localDatePlusDays(1);
+  const tomorrowLabel = new Date(tomorrowDate+'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+  const eyeLabel = isEvening
+    ? `📅 Tomorrow · ${tomorrowLabel}`
+    : `📅 Today · ${todayLabel}`;
+
+  const shown = expanded ? events : events.slice(0, INITIAL_SHOW);
+  const overflow = events.length - INITIAL_SHOW;
+
+  function renderEventRow(ev: any, i: number) {
+    const members = (ev.assignees || []).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+    const dotColor = members.length > 0 ? members[0].color : 'rgba(255,255,255,0.45)';
+    return (
+      <TouchableOpacity key={ev.id || i} style={cardS.tRow} onPress={() => onEventPress(ev)} activeOpacity={0.7}>
+        <Text style={cardS.tTime} numberOfLines={1}>{fmtTime(ev.start_time)}</Text>
+        <View style={[cardS.tDot, { backgroundColor:dotColor }]}/>
+        <Text style={cardS.tEv} numberOfLines={1}>{ev.title} {getEventEmoji(ev.title)}</Text>
+        {members.length <= 2
+          ? members.map((m:any) => (
+              <View key={m.id} style={[cardS.tAv, { backgroundColor:m.color }]}>
+                <Text style={cardS.tAvTxt}>{m.name[0]}</Text>
+              </View>
+            ))
+          : <>
+              {members.slice(0,2).map((m:any) => (
+                <View key={m.id} style={[cardS.tAv, { backgroundColor:m.color }]}>
+                  <Text style={cardS.tAvTxt}>{m.name[0]}</Text>
+                </View>
+              ))}
+              <View style={[cardS.tAv, { backgroundColor:'rgba(255,255,255,0.2)' }]}>
+                <Text style={[cardS.tAvTxt, { fontSize:9 }]}>+{members.length - 2}</Text>
+              </View>
+            </>
+        }
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={cardS.cal}>
+      {/* Header */}
+      <View style={cardS.hdr}>
+        <Text style={cardS.eyeLt}>{eyeLabel}</Text>
+        <View style={cardS.hdrActions}>
+          <TouchableOpacity style={cardS.addBtnLt} onPress={onAdd} activeOpacity={0.75}>
+            <Text style={cardS.addBtnTxtLt}>+ Add</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onFullCalendar} activeOpacity={0.75}>
+            <Text style={cardS.seeAllLt}>Full →</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      {/* Event rows */}
+      {events.length === 0 ? (
+        <Text style={cardS.emptyLt}>Nothing on the calendar {isEvening ? 'tomorrow' : 'today'}</Text>
+      ) : (
+        <>
+          {shown.map((ev, i) => renderEventRow(ev, i))}
+          {!expanded && overflow > 0 && (
+            <TouchableOpacity style={cardS.tOverflow} onPress={() => setExpanded(true)} activeOpacity={0.7}>
+              <Text style={cardS.calOverflow}>{overflow} more ›</Text>
+            </TouchableOpacity>
+          )}
+          {expanded && events.length > INITIAL_SHOW && (
+            <TouchableOpacity style={cardS.tOverflow} onPress={() => setExpanded(false)} activeOpacity={0.7}>
+              <Text style={cardS.calOverflow}>Show less ∧</Text>
+            </TouchableOpacity>
+          )}
+        </>
+      )}
+    </View>
+  );
+}
+
+// ── WeatherCard ───────────────────────────────────────────────────────────
+function WeatherCard({ weather, isEvening }: { weather: WeatherData | null; isEvening: boolean }) {
+  const eyeLabel = isEvening ? 'Tomorrow' : 'Weather';
+  if (!weather) {
+    return (
+      <View style={[cardS.wx, { justifyContent:'center', alignItems:'center' }]}>
+        <Text style={cardS.eyeDk}>{eyeLabel}</Text>
+        <TypingDots color="rgba(0,0,0,0.3)"/>
+      </View>
+    );
+  }
+  const wType = weatherType(weather.code);
+  const extra = weatherExtra(weather.code, weather.windspeed);
+  return (
+    <View style={cardS.wx}>
+      <Text style={cardS.eyeDkSm}>{eyeLabel}</Text>
+      <Text style={cardS.wxTemp}>{Math.round(weather.temp)}°</Text>
+      <Text style={cardS.wxCond}>{weatherCondition(weather.code)}</Text>
+      <View style={{ marginVertical:6 }}>
+        <WeatherIcon type={wType}/>
+      </View>
+      <Text style={cardS.wxExtra}>{extra}</Text>
+    </View>
+  );
+}
+
+// ── ShoppingCard ──────────────────────────────────────────────────────────
+function ShoppingCard({
+  items, count, onAdd, onFull,
+}: {
+  items: any[]; count: number; onAdd: () => void; onFull: () => void;
+}) {
+  const shown = items.filter((item:any) => item.checked !== true).slice(0, 3);
+  return (
+    <View style={cardS.shop}>
+      <View style={cardS.hdr}>
+        <Text style={cardS.eyeDk}>🛒 Shopping</Text>
+        <View style={cardS.hdrActions}>
+          <TouchableOpacity style={cardS.addBtnDk} onPress={onAdd} activeOpacity={0.75}>
+            <Text style={cardS.addBtnTxtDk}>+ Add</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onFull} activeOpacity={0.75}>
+            <Text style={cardS.seeAllDk}>Full →</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View style={{ flex:1 }}>
+        {shown.map((item:any, i:number) => (
+          <View key={item.id || i} style={cardS.shopItem}>
+            <View style={cardS.shopDot}/>
+            <Text style={cardS.shopTxt} numberOfLines={1}>{item.name || item.item}</Text>
+          </View>
+        ))}
+        {shown.length === 0 && <Text style={cardS.emptyDkSm}>List is clear</Text>}
+      </View>
+      <View style={cardS.shopFooter}>
+        <Text style={cardS.shopCountLbl}>items</Text>
+        <Text style={cardS.shopCount}>{count}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ── ActionsCard ───────────────────────────────────────────────────────────
+function ActionsCard({
+  todos, timeState, tomorrowMorningEvents, onAdd, onFull, onTick,
+}: {
+  todos: any[]; timeState: 'am' | 'pm' | 'evening';
+  tomorrowMorningEvents: any[];
+  onAdd: () => void; onFull: () => void;
+  onTick: (todo: any) => void;
+}) {
+  const isEvening = timeState === 'evening';
+  // Show all — ticked ones stay visible (greyed/struck)
+  const shownTodos = todos.slice(0, 5);
+  const activeCount = todos.filter(t => !t.done && t.status !== 'done').length;
+
+  return (
+    <View style={cardS.act}>
+      <View style={cardS.hdr}>
+        <Text style={cardS.eyeDk}>
+          {isEvening ? "🌙 Put out tonight" : "🎯 Today's actions"}
+        </Text>
+        <View style={cardS.hdrActions}>
+          {activeCount > 0 && (
+            <View style={cardS.actCount}>
+              <Text style={cardS.actCountTxt}>{activeCount}</Text>
+            </View>
+          )}
+          <TouchableOpacity style={cardS.addBtnDk} onPress={onAdd} activeOpacity={0.75}>
+            <Text style={cardS.addBtnTxtDk}>+ Add</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onFull} activeOpacity={0.75}>
+            <Text style={cardS.seeAllDk}>Full →</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {shownTodos.length === 0 ? (
+        <Text style={cardS.emptyDk}>Nothing pending — enjoy the day 🎉</Text>
+      ) : (
+        shownTodos.map((todo:any, i:number) => {
+          const isDone = todo.done === true || todo.status === 'done';
+          const dotColor = isDone ? 'rgba(0,0,0,0.12)' : todoPriorityColor(todo);
+          const badge = todoBadge(todo);
+          const memberIds: string[] = Array.isArray(todo.assigned_to) ? todo.assigned_to : todo.assigned_to ? [todo.assigned_to] : [];
+          const members = memberIds.map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+          return (
+            <View key={todo.id || i} style={[cardS.actRow, isDone && { opacity:0.45 }]}>
+              {/* Circle tick */}
+              <TouchableOpacity
+                style={[cardS.actChk, isDone && cardS.actChkDone]}
+                onPress={() => !isDone && onTick(todo)}
+                activeOpacity={0.7}
+                hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+              >
+                {isDone && <Text style={{ fontSize:10, color:'rgba(0,0,0,0.5)' }}>✓</Text>}
+              </TouchableOpacity>
+              <View style={[cardS.actDot, { backgroundColor:dotColor }]}/>
+              <Text style={[cardS.actTxt, isDone && { textDecorationLine:'line-through', color:'rgba(0,0,0,0.32)', fontFamily:'Poppins_400Regular' }]} numberOfLines={1}>{todo.title}</Text>
+              {members.slice(0,1).map((m:any) => (
+                <View key={m.id} style={[cardS.actWho, { backgroundColor:m.color }]}>
+                  <Text style={cardS.actWhoTxt}>{m.name[0]}</Text>
+                </View>
+              ))}
+              {badge && !isDone && (
+                <View style={[cardS.bdg,
+                  badge.style==='rem' && cardS.bdgRem,
+                  badge.style==='ovd' && cardS.bdgOvd,
+                  badge.style==='td'  && cardS.bdgTd,
+                ]}>
+                  <Text style={[cardS.bdgTxt,
+                    badge.style==='rem' && { color:'#CC2020' },
+                    badge.style==='ovd' && { color:'#B91C1C' },
+                    badge.style==='td'  && { color:'#6A4800' },
+                  ]}>{badge.label}</Text>
+                </View>
+              )}
+            </View>
+          );
+        })
+      )}
+
+      {/* Evening — tomorrow morning section */}
+      {isEvening && tomorrowMorningEvents.length > 0 && (
+        <>
+          <View style={cardS.actDivider}>
+            <View style={cardS.actDivLine}/>
+            <Text style={cardS.actDivLbl}>🌅 Tomorrow morning</Text>
+            <View style={cardS.actDivLine}/>
+          </View>
+          {tomorrowMorningEvents.slice(0, 3).map((ev:any, i:number) => {
+            const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+            const dotColor = members.length > 0 ? members[0].color : 'rgba(0,0,0,0.2)';
+            return (
+              <View key={ev.id || i} style={[cardS.actRow, { marginLeft:6 }]}>
+                <View style={[cardS.actDot, { backgroundColor:dotColor }]}/>
+                <Text style={[cardS.actTxt, { fontWeight:'500', color:'rgba(0,0,0,0.65)' }]} numberOfLines={1}>
+                  {ev.title}{fmtTime(ev.start_time) ? ` ${fmtTime(ev.start_time)}` : ''}
+                </Text>
+                {members.slice(0,1).map((m:any) => (
+                  <View key={m.id} style={[cardS.actWho, { backgroundColor:m.color }]}>
+                    <Text style={cardS.actWhoTxt}>{m.name[0]}</Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+        </>
+      )}
+    </View>
+  );
+}
+
+// ── DinnerCard ────────────────────────────────────────────────────────────
+function DinnerCard({
+  meals, timeState, onPlanMeals,
+}: {
+  meals: any[]; timeState: 'am' | 'pm' | 'evening'; onPlanMeals: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const today = localDateStr();
+  const tomorrow = localDatePlusDays(1);
+  const isEvening = timeState === 'evening';
+  const targetDate = isEvening ? tomorrow : today;
+  const eyeLabel = isEvening ? "🍽️ Tomorrow's dinner" : "🍽️ Tonight's dinner";
+
+  const tonightMeal = meals.find(m => m.day_key === targetDate || m.planned_date === targetDate);
+
+  // Build 7-day list from today
+  const sevenDays = Array.from({ length:7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const key = localDateStr(d);
+    const meal = meals.find(m => m.day_key === key || m.planned_date === key);
+    const isTonight = i === 0;
+    const dayAbbr = i === 0 ? 'Tonight' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-AU', { weekday:'short' });
+    return { key, meal, isTonight, dayAbbr };
+  });
+
+  const unplannedCount = sevenDays.filter(d => !d.meal).length;
+
+  return (
+    <View style={cardS.din}>
+      <View style={[cardS.hdr, { marginBottom:10 }]}>
+        <Text style={cardS.eyeDk}>{eyeLabel}</Text>
+        {expanded && (
+          <TouchableOpacity onPress={() => setExpanded(false)} activeOpacity={0.75}>
+            <Text style={cardS.seeAllDk}>Close ∧</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {tonightMeal ? (
+        <View style={cardS.dinRow}>
+          <Text style={cardS.dinIcon}>{getMealEmoji(tonightMeal.meal_name)}</Text>
+          <View style={{ flex:1 }}>
+            <Text style={cardS.dinName}>{tonightMeal.meal_name}</Text>
+            {tonightMeal.prep_mins > 0 && (
+              <Text style={cardS.dinSub}>{tonightMeal.prep_mins} min prep</Text>
+            )}
+          </View>
+          <View style={cardS.dinTick}><Text style={cardS.dinTickTxt}>✓ Planned</Text></View>
+        </View>
+      ) : (
+        <TouchableOpacity style={cardS.dinNudge} onPress={onPlanMeals} activeOpacity={0.75}>
+          <Text style={cardS.dinNudgeTxt}>Nothing planned {isEvening ? 'for tomorrow' : 'for tonight'} — Quick idea? 💡</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* 7-day expanded strip */}
+      {expanded && (
+        <View style={cardS.dinExpanded}>
+          {sevenDays.map(({ key, meal, isTonight, dayAbbr }) => (
+            <View key={key} style={cardS.dinDayRow}>
+              <Text style={[cardS.dinDayLbl, isTonight && { color:'#C84010', fontFamily:'Poppins_700Bold' }]}>{dayAbbr}</Text>
+              {meal ? (
+                <>
+                  <Text style={cardS.dinDayMeal} numberOfLines={1}>{getMealEmoji(meal.meal_name)} {meal.meal_name}</Text>
+                  <Text style={cardS.dinDayTick}>✓</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={cardS.dinDayBlank}>Nothing yet</Text>
+                  <Text style={cardS.dinDayWarn}>⚠</Text>
+                </>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Footer */}
+      <View style={cardS.dinFooter}>
+        {expanded
+          ? <Text style={cardS.dinFooterLbl}>{unplannedCount > 0 ? `${unplannedCount} nights unplanned` : 'Week looking good'}</Text>
+          : <Text style={cardS.dinFooterLbl}>Meal plan</Text>
+        }
+        {expanded ? (
+          <TouchableOpacity onPress={onPlanMeals} activeOpacity={0.75}>
+            <Text style={cardS.dinFooterTap}>Open meal planner ›</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => setExpanded(true)} activeOpacity={0.75}>
+            <Text style={cardS.dinFooterTap}>Next 7 days ›</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── MAIN COMPONENT ─────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
 export default function HomeScreen() {
   const router    = useRouter();
   const params    = useLocalSearchParams<{ autoMic?: string; seedMessage?: string; calendarScan?: string }>();
@@ -1114,14 +1524,20 @@ export default function HomeScreen() {
   const inputRef  = useRef<TextInput>(null);
   const now       = new Date();
   const h         = now.getHours();
-  const dateLabel = now.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+  const dateLabel = now.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' });
+
+  // Time state: am=5–12, pm=12–20, evening=20–5
+  const timeState: 'am' | 'pm' | 'evening' = h >= 5 && h < 12 ? 'am' : h >= 12 && h < 20 ? 'pm' : 'evening';
+
+  // ── Chat persistence ─────────────────────────────────────────────────────
+  const { messages: persistedMessages, setMessages: setPersistedMessages, loaded: chatLoaded } = useChatPersistence('home');
 
   const [menuOpen,        setMenuOpen]        = useState(false);
   const [messages,        setMessages]        = useState<Msg[]>([]);
   const [input,           setInput]           = useState('');
   const [loading,         setLoading]         = useState(false);
   const [isRecording,     setIsRecording]     = useState(false);
-  const [micTimer,        setMicTimer]        = useState(0); // seconds elapsed
+  const [micTimer,        setMicTimer]        = useState(0);
   const micTimerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
   const micOverlayAnim    = useRef(new Animated.Value(0)).current;
   const [showScrollBtn,   setShowScrollBtn]   = useState(false);
@@ -1134,53 +1550,158 @@ export default function HomeScreen() {
   const [keyboardOpen,    setKeyboardOpen]    = useState(false);
   const [liveCamera,      setLiveCamera]      = useState(false);
   const [placeholderIdx,  setPlaceholderIdx]  = useState(0);
-  const [selectedEvent,   setSelectedEvent]   = useState<any>(null); // for EventDetailModal
+  const [selectedEvent,   setSelectedEvent]   = useState<any>(null);
   const [screen,          setScreen]          = useState<'splash'|'entry'|'chat'>('splash');
   const [entryRecording,  setEntryRecording]  = useState(false);
   const [entryProcessing, setEntryProcessing] = useState(false);
 
+  // ── Card data state ──────────────────────────────────────────────────────
+  const [cardData, setCardData] = useState<CardData>({
+    todayEvents: [], tomorrowEvents: [], shopItems: [], shopCount: 0,
+    todos: [], meals: [], weather: null,
+  });
+  const [cardLoading, setCardLoading] = useState(true);
+
   const PLACEHOLDERS = ['Chat with Zaeli…', 'Or just speak…', 'Chat with Zaeli…', 'Ask anything…'];
 
-  const waveAnims = useRef(Array.from({ length: 13 }, () => new Animated.Value(0.3))).current;
-  const waveLoopRef        = useRef<Animated.CompositeAnimation | null>(null);
-  const scrollBtnAnim      = useRef(new Animated.Value(0)).current;
-  const pillsAnim          = useRef(new Animated.Value(1)).current;
-  const sheetAnim          = useRef(new Animated.Value(320)).current;
-  const splashOpacity      = useRef(new Animated.Value(1)).current;
-  const entryOpacity       = useRef(new Animated.Value(0)).current;
-  const chatOpacity        = useRef(new Animated.Value(0)).current;
-  const starScale          = useRef(new Animated.Value(0.4)).current;
-  const wordmarkOpacity    = useRef(new Animated.Value(0)).current;
-  const recordingRef       = useRef<Audio.Recording | null>(null);
-  const isAtBottom         = useRef(true);
-  const lastImageDesc      = useRef<string>('');
-  const lastSendRef        = useRef<string>('');
-  const handledScanRef     = useRef<string | null>(null);
+  const waveAnims        = useRef(Array.from({ length:13 }, () => new Animated.Value(0.3))).current;
+  const waveLoopRef      = useRef<Animated.CompositeAnimation | null>(null);
+  const scrollBtnAnim    = useRef(new Animated.Value(0)).current;
+  const pillsAnim        = useRef(new Animated.Value(1)).current;
+  const sheetAnim        = useRef(new Animated.Value(320)).current;
+  const splashOpacity    = useRef(new Animated.Value(1)).current;
+  const entryOpacity     = useRef(new Animated.Value(0)).current;
+  const chatOpacity      = useRef(new Animated.Value(0)).current;
+  const starScale        = useRef(new Animated.Value(0.4)).current;
+  const wordmarkOpacity  = useRef(new Animated.Value(0)).current;
+  const recordingRef     = useRef<Audio.Recording | null>(null);
+  const isAtBottom       = useRef(true);
+  const lastImageDesc    = useRef<string>('');
+  const lastSendRef      = useRef<string>('');
+  const handledScanRef   = useRef<string | null>(null);
 
   const FOCUS_CHIPS = [
-    { emoji: '📅', label: "What's on today",    sub: 'Calendar · schedule · reminders',  seed: "What's on today?" },
-    { emoji: '🛒', label: 'Shopping & meals',   sub: 'List · pantry · dinner tonight',   seed: 'Give me a shopping and meals update.' },
-    { emoji: '✅', label: 'What needs doing',   sub: 'Tasks · urgent · slipping',        seed: "What's most pressing right now?" },
-    { emoji: '👧', label: 'Kids & family',      sub: 'Jobs · homework · activities',     seed: 'How are the kids and family going?' },
-    { emoji: '🌅', label: "What's coming up",   sub: 'Week ahead · events · plan',       seed: "What's coming up this week?" },
+    { emoji:'📅', label:"What's on today",   sub:'Calendar · schedule · reminders', seed:"What's on today?" },
+    { emoji:'🛒', label:'Shopping & meals',  sub:'List · pantry · dinner tonight',  seed:'Give me a shopping and meals update.' },
+    { emoji:'✅', label:'What needs doing',  sub:'Tasks · urgent · slipping',       seed:"What's most pressing right now?" },
+    { emoji:'👧', label:'Kids & family',     sub:'Jobs · homework · activities',    seed:'How are the kids and family going?' },
+    { emoji:'🌅', label:"What's coming up",  sub:'Week ahead · events · plan',      seed:"What's coming up this week?" },
   ];
+
+  // ── Load card data ────────────────────────────────────────────────────────
+  const loadCardData = useCallback(async () => {
+    setCardLoading(true);
+    try {
+      const today    = localDateStr();
+      const tomorrow = localDatePlusDays(1);
+      const in7days  = localDatePlusDays(7);
+
+      const [
+        eventsRes,
+        shopRes,
+        shopCountRes,
+        todosRes,
+        mealsRes,
+      ] = await Promise.all([
+        supabase.from('events')
+          .select('id,title,date,start_time,end_time,notes,assignees,all_day')
+          .eq('family_id', FAMILY_ID)
+          .gte('date', today)
+          .lte('date', tomorrow)
+          .order('date').order('start_time').limit(30),
+        supabase.from('shopping_items')
+          .select('id,name,item,category,checked')
+          .eq('family_id', FAMILY_ID)
+          .limit(10),
+        supabase.from('shopping_items')
+          .select('*', { count:'exact', head:true })
+          .eq('family_id', FAMILY_ID)
+          .neq('checked', true),
+        supabase.from('todos')
+          .select('id,title,priority,status,done,due_date,assigned_to,reminder_type')
+          .eq('family_id', FAMILY_ID)
+          .or('status.eq.active,done.eq.false')
+          .order('created_at').limit(6),
+        supabase.from('meal_plans')
+          .select('id,meal_name,meal_type,planned_date,day_key,prep_mins,cook_ids')
+          .eq('family_id', FAMILY_ID)
+          .gte('planned_date', today)
+          .lte('planned_date', in7days)
+          .order('planned_date').limit(7),
+      ]);
+
+      // Filter events — no all-day, no midnight-anchored
+      const allEvents = (eventsRes.data ?? []).filter((e:any) => {
+        if (e.all_day) return false;
+        const st = e.start_time || '';
+        if (st.includes('T00:00:00') || st.includes(' 00:00:00')) return false;
+        return true;
+      });
+      const todayEvents    = allEvents.filter((e:any) => e.date === today);
+      const tomorrowEvents = allEvents.filter((e:any) => e.date === tomorrow);
+
+      // Fetch weather from Open-Meteo (free, no key)
+      let weatherData: WeatherData | null = null;
+      try {
+        const wxRes = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}&current=temperature_2m,weather_code,windspeed_10m&timezone=Australia%2FBrisbane`
+        );
+        const wxJson = await wxRes.json();
+        const curr = wxJson?.current;
+        if (curr) {
+          weatherData = {
+            temp:      curr.temperature_2m ?? 22,
+            code:      curr.weather_code ?? 0,
+            windspeed: curr.windspeed_10m ?? 0,
+            condition: weatherCondition(curr.weather_code ?? 0),
+          };
+        }
+      } catch { /* weather fails silently */ }
+
+      setCardData({
+        todayEvents,
+        tomorrowEvents,
+        shopItems:  shopRes.data ?? [],
+        shopCount:  shopCountRes.count ?? 0,
+        todos:      todosRes.data ?? [],
+        meals:      mealsRes.data ?? [],
+        weather:    weatherData,
+      });
+    } catch (e) {
+      console.error('[loadCardData] error:', e);
+    } finally {
+      setCardLoading(false);
+    }
+  }, []);
+
+  // ── Sync messages with persistence ────────────────────────────────────────
+  useEffect(() => {
+    if (chatLoaded) {
+      setMessages(persistedMessages);
+    }
+  }, [chatLoaded]);
+
+  useEffect(() => {
+    if (chatLoaded) {
+      setPersistedMessages(messages);
+    }
+  }, [messages, chatLoaded]);
 
   // ── Splash → Chat ─────────────────────────────────────────────────────────
   useEffect(() => {
-    Animated.spring(starScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8 }).start();
+    Animated.spring(starScale, { toValue:1, useNativeDriver:true, tension:60, friction:8 }).start();
+    setTimeout(() => Animated.timing(wordmarkOpacity, { toValue:1, duration:500, useNativeDriver:true }).start(), 250);
     setTimeout(() => {
-      Animated.timing(wordmarkOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-    }, 250);
-    setTimeout(() => {
-      Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true })
+      Animated.timing(splashOpacity, { toValue:0, duration:400, useNativeDriver:true })
         .start(() => { setScreen('chat'); chatOpacity.setValue(1); generateBrief(true); });
     }, 3000);
+    loadCardData();
   }, []);
 
   function enterChat(topic?: string) {
     Animated.parallel([
-      Animated.timing(entryOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-      Animated.timing(chatOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(entryOpacity, { toValue:0, duration:300, useNativeDriver:true }),
+      Animated.timing(chatOpacity,  { toValue:1, duration:400, useNativeDriver:true }),
     ]).start(() => { setScreen('chat'); generateBrief(true, topic); });
   }
 
@@ -1188,19 +1709,19 @@ export default function HomeScreen() {
   useEffect(() => {
     const show = Keyboard.addListener('keyboardWillShow', () => {
       setKeyboardOpen(true);
-      Animated.timing(pillsAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start();
+      Animated.timing(pillsAnim, { toValue:0, duration:180, useNativeDriver:true }).start();
     });
     const hide = Keyboard.addListener('keyboardWillHide', () => {
       setKeyboardOpen(false);
-      Animated.timing(pillsAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+      Animated.timing(pillsAnim, { toValue:1, duration:220, useNativeDriver:true }).start();
     });
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-  // ── Placeholder cycling ───────────────────────────────────────────────────
+  // ── Placeholder cycling ──────────────────────────────────────────────────
   useEffect(() => {
     if (input.length > 0 || isRecording) return;
-    const timer = setInterval(() => setPlaceholderIdx(i => (i + 1) % PLACEHOLDERS.length), 4000);
+    const timer = setInterval(() => setPlaceholderIdx(i => (i+1) % PLACEHOLDERS.length), 4000);
     return () => clearInterval(timer);
   }, [input, isRecording]);
 
@@ -1215,15 +1736,15 @@ export default function HomeScreen() {
     isAtBottom.current = atBottom;
     if (!atBottom && !showScrollBtn) {
       setShowScrollBtn(true);
-      Animated.timing(scrollBtnAnim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+      Animated.timing(scrollBtnAnim, { toValue:1, duration:180, useNativeDriver:true }).start();
     } else if (atBottom && showScrollBtn) {
-      Animated.timing(scrollBtnAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start(() => setShowScrollBtn(false));
+      Animated.timing(scrollBtnAnim, { toValue:0, duration:180, useNativeDriver:true }).start(() => setShowScrollBtn(false));
     }
   }
 
   // ── Message helpers ───────────────────────────────────────────────────────
   function addMsg(partial: Partial<Msg>): string {
-    const msg: Msg = { id: uid(), role: 'zaeli', text: '', ts: nowTs(), ...partial };
+    const msg: Msg = { id:uid(), role:'zaeli', text:'', ts:nowTs(), ...partial };
     setMessages(prev => [...prev, msg]);
     if (isAtBottom.current) scrollToEnd();
     return msg.id;
@@ -1233,16 +1754,80 @@ export default function HomeScreen() {
     if (isAtBottom.current) scrollToEnd();
   }
   function handleCopy(text: string) { Clipboard.setString(text); }
-  async function handleForward(text: string) { try { await Share.share({ message: text }); } catch {} }
+  async function handleForward(text: string) { try { await Share.share({ message:text }); } catch {} }
   function handleThumb(msgId: string, dir: 'up'|'down') {
-    setThumbs(prev => ({ ...prev, [msgId]: prev[msgId] === dir ? null : dir }));
+    setThumbs(prev => ({ ...prev, [msgId]: prev[msgId]===dir ? null : dir }));
+  }
+
+  // ── Circle tick on Actions card ──────────────────────────────────────────
+  async function handleTodoTick(todo: any) {
+    // 1. Optimistic local update — mark done immediately in cardData
+    setCardData(prev => ({
+      ...prev,
+      todos: prev.todos.map(t =>
+        t.id === todo.id ? { ...t, done: true, status: 'done' } : t
+      ),
+    }));
+
+    // 2. Write to Supabase
+    try {
+      await supabase.from('todos')
+        .update({ done: true, status: 'done', done_at: new Date().toISOString() })
+        .eq('id', todo.id);
+    } catch (e) {
+      // Roll back on failure
+      setCardData(prev => ({
+        ...prev,
+        todos: prev.todos.map(t =>
+          t.id === todo.id ? { ...t, done: false, status: 'active' } : t
+        ),
+      }));
+      return;
+    }
+
+    // 3. Zaeli quiet acknowledgement injected into chat thread
+    const remaining = cardData.todos.filter(t => t.id !== todo.id && !t.done && t.status !== 'done');
+    let ackText = '';
+    if (remaining.length === 0) {
+      ackText = `${todo.title} — done. Everything cleared. Enjoy the rest of the day.`;
+    } else if (remaining.length === 1) {
+      ackText = `${todo.title} — done. Just ${remaining[0].title} left.`;
+    } else {
+      ackText = `${todo.title} — done. ${remaining.length} still to go.`;
+    }
+
+    // Scroll down to show the acknowledgement
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+    addMsg({ role: 'zaeli', text: ackText, isLoading: false });
+  }
+
+  // ── + Add card handlers → seed Zaeli chat ────────────────────────────────
+  function handleCardAdd(context: 'calendar' | 'shopping' | 'actions') {
+    const prompts: Record<string, string> = {
+      calendar: "What would you like to add to the calendar?",
+      shopping: "What do you need to pick up?",
+      actions:  "What do you need to remember or do?",
+    };
+    const prompt = prompts[context];
+    // Scroll down to chat thread
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 100);
+    // Add Zaeli prompt inline
+    addMsg({ role:'zaeli', text:prompt, isLoading:false,
+      quickReplies: context === 'calendar'
+        ? ["Add event for today", "Add event for tomorrow", "Add something for the kids"]
+        : context === 'shopping'
+        ? ["Add milk", "Add from pantry", "Clear the list"]
+        : ["Add a reminder", "Add a task for today", "Cancel"],
+    });
+    // Focus input
+    setTimeout(() => inputRef.current?.focus(), 400);
   }
 
   // ── Build live context ────────────────────────────────────────────────────
   async function buildContext() {
     const td = localDateStr(now);
     const frame = h < 6 ? 'late night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night';
-    const timeStr = now.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' });
+    const timeStr = now.toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit' });
     try {
       const [
         { count: shopCount },
@@ -1255,40 +1840,23 @@ export default function HomeScreen() {
         supabase.from('shopping_items').select('name').eq('family_id',DUMMY_FAMILY_ID_HOME).eq('checked',false).limit(50),
         supabase.from('events').select('title,date,start_time').eq('family_id',DUMMY_FAMILY_ID_HOME).gte('date',td).lte('date', localDateStr(new Date(Date.now() + 7*24*60*60*1000))).order('date').order('start_time').limit(20),
         supabase.from('todos').select('*',{count:'exact',head:true}).eq('family_id',DUMMY_FAMILY_ID_HOME).eq('done',false),
-        supabase.from('meal_plans').select('meal_name,date').eq('family_id',DUMMY_FAMILY_ID_HOME).gte('date',td).limit(7),
+        supabase.from('meal_plans').select('meal_name,planned_date,day_key').eq('family_id',DUMMY_FAMILY_ID_HOME).gte('planned_date',td).limit(7),
       ]);
       const shopNames = shopItems?.map((i:any) => i.name).join(', ') || '';
-      const shopStr   = shopCount
-        ? `${shopCount} items — ${shopNames}${(shopCount??0) > 50 ? ` + ${(shopCount??0) - 50} more` : ''}`
-        : 'list is clear';
-      const evStr = events?.length
-        ? events.map((e:any) => `${e.title} (${naturalDate(e.date,td)}${e.start_time?' at '+fmtTime(e.start_time):''})`).join(', ')
-        : 'nothing on the calendar';
-      const mealToday = meals?.find((m:any)=>m.date===td)?.meal_name ?? null;
+      const shopStr   = shopCount ? `${shopCount} items — ${shopNames}` : 'list is clear';
+      const evStr     = events?.length ? events.map((e:any) => `${e.title} (${naturalDate(e.date,td)}${e.start_time?' at '+fmtTime(e.start_time):''})`).join(', ') : 'nothing on the calendar';
+      const mealToday = meals?.find((m:any) => m.planned_date===td || m.day_key===td)?.meal_name ?? null;
       const dinnerRule = h < 19
         ? mealToday ? `Dinner sorted — ${mealToday} tonight.` : "Dinner tonight isn't planned — mention warmly if relevant."
-        : h < 21 ? "Don't mention tonight's dinner — too late. Tomorrow's is fair game." : "Don't mention dinner.";
-
-      // Pre-compute next 7 days for tool-calling date accuracy
+        : "Don't mention dinner.";
       const nextDays: Record<string,string> = {};
       for (let i = 0; i <= 7; i++) {
         const d = new Date(now); d.setDate(d.getDate() + i);
-        const key = i === 0 ? 'today' : i === 1 ? 'tomorrow' : d.toLocaleDateString('en-AU',{weekday:'long'}).toLowerCase();
+        const key = i===0?'today':i===1?'tomorrow':d.toLocaleDateString('en-AU',{weekday:'long'}).toLowerCase();
         nextDays[key] = localDateStr(d);
       }
       const datesCtx = Object.entries(nextDays).map(([k,v]) => `${k} = ${v}`).join(', ');
-
-      const system = `You are Zaeli — a smart, warm, and quietly witty AI for a modern Australian family. You are confident, observant, and playful. You are a teammate, not just an assistant — when Rich's tired or crushing it, you're in it with him.
-
-PERSONALITY: A smart, capable, slightly mischievous best friend who is always one step ahead. Dry when the moment calls for it. Warm when it matters. Energetic and encouraging when Rich needs a boost. Occasionally surprising. Never try-hard, never corporate.
-
-POSITIVITY: Zaeli genuinely believes in this family and lets it show. Celebrate small wins, acknowledge hard days, notice effort. Make Rich feel good about his day, his family, himself.
-
-VOICE: Vary tone deliberately. Humour is subtle. Never the same rhythm twice.
-
-EMOJIS: Use 1–2 per message when the moment calls for it. Never decorative padding.
-
-BEHAVIOUR: Guide, suggest, and anticipate. Think ahead on Rich's behalf. Feel like a teammate alongside Rich, not a service.
+      const system = `You are Zaeli — a smart, warm, and quietly witty AI for a modern Australian family. Sharp, warm, genuinely enthusiastic. Finds the funny angle through delight, not detachment.
 
 FAMILY: Rich (logged in), Anna, Poppy (Yr6, age 12), Gab (Yr4, age 10, boy), Duke (Yr1, age 8, boy).
 
@@ -1300,23 +1868,27 @@ LIVE DATA:
 - To-dos: ${todoCount??0} open tasks
 - ${dinnerRule}
 
-CAPABILITIES: Add/update/delete calendar events, shopping items, todos DIRECTLY using tools — no confirmation needed, just do it. Today is ${td}. Never tell Rich to do it himself — you handle it immediately.
+CAPABILITIES: Add/update/delete calendar events, shopping items, todos DIRECTLY using tools. Today is ${td}. Never tell Rich to do it himself.
 
-FORMAT: 2–4 sentences by default. Always natural flowing prose. No bullet points, no lists, no asterisks, no markdown. Never start with "I". Never say "mate". Never say "Of course!", "Absolutely!", or any hollow affirmation. Never invent facts.`;
-      return { system, mealToday, shopCount: shopCount??0, shopStr, evStr, todoCount: todoCount??0, td };
+FORMAT: 2–4 sentences. Natural prose. No bullet points, no lists, no asterisks. Never start with "I". Never say "mate". Never say "Of course!" or any hollow affirmation.`;
+      return { system, mealToday, shopCount:shopCount??0, shopStr, evStr, todoCount:todoCount??0, td };
     } catch {
       const td = localDateStr(now);
-      return { system: `You are Zaeli — smart, warm, witty AI teammate for Rich's Australian family. Camaraderie, warmth, occasional dry wit. Prose only, no lists, no "mate". Today is ${td}.`, mealToday: null, shopCount:0, shopStr:'unknown', evStr:'nothing on calendar', todoCount:0, td };
+      return { system:`You are Zaeli — smart, warm, witty AI teammate for Rich's Australian family. Today is ${td}.`, mealToday:null, shopCount:0, shopStr:'unknown', evStr:'nothing on calendar', todoCount:0, td };
     }
   }
 
   // ── Generate brief ────────────────────────────────────────────────────────
   async function generateBrief(force = false, focusHint?: string) {
+    // Greeting guard — skip if messages already loaded from persistence
+    if (!force && messages.length > 0) return;
+    if (chatLoaded && messages.length > 0 && !force) return;
+
     const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
     if (!force && elapsed < 30*60*1000 && cachedBriefText) {
       const cached = JSON.parse(cachedBriefText);
       setBriefHero(cached.hero ?? '');
-      addMsg({ role:'zaeli', text: cached.detail, isBrief:true, isLoading:false, quickReplies: cached.replies });
+      addMsg({ role:'zaeli', text:cached.detail, isBrief:true, isLoading:false, quickReplies:cached.replies });
       setBriefReplies(cached.replies ?? []);
       setBriefSeed(cachedBriefSeed ?? '');
       return;
@@ -1326,52 +1898,34 @@ FORMAT: 2–4 sentences by default. Always natural flowing prose. No bullet poin
     try {
       const { system } = await buildContext();
       const isLate = h >= 21 || h < 6;
-      const focusInstruction = focusHint
-        ? `\nFOCUS: ${MEMBER_NAME} tapped "${focusHint}". Lead with that topic in both hero and detail.`
-        : '';
+      const focusInstruction = focusHint ? `\nFOCUS: Rich tapped "${focusHint}". Lead with that topic in both hero and detail.` : '';
       const briefSys = `${system}
 
 You are Zaeli, writing the opening home screen message for ${MEMBER_NAME}.
 
-PERSONA: Sharp, warm, genuinely enthusiastic about this family. You notice things others miss and find the funny angle through delight, not detachment. You celebrate small wins, spot the chaos before it arrives, and feel right in it with the family — never observing from a distance. Energy matches the moment: get-up-and-go in the morning, calm and settled at night. A touch of sass — through timing and observation, never forced, never at ${MEMBER_NAME}'s expense. Funny because you pay attention, not because you're trying to be clever.
+PERSONA: Sharp, warm, genuinely enthusiastic about this family. You notice things others miss and find the funny angle through delight, not detachment. You celebrate small wins, spot the chaos before it arrives, and feel right in it with the family. Energy matches the moment: get-up-and-go in the morning, calm and settled at night.
 
-BANNED WORDS AND PHRASES: "queued up", "locked in", "tidy", "sorted", "lined up", "on the cards", "all set", "looking good", "in play", "absolutely", "of course", "great question", "stacked neatly", "ambush", "sprint", "chaos", "suitcase", "packing into", "chaotic". Never start with "I". Never say "mate".
+BANNED WORDS AND PHRASES: "queued up", "locked in", "tidy", "sorted", "lined up", "on the cards", "all set", "looking good", "in play", "absolutely", "of course", "great question", "stacked neatly", "ambush", "sprint", "chaos", "suitcase", "chaotic". Never start with "I". Never say "mate".
 
-BE PROPORTIONATE: Zaeli's observations must match reality. A normal day with gaps is a good thing — find warmth in it, do not manufacture drama. A light day should feel light. A busy day should feel energising, not catastrophic. Never invent stress or tension that is not in the data.
-
-STRUCTURE — two distinct parts:
+STRUCTURE:
 
 PART 1 — HERO (2 sentences, DM Serif italic feel):
-- Sentence 1: Find the ANGLE or IRONY in the day's data. Not a list. Not a summary. The observation that makes ${MEMBER_NAME} see the day differently. Sharp, specific, alive.
-- Sentence 2: One warm personal detail that grounds it — a name, a time, a specific thing. Makes it feel like Zaeli actually knows this family.
-- Wrap 2-3 key words in [square brackets] — these render italic for emphasis
-- Max 30 words total across both sentences
-- Must make ${MEMBER_NAME} smile or feel genuinely seen — if it wouldn't, rewrite it
-- No greeting prefix. Straight into it.
-${isLate ? '- It is late — calm and settled energy only. One warm observation about tomorrow. Nothing about tonight.' : ''}
+- Wrap 2-3 key words in [square brackets] — these render italic
+- Max 30 words total. Must make ${MEMBER_NAME} smile or feel genuinely seen.
+- No greeting prefix.
+${isLate ? '- It is late — calm and settled energy only.' : ''}
 
 PART 2 — DETAIL (2 sentences max, Poppins prose):
-- Sentence 1: One warm layer that adds colour or a Zaeli moment — a short natural observation with light humour or insight. Never a repeat of the hero.
-- Sentence 2: A confident specific offer. Zaeli leads — she does not ask permission. Use "Say the word and I'll..." or "I can..." — never "Want me to...?" or bare open questions.
-- Plain text only. No asterisks, no lists, no markdown.
+- One warm layer that adds colour. Never a repeat of the hero.
+- A confident specific offer. "Say the word and I'll..." or "I can..."
 
-PROACTIVE AWARENESS (use this to make the hero and detail feel alive):
-Scan the next 7 days of calendar data and look for:
-- Things 2-3 days away that need prep — dinner plans, early starts, packed bags, school events
-- First-occurrence or unusual events — school photos, excursions, medical appointments
-- Conflicts or tight turnarounds worth flagging — two things back to back, a busy day after a late night
-- Anything that would catch the family off guard if they hadn't thought about it yet
-Weave ONE of these observations naturally into the hero or detail if relevant. Never list them all — pick the single most useful thing. If nothing jumps out, ignore this instruction.
+CHIPS — exactly 3, sound like things ${MEMBER_NAME} would actually say out loud:
+- Natural speech, 3-6 words, no punctuation, no emoji.
+
 ${focusInstruction}
 
-CHIPS — exactly 3, sound like things ${MEMBER_NAME} would actually say out loud, not navigation labels:
-- Natural speech: "How bad is tomorrow really?" not "Check tomorrow"
-- Natural speech: "Anything I'm missing?" not "View calendar"
-- Natural speech: "What needs doing tonight?" not "Show to-dos"
-- 3-6 words, no punctuation, no emoji
-
-Return ONLY valid JSON (no markdown, no backticks):
-{"hero":"[2 sentence hero]","detail":"[2 sentence detail]","replies":["chip 1","chip 2","chip 3"],"seed":"natural Zaeli follow-up response to the first chip, in full Zaeli voice"}`;
+Return ONLY valid JSON:
+{"hero":"[2 sentence hero]","detail":"[2 sentence detail]","replies":["chip 1","chip 2","chip 3"],"seed":"natural Zaeli follow-up response to the first chip"}`;
 
       const raw    = await callGPT(briefSys, [{ role:'user', content:'Generate now.' }], 600, 'home_brief');
       const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
@@ -1382,64 +1936,47 @@ Return ONLY valid JSON (no markdown, no backticks):
       cachedBriefText = JSON.stringify({ hero, detail, replies });
       cachedBriefSeed = seed;
       setBriefHero(hero);
-      updateMsg(loadId, { text: detail, isLoading: false, quickReplies: replies });
+      updateMsg(loadId, { text:detail, isLoading:false, quickReplies:replies });
       setBriefReplies(replies);
       setBriefSeed(seed);
-      // Scroll to top so greeting + hero are visible on load
-      setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: false }), 120);
+      setTimeout(() => scrollRef.current?.scrollTo({ y:0, animated:false }), 120);
     } catch (e) {
       console.error('Brief error:', e);
-      const fallbackReplies = ["What's on today", "Check the list", "All good"];
       setBriefHero(`${dateLabel}.`);
-      updateMsg(loadId, { text: `Ready when you are, ${MEMBER_NAME}.`, isLoading: false, quickReplies: fallbackReplies });
-      setBriefReplies(fallbackReplies);
+      updateMsg(loadId, { text:`Ready when you are, ${MEMBER_NAME}.`, isLoading:false, quickReplies:["What's on today", "Check the list", "All good"] });
     }
   }
 
-  // ── Refresh calendar events on focus (zero API cost) ─────────────────────
-  // Called when returning from Calendar channel or after saving in EventDetailModal.
-  // Re-fetches the Supabase rows for any events already shown in the chat thread
-  // and patches messages state in-place — no GPT call, no visible flicker.
+  // ── Refresh calendar events ────────────────────────────────────────────────
   const refreshCalendarEvents = useCallback(async () => {
     setMessages(prev => {
-      // Find messages that have inline calendar events
-      const hasCal = prev.some(m => m.inlineData?.type === 'calendar' && (m.inlineData.items?.length ?? 0) > 0);
-      if (!hasCal) return prev; // nothing to refresh
-      // Collect all event IDs across all calendar messages
-      const allIds = prev
-        .flatMap(m => m.inlineData?.type === 'calendar' ? (m.inlineData.items ?? []) : [])
-        .map((e: any) => e.id)
-        .filter(Boolean);
+      const hasCal = prev.some(m => m.inlineData?.type==='calendar' && (m.inlineData.items?.length??0)>0);
+      if (!hasCal) return prev;
+      const allIds = prev.flatMap(m => m.inlineData?.type==='calendar' ? (m.inlineData.items??[]) : []).map((e:any) => e.id).filter(Boolean);
       if (allIds.length === 0) return prev;
-      // Fire async fetch — update state once done
-      supabase
-        .from('events')
-        .select('id, title, date, start_time, end_time, notes, assignees, all_day')
-        .in('id', allIds)
+      supabase.from('events').select('id,title,date,start_time,end_time,notes,assignees,all_day').in('id', allIds)
         .then(({ data }) => {
           if (!data || data.length === 0) return;
-          const byId: Record<string, any> = {};
-          data.forEach((e: any) => { byId[e.id] = e; });
+          const byId: Record<string,any> = {};
+          data.forEach((e:any) => { byId[e.id] = e; });
           setMessages(current => current.map(m => {
-            if (m.inlineData?.type !== 'calendar' || !m.inlineData.items || m.inlineData.items.length === 0) return m;
-            const updated = m.inlineData.items.map((e: any) => byId[e.id] ?? e);
-            // Remove any events that were deleted (not returned by Supabase)
-            const filtered = updated.filter((e: any) => byId[e.id]);
-            return {
-              ...m,
-              inlineData: {
-                ...m.inlineData,
-                items: filtered.length > 0 ? filtered : undefined,
-              },
-            };
+            if (m.inlineData?.type!=='calendar' || !m.inlineData.items || m.inlineData.items.length===0) return m;
+            const updated = m.inlineData.items.map((e:any) => byId[e.id] ?? e);
+            const filtered = updated.filter((e:any) => byId[e.id]);
+            return { ...m, inlineData:{ ...m.inlineData, items:filtered.length>0?filtered:undefined } };
           }));
-        })
-        .catch(() => {}); // silent fail — stale data is acceptable
-      return prev; // return prev immediately, state patched async above
+        }).catch(() => {});
+      return prev;
     });
-  }, []);
+    // Also refresh card data
+    loadCardData();
+  }, [loadCardData]);
 
+  // ── useFocusEffect ────────────────────────────────────────────────────────
   useFocusEffect(useCallback(() => {
+    // Refresh card data every time we come back to Home
+    loadCardData();
+
     if (params.autoMic === 'true') {
       const t = setTimeout(() => { startRecording(); }, 800);
       return () => clearTimeout(t);
@@ -1450,8 +1987,7 @@ Return ONLY valid JSON (no markdown, no backticks):
         handledScanRef.current = imgUri;
         setPendingCalendarImage(null);
         const t = setTimeout(() => {
-          setScreen('chat');
-          chatOpacity.setValue(1); entryOpacity.setValue(0);
+          setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
           setLoading(false);
           setTimeout(() => { send('Please help add this to the calendar.', imgUri); }, 200);
         }, 500);
@@ -1461,40 +1997,38 @@ Return ONLY valid JSON (no markdown, no backticks):
     if (params.seedMessage) {
       const msg = params.seedMessage as string;
       const t = setTimeout(() => {
-        const uMsg: Msg = { id: uid(), role:'user', text: msg, ts: nowTs() };
+        const uMsg: Msg = { id:uid(), role:'user', text:msg, ts:nowTs() };
         setMessages(prev => [...prev, uMsg]);
-        setScreen('chat');
-        chatOpacity.setValue(1); entryOpacity.setValue(0);
+        setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
         const replyId = uid();
-        setMessages(prev => [...prev, { id: replyId, role:'zaeli', text:'', isLoading:true, ts: nowTs() }]);
-        const sysPrompt = `You are Zaeli, warm Australian family assistant. You CAN add events to the calendar using tools. Rich said: "${msg}". Reply in 1 sentence — ask what you need to take action. Give 3 short quick reply chips. Return ONLY JSON: {"main":"...","replies":["...","...","..."]}`;
-        callGPT(sysPrompt, [{ role:'user', content: msg }], 200, 'calendar_context')
+        setMessages(prev => [...prev, { id:replyId, role:'zaeli', text:'', isLoading:true, ts:nowTs() }]);
+        const sysPrompt = `You are Zaeli, warm Australian family assistant. Rich said: "${msg}". Reply in 1 sentence. Give 3 short quick reply chips. Return ONLY JSON: {"main":"...","replies":["...","...","..."]}`;
+        callGPT(sysPrompt, [{ role:'user', content:msg }], 200, 'calendar_context')
           .then(raw => {
             try {
               const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
-              updateMsg(replyId, { text: parsed.main ?? raw, isLoading: false, quickReplies: parsed.replies });
-            } catch { updateMsg(replyId, { text: raw, isLoading: false }); }
+              updateMsg(replyId, { text:parsed.main??raw, isLoading:false, quickReplies:parsed.replies });
+            } catch { updateMsg(replyId, { text:raw, isLoading:false }); }
           })
-          .catch(() => updateMsg(replyId, { text: "I'm here — what would you like to add?", isLoading: false }));
+          .catch(() => updateMsg(replyId, { text:"Ready — what would you like to add?", isLoading:false }));
       }, 400);
       return () => clearTimeout(t);
     }
     if (screen !== 'chat') return;
     const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
-    if (elapsed > 30 * 60 * 1000 && messages.length > 0) {
+    if (elapsed > 30*60*1000 && messages.length > 0) {
       setMessages([]);
       lastImageDesc.current = '';
       splashOpacity.setValue(1); entryOpacity.setValue(0); chatOpacity.setValue(0);
       starScale.setValue(0.4); wordmarkOpacity.setValue(0);
       setScreen('splash');
-      Animated.spring(starScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8 }).start();
-      setTimeout(() => Animated.timing(wordmarkOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start(), 250);
+      Animated.spring(starScale, { toValue:1, useNativeDriver:true, tension:60, friction:8 }).start();
+      setTimeout(() => Animated.timing(wordmarkOpacity, { toValue:1, duration:500, useNativeDriver:true }).start(), 250);
       setTimeout(() => {
-        Animated.timing(splashOpacity, { toValue: 0, duration: 400, useNativeDriver: true })
+        Animated.timing(splashOpacity, { toValue:0, duration:400, useNativeDriver:true })
           .start(() => { setScreen('chat'); chatOpacity.setValue(1); generateBrief(true); });
       }, 3000);
     } else {
-      // Silently refresh any inline calendar events shown in the thread
       refreshCalendarEvents();
     }
   }, [params.autoMic, params.seedMessage]));
@@ -1506,41 +2040,41 @@ Return ONLY valid JSON (no markdown, no backticks):
     const text = (overrideText ?? input).trim();
     const imageUri = overrideImage || pendingImage || undefined;
     if ((!text && !imageUri) || loading) return;
-    const sendKey = `${text}|${imageUri || ''}|${Date.now().toString().slice(0,-3)}`;
+    const sendKey = `${text}|${imageUri||''}|${Date.now().toString().slice(0,-3)}`;
     if (lastSendRef.current === sendKey) return;
     lastSendRef.current = sendKey;
-    const uMsg: Msg = { id: uid(), role: 'user', text: text || '', imageUri, ts: nowTs() };
+    const uMsg: Msg = { id:uid(), role:'user', text:text||'', imageUri, ts:nowTs() };
     const history = [...messages, uMsg];
     setMessages(history); setInput(''); setPendingImage(null);
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 100);
     const replyId = addMsg({ role:'zaeli', text:'', isLoading:true });
     setLoading(true);
     try {
       const { system, td } = await buildContext();
 
-      // ── Read image upfront ──────────────────────────────────────────────
+      // Read image
       let imageBase64 = '';
       let imageMimeType = 'image/jpeg';
       if (imageUri) {
         try {
           const ext = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
           const mimeMap: Record<string,string> = { jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', heic:'image/jpeg', heif:'image/jpeg' };
-          imageBase64 = await FileSystem.readAsStringAsync(imageUri, { encoding: 'base64' as any });
+          imageBase64 = await FileSystem.readAsStringAsync(imageUri, { encoding:'base64' as any });
           imageMimeType = mimeMap[ext] || 'image/jpeg';
         } catch(e) { console.error('[send] Image read FAILED:', e); }
       }
 
-      // ── Vision describe ────────────────────────────────────────────────
+      // Vision describe
       let imageDescription = '';
       if (imageUri && imageBase64) {
         try {
           const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
           const descRes = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: { 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
-            body: JSON.stringify({
-              model: 'claude-sonnet-4-20250514', max_tokens: 300,
-              messages: [{ role:'user', content:[
+            method:'POST',
+            headers:{ 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
+            body:JSON.stringify({
+              model:'claude-sonnet-4-20250514', max_tokens:300,
+              messages:[{ role:'user', content:[
                 { type:'image', source:{ type:'base64', media_type:imageMimeType, data:imageBase64 } },
                 { type:'text', text:'Describe this image in 2 sentences. Focus on any text, dates, times, or event names visible.' },
               ]}],
@@ -1549,7 +2083,7 @@ Return ONLY valid JSON (no markdown, no backticks):
           const descJson = await descRes.json();
           imageDescription = descJson?.content?.[0]?.text || '';
           lastImageDesc.current = imageDescription;
-          logVision(descJson?.usage?.input_tokens ?? 0, descJson?.usage?.output_tokens ?? 0);
+          logVision(descJson?.usage?.input_tokens??0, descJson?.usage?.output_tokens??0);
         } catch(e) { console.log('Vision describe failed:', e); }
       } else if (lastImageDesc.current) {
         imageDescription = lastImageDesc.current;
@@ -1557,34 +2091,25 @@ Return ONLY valid JSON (no markdown, no backticks):
 
       const imgCtx = imageDescription ? `\nIMAGE CONTEXT: ${imageDescription}` : '';
 
-      // ── Calendar query path ────────────────────────────────────────────
+      // Calendar query path
       const calQuery = isCalendarQuery(text);
-      console.log('[DEBUG] isCalendarQuery:', calQuery, '| text:', text);
       if (!imageUri && text && calQuery) {
-
-        // Full calendar requests → show today/tomorrow inline + portal pill to Calendar
         if (isFullCalendarRequest(text)) {
           const { eventsRaw } = await fetchEventsForContext(2);
-          const td = localDateStr();
-          const tomorrow = localDateStr(new Date(Date.now() + 86400000));
-          const todayEvents = eventsRaw.filter((e: any) => e.date === td);
-          const tomorrowEvents = eventsRaw.filter((e: any) => e.date === tomorrow);
-          const showEvents = todayEvents.length > 0 ? todayEvents : tomorrowEvents;
-          const dayLabel = todayEvents.length > 0 ? 'today' : 'tomorrow';
+          const today2 = localDateStr();
+          const tomorrow2 = localDateStr(new Date(Date.now() + 86400000));
+          const todayEvents2 = eventsRaw.filter((e:any) => e.date === today2);
+          const tomorrowEvents2 = eventsRaw.filter((e:any) => e.date === tomorrow2);
+          const showEvents = todayEvents2.length > 0 ? todayEvents2 : tomorrowEvents2;
+          const dayLabel2 = todayEvents2.length > 0 ? 'today' : 'tomorrow';
           const intro = showEvents.length > 0
-            ? `Here's what's on ${dayLabel} — tap any event for details, or head to Calendar for the full picture.`
-            : `Nothing locked in for today or tomorrow. The Calendar channel has the full view.`;
+            ? `Here's what's on ${dayLabel2} — tap any event for details, or head to Calendar for the full picture.`
+            : `Nothing on for today or tomorrow. The Calendar channel has the full view.`;
           updateMsg(replyId, {
-            text: intro,
-            inlineData: {
-              type: 'calendar',
-              intro,
-              items: showEvents.slice(0, 5),
-              followUp: '',
-              showPortalPill: true,
-            },
-            quickReplies: ["What's on this week", 'Add an event', "What's coming up"],
-            isLoading: false,
+            text:intro,
+            inlineData:{ type:'calendar', intro, items:showEvents.slice(0,5), followUp:'', showPortalPill:true },
+            quickReplies:["What's on this week", 'Add an event', "What's coming up"],
+            isLoading:false,
           });
           setLoading(false);
           return;
@@ -1592,137 +2117,103 @@ Return ONLY valid JSON (no markdown, no backticks):
 
         const fetchDays = getEventFetchDays(text);
         const { eventsJson, eventsRaw } = await fetchEventsForContext(fetchDays);
-
         const calSys = `${system}${imgCtx}
 
 CALENDAR DATA (next ${fetchDays} days):
 ${eventsJson}
 
-The user is asking a calendar question. Respond with ONLY valid JSON (no markdown, no backticks):
-
-TIME-OF-DAY RULES (critical):
-- After 9pm: ONE short warm sentence in intro about tomorrow only. No analysis of tonight. followUp is empty string "". Calm and settled tone.
-- Before 9am: Lead with energy — what's first, what needs to be ready.
-- Otherwise: normal warm Zaeli voice.
-
-PERSONA: Sharp, warm, genuinely enthusiastic. Finds the funny angle through delight not detachment. Never dry or detached. Energy matches the moment.
-BANNED: "queued up", "locked in", "tidy", "sorted", "lined up", "all set". Never start with "I". Never say "mate".
-
-1. "intro": 1-2 sentences in Zaeli's voice. Find the angle or observation — not just a list of what's there. Specific, warm, alive.
-2. "events": Array of the most relevant event objects from CALENDAR DATA — copy id, title, date, start_time, end_time, notes, assignees exactly. Maximum 5 events. Most relevant to the query only.
-3. "followUp": 1 sentence only. A confident specific offer using "Say the word and I'll..." or "I can..." — never "Want me to...?". Empty string "" if after 9pm.
-4. "replies": Exactly 3 chips that sound like things a person would say out loud — not navigation labels:
-   - "How tight is the afternoon?" not "Check afternoon"
-   - "Anything clashing?" not "View clashes"
-   - "What can actually move?" not "Reschedule"
-   - Always 3-6 words, no punctuation.
-
-If NO matching events: set events to [] and write a warm Zaeli response in intro. followUp offers something specific.
-
-{"intro":"...","events":[...max 5 event objects...],"followUp":"...","replies":["chip 1","chip 2","chip 3"]}`;
-
-        const raw = await callGPT(calSys, [{ role:'user', content: text }], 2000, 'home_calendar');
+Answer the user's calendar question using the data above. Be warm and specific. Reference names and times.
+Return ONLY valid JSON: {"intro":"[1 sentence intro]","events":[{"id":"...","title":"...","date":"...","start_time":"...","end_time":"...","notes":"...","assignees":[...]}],"followUp":"[1 sentence follow-up or empty]","showCalendarPill":true,"replies":["action chip 1","action chip 2","action chip 3"]}
+Only include events directly relevant to the question. Max 5 events.`;
+        const raw = await callGPT(calSys, [{ role:'user', content:text }], 500, 'home_calendar');
         try {
           const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
-          const calEvents: any[] = (parsed.events ?? []).slice(0, 5).map((pe: any) => {
-            // Match parsed event to raw event data so we have full Supabase row
-            const match = eventsRaw.find((r: any) => r.id === pe.id);
-            return match ?? pe;
-          });
+          const eventIds: string[] = (parsed.events||[]).map((e:any) => e.id).filter(Boolean);
+          const richEvents = eventsRaw.filter((e:any) => eventIds.includes(e.id));
           updateMsg(replyId, {
-            text: parsed.intro ?? '',
-            inlineData: {
-              type: 'calendar',
-              intro: parsed.intro ?? '',
-              items: calEvents.length > 0 ? calEvents : undefined,
-              followUp: parsed.followUp ?? '',
-              showPortalPill: true,
-            },
-            quickReplies: parsed.replies ?? [],
-            isLoading: false,
+            text:parsed.intro||'',
+            inlineData:{ type:'calendar', intro:parsed.intro||'', items:richEvents, followUp:parsed.followUp||'', showPortalPill:!!parsed.showCalendarPill },
+            quickReplies:parsed.replies||[],
+            isLoading:false,
           });
         } catch {
-          // JSON parse failed — fall through to plain text
-          updateMsg(replyId, { text: raw, isLoading: false });
+          updateMsg(replyId, { text:raw, isLoading:false });
         }
         setLoading(false);
         return;
       }
 
-      // ── Standard tool-aware Anthropic call ────────────────────────────
-      const histMsgs = history.slice(-12).map(m => ({
-        role: m.role === 'zaeli' ? 'assistant' as const : 'user' as const,
-        content: m.imageUri
-          ? `[User shared a photo] ${m.text}`.trim()
-          : m.inlineData?.type === 'calendar' && m.inlineData.items && m.inlineData.items.length > 0
-            // For calendar messages, reconstruct context so Claude knows what events were shown
-            ? `${m.inlineData.intro || ''} [Events shown: ${m.inlineData.items.map((e: any) => `"${e.title}" on ${e.date} at ${e.start_time?.split('T')[1]?.slice(0,5) ?? ''} (assignees: ${JSON.stringify(e.assignees)})`).join(', ')}] ${m.inlineData.followUp || ''}`.trim()
-            : (m.text || '(message)'),
-      }));
+      // Action / tool-calling path
+      if (isActionQuery(text) || imageUri) {
+        const anthropicKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+        if (!anthropicKey) { updateMsg(replyId, { text:'No API key configured.', isLoading:false }); setLoading(false); return; }
 
-      const anthropicKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
-      const toolSys = system + imgCtx + '\n\n' + CAPABILITY_RULES;
-
-      const msgContent: any = imageUri && imageBase64
-        ? [
-            { type:'image', source:{ type:'base64', media_type:imageMimeType, data: imageBase64 }},
-            { type:'text', text: text || 'Please describe what you see.' }
-          ]
-        : text || '(message)';
-
-      const apiMessages = [
-        ...histMsgs.slice(0, -1).map(m => ({ role: m.role, content: m.content as string })),
-        { role: 'user' as const, content: msgContent },
-      ];
-
-      console.log('[DEBUG] Sending to Claude. Last 3 messages:', JSON.stringify(apiMessages.slice(-3)));
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json', 'x-api-key': anthropicKey, 'anthropic-version':'2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          system: toolSys,
-          tools: TOOLS,
-          messages: apiMessages,
-        }),
-      });
-      const data = await res.json();
-      console.log('[DEBUG] Claude stop_reason:', data.stop_reason, '| content types:', data.content?.map((b:any) => b.type).join(','));
-
-      // Log claude usage
-      const claudePt = data?.usage?.input_tokens ?? 0;
-      const claudeCt = data?.usage?.output_tokens ?? 0;
-      logApiCall({ family_id: FAMILY_ID, feature: 'home_chat', model: 'claude-sonnet-4-20250514', input_tokens: claudePt, output_tokens: claudeCt, cost_usd: (claudePt/1e6*CLAUDE_IN_PER_M)+(claudeCt/1e6*CLAUDE_OUT_PER_M) });
-
-      if (data.stop_reason === 'tool_use') {
-        const toolUses = data.content.filter((b: any) => b.type === 'tool_use');
-        const toolResults: string[] = [];
-        for (const tu of toolUses) {
-          const result = await executeTool(tu.name, tu.input);
-          toolResults.push(result);
-        }
-        const toolResultContent = toolUses.map((tu: any, i: number) => ({
-          type: 'tool_result', tool_use_id: tu.id, content: toolResults[i]
-        }));
-        const followUp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type':'application/json', 'x-api-key': anthropicKey, 'anthropic-version':'2023-06-01' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514', max_tokens: 300, system: toolSys, tools: TOOLS,
-            messages: [...apiMessages, { role:'assistant', content: data.content }, { role:'user', content: toolResultContent }],
-          }),
+        const toolSys = `${system}${imgCtx}\n\n${CAPABILITY_RULES}`;
+        const apiMessages: any[] = [];
+        history.slice(-6).forEach(m => {
+          if (m.role === 'user') {
+            if (m.imageUri && imageBase64 && m.id === uMsg.id) {
+              apiMessages.push({ role:'user', content:[
+                { type:'image', source:{ type:'base64', media_type:imageMimeType, data:imageBase64 } },
+                { type:'text', text:m.text || 'Please help with this image.' },
+              ]});
+            } else {
+              apiMessages.push({ role:'user', content:m.text || '(no text)' });
+            }
+          } else if (!m.isLoading && m.text) {
+            apiMessages.push({ role:'assistant', content:m.text });
+          }
         });
-        const followData = await followUp.json();
-        const followText = followData.content?.find((b: any) => b.type === 'text')?.text ?? toolResults.join('\n');
-        updateMsg(replyId, { text: followText, isLoading: false });
-      } else {
-        const reply = data.content?.find((b: any) => b.type === 'text')?.text ?? 'Something went wrong — try again?';
-        updateMsg(replyId, { text: reply, isLoading: false });
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json', 'x-api-key':anthropicKey, 'anthropic-version':'2023-06-01' },
+          body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:800, system:toolSys, tools:TOOLS, messages:apiMessages }),
+        });
+        const data = await response.json();
+        const inTok = data?.usage?.input_tokens ?? 0;
+        const outTok = data?.usage?.output_tokens ?? 0;
+        const claudeCost = (inTok/1_000_000*CLAUDE_IN_PER_M) + (outTok/1_000_000*CLAUDE_OUT_PER_M);
+        logApiCall({ family_id:FAMILY_ID, feature:'home_chat', model:'claude-sonnet-4-20250514', input_tokens:inTok, output_tokens:outTok, cost_usd:claudeCost });
+
+        const toolUses = (data.content||[]).filter((b:any) => b.type==='tool_use');
+        if (toolUses.length > 0) {
+          const toolResults: string[] = [];
+          for (const tu of toolUses) {
+            const result = await executeTool(tu.name, tu.input);
+            toolResults.push(result);
+          }
+          const toolResultContent = toolUses.map((tu:any, i:number) => ({
+            type:'tool_result', tool_use_id:tu.id, content:toolResults[i]
+          }));
+          const followUp = await fetch('https://api.anthropic.com/v1/messages', {
+            method:'POST',
+            headers:{ 'Content-Type':'application/json', 'x-api-key':anthropicKey, 'anthropic-version':'2023-06-01' },
+            body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:300, system:toolSys, tools:TOOLS, messages:[...apiMessages, { role:'assistant', content:data.content }, { role:'user', content:toolResultContent }] }),
+          });
+          const followData = await followUp.json();
+          const followText = followData.content?.find((b:any) => b.type==='text')?.text ?? toolResults.join('\n');
+          updateMsg(replyId, { text:followText, isLoading:false });
+          // Refresh card data after tool action — slight delay for Supabase consistency
+          setTimeout(loadCardData, 1200);
+        } else {
+          const reply = data.content?.find((b:any) => b.type==='text')?.text ?? 'Something went wrong — try again?';
+          updateMsg(replyId, { text:reply, isLoading:false });
+        }
+        setLoading(false);
+        return;
       }
+
+      // General chat path
+      const apiMsgs = history.slice(-8).map(m => ({
+        role: m.role==='user' ? 'user' : 'assistant',
+        content: m.text || '(no text)',
+      }));
+      const reply = await callGPT(system + imgCtx, apiMsgs, 400, 'home_chat');
+      updateMsg(replyId, { text:reply, isLoading:false });
     } catch (e) {
       console.error('send error:', e);
-      updateMsg(replyId, { text: "Something went wrong — try that again?", isLoading: false });
+      updateMsg(replyId, { text:"Something went wrong — try that again?", isLoading:false });
     } finally { setLoading(false); }
   }
 
@@ -1731,37 +2222,34 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
     try {
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) return;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      await Audio.setAudioModeAsync({ allowsRecordingIOS:true, playsInSilentModeIOS:true });
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       recordingRef.current = recording;
       setIsRecording(true);
       setMicTimer(0);
-      // Fade overlay in
-      Animated.timing(micOverlayAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
-      // Start timer
-      micTimerRef.current = setInterval(() => setMicTimer(t => t + 1), 1000);
+      Animated.timing(micOverlayAnim, { toValue:1, duration:220, useNativeDriver:true }).start();
+      micTimerRef.current = setInterval(() => setMicTimer(t => t+1), 1000);
     } catch (e) { console.error('startRecording:', e); }
   }
   async function stopRecording(cancel = false) {
     try {
       setIsRecording(false);
-      // Stop timer and fade overlay out
       if (micTimerRef.current) { clearInterval(micTimerRef.current); micTimerRef.current = null; }
-      Animated.timing(micOverlayAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start();
+      Animated.timing(micOverlayAnim, { toValue:0, duration:180, useNativeDriver:true }).start();
       if (!recordingRef.current) return;
       const status = await recordingRef.current.getStatusAsync();
       const durationSec = (status as any)?.durationMillis ? (status as any).durationMillis / 1000 : 10;
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
-      if (!uri || cancel) return; // cancel = discard recording
+      if (!uri || cancel) return;
       const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
       if (!key) return;
       logWhisper(durationSec);
       const form = new FormData();
       form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
       form.append('model', 'whisper-1');
-      const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body: form });
+      const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body:form });
       const data = await resp.json();
       const transcript = data?.text?.trim() ?? '';
       if (!transcript) return;
@@ -1784,7 +2272,7 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
     closeSheet(async () => {
       try {
         const { granted } = await ImagePicker.requestCameraPermissionsAsync(); if (!granted) return;
-        const r = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality:0.85 });
+        const r = await ImagePicker.launchCameraAsync({ mediaTypes:ImagePicker.MediaTypeOptions.Images, quality:0.85 });
         if (!r.canceled && r.assets?.[0]) setPendingImage(r.assets[0].uri);
       } catch {}
     });
@@ -1793,189 +2281,13 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
     closeSheet(async () => {
       try {
         const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync(); if (!granted) return;
-        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality:0.85 });
+        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes:ImagePicker.MediaTypeOptions.Images, quality:0.85 });
         if (!r.canceled && r.assets?.[0]) setPendingImage(r.assets[0].uri);
       } catch {}
     });
   }
 
-  // ── renderMessages ─────────────────────────────────────────────────────────
-  function renderMessages() {
-    return messages.map((msg, i) => {
-      // ── User bubble ──
-      if (msg.role === 'user') {
-        return (
-          <View key={msg.id} style={[s.userMsgWrap, { marginTop: 18 }]}>
-            {msg.isVoice && (
-              <View style={s.voiceLabel}>
-                <IcoMic color={T.ink3}/>
-                <Text style={[s.voiceLabelTxt, { color: T.ink3 }]}>Voice message</Text>
-              </View>
-            )}
-            {msg.imageUri && <Image source={{ uri: msg.imageUri }} style={s.msgImage} resizeMode="cover"/>}
-            {!!msg.text && (
-              <View style={[s.userBubble, { backgroundColor: T.userBubble }]}>
-                <Text style={[s.userMsgText, { color: T.userText }]}>{msg.text}</Text>
-              </View>
-            )}
-            <View style={s.userIconRow}>
-              <Text style={[s.msgTime, { color: T.ink3 }]}>{msg.ts}</Text>
-              <TouchableOpacity style={s.iconBtn} onPress={() => handleCopy(msg.text)} activeOpacity={0.6}><IcoCopy color={T.ink3}/></TouchableOpacity>
-              <TouchableOpacity style={s.iconBtn} onPress={() => handleForward(msg.text)} activeOpacity={0.6}><IcoForward color={T.ink3}/></TouchableOpacity>
-            </View>
-          </View>
-        );
-      }
-
-      // ── Zaeli message ──
-      const prevMsg = i > 0 ? messages[i - 1] : null;
-      const showEyebrow = !prevMsg || prevMsg.role === 'user';
-      const thumbState = thumbs[msg.id] || null;
-
-      // Check if this is a calendar inline render message
-      // Also true when showPortalPill is set — so the block renders even with no events
-      const hasCalendarEvents = !msg.isLoading && msg.inlineData?.type === 'calendar' && ((msg.inlineData.items?.length ?? 0) > 0 || !!msg.inlineData.showPortalPill);
-
-      // Clean text for paragraph render
-      const cleanText = msg.text ? msg.text.replace(/\[([^\]]+)\]/g, '$1') : '';
-      const paragraphs = cleanText
-        ? cleanText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean)
-        : [];
-
-      // For calendar messages: intro text is in inlineData.intro, followUp in inlineData.followUp
-      // msg.text may also contain intro for plain text fallback
-      const introText = msg.inlineData?.intro ?? '';
-      const followUpText = msg.inlineData?.followUp ?? '';
-      const introParagraphs = introText
-        ? introText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean)
-        : [];
-      const followUpParagraphs = followUpText
-        ? followUpText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean)
-        : [];
-
-      return (
-        <View key={msg.id} style={[s.zaeliMsgWrap, !showEyebrow && { marginTop: 6 }]}>
-          {showEyebrow ? (
-            <View style={s.zEyebrow}>
-              <View style={[s.zStar, { backgroundColor: T.zaeliAi }]}>
-                <Svg width="9" height="9" viewBox="0 0 16 16" fill="white"><Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/></Svg>
-              </View>
-              <Text style={[s.zName, { color: T.zaeliAi }]}>Zaeli</Text>
-              <Text style={[s.zTs, { color: T.ink3 }]}>{msg.ts}</Text>
-            </View>
-          ) : (
-            <Text style={[s.zTsOnly, { color: T.ink3 }]}>{msg.ts}</Text>
-          )}
-
-          {/* Loading dots */}
-          {msg.isLoading ? (
-            <TypingDots color={HOME_AI}/>
-          ) : hasCalendarEvents ? (
-            /* ── CALENDAR INLINE RENDER ── */
-            <View>
-              {/* Intro text */}
-              {introParagraphs.map((para, pi) => (
-                <Text key={pi} style={[s.zaeliMsgText, { color: T.ink }, pi < introParagraphs.length - 1 && { marginBottom: 10 }]}>
-                  {para}
-                </Text>
-              ))}
-
-              {/* Event cards */}
-              {(msg.inlineData!.items?.length ?? 0) > 0 && (
-                <View style={s.calCardsWrap}>
-                  {msg.inlineData!.items!.map((ev: any) => (
-                    <EventCard
-                      key={ev.id ?? ev.title}
-                      ev={ev}
-                      onPress={() => setSelectedEvent(ev)}
-                    />
-                  ))}
-                </View>
-              )}
-
-              {/* Portal pill — open Calendar channel */}
-              {msg.inlineData?.type === 'calendar' && msg.inlineData.showPortalPill === true && (
-                <TouchableOpacity
-                  style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: CAL_BG, borderRadius:14, paddingVertical:13, paddingHorizontal:16, marginTop:10 }}
-                  onPress={() => router.navigate('/(tabs)/calendar')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A' }}>Open Calendar</Text>
-                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#0A0A0A' }}>{'→'}</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Follow-up text */}
-              {followUpParagraphs.map((para, pi) => (
-                <Text key={pi} style={[s.zaeliMsgText, { color: T.ink, marginTop: pi === 0 ? 10 : 0 }, pi < followUpParagraphs.length - 1 && { marginBottom: 10 }]}>
-                  {para}
-                </Text>
-              ))}
-
-              {/* Quick reply chips — conversation continuations only */}
-              {!msg.isLoading && (msg.quickReplies ?? []).length > 0 && (
-                <View style={s.quickRepliesWrap}>
-                  <View style={s.qrChips}>
-                    {(msg.quickReplies ?? []).map((chip, ci) => (
-                      <TouchableOpacity
-                        key={ci}
-                        style={[s.qrChip, { borderColor:'rgba(10,10,10,0.18)' }]}
-                        onPress={() => handleQuickReply(chip)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={s.qrChipTxt}>{chip}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-          ) : (
-            /* ── Standard text render ── */
-            <View>
-              {paragraphs.map((para, pi) => (
-                <Text key={pi} style={[s.zaeliMsgText, { color: T.ink }, pi < paragraphs.length - 1 && { marginBottom: 10 }]}>
-                  {para}
-                </Text>
-              ))}
-            </View>
-          )}
-
-          {/* Quick reply chips — non-calendar, non-brief messages only */}
-          {!msg.isLoading && !hasCalendarEvents && !msg.isBrief && (msg.quickReplies ?? []).length > 0 && (
-            <View style={s.quickRepliesWrap}>
-              <View style={s.qrChips}>
-                {(msg.quickReplies ?? []).map((chip, ci) => (
-                  <TouchableOpacity
-                    key={ci}
-                    style={[s.qrChip, { borderColor:'rgba(10,10,10,0.18)' }]}
-                    onPress={() => handleQuickReply(chip)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={s.qrChipTxt}>{chip}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Icon row — non-brief completed messages only */}
-          {!msg.isLoading && !msg.isBrief && (
-            <View style={s.zaeliIconRow}>
-              <Text style={[s.msgTime, { color: T.ink3, marginRight: 6 }]}>{msg.ts}</Text>
-              <TouchableOpacity style={s.iconBtn} activeOpacity={0.6}><IcoPlay color={T.ink3}/></TouchableOpacity>
-              <TouchableOpacity style={s.iconBtn} onPress={() => handleCopy(msg.text)} activeOpacity={0.6}><IcoCopy color={T.ink3}/></TouchableOpacity>
-              <TouchableOpacity style={s.iconBtn} onPress={() => handleForward(msg.text)} activeOpacity={0.6}><IcoForward color={T.ink3}/></TouchableOpacity>
-              <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'up')} activeOpacity={0.6}><IcoThumbUp color={thumbState==='up' ? HOME_AI : T.ink3}/></TouchableOpacity>
-              <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'down')} activeOpacity={0.6}><IcoThumbDown color={thumbState==='down' ? T.ink2 : T.ink3}/></TouchableOpacity>
-            </View>
-          )}
-        </View>
-      );
-    });
-  }
-
-  // ── Entry handlers ────────────────────────────────────────────────────────
+  // ── Entry handlers ─────────────────────────────────────────────────────────
   const greeting = h < 12 ? 'Morning' : h < 17 ? 'Hey' : h < 21 ? 'Evening' : 'Hey';
   const greetingSub = h < 12 ? 'How can I help you today?'
     : h < 17 ? 'How can I help you this afternoon?'
@@ -1986,15 +2298,15 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
     try {
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) return;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      await Audio.setAudioModeAsync({ allowsRecordingIOS:true, playsInSilentModeIOS:true });
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       recordingRef.current = recording;
       setEntryRecording(true);
       const loops = waveAnims.map((anim, i) =>
         Animated.loop(Animated.sequence([
           Animated.delay(i * 60),
-          Animated.timing(anim, { toValue: 1, duration: 400 + (i % 4) * 80, useNativeDriver: true }),
-          Animated.timing(anim, { toValue: 0.15, duration: 400 + (i % 3) * 80, useNativeDriver: true }),
+          Animated.timing(anim, { toValue:1, duration:400+(i%4)*80, useNativeDriver:true }),
+          Animated.timing(anim, { toValue:0.15, duration:400+(i%3)*80, useNativeDriver:true }),
         ]))
       );
       waveLoopRef.current = Animated.parallel(loops);
@@ -2020,7 +2332,7 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
       const form = new FormData();
       form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
       form.append('model', 'whisper-1');
-      const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body: form });
+      const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body:form });
       const data = await resp.json();
       const transcript = data?.text?.trim() ?? '';
       _finishEntry(transcript);
@@ -2029,32 +2341,213 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
 
   function _finishEntry(transcript?: string) {
     Animated.parallel([
-      Animated.timing(entryOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-      Animated.timing(chatOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(entryOpacity, { toValue:0, duration:300, useNativeDriver:true }),
+      Animated.timing(chatOpacity,  { toValue:1, duration:400, useNativeDriver:true }),
     ]).start(() => {
       setEntryRecording(false); setEntryProcessing(false); setScreen('chat');
       if (transcript) {
         setTimeout(() => {
-          const voiceMsg: Msg = { id: uid(), role:'user', text: transcript, isVoice: true, ts: nowTs() };
+          const voiceMsg: Msg = { id:uid(), role:'user', text:transcript, isVoice:true, ts:nowTs() };
           setMessages([voiceMsg]);
           isAtBottom.current = true;
           const replyId = uid();
-          setMessages(prev => [...prev, { id: replyId, role:'zaeli', text:'', isLoading:true, ts: nowTs() }]);
+          setMessages(prev => [...prev, { id:replyId, role:'zaeli', text:'', isLoading:true, ts:nowTs() }]);
           setLoading(true);
           buildContext().then(({ system }) => {
-            const histMsgs = [{ role: 'user' as const, content: transcript }];
-            callGPT(system, histMsgs, 500)
-              .then(reply => {
-                setMessages(prev => prev.map(m => m.id === replyId ? { ...m, text: reply, isLoading: false } : m));
-              })
-              .catch(() => {
-                setMessages(prev => prev.map(m => m.id === replyId ? { ...m, text: "Something went wrong — try that again?", isLoading: false } : m));
-              })
+            callGPT(system, [{ role:'user', content:transcript }], 500)
+              .then(reply => { setMessages(prev => prev.map(m => m.id===replyId ? { ...m, text:reply, isLoading:false } : m)); })
+              .catch(() => { setMessages(prev => prev.map(m => m.id===replyId ? { ...m, text:"Something went wrong — try that again?", isLoading:false } : m)); })
               .finally(() => setLoading(false));
           });
         }, 100);
       } else { generateBrief(true); }
     });
+  }
+
+  // ── renderMessages ─────────────────────────────────────────────────────────
+  function renderMessages() {
+    return messages.map((msg, i) => {
+      if (msg.role === 'user') {
+        return (
+          <View key={msg.id} style={[s.userMsgWrap, { marginTop:18 }]}>
+            {msg.isVoice && (
+              <View style={s.voiceLabel}>
+                <IcoMic color={T.ink3}/>
+                <Text style={[s.voiceLabelTxt, { color:T.ink3 }]}>Voice message</Text>
+              </View>
+            )}
+            {msg.imageUri && <Image source={{ uri:msg.imageUri }} style={s.msgImage} resizeMode="cover"/>}
+            {!!msg.text && (
+              <View style={[s.userBubble, { backgroundColor:T.userBubble }]}>
+                <Text style={[s.userMsgText, { color:T.userText }]}>{msg.text}</Text>
+              </View>
+            )}
+            <View style={s.userIconRow}>
+              <Text style={[s.msgTime, { color:T.ink3 }]}>{msg.ts}</Text>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleCopy(msg.text)} activeOpacity={0.6}><IcoCopy color={T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleForward(msg.text)} activeOpacity={0.6}><IcoForward color={T.ink3}/></TouchableOpacity>
+            </View>
+          </View>
+        );
+      }
+
+      const prevMsg = i > 0 ? messages[i-1] : null;
+      const showEyebrow = !prevMsg || prevMsg.role === 'user';
+      const thumbState = thumbs[msg.id] || null;
+      const hasCalendarEvents = !msg.isLoading && msg.inlineData?.type==='calendar' && ((msg.inlineData.items?.length??0)>0 || !!msg.inlineData.showPortalPill);
+      const cleanText = msg.text ? msg.text.replace(/\[([^\]]+)\]/g, '$1') : '';
+      const paragraphs = cleanText ? cleanText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean) : [];
+      const introText = msg.inlineData?.intro ?? '';
+      const followUpText = msg.inlineData?.followUp ?? '';
+      const introParagraphs = introText ? introText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean) : [];
+      const followUpParagraphs = followUpText ? followUpText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean) : [];
+
+      return (
+        <View key={msg.id} style={[s.zaeliMsgWrap, !showEyebrow && { marginTop:6 }]}>
+          {showEyebrow ? (
+            <View style={s.zEyebrow}>
+              <View style={[s.zStar, { backgroundColor:HOME_AI }]}>
+                <Svg width="9" height="9" viewBox="0 0 16 16" fill={INK}><Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/></Svg>
+              </View>
+              <Text style={[s.zName, { color:INK }]}>Zaeli</Text>
+              <Text style={[s.zTs, { color:T.ink3 }]}>{msg.ts}</Text>
+            </View>
+          ) : (
+            <Text style={[s.zTsOnly, { color:T.ink3 }]}>{msg.ts}</Text>
+          )}
+
+          {msg.isLoading ? (
+            <TypingDots color={HOME_AI}/>
+          ) : hasCalendarEvents ? (
+            <>
+              {introParagraphs.map((p, pi) => (
+                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom:8 }]}>{p}</Text>
+              ))}
+              <View style={s.calCardsWrap}>
+                {(msg.inlineData!.items || []).map((ev:any) => (
+                  <EventCard key={ev.id} ev={ev} onPress={() => setSelectedEvent(ev)}/>
+                ))}
+              </View>
+              {followUpParagraphs.map((p, pi) => (
+                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginTop:8 }]}>{p}</Text>
+              ))}
+              {msg.inlineData!.showPortalPill && (
+                <View style={s.quickRepliesWrap}>
+                  <View style={s.qrChips}>
+                    <TouchableOpacity style={s.calPortalChip} onPress={() => router.navigate('/(tabs)/calendar')} activeOpacity={0.75}>
+                      <Text style={s.calPortalChipTxt}>Open Calendar →</Text>
+                    </TouchableOpacity>
+                    {(msg.quickReplies||[]).map((chip, ci) => (
+                      <TouchableOpacity key={ci} style={[s.qrChip, { borderColor:'rgba(10,10,10,0.18)' }]} onPress={() => handleQuickReply(chip)} activeOpacity={0.7}>
+                        <Text style={s.qrChipTxt}>{chip}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+            </>
+          ) : msg.isBrief ? (
+            <>
+              {paragraphs.map((p, pi) => (
+                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom:8 }]}>{p}</Text>
+              ))}
+            </>
+          ) : (
+            <>
+              {paragraphs.map((p, pi) => (
+                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom:8 }]}>{p}</Text>
+              ))}
+            </>
+          )}
+
+          {!msg.isLoading && !hasCalendarEvents && !msg.isBrief && (msg.quickReplies??[]).length > 0 && (
+            <View style={s.quickRepliesWrap}>
+              <View style={s.qrChips}>
+                {(msg.quickReplies??[]).map((chip, ci) => (
+                  <TouchableOpacity key={ci} style={[s.qrChip, { borderColor:'rgba(10,10,10,0.18)' }]} onPress={() => handleQuickReply(chip)} activeOpacity={0.7}>
+                    <Text style={s.qrChipTxt}>{chip}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {!msg.isLoading && !msg.isBrief && (
+            <View style={s.zaeliIconRow}>
+              <TouchableOpacity style={s.iconBtn} activeOpacity={0.6}><IcoPlay color={T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleCopy(msg.text)} activeOpacity={0.6}><IcoCopy color={T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleForward(msg.text)} activeOpacity={0.6}><IcoForward color={T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'up')} activeOpacity={0.6}><IcoThumbUp color={thumbState==='up' ? HOME_AI : T.ink3}/></TouchableOpacity>
+              <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'down')} activeOpacity={0.6}><IcoThumbDown color={thumbState==='down' ? T.ink2 : T.ink3}/></TouchableOpacity>
+            </View>
+          )}
+        </View>
+      );
+    });
+  }
+
+  // ── Card order by time state ──────────────────────────────────────────────
+  const isEvening = timeState === 'evening';
+  const calEvents = isEvening ? cardData.tomorrowEvents : cardData.todayEvents;
+
+  // Tomorrow morning events = tomorrow events before 10am
+  const tomorrowMorningEvents = cardData.tomorrowEvents.filter(e => {
+    const st = e.start_time || '';
+    const timePart = st.includes('T') ? st.split('T')[1] : '';
+    if (!timePart) return false;
+    const hr = parseInt(timePart.split(':')[0], 10);
+    return hr < 10;
+  });
+
+  // ── Render card stack ─────────────────────────────────────────────────────
+  function renderCardStack() {
+    const calCard = (
+      <CalendarCard
+        key="cal"
+        events={calEvents}
+        isEvening={isEvening}
+        onAdd={() => handleCardAdd('calendar')}
+        onFullCalendar={() => router.navigate('/(tabs)/calendar')}
+        onEventPress={ev => setSelectedEvent(ev)}
+      />
+    );
+    const wxShopRow = (
+      <View key="wx-shop" style={{ flexDirection:'row', gap:10 }}>
+        <WeatherCard weather={cardData.weather} isEvening={isEvening}/>
+        <ShoppingCard
+          items={cardData.shopItems}
+          count={cardData.shopCount}
+          onAdd={() => handleCardAdd('shopping')}
+          onFull={() => router.navigate('/(tabs)/shopping')}
+        />
+      </View>
+    );
+    const actCard = (
+      <ActionsCard
+        key="act"
+        todos={cardData.todos}
+        timeState={timeState}
+        tomorrowMorningEvents={tomorrowMorningEvents}
+        onAdd={() => handleCardAdd('actions')}
+        onFull={() => router.navigate('/(tabs)/todos')}
+        onTick={handleTodoTick}
+      />
+    );
+    const dinCard = (
+      <DinnerCard
+        key="din"
+        meals={cardData.meals}
+        timeState={timeState}
+        onPlanMeals={() => router.navigate('/(tabs)/mealplanner')}
+      />
+    );
+
+    // AM: Calendar → Weather+Shopping → Actions → Dinner
+    // PM: Dinner → Calendar → Actions → Weather+Shopping
+    // Evening: Calendar(tomorrow) → Actions → Weather+Shopping → Dinner(tomorrow)
+    if (timeState === 'am') return [calCard, wxShopRow, actCard, dinCard];
+    if (timeState === 'pm') return [dinCard, calCard, actCard, wxShopRow];
+    return [calCard, actCard, wxShopRow, dinCard]; // evening
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -2063,7 +2556,6 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
       <ExpoStatusBar style={T.statusBar} animated/>
       <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)}/>
 
-      {/* EventDetailModal — renders on top of everything */}
       <EventDetailModal
         event={selectedEvent}
         onClose={() => setSelectedEvent(null)}
@@ -2073,19 +2565,19 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
 
       {/* ── SPLASH ── */}
       {screen !== 'chat' && (
-        <Animated.View style={[s.splashWrap, { opacity: splashOpacity, zIndex: screen === 'splash' ? 20 : 10 }]} pointerEvents={screen === 'splash' ? 'auto' : 'none'}>
+        <Animated.View style={[s.splashWrap, { opacity:splashOpacity, zIndex:screen==='splash'?20:10 }]} pointerEvents={screen==='splash'?'auto':'none'}>
           <SafeAreaView style={{ flex:1, alignItems:'center', justifyContent:'center' }} edges={['top']}>
             <View style={s.splashOrb1}/>
             <View style={s.splashOrb2}/>
-            <Animated.View style={{ opacity: wordmarkOpacity, alignItems:'center', gap:10 }}>
-              <Text style={s.splashGreeting}>{h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'}, {MEMBER_NAME} 👋</Text>
+            <Animated.View style={{ opacity:wordmarkOpacity, alignItems:'center', gap:10 }}>
+              <Text style={s.splashGreeting}>{h<12?'Good morning':h<17?'Good afternoon':'Good evening'}, {MEMBER_NAME} 👋</Text>
             </Animated.View>
-            <Animated.View style={[{ transform:[{ scale: starScale }], alignItems:'center', marginTop:8 }]}>
+            <Animated.View style={[{ transform:[{ scale:starScale }], alignItems:'center', marginTop:8 }]}>
               <Text style={s.splashWordmark}>
                 z<Text style={{ color:'#FAC8A8' }}>a</Text>el<Text style={{ color:'#FAC8A8' }}>i</Text>
               </Text>
             </Animated.View>
-            <Animated.View style={{ opacity: wordmarkOpacity, alignItems:'center', gap:20, marginTop:16 }}>
+            <Animated.View style={{ opacity:wordmarkOpacity, alignItems:'center', gap:20, marginTop:16 }}>
               <Text style={s.splashTagline}>LESS CHAOS. MORE FAMILY.</Text>
               <View style={s.splashDots}><TypingDots color="#FAC8A8"/></View>
             </Animated.View>
@@ -2095,7 +2587,7 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
 
       {/* ── ENTRY ── */}
       {screen !== 'chat' && (
-        <Animated.View style={[s.entryWrap, { opacity: entryOpacity, zIndex: screen === 'entry' ? 20 : 5 }]} pointerEvents={screen === 'entry' ? 'auto' : 'none'}>
+        <Animated.View style={[s.entryWrap, { opacity:entryOpacity, zIndex:screen==='entry'?20:5 }]} pointerEvents={screen==='entry'?'auto':'none'}>
           <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={['top','bottom']}>
             <View style={s.splashOrb1}/>
             <View style={s.entryOrb2}/>
@@ -2112,12 +2604,12 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
                 </View>
                 <View style={s.entryWaveWrap}>
                   {waveAnims.map((anim, i) => (
-                    <Animated.View key={i} style={[s.entryWaveBar, { transform:[{ scaleY: anim }] }]}/>
+                    <Animated.View key={i} style={[s.entryWaveBar, { transform:[{ scaleY:anim }] }]}/>
                   ))}
                 </View>
                 {!entryProcessing && (
                   <Text style={s.entryStopHint}>
-                    <Text style={{ color:'#fff', fontFamily:'Poppins_600SemiBold' }}>Tap the mic</Text>{' '}when you're done.
+                    <Text style={{ color:'#fff', fontFamily:'Poppins_600SemiBold' }}>Tap the mic</Text>{" "}when you're done.
                   </Text>
                 )}
                 {entryProcessing && <View style={{ flexDirection:'row', gap:6, alignItems:'center' }}><TypingDots color="rgba(255,255,255,0.6)"/></View>}
@@ -2138,7 +2630,7 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
                       <Text style={s.entryMicSub}>"What's on today?" · "What's for dinner?"</Text>
                     </View>
                     <View style={s.entryWaveStatic}>
-                      {[7,13,9,17,11].map((ht, i) => <View key={i} style={[s.entryWaveBarStatic, { height: ht }]}/>)}
+                      {[7,13,9,17,11].map((ht, i) => <View key={i} style={[s.entryWaveBarStatic, { height:ht }]}/>)}
                     </View>
                   </TouchableOpacity>
                   <View style={s.entryDivider}>
@@ -2155,17 +2647,17 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
                     ))}
                   </View>
                 </View>
-                <View style={[s.inputArea, { position:'relative', bottom:'auto' as any, paddingBottom: Platform.OS==='ios' ? 24 : 16 }]}>
+                <View style={[s.inputArea, { position:'relative', bottom:'auto' as any, paddingBottom:Platform.OS==='ios'?24:16 }]}>
                   <View style={[s.barPill, { backgroundColor:'#fff', borderColor:'rgba(10,10,10,0.09)' }]}>
                     <TouchableOpacity style={s.barBtn} onPress={() => {}} activeOpacity={0.75}><IcoPlus/></TouchableOpacity>
                     <View style={[s.barSep, { backgroundColor:'rgba(10,10,10,0.1)' }]}/>
                     <TextInput
-                      style={[s.barInput, { color: INK }]}
+                      style={[s.barInput, { color:INK }]}
                       placeholder="Ask Zaeli anything…"
                       placeholderTextColor="rgba(10,10,10,0.5)"
                       keyboardAppearance="light"
                       selectionColor={HOME_AI}
-                      onSubmitEditing={(e) => { const txt = e.nativeEvent.text.trim(); if (txt) enterChat(txt); }}
+                      onSubmitEditing={e => { const txt = e.nativeEvent.text.trim(); if (txt) enterChat(txt); }}
                     />
                     <TouchableOpacity style={s.barBtn} onPress={handleEntryMicStart} activeOpacity={0.75}><IcoMic color={INK3}/></TouchableOpacity>
                     <TouchableOpacity style={s.barSend} onPress={() => enterChat()} activeOpacity={0.85}><IcoSend/></TouchableOpacity>
@@ -2178,111 +2670,112 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
       )}
 
       {/* ── MAIN CHAT ── */}
-      <Animated.View style={[{ flex:1 }, screen === 'chat' ? {} : { opacity: chatOpacity }]} pointerEvents={screen === 'chat' ? 'auto' : 'none'}>
+      <Animated.View style={[{ flex:1 }, screen==='chat' ? {} : { opacity:chatOpacity }]} pointerEvents={screen==='chat'?'auto':'none'}>
 
-        {/* FIXED TOP BAR */}
+        {/* FIXED BANNER — wordmark + nav only, hero scrolls with content */}
         <SafeAreaView style={[s.topBar, { backgroundColor: T.bannerBg }]} edges={['top']}>
           <View style={s.topBarRow}>
             <TouchableOpacity onPress={() => router.navigate('/(tabs)/')} activeOpacity={0.8}>
               <Text style={s.logoWord}>
-                z<Text style={{ color: HOME_AI }}>a</Text>el<Text style={{ color: HOME_AI }}>i</Text>
+                z<Text style={{ color:HOME_AI }}>a</Text>el<Text style={{ color:HOME_AI }}>i</Text>
               </Text>
             </TouchableOpacity>
             <View style={s.topBarRight}>
               <Text style={s.topBarChannelName}>Home</Text>
-              {/* DEV ONLY — remove pre-launch */}
-              <TouchableOpacity onPress={() => router.navigate('/(tabs)/calendar')} activeOpacity={0.7}
-                style={{ width:32, height:32, borderRadius:10, backgroundColor:'rgba(184,237,208,0.4)', alignItems:'center', justifyContent:'center' }}>
-                <Text style={{ fontSize:16 }}>📅</Text>
+              <HamburgerButton onPress={() => setMenuOpen(true)}/>
+              <TouchableOpacity style={s.avatar} onPress={() => setMenuOpen(true)} activeOpacity={0.8}>
+                <Text style={s.avatarTxt}>R</Text>
               </TouchableOpacity>
-              <HamburgerButton onPress={() => setMenuOpen(true)} />
-              <View style={s.avatar}><Text style={s.avatarTxt}>R</Text></View>
             </View>
           </View>
           <View style={s.topBarDivider}/>
         </SafeAreaView>
 
-        {/* CHAT */}
+        {/* CHAT + CARDS */}
         <KeyboardAvoidingView
           style={s.kavWrap}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS==='ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={0}
         >
           <View style={[s.scrollWrap, { backgroundColor: T.bg }]}>
             <ScrollView
               ref={scrollRef}
-              style={[s.scroll, { backgroundColor: T.bg }]}
+              style={[s.scroll, { backgroundColor:T.bg }]}
               contentContainerStyle={s.scrollContent}
               showsVerticalScrollIndicator={false}
               keyboardDismissMode="interactive"
               onScroll={handleScroll}
               scrollEventThrottle={16}
               onContentSizeChange={() => {
-                if (isAtBottom.current) scrollRef.current?.scrollToEnd({ animated: false });
+                if (isAtBottom.current) scrollRef.current?.scrollToEnd({ animated:false });
               }}
             >
-              {/* SCROLLABLE BRIEF SECTION */}
-              <View style={[s.briefSection, { backgroundColor: T.bannerBg }]}>
-                <Text style={s.briefGreeting}>
-                  {h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'}, {MEMBER_NAME} 👋
-                </Text>
-                {briefHero ? (
-                  <Text style={s.briefHero}>{renderHeroText(briefHero, HOME_AI)}</Text>
-                ) : (
-                  <View style={{ paddingVertical: 10 }}><TypingDots color={HOME_AI}/></View>
-                )}
-                {briefReplies.length > 0 && (
-                  <View style={s.briefPills}>
-                    {briefReplies.map((chip, i) => (
-                      <TouchableOpacity
-                        key={i}
-                        style={[s.briefPill, { backgroundColor: getPillColor(chip) }]}
-                        onPress={() => handleQuickReply(chip)}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={s.briefPillTxt}>{chip}</Text>
-                      </TouchableOpacity>
-                    ))}
+              {/* ── DATE DIVIDER ── */}
+              <View style={s.cardChatDivider}>
+                <View style={[s.dateLine2, { backgroundColor:T.dateLine }]}/>
+                <Text style={[s.dateLabel2, { color:T.ink3 }]}>{dateLabel.toUpperCase()}</Text>
+                <View style={[s.dateLine2, { backgroundColor:T.dateLine }]}/>
+              </View>
+
+              {/* ── HERO — Option B: Zaeli eyebrow + DM Serif, scrolls with content ── */}
+              <View style={s.heroSection}>
+                <View style={s.zEyebrow}>
+                  <View style={[s.zStar, { backgroundColor:HOME_AI }]}>
+                    <Svg width="9" height="9" viewBox="0 0 16 16" fill={INK}><Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/></Svg>
                   </View>
+                  <Text style={[s.zName, { color:INK }]}>Zaeli</Text>
+                  <Text style={[s.zTs, { color:T.ink3 }]}>{nowTs()}</Text>
+                </View>
+                {briefHero ? (
+                  <Text style={s.heroLine}>{renderHeroText(briefHero, HOME_AI)}</Text>
+                ) : (
+                  <View style={{ paddingVertical:6 }}><TypingDots color={HOME_AI}/></View>
                 )}
-                <View style={s.briefDivider}/>
               </View>
 
-              {/* Date divider */}
-              <View style={s.dateRow}>
-                <View style={[s.dateLine, { backgroundColor: T.dateLine }]}/>
-                <Text style={[s.dateLabel, { color: T.ink3 }]}>{dateLabel.toUpperCase()}</Text>
-                <View style={[s.dateLine, { backgroundColor: T.dateLine }]}/>
+              {/* ── CARD STACK ── */}
+              <View style={s.cardStack}>
+                {renderCardStack()}
               </View>
 
+              {/* ── DIVIDER between cards and chat ── */}
+              <View style={[s.cardChatDivider, { marginTop:16 }]}>
+                <View style={[s.dateLine2, { backgroundColor:T.dateLine }]}/>
+                <Text style={[s.dateLabel2, { color:T.ink3 }]}>Earlier today</Text>
+                <View style={[s.dateLine2, { backgroundColor:T.dateLine }]}/>
+              </View>
+
+              {/* ── CHAT THREAD ── */}
               {renderMessages()}
-              <View style={{ height: 16 }}/>
+              <View style={{ height:20 }}/>
             </ScrollView>
 
-            {showScrollBtn && (
-              <Animated.View style={[s.scrollDownBtn, { opacity: scrollBtnAnim }]} pointerEvents="box-none">
-                <TouchableOpacity style={s.scrollDownInner} onPress={() => scrollRef.current?.scrollToEnd({ animated:true })} activeOpacity={0.8}>
-                  <IcoArrowDown/>
-                </TouchableOpacity>
-              </Animated.View>
-            )}
+            {/* ── SCROLL ARROWS (locked spec) ── */}
+            <View style={s.scrollArrowPair} pointerEvents="box-none">
+              <TouchableOpacity style={s.scrollArrowBtn} onPress={() => scrollRef.current?.scrollTo({ y:0, animated:true })} activeOpacity={0.75}>
+                <IcoArrowUp/>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.scrollArrowBtn} onPress={() => scrollRef.current?.scrollToEnd({ animated:true })} activeOpacity={0.75}>
+                <IcoArrowDown/>
+              </TouchableOpacity>
+            </View>
 
-            {/* FLOATING INPUT BAR */}
+            {/* ── FLOATING INPUT BAR ── */}
             <View style={[s.inputArea, keyboardOpen && s.inputAreaKb]}>
               {pendingImage && (
                 <View style={s.imagePreviewWrap}>
-                  <Image source={{ uri: pendingImage }} style={s.imagePreview} resizeMode="cover"/>
+                  <Image source={{ uri:pendingImage }} style={s.imagePreview} resizeMode="cover"/>
                   <TouchableOpacity style={s.imagePreviewRemove} onPress={() => setPendingImage(null)} activeOpacity={0.8}>
                     <IcoX/>
                   </TouchableOpacity>
                 </View>
               )}
-              <View style={[s.barPill, { backgroundColor: T.barBg, borderColor: T.barBorder }]}>
+              <View style={[s.barPill, { backgroundColor:T.barBg, borderColor:T.barBorder }]}>
                 <TouchableOpacity style={s.barBtn} onPress={openSheet} activeOpacity={0.75}><IcoPlus color={T.barIcon}/></TouchableOpacity>
-                <View style={[s.barSep, { backgroundColor: T.barSep }]}/>
+                <View style={[s.barSep, { backgroundColor:T.barSep }]}/>
                 <TextInput
                   ref={inputRef}
-                  style={[s.barInput, { color: T.ink }]}
+                  style={[s.barInput, { color:T.ink }]}
                   value={input}
                   onChangeText={setInput}
                   placeholder={PLACEHOLDERS[placeholderIdx]}
@@ -2294,7 +2787,7 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
                   onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 350)}
                 />
                 {isRecording ? (
-                  <TouchableOpacity style={[s.barWaveBtn, { backgroundColor: HOME_AI }]} onPress={handleMicPress} activeOpacity={0.85}>
+                  <TouchableOpacity style={[s.barWaveBtn, { backgroundColor:HOME_AI }]} onPress={handleMicPress} activeOpacity={0.85}>
                     <WaveformBars/>
                   </TouchableOpacity>
                 ) : (
@@ -2303,7 +2796,7 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
-                  style={[s.barSend, ((!input.trim() && !pendingImage) || loading) && { opacity: 0.4 }]}
+                  style={[s.barSend, ((!input.trim() && !pendingImage) || loading) && { opacity:0.4 }]}
                   onPress={() => send()}
                   disabled={(!input.trim() && !pendingImage) || loading}
                   activeOpacity={0.85}
@@ -2337,7 +2830,7 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
                     <Text style={s.sheetTileLabel}>Live</Text>
                   </TouchableOpacity>
                 </View>
-                <View style={{ height: Platform.OS === 'ios' ? 32 : 20 }}/>
+                <View style={{ height:Platform.OS==='ios'?32:20 }}/>
               </Pressable>
             </Animated.View>
           </Pressable>
@@ -2366,30 +2859,16 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
           </View>
         )}
 
-        {/* ── MIC RECORDING OVERLAY ── */}
+        {/* MIC OVERLAY */}
         {isRecording && (
-          <Animated.View
-            style={[s.micOverlay, { opacity: micOverlayAnim }]}
-            pointerEvents="auto"
-          >
+          <Animated.View style={[s.micOverlay, { opacity:micOverlayAnim }]} pointerEvents="auto">
             <View style={s.micCard}>
-              {/* Waveform */}
               <MicWaveform/>
-              {/* Timer */}
-              <Text style={s.micTimer}>
-                {Math.floor(micTimer / 60)}:{String(micTimer % 60).padStart(2, '0')}
-              </Text>
-              {/* Label */}
+              <Text style={s.micTimer}>{Math.floor(micTimer/60)}:{String(micTimer%60).padStart(2,'0')}</Text>
               <Text style={s.micLabel}>Listening…</Text>
-              {/* Stop button */}
-              <TouchableOpacity
-                style={s.micStopBtn}
-                onPress={() => stopRecording(false)}
-                activeOpacity={0.85}
-              >
+              <TouchableOpacity style={s.micStopBtn} onPress={() => stopRecording(false)} activeOpacity={0.85}>
                 <View style={s.micStopSquare}/>
               </TouchableOpacity>
-              {/* Cancel */}
               <TouchableOpacity onPress={() => stopRecording(true)} activeOpacity={0.6}>
                 <Text style={s.micCancel}>Cancel</Text>
               </TouchableOpacity>
@@ -2401,7 +2880,108 @@ If NO matching events: set events to [] and write a warm Zaeli response in intro
   );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// ── CARD STYLES ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+const cardS = StyleSheet.create({
+  // Calendar — slate
+  cal: { backgroundColor:'#3A3D4A', borderRadius:18, padding:20 },
+  // Weather
+  wx:  { backgroundColor:'#A8D8F0', borderRadius:18, padding:16, width:115, flexShrink:0 },
+  // Shopping
+  shop:{ backgroundColor:'#D8CCFF', borderRadius:18, padding:16, flex:1 },
+  // Actions
+  act: { backgroundColor:'#F0DC80', borderRadius:18, padding:20 },
+  // Dinner
+  din: { backgroundColor:'#FAC8A8', borderRadius:18, padding:20 },
+
+  // Shared header
+  hdr:       { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 },
+  hdrActions:{ flexDirection:'row', alignItems:'center', gap:8 },
+
+  // Eye labels
+  eyeLt:   { fontFamily:'Poppins_700Bold', fontSize:12, letterSpacing:0.1, textTransform:'uppercase' as const, color:'rgba(255,255,255,0.5)', flex:1 },
+  eyeDk:   { fontFamily:'Poppins_700Bold', fontSize:12, letterSpacing:0.1, textTransform:'uppercase' as const, color:'rgba(0,0,0,0.42)', flex:1 },
+  eyeDkSm: { fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.1, textTransform:'uppercase' as const, color:'rgba(0,0,0,0.35)', marginBottom:6 },
+
+  // Add buttons
+  addBtnLt:    { backgroundColor:'rgba(255,255,255,0.2)', borderRadius:10, paddingVertical:6, paddingHorizontal:12 },
+  addBtnTxtLt: { fontFamily:'Poppins_700Bold', fontSize:12, color:'rgba(255,255,255,0.85)' },
+  addBtnDk:    { backgroundColor:'rgba(0,0,0,0.1)', borderRadius:10, paddingVertical:6, paddingHorizontal:12 },
+  addBtnTxtDk: { fontFamily:'Poppins_700Bold', fontSize:12, color:'rgba(0,0,0,0.55)' },
+  seeAllLt:    { fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(255,255,255,0.45)' },
+  seeAllDk:    { fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(0,0,0,0.4)' },
+
+  // Empty states
+  emptyLt:   { fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(255,255,255,0.5)', fontStyle:'italic' as const, paddingVertical:10 },
+  emptyDk:   { fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(0,0,0,0.38)', fontStyle:'italic' as const, paddingVertical:8 },
+  emptyDkSm: { fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.38)', fontStyle:'italic' as const },
+
+  // Calendar event rows
+  tRow:    { flexDirection:'row', alignItems:'center', gap:10, marginBottom:13 },
+  tTime:   { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.65)', width:58, textAlign:'left' as const, flexShrink:0 },
+  tDot:    { width:8, height:8, borderRadius:4, flexShrink:0 },
+  tEv:     { fontFamily:'Poppins_400Regular', fontSize:17, color:'rgba(255,255,255,0.92)', flex:1 },
+  tAv:     { width:30, height:30, borderRadius:15, alignItems:'center', justifyContent:'center', flexShrink:0 },
+  tAvTxt:  { fontFamily:'Poppins_700Bold', fontSize:11, color:'#fff' },
+
+  // Weather
+  wxTemp:  { fontFamily:'DMSerifDisplay_400Regular', fontSize:34, color:'#1A1A1A', letterSpacing:-1, lineHeight:38, marginTop:4 },
+  wxCond:  { fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.5)', marginTop:3 },
+  wxExtra: { fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.42)', marginTop:6, lineHeight:16 },
+
+  // Shopping
+  shopItem:    { flexDirection:'row', alignItems:'center', gap:10, marginBottom:12 },
+  shopDot:     { width:7, height:7, borderRadius:4, backgroundColor:'rgba(0,0,0,0.28)', flexShrink:0 },
+  shopTxt:     { fontFamily:'Poppins_400Regular', fontSize:17, color:'#1A1A1A', flex:1 },
+  shopFooter:  { flexDirection:'row', alignItems:'flex-end', justifyContent:'flex-end', marginTop:8 },
+  shopCountLbl:{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.42)', marginRight:4, alignSelf:'flex-end', marginBottom:4 },
+  shopCount:   { fontFamily:'Poppins_800ExtraBold', fontSize:32, color:'rgba(0,0,0,0.35)', letterSpacing:-1, lineHeight:36 },
+
+  // Actions
+  actCount:    { backgroundColor:'#806000', borderRadius:11, paddingHorizontal:9, paddingVertical:2 },
+  actCountTxt: { fontFamily:'Poppins_700Bold', fontSize:12, color:'#fff' },
+  actRow:      { flexDirection:'row', alignItems:'center', gap:10, marginBottom:12 },
+  actChk:      { width:26, height:26, borderRadius:13, borderWidth:1.5, borderColor:'rgba(0,0,0,0.22)', flexShrink:0, alignItems:'center', justifyContent:'center' },
+  actChkDone:  { backgroundColor:'rgba(0,0,0,0.18)', borderColor:'transparent' },
+  actDot:      { width:8, height:8, borderRadius:4, flexShrink:0 },
+  actTxt:      { fontFamily:'Poppins_400Regular', fontSize:17, color:'#1A1A1A', flex:1, lineHeight:23 },
+  actWho:      { width:28, height:28, borderRadius:14, alignItems:'center', justifyContent:'center', flexShrink:0 },
+  actWhoTxt:   { fontFamily:'Poppins_700Bold', fontSize:11, color:'#fff' },
+  bdg:         { borderRadius:5, paddingVertical:3, paddingHorizontal:7, flexShrink:0 },
+  bdgRem:      { backgroundColor:'rgba(255,69,69,0.12)' },
+  bdgOvd:      { backgroundColor:'rgba(220,38,38,0.12)' },
+  bdgTd:       { backgroundColor:'rgba(128,96,0,0.1)' },
+  bdgTxt:      { fontFamily:'Poppins_700Bold', fontSize:9, textTransform:'uppercase' as const, letterSpacing:0.06 },
+  actDivider:  { flexDirection:'row', alignItems:'center', gap:8, marginVertical:10 },
+  actDivLine:  { flex:1, height:1, backgroundColor:'rgba(0,0,0,0.1)' },
+  actDivLbl:   { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.1, textTransform:'uppercase' as const, color:'rgba(0,0,0,0.38)' },
+
+  // Dinner
+  dinRow:      { flexDirection:'row', alignItems:'center', gap:12 },
+  tOverflow:   { marginTop:4, paddingVertical:6 },
+  tOverflowTxt:{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(255,255,255,0.55)' },
+  dinIcon:     { fontSize:32, flexShrink:0, lineHeight:38 },
+  dinName:     { fontFamily:'Poppins_800ExtraBold', fontSize:19, color:'#1A1A1A', letterSpacing:-0.4, lineHeight:24 },
+  dinSub:      { fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.45)', marginTop:4 },
+  dinTick:     { backgroundColor:'rgba(0,0,0,0.1)', borderRadius:8, paddingVertical:5, paddingHorizontal:10, flexShrink:0 },
+  dinTickTxt:  { fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.5)' },
+  dinNudge:    { backgroundColor:'rgba(0,0,0,0.07)', borderRadius:12, padding:14, marginBottom:2 },
+  dinNudgeTxt: { fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(0,0,0,0.55)', textAlign:'center' as const },
+  calOverflow: { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(255,255,255,0.55)', paddingVertical:2 },
+  dinFooter:   { marginTop:12, paddingTop:10, borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.09)', flexDirection:'row', alignItems:'center', justifyContent:'space-between' },
+  dinExpanded: { marginTop:10, paddingTop:8, borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.09)', gap:8 },
+  dinDayRow:   { flexDirection:'row', alignItems:'center', gap:8 },
+  dinDayLbl:   { fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.42)', width:76, flexShrink:0 },
+  dinDayMeal:  { fontFamily:'Poppins_400Regular', fontSize:15, color:'#1A1A1A', flex:1 },
+  dinDayTick:  { fontFamily:'Poppins_700Bold', fontSize:12, color:'#0A7A3A', flexShrink:0 },
+  dinDayBlank: { fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(0,0,0,0.3)', fontStyle:'italic' as const, flex:1 },
+  dinDayWarn:  { fontSize:12, flexShrink:0 },
+  dinFooterLbl:{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.38)' },
+  dinFooterTap:{ fontFamily:'Poppins_700Bold', fontSize:12, color:'rgba(0,0,0,0.55)' },
+});
+
+// ── Main styles ────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   root: { flex:1 },
 
@@ -2457,32 +3037,30 @@ const s = StyleSheet.create({
   topBarRight:       { flexDirection:'row', alignItems:'center', gap:10 },
   topBarChannelName: { fontFamily:'Poppins_600SemiBold', fontSize:16, color:'rgba(10,10,10,0.45)' },
   logoWord:          { fontFamily:'DMSerifDisplay_400Regular', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:44 },
-  avatar:            { width:36, height:36, borderRadius:18, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' },
-  avatarTxt:         { fontFamily:'Poppins_700Bold', fontSize:14, color:'#fff' },
+  avatar:            { width:34, height:34, borderRadius:17, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' },
+  avatarTxt:         { fontFamily:'Poppins_700Bold', fontSize:13, color:'#fff' },
+  heroLine:          { fontFamily:'DMSerifDisplay_400Regular', fontSize:22, color:'#0A0A0A', lineHeight:30, letterSpacing:-0.3 },
 
-  // Brief section
-  briefSection:  { backgroundColor:'#F5EAD8', paddingHorizontal:20, paddingTop:14, paddingBottom:0 },
-  briefGreeting: { fontFamily:'Poppins_500Medium', fontSize:17, color:'rgba(10,10,10,0.62)', marginBottom:10 },
-  briefHero:     { fontFamily:'DMSerifDisplay_400Regular', fontSize:28, color:'#0A0A0A', lineHeight:36, letterSpacing:-0.3, marginBottom:14 },
-  briefPills:    { flexDirection:'row', flexWrap:'wrap', gap:7, marginBottom:14 },
-  briefPill:     { backgroundColor:HOME_AI, paddingVertical:7, paddingHorizontal:14, borderRadius:20 },
-  briefPillTxt:  { fontFamily:'Poppins_400Regular', fontSize:13, color:'#0A0A0A' },
-  briefDivider:  { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
+  // Hero (scrollable) + card stack
+  heroSection:    { backgroundColor:'#FAF8F5', paddingHorizontal:18, paddingTop:12, paddingBottom:16 },
+  cardStack:      { paddingHorizontal:14, paddingTop:4, paddingBottom:4, gap:10 },
+  cardChatDivider:{ flexDirection:'row', alignItems:'center', marginHorizontal:18, marginTop:16, marginBottom:4, gap:10 },
+  dateLine2:      { flex:1, height:1 },
+  dateLabel2:     { fontFamily:'Poppins_600SemiBold', fontSize:9, letterSpacing:1.2, textTransform:'uppercase' as const },
 
   // KAV + scroll
   kavWrap:       { flex:1 },
   scrollWrap:    { flex:1, position:'relative' },
   scroll:        { flex:1 },
-  scrollContent: { paddingHorizontal:0, paddingTop:0, paddingBottom:170 },
+  scrollContent: { paddingBottom:180 },
 
-  // Date divider
-  dateRow:  { flexDirection:'row', alignItems:'center', marginBottom:20, gap:10, paddingHorizontal:18, marginTop:16 },
-  dateLine: { flex:1, height:1 },
-  dateLabel:{ fontFamily:'Poppins_600SemiBold', fontSize:9, letterSpacing:1.2, textTransform:'uppercase' as const },
+  // Scroll arrows (locked spec)
+  scrollArrowPair:{ position:'absolute', bottom:110, right:16, flexDirection:'row', gap:8, zIndex:50 },
+  scrollArrowBtn: { width:38, height:38, borderRadius:19, backgroundColor:'rgba(10,10,10,0.40)', alignItems:'center', justifyContent:'center' },
 
   // Zaeli message
   zaeliMsgWrap: { marginBottom:6, paddingHorizontal:18 },
-  zEyebrow:     { flexDirection:'row', alignItems:'center', gap:5, marginBottom:6 },
+  zEyebrow:     { flexDirection:'row', alignItems:'center', gap:5, marginBottom:6, marginTop:18 },
   zStar:        { width:16, height:16, borderRadius:5, alignItems:'center', justifyContent:'center', flexShrink:0 },
   zName:        { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.2 },
   zTs:          { fontFamily:'Poppins_400Regular', fontSize:9, marginLeft:'auto' as any },
@@ -2496,30 +3074,26 @@ const s = StyleSheet.create({
 
   // Quick replies
   quickRepliesWrap: { marginTop:10 },
-  qrLabel:          { fontFamily:'Poppins_600SemiBold', fontSize:10, letterSpacing:0.2, marginBottom:7 },
   qrChips:          { flexDirection:'row', flexWrap:'wrap', gap:6 },
   qrChip:           { borderWidth:1.5, borderRadius:20, paddingVertical:6, paddingHorizontal:12, backgroundColor:'white' },
   qrChipTxt:        { fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.65)' },
-  qrDismiss:        { fontFamily:'Poppins_400Regular', fontSize:12, marginTop:9 },
+
+  // Calendar portal chip
+  calPortalChip:    { borderWidth:1.5, borderRadius:20, paddingVertical:6, paddingHorizontal:12, backgroundColor:CAL_BG, borderColor:CAL_BG },
+  calPortalChipTxt: { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#0A0A0A' },
 
   // User bubble
   userMsgWrap: { alignItems:'flex-end', marginBottom:6, paddingHorizontal:18 },
   userBubble:  { borderRadius:16, borderBottomRightRadius:3, paddingHorizontal:13, paddingVertical:9, maxWidth:'82%' as any },
   userMsgText: { fontFamily:'Poppins_400Regular', fontSize:17, lineHeight:27 },
   msgImage:    { width:'100%' as any, height:180, borderRadius:12, marginBottom:6 },
-
-  // Icon rows
   msgTime:     { fontFamily:'Poppins_400Regular', fontSize:10 },
   userIconRow: { flexDirection:'row', alignItems:'center', marginTop:4, gap:2, justifyContent:'flex-end' },
   iconBtn:     { width:26, height:26, alignItems:'center', justifyContent:'center', borderRadius:6 },
 
-  // Scroll down button
-  scrollDownBtn:   { position:'absolute', bottom:100, left:0, right:0, alignItems:'center', zIndex:50 },
-  scrollDownInner: { width:40, height:40, borderRadius:20, backgroundColor:'rgba(10,10,10,0.45)', alignItems:'center', justifyContent:'center' },
-
   // Input area
-  inputArea:   { position:'absolute', bottom:0, left:0, right:0, paddingHorizontal:14, paddingBottom: Platform.OS==='ios' ? 30 : 18, paddingTop:10, backgroundColor:'transparent' },
-  inputAreaKb: { paddingBottom: Platform.OS==='ios' ? 8 : 6 },
+  inputArea:   { position:'absolute', bottom:0, left:0, right:0, paddingHorizontal:14, paddingBottom:Platform.OS==='ios'?30:18, paddingTop:10, backgroundColor:'transparent' },
+  inputAreaKb: { paddingBottom:Platform.OS==='ios'?8:6 },
 
   // Image preview
   imagePreviewWrap:   { marginBottom:8, alignSelf:'flex-start', position:'relative' },
@@ -2535,7 +3109,7 @@ const s = StyleSheet.create({
   barWaveBtn: { width:40, height:40, borderRadius:20, alignItems:'center', justifyContent:'center' },
   waveRow:    { flexDirection:'row', alignItems:'center', gap:3 },
   waveBar:    { width:3.5, height:18, borderRadius:2, backgroundColor:'#fff' },
-  barSend:    { width:32, height:32, borderRadius:16, backgroundColor:HOME_AI, alignItems:'center', justifyContent:'center', flexShrink:0 },
+  barSend:    { width:32, height:32, borderRadius:16, backgroundColor:'#FF4545', alignItems:'center', justifyContent:'center', flexShrink:0 },
 
   // Sheet
   sheetOverlay:   { flex:1, backgroundColor:'rgba(0,0,0,0.4)', justifyContent:'flex-end' },
@@ -2548,16 +3122,6 @@ const s = StyleSheet.create({
   sheetTile:      { flex:1, backgroundColor:'rgba(10,10,10,0.05)', borderRadius:20, paddingVertical:30, alignItems:'center', justifyContent:'center', gap:12 },
   sheetTileLabel: { fontFamily:'Poppins_500Medium', fontSize:14, color:'#0A0A0A' },
 
-  // More grid
-  moreOverlay:   { flex:1, backgroundColor:'rgba(0,0,0,0.5)', justifyContent:'flex-end' },
-  moreGrid:      { borderTopLeftRadius:24, borderTopRightRadius:24, padding:20, paddingBottom: Platform.OS==='ios' ? 40 : 24 },
-  moreHandle:    { width:34, height:4, borderRadius:2, alignSelf:'center', marginBottom:14 },
-  moreTitle:     { fontFamily:'Poppins_700Bold', fontSize:14, marginBottom:14 },
-  moreItems:     { flexDirection:'row', flexWrap:'wrap', gap:9 },
-  moreItem:      { width:'30%' as any, borderRadius:14, borderWidth:1, paddingVertical:14, alignItems:'center', gap:5 },
-  moreItemEmoji: { fontSize:20 },
-  moreItemLabel: { fontFamily:'Poppins_600SemiBold', fontSize:10, textAlign:'center' as const },
-
   // Live camera
   liveCameraOverlay: { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#111', zIndex:200 },
   liveCameraTop:     { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12 },
@@ -2568,7 +3132,7 @@ const s = StyleSheet.create({
   liveCameraBtn:     { backgroundColor:HOME_AI, borderRadius:16, paddingVertical:15, paddingHorizontal:30 },
   liveCameraBtnTxt:  { fontFamily:'Poppins_700Bold', fontSize:15, color:INK },
 
-  // ── Mic recording overlay ─────────────────────────────────────
+  // Mic overlay
   micOverlay:    { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(245,234,216,0.88)', alignItems:'center', justifyContent:'center', zIndex:100 },
   micCard:       { backgroundColor:'#fff', borderRadius:28, paddingVertical:32, paddingHorizontal:36, alignItems:'center', gap:18, shadowColor:'#000', shadowOpacity:0.10, shadowRadius:24, shadowOffset:{ width:0, height:8 }, borderWidth:1, borderColor:'rgba(10,10,10,0.06)' },
   micTimer:      { fontFamily:'Poppins_600SemiBold', fontSize:30, color:'#0A0A0A', letterSpacing:1 },
@@ -2577,28 +3141,19 @@ const s = StyleSheet.create({
   micStopSquare: { width:20, height:20, borderRadius:4, backgroundColor:'#fff' },
   micCancel:     { fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.35)' },
 
-  // ── EventCard styles ─────────────────────────────────────────
-  calCardsWrap:   { gap:8, marginTop:10, marginBottom:4 },
-  evCard:         { borderRadius:14, padding:14, marginBottom:0 },
-  evCardInner:    { flexDirection:'row', alignItems:'flex-start', gap:10 },
-  evTitle:        { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#0A0A0A', letterSpacing:-0.2, marginBottom:3 },
-  evTime:         { fontFamily:'Poppins_500Medium', fontSize:13, marginBottom:2 },
-  evLocation:     { fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.5)', marginTop:2 },
-  evAvatarCol:    { flexDirection:'column', gap:4, alignItems:'center', justifyContent:'flex-start', flexShrink:0 },
-  evAvatarGrid:   { flexDirection:'row', flexWrap:'wrap', gap:3, width:44, justifyContent:'flex-end' },
-  evAv:           { alignItems:'center', justifyContent:'center' },
-  evAvTxt:        { fontFamily:'Poppins_700Bold', color:'#fff' },
+  // EventCard
+  calCardsWrap: { gap:8, marginTop:10, marginBottom:4 },
+  evCard:       { borderRadius:14, padding:14, marginBottom:0 },
+  evCardInner:  { flexDirection:'row', alignItems:'flex-start', gap:10 },
+  evTitle:      { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#0A0A0A', letterSpacing:-0.2, marginBottom:3 },
+  evTime:       { fontFamily:'Poppins_500Medium', fontSize:13, marginBottom:2 },
+  evLocation:   { fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.5)', marginTop:2 },
+  evAvatarCol:  { flexDirection:'column', gap:4, alignItems:'center', justifyContent:'flex-start', flexShrink:0 },
+  evAvatarGrid: { flexDirection:'row', flexWrap:'wrap', gap:3, width:44, justifyContent:'flex-end' },
+  evAv:         { alignItems:'center', justifyContent:'center' },
+  evAvTxt:      { fontFamily:'Poppins_700Bold', color:'#fff' },
 
-  // ── Calendar portal chip (small, inline with chips row) ──────
-  calPortalChip:    { borderWidth:1.5, borderRadius:20, paddingVertical:6, paddingHorizontal:12, backgroundColor:CAL_BG, borderColor:CAL_BG },
-  calPortalChipTxt: { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#0A0A0A' },
-
-  // ── Calendar portal pill — DEPRECATED, kept for safety ───────
-  calPortalPill:      { flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:CAL_BG, borderRadius:14, paddingVertical:12, paddingHorizontal:16, marginTop:12 },
-  calPortalPillTxt:   { fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A' },
-  calPortalPillArrow: { fontFamily:'Poppins_700Bold', fontSize:20 },
-
-  // ── EventDetailModal styles ──────────────────────────────────
+  // EventDetailModal
   modalHdr:      { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:20, paddingVertical:14, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.07)' },
   modalCancel:   { fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(10,10,10,0.5)' },
   modalTitle:    { fontFamily:'Poppins_700Bold', fontSize:16, color:'#0A0A0A' },
@@ -2607,7 +3162,7 @@ const s = StyleSheet.create({
   detailIcon:    { fontSize:18, width:26, textAlign:'center' as const },
   detailTxt:     { fontFamily:'Poppins_400Regular', fontSize:15, color:'#0A0A0A', flex:1, lineHeight:22 },
   deleteBtn:     { backgroundColor:'rgba(232,55,75,0.08)', borderRadius:14, paddingVertical:14, alignItems:'center' },
-  deleteBtnConfirm: { backgroundColor:'rgba(232,55,75,0.18)' },
+  deleteBtnConfirm:{ backgroundColor:'rgba(232,55,75,0.18)' },
   deleteBtnTxt:  { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#E8374B' },
   gcBlock:       { backgroundColor:'rgba(0,0,0,0.03)', borderRadius:14, marginHorizontal:20, marginBottom:2, overflow:'hidden' },
   gcRow:         { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:14 },
@@ -2619,10 +3174,6 @@ const s = StyleSheet.create({
   gcPillTxt:     { fontFamily:'Poppins_500Medium', fontSize:14, color:'#0A0A0A' },
   gcSubInput:    { fontFamily:'Poppins_400Regular', fontSize:15, color:'#0A0A0A', paddingHorizontal:16, paddingVertical:12 },
   gcTitleInput:  { fontFamily:'Poppins_600SemiBold', fontSize:18, color:'#0A0A0A', paddingHorizontal:16, paddingVertical:16 },
-  gcToggle:      { width:44, height:26, borderRadius:13, backgroundColor:'rgba(0,0,0,0.12)', justifyContent:'center', paddingHorizontal:2 },
-  gcToggleOn:    { backgroundColor:HOME_AI },
-  gcToggleThumb: { width:22, height:22, borderRadius:11, backgroundColor:'#fff', shadowColor:'#000', shadowOpacity:0.15, shadowRadius:4, shadowOffset:{ width:0, height:1 } },
-  gcToggleThumbOn: { alignSelf:'flex-end' },
   memberRow:     { flexDirection:'row', alignItems:'center', gap:12, padding:14, borderRadius:12, borderWidth:1.5, borderColor:'rgba(0,0,0,0.07)', backgroundColor:'#fff' },
   memberDot:     { width:12, height:12, borderRadius:6 },
   memberName:    { fontFamily:'Poppins_500Medium', fontSize:15, color:'#0A0A0A', flex:1 },

@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 1 April 2026 — Meals channel full rebuild ✅ Recipe/Favourites detail modals ✅ Shopping ingredient review ✅*
+*Last updated: 1 April 2026 — Home card stack rebuild ✅ Pass 1 + Pass 2 complete ✅*
 
 ---
 
@@ -10,7 +10,7 @@
 - Family: Rich (logged-in user), Anna, Poppy (Yr6, age 12, girl), Gab (Yr4, age 10, BOY — Gabriel, always he/him), Duke (Yr1, age 8, boy)
 - Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no && chaining)
 - Repo: https://github.com/RDK1981/zaeli (private)
-- PowerShell rule: (tabs) folder needs backtick escaping: app\`(tabs`)\filename.tsx
+- PowerShell escape for (tabs) folder: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\(tabs)\file.tsx"`
 - Full file rewrites only — never partial diffs
 - Design before code — always discuss/mockup new screens before writing code
 - **Two fixes at a time** — bulk changes create too many variables when something breaks
@@ -100,7 +100,7 @@ Admin: https://incomparable-gumdrop-32e4ba.netlify.app
 
 ## Channel Architecture
 ```
-app/(tabs)/index.tsx          → Home ✅ COMPLETE
+app/(tabs)/index.tsx          → Home ✅ REBUILD COMPLETE (1 Apr 2026)
 app/(tabs)/calendar.tsx       → Calendar ✅ COMPLETE
 app/(tabs)/shopping.tsx       → Shopping ✅ REBUILD COMPLETE (31 Mar)
 app/(tabs)/mealplanner.tsx    → Meals ✅ REBUILD COMPLETE (1 Apr)
@@ -175,8 +175,8 @@ scrollArrowPair: position:absolute, bottom:110, right:16, flexDirection:row, gap
 scrollArrowBtn:  width:38, height:38, borderRadius:19, bg:rgba(10,10,10,0.40)
 Up → scrollTo({y:0}) · Down → scrollToEnd()
 ```
-**Implemented:** Shopping ✅ · Calendar ✅ · Meals ✅
-**Next:** Home · Todos
+**Implemented:** Shopping ✅ · Calendar ✅ · Meals ✅ · Home ✅
+**Next:** Todos
 
 ---
 
@@ -185,62 +185,84 @@ Up → scrollTo({y:0}) · Down → scrollToEnd()
 `lib/use-chat-persistence.ts` — expo-file-system/legacy, 24hr TTL, 30-msg cap, debounced saves.
 **Greeting guard:** `if (!chatLoaded || messages.length > 0) return;`
 ```typescript
-const { messages, setMessages, clearMessages, loaded } = useChatPersistence('meals');
-// Keys in use: 'shopping' | 'calendar' | 'meals'
-// Next: 'home' | 'todos'
+const { messages, setMessages, clearMessages, loaded } = useChatPersistence('home');
+// Keys in use: 'shopping' | 'calendar' | 'meals' | 'home'
+// Next: 'todos'
 ```
-**Wired:** Shopping ✅ · Calendar ✅ · Meals ✅
+**Wired:** Shopping ✅ · Calendar ✅ · Meals ✅ · Home ✅
+
+---
+
+## HOME CHANNEL — CARD STACK (LOCKED ✅ 1 Apr 2026)
+
+### Architecture
+- **Hybrid screen:** Card stack (glanceable) at top → Zaeli chat below, all in one ScrollView
+- **Fixed banner:** Slim warm `#F5EAD8` bar — wordmark + Home label + hamburger + avatar only
+- **Scrollable hero:** Date divider → Zaeli eyebrow (✦ Zaeli + timestamp) → DM Serif hero text → cards → "Earlier today" divider → chat thread
+
+### Time state (computed fresh on mount)
+- **AM (5–12):** Calendar → Weather+Shopping → Actions → Dinner
+- **PM (12–20):** Dinner → Calendar → Actions → Weather+Shopping
+- **Evening (20–5):** Calendar(tomorrow) → Actions(2-section) → Weather+Shopping → Dinner(tomorrow)
+
+### Live data (fetched on mount + every useFocusEffect)
+- `events` — today + tomorrow, filtered (no all-day, no midnight-anchored)
+- `shopping_items` — `.neq('checked', true)`, select `id,name,item,category,checked`
+- `todos` — `.or('status.eq.active,done.eq.false')`
+- `meal_plans` — 7 days via `day_key` field (primary date field)
+- Open-Meteo API — weather, Tewantin lat -26.39, lon 153.03, free no key needed
+
+### shopping_items — CRITICAL column names
+```
+Columns: id, family_id, item, completed, created_at, name, checked, category, meal_source
+NO 'quantity' column — it does not exist
+Query: .select('id,name,item,category,checked').neq('checked', true)
+Render: item.name || item.item
+```
+
+### Card specs
+
+**CalendarCard** — slate `#3A3D4A`, padding 20
+- 4 events default. Overflow: "X more ›" expands inline. "Show less ∧" collapses.
+- Rows: time (13px) · dot · title+emoji (Poppins 400 17px) · avatars (30px)
+- + Add → seeds chat. Full → Calendar channel.
+
+**WeatherCard** — sky blue `#A8D8F0`, width 115px
+- Open-Meteo live. Animated icons (pulse/drift/drip/flash).
+
+**ShoppingCard** — lavender `#D8CCFF`, flex 1
+- Up to 3 items (Poppins 400 17px). Big count bottom right.
+- + Add → seeds chat. Full → Shopping channel.
+
+**ActionsCard** — gold `#F0DC80`, padding 20
+- Circle tick: optimistic UI → Supabase write → Zaeli chat acknowledgement
+- Ticked items stay visible (struck through, 0.45 opacity)
+- Evening: "🌙 Put out tonight" + "🌅 Tomorrow morning" sections
+- + Add → seeds chat. Full → Todos channel.
+
+**DinnerCard** — peach `#FAC8A8`, padding 20
+- Tonight/tomorrow meal. "Next 7 days ›" expands inline 7-day strip.
+- Expanded: emoji + name + ✓ or "Nothing yet ⚠". Unplanned count in footer.
+- "Open meal planner ›" → Meals channel.
+
+### Font sizes in cards (LOCKED)
+- Content text: Poppins 400 17px (event titles, shopping items, action items)
+- Dinner meal name: Poppins 800 19px
+- Times / eye labels / buttons: 11–13px (UI chrome)
+- Empty states: 16px italic
+
+### Card data refresh
+- On mount + useFocusEffect → `loadCardData()`
+- After any tool action → `setTimeout(loadCardData, 1200)`
 
 ---
 
 ## MEALS CHANNEL — REBUILD COMPLETE (✅ 1 Apr 2026)
 
-### Architecture
-- Three tabs inside banner: Dinners · Recipes · Favourites
-- One shared chat across all tabs (Calendar/Shopping model)
-- Claude Sonnet tool-calling: `plan_dinner`, `remove_dinner`, `add_to_favourites`
-- Chat persistence via `useChatPersistence('meals')`
-
-### Dinners tab — LOCKED decisions
-- **All 7 nights identical** — no special tonight hero. Tonight is a normal row.
-- **Date label above each card** — outside the card. Tonight: "Tonight · Tuesday 1 Apr" Poppins 700 terracotta. Others: "Wednesday 2 Apr" Poppins 400 muted.
-- **Planned rows** — `rgba(168,232,204,0.18)` green tint, mint border
-- **Unplanned rows** — dashed terracotta border
-- **Cook avatars** — right side, `CookAvatarsGrid` 30px, 1-2 stacked · 3-4 in 2×2 grid
-- **Prep badge** — inline left under meal name (not on right column)
-- **Heart** — `🩷` emoji no box, 22px, absolute on emoji box corner
-- **Move night** — lifted to main screen level to prevent iOS nested modal crash; uses `dinnersRefreshKey` counter to refresh DinnersTab after move
-
-### MealDetailModal (any night tap)
-- Green "See full recipe →" primary
-- "Done" neutral dark
-- "+ Shopping" · "Move night" · "Remove" ghost row
-- Heart in header → saves to Favourites
-- `onSeeRecipe` → recipe view modal | `onShopping` → ShoppingReviewModal
-
-### ShoppingReviewModal
-- Spoonacular meal → Claude generates ingredient list
-- Manual meal → blank empty state
-- Tick/untick ingredients → confirm pushes ticked items to shopping list
-
-### RecipeDetailModal — hardcoded data for 8 Spoonacular recipes (keyed by ID)
-### FavouriteDetailModal — Detail / Edit / Plan modes in one modal
-
-### cook_ids parsing (CRITICAL)
-```typescript
-const parsedMeals = meals.map(m => ({
-  ...m,
-  cook_ids: Array.isArray(m.cook_ids) ? m.cook_ids
-    : typeof m.cook_ids === 'string'
-      ? (() => { try { return JSON.parse(m.cook_ids as any); } catch { return []; } })()
-      : [],
-}));
-```
-
----
-
-## HOME CHANNEL — CARD STACK (LOCKED ✅ 31 Mar 2026)
-[Full spec in ZAELI-PRODUCT.md]
+- Three tabs: Dinners · Recipes · Favourites
+- One shared chat, Claude Sonnet tool-calling, `useChatPersistence('meals')`
+- **meal_plans primary date field: `day_key`** (YYYY-MM-DD) — planned_date set to same value on insert
+- cook_ids: always parse via parsedMeals (Supabase jsonb sometimes returns as string)
 
 ---
 
@@ -256,11 +278,16 @@ inlineData?: {
 
 ## Supabase Tables
 ```
-events, todos, shopping_items, pantry_items, receipts, family_members, api_logs, tutor_sessions
-meal_plans  → family_id, day_key, planned_date, meal_name, meal_type, source,
-              prep_mins, cook_ids (jsonb), notes, ingredients (jsonb)
-recipes     → family_id, name, source_type, prep_mins, tags (jsonb), notes, ingredients (jsonb)
-reminders   → NOT YET CREATED (SQL in ZAELI-PRODUCT.md)
+events         → id, family_id, title, date, start_time, end_time, notes, assignees, all_day, repeat_rule, alert_rule, timezone
+todos          → id, family_id, title, priority, status, done, done_at, due_date, assigned_to, reminder_type, created_at
+shopping_items → id, family_id, name, item, checked, completed, category, meal_source, created_at (NO quantity column)
+pantry_items   → family_id, ...
+receipts       → family_id, store, purchase_date, total_amount, item_count, items (jsonb), raw_text, created_at
+family_members → ...
+api_logs       → family_id, feature, model, input_tokens, output_tokens, cost_usd, created_at
+meal_plans     → family_id, day_key, planned_date, meal_name, meal_type, source, prep_mins, cook_ids (jsonb), notes, ingredients (jsonb)
+recipes        → family_id, name, source_type, prep_mins, tags (jsonb), notes, ingredients (jsonb)
+reminders      → NOT YET CREATED (SQL in ZAELI-PRODUCT.md)
 ```
 
 ---
@@ -285,10 +312,10 @@ reminders   → NOT YET CREATED (SQL in ZAELI-PRODUCT.md)
 
 | File | Status | Notes |
 |---|---|---|
-| index.tsx | ✅ Complete | Card stack spec locked 31 Mar |
+| index.tsx | ✅ Rebuild complete | Card stack Pass 1+2 — 1 Apr 2026 |
 | calendar.tsx | ✅ Complete | Persistence + arrows 31 Mar |
 | shopping.tsx | ✅ Rebuild complete | Lavender, Sonnet, persistence |
-| mealplanner.tsx | ✅ Rebuild complete | Full spec above — 1 Apr 2026 |
+| mealplanner.tsx | ✅ Rebuild complete | Full spec — 1 Apr 2026 |
 | lib/use-chat-persistence.ts | ✅ Complete | expo-file-system, 24hr, 30-msg |
 | todos.tsx | ✅ Design complete | Not built — create reminders table first |
 | kids.tsx | ✅ Design complete | Not built |
@@ -301,13 +328,18 @@ reminders   → NOT YET CREATED (SQL in ZAELI-PRODUCT.md)
 
 ## Next Priorities
 
-1. **Home card stack rebuild** (index.tsx) — `useChatPersistence('home')` + up/down arrows
-2. **Create reminders Supabase table** (SQL in ZAELI-PRODUCT.md)
-3. **Todos + Reminders** (todos.tsx) — `zaeli-todos-reminders-v2.html`
-4. **Kids Hub** (kids.tsx)
-5. **Our Family** (family.tsx)
-6. **Notes** (notes.tsx)
-7. **Tutor rebuild** — `zaeli-tutor-final-mockup-v4.html`
-8. **Travel** — design session first
+1. **Create reminders Supabase table** (SQL in ZAELI-PRODUCT.md)
+2. **Todos + Reminders** (todos.tsx) — `zaeli-todos-reminders-v2.html`
+3. **Kids Hub** (kids.tsx)
+4. **Our Family** (family.tsx)
+5. **Notes** (notes.tsx)
+6. **Tutor rebuild** — `zaeli-tutor-final-mockup-v4.html`
+7. **Travel** — design session first
+
+### Home — deferred items (next Home session)
+- Review card UX based on real device usage feedback
+- Weather: wire to real user location (currently hardcoded Tewantin/Noosa)
+- Actions circle un-tick (currently one-way — Todos channel handles this for now)
+- "All done" evening state — green card, Zaeli celebration
 
 **Deferred:** model cost review · real auth · EAS · Stripe · Settings
