@@ -1,11 +1,14 @@
 # Zaeli — New Chat Handover
-*1 April 2026 — Home card stack rebuild ✅ Pass 1 + Pass 2 complete ✅*
+*1 April 2026 — Single interface ✅ Domain pills ✅ Brief + stagger ✅ Time fixes ✅*
+*Copy this entire message to start a new chat.*
 
 ---
 
 ## Hi! Continuing development of Zaeli.
 
-Zaeli is an iOS-first AI family life platform built in React Native / Expo. Please read **CLAUDE.md** before we start — full stack, architecture, colours, coding rules. Then **ZAELI-PRODUCT.md** for product vision and all module specs.
+Zaeli is an iOS-first AI family life platform built in React Native / Expo.
+Please read **CLAUDE.md** before we start — full stack, architecture, colours, all specs.
+Then **ZAELI-PRODUCT.md** for product vision and all module decisions.
 
 ---
 
@@ -15,7 +18,7 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo. Plea
 - One PowerShell command at a time, never chained with &&
 - Plain English before code
 - **Design before code** — mockup first for any new channel
-- Always ask me to upload the current working file before editing — never build from memory
+- Always ask me to upload the current working file before editing
 
 ---
 
@@ -23,7 +26,7 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo. Plea
 - Richard. **Logged-in user = Rich**
 - Family: Rich, Anna, Poppy (Yr6, 12, girl), Gab (Yr4, 10, BOY — Gabriel, he/him), Duke (Yr1, 8, boy)
 - Local path: `C:\Users\richa\zaeli` (Windows, PowerShell)
-- PowerShell copy: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\(tabs)\file.tsx"`
+- PowerShell: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\`(tabs`)\file.tsx"`
 - Repo: https://github.com/RDK1981/zaeli (private)
 - Admin: https://incomparable-gumdrop-32e4ba.netlify.app
 
@@ -49,53 +52,52 @@ Do NOT use @react-native-async-storage — requires native rebuild
 NEVER literal newlines inside JSX strings or regex — use \n escape
 stopPropagation on nested TouchableOpacity inside tappable parent row
 Modal stacking iOS: close modal → setTimeout 350ms → open next modal
+NEVER append +10:00 or any timezone suffix to stored event times
+fmtTime() and isoToMinutes() use RAW STRING PARSE — never new Date()
 ```
 
 ---
 
 ## What's built (1 Apr 2026)
 
-### index.tsx — Home ✅ CARD STACK REBUILD COMPLETE
+### index.tsx — Home ✅ SINGLE INTERFACE COMPLETE
 
-**Pass 1:**
-- Card stack: Calendar, Weather+Shopping, Actions, Dinner — all live Supabase data
-- Open-Meteo weather (Tewantin lat/lon, free, no key) with animated icons
-- Time-state driven card order (AM/PM/Evening)
-- Fixed banner: slim warm bar, wordmark + nav only (hero NOT in banner)
-- Scrollable hero: date divider → Zaeli eyebrow (✦ + timestamp) → DM Serif hero text
-- + Add on each card → seeds Zaeli chat inline
-- useChatPersistence('home') + greeting guard
-- Up/down scroll arrows
+**The big shift this session:**
+Home is now the only interface. 9 domain pills always visible. Everything inline or via 80% sheets.
 
-**Pass 2:**
-- Circle tick → optimistic UI + Supabase write (done:true, status:'done', done_at) + Zaeli quiet ack
-- Ticked items stay visible (struck through 0.45 opacity)
-- Dinner "Next 7 days ›" accordion — inline, zero extra API calls, uses day_key
-- Calendar "X more ›" overflow — expand/collapse inline
+**Cold open sequence:**
+1. Zaeli brief (DM Serif 26px) — fetches own live Supabase data, formula-driven, EXACTLY 2 sentences max
+2. "Today's overview" toggle — auto-opens 200ms after brief, collapses/expands card stack
+3. Cards stagger: Calendar 0ms → Weather+Shopping 150ms → Actions 300ms → Dinner 450ms (fadeIn + translateY)
+4. 900ms after brief → `generatePostCardPrompt()` → targeted GPT-mini follow-up in chat thread
 
-**Font sizes (LOCKED):**
-- Card content text: Poppins 400 17px (matches chat)
-- Dinner meal name: Poppins 800 19px
-- Eye labels / times / buttons: 11–13px
+**Domain pill bar (Option D SVG — LOCKED):**
+- 9 horizontal pills above chat bar, inside `inputArea` (position:absolute)
+- inputArea has NO background — KAV #fff creates floating effect
+- Pills: white solid bg, thin border, 18×18 SVG icons, ~80% of chat bar height
+- Inactive: muted icon in channel accent colour
+- Active: channel palette bg + deeper icon + label (Calendar = dark slate #3A3D4A)
+- Pill tap → inline card drops immediately + GPT-mini follow-up 400ms later
 
-**Critical gotchas:**
-```
-shopping_items: NO 'quantity' column
-  Query: .select('id,name,item,category,checked').neq('checked', true)
-  Render: item.name || item.item
+**Brief formula (enforced — 160 max tokens):**
+- EXACTLY 2 SHORT sentences. Name the person. Most urgent first. Confirm one win.
+- [brackets] = DM Serif italic. Banned: "breathing room" + all persona banned words.
+- Tone shifts: morning=direct, afternoon=practical, evening=calm, all-done=reward.
 
-meal_plans: primary date field = day_key (YYYY-MM-DD)
-  planned_date set to same value — both exist, use day_key
-```
+**Pill tap behaviour:**
+- Home → scroll to top · Notes/Travel/Family → router.navigate() · More → nav menu
+- Calendar/Shopping/Meals/Todos → fetch live data → drop inline card → GPT-mini follow-up
 
-### calendar.tsx — Calendar ✅ COMPLETE
-Mint banner. Day strip. Event cards. Month view. Tool-calling. Whisper. Persistence. Arrows.
+### calendar.tsx — Calendar ✅ COMPLETE + TIME FIX
+
+**Critical time fix applied 1 Apr:**
+- `fmtTime()` and `isoToMinutes()` use raw string parse (not new Date())
+- All save paths store bare local datetime: `"2026-04-01T16:00:00"` (NO +10:00)
+- 5 paths fixed: tool-calling add, tool-calling update, manual create, edit modal, move-date
 
 ### shopping.tsx — Shopping ✅ COMPLETE
-Lavender banner. Sonnet tool-calling. Single shared chat. Local category lookup. Persistence. Arrows.
 
 ### mealplanner.tsx — Meals ✅ COMPLETE
-Three tabs. Sonnet tool-calling. Persistence. Scroll arrows. Cook avatars. Full modal suite.
 
 ### lib/use-chat-persistence.ts ✅ COMPLETE
 Keys: 'home' | 'shopping' | 'calendar' | 'meals'. Next: 'todos'.
@@ -110,10 +112,27 @@ barPill: borderRadius:30, paddingVertical:14, paddingHorizontal:16, borderWidth:
   ├── barSep 1×18px rgba(10,10,10,0.1)
   ├── TextInput fontSize:15 Poppins_400Regular maxHeight:100 multiline
   ├── barMicBtn 32×32 → IcoMic color="#F5C8C8" size={26}
-  │     OR barWaveBtn 40×40 borderRadius:20 bg=channel AI colour (recording)
   └── barSend 32×32 borderRadius:16 bg=#FF4545
-inputArea: position:absolute bottom:0 paddingBottom: iOS?30:18 paddingHorizontal:14
+inputArea: position:absolute bottom:0 paddingBottom:iOS?30:18 paddingHorizontal:14
+  NO backgroundColor on inputArea — KAV #fff shows through = floating effect
 KAV: behavior=padding backgroundColor='#fff'
+```
+
+---
+
+## DOMAIN PILL BAR SPEC (LOCKED ✅)
+```
+Sits inside inputArea, ABOVE chat bar pill.
+Pills: flexDirection:row, gap:6, borderRadius:20, paddingVertical:9, paddingLeft:11, paddingRight:13
+       backgroundColor:#fff, borderWidth:1, borderColor:rgba(0,0,0,0.10)
+SVG icons: 18×18, channel accent colour (inactive)
+Label: Poppins_600SemiBold, fontSize:11
+Pill row: ScrollView horizontal, gap:6, marginBottom:8
+
+Active colours (channel palette bg + deeper icon):
+  Home: #F5EAD8 · Calendar: #3A3D4A (white icon) · Shopping: #EDE8FF
+  Meals: #FAC8A8 · Todos: #F0DC80 · Notes: #C8E8A8
+  Travel: #A8D8F0 · Family: #F0C8C0 · More: rgba(0,0,0,0.10)
 ```
 
 ---
@@ -123,40 +142,65 @@ KAV: behavior=padding backgroundColor='#fff'
 scrollArrowPair: position:absolute, bottom:110, right:16, flexDirection:row, gap:8, zIndex:50
 scrollArrowBtn:  width:38, height:38, borderRadius:19, bg:rgba(10,10,10,0.40)
 ```
-Implemented: Shopping ✅ · Calendar ✅ · Meals ✅ · Home ✅ · Next: Todos
+Implemented: Shopping ✅ · Calendar ✅ · Meals ✅ · Home ✅
 
 ---
 
-## CHAT PERSISTENCE SPEC (LOCKED ✅)
-`lib/use-chat-persistence.ts` — 24hr TTL · 30-msg cap · debounced saves.
-Wired: Shopping ✅ · Calendar ✅ · Meals ✅ · Home ✅ · Next: Todos
+## EVENT TIME CONTRACT (CRITICAL — LOCKED ✅)
+```
+✅ Store:  "2026-04-01T16:00:00"      → raw parse reads 16 → 4:00 pm ✓
+❌ Never:  "2026-04-01T16:00:00+10:00" → Supabase converts to UTC → raw parse reads 06 → 6:00 am ✗
+```
+fmtTime() and isoToMinutes() in BOTH files: raw string parse. Never new Date() for display.
 
 ---
 
-## HOME BANNER (LOCKED ✅)
-- Fixed banner: wordmark + Home label + hamburger + avatar ONLY
-- No hero in banner — hero lives in ScrollView below banner
-- Layout: date divider → Zaeli eyebrow → DM Serif hero → cards → "Earlier today" divider → chat
+## PANTRY — LAST BOUGHT MODEL (LOCKED ✅)
+Stock bars removed. Shows "last bought [date]" per item.
+Photo scan = logs as purchased. Receipts = primary source.
+
+---
+
+## SHEETS — 80% BOTTOM SHEETS (NEXT BUILD)
+"Full ›" on any inline card → 80% sheet.
+Clean black/grey UI — no channel colour. Workspaces, not destinations.
+Reference: `zaeli-single-interface-v1.html` (7 screens).
+
+Sheet tabs:
+- Calendar: Today · Tomorrow · Month
+- Shopping: List · Pantry · Spend
+- Meals: Dinners · Recipes · Favourites
+- Todos: Actions · Family
+- Travel: Trips · Itinerary · Packing
+- Family: overview sheet
+- Notes: flat list
 
 ---
 
 ## Immediate next tasks (in priority order)
 
-1. **Create reminders Supabase table** — SQL in ZAELI-PRODUCT.md
-2. **Todos + Reminders** (todos.tsx) — `zaeli-todos-reminders-v2.html`
-3. **Kids Hub** (kids.tsx)
-4. **Our Family** (family.tsx)
-5. **Notes** (notes.tsx)
-6. **Tutor rebuild** — `zaeli-tutor-final-mockup-v4.html`
-7. **Travel** — design session first
+1. **80% sheets** — build sheet components for all 7 domains. Follow `zaeli-single-interface-v1.html` exactly.
+2. **Create reminders Supabase table** (SQL in ZAELI-PRODUCT.md)
+3. **Todos + Reminders** (todos.tsx)
+4. **Kids Hub** (kids.tsx)
+5. **Our Family** (family.tsx) — sheet-based
+6. **Notes** (notes.tsx)
+7. **Tutor rebuild**
+8. **Travel** — design session first
 
 ---
 
-## Home — deferred for next Home session
-- Review card UX based on device usage feedback
-- Wire weather to real user location (currently Tewantin/Noosa hardcoded)
-- Actions circle un-tick support
-- "All done" evening state green card
+## Key decisions locked this session (don't revisit)
+- Single interface: everything in Home, pills + sheets
+- No dedicated channel navigation for users
+- Option D SVG pills: white solid, channel palette active, Calendar = dark slate
+- Pills at ~80% chat bar height (paddingVertical:9)
+- Colour in inline cards only, sheets = black/grey
+- Pantry = last bought dates, no stock bars
+- Time: bare local datetime, raw parse, no +10:00 ever
+- Kids Hub + Tutor remain standalone
+- Travel + Our Family now accessed via pills → sheets
+- Brief: EXACTLY 2 sentences, 160 max tokens, fetches own live data
 
 ---
 

@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 1 April 2026 — Home card stack rebuild ✅ Pass 1 + Pass 2 complete ✅*
+*Last updated: 1 April 2026 — Single interface concept ✅ Domain pill bar ✅ Time fixes ✅*
 
 ---
 
@@ -10,7 +10,7 @@
 - Family: Rich (logged-in user), Anna, Poppy (Yr6, age 12, girl), Gab (Yr4, age 10, BOY — Gabriel, always he/him), Duke (Yr1, age 8, boy)
 - Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no && chaining)
 - Repo: https://github.com/RDK1981/zaeli (private)
-- PowerShell escape for (tabs) folder: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\(tabs)\file.tsx"`
+- PowerShell: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\`(tabs`)\file.tsx"`
 - Full file rewrites only — never partial diffs
 - Design before code — always discuss/mockup new screens before writing code
 - **Two fixes at a time** — bulk changes create too many variables when something breaks
@@ -26,13 +26,11 @@ Zaeli is an iOS-first AI family life platform for Australian families with child
 - Tutor add-on: A$9.99/child/month
 - 100% web sales (no App Store cut)
 
-**Unit economics (confirmed 31 Mar 2026):**
-- shopping_chat / meals_chat (Sonnet): ~A$0.01–0.03/call
-- home_brief: ~A$0.0004/call · home_calendar: ~A$0.0008/call · home_chat (Sonnet): ~A$0.01/call
-- calendar_chat (Sonnet): ~A$0.009/call · whisper: ~A$0.0007/call
-- shopping_category: A$0 (local keyword lookup)
+**Unit economics (confirmed 1 Apr 2026):**
+- home_brief + detail + post_card: ~A$0.0012/cold open total
+- home_pill_tap: ~A$0.0004/tap
+- shopping/meals/calendar chat (Sonnet): ~A$0.01–0.03/call
 - Real MTD cost March 2026: A$3.17 / 1,048 calls
-- Only Home generates a brief on cold open — no brief on channel transitions
 
 ---
 
@@ -44,7 +42,7 @@ Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle thr
 - NEVER "mate", "guys" — Never start with "I" — Plain text only
 - Always ends on a confident offer — never a bare open question
 - BE PROPORTIONATE — never manufacture drama
-- **Banned words:** "queued up", "locked in", "tidy", "sorted", "lined up", "all set", "stacked neatly", "ambush", "sprint", "chaos", "chaotic"
+- **Banned words:** "queued up", "locked in", "tidy", "sorted", "lined up", "all set", "stacked neatly", "ambush", "sprint", "chaos", "chaotic", "breathing room"
 
 ---
 
@@ -52,7 +50,7 @@ Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle thr
 - React Native + Expo (iOS-first), dev build on iPhone 11 Pro Max
 - Supabase (Postgres, Sydney ap-southeast-2, ID: rsvbzakyyrftezthlhtd)
 - Claude Sonnet (`claude-sonnet-4-20250514`) — all tool-calling channels + vision
-- OpenAI GPT-5.4 mini (`gpt-5.4-mini`) — home_brief, home_calendar, Tutor conversation
+- OpenAI GPT-5.4 mini (`gpt-5.4-mini`) — home_brief, home_post_card, home_pill_tap, Tutor chat
 - OpenAI Whisper-1 — voice transcription
 - expo-router, expo-image-picker, react-native-svg, expo-file-system (chat persistence)
 - Poppins font (UI), DMSerifDisplay (hero titles)
@@ -76,31 +74,28 @@ Do NOT use @react-native-async-storage — requires native rebuild
 NEVER use literal newlines inside JSX strings {"..."} or regex /.../  — use \n escape
 stopPropagation on nested TouchableOpacity inside tappable parent rows
 Modal stacking iOS: close modal 1 → setTimeout 350ms → open modal 2
+NEVER append +10:00 or any timezone suffix to stored event times (see Time Contract below)
 ```
 
 ---
 
-## API Logging
-```
-Table: api_logs
-Columns: family_id, feature, model, input_tokens, output_tokens, cost_usd, created_at
-CRITICAL: input_tokens / output_tokens — NOT prompt_tokens / completion_tokens
-CRITICAL: total_tokens column does NOT exist
-```
-Admin: https://incomparable-gumdrop-32e4ba.netlify.app
+## Navigation Model (LOCKED ✅ 1 Apr 2026)
 
----
+**Single interface — Home is the only screen users ever need.**
 
-## Navigation Model (LOCKED)
-- No channel navigation UI — Zaeli is the only navigation
-- **Avatar tap:** Our Family · Tutor · Settings · Sign out
+- **9 domain pills** always visible above chat bar: Home · Calendar · Shopping · Meals · To-dos · Notes · Travel · Family · More
+- Pill tap → inline card drops into chat + GPT-mini follow-up 400ms later
+- "Full ›" on any inline card → 80% bottom sheet (clean black/grey UI)
+- Dedicated channel pages still exist but hidden from users — accessible via "Full ›" only
+- Kids Hub + Tutor remain standalone (sustained attention use cases)
+- **Avatar tap:** Kids Hub · Tutor · Settings · Sign out
 - Always `router.navigate()` — never push() or replace()
 
 ---
 
 ## Channel Architecture
 ```
-app/(tabs)/index.tsx          → Home ✅ REBUILD COMPLETE (1 Apr 2026)
+app/(tabs)/index.tsx          → Home ✅ SINGLE INTERFACE COMPLETE (1 Apr 2026)
 app/(tabs)/calendar.tsx       → Calendar ✅ COMPLETE
 app/(tabs)/shopping.tsx       → Shopping ✅ REBUILD COMPLETE (31 Mar)
 app/(tabs)/mealplanner.tsx    → Meals ✅ REBUILD COMPLETE (1 Apr)
@@ -110,7 +105,7 @@ app/(tabs)/notes.tsx          → Notes (design ✅ — not yet built)
 app/(tabs)/travel.tsx         → Travel (no design yet)
 app/(tabs)/family.tsx         → Our Family (design ✅ — not yet built)
 app/(tabs)/tutor.tsx          → Tutor (design ✅ — needs rebuild)
-lib/use-chat-persistence.ts   → ✅ Shared persistence hook
+lib/use-chat-persistence.ts   → ✅ Keys: home | shopping | calendar | meals
 ```
 
 ---
@@ -133,20 +128,14 @@ lib/use-chat-persistence.ts   → ✅ Shared persistence hook
 **CRITICAL:** Send button = `#FF4545` coral always. Body bg = `#FAF8F5` warm white always.
 No left-border accent strips. Shopping 'a' and 'i' = `#A8E8CC` mint.
 
+**Colour rule:** Channel colours live ONLY in inline chat card renders. Sheets are clean black/grey.
+
 ---
 
 ## Family Member Colours (LOCKED)
 ```
 Rich: #4D8BFF · Anna: #FF7B6B · Poppy: #A855F7 · Gab: #22C55E · Duke: #F59E0B
 ```
-
----
-
-## Banner Spec (LOCKED — matches Shopping)
-- Wordmark: DM Serif 40px, letter-spacing -1.5, lineHeight 44, ink body, channel AI colour on 'a' and 'i'
-- Channel name: Poppins 600 16px `rgba(0,0,0,0.45)` — **RIGHT side** next to hamburger
-- Tab pills **inside banner**: `rgba(0,0,0,0.08)` bg, borderRadius 22, padding 3, fontSize 13, paddingVertical 8
-- Divider: 1px `rgba(0,0,0,0.08)` below banner
 
 ---
 
@@ -162,8 +151,39 @@ barPill: borderRadius:30, paddingVertical:14, paddingHorizontal:16, borderWidth:
   │     OR barWaveBtn 40×40 borderRadius:20 bg=channel AI colour (recording)
   └── barSend 32×32 borderRadius:16 bg=#FF4545
 inputArea: position:absolute bottom:0 paddingBottom:iOS?30:18 paddingHorizontal:14
+  NO backgroundColor on inputArea — KAV #fff shows through = floating effect
 KAV: behavior=padding backgroundColor='#fff'
 Our Family: NO chat bar.
+```
+
+---
+
+## DOMAIN PILL BAR SPEC (LOCKED ✅ 1 Apr 2026)
+
+```
+Sits INSIDE inputArea, ABOVE the chat bar pill.
+inputArea has NO background — KAV #fff creates the floating effect.
+Pills row: ScrollView horizontal, gap:6, marginBottom:8
+
+Option D SVG pills:
+  pill: flexDirection:row, alignItems:center, gap:6, borderRadius:20
+        paddingVertical:9, paddingLeft:11, paddingRight:13
+        backgroundColor:#fff (solid white), borderWidth:1, borderColor:rgba(0,0,0,0.10)
+        flexShrink:0  (never compress)
+  SVG icons: 18×18 — channel accent colour as stroke (inactive)
+  Label: Poppins_600SemiBold, fontSize:11, color:rgba(0,0,0,0.45)
+
+Active pill: channel palette bg + deeper icon + label. Calendar = dark slate.
+Active colours:
+  Home     activeBg:#F5EAD8  activeIco:rgba(0,0,0,0.7)
+  Calendar activeBg:#3A3D4A  activeIco:#fff           ← dark slate, white icon
+  Shopping activeBg:#EDE8FF  activeIco:rgba(80,32,192,0.9)
+  Meals    activeBg:#FAC8A8  activeIco:rgba(200,64,16,0.9)
+  To-dos   activeBg:#F0DC80  activeIco:rgba(128,96,0,0.9)
+  Notes    activeBg:#C8E8A8  activeIco:rgba(44,96,16,0.9)
+  Travel   activeBg:#A8D8F0  activeIco:rgba(0,96,160,0.9)
+  Family   activeBg:#F0C8C0  activeIco:rgba(160,24,48,0.9)
+  More     activeBg:rgba(0,0,0,0.10) activeIco:rgba(0,0,0,0.7)
 ```
 
 ---
@@ -175,119 +195,79 @@ scrollArrowPair: position:absolute, bottom:110, right:16, flexDirection:row, gap
 scrollArrowBtn:  width:38, height:38, borderRadius:19, bg:rgba(10,10,10,0.40)
 Up → scrollTo({y:0}) · Down → scrollToEnd()
 ```
-**Implemented:** Shopping ✅ · Calendar ✅ · Meals ✅ · Home ✅
-**Next:** Todos
 
 ---
 
-## CHAT PERSISTENCE SPEC (LOCKED ✅)
+## HOME COLD OPEN SEQUENCE (LOCKED ✅ 1 Apr 2026)
 
-`lib/use-chat-persistence.ts` — expo-file-system/legacy, 24hr TTL, 30-msg cap, debounced saves.
-**Greeting guard:** `if (!chatLoaded || messages.length > 0) return;`
-```typescript
-const { messages, setMessages, clearMessages, loaded } = useChatPersistence('home');
-// Keys in use: 'shopping' | 'calendar' | 'meals' | 'home'
-// Next: 'todos'
-```
-**Wired:** Shopping ✅ · Calendar ✅ · Meals ✅ · Home ✅
+1. Brief hero arrives (DM Serif 26px, italic emphasis via `renderHeroText`)
+2. "Today's overview" toggle auto-opens after 200ms
+3. Cards stagger: Calendar 0ms → Weather+Shopping 150ms → Actions 300ms → Dinner 450ms
+4. 900ms → `generatePostCardPrompt()` → targeted follow-up in chat thread
 
----
-
-## HOME CHANNEL — CARD STACK (LOCKED ✅ 1 Apr 2026)
-
-### Architecture
-- **Hybrid screen:** Card stack (glanceable) at top → Zaeli chat below, all in one ScrollView
-- **Fixed banner:** Slim warm `#F5EAD8` bar — wordmark + Home label + hamburger + avatar only
-- **Scrollable hero:** Date divider → Zaeli eyebrow (✦ Zaeli + timestamp) → DM Serif hero text → cards → "Earlier today" divider → chat thread
-
-### Time state (computed fresh on mount)
-- **AM (5–12):** Calendar → Weather+Shopping → Actions → Dinner
-- **PM (12–20):** Dinner → Calendar → Actions → Weather+Shopping
-- **Evening (20–5):** Calendar(tomorrow) → Actions(2-section) → Weather+Shopping → Dinner(tomorrow)
-
-### Live data (fetched on mount + every useFocusEffect)
-- `events` — today + tomorrow, filtered (no all-day, no midnight-anchored)
-- `shopping_items` — `.neq('checked', true)`, select `id,name,item,category,checked`
-- `todos` — `.or('status.eq.active,done.eq.false')`
-- `meal_plans` — 7 days via `day_key` field (primary date field)
-- Open-Meteo API — weather, Tewantin lat -26.39, lon 153.03, free no key needed
-
-### shopping_items — CRITICAL column names
-```
-Columns: id, family_id, item, completed, created_at, name, checked, category, meal_source
-NO 'quantity' column — it does not exist
-Query: .select('id,name,item,category,checked').neq('checked', true)
-Render: item.name || item.item
-```
-
-### Card specs
-
-**CalendarCard** — slate `#3A3D4A`, padding 20
-- 4 events default. Overflow: "X more ›" expands inline. "Show less ∧" collapses.
-- Rows: time (13px) · dot · title+emoji (Poppins 400 17px) · avatars (30px)
-- + Add → seeds chat. Full → Calendar channel.
-
-**WeatherCard** — sky blue `#A8D8F0`, width 115px
-- Open-Meteo live. Animated icons (pulse/drift/drip/flash).
-
-**ShoppingCard** — lavender `#D8CCFF`, flex 1
-- Up to 3 items (Poppins 400 17px). Big count bottom right.
-- + Add → seeds chat. Full → Shopping channel.
-
-**ActionsCard** — gold `#F0DC80`, padding 20
-- Circle tick: optimistic UI → Supabase write → Zaeli chat acknowledgement
-- Ticked items stay visible (struck through, 0.45 opacity)
-- Evening: "🌙 Put out tonight" + "🌅 Tomorrow morning" sections
-- + Add → seeds chat. Full → Todos channel.
-
-**DinnerCard** — peach `#FAC8A8`, padding 20
-- Tonight/tomorrow meal. "Next 7 days ›" expands inline 7-day strip.
-- Expanded: emoji + name + ✓ or "Nothing yet ⚠". Unplanned count in footer.
-- "Open meal planner ›" → Meals channel.
-
-### Font sizes in cards (LOCKED)
-- Content text: Poppins 400 17px (event titles, shopping items, action items)
-- Dinner meal name: Poppins 800 19px
-- Times / eye labels / buttons: 11–13px (UI chrome)
-- Empty states: 16px italic
-
-### Card data refresh
-- On mount + useFocusEffect → `loadCardData()`
-- After any tool action → `setTimeout(loadCardData, 1200)`
+**Brief formula (ENFORCED — 160 max tokens):**
+- EXACTLY 2 SHORT sentences. Name the person. Most urgent first. One confirmation.
+- [square brackets] = italic in DM Serif.
+- Never start with "I". Evening = calm tone. All-done = reward moment.
 
 ---
 
-## MEALS CHANNEL — REBUILD COMPLETE (✅ 1 Apr 2026)
+## EVENT TIME CONTRACT (CRITICAL ✅ LOCKED 1 Apr 2026)
 
-- Three tabs: Dinners · Recipes · Favourites
-- One shared chat, Claude Sonnet tool-calling, `useChatPersistence('meals')`
-- **meal_plans primary date field: `day_key`** (YYYY-MM-DD) — planned_date set to same value on insert
-- cook_ids: always parse via parsedMeals (Supabase jsonb sometimes returns as string)
+**Store bare local datetime. Raw string parse for display. No timezone suffix. Ever.**
+
+```
+✅ Store: "2026-04-01T16:00:00"  → displays 4:00 pm ✓
+❌ Never: "2026-04-01T16:00:00+10:00" → Supabase converts to UTC → displays 6:00 am ✗
+```
+
+`fmtTime()` and `isoToMinutes()` in BOTH `calendar.tsx` AND `index.tsx` use raw string parse.
+All save paths store bare local datetime — no `new Date()` for display, no `+10:00` suffix.
+
+**Pre-launch timezone task:** Full fix needed before multi-timezone users.
+Store true UTC, display via `Intl.DateTimeFormat` with stored `timezone` field.
 
 ---
 
-## inlineData Architecture (LOCKED)
-```typescript
-inlineData?: {
-  type: 'calendar' | 'todos' | 'shopping' | 'meals' | 'kids';
-  intro?: string; followUp?: string; items?: any[]; showPortalPill?: boolean;
-}
-```
+## PANTRY — LAST BOUGHT MODEL (LOCKED ✅ 1 Apr 2026)
+
+Stock bars removed. Pantry shows "last bought" date per item.
+Photo scan logs items as purchased (not stock levels).
+Zaeli reasons from purchase frequency. Receipts = primary data source.
 
 ---
 
-## Supabase Tables
+## SHEETS — 80% BOTTOM SHEETS (NEXT BUILD)
+
+"Full ›" on any inline card → 80% sheet slides up.
+Clean black/grey minimal UI — NO channel colour in sheets.
+Colour lives ONLY in inline chat card renders.
+Sheets are workspaces not destinations. Max 2 levels deep.
+
+Sheet tabs per domain:
+- Calendar: Today · Tomorrow · Month
+- Shopping: List · Pantry · Spend
+- Meals: Dinners · Recipes · Favourites
+- Todos: Actions · Family
+- Travel: Trips · Itinerary · Packing
+- Family: overview (approve jobs, check progress)
+- Notes: flat list
+
+Reference: `zaeli-single-interface-v1.html` (7 screens)
+
+---
+
+## HTML Mockup Files (in /mnt/user-data/outputs/ and repo)
 ```
-events         → id, family_id, title, date, start_time, end_time, notes, assignees, all_day, repeat_rule, alert_rule, timezone
-todos          → id, family_id, title, priority, status, done, done_at, due_date, assigned_to, reminder_type, created_at
-shopping_items → id, family_id, name, item, checked, completed, category, meal_source, created_at (NO quantity column)
-pantry_items   → family_id, ...
-receipts       → family_id, store, purchase_date, total_amount, item_count, items (jsonb), raw_text, created_at
-family_members → ...
-api_logs       → family_id, feature, model, input_tokens, output_tokens, cost_usd, created_at
-meal_plans     → family_id, day_key, planned_date, meal_name, meal_type, source, prep_mins, cook_ids (jsonb), notes, ingredients (jsonb)
-recipes        → family_id, name, source_type, prep_mins, tags (jsonb), notes, ingredients (jsonb)
-reminders      → NOT YET CREATED (SQL in ZAELI-PRODUCT.md)
+zaeli-single-interface-v1.html   → Single interface full concept (7 screens) — BUILD FROM THIS
+zaeli-svg-pills-v1.html          → Option D SVG pills + frosted glass (LOCKED)
+zaeli-home-cold-open-v1.html     → Brief V2 stagger + brief quality examples (LOCKED)
+zaeli-pill-variations-v1.html    → Pill options A/B/C/D comparison
+zaeli-todos-reminders-v2.html    → Todos + Reminders (5 screens)
+zaeli-tutor-final-mockup-v4.html → Tutor (11 screens)
+zaeli-kids-hub-rewards-v2.html   → Kids Hub
+zaeli-our-family-mockup-v1.html  → Our Family (6 screens)
+zaeli-notes-mockup-v1.html       → Notes (5 screens)
 ```
 
 ---
@@ -298,6 +278,7 @@ reminders      → NOT YET CREATED (SQL in ZAELI-PRODUCT.md)
 - PowerShell: no && — separate lines
 - Always npx expo start --dev-client (--clear for bundle issues)
 - Date: local construction — NEVER toISOString()
+- Time: NEVER append +10:00 — store bare local datetime string
 - KAV backgroundColor: `#fff` · Send button: `#FF4545` always
 - Channel body bg: `#FAF8F5` — never full colour bleed
 - No left-border accent strips · Apostrophes in JSX: double-quoted strings
@@ -312,11 +293,11 @@ reminders      → NOT YET CREATED (SQL in ZAELI-PRODUCT.md)
 
 | File | Status | Notes |
 |---|---|---|
-| index.tsx | ✅ Rebuild complete | Card stack Pass 1+2 — 1 Apr 2026 |
-| calendar.tsx | ✅ Complete | Persistence + arrows 31 Mar |
+| index.tsx | ✅ Single interface complete | Brief + stagger + pills + post-card — 1 Apr |
+| calendar.tsx | ✅ Complete | Time fix applied — 1 Apr |
 | shopping.tsx | ✅ Rebuild complete | Lavender, Sonnet, persistence |
-| mealplanner.tsx | ✅ Rebuild complete | Full spec — 1 Apr 2026 |
-| lib/use-chat-persistence.ts | ✅ Complete | expo-file-system, 24hr, 30-msg |
+| mealplanner.tsx | ✅ Rebuild complete | Full spec — 1 Apr |
+| lib/use-chat-persistence.ts | ✅ Complete | Keys: home, shopping, calendar, meals |
 | todos.tsx | ✅ Design complete | Not built — create reminders table first |
 | kids.tsx | ✅ Design complete | Not built |
 | family.tsx | ✅ Design complete | Not built |
@@ -328,18 +309,13 @@ reminders      → NOT YET CREATED (SQL in ZAELI-PRODUCT.md)
 
 ## Next Priorities
 
-1. **Create reminders Supabase table** (SQL in ZAELI-PRODUCT.md)
-2. **Todos + Reminders** (todos.tsx) — `zaeli-todos-reminders-v2.html`
-3. **Kids Hub** (kids.tsx)
-4. **Our Family** (family.tsx)
-5. **Notes** (notes.tsx)
-6. **Tutor rebuild** — `zaeli-tutor-final-mockup-v4.html`
-7. **Travel** — design session first
+1. **80% sheets** — Calendar, Shopping, Meals, Todos, Notes, Travel, Family sheets triggered by "Full ›". Follow `zaeli-single-interface-v1.html` exactly.
+2. **Create reminders Supabase table** — SQL in ZAELI-PRODUCT.md
+3. **Todos + Reminders** (todos.tsx)
+4. **Kids Hub** (kids.tsx)
+5. **Our Family** (family.tsx) — sheet-based
+6. **Notes** (notes.tsx)
+7. **Tutor rebuild**
+8. **Travel** — design session first
 
-### Home — deferred items (next Home session)
-- Review card UX based on real device usage feedback
-- Weather: wire to real user location (currently hardcoded Tewantin/Noosa)
-- Actions circle un-tick (currently one-way — Todos channel handles this for now)
-- "All done" evening state — green card, Zaeli celebration
-
-**Deferred:** model cost review · real auth · EAS · Stripe · Settings
+**Deferred:** timezone full fix · real auth · EAS · Stripe · Settings · weather to real location
