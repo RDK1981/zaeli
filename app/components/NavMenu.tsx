@@ -171,7 +171,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { renderIcon: () => <IcoHome s={20}/>,    label: 'Home',     route: '/(tabs)/',         dotBg: '#FFF0EB', activeColor: C.blue },
       { renderIcon: () => <IcoCalNav s={20}/>,  label: 'Calendar', route: '/(tabs)/calendar', dotBg: '#FFF0F5', activeColor: C.magenta },
-      { renderIcon: () => <IcoTodoNav s={20}/>, label: 'To-dos',   route: '/(tabs)/more',     params: { initialPage: 'todo' }, dotBg: '#EDFFF6' },
+      { renderIcon: () => <IcoTodoNav s={20}/>, label: 'To-dos',   route: '/(tabs)/todos',    dotBg: '#EDFFF6' },
     ],
   },
   {
