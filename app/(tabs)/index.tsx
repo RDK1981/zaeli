@@ -1,20 +1,18 @@
 /**
- * index.tsx — Zaeli Home · Card Stack + AI Chat
+ * index.tsx — Zaeli Home · Single Interface
  *
- * Pass 1 (1 Apr 2026):
- * - Card stack: Calendar, Weather+Shopping, Actions, Dinner
- * - Live Supabase data for all cards
- * - Open-Meteo weather (Tewantin lat/lon, no API key needed)
- * - Animated weather icons
- * - Time-state driven card order (AM / PM / Evening)
- * - + Add on each card → seeds Zaeli chat inline
- * - useChatPersistence('home') wired with greeting guard
- * - Up / down scroll arrows (locked spec)
- * - All existing chat, tool-calling, brief, EventCard, modals preserved
- *
- * Pass 2 (next session):
- * - Circle tick → Supabase write + Zaeli acknowledgement
- * - 7-day dinner accordion expansion
+ * Pass 1 (1 Apr 2026): Card stack, live data, weather, time-state order
+ * Pass 2 (1 Apr 2026): Circle tick, 7-day dinner accordion, calendar overflow
+ * Pass 3 (1 Apr 2026): Single interface rebuild
+ * - Killer brief: live data fetched inside generateBrief(), formula-driven
+ *   (name person + most urgent + one win + 2 sentences max)
+ * - Brief chips inline below DM Serif hero (accent chip = most urgent action)
+ * - Card stagger: Calendar → Weather+Shopping → Actions → Dinner
+ *   (0 / 150 / 300 / 450ms fadeIn + slideUp)
+ * - Post-card Zaeli prompt: after cards settle, GPT-mini drops targeted follow-up
+ * - Domain pill bar: 9 pills above chat input (floating frosted glass)
+ *   Tap → inline card drops into chat + GPT-mini follow-up (400ms delay)
+ * - Pills: Home · Calendar · Shopping · Meals · To-dos · Notes · Travel · Family · More
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -130,8 +128,9 @@ interface CardData {
   // Shopping
   shopItems: any[];
   shopCount: number;
-  // Actions / todos
+  // Actions / todos + reminders
   todos: any[];
+  reminders: any[];
   // Dinner / meals
   meals: any[]; // 7 days of meal_plans rows
   // Weather
@@ -156,10 +155,13 @@ function localDatePlusDays(n: number) {
 }
 function fmtTime(t?: string | null): string {
   if (!t) return '';
+  // Raw-parse the stored local time portion — consistent with calendar.tsx
+  // Supabase returns stored local time with +00:00 suffix; we read the hours directly
   const timePart = t.includes('T') ? t.split('T')[1] : t.split(' ')[1] || '';
   if (!timePart) return '';
   const [hStr, mStr] = timePart.split(':');
   const h = parseInt(hStr, 10); const m = parseInt(mStr, 10);
+  if (isNaN(h) || isNaN(m)) return '';
   const ampm = h >= 12 ? 'pm' : 'am';
   const h12  = h === 0 ? 12 : h > 12 ? h-12 : h;
   return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
@@ -198,7 +200,8 @@ function renderHeroText(text: string, highlightColor: string) {
   const parts = text.split(/(\[[^\]]+\])/g);
   return parts.map((part, i) => {
     if (part.startsWith('[') && part.endsWith(']')) {
-      return <Text key={i} style={{ color:'#0A0A0A', fontFamily:'DMSerifDisplay_400Regular', fontStyle:'italic' as const }}>{part.slice(1,-1)}</Text>;
+      // Italic emphasis: colour + italic, inherits font size from parent heroLine
+      return <Text key={i} style={{ fontStyle:'italic' as const, color:'rgba(10,10,10,0.65)' }}>{part.slice(1,-1)}</Text>;
     }
     return <Text key={i}>{part}</Text>;
   });
@@ -528,6 +531,35 @@ function IcoThumbDown({ color = INK3 }: { color?: string }) {
 }
 function IcoClose() {
   return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="2.2" strokeLinecap="round"><Line x1="18" y1="6" x2="6" y2="18"/><Line x1="6" y1="6" x2="18" y2="18"/></Svg>;
+}
+
+// ── Domain pill SVG icons (Option D spec) ──────────────────────────────────
+function PilIcoHome({ color }: { color: string }) {
+  return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none"><Path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1v-9.5z" stroke={color} strokeWidth="1.8" strokeLinejoin="round"/><Rect x="9" y="13" width="6" height="8" rx="1" stroke={color} strokeWidth="1.8"/></Svg>;
+}
+function PilIcoCal({ color }: { color: string }) {
+  return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none"><Rect x="3" y="4" width="18" height="18" rx="3" stroke={color} strokeWidth="1.8"/><Line x1="3" y1="10" x2="21" y2="10" stroke={color} strokeWidth="1.8"/><Line x1="8" y1="2" x2="8" y2="6" stroke={color} strokeWidth="1.8" strokeLinecap="round"/><Line x1="16" y1="2" x2="16" y2="6" stroke={color} strokeWidth="1.8" strokeLinecap="round"/><Circle cx="8" cy="15" r="1.2" fill={color}/><Circle cx="12" cy="15" r="1.2" fill={color}/><Circle cx="16" cy="15" r="1.2" fill={color}/></Svg>;
+}
+function PilIcoShop({ color }: { color: string }) {
+  return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none"><Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" stroke={color} strokeWidth="1.8" strokeLinejoin="round"/><Line x1="3" y1="6" x2="21" y2="6" stroke={color} strokeWidth="1.8"/><Path d="M16 10a4 4 0 01-8 0" stroke={color} strokeWidth="1.8" strokeLinecap="round"/></Svg>;
+}
+function PilIcoMeal({ color }: { color: string }) {
+  return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none"><Circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.8"/><Line x1="8.5" y1="7" x2="8.5" y2="9.5" stroke={color} strokeWidth="1.8" strokeLinecap="round"/><Line x1="10.5" y1="7" x2="10.5" y2="9.5" stroke={color} strokeWidth="1.8" strokeLinecap="round"/><Line x1="9" y1="11.5" x2="9" y2="16" stroke={color} strokeWidth="1.8" strokeLinecap="round"/><Path d="M14 7.5 C15.5 9 15.5 11.5 14 13 L14 17" stroke={color} strokeWidth="1.8" strokeLinecap="round"/></Svg>;
+}
+function PilIcoTodo({ color }: { color: string }) {
+  return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none"><Rect x="3" y="3" width="18" height="18" rx="4" stroke={color} strokeWidth="1.8"/><Polyline points="7.5 12 10.5 15.5 16.5 8.5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></Svg>;
+}
+function PilIcoNotes({ color }: { color: string }) {
+  return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none"><Rect x="4" y="2" width="16" height="20" rx="2.5" stroke={color} strokeWidth="1.8"/><Line x1="8" y1="8" x2="16" y2="8" stroke={color} strokeWidth="1.6" strokeLinecap="round"/><Line x1="8" y1="12" x2="16" y2="12" stroke={color} strokeWidth="1.6" strokeLinecap="round"/><Line x1="8" y1="16" x2="13" y2="16" stroke={color} strokeWidth="1.6" strokeLinecap="round"/></Svg>;
+}
+function PilIcoTravel({ color }: { color: string }) {
+  return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none"><Path d="M21 16l-9-5-1-7-2 1 1 6.5L4 14.5l-.5 2 6.5-1.5 1 5.5 2 .5-.5-7 8.5-3.5z" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></Svg>;
+}
+function PilIcoFamily({ color }: { color: string }) {
+  return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none"><Circle cx="9" cy="7" r="3" stroke={color} strokeWidth="1.7"/><Circle cx="17" cy="8" r="2.5" stroke={color} strokeWidth="1.5"/><Path d="M3 19c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={color} strokeWidth="1.7" strokeLinecap="round"/><Path d="M17 13c2.2.6 4 2.6 4 5" stroke={color} strokeWidth="1.5" strokeLinecap="round"/></Svg>;
+}
+function PilIcoMore({ color }: { color: string }) {
+  return <Svg width="18" height="18" viewBox="0 0 24 24" fill="none"><Circle cx="5" cy="12" r="2" fill={color}/><Circle cx="12" cy="12" r="2" fill={color}/><Circle cx="19" cy="12" r="2" fill={color}/></Svg>;
 }
 function IcoCamera() {
   return <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><Circle cx="12" cy="13" r="4"/></Svg>;
@@ -1354,7 +1386,7 @@ function ActionsCard({
               {/* Circle tick */}
               <TouchableOpacity
                 style={[cardS.actChk, isDone && cardS.actChkDone]}
-                onPress={() => !isDone && onTick(todo)}
+                onPress={() => onTick(todo)}
                 activeOpacity={0.7}
                 hitSlop={{ top:8, bottom:8, left:8, right:8 }}
               >
@@ -1543,6 +1575,9 @@ export default function HomeScreen() {
   const [showScrollBtn,   setShowScrollBtn]   = useState(false);
   const [briefReplies,    setBriefReplies]    = useState<string[]>([]);
   const [briefHero,       setBriefHero]       = useState<string>('');
+  const [briefChips,      setBriefChips]      = useState<string[]>([]);
+  const [activePill,      setActivePill]      = useState<string>('');
+  const [overviewOpen,    setOverviewOpen]    = useState(false);
   const [briefSeed,       setBriefSeed]       = useState('');
   const [showAddSheet,    setShowAddSheet]    = useState(false);
   const [pendingImage,    setPendingImage]    = useState<string | null>(null);
@@ -1558,13 +1593,33 @@ export default function HomeScreen() {
   // ── Card data state ──────────────────────────────────────────────────────
   const [cardData, setCardData] = useState<CardData>({
     todayEvents: [], tomorrowEvents: [], shopItems: [], shopCount: 0,
-    todos: [], meals: [], weather: null,
+    todos: [], reminders: [], meals: [], weather: null,
   });
   const [cardLoading, setCardLoading] = useState(true);
 
   const PLACEHOLDERS = ['Chat with Zaeli…', 'Or just speak…', 'Chat with Zaeli…', 'Ask anything…'];
 
   const waveAnims        = useRef(Array.from({ length:13 }, () => new Animated.Value(0.3))).current;
+
+  // Card stagger animations — fade + slide in sequentially
+  const cardAnims = useRef([0,1,2,3].map(() => ({
+    opacity: new Animated.Value(0),
+    translateY: new Animated.Value(16),
+  }))).current;
+
+  // Trigger stagger + open overview when brief loads
+  useEffect(() => {
+    if (!briefHero) return;
+    // Open the card stack with a small delay so hero text renders first
+    setTimeout(() => setOverviewOpen(true), 200);
+    // Stagger: 0ms, 150ms, 300ms, 450ms
+    cardAnims.forEach((anim, i) => {
+      Animated.parallel([
+        Animated.timing(anim.opacity,     { toValue:1, duration:380, delay:i*150 + 200, useNativeDriver:true }),
+        Animated.timing(anim.translateY,  { toValue:0, duration:380, delay:i*150 + 200, easing:Easing.out(Easing.cubic), useNativeDriver:true }),
+      ]).start();
+    });
+  }, [briefHero]);
   const waveLoopRef      = useRef<Animated.CompositeAnimation | null>(null);
   const scrollBtnAnim    = useRef(new Animated.Value(0)).current;
   const pillsAnim        = useRef(new Animated.Value(1)).current;
@@ -1575,7 +1630,7 @@ export default function HomeScreen() {
   const starScale        = useRef(new Animated.Value(0.4)).current;
   const wordmarkOpacity  = useRef(new Animated.Value(0)).current;
   const recordingRef     = useRef<Audio.Recording | null>(null);
-  const isAtBottom       = useRef(true);
+  const isAtBottom       = useRef(false);
   const lastImageDesc    = useRef<string>('');
   const lastSendRef      = useRef<string>('');
   const handledScanRef   = useRef<string | null>(null);
@@ -1601,6 +1656,7 @@ export default function HomeScreen() {
         shopRes,
         shopCountRes,
         todosRes,
+        remindersRes,
         mealsRes,
       ] = await Promise.all([
         supabase.from('events')
@@ -1618,10 +1674,16 @@ export default function HomeScreen() {
           .eq('family_id', FAMILY_ID)
           .neq('checked', true),
         supabase.from('todos')
-          .select('id,title,priority,status,done,due_date,assigned_to,reminder_type')
+          .select('id,title,priority,status,due_date,assigned_to,notes')
           .eq('family_id', FAMILY_ID)
-          .or('status.eq.active,done.eq.false')
-          .order('created_at').limit(6),
+          .eq('status', 'active')
+          .order('created_at', { ascending: false }).limit(8),
+        supabase.from('reminders')
+          .select('id,title,remind_at,member_id,repeat,status')
+          .eq('family_id', FAMILY_ID)
+          .eq('status', 'active')
+          .lte('remind_at', new Date(Date.now() + 24*60*60*1000).toISOString())
+          .order('remind_at').limit(5),
         supabase.from('meal_plans')
           .select('id,meal_name,meal_type,planned_date,day_key,prep_mins,cook_ids')
           .eq('family_id', FAMILY_ID)
@@ -1630,14 +1692,20 @@ export default function HomeScreen() {
           .order('planned_date').limit(7),
       ]);
 
-      // Filter events — no all-day, no midnight-anchored
+      // Filter events — no all-day
+      // start_time stored as UTC: "2026-04-01 08:20:00+00" — new Date() handles this correctly
+      const nowMinus15Ms = Date.now() - 15 * 60 * 1000;
       const allEvents = (eventsRes.data ?? []).filter((e:any) => {
         if (e.all_day) return false;
-        const st = e.start_time || '';
-        if (st.includes('T00:00:00') || st.includes(' 00:00:00')) return false;
         return true;
       });
-      const todayEvents    = allEvents.filter((e:any) => e.date === today);
+      const todayEvents = allEvents.filter((e:any) => {
+        if (e.date !== today) return false;
+        if (!e.start_time) return true; // no time = always show
+        // new Date() parses "+00" suffix correctly → gives local time in ms
+        const eventMs = new Date(e.start_time).getTime();
+        return eventMs >= nowMinus15Ms;
+      });
       const tomorrowEvents = allEvents.filter((e:any) => e.date === tomorrow);
 
       // Fetch weather from Open-Meteo (free, no key)
@@ -1658,14 +1726,27 @@ export default function HomeScreen() {
         }
       } catch { /* weather fails silently */ }
 
+      // Merge reminders into actions — show today's reminders with Reminder badge
+      const todayReminders = (remindersRes.data ?? []).map((r:any) => ({
+        id: r.id,
+        title: r.title,
+        priority: 'normal',
+        status: 'active',
+        done: false,
+        due_date: r.remind_at ? r.remind_at.slice(0,10) : null,
+        assigned_to: r.member_id || null,
+        reminder_type: 'reminder',
+      }));
+
       setCardData({
         todayEvents,
         tomorrowEvents,
-        shopItems:  shopRes.data ?? [],
-        shopCount:  shopCountRes.count ?? 0,
-        todos:      todosRes.data ?? [],
-        meals:      mealsRes.data ?? [],
-        weather:    weatherData,
+        shopItems:   shopRes.data ?? [],
+        shopCount:   shopCountRes.count ?? 0,
+        todos:       [...(todosRes.data ?? []), ...todayReminders],
+        reminders:   remindersRes.data ?? [],
+        meals:       mealsRes.data ?? [],
+        weather:     weatherData,
       });
     } catch (e) {
       console.error('[loadCardData] error:', e);
@@ -1759,46 +1840,126 @@ export default function HomeScreen() {
     setThumbs(prev => ({ ...prev, [msgId]: prev[msgId]===dir ? null : dir }));
   }
 
-  // ── Circle tick on Actions card ──────────────────────────────────────────
+  // ── Toggle tick on Actions card — silent, keeps item visible, no reload ──
   async function handleTodoTick(todo: any) {
-    // 1. Optimistic local update — mark done immediately in cardData
+    const isReminder = todo.reminder_type === 'reminder';
+    const isDone = todo.status === 'done' || todo.status === 'acknowledged';
+    const newStatus = isDone
+      ? 'active'
+      : isReminder ? 'acknowledged' : 'done';
+
+    // Optimistic update — keep item in card, just change status (stays visible greyed)
     setCardData(prev => ({
       ...prev,
       todos: prev.todos.map(t =>
-        t.id === todo.id ? { ...t, done: true, status: 'done' } : t
+        t.id === todo.id ? { ...t, status: newStatus } : t
       ),
     }));
 
-    // 2. Write to Supabase
+    // Supabase write — silent, no reload (item stays visible in card)
     try {
-      await supabase.from('todos')
-        .update({ done: true, status: 'done', done_at: new Date().toISOString() })
-        .eq('id', todo.id);
-    } catch (e) {
+      if (isReminder) {
+        await supabase.from('reminders')
+          .update({ status: newStatus })
+          .eq('id', todo.id);
+      } else {
+        await supabase.from('todos')
+          .update({ status: newStatus, updated_at: new Date().toISOString() })
+          .eq('id', todo.id);
+      }
+    } catch {
       // Roll back on failure
       setCardData(prev => ({
         ...prev,
         todos: prev.todos.map(t =>
-          t.id === todo.id ? { ...t, done: false, status: 'active' } : t
+          t.id === todo.id ? { ...t, status: todo.status } : t
         ),
       }));
-      return;
+    }
+  }
+
+  // ── Domain pill tap → inject inline card + GPT-mini follow-up ──────────
+  async function handlePillTap(domain: string) {
+    // Scroll to bottom of chat
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 80);
+
+    // Immediately inject the relevant card as an inline message
+    const cardMsgId = uid();
+    const inlineTypeMap: Record<string, InlineData['type']> = {
+      calendar: 'calendar', shopping: 'shopping', meals: 'meals', todos: 'todos',
+    };
+    const inlineType = inlineTypeMap[domain] ?? null;
+
+    if (inlineType) {
+      // Fetch latest data for the card
+      const today = localDateStr();
+      let items: any[] = [];
+      if (inlineType === 'calendar') {
+        const { data } = await supabase.from('events')
+          .select('id,title,date,start_time,end_time,assignees')
+          .eq('family_id', FAMILY_ID).eq('date', today)
+          .order('start_time').limit(8);
+        items = data ?? [];
+      } else if (inlineType === 'shopping') {
+        const { data } = await supabase.from('shopping_items')
+          .select('id,name,item,checked').eq('family_id', FAMILY_ID)
+          .neq('checked', true).limit(10);
+        items = data ?? [];
+      } else if (inlineType === 'todos') {
+        const { data } = await supabase.from('todos')
+          .select('id,title,priority,status,due_date').eq('family_id', FAMILY_ID)
+          .eq('status','active').limit(8);
+        items = data ?? [];
+      } else if (inlineType === 'meals') {
+        const { data } = await supabase.from('meal_plans')
+          .select('id,meal_name,day_key,prep_mins').eq('family_id', FAMILY_ID)
+          .gte('day_key', today).limit(7);
+        items = data ?? [];
+      }
+      const msg: Msg = {
+        id: cardMsgId, role: 'zaeli', text: '', ts: nowTs(),
+        inlineData: { type: inlineType, items },
+      };
+      setMessages(prev => [...prev, msg]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 120);
     }
 
-    // 3. Zaeli quiet acknowledgement injected into chat thread
-    const remaining = cardData.todos.filter(t => t.id !== todo.id && !t.done && t.status !== 'done');
-    let ackText = '';
-    if (remaining.length === 0) {
-      ackText = `${todo.title} — done. Everything cleared. Enjoy the rest of the day.`;
-    } else if (remaining.length === 1) {
-      ackText = `${todo.title} — done. Just ${remaining[0].title} left.`;
-    } else {
-      ackText = `${todo.title} — done. ${remaining.length} still to go.`;
-    }
-
-    // Scroll down to show the acknowledgement
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
-    addMsg({ role: 'zaeli', text: ackText, isLoading: false });
+    // GPT-mini follow-up after 400ms (feels instant, not blocking)
+    setTimeout(async () => {
+      const replyId = uid();
+      setMessages(prev => [...prev, { id:replyId, role:'zaeli', text:'', ts:nowTs(), isLoading:true }]);
+      try {
+        const today = localDateStr();
+        const contextLines: string[] = [];
+        if (domain === 'calendar') {
+          const { data } = await supabase.from('events').select('title,start_time').eq('family_id',FAMILY_ID).eq('date',today).order('start_time').limit(5);
+          contextLines.push((data??[]).length > 0 ? `Today: ${(data??[]).map((e:any) => `${e.title} at ${fmtTime(e.start_time)}`).join(', ')}` : 'No events today.');
+        } else if (domain === 'shopping') {
+          const { data } = await supabase.from('shopping_items').select('name,item').eq('family_id',FAMILY_ID).neq('checked',true).limit(5);
+          const names = (data??[]).map((i:any) => i.name || i.item).filter(Boolean);
+          contextLines.push(names.length > 0 ? `List: ${names.join(', ')} (${names.length} items)` : 'Shopping list is clear.');
+        } else if (domain === 'meals') {
+          const { data } = await supabase.from('meal_plans').select('meal_name,day_key').eq('family_id',FAMILY_ID).gte('day_key',today).limit(3);
+          const tonightMeal = (data??[]).find((m:any) => m.day_key === today)?.meal_name;
+          contextLines.push(tonightMeal ? `Tonight: ${tonightMeal}.` : 'Tonight not planned.');
+        } else if (domain === 'todos') {
+          const { data } = await supabase.from('todos').select('title,due_date').eq('family_id',FAMILY_ID).eq('status','active').limit(4);
+          contextLines.push((data??[]).length > 0 ? `Open: ${(data??[]).map((t:any) => t.title).join(', ')}` : 'No open todos.');
+        }
+        const sys = `You are Zaeli — sharp, warm AI for Rich's Australian family.
+Rich tapped the ${domain} pill. A card just dropped into the chat showing live data.
+Context: ${contextLines.join(' ')}
+Write ONE targeted follow-up line (max 10 words). Be specific to the data. Offer something concrete.
+Never start with "I". No hollow phrases. Then 3 chips.
+Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
+        const raw = await callGPT(sys, [{role:'user', content:'Generate.'}], 150, 'home_pill_tap');
+        const parsed = JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,'').trim());
+        updateMsg(replyId, { text: parsed.line ?? '', isLoading:false, quickReplies: parsed.chips ?? [] });
+      } catch {
+        setMessages(prev => prev.filter(m => m.id !== replyId));
+      }
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 150);
+    }, 400);
   }
 
   // ── + Add card handlers → seed Zaeli chat ────────────────────────────────
@@ -1880,7 +2041,6 @@ FORMAT: 2–4 sentences. Natural prose. No bullet points, no lists, no asterisks
 
   // ── Generate brief ────────────────────────────────────────────────────────
   async function generateBrief(force = false, focusHint?: string) {
-    // Greeting guard — skip if messages already loaded from persistence
     if (!force && messages.length > 0) return;
     if (chatLoaded && messages.length > 0 && !force) return;
 
@@ -1888,62 +2048,196 @@ FORMAT: 2–4 sentences. Natural prose. No bullet points, no lists, no asterisks
     if (!force && elapsed < 30*60*1000 && cachedBriefText) {
       const cached = JSON.parse(cachedBriefText);
       setBriefHero(cached.hero ?? '');
-      addMsg({ role:'zaeli', text:cached.detail, isBrief:true, isLoading:false, quickReplies:cached.replies });
-      setBriefReplies(cached.replies ?? []);
-      setBriefSeed(cachedBriefSeed ?? '');
+      setBriefChips(cached.chips ?? []);
       return;
     }
     lastBriefTime = Date.now();
-    const loadId = addMsg({ role:'zaeli', text:'', isBrief:true, isLoading:true });
+    setBriefHero(''); // show loading dots while generating
+
     try {
-      const { system } = await buildContext();
+      // Fetch live data INSIDE brief — never rely on component state
+      const today = localDateStr();
+      const tomorrow = localDatePlusDays(1);
       const isLate = h >= 21 || h < 6;
-      const focusInstruction = focusHint ? `\nFOCUS: Rich tapped "${focusHint}". Lead with that topic in both hero and detail.` : '';
-      const briefSys = `${system}
+      const isEvening = h >= 20;
+      const isMorning = h >= 5 && h < 12;
+      const frame = isLate ? 'late night' : isMorning ? 'morning' : h < 17 ? 'afternoon' : 'evening';
 
-You are Zaeli, writing the opening home screen message for ${MEMBER_NAME}.
+      const [eventsRes, todosRes, remindersRes, mealsRes, shopRes] = await Promise.all([
+        supabase.from('events')
+          .select('title,date,start_time,assignees')
+          .eq('family_id', FAMILY_ID)
+          .eq('date', today)
+          .order('start_time').limit(10),
+        supabase.from('todos')
+          .select('title,priority,status,due_date')
+          .eq('family_id', FAMILY_ID)
+          .eq('status', 'active')
+          .limit(8),
+        supabase.from('reminders')
+          .select('title,remind_at,member_id')
+          .eq('family_id', FAMILY_ID)
+          .eq('status', 'active')
+          .lte('remind_at', new Date(Date.now() + 24*60*60*1000).toISOString())
+          .limit(5),
+        supabase.from('meal_plans')
+          .select('meal_name,day_key')
+          .eq('family_id', FAMILY_ID)
+          .gte('day_key', today)
+          .lte('day_key', tomorrow)
+          .limit(2),
+        supabase.from('shopping_items')
+          .select('name,item')
+          .eq('family_id', FAMILY_ID)
+          .neq('checked', true)
+          .limit(3),
+      ]);
 
-PERSONA: Sharp, warm, genuinely enthusiastic about this family. You notice things others miss and find the funny angle through delight, not detachment. You celebrate small wins, spot the chaos before it arrives, and feel right in it with the family. Energy matches the moment: get-up-and-go in the morning, calm and settled at night.
+      const todayEvents = (eventsRes.data ?? []).map((e:any) => {
+        const time = fmtTime(e.start_time);
+        const assignees = (e.assignees || []).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)?.name).filter(Boolean);
+        return `${e.title}${time ? ' at ' + time : ''}${assignees.length ? ' (' + assignees.join(', ') + ')' : ''}`;
+      });
+      const todos = (todosRes.data ?? []).map((t:any) => `${t.title}${t.due_date && t.due_date <= today ? ' [OVERDUE]' : t.due_date === today ? ' [DUE TODAY]' : ''}`);
+      const reminders = (remindersRes.data ?? []).map((r:any) => {
+        const member = FAMILY_MEMBERS.find(m => m.id === r.member_id);
+        return `${r.title}${member ? ' (re: ' + member.name + ')' : ''}`;
+      });
+      const meals = (mealsRes.data ?? []);
+      const tonightMeal = meals.find((m:any) => m.day_key === today)?.meal_name ?? null;
 
-BANNED WORDS AND PHRASES: "queued up", "locked in", "tidy", "sorted", "lined up", "on the cards", "all set", "looking good", "in play", "absolutely", "of course", "great question", "stacked neatly", "ambush", "sprint", "chaos", "suitcase", "chaotic". Never start with "I". Never say "mate".
+      const contextStr = [
+        todayEvents.length ? `TODAY'S EVENTS: ${todayEvents.join(' · ')}` : 'No events today.',
+        todos.length ? `OPEN TODOS: ${todos.join(' · ')}` : 'No open todos.',
+        reminders.length ? `REMINDERS DUE SOON: ${reminders.join(' · ')}` : '',
+        tonightMeal ? `DINNER TONIGHT: ${tonightMeal} — sorted.` : (isMorning || h < 19 ? 'DINNER TONIGHT: not planned.' : ''),
+      ].filter(Boolean).join('\n');
 
-STRUCTURE:
+      const briefSys = `You are Zaeli — sharp, warm AI for Rich's Australian family (Anna, Poppy Yr6, Gab Yr4 boy, Duke Yr1 boy).
 
-PART 1 — HERO (2 sentences, DM Serif italic feel):
-- Wrap 2-3 key words in [square brackets] — these render italic
-- Max 30 words total. Must make ${MEMBER_NAME} smile or feel genuinely seen.
-- No greeting prefix.
-${isLate ? '- It is late — calm and settled energy only.' : ''}
+CURRENT TIME: ${frame}, ${new Date().toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit' })}
 
-PART 2 — DETAIL (2 sentences max, Poppins prose):
-- One warm layer that adds colour. Never a repeat of the hero.
-- A confident specific offer. "Say the word and I'll..." or "I can..."
+LIVE DATA:
+${contextStr}
 
-CHIPS — exactly 3, sound like things ${MEMBER_NAME} would actually say out loud:
-- Natural speech, 3-6 words, no punctuation, no emoji.
+WRITE THE HOME SCREEN BRIEF. This is the FIRST thing Rich sees when he opens the app. It must feel like Zaeli genuinely knows his family — not a generic summary.
 
-${focusInstruction}
+THE BRIEF FORMULA (non-negotiable — STRICT):
+1. EXACTLY 2 SHORT sentences. Not 3. Not 4. TWO.
+2. Sentence 1: Name the most time-sensitive thing. Use the PERSON'S NAME (Gab, Poppy, Duke). One specific fact only.
+3. Sentence 2: One confirmation (what's sorted/fine) OR one forward-looking note. Never repeat sentence 1.
+4. Wrap 1-2 key phrases in [square brackets] for italic emphasis — these render in DM Serif italic.
+5. NEVER start with "I", "Good morning", "Hey", any greeting, or any weather/general observation.
+6. NEVER write more than 20 words per sentence.
+7. NEVER use phrases like "breathing room", "sorted out", "taken care of", "good to go", "on the radar".
 
-Return ONLY valid JSON:
-{"hero":"[2 sentence hero]","detail":"[2 sentence detail]","replies":["chip 1","chip 2","chip 3"],"seed":"natural Zaeli follow-up response to the first chip"}`;
+TONE — match the time exactly:
+- Morning (5–12): Sharp, energised, direct. "Gab needs a gold coin today."
+- Afternoon (12–20): Practical. Mention what's left, confirm what's done.
+- Evening (20–5): Calm. One gentle note. Never alarming. Short.
+- All done: "[Enjoy the evening] — nothing left to do."
 
-      const raw    = await callGPT(briefSys, [{ role:'user', content:'Generate now.' }], 600, 'home_brief');
-      const parsed = JSON.parse(raw.replace(/```json|```/g,'').trim());
-      const hero    = parsed.hero    ?? `${dateLabel} — let's see what the day has in store.`;
-      const detail  = parsed.detail  ?? `Here's what's coming up, ${MEMBER_NAME}.`;
-      const replies = parsed.replies ?? ["What's on today", "Check the list", "All sorted"];
-      const seed    = parsed.seed    ?? replies[0] ?? "What's on today?";
-      cachedBriefText = JSON.stringify({ hero, detail, replies });
-      cachedBriefSeed = seed;
+CHIPS — exactly 3 short phrases (3–5 words max each):
+- CHIP 1 (accent, most important): The single most pressing action right now.
+- CHIP 2 & 3: Other relevant actions from the data.
+- Sound like things Rich would tap naturally. No punctuation. No emoji.
+- NEVER use "View", "See", "Check" as the first word — use action verbs.
+
+BANNED WORDS: "breathing room", "queued up", "locked in", "tidy", "sorted", "lined up", "all set", "stacked", "ambush", "sprint", "chaos", "chaotic", "mate", "guys", "great".
+
+Return ONLY valid JSON (no markdown, no backticks):
+{"hero":"2 sentences max with [italic key phrases]","chips":["most urgent action","second chip","third chip"]}
+
+EXAMPLES OF GOOD BRIEFS:
+- Morning with todos: "Gab needs a gold coin today — and [car insurance is due tomorrow]. Dinner sorted, soccer at 4."
+- Evening with reminder: "Poppy's library books are due back [tomorrow morning]. Insurance still open — worth 5 minutes tonight."
+- All done: "Everything sorted. [Enjoy the evening] — you've earned it."
+- Afternoon calm: "[Pasta Carbonara] is on for tonight. Two things still open — the plumber call and Duke's eye test."`;
+
+      const raw = await callGPT(briefSys, [{ role:'user', content:'Generate the brief now. Remember: EXACTLY 2 short sentences.' }], 160, 'home_brief');
+      const parsed = JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,'').trim());
+      const hero  = parsed.hero  ?? `${dateLabel}.`;
+      const chips = parsed.chips ?? ["What's on today", "Check the list", "Anything urgent"];
+
+      cachedBriefText = JSON.stringify({ hero, chips });
       setBriefHero(hero);
-      updateMsg(loadId, { text:detail, isLoading:false, quickReplies:replies });
-      setBriefReplies(replies);
-      setBriefSeed(seed);
-      setTimeout(() => scrollRef.current?.scrollTo({ y:0, animated:false }), 120);
+      setBriefChips(chips);
+
+      // Also push a brief detail message into the chat thread
+      // This is the secondary line + chips that appear below the card stack
+      // Keep it short — the hero says the important thing, this offers to help
+      const detailSys = `You are Zaeli. Rich just saw this brief: "${hero}"
+Write ONE warm follow-up sentence (max 10 words) offering to help with the most urgent thing.
+Never start with "I". Never say "mate". Not hollow — be specific to the brief.
+Then 3 chips (3-5 words each, action-oriented).
+Return ONLY JSON: {"detail":"...","replies":["chip1","chip2","chip3"]}`;
+      try {
+        const detailRaw = await callGPT(detailSys, [{role:'user', content:'Generate.'}], 120, 'home_brief_detail');
+        const detailParsed = JSON.parse(detailRaw.replace(/\`\`\`json|\`\`\`/g,'').trim());
+        addMsg({
+          role: 'zaeli',
+          text: detailParsed.detail ?? '',
+          isBrief: true,
+          isLoading: false,
+          quickReplies: detailParsed.replies ?? chips,
+        });
+      } catch {
+        // Fallback — use chips from brief as quick replies, no detail text
+        addMsg({ role:'zaeli', text:'', isBrief:true, isLoading:false, quickReplies:chips });
+      }
+
+      // After cards stagger in, drop the post-card prompt
+      setTimeout(() => {
+        generatePostCardPrompt();
+      }, 900);
+
     } catch (e) {
       console.error('Brief error:', e);
       setBriefHero(`${dateLabel}.`);
-      updateMsg(loadId, { text:`Ready when you are, ${MEMBER_NAME}.`, isLoading:false, quickReplies:["What's on today", "Check the list", "All good"] });
+      setBriefChips(["What's on today", "Check the list", "Anything urgent"]);
+    }
+  }
+
+  // ── Post-card Zaeli prompt — drops after cards stagger in ─────────────────
+  async function generatePostCardPrompt() {
+    if (messages.length > 0) return; // only on cold open
+    try {
+      // Quick contextual GPT-mini call — targeted 1-line follow-up
+      const today = localDateStr();
+      const [todosRes, remindersRes] = await Promise.all([
+        supabase.from('todos').select('title,priority,due_date').eq('family_id',FAMILY_ID).eq('status','active').limit(3),
+        supabase.from('reminders').select('title').eq('family_id',FAMILY_ID).eq('status','active').lte('remind_at', new Date(Date.now()+24*60*60*1000).toISOString()).limit(2),
+      ]);
+      const urgent = (todosRes.data??[]).filter((t:any) => t.due_date && t.due_date <= today);
+      const reminders = remindersRes.data ?? [];
+      const hasUrgent = urgent.length > 0 || reminders.length > 0;
+
+      const promptSys = `You are Zaeli — sharp, warm AI for Rich's Australian family.
+After showing Rich his morning cards, you ask one short follow-up.
+${hasUrgent ? `There are ${urgent.length} overdue/due-today items and ${reminders.length} active reminders.` : 'Everything looks calm.'}
+
+Write ONE short conversational line (max 12 words). Warm but not hollow. Then return 3 chips.
+${hasUrgent ? 'Offer to help with the most pressing thing.' : 'Offer to help plan, add, or check something.'}
+Never start with "I". Never say "mate". No hollow phrases like "How can I help today?"
+
+Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
+
+      const raw = await callGPT(promptSys, [{role:'user', content:'Generate.'}], 150, 'home_post_card');
+      const parsed = JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,'').trim());
+      addMsg({
+        role: 'zaeli',
+        text: parsed.line ?? 'What would you like to tackle first?',
+        isLoading: false,
+        quickReplies: parsed.chips ?? ["What's most urgent", "Check the calendar", "What's for dinner"],
+      });
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+    } catch {
+      addMsg({
+        role: 'zaeli',
+        text: 'What would you like to tackle first?',
+        isLoading: false,
+        quickReplies: ["What's most urgent", "Check the calendar", "What's for dinner"],
+      });
     }
   }
 
@@ -2194,8 +2488,8 @@ Only include events directly relevant to the question. Max 5 events.`;
           const followData = await followUp.json();
           const followText = followData.content?.find((b:any) => b.type==='text')?.text ?? toolResults.join('\n');
           updateMsg(replyId, { text:followText, isLoading:false });
-          // Refresh card data after tool action — slight delay for Supabase consistency
-          setTimeout(loadCardData, 1200);
+          // Refresh card data immediately after tool action
+          loadCardData();
         } else {
           const reply = data.content?.find((b:any) => b.type==='text')?.text ?? 'Something went wrong — try again?';
           updateMsg(replyId, { text:reply, isLoading:false });
@@ -2460,7 +2754,7 @@ Only include events directly relevant to the question. Max 5 events.`;
             </>
           )}
 
-          {!msg.isLoading && !hasCalendarEvents && !msg.isBrief && (msg.quickReplies??[]).length > 0 && (
+          {!msg.isLoading && !hasCalendarEvents && (msg.quickReplies??[]).length > 0 && (
             <View style={s.quickRepliesWrap}>
               <View style={s.qrChips}>
                 {(msg.quickReplies??[]).map((chip, ci) => (
@@ -2499,11 +2793,22 @@ Only include events directly relevant to the question. Max 5 events.`;
     return hr < 10;
   });
 
-  // ── Render card stack ─────────────────────────────────────────────────────
+  // ── Render card stack — with stagger animations ──────────────────────────
   function renderCardStack() {
+    const wrapCard = (node: React.ReactNode, idx: number) => (
+      <Animated.View
+        key={idx}
+        style={{
+          opacity: cardAnims[idx].opacity,
+          transform: [{ translateY: cardAnims[idx].translateY }],
+        }}
+      >
+        {node}
+      </Animated.View>
+    );
+
     const calCard = (
       <CalendarCard
-        key="cal"
         events={calEvents}
         isEvening={isEvening}
         onAdd={() => handleCardAdd('calendar')}
@@ -2512,7 +2817,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       />
     );
     const wxShopRow = (
-      <View key="wx-shop" style={{ flexDirection:'row', gap:10 }}>
+      <View style={{ flexDirection:'row', gap:10 }}>
         <WeatherCard weather={cardData.weather} isEvening={isEvening}/>
         <ShoppingCard
           items={cardData.shopItems}
@@ -2524,7 +2829,6 @@ Only include events directly relevant to the question. Max 5 events.`;
     );
     const actCard = (
       <ActionsCard
-        key="act"
         todos={cardData.todos}
         timeState={timeState}
         tomorrowMorningEvents={tomorrowMorningEvents}
@@ -2535,19 +2839,19 @@ Only include events directly relevant to the question. Max 5 events.`;
     );
     const dinCard = (
       <DinnerCard
-        key="din"
         meals={cardData.meals}
         timeState={timeState}
         onPlanMeals={() => router.navigate('/(tabs)/mealplanner')}
       />
     );
 
-    // AM: Calendar → Weather+Shopping → Actions → Dinner
-    // PM: Dinner → Calendar → Actions → Weather+Shopping
-    // Evening: Calendar(tomorrow) → Actions → Weather+Shopping → Dinner(tomorrow)
-    if (timeState === 'am') return [calCard, wxShopRow, actCard, dinCard];
-    if (timeState === 'pm') return [dinCard, calCard, actCard, wxShopRow];
-    return [calCard, actCard, wxShopRow, dinCard]; // evening
+    // Order by time state, wrap each in stagger anim
+    let cards: React.ReactNode[];
+    if (timeState === 'am')      cards = [calCard, wxShopRow, actCard, dinCard];
+    else if (timeState === 'pm') cards = [dinCard, calCard, actCard, wxShopRow];
+    else                         cards = [calCard, actCard, wxShopRow, dinCard];
+
+    return cards.map((card, idx) => wrapCard(card, idx));
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -2696,6 +3000,7 @@ Only include events directly relevant to the question. Max 5 events.`;
           style={s.kavWrap}
           behavior={Platform.OS==='ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={0}
+          backgroundColor="#fff"
         >
           <View style={[s.scrollWrap, { backgroundColor: T.bg }]}>
             <ScrollView
@@ -2717,7 +3022,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                 <View style={[s.dateLine2, { backgroundColor:T.dateLine }]}/>
               </View>
 
-              {/* ── HERO — Option B: Zaeli eyebrow + DM Serif, scrolls with content ── */}
+              {/* ── HERO — Zaeli eyebrow + DM Serif brief ── */}
               <View style={s.heroSection}>
                 <View style={s.zEyebrow}>
                   <View style={[s.zStar, { backgroundColor:HOME_AI }]}>
@@ -2733,10 +3038,26 @@ Only include events directly relevant to the question. Max 5 events.`;
                 )}
               </View>
 
-              {/* ── CARD STACK ── */}
-              <View style={s.cardStack}>
-                {renderCardStack()}
-              </View>
+              {/* ── TODAY'S OVERVIEW TOGGLE ── */}
+              <TouchableOpacity
+                style={s.overviewToggle}
+                onPress={() => setOverviewOpen(o => !o)}
+                activeOpacity={0.7}
+              >
+                <View style={s.overviewLine}/>
+                <View style={s.overviewBtn}>
+                  <Text style={s.overviewChevron}>{overviewOpen ? '∧' : '∨'}</Text>
+                  <Text style={s.overviewBtnTxt}>Today's overview</Text>
+                </View>
+                <View style={s.overviewLine}/>
+              </TouchableOpacity>
+
+              {/* ── CARD STACK — collapsible ── */}
+              {overviewOpen && (
+                <View style={s.cardStack}>
+                  {renderCardStack()}
+                </View>
+              )}
 
               {/* ── DIVIDER between cards and chat ── */}
               <View style={[s.cardChatDivider, { marginTop:16 }]}>
@@ -2760,8 +3081,77 @@ Only include events directly relevant to the question. Max 5 events.`;
               </TouchableOpacity>
             </View>
 
-            {/* ── FLOATING INPUT BAR ── */}
+            {/* ── FLOATING PILL BAR + CHAT INPUT ── */}
             <View style={[s.inputArea, keyboardOpen && s.inputAreaKb]}>
+              {/* Domain pills — hidden when keyboard open */}
+              {!keyboardOpen && (() => {
+                // Option D spec: inactive = neutral bg + channel accent icon
+                // Active: channel palette bg + white icon (Calendar = slate #3A3D4A)
+                const PILLS: Array<{
+                  key: string; label: string;
+                  ico: (c:string) => React.ReactNode;
+                  icoColor: string;   // inactive icon colour
+                  activeBg: string;   // active pill background
+                  activeIco: string;  // active icon colour
+                }> = [
+                  { key:'home',     label:'Home',     ico:(c)=><PilIcoHome color={c}/>,   icoColor:'rgba(0,0,0,0.45)',     activeBg:'#F5EAD8',  activeIco:'rgba(0,0,0,0.7)' },
+                  { key:'calendar', label:'Calendar', ico:(c)=><PilIcoCal color={c}/>,    icoColor:'rgba(58,61,74,0.65)',  activeBg:'#3A3D4A',  activeIco:'#fff' },
+                  { key:'shopping', label:'Shopping', ico:(c)=><PilIcoShop color={c}/>,   icoColor:'rgba(80,32,192,0.65)', activeBg:'#EDE8FF',  activeIco:'rgba(80,32,192,0.9)' },
+                  { key:'meals',    label:'Meals',    ico:(c)=><PilIcoMeal color={c}/>,   icoColor:'rgba(200,64,16,0.65)', activeBg:'#FAC8A8',  activeIco:'rgba(200,64,16,0.9)' },
+                  { key:'todos',    label:'To-dos',   ico:(c)=><PilIcoTodo color={c}/>,   icoColor:'rgba(128,96,0,0.65)',  activeBg:'#F0DC80',  activeIco:'rgba(128,96,0,0.9)' },
+                  { key:'notes',    label:'Notes',    ico:(c)=><PilIcoNotes color={c}/>,  icoColor:'rgba(44,96,16,0.65)',  activeBg:'#C8E8A8',  activeIco:'rgba(44,96,16,0.9)' },
+                  { key:'travel',   label:'Travel',   ico:(c)=><PilIcoTravel color={c}/>, icoColor:'rgba(0,96,160,0.65)', activeBg:'#A8D8F0',  activeIco:'rgba(0,96,160,0.9)' },
+                  { key:'family',   label:'Family',   ico:(c)=><PilIcoFamily color={c}/>, icoColor:'rgba(160,24,48,0.65)',activeBg:'#F0C8C0',  activeIco:'rgba(160,24,48,0.9)' },
+                  { key:'more',     label:'More',     ico:(c)=><PilIcoMore color={c}/>,   icoColor:'rgba(0,0,0,0.38)',    activeBg:'rgba(0,0,0,0.10)', activeIco:'rgba(0,0,0,0.7)' },
+                ];
+                return (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={s.pillScroll}
+                    contentContainerStyle={s.pillScrollContent}
+                  >
+                    {PILLS.map(p => {
+                      const active = activePill === p.key;
+                      const icoCol = active ? p.activeIco : p.icoColor;
+                      const lblCol = active
+                        ? (p.key === 'calendar' ? '#fff' : 'rgba(0,0,0,0.75)')
+                        : 'rgba(0,0,0,0.45)';
+                      return (
+                        <TouchableOpacity
+                          key={p.key}
+                          style={[
+                            s.domainPill,
+                            active && { backgroundColor: p.activeBg },
+                          ]}
+                          onPress={() => {
+                            setActivePill(p.key);
+                            if (p.key === 'home') {
+                              scrollRef.current?.scrollTo({ y:0, animated:true });
+                              setTimeout(() => setActivePill(''), 600);
+                            } else if (p.key === 'notes') {
+                              router.navigate('/(tabs)/notes');
+                            } else if (p.key === 'travel') {
+                              router.navigate('/(tabs)/travel');
+                            } else if (p.key === 'family') {
+                              router.navigate('/(tabs)/family');
+                            } else if (p.key === 'more') {
+                              setMenuOpen(true);
+                              setTimeout(() => setActivePill(''), 600);
+                            } else {
+                              handlePillTap(p.key);
+                            }
+                          }}
+                          activeOpacity={0.75}
+                        >
+                          {p.ico(icoCol)}
+                          <Text style={[s.domainPillLbl, { color: lblCol }]}>{p.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                );
+              })()}
               {pendingImage && (
                 <View style={s.imagePreviewWrap}>
                   <Image source={{ uri:pendingImage }} style={s.imagePreview} resizeMode="cover"/>
@@ -2805,7 +3195,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </View>{/* end scrollWrap */}
         </KeyboardAvoidingView>
 
         {/* ADD SHEET */}
@@ -3039,10 +3429,21 @@ const s = StyleSheet.create({
   logoWord:          { fontFamily:'DMSerifDisplay_400Regular', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:44 },
   avatar:            { width:34, height:34, borderRadius:17, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' },
   avatarTxt:         { fontFamily:'Poppins_700Bold', fontSize:13, color:'#fff' },
-  heroLine:          { fontFamily:'DMSerifDisplay_400Regular', fontSize:22, color:'#0A0A0A', lineHeight:30, letterSpacing:-0.3 },
+  heroLine:          { fontFamily:'DMSerifDisplay_400Regular', fontSize:26, color:'#0A0A0A', lineHeight:36, letterSpacing:-0.4 },
 
   // Hero (scrollable) + card stack
-  heroSection:    { backgroundColor:'#FAF8F5', paddingHorizontal:18, paddingTop:12, paddingBottom:16 },
+  heroSection:    { backgroundColor:'#FAF8F5', paddingHorizontal:18, paddingTop:16, paddingBottom:14 },
+  overviewToggle: { flexDirection:'row', alignItems:'center', gap:10, paddingHorizontal:18, paddingVertical:8, marginTop:4 },
+  overviewLine:   { flex:1, height:1, backgroundColor:'rgba(0,0,0,0.10)' },
+  overviewBtn:    { flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'rgba(0,0,0,0.055)', borderRadius:20, paddingVertical:5, paddingHorizontal:12 },
+  overviewBtnTxt: { fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.45)' },
+  overviewChevron:{ fontFamily:'Poppins_700Bold', fontSize:10, color:'rgba(0,0,0,0.38)' },
+  // Brief chips — exact match to zaeli-home-cold-open-v1.html spec
+  briefChipsRow:     { flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:14 },
+  briefChip:         { borderWidth:1.5, borderColor:'rgba(0,0,0,0.12)', borderRadius:20, paddingVertical:5, paddingHorizontal:12, backgroundColor:'#fff' },
+  briefChipAccent:   { backgroundColor:'#A8D8F0', borderColor:'transparent' },
+  briefChipTxt:      { fontFamily:'Poppins_600SemiBold', fontSize:11, color:'rgba(0,0,0,0.55)' },
+  briefChipAccentTxt:{ color:'rgba(0,0,0,0.70)' },
   cardStack:      { paddingHorizontal:14, paddingTop:4, paddingBottom:4, gap:10 },
   cardChatDivider:{ flexDirection:'row', alignItems:'center', marginHorizontal:18, marginTop:16, marginBottom:4, gap:10 },
   dateLine2:      { flex:1, height:1 },
@@ -3052,7 +3453,7 @@ const s = StyleSheet.create({
   kavWrap:       { flex:1 },
   scrollWrap:    { flex:1, position:'relative' },
   scroll:        { flex:1 },
-  scrollContent: { paddingBottom:180 },
+  scrollContent: { paddingBottom:240 },
 
   // Scroll arrows (locked spec)
   scrollArrowPair:{ position:'absolute', bottom:110, right:16, flexDirection:'row', gap:8, zIndex:50 },
@@ -3060,7 +3461,7 @@ const s = StyleSheet.create({
 
   // Zaeli message
   zaeliMsgWrap: { marginBottom:6, paddingHorizontal:18 },
-  zEyebrow:     { flexDirection:'row', alignItems:'center', gap:5, marginBottom:6, marginTop:18 },
+  zEyebrow:     { flexDirection:'row', alignItems:'center', gap:5, marginBottom:6, marginTop:0 },
   zStar:        { width:16, height:16, borderRadius:5, alignItems:'center', justifyContent:'center', flexShrink:0 },
   zName:        { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.2 },
   zTs:          { fontFamily:'Poppins_400Regular', fontSize:9, marginLeft:'auto' as any },
@@ -3092,8 +3493,22 @@ const s = StyleSheet.create({
   iconBtn:     { width:26, height:26, alignItems:'center', justifyContent:'center', borderRadius:6 },
 
   // Input area
-  inputArea:   { position:'absolute', bottom:0, left:0, right:0, paddingHorizontal:14, paddingBottom:Platform.OS==='ios'?30:18, paddingTop:10, backgroundColor:'transparent' },
-  inputAreaKb: { paddingBottom:Platform.OS==='ios'?8:6 },
+  // Domain pill bar styles
+  // domainPillRow: replaced by horizontal ScrollView inline
+  // Domain pill — Option D: padding 5/10/5/8, gap 5, borderRadius 20
+  pillScroll:         { marginBottom:8 },
+  pillScrollContent:  { flexDirection:'row', gap:6 },
+  domainPill:         { flexDirection:'row', alignItems:'center', gap:6, borderRadius:20, paddingTop:9, paddingBottom:9, paddingLeft:11, paddingRight:13, backgroundColor:'#fff', borderWidth:1, borderColor:'rgba(0,0,0,0.10)', flexShrink:0 },
+  domainPillLbl:      { fontFamily:'Poppins_600SemiBold', fontSize:11, color:'rgba(0,0,0,0.45)' },
+
+  inputArea:   {
+    // CANONICAL SPEC: position:absolute bottom:0, no background (KAV #fff shows through)
+    position:'absolute', bottom:0, left:0, right:0,
+    paddingHorizontal:14,
+    paddingBottom:Platform.OS==='ios'?30:18,
+    paddingTop:10,
+  },
+  inputAreaKb: { paddingBottom:Platform.OS==='ios'?6:4 },
 
   // Image preview
   imagePreviewWrap:   { marginBottom:8, alignSelf:'flex-start', position:'relative' },

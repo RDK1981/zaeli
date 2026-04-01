@@ -70,10 +70,13 @@ function nowTs() { return new Date().toLocaleTimeString('en-AU', { hour:'2-digit
 
 function fmtTime(iso: string): string {
   if (!iso) return '';
+  // Always raw-parse the local time portion — Supabase returns local time stored
+  // e.g. "2026-04-01T16:00:00+00:00" → we read 16 → display 4:00 pm
   const timePart = iso.includes('T') ? iso.split('T')[1] : iso.split(' ')[1] || '';
   if (!timePart) return '';
   const [hStr, mStr] = timePart.split(':');
   const h = parseInt(hStr, 10); const m = parseInt(mStr, 10);
+  if (isNaN(h) || isNaN(m)) return '';
   const ampm = h >= 12 ? 'pm' : 'am';
   const h12  = h === 0 ? 12 : h > 12 ? h-12 : h;
   return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
@@ -87,9 +90,11 @@ function getMemberColor(assignees?: string[]): string {
 
 function isoToMinutes(iso: string): number {
   if (!iso) return 0;
+  // Raw-parse local time stored — consistent with fmtTime approach
   const timePart = iso.includes('T') ? iso.split('T')[1] : iso.split(' ')[1] || '';
   if (!timePart) return 0;
   const [h, m] = timePart.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return 0;
   return h * 60 + m;
 }
 
@@ -228,18 +233,22 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
         u.start_time = input.new_start_time.replace('Z','').split('+')[0];
         u.date = u.start_time.split('T')[0];
         if (!input.new_end_time && t.start_time && t.end_time) {
-          const dur = new Date(t.end_time).getTime() - new Date(t.start_time).getTime();
+          const sRaw = isoToMinutes(t.start_time);
+          const eRaw = isoToMinutes(t.end_time);
+          const dur  = (eRaw - sRaw) * 60000;
           if (dur > 0) {
-            const newEnd = new Date(new Date(u.start_time).getTime() + dur);
+            const newMins = isoToMinutes(u.start_time) + (eRaw - sRaw);
             const pad = (n: number) => String(n).padStart(2,'0');
-            u.end_time = `${newEnd.getFullYear()}-${pad(newEnd.getMonth()+1)}-${pad(newEnd.getDate())}T${pad(newEnd.getHours())}:${pad(newEnd.getMinutes())}:00`;
+            const nh = Math.floor(newMins / 60) % 24;
+            const nm = newMins % 60;
+            u.end_time = `${u.start_time.split('T')[0]}T${pad(nh)}:${pad(nm)}:00`;
           }
         }
       }
       if (input.new_date) {
         u.date = input.new_date;
-        if (t.start_time) u.start_time = `${input.new_date}T${t.start_time.split('T')[1]||'09:00:00'}`;
-        if (t.end_time)   u.end_time   = `${input.new_date}T${t.end_time.split('T')[1]||'10:00:00'}`;
+        if (t.start_time) u.start_time = `${input.new_date}T${(t.start_time.split('T')[1]||'09:00:00').split('+')[0].split('.')[0]}`;
+        if (t.end_time)   u.end_time   = `${input.new_date}T${(t.end_time.split('T')[1]||'10:00:00').split('+')[0].split('.')[0]}`;
       }
       if (input.new_end_time) u.end_time = input.new_end_time.replace('Z','').split('+')[0];
       let { error } = await supabase.from('events').update(u).eq('id', t.id);
@@ -526,10 +535,10 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate, onAskZaeli, onS
       const rows = repeatDates.map(d => {
         const dStr  = toStr(d);
         const sTime = allDay ? `${dStr}T00:00:00` : `${dStr}T${pad(sh24)}:${pad(startMin)}:00`;
-        const eMs   = new Date(sTime).getTime() + (allDay ? 0 : durMs);
-        const eDate = new Date(eMs);
-        const eDStr = toStr(eDate);
-        const eTime = allDay ? `${eDStr}T23:59:00` : `${eDStr}T${pad(eDate.getHours())}:${pad(eDate.getMinutes())}:00`;
+        const eH = Math.floor((sh24 * 60 + startMin + Math.round(durMs / 60000)) / 60) % 24;
+        const eM = (sh24 * 60 + startMin + Math.round(durMs / 60000)) % 60;
+        const eDStr = dStr; // same day for simplicity (edge: overnight events)
+        const eTime = allDay ? `${eDStr}T23:59:00` : `${eDStr}T${pad(eH)}:${pad(eM)}:00`;
         return {
           family_id: DUMMY_FAMILY_ID, title: title.trim(),
           notes: [notes.trim(), location.trim()].filter(Boolean).join(' | '),
