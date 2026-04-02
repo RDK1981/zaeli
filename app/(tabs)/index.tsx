@@ -105,6 +105,7 @@ interface InlineData {
   intro?: string;
   followUp?: string;
   items?: any[];
+  tomorrowItems?: any[];   // calendar only — tomorrow's events
   showPortalPill?: boolean;
 }
 
@@ -676,7 +677,7 @@ function getEventEmoji(title: string): string {
   return '📅';
 }
 
-// ── EventCard ─────────────────────────────────────────────────────────────
+// ── EventCard (card stack, existing style) ────────────────────────────────
 function EventCard({ ev, onPress }: { ev: any; onPress: () => void }) {
   const assignedMembers = (ev.assignees || [])
     .map((id: string) => FAMILY_MEMBERS.find(m => m.id === id))
@@ -731,6 +732,225 @@ function EventCard({ ev, onPress }: { ev: any; onPress: () => void }) {
 }
 
 // ── Picker subcomponents ───────────────────────────────────────────────────
+
+// ── InlineCalendarCard ────────────────────────────────────────────────────
+// Dark slate inline card — drops into chat thread from pill tap.
+// Shows today's events. Tap event → expands inline with action chips.
+// Footer: Today | Tomorrow › | Month view ›
+
+// Sub-component: animated expanded event detail
+function ExpandedEventDetail({ ev, onCollapse, onEditWithZaeli, onFullSheet, onManualEdit, onDeleteEvent }: {
+  ev: any; onCollapse: () => void;
+  onEditWithZaeli: (ev: any) => void; onFullSheet: () => void;
+  onManualEdit: (ev: any) => void; onDeleteEvent: (ev: any) => void;
+}) {
+  const [confirmDel, setConfirmDel] = useState(false);
+  const anim = useRef(new Animated.Value(0)).current;
+  const noteParts = (ev.notes||'').split(' | ');
+  const location = noteParts.length > 1 ? noteParts[noteParts.length-1] : '';
+  const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+  const emoji = getEventEmoji(ev.title||'');
+
+  useEffect(() => {
+    Animated.spring(anim, { toValue:1, useNativeDriver:true, tension:80, friction:10 }).start();
+  }, []);
+
+  return (
+    <Animated.View style={{
+      backgroundColor:'rgba(255,255,255,0.09)', borderRadius:12, margin:6, padding:14,
+      opacity: anim,
+      transform:[{ scaleY: anim.interpolate({ inputRange:[0,1], outputRange:[0.85,1] }) }],
+    }}>
+      {/* Header */}
+      <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:6 }}>
+        <Text style={{ fontSize:22 }}>{emoji}</Text>
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'rgba(255,255,255,0.95)', flex:1 }}>{ev.title}</Text>
+        <TouchableOpacity onPress={onCollapse} activeOpacity={0.7} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(255,255,255,0.40)' }}>▲ close</Text>
+        </TouchableOpacity>
+      </View>
+      {/* Meta */}
+      <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(255,255,255,0.55)', lineHeight:20, marginBottom:10 }}>
+        {fmtTime(ev.start_time)}{ev.end_time && ev.end_time !== ev.start_time ? `–${fmtTime(ev.end_time)}` : ''}{location ? ` · ${location}` : ''}
+      </Text>
+      {/* Avatars */}
+      {members.length > 0 && (
+        <View style={{ flexDirection:'row', gap:6, marginBottom:12 }}>
+          {members.map((m:any) => (
+            <View key={m.id} style={{ width:28, height:28, borderRadius:14, backgroundColor:m.color, alignItems:'center', justifyContent:'center' }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'#fff' }}>{m.name[0]}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+      {/* Action chips */}
+      <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+        <TouchableOpacity
+          style={{ backgroundColor:'rgba(168,216,240,0.22)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:16, paddingVertical:6, paddingHorizontal:12 }}
+          onPress={() => onEditWithZaeli(ev)} activeOpacity={0.75}
+        >
+          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(168,216,240,0.95)' }}>✦ Edit with Zaeli</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ backgroundColor:'rgba(255,255,255,0.10)', borderWidth:1, borderColor:'rgba(255,255,255,0.18)', borderRadius:16, paddingVertical:6, paddingHorizontal:12 }}
+          onPress={() => onEditWithZaeli(ev)} activeOpacity={0.75}
+        >
+          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(255,255,255,0.78)' }}>Move time</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ backgroundColor:'rgba(255,255,255,0.10)', borderWidth:1, borderColor:'rgba(255,255,255,0.18)', borderRadius:16, paddingVertical:6, paddingHorizontal:12 }}
+          onPress={() => onEditWithZaeli(ev)} activeOpacity={0.75}
+        >
+          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(255,255,255,0.78)' }}>Add someone</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{ backgroundColor:'rgba(255,255,255,0.10)', borderWidth:1, borderColor:'rgba(255,255,255,0.18)', borderRadius:16, paddingVertical:6, paddingHorizontal:12 }}
+          onPress={() => onManualEdit(ev)} activeOpacity={0.75}
+        >
+          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(255,255,255,0.78)' }}>Manual edit</Text>
+        </TouchableOpacity>
+        {confirmDel ? (
+          <TouchableOpacity
+            style={{ backgroundColor:'rgba(220,38,38,0.25)', borderWidth:1, borderColor:'rgba(220,38,38,0.55)', borderRadius:16, paddingVertical:6, paddingHorizontal:12 }}
+            onPress={() => onDeleteEvent(ev)} activeOpacity={0.75}
+          >
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#ff6b6b' }}>Confirm delete</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={{ backgroundColor:'rgba(255,255,255,0.07)', borderWidth:1, borderColor:'rgba(255,255,255,0.14)', borderRadius:16, paddingVertical:6, paddingHorizontal:12 }}
+            onPress={() => setConfirmDel(true)} activeOpacity={0.75}
+          >
+            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(255,100,100,0.70)' }}>Delete</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </Animated.View>
+  );
+}
+
+function InlineCalendarCard({
+  msgId, todayEvents, tomorrowEvents,
+  onEditWithZaeli, onAddWithZaeli,
+  onFullSheet, onTomorrowSheet,
+  onExpandingCard, onManualEdit, onDeleteEvent,
+}: {
+  msgId: string;
+  todayEvents: any[];
+  tomorrowEvents: any[];
+  onEditWithZaeli: (ev: any) => void;
+  onAddWithZaeli: () => void;
+  onFullSheet: () => void;
+  onTomorrowSheet: () => void;
+  onExpandingCard: () => void;
+  onManualEdit: (ev: any) => void;
+  onDeleteEvent: (ev: any) => void;
+}) {
+  const [showTab, setShowTab] = useState<'today'|'tomorrow'>('today');
+  const [expandedId, setExpandedId] = useState<string|null>(null);
+  const events = showTab === 'today' ? todayEvents : tomorrowEvents;
+  const now = new Date();
+  const todayLabel = now.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase();
+  const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate()+1);
+  const tomorrowLabel = tomorrow.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase();
+  const eyeLabel = showTab === 'today'
+    ? `📅 TODAY · ${todayLabel}`
+    : `📅 TOMORROW · ${tomorrowLabel}`;
+
+  const CAL_SLATE = '#3A3D4A';
+
+  return (
+    <View style={{ backgroundColor:CAL_SLATE, borderRadius:16, marginHorizontal:-4, marginTop:8, marginBottom:2, overflow:'hidden' }}>
+      {/* Header */}
+      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:14, paddingTop:12, paddingBottom:10 }}>
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, letterSpacing:0.10, textTransform:'uppercase', color:'rgba(255,255,255,0.65)' }}>
+          {eyeLabel}
+        </Text>
+        <View style={{ flexDirection:'row', alignItems:'center', gap:14 }}>
+          <TouchableOpacity
+            style={{ backgroundColor:'rgba(255,255,255,0.18)', borderRadius:9, paddingVertical:6, paddingHorizontal:13 }}
+            onPress={onAddWithZaeli} activeOpacity={0.75}
+          >
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#fff' }}>+ Add</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onFullSheet} activeOpacity={0.75} style={{ paddingVertical:6, paddingHorizontal:4 }}>
+            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(255,255,255,0.55)' }}>Full ›</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Event rows */}
+      {events.length === 0 ? (
+        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(255,255,255,0.40)', fontStyle:'italic', paddingHorizontal:14, paddingBottom:14 }}>
+          Nothing on {showTab === 'today' ? 'today' : 'tomorrow'}
+        </Text>
+      ) : events.map((ev: any) => {
+        const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+        const dotColor = members.length > 0 ? members[0].color : 'rgba(255,255,255,0.4)';
+
+        if (expandedId === ev.id) {
+          return (
+            <ExpandedEventDetail
+              key={ev.id}
+              ev={ev}
+              onCollapse={() => setExpandedId(null)}
+              onEditWithZaeli={onEditWithZaeli}
+              onFullSheet={onFullSheet}
+              onManualEdit={onManualEdit}
+              onDeleteEvent={onDeleteEvent}
+            />
+          );
+        }
+
+        return (
+          <TouchableOpacity
+            key={ev.id}
+            style={{ flexDirection:'row', alignItems:'center', gap:8, paddingHorizontal:14, paddingVertical:8, opacity: expandedId && expandedId !== ev.id ? 0.38 : 1 }}
+            onPress={() => {
+              onExpandingCard();
+              setExpandedId(ev.id);
+            }}
+            activeOpacity={0.75}
+          >
+            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(255,255,255,0.50)', width:58, flexShrink:0 }} numberOfLines={1}>
+              {fmtTime(ev.start_time)}
+            </Text>
+            <View style={{ width:8, height:8, borderRadius:4, backgroundColor:dotColor, flexShrink:0 }}/>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(255,255,255,0.92)', flex:1 }} numberOfLines={1}>
+              {ev.title}
+            </Text>
+            {members.slice(0,3).map((m:any) => (
+              <View key={m.id} style={{ width:26, height:26, borderRadius:13, backgroundColor:m.color, alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, color:'#fff' }}>{m.name[0]}</Text>
+              </View>
+            ))}
+          </TouchableOpacity>
+        );
+      })}
+
+      {/* Footer navigation */}
+      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:14, paddingTop:10, paddingBottom:12, borderTopWidth:1, borderTopColor:'rgba(255,255,255,0.10)', marginTop:4 }}>
+        <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+          <TouchableOpacity onPress={() => { setShowTab('today'); setExpandedId(null); }} activeOpacity={0.75}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: showTab==='today' ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.35)' }}>
+              Today
+            </Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize:11, color:'rgba(255,255,255,0.20)' }}>·</Text>
+          <TouchableOpacity onPress={() => { setShowTab('tomorrow'); setExpandedId(null); }} activeOpacity={0.75}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: showTab==='tomorrow' ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.35)' }}>
+              Tomorrow ›
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity onPress={onTomorrowSheet} activeOpacity={0.75}>
+          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, color:'rgba(255,255,255,0.35)' }}>Month view ›</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 const ROW_H = 52;
 
 function SnapCol({ items, selected, onSelect, fmtItem }: {
@@ -857,7 +1077,7 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
   const [editNotes,    setEditNotes]    = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editRepeat,   setEditRepeat]   = useState('Never');
-  const [editAlert,    setEditAlert]    = useState('None');
+  const [editAlert,    setEditAlert]    = useState('15 min before');
   const [editAssignees,setEditAssignees]= useState<string[]>([]);
   const [editStartH,   setEditStartH]   = useState(9);
   const [editStartM,   setEditStartM]   = useState(0);
@@ -877,7 +1097,7 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
       setEditNotes(parts[0] || '');
       setEditLocation(parts.length > 1 ? parts[parts.length - 1] : '');
       setEditRepeat(event.repeat_rule || 'Never');
-      setEditAlert(event.alert_rule || 'None');
+      setEditAlert(event.alert_rule || '15 min before');
       setEditAssignees(event.assignees || []);
       if (event.start_time) {
         const mins = isoToMinutes(event.start_time);
@@ -1113,13 +1333,28 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (input.new_start_time) {
         u.start_time = input.new_start_time.replace('Z','').split('+')[0];
         u.date = u.start_time.split('T')[0];
-        if (!input.new_end_time && t.start_time && t.end_time) {
-          const duration = new Date(t.end_time).getTime() - new Date(t.start_time).getTime();
-          if (duration > 0) {
-            const newEnd = new Date(new Date(u.start_time).getTime() + duration);
-            const pad = (n:number) => String(n).padStart(2,'0');
-            u.end_time = `${newEnd.getFullYear()}-${pad(newEnd.getMonth()+1)}-${pad(newEnd.getDate())}T${pad(newEnd.getHours())}:${pad(newEnd.getMinutes())}:00`;
+        // Preserve original duration when only start time changes
+        // Use raw string parse (no timezone conversion) consistent with time contract
+        if (!input.new_end_time) {
+          const pad = (n:number) => String(n).padStart(2,'0');
+          let durationMs = 60 * 60 * 1000; // default 1hr
+          if (t.start_time && t.end_time && t.start_time !== t.end_time) {
+            const sRaw = t.start_time.includes('T') ? t.start_time.split('T')[1] : '';
+            const eRaw = t.end_time.includes('T') ? t.end_time.split('T')[1] : '';
+            if (sRaw && eRaw) {
+              const [sh, sm] = sRaw.split(':').map(Number);
+              const [eh, em] = eRaw.split(':').map(Number);
+              const calc = ((eh * 60 + em) - (sh * 60 + sm)) * 60 * 1000;
+              if (calc > 0) durationMs = calc;
+            }
           }
+          // Apply duration to new start time using raw parse
+          const [newDatePart, newTimePart] = u.start_time.split('T');
+          const [nh, nm] = newTimePart.split(':').map(Number);
+          const totalMins = nh * 60 + nm + Math.round(durationMs / 60000);
+          const endH = Math.floor(totalMins / 60) % 24;
+          const endM = totalMins % 60;
+          u.end_time = `${newDatePart}T${pad(endH)}:${pad(endM)}:00`;
         }
       }
       if (input.new_date) {
@@ -1177,7 +1412,430 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - For "tomorrow" use tomorrow's actual date (today is provided in the system prompt).
 - update_calendar_event: use this to change time/date/assignees. NEVER delete and re-add.
 - If a tool result starts with "TOOL_FAILED", tell the user honestly it didn't work.
-- Zaeli CANNOT make phone calls or send messages autonomously.`;
+- Zaeli CANNOT make phone calls or send messages autonomously.
+- After adding or editing an event, confirm warmly in 1 sentence. Name the event and the time. Be enthusiastic but brief. Example: "Eumundi run is locked in for 5pm today — enjoy the drive up." Never start with "I". Never say "I've added" — say what's done, not what you did.`;
+
+// ── CalSheetEventCard ─────────────────────────────────────────────────────
+// White card with left-border family colour, used in sheet day/month views
+function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
+  ev: any; onEditWithZaeli: (ev:any)=>void; onManualEdit: (ev:any)=>void;
+  onDeleted?: () => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+  const borderColor = members.length > 0 ? members[0].color : 'rgba(0,0,0,0.15)';
+  const noteParts = (ev.notes||'').split(' | ');
+  const location = noteParts.length > 1 ? noteParts[noteParts.length-1] : '';
+
+  async function deleteEvent() {
+    await supabase.from('events').delete().eq('id', ev.id);
+    onDeleted?.();
+  }
+
+  return (
+    <View style={{ backgroundColor:'#fff', borderRadius:14, marginBottom:10, padding:14, borderLeftWidth:3, borderLeftColor:borderColor }}>
+      <View style={{ flexDirection:'row', alignItems:'flex-start', gap:12 }}>
+        <View style={{ width:56, flexShrink:0 }}>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'rgba(0,0,0,0.45)', textAlign:'right' }} numberOfLines={1}>{fmtTime(ev.start_time)}</Text>
+        </View>
+        <View style={{ flex:1 }}>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:17, color:'#0A0A0A', marginBottom:3 }}>{ev.title}</Text>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.45)', lineHeight:19 }}>
+            {fmtTime(ev.start_time)}{ev.end_time && ev.end_time !== ev.start_time ? `–${fmtTime(ev.end_time)}` : ''}{location ? ` · ${location}` : ''}
+          </Text>
+          {members.length > 0 && (
+            <View style={{ flexDirection:'row', gap:6, marginTop:8, marginBottom:10 }}>
+              {members.map((m:any) => (
+                <View key={m.id} style={{ width:26, height:26, borderRadius:13, backgroundColor:m.color, alignItems:'center', justifyContent:'center' }}>
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'#fff' }}>{m.name[0]}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          <View style={{ flexDirection:'row', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+            <TouchableOpacity
+              style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'rgba(168,216,240,0.18)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}
+              onPress={() => onEditWithZaeli(ev)} activeOpacity={0.75}
+            >
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.55)' }}>✦ Edit with Zaeli</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ backgroundColor:'rgba(0,0,0,0.06)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}
+              onPress={() => onManualEdit(ev)} activeOpacity={0.75}
+            >
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.45)' }}>Edit</Text>
+            </TouchableOpacity>
+            {confirmDelete ? (
+              <TouchableOpacity
+                style={{ backgroundColor:'rgba(220,38,38,0.12)', borderWidth:1, borderColor:'rgba(220,38,38,0.35)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}
+                onPress={deleteEvent} activeOpacity={0.75}
+              >
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#DC2626' }}>Confirm delete</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={{ backgroundColor:'rgba(0,0,0,0.04)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}
+                onPress={() => setConfirmDelete(true)} activeOpacity={0.75}
+              >
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.30)' }}>Delete</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+// ── CalSheetMonthView ─────────────────────────────────────────────────────
+function CalSheetMonthView({ monthYear, onMonthChange, selectedDay, dayEvents, onDaySelect, onEditWithZaeli, onManualEdit, allEvents, onAddWithZaeli, onManualAdd, onDeleted }: {
+  monthYear: { month:number; year:number };
+  onMonthChange: (v:{ month:number; year:number })=>void;
+  selectedDay: string|null;
+  dayEvents: any[];
+  allEvents: any[];
+  onDaySelect: (dateStr:string)=>void;
+  onEditWithZaeli: (ev:any)=>void;
+  onManualEdit: (ev:any)=>void;
+  onAddWithZaeli: ()=>void;
+  onManualAdd: (dateStr:string)=>void;
+  onDeleted: ()=>void;
+}) {
+  const { month, year } = monthYear;
+  const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const DAY_HDRS = ['M','T','W','T','F','S','S'];
+  const today = localDateStr();
+
+  // Build dot map: dateStr → first 3 assignee colours
+  const dotMap: Record<string, string[]> = {};
+  allEvents.forEach((ev:any) => {
+    if (!ev.date) return;
+    const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+    const color = members.length > 0 ? members[0].color : '#A8D8F0';
+    if (!dotMap[ev.date]) dotMap[ev.date] = [];
+    if (dotMap[ev.date].length < 3) dotMap[ev.date].push(color);
+  });
+
+  // Build calendar grid
+  const firstDay = (new Date(year, month, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const daysInPrev = new Date(year, month, 0).getDate();
+  const cells: { dateStr:string|null; day:number; isCurrentMonth:boolean }[] = [];
+  for (let i = 0; i < firstDay; i++) {
+    cells.push({ dateStr:null, day:daysInPrev - firstDay + 1 + i, isCurrentMonth:false });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    cells.push({ dateStr:ds, day:d, isCurrentMonth:true });
+  }
+  const remaining = (7 - (cells.length % 7)) % 7;
+  for (let i = 1; i <= remaining; i++) {
+    cells.push({ dateStr:null, day:i, isCurrentMonth:false });
+  }
+
+  function prevMonth() {
+    if (month === 0) onMonthChange({ month:11, year:year-1 });
+    else onMonthChange({ month:month-1, year });
+  }
+  function nextMonth() {
+    if (month === 11) onMonthChange({ month:0, year:year+1 });
+    else onMonthChange({ month:month+1, year });
+  }
+
+  return (
+    <>
+      {/* Month nav */}
+      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+        <TouchableOpacity onPress={prevMonth} activeOpacity={0.7} style={{ padding:8 }}>
+          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:22, color:'rgba(0,0,0,0.45)' }}>‹</Text>
+        </TouchableOpacity>
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#0A0A0A' }}>{MONTHS_FULL[month]} {year}</Text>
+        <TouchableOpacity onPress={nextMonth} activeOpacity={0.7} style={{ padding:8 }}>
+          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:22, color:'rgba(0,0,0,0.45)' }}>›</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Day headers */}
+      <View style={{ flexDirection:'row', marginBottom:6 }}>
+        {DAY_HDRS.map((d,i) => (
+          <View key={i} style={{ flex:1, alignItems:'center', paddingBottom:8 }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'rgba(0,0,0,0.35)', letterSpacing:0.05 }}>{d}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Calendar grid */}
+      <View style={{ flexDirection:'row', flexWrap:'wrap', marginBottom:16 }}>
+        {cells.map((cell, i) => {
+          const isToday = cell.dateStr === today;
+          const isSelected = cell.dateStr === selectedDay;
+          const dots = cell.dateStr ? (dotMap[cell.dateStr] || []) : [];
+          return (
+            <TouchableOpacity
+              key={i}
+              style={{ width:'14.28%', alignItems:'center', paddingVertical:4 }}
+              onPress={() => cell.dateStr && onDaySelect(cell.dateStr)}
+              activeOpacity={cell.dateStr ? 0.7 : 1}
+              disabled={!cell.dateStr}
+            >
+              <View style={{
+                width:34, height:34, borderRadius:17, alignItems:'center', justifyContent:'center',
+                backgroundColor: isSelected ? '#FF4545' : isToday ? '#3A3D4A' : 'transparent',
+              }}>
+                <Text style={{
+                  fontFamily:'Poppins_600SemiBold', fontSize:15,
+                  color: isSelected || isToday ? '#fff' : cell.isCurrentMonth ? '#0A0A0A' : 'rgba(0,0,0,0.22)',
+                }}>{cell.day}</Text>
+              </View>
+              {/* Event dots */}
+              {dots.length > 0 && (
+                <View style={{ flexDirection:'row', gap:2, marginTop:2, height:5 }}>
+                  {dots.map((c, di) => (
+                    <View key={di} style={{ width:5, height:5, borderRadius:2.5, backgroundColor: c }}/>
+                  ))}
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Selected day events */}
+      {selectedDay && (
+        <>
+          <View style={{ height:1, backgroundColor:'rgba(0,0,0,0.08)', marginBottom:14 }}/>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'rgba(0,0,0,0.45)', letterSpacing:0.5, textTransform:'uppercase', marginBottom:12 }}>
+            {new Date(selectedDay+'T00:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' })}
+            {dayEvents.length > 0 ? ` — ${dayEvents.length} event${dayEvents.length>1?'s':''}` : ' — nothing on'}
+          </Text>
+          {dayEvents.length === 0 ? (
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(0,0,0,0.35)', fontStyle:'italic', marginBottom:16 }}>Nothing scheduled</Text>
+          ) : dayEvents.map((ev:any) => (
+            <CalSheetEventCard key={ev.id} ev={ev} onEditWithZaeli={onEditWithZaeli} onManualEdit={onManualEdit} onDeleted={onDeleted}/>
+          ))}
+          {/* Add row — same as day view */}
+          <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderWidth:1.5, borderStyle:'dashed', borderColor:'rgba(0,0,0,0.12)', borderRadius:14, padding:14, marginTop:4 }}>
+            <TouchableOpacity
+              onPress={() => onManualAdd(selectedDay!)}
+              activeOpacity={0.75}
+              style={{ flexDirection:'row', alignItems:'center', gap:10, flex:1 }}
+            >
+              <Text style={{ fontSize:18, color:'rgba(0,0,0,0.22)' }}>+</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(0,0,0,0.35)' }}>
+                Add event for {new Date(selectedDay+'T00:00:00').toLocaleDateString('en-AU', { weekday:'long' })}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onAddWithZaeli} activeOpacity={0.75}
+              style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'rgba(168,216,240,0.18)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.50)' }}>✦ Add with Zaeli</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+    </>
+  );
+}
+
+// ── CalSheetEditForm ──────────────────────────────────────────────────────
+function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDeleted }: {
+  ev: any; onBack:()=>void; onClose:()=>void;
+  onEditWithZaeli:(ev:any)=>void; onSaved:()=>void; onDeleted?:()=>void;
+}) {
+  const [title,     setTitle]     = useState(ev.title || '');
+  const noteParts = (ev.notes||'').split(' | ');
+  const [location,  setLocation]  = useState(noteParts.length > 1 ? noteParts[noteParts.length-1] : '');
+  const [assignees, setAssignees] = useState<string[]>(ev.assignees || []);
+  const [repeatRule, setRepeatRule] = useState(ev.repeat_rule || 'Never');
+  const [alertRule,  setAlertRule]  = useState(ev.alert_rule || ev.reminder_minutes != null ? `${ev.reminder_minutes} min before` : '15 min before');
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const toH24 = (h:number, ap:'am'|'pm') => ap==='pm' ? (h===12?12:h+12) : (h===12?0:h);
+
+  // Parse existing start/end times
+  const parseTime = (iso:string) => {
+    const tp = iso?.includes('T') ? iso.split('T')[1] : '';
+    if (!tp) return { h:9, m:0, ap:'am' as 'am'|'pm' };
+    const [h24,m] = tp.split(':').map(Number);
+    return { h: h24===0?12:h24>12?h24-12:h24, m, ap: (h24>=12?'pm':'am') as 'am'|'pm' };
+  };
+  const st = parseTime(ev.start_time);
+  const et = parseTime(ev.end_time || ev.start_time);
+  const [startH, setStartH] = useState(st.h);
+  const [startM, setStartM] = useState(st.m);
+  const [startAp, setStartAp] = useState<'am'|'pm'>(st.ap);
+  const [endH, setEndH] = useState(et.h);
+  const [endM, setEndM] = useState(et.m);
+  const [endAp, setEndAp] = useState<'am'|'pm'>(et.ap);
+
+  const REPEAT_OPTS = ['Never','Daily','Weekly','Fortnightly','Monthly'];
+  const ALERT_OPTS  = ['None','At start','5 min','15 min','30 min','1 hour','1 day'];
+
+  const toggleAssignee = (id:string) => {
+    setAssignees(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]);
+  };
+
+  async function save() {
+    setSaving(true);
+    try {
+      const pad = (n:number) => String(n).padStart(2,'0');
+      const sh24 = toH24(startH, startAp);
+      const eh24 = toH24(endH, endAp);
+      const dateStr = ev.date || localDateStr();
+      const payload: any = {
+        family_id: '00000000-0000-0000-0000-000000000001',
+        title: title.trim() || 'New Event',
+        notes: [noteParts[0]||'', location.trim()].filter(Boolean).join(' | '),
+        repeat_rule: repeatRule,
+        assignees,
+        date: dateStr,
+        start_time: `${dateStr}T${pad(sh24)}:${pad(startM)}:00`,
+        end_time:   `${dateStr}T${pad(eh24)}:${pad(endM)}:00`,
+      };
+      let error: any = null;
+      if (ev.id) {
+        // Update existing
+        const { error: e } = await supabase.from('events').update(payload).eq('id', ev.id);
+        error = e;
+        if (error && (error.message?.includes('assignees') || error.code==='42703')) {
+          const { assignees:_a, family_id:_f, ...slim } = payload;
+          const r2 = await supabase.from('events').update(slim).eq('id', ev.id);
+          error = r2.error;
+        }
+      } else {
+        // Insert new
+        const { error: e } = await supabase.from('events').insert(payload);
+        error = e;
+        if (error && (error.message?.includes('assignees') || error.code==='42703')) {
+          const { assignees:_a, ...slim } = payload;
+          const r2 = await supabase.from('events').insert(slim);
+          error = r2.error;
+        }
+      }
+      if (!error) onSaved();
+    } catch {}
+    setSaving(false);
+  }
+
+  return (
+    <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS==='ios'?'padding':'height'}>
+      <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:50 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+        {/* Zaeli hint */}
+        <TouchableOpacity
+          style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor:'rgba(168,216,240,0.14)', borderWidth:1, borderColor:'rgba(168,216,240,0.35)', borderRadius:14, padding:14, marginBottom:20 }}
+          onPress={() => onEditWithZaeli(ev)} activeOpacity={0.75}
+        >
+          <Text style={{ fontSize:16 }}>✦</Text>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.55)', flex:1, lineHeight:21 }}>Prefer to just say the change? Hand off to Zaeli.</Text>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'rgba(58,61,74,0.75)' }}>Edit ›</Text>
+        </TouchableOpacity>
+
+        {/* Title */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.40)', textTransform:'uppercase', letterSpacing:0.8, marginBottom:8 }}>Event name</Text>
+        <View style={{ backgroundColor:'#fff', borderRadius:12, borderWidth:1, borderColor:'rgba(0,0,0,0.10)', paddingHorizontal:14, paddingVertical:12, marginBottom:18 }}>
+          <TextInput value={title} onChangeText={setTitle} style={{ fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A' }} placeholder="Event name" placeholderTextColor="rgba(0,0,0,0.28)"/>
+        </View>
+
+        {/* Time */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.40)', textTransform:'uppercase', letterSpacing:0.8, marginBottom:8 }}>Time</Text>
+        <View style={{ flexDirection:'row', gap:10, marginBottom:18 }}>
+          <View style={{ flex:1, backgroundColor:'#fff', borderRadius:12, borderWidth:1, borderColor:'rgba(0,0,0,0.10)', padding:12 }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'rgba(0,0,0,0.38)', textTransform:'uppercase', letterSpacing:0.6, marginBottom:6 }}>Start</Text>
+            <TimePill hour={startH} minute={startM} ampm={startAp} onHour={setStartH} onMinute={setStartM} onAmpm={setStartAp}/>
+          </View>
+          <View style={{ flex:1, backgroundColor:'#fff', borderRadius:12, borderWidth:1, borderColor:'rgba(0,0,0,0.10)', padding:12 }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'rgba(0,0,0,0.38)', textTransform:'uppercase', letterSpacing:0.6, marginBottom:6 }}>End</Text>
+            <TimePill hour={endH} minute={endM} ampm={endAp} onHour={setEndH} onMinute={setEndM} onAmpm={setEndAp}/>
+          </View>
+        </View>
+
+        {/* Location */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.40)', textTransform:'uppercase', letterSpacing:0.8, marginBottom:8 }}>Location</Text>
+        <View style={{ backgroundColor:'#fff', borderRadius:12, borderWidth:1, borderColor:'rgba(0,0,0,0.10)', paddingHorizontal:14, paddingVertical:12, marginBottom:18 }}>
+          <TextInput value={location} onChangeText={setLocation} style={{ fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A' }} placeholder="Location" placeholderTextColor="rgba(0,0,0,0.28)"/>
+        </View>
+
+        {/* Attendees */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.40)', textTransform:'uppercase', letterSpacing:0.8, marginBottom:12 }}>Who's going</Text>
+        <View style={{ flexDirection:'row', gap:16, marginBottom:20, flexWrap:'wrap' }}>
+          {FAMILY_MEMBERS.map(m => {
+            const sel = assignees.includes(m.id);
+            return (
+              <TouchableOpacity key={m.id} onPress={() => toggleAssignee(m.id)} activeOpacity={0.75} style={{ alignItems:'center', gap:6 }}>
+                <View style={{ width:44, height:44, borderRadius:22, backgroundColor:m.color, alignItems:'center', justifyContent:'center', opacity: sel ? 1 : 0.28, borderWidth: sel ? 2.5 : 0, borderColor:'#0A0A0A' }}>
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'#fff' }}>{m.name[0]}</Text>
+                </View>
+                <Text style={{ fontFamily:'Poppins_500Medium', fontSize:11, color: sel ? '#0A0A0A' : 'rgba(0,0,0,0.35)' }}>{m.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Repeat */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.40)', textTransform:'uppercase', letterSpacing:0.8, marginBottom:10 }}>Repeat</Text>
+        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:20 }}>
+          {REPEAT_OPTS.map(opt => (
+            <TouchableOpacity key={opt} onPress={() => setRepeatRule(opt)} activeOpacity={0.75}
+              style={{ borderWidth:1.5, borderColor: repeatRule===opt ? '#0A0A0A' : 'rgba(0,0,0,0.12)', borderRadius:22, paddingVertical:8, paddingHorizontal:16, backgroundColor: repeatRule===opt ? '#0A0A0A' : '#fff' }}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color: repeatRule===opt ? '#fff' : 'rgba(0,0,0,0.55)' }}>{opt}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Reminder */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.40)', textTransform:'uppercase', letterSpacing:0.8, marginBottom:10 }}>Reminder</Text>
+        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:28 }}>
+          {ALERT_OPTS.map(opt => (
+            <TouchableOpacity key={opt} onPress={() => setAlertRule(opt)} activeOpacity={0.75}
+              style={{ borderWidth:1.5, borderColor: alertRule===opt ? '#0A0A0A' : 'rgba(0,0,0,0.12)', borderRadius:22, paddingVertical:8, paddingHorizontal:16, backgroundColor: alertRule===opt ? '#0A0A0A' : '#fff' }}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color: alertRule===opt ? '#fff' : 'rgba(0,0,0,0.55)' }}>{opt}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Save / Cancel */}
+        <View style={{ flexDirection:'row', gap:10, marginBottom: ev.id ? 0 : 0 }}>
+          <TouchableOpacity onPress={onBack} style={{ flex:1, paddingVertical:16, borderRadius:14, backgroundColor:'rgba(0,0,0,0.06)', alignItems:'center' }} activeOpacity={0.75}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'rgba(0,0,0,0.45)' }}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={save} disabled={saving} style={{ flex:2, paddingVertical:16, borderRadius:14, backgroundColor:'#3A3D4A', alignItems:'center', opacity: saving ? 0.5 : 1 }} activeOpacity={0.85}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' }}>{saving ? 'Saving…' : ev.id ? 'Save changes' : 'Add event'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Delete — only for existing events */}
+        {ev.id && (
+          <View style={{ marginTop:12 }}>
+            {confirmDelete ? (
+              <View style={{ flexDirection:'row', gap:10 }}>
+                <TouchableOpacity onPress={() => setConfirmDelete(false)} style={{ flex:1, paddingVertical:14, borderRadius:14, backgroundColor:'rgba(0,0,0,0.06)', alignItems:'center' }} activeOpacity={0.75}>
+                  <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.45)' }}>Keep it</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={async () => {
+                    await supabase.from('events').delete().eq('id', ev.id);
+                    onDeleted?.();
+                    onBack();
+                  }}
+                  style={{ flex:2, paddingVertical:14, borderRadius:14, backgroundColor:'#DC2626', alignItems:'center' }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#fff' }}>Yes, delete event</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={() => setConfirmDelete(true)} style={{ paddingVertical:14, borderRadius:14, alignItems:'center' }} activeOpacity={0.75}>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(220,38,38,0.60)' }}>Delete event</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
 
 // ── Brief cache (module-level) ─────────────────────────────────────────────
 let lastBriefTime: number | null = null;
@@ -1589,6 +2247,15 @@ export default function HomeScreen() {
   const [screen,          setScreen]          = useState<'splash'|'entry'|'chat'>('splash');
   const [entryRecording,  setEntryRecording]  = useState(false);
   const [entryProcessing, setEntryProcessing] = useState(false);
+  const [calSheetOpen,    setCalSheetOpen]    = useState(false);
+  const [calSheetTab,     setCalSheetTab]     = useState<'today'|'tomorrow'|'month'>('today');
+  const [calSheetEvents,  setCalSheetEvents]  = useState<any[]>([]);
+  const [calSheetTomEvents, setCalSheetTomEvents] = useState<any[]>([]);
+  const [calSheetEditEv,  setCalSheetEditEv]  = useState<any>(null); // null = list view, event = edit form
+  const [calSheetMonthYear, setCalSheetMonthYear] = useState(() => { const n = new Date(); return { month: n.getMonth(), year: n.getFullYear() }; });
+  const [calSheetSelDay,  setCalSheetSelDay]  = useState<string|null>(null);
+  const [calSheetDayEvs,  setCalSheetDayEvs]  = useState<any[]>([]);
+  const [calSheetMonthEvs, setCalSheetMonthEvs] = useState<any[]>([]); // all events in current month for dots
 
   // ── Card data state ──────────────────────────────────────────────────────
   const [cardData, setCardData] = useState<CardData>({
@@ -1631,9 +2298,11 @@ export default function HomeScreen() {
   const wordmarkOpacity  = useRef(new Animated.Value(0)).current;
   const recordingRef     = useRef<Audio.Recording | null>(null);
   const isAtBottom       = useRef(false);
+  const isExpandingCard  = useRef(false); // suppresses auto-scroll during inline card expansion
   const lastImageDesc    = useRef<string>('');
   const lastSendRef      = useRef<string>('');
   const handledScanRef   = useRef<string | null>(null);
+  const pendingCalendarAdd = useRef(false); // true while user is in add-with-Zaeli flow
 
   const FOCUS_CHIPS = [
     { emoji:'📅', label:"What's on today",   sub:'Calendar · schedule · reminders', seed:"What's on today?" },
@@ -1756,17 +2425,26 @@ export default function HomeScreen() {
   }, []);
 
   // ── Sync messages with persistence ────────────────────────────────────────
-  useEffect(() => {
-    if (chatLoaded) {
-      setMessages(persistedMessages);
-    }
-  }, [chatLoaded]);
+  const persistenceHasLoaded = useRef(false);
 
   useEffect(() => {
-    if (chatLoaded) {
+    if (chatLoaded && !persistenceHasLoaded.current) {
+      persistenceHasLoaded.current = true;
+      if (persistedMessages.length > 0) {
+        // Only restore the brief — strip all inline cards and conversation.
+        // Cards are always freshly generated on pill tap.
+        const briefOnly = persistedMessages.filter(m => m.isBrief);
+        setMessages(briefOnly);
+      }
+    }
+  }, [chatLoaded, persistedMessages]);
+
+  // Save messages to persistence whenever they change (debounced by the persistence hook)
+  useEffect(() => {
+    if (chatLoaded && persistenceHasLoaded.current) {
       setPersistedMessages(messages);
     }
-  }, [messages, chatLoaded]);
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Splash → Chat ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1880,10 +2558,8 @@ export default function HomeScreen() {
 
   // ── Domain pill tap → inject inline card + GPT-mini follow-up ──────────
   async function handlePillTap(domain: string) {
-    // Scroll to bottom of chat
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 80);
 
-    // Immediately inject the relevant card as an inline message
     const cardMsgId = uid();
     const inlineTypeMap: Record<string, InlineData['type']> = {
       calendar: 'calendar', shopping: 'shopping', meals: 'meals', todos: 'todos',
@@ -1891,43 +2567,66 @@ export default function HomeScreen() {
     const inlineType = inlineTypeMap[domain] ?? null;
 
     if (inlineType) {
-      // Fetch latest data for the card
       const today = localDateStr();
       let items: any[] = [];
       if (inlineType === 'calendar') {
-        const { data } = await supabase.from('events')
-          .select('id,title,date,start_time,end_time,assignees')
-          .eq('family_id', FAMILY_ID).eq('date', today)
-          .order('start_time').limit(8);
-        items = data ?? [];
+        const tomorrow = localDatePlusDays(1);
+        const [todayRes, tomorrowRes] = await Promise.all([
+          supabase.from('events')
+            .select('id,title,date,start_time,end_time,assignees,notes')
+            .eq('family_id', FAMILY_ID).eq('date', today)
+            .order('start_time').limit(8),
+          supabase.from('events')
+            .select('id,title,date,start_time,end_time,assignees,notes')
+            .eq('family_id', FAMILY_ID).eq('date', tomorrow)
+            .order('start_time').limit(8),
+        ]);
+        items = todayRes.data ?? [];
+        const calMsg: Msg = {
+          id: cardMsgId, role: 'zaeli', text: '', ts: nowTs(),
+          inlineData: { type: 'calendar', items, tomorrowItems: tomorrowRes.data ?? [] },
+        };
+        // Remove all existing calendar inline cards, then append fresh full-day card at bottom
+        setMessages(prev => {
+          const withoutCalCards = prev.filter(m => m.inlineData?.type !== 'calendar');
+          return [...withoutCalCards, calMsg];
+        });
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 120);
       } else if (inlineType === 'shopping') {
         const { data } = await supabase.from('shopping_items')
           .select('id,name,item,checked').eq('family_id', FAMILY_ID)
           .neq('checked', true).limit(10);
         items = data ?? [];
+        const msg: Msg = { id: cardMsgId, role: 'zaeli', text: '', ts: nowTs(), inlineData: { type: inlineType, items } };
+        setMessages(prev => [...prev, msg]);
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 120);
       } else if (inlineType === 'todos') {
         const { data } = await supabase.from('todos')
           .select('id,title,priority,status,due_date').eq('family_id', FAMILY_ID)
           .eq('status','active').limit(8);
         items = data ?? [];
+        const msg: Msg = { id: cardMsgId, role: 'zaeli', text: '', ts: nowTs(), inlineData: { type: inlineType, items } };
+        setMessages(prev => [...prev, msg]);
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 120);
       } else if (inlineType === 'meals') {
         const { data } = await supabase.from('meal_plans')
           .select('id,meal_name,day_key,prep_mins').eq('family_id', FAMILY_ID)
           .gte('day_key', today).limit(7);
         items = data ?? [];
+        const msg: Msg = { id: cardMsgId, role: 'zaeli', text: '', ts: nowTs(), inlineData: { type: inlineType, items } };
+        setMessages(prev => [...prev, msg]);
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 120);
       }
-      const msg: Msg = {
-        id: cardMsgId, role: 'zaeli', text: '', ts: nowTs(),
-        inlineData: { type: inlineType, items },
-      };
-      setMessages(prev => [...prev, msg]);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 120);
     }
 
-    // GPT-mini follow-up after 400ms (feels instant, not blocking)
+    // Fire GPT follow-up — remove any existing pill follow-up first to avoid stacking
+    const replyId = uid();
     setTimeout(async () => {
-      const replyId = uid();
-      setMessages(prev => [...prev, { id:replyId, role:'zaeli', text:'', ts:nowTs(), isLoading:true }]);
+      setMessages(prev => {
+        // Remove previous pill follow-up if exists, then add fresh loading one
+        const without = prev.filter(m => !(m as any)._isPillFollowUp);
+        return [...without, { id:replyId, role:'zaeli' as const, text:'', ts:nowTs(), isLoading:true, _isPillFollowUp:true } as any];
+      });
       try {
         const today = localDateStr();
         const contextLines: string[] = [];
@@ -1953,15 +2652,20 @@ Write ONE targeted follow-up line (max 10 words). Be specific to the data. Offer
 Never start with "I". No hollow phrases. Then 3 chips.
 Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         const raw = await callGPT(sys, [{role:'user', content:'Generate.'}], 150, 'home_pill_tap');
-        const parsed = JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,'').trim());
-        updateMsg(replyId, { text: parsed.line ?? '', isLoading:false, quickReplies: parsed.chips ?? [] });
+        try {
+          const parsed = JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,'').trim());
+          updateMsg(replyId, { text: parsed.line ?? raw, isLoading:false, quickReplies: parsed.chips ?? [] });
+        } catch {
+          // JSON parse failed — show raw text as fallback
+          updateMsg(replyId, { text: raw || "What would you like to do?", isLoading:false, quickReplies: ['Add event', 'Check tomorrow', 'Full calendar'] });
+        }
       } catch {
-        setMessages(prev => prev.filter(m => m.id !== replyId));
+        // Network/API failure — show fallback rather than disappearing
+        updateMsg(replyId, { text: domain === 'calendar' ? "Anything to add or change today?" : "What would you like to do?", isLoading:false, quickReplies: ['Add event', 'Check tomorrow', 'Full calendar'] });
       }
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 150);
     }, 400);
   }
-
   // ── + Add card handlers → seed Zaeli chat ────────────────────────────────
   function handleCardAdd(context: 'calendar' | 'shopping' | 'actions') {
     const prompts: Record<string, string> = {
@@ -2041,8 +2745,9 @@ FORMAT: 2–4 sentences. Natural prose. No bullet points, no lists, no asterisks
 
   // ── Generate brief ────────────────────────────────────────────────────────
   async function generateBrief(force = false, focusHint?: string) {
+    // Never generate if persistence has already loaded messages
+    if (chatLoaded && persistedMessages.length > 0 && !focusHint) return;
     if (!force && messages.length > 0) return;
-    if (chatLoaded && messages.length > 0 && !force) return;
 
     const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
     if (!force && elapsed < 30*60*1000 && cachedBriefText) {
@@ -2437,8 +3142,9 @@ Only include events directly relevant to the question. Max 5 events.`;
         return;
       }
 
-      // Action / tool-calling path
-      if (isActionQuery(text) || imageUri) {
+      // Action / tool-calling path — also forced when user is in add/edit-with-Zaeli flow
+      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current) {
+        pendingCalendarAdd.current = false; // clear flag — one-shot
         const anthropicKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
         if (!anthropicKey) { updateMsg(replyId, { text:'No API key configured.', isLoading:false }); setLoading(false); return; }
 
@@ -2487,9 +3193,46 @@ Only include events directly relevant to the question. Max 5 events.`;
           });
           const followData = await followUp.json();
           const followText = followData.content?.find((b:any) => b.type==='text')?.text ?? toolResults.join('\n');
+
+          // For add_calendar_event — fetch the newly created event and inject as inline card
+          const addTool = toolUses.find((tu:any) => tu.name === 'add_calendar_event');
+          if (addTool && !toolResults[toolUses.indexOf(addTool)].startsWith('TOOL_FAILED')) {
+            try {
+              const today = localDateStr();
+              const rawStart = (addTool.input.start_time || '').replace('Z','').split('+')[0];
+              const dateOnly = rawStart.includes('T') ? rawStart.split('T')[0] : today;
+              const { data: newEvData } = await supabase.from('events')
+                .select('id,title,date,start_time,end_time,assignees,notes')
+                .eq('family_id', FAMILY_ID)
+                .ilike('title', `%${addTool.input.title}%`)
+                .eq('date', dateOnly)
+                .order('created_at', { ascending: false })
+                .limit(1);
+              if (newEvData && newEvData.length > 0) {
+                const confirmCard: Msg = {
+                  id: uid(), role: 'zaeli', text: '', ts: nowTs(),
+                  inlineData: { type: 'calendar', items: [newEvData[0]], tomorrowItems: [] },
+                };
+                setMessages(prev => {
+                  // Replace the loading reply with confirmation card + text
+                  return prev.map(m => m.id === replyId
+                    ? { ...m, text: followText, isLoading: false }
+                    : m
+                  ).concat([confirmCard]);
+                });
+                loadCardData();
+                refreshCalendarEvents();
+                setLoading(false);
+                setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 150);
+                return;
+              }
+            } catch { /* fallback to normal flow */ }
+          }
+
           updateMsg(replyId, { text:followText, isLoading:false });
-          // Refresh card data immediately after tool action
+          // Refresh card data + inline calendar cards after any tool action
           loadCardData();
+          refreshCalendarEvents();
         } else {
           const reply = data.content?.find((b:any) => b.type==='text')?.text ?? 'Something went wrong — try again?';
           updateMsg(replyId, { text:reply, isLoading:false });
@@ -2553,6 +3296,82 @@ Only include events directly relevant to the question. Max 5 events.`;
   function handleMicPress() { if (isRecording) stopRecording(); else startRecording(); }
 
   // ── Sheet ─────────────────────────────────────────────────────────────────
+  // ── Calendar sheet open/data ──────────────────────────────────────────────
+  async function openCalSheet(tab: 'today'|'tomorrow'|'month' = 'today') {
+    const now = new Date();
+    const today = localDateStr();
+    const tomorrow = localDatePlusDays(1);
+    // Reset state and open sheet IMMEDIATELY — don't wait for data
+    setCalSheetMonthYear({ month: now.getMonth(), year: now.getFullYear() });
+    setCalSheetSelDay(today);
+    setCalSheetTab(tab);
+    setCalSheetEditEv(null);
+    setCalSheetOpen(true);
+
+    // Fetch data in background — sheet shows loading state while this runs
+    const [todRes, tomRes] = await Promise.all([
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes').eq('family_id', FAMILY_ID).eq('date', today).order('start_time').limit(20),
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes').eq('family_id', FAMILY_ID).eq('date', tomorrow).order('start_time').limit(20),
+    ]);
+    setCalSheetEvents(todRes.data ?? []);
+    setCalSheetTomEvents(tomRes.data ?? []);
+    setCalSheetDayEvs(todRes.data ?? []);
+
+    // Fetch month dots separately (non-blocking)
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+    const monthEnd   = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()}`;
+    supabase.from('events').select('id,date,assignees').eq('family_id', FAMILY_ID).gte('date', monthStart).lte('date', monthEnd).limit(200)
+      .then(({ data }) => setCalSheetMonthEvs(data ?? []));
+  }
+
+  async function fetchMonthDayEvents(dateStr: string) {
+    setCalSheetSelDay(dateStr);
+    const { data } = await supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', FAMILY_ID).eq('date', dateStr).order('start_time').limit(20);
+    setCalSheetDayEvs(data ?? []);
+  }
+
+  async function fetchMonthDots(month: number, year: number) {
+    const monthStart = `${year}-${String(month+1).padStart(2,'0')}-01`;
+    const monthEnd   = `${year}-${String(month+1).padStart(2,'0')}-${new Date(year, month+1, 0).getDate()}`;
+    const { data } = await supabase.from('events').select('id,date,assignees').eq('family_id', FAMILY_ID).gte('date', monthStart).lte('date', monthEnd).limit(200);
+    setCalSheetMonthEvs(data ?? []);
+  }
+
+  function handleSheetEditWithZaeli(ev: any) {
+    setCalSheetOpen(false);
+    setTimeout(() => {
+      pendingCalendarAdd.current = true;
+      const focusedCard: Msg = {
+        id: uid(), role: 'zaeli', text: '', ts: nowTs(),
+        inlineData: { type: 'calendar', items: [ev], tomorrowItems: [] },
+      };
+      const dayName = ev.date ? new Date(ev.date+'T00:00:00').toLocaleDateString('en-AU', { weekday:'long' }) : '';
+      const zaeliPrompt: Msg = {
+        id: uid(), role: 'zaeli',
+        text: `${ev.title} — ${dayName} at ${fmtTime(ev.start_time)}. What would you like to change?`,
+        ts: nowTs(), isLoading: false,
+        quickReplies: ['Move the time', 'Add someone', 'Change location', 'Cancel it'],
+      };
+      setMessages(prev => [...prev, focusedCard, zaeliPrompt]);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 150);
+    }, 350);
+  }
+
+  function handleSheetAddWithZaeli() {
+    setCalSheetOpen(false);
+    setTimeout(() => {
+      pendingCalendarAdd.current = true;
+      const zaeliPrompt: Msg = {
+        id: uid(), role: 'zaeli',
+        text: "Love it — what's the event? Just tell me what, when, and who's going.",
+        ts: nowTs(), isLoading: false,
+        quickReplies: ["Dentist tomorrow 10am", "Duke's sports day Fri", "Date night Saturday"],
+      };
+      setMessages(prev => [...prev, zaeliPrompt]);
+      setTimeout(() => { scrollRef.current?.scrollToEnd({ animated:true }); inputRef.current?.focus(); }, 150);
+    }, 350);
+  }
+
   function openSheet() {
     setShowAddSheet(true);
     Animated.spring(sheetAnim, { toValue:0, useNativeDriver:true, tension:65, friction:11 }).start();
@@ -2660,7 +3479,14 @@ Only include events directly relevant to the question. Max 5 events.`;
 
   // ── renderMessages ─────────────────────────────────────────────────────────
   function renderMessages() {
-    return messages.map((msg, i) => {
+    // Deduplicate by id before rendering — prevents React key collision warnings
+    const seen = new Set<string>();
+    const uniqueMessages = messages.filter(m => {
+      if (seen.has(m.id)) return false;
+      seen.add(m.id);
+      return true;
+    });
+    return uniqueMessages.map((msg, i) => {
       if (msg.role === 'user') {
         return (
           <View key={msg.id} style={[s.userMsgWrap, { marginTop:18 }]}>
@@ -2688,7 +3514,8 @@ Only include events directly relevant to the question. Max 5 events.`;
       const prevMsg = i > 0 ? messages[i-1] : null;
       const showEyebrow = !prevMsg || prevMsg.role === 'user';
       const thumbState = thumbs[msg.id] || null;
-      const hasCalendarEvents = !msg.isLoading && msg.inlineData?.type==='calendar' && ((msg.inlineData.items?.length??0)>0 || !!msg.inlineData.showPortalPill);
+      const hasCalendarInline = !msg.isLoading && msg.inlineData?.type === 'calendar';
+      const hasOtherInline = !msg.isLoading && msg.inlineData?.type && msg.inlineData.type !== 'calendar' && ((msg.inlineData.items?.length ?? 0) > 0 || !!msg.inlineData.showPortalPill);
       const cleanText = msg.text ? msg.text.replace(/\[([^\]]+)\]/g, '$1') : '';
       const paragraphs = cleanText ? cleanText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean) : [];
       const introText = msg.inlineData?.intro ?? '';
@@ -2712,7 +3539,69 @@ Only include events directly relevant to the question. Max 5 events.`;
 
           {msg.isLoading ? (
             <TypingDots color={HOME_AI}/>
-          ) : hasCalendarEvents ? (
+          ) : hasCalendarInline ? (
+            <>
+              {!!msg.text && paragraphs.map((p, pi) => (
+                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom:8 }]}>{p}</Text>
+              ))}
+              <InlineCalendarCard
+                msgId={msg.id}
+                todayEvents={msg.inlineData!.items ?? []}
+                tomorrowEvents={msg.inlineData!.tomorrowItems ?? []}
+                onExpandingCard={() => {
+                  isExpandingCard.current = true;
+                  setTimeout(() => { isExpandingCard.current = false; }, 400);
+                }}
+                onEditWithZaeli={(ev) => {
+                  pendingCalendarAdd.current = true;
+                  const focusedCard: Msg = {
+                    id: uid(), role: 'zaeli', text: '', ts: nowTs(),
+                    inlineData: { type: 'calendar', items: [ev], tomorrowItems: [] },
+                  };
+                  const dayName = ev.date
+                    ? new Date(ev.date+'T00:00:00').toLocaleDateString('en-AU', { weekday:'long' })
+                    : '';
+                  const zaeliPrompt: Msg = {
+                    id: uid(), role: 'zaeli',
+                    text: `${ev.title} — ${dayName} at ${fmtTime(ev.start_time)}. What would you like to change?`,
+                    ts: nowTs(), isLoading: false,
+                    quickReplies: ['Move the time', 'Add someone', 'Change location', 'Cancel it'],
+                  };
+                  setMessages(prev => [...prev, focusedCard, zaeliPrompt]);
+                  setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 120);
+                }}
+                onAddWithZaeli={() => {
+                  pendingCalendarAdd.current = true;
+                  const zaeliPrompt: Msg = {
+                    id: uid(), role: 'zaeli',
+                    text: "Love it — what's the event? Just tell me what, when, and who's going.",
+                    ts: nowTs(), isLoading: false,
+                    quickReplies: ["Dentist tomorrow 10am", "Duke's sports day Fri", "Date night Saturday"],
+                  };
+                  setMessages(prev => [...prev, zaeliPrompt]);
+                  setTimeout(() => {
+                    scrollRef.current?.scrollToEnd({ animated:true });
+                    inputRef.current?.focus();
+                  }, 120);
+                }}
+                onFullSheet={() => {
+                  openCalSheet('today');
+                }}
+                onTomorrowSheet={() => {
+                  openCalSheet('month');
+                }}
+                onManualEdit={(ev) => {
+                  setCalSheetEditEv(ev);
+                  setCalSheetOpen(true);
+                }}
+                onDeleteEvent={async (ev) => {
+                  await supabase.from('events').delete().eq('id', ev.id);
+                  refreshCalendarEvents();
+                  loadCardData();
+                }}
+              />
+            </>
+          ) : hasOtherInline ? (
             <>
               {introParagraphs.map((p, pi) => (
                 <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom:8 }]}>{p}</Text>
@@ -2754,7 +3643,7 @@ Only include events directly relevant to the question. Max 5 events.`;
             </>
           )}
 
-          {!msg.isLoading && !hasCalendarEvents && (msg.quickReplies??[]).length > 0 && (
+          {!msg.isLoading && !hasCalendarInline && !hasOtherInline && (msg.quickReplies??[]).length > 0 && (
             <View style={s.quickRepliesWrap}>
               <View style={s.qrChips}>
                 {(msg.quickReplies??[]).map((chip, ci) => (
@@ -2766,7 +3655,7 @@ Only include events directly relevant to the question. Max 5 events.`;
             </View>
           )}
 
-          {!msg.isLoading && !msg.isBrief && (
+          {!msg.isLoading && !msg.isBrief && !hasCalendarInline && (
             <View style={s.zaeliIconRow}>
               <TouchableOpacity style={s.iconBtn} activeOpacity={0.6}><IcoPlay color={T.ink3}/></TouchableOpacity>
               <TouchableOpacity style={s.iconBtn} onPress={() => handleCopy(msg.text)} activeOpacity={0.6}><IcoCopy color={T.ink3}/></TouchableOpacity>
@@ -3012,7 +3901,9 @@ Only include events directly relevant to the question. Max 5 events.`;
               onScroll={handleScroll}
               scrollEventThrottle={16}
               onContentSizeChange={() => {
-                if (isAtBottom.current) scrollRef.current?.scrollToEnd({ animated:false });
+                if (isAtBottom.current && !isExpandingCard.current) {
+                  scrollRef.current?.scrollToEnd({ animated:false });
+                }
               }}
             >
               {/* ── DATE DIVIDER ── */}
@@ -3140,6 +4031,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                               setTimeout(() => setActivePill(''), 600);
                             } else {
                               handlePillTap(p.key);
+                              setTimeout(() => setActivePill(''), 800);
                             }
                           }}
                           activeOpacity={0.75}
@@ -3197,6 +4089,176 @@ Only include events directly relevant to the question. Max 5 events.`;
             </View>
           </View>{/* end scrollWrap */}
         </KeyboardAvoidingView>
+
+        {/* CALENDAR SHEET */}
+        <Modal
+          visible={calSheetOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setCalSheetOpen(false)}
+        >
+          <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
+            <TouchableOpacity style={{ flex:1 }} onPress={() => setCalSheetOpen(false)} activeOpacity={1}/>
+            <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' }}>
+              <SafeAreaView style={{ flex:1, display:'flex', flexDirection:'column' }} edges={['bottom']}>
+
+                {/* Handle */}
+                <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginTop:10 }}/>
+
+                {/* Header — changes between list and edit form */}
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
+                  {calSheetEditEv ? (
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#0A0A0A' }}>{calSheetEditEv?.id ? 'Edit Event' : 'Add Event'}</Text>
+                  ) : (
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                      <PilIcoCal color="rgba(58,61,74,0.80)"/>
+                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#0A0A0A' }}>Calendar</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => calSheetEditEv ? setCalSheetEditEv(null) : setCalSheetOpen(false)}
+                    style={{ width:32, height:32, borderRadius:9, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize:14, color:'rgba(0,0,0,0.5)' }}>{calSheetEditEv ? '‹' : '✕'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {calSheetEditEv ? (
+                  /* ── EDIT FORM VIEW ── */
+                  <CalSheetEditForm
+                    ev={calSheetEditEv}
+                    onBack={() => setCalSheetEditEv(null)}
+                    onClose={() => setCalSheetOpen(false)}
+                    onEditWithZaeli={handleSheetEditWithZaeli}
+                    onSaved={async () => {
+                      setCalSheetEditEv(null);
+                      setCalSheetOpen(false);
+                      loadCardData();
+                      // Fetch the saved event and inject as confirmation card in chat
+                      try {
+                        const dateStr = calSheetEditEv?.date || localDateStr();
+                        const title = calSheetEditEv?.title?.trim() || '';
+                        let q = supabase.from('events')
+                          .select('id,title,date,start_time,end_time,assignees,notes')
+                          .eq('family_id', FAMILY_ID)
+                          .eq('date', dateStr)
+                          .order('created_at', { ascending: false })
+                          .limit(1);
+                        if (title) q = (q as any).ilike('title', `%${title}%`);
+                        const { data: evData } = await (q as any);
+                        if (evData && evData.length > 0) {
+                          const ev = evData[0];
+                          const confirmCard: Msg = {
+                            id: uid(), role: 'zaeli', text: '', ts: nowTs(),
+                            inlineData: { type: 'calendar', items: [ev], tomorrowItems: [] },
+                          };
+                          const dayName = new Date(dateStr+'T00:00:00').toLocaleDateString('en-AU', { weekday:'long' });
+                          const confirmMsg: Msg = {
+                            id: uid(), role: 'zaeli', ts: nowTs(), isLoading: false,
+                            text: `${ev.title} locked in for ${dayName} at ${fmtTime(ev.start_time)}.`,
+                            quickReplies: ['Add another', 'See full calendar', 'Set a reminder'],
+                          };
+                          setMessages(prev => [...prev, confirmCard, confirmMsg]);
+                          setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 150);
+                        }
+                      } catch { /* silent — sheet still closed fine */ }
+                    }}
+                    onDeleted={() => {
+                      setCalSheetEditEv(null);
+                      setCalSheetOpen(false);
+                      loadCardData();
+                    }}
+                  />
+                ) : (
+                  <View style={{ flex:1 }}>
+                    {/* Tabs */}
+                    <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:3, marginHorizontal:14, marginTop:12, marginBottom:6 }}>
+                      {(['today','tomorrow','month'] as const).map(tab => (
+                        <TouchableOpacity
+                          key={tab}
+                          style={{ flex:1, alignItems:'center', paddingVertical:10, borderRadius:19, backgroundColor: calSheetTab===tab ? '#0A0A0A' : 'transparent' }}
+                          onPress={() => setCalSheetTab(tab)} activeOpacity={0.75}
+                        >
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color: calSheetTab===tab ? '#fff' : 'rgba(0,0,0,0.40)', textTransform:'capitalize' }}>{tab}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* Sheet body — scrollable, fills remaining height */}
+                    <ScrollView
+                      style={{ flex:1 }}
+                      contentContainerStyle={{ padding:16, paddingBottom:50 }}
+                      showsVerticalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                    >
+
+                      {/* TODAY / TOMORROW TAB */}
+                      {(calSheetTab === 'today' || calSheetTab === 'tomorrow') && (() => {
+                        const evs = calSheetTab === 'today' ? calSheetEvents : calSheetTomEvents;
+                        const dateStr = calSheetTab === 'today' ? localDateStr() : localDatePlusDays(1);
+                        const dateLabel2 = new Date(dateStr+'T00:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+                        return (
+                          <>
+                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'rgba(0,0,0,0.50)', marginBottom:16 }}>{dateLabel2}</Text>
+                            {evs.length === 0 ? (
+                              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(0,0,0,0.35)', fontStyle:'italic', marginBottom:16 }}>Nothing on {calSheetTab}</Text>
+                            ) : evs.map((ev:any) => (
+                              <CalSheetEventCard
+                                key={ev.id} ev={ev}
+                                onEditWithZaeli={handleSheetEditWithZaeli}
+                                onManualEdit={() => setCalSheetEditEv(ev)}
+                                onDeleted={() => openCalSheet(calSheetTab)}
+                              />
+                            ))}
+                            {/* Add row */}
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderWidth:1.5, borderStyle:'dashed', borderColor:'rgba(0,0,0,0.12)', borderRadius:14, padding:14, marginTop:4 }}>
+                              <TouchableOpacity
+                                onPress={() => setCalSheetEditEv({ date: calSheetTab === 'today' ? localDateStr() : localDatePlusDays(1), title:'', assignees:['2'], start_time:'', end_time:'' })}
+                                activeOpacity={0.75}
+                                style={{ flexDirection:'row', alignItems:'center', gap:10, flex:1 }}
+                              >
+                                <Text style={{ fontSize:18, color:'rgba(0,0,0,0.22)' }}>+</Text>
+                                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(0,0,0,0.35)' }}>Add event for {calSheetTab}</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity onPress={handleSheetAddWithZaeli} activeOpacity={0.75}
+                                style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'rgba(168,216,240,0.18)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}>
+                                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.50)' }}>✦ Add with Zaeli</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </>
+                        );
+                      })()}
+
+                      {/* MONTH TAB */}
+                      {calSheetTab === 'month' && (
+                        <CalSheetMonthView
+                          monthYear={calSheetMonthYear}
+                          onMonthChange={(v) => {
+                            setCalSheetMonthYear(v);
+                            setCalSheetSelDay(null);
+                            setCalSheetDayEvs([]);
+                            fetchMonthDots(v.month, v.year);
+                          }}
+                          selectedDay={calSheetSelDay}
+                          dayEvents={calSheetDayEvs}
+                          allEvents={calSheetMonthEvs}
+                          onDaySelect={fetchMonthDayEvents}
+                          onEditWithZaeli={handleSheetEditWithZaeli}
+                          onManualEdit={(ev) => setCalSheetEditEv(ev)}
+                          onAddWithZaeli={handleSheetAddWithZaeli}
+                          onManualAdd={(dateStr) => setCalSheetEditEv({ date: dateStr, title:'', assignees:['2'], start_time:'', end_time:'' })}
+                          onDeleted={() => { fetchMonthDayEvents(calSheetSelDay ?? localDateStr()); fetchMonthDots(calSheetMonthYear.month, calSheetMonthYear.year); }}
+                        />
+                      )}
+
+                    </ScrollView>
+                  </View>
+                )}
+              </SafeAreaView>
+            </View>
+          </View>
+        </Modal>
 
         {/* ADD SHEET */}
         <Modal visible={showAddSheet} transparent animationType="none" onRequestClose={() => closeSheet()}>
@@ -3453,7 +4515,7 @@ const s = StyleSheet.create({
   kavWrap:       { flex:1 },
   scrollWrap:    { flex:1, position:'relative' },
   scroll:        { flex:1 },
-  scrollContent: { paddingBottom:240 },
+  scrollContent: { paddingBottom:150 },
 
   // Scroll arrows (locked spec)
   scrollArrowPair:{ position:'absolute', bottom:110, right:16, flexDirection:'row', gap:8, zIndex:50 },
@@ -3505,7 +4567,7 @@ const s = StyleSheet.create({
     // CANONICAL SPEC: position:absolute bottom:0, no background (KAV #fff shows through)
     position:'absolute', bottom:0, left:0, right:0,
     paddingHorizontal:14,
-    paddingBottom:Platform.OS==='ios'?30:18,
+    paddingBottom:Platform.OS==='ios'?16:8,
     paddingTop:10,
   },
   inputAreaKb: { paddingBottom:Platform.OS==='ios'?6:4 },
