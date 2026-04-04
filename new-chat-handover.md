@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*2 April 2026 — Calendar sheet full build ✅ Inline card polish ✅ Delete flows ✅ Persistence fixed ✅*
+*4 April 2026 — v5 architecture locked ✅ Three-screen world ✅ FAB ✅ Pulse ✅ Landing ✅*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -17,7 +17,7 @@ Then **ZAELI-PRODUCT.md** for product vision and all module decisions.
 - **Two fixes at a time** — bulk changes = too many variables
 - One PowerShell command at a time, never chained with &&
 - Plain English before code
-- **Design before code** — mockup first for any new channel
+- **Design before code** — mockup first for any new screen
 - Always ask me to upload the current working file before editing
 
 ---
@@ -39,7 +39,7 @@ SONNET          = 'claude-sonnet-4-20250514'
 GPT_MINI        = 'gpt-5.4-mini'
 OpenAI = max_completion_tokens · Claude = max_tokens
 Send button = #FF4545 coral ALWAYS
-Body bg = #FAF8F5 warm white — never full colour bleed
+Body bg = #FAF8F5 warm white always
 No left-border accent strips on cards
 Sheets = clean black/grey (no channel colour)
 KAV must have backgroundColor:'#fff'
@@ -52,182 +52,167 @@ stopPropagation on nested TouchableOpacity inside tappable parent row
 Modal stacking iOS: close modal → setTimeout 350ms → open next modal
 NEVER append +10:00 or any timezone suffix to stored event times
 fmtTime() and isoToMinutes() use RAW STRING PARSE — never new Date()
-paddingBottom on inputArea: INCREASE = bar moves UP, DECREASE = bar moves lower
-Sheet opens BEFORE awaiting data (open instantly, populate async)
-Always two-tap delete pattern to prevent accidents
+FAB is the ONLY navigation — no pill bar, no hamburger, no tab bar
+Zaeli messages = FULL WIDTH, no bubble (v5 change)
+Brief font = Poppins_700Bold (NOT DM Serif — v5 change)
+DM Serif = wordmark and large card numbers only
 ```
 
 ---
 
-## What's built (2 Apr 2026)
+## V5 ARCHITECTURE (LOCKED ✅ 4 Apr 2026)
 
-### index.tsx — Home ✅ COMPLETE (single interface + full calendar sheet)
+### The three-screen world
 
-**The big shift:**
-Home is the only interface. 9 domain pills always visible. Everything inline or via 92% sheets.
+```
+Pulse  ←  Dashboard  →  Chat
+```
 
-**Cold open:**
-1. Zaeli brief (DM Serif 26px) — fetches own live Supabase data, EXACTLY 2 sentences
-2. Card stagger: Calendar 0ms → Weather+Shopping 150ms → Actions 300ms → Dinner 450ms
-3. 900ms → GPT-mini follow-up in chat thread
+Dashboard is the permanent anchor after Landing dismisses.
+Dots indicator always shows position (3 dots).
+**FAB is the only navigation** — present on every screen always.
 
-**Inline Calendar Card (LOCKED ✅):**
-- Dark slate `#3A3D4A`, marginHorizontal: -4 (aligns with chat bar edge)
-- Header: date label 12px, `+ Add` button (paddingV:6 paddingH:13), `Full ›` (extra hit area), gap:14
-- Event rows: time col width:58 numberOfLines:1, dot 8×8, title 16px, avatars 26×26
-- Expand in-place: spring animation (tension:80 friction:10), scaleY 0.85→1
-- Action chips: borderRadius:16, paddingV:6 paddingH:12, fontSize:12
-  - ✦ Edit with Zaeli (sky blue tint) · Move time · Add someone · Manual edit · Delete (two-tap)
-- Footer tabs: Poppins_700Bold 11px, Today · Tomorrow · Month view ›
+### Landing (time-window only)
+Appears during: Morning 6–9am · Midday 12–2pm · Evening 5–8pm
+Full-screen gradient bleeds behind status bar.
+First swipe dismisses for that window → world collapses to Dashboard ↔ Chat ↔ Pulse.
+Outside windows: app opens directly to Dashboard.
 
-**Pill tap behaviour:**
-- Removes ALL calendar cards → appends fresh full-day at bottom
-- Replaces `_isPillFollowUp` Zaeli message with fresh one
-- `activePill` clears after 800ms (re-tap enabled)
-- Always fires follow-up (no stale-closure guards)
+### FAB buttons
+```
+[ Dashboard ]  |  [ Chat ]  [ Mic ]  |  [ More ]
 
-**Calendar Sheet (LOCKED ✅ 2 Apr 2026):**
-- 92% height, opens INSTANTLY (data loads async)
-- Three tabs: Today · Tomorrow · Month
-- Tabs: rgba(0,0,0,0.06) bg, borderRadius:22, padding:3, paddingVertical:10 per tab, Poppins_700Bold 13px
-- Content: `<View flex:1>` wrapping tabs + ScrollView (critical for no void area)
-- Header X = close sheet · ‹ = back to list from form
+Dashboard → navigates to Dashboard. Active = dark bg.
+Chat → first tap: go to Chat. Second tap: open keyboard. Coral when keyboard open.
+Mic → opens Mic v2 pill (waveform + listening + cancel above FAB)
+More → opens 3×3 More overlay card (floats above FAB, full backdrop blur)
+```
 
-Day/Tomorrow tab:
-- Date header: Poppins_700Bold 15px rgba(0,0,0,0.50)
-- Event cards: white, borderRadius:14, padding:14, borderLeft:3px family colour
-  - Time: 14px · Title: 17px · Meta: 13px · Avatars: 26×26
-  - Buttons: ✦ Edit with Zaeli · Edit · Delete (two-tap inline confirm)
-- Add row: dashed border, left = manual form, right = Zaeli chat
+### More overlay — 3×3 grid
+```
+Row 1: Notes · Kids Hub · Tutor
+Row 2: Travel · Family · Meals
+Row 3: Pulse · Zen · Settings  ← Settings always bottom-right
+```
+SVG icons, thin stroke, channel palette colours, 10% opacity backgrounds.
 
-Month tab:
-- Day circles: 34×34, borderRadius:17. Today=slate, Selected=coral, font:15px
-- Event dots: 5×5, up to 3 per day, family colours
-- Tap day → events appear below
-- Auto-opens on today with today's events
+### No chat input bar
+Keyboard = second tap on Chat FAB button.
+Voice = Mic FAB button.
+No persistent input bar anywhere. Locked and intentional.
 
-Edit/Add form:
-- Zaeli hint bar top (rgba(168,216,240,0.14), padding:14)
-- Inputs: borderRadius:12, paddingH:14 paddingV:12, fontSize:17
-- Attendees: 44×44 avatars, selected=border ring, name label 11px
-- Pills (Repeat/Reminder): borderRadius:22, paddingV:8 paddingH:16, fontSize:14
-- Save: flex:2, paddingV:16, borderRadius:14, #3A3D4A bg
-- Delete (edit mode): two-tap, "Yes, delete event" #DC2626 bg
-- onSaved: closes sheet → fetches event → injects card + confirmation into chat
-
-**Persistence (LOCKED ✅):**
-- `persistenceHasLoaded` ref — load fires once only
-- Restores only `isBrief` messages on reload (no cards, no conversation)
-- `generateBrief` skips if persisted messages exist
-
-**Chat bar position:**
-- `inputArea.paddingBottom`: iOS:16, Android:8 (lower than before)
-- Increasing paddingBottom moves bar UP — decrease to move lower
-- `scrollContent.paddingBottom: 150`
+### Zaeli messages (v5 change)
+Full width, no bubble. Label "Zaeli" above text in small caps.
+User replies remain right-aligned dark bubbles.
 
 ---
 
-## The Sheet Design System (apply to all future sheets)
+## What's built (4 Apr 2026)
 
-```
-Height: 92%, bg: #FAF8F5, borderTopRadius: 24
-Handle: 36×4px, marginTop:10
-Header: paddingH:16 paddingV:12, icon + title 18px, X/‹ button 32×32
-Tabs: rgba(0,0,0,0.06), borderRadius:22, padding:3, marginH:14
-  Each tab: paddingVertical:10, borderRadius:19, font:13px
-  WRAP IN View flex:1 — critical for no void area below
-ScrollView: flex:1, padding:16, paddingBottom:50
-Backdrop: TouchableOpacity (NOT Pressable)
-Panel: plain View (NOT Pressable)
-Open INSTANTLY → fetch async
-```
+### app/(tabs)/index.tsx — Chat ✅ (needs v5 updates)
+Working chat interface with full calendar sheet, persistence, tool-calling.
+**v5 changes needed:** remove pill bar, add FAB component, Zaeli full-width messages, two entry states (fresh vs card-triggered).
 
-Cards in sheets:
-```
-white bg, borderRadius:14, padding:14, borderLeft:3px domain colour
-Title 17px · Meta 13px · Avatars 26×26
-Primary CTA (Zaeli): sky blue tint bg, borderRadius:10, pV:7 pH:12, 13px
-Secondary: rgba(0,0,0,0.06) bg, same sizing
-Delete: two-tap always
-```
+### components/ZaeliFAB.tsx — 🔨 Phase 1 NEXT
+Shared FAB component. Four buttons. More overlay 3×3. Mic v2 pill.
+Drop into every screen.
 
-Form fields:
+### app/(tabs)/landing.tsx — 🔨 Phase 2
+New screen. Time-window aware. Gradient full bleed. Poppins bold brief. Dismiss on first swipe.
+
+### Navigation architecture — 🔨 Phase 3
+Horizontal scroll world. Dot system. Swipe dismiss for Landing.
+
+### app/(tabs)/dashboard.tsx — 🔨 Phase 4
+Dedicated screen. Cards already designed. FAB only. Card tap → Chat with context.
+
+### app/(tabs)/pulse.tsx — 🔨 Phase 6
+New screen. Three zones: Zaeli Noticed · Family Activity · On the Horizon.
+Reads existing Supabase tables.
+
+### app/(tabs)/zen.tsx — 🔨 Phase 8
+Simple 5-min breathing tool. Standalone screen from More overlay.
+
+### Unchanged and complete ✅
 ```
-Labels: 11px uppercase, letterSpacing:0.8
-Inputs: borderRadius:12, pH:14 pV:12, font:17px
-Toggle pills: borderRadius:22, pV:8 pH:16, font:14px. Active:#0A0A0A bg
-Attendees: 44×44, selected has border ring
-Save: flex:2 pV:16 borderRadius:14 #3A3D4A · Cancel: flex:1 rgba(0,0,0,0.06)
+calendar.tsx    — full sheet, inline cards, all interactions
+shopping.tsx    — rebuild complete, lavender, persistence
+mealplanner.tsx — rebuild complete, full spec
+lib/use-chat-persistence.ts — keys: home, shopping, calendar, meals
+All 92% sheets — completely unchanged in v5
+Inline card renders — unchanged (calendar dark slate card etc)
 ```
 
 ---
 
-## CANONICAL CHAT BAR SPEC (LOCKED ✅)
-```
-barPill: borderRadius:30, paddingVertical:14, paddingHorizontal:16, borderWidth:1
-  bg:#fff, borderColor:rgba(10,10,10,0.09)
-inputArea: position:absolute bottom:0
-  paddingBottom: iOS?16:8  ← LOWER = bar moves down. HIGHER = bar moves up.
-  paddingHorizontal:14
-  NO backgroundColor on inputArea
-KAV: behavior=padding backgroundColor='#fff'
-scrollContent paddingBottom: 150
-```
+## Immediate build priority (Phase 1)
+
+**ZaeliFAB component** — `components/ZaeliFAB.tsx`
+
+Props needed:
+- `activeButton`: 'dashboard' | 'chat' | 'keyboard' | 'mic' | null
+- `onDashboard`: () => void
+- `onChat`: () => void
+- `onMic`: () => void
+- `onMore`: () => void (internal — toggles overlay)
+
+Contains:
+- Four-button FAB bar (Dashboard · Chat · Mic · More)
+- More overlay (3×3 grid, SVG icons, palette backgrounds, backdrop blur)
+- Mic v2 pill (animated waveform, listening label, cancel)
+
+Test it in index.tsx first (replacing the existing pill bar + chat bar).
+Once confirmed working → drop into all other screens.
 
 ---
 
-## DOMAIN PILL BAR SPEC (LOCKED ✅)
-```
-Pills: borderRadius:20, paddingVertical:9, paddingLeft:11, paddingRight:13
-       backgroundColor:#fff, borderWidth:1, borderColor:rgba(0,0,0,0.10)
-Icons: 18×18 SVG · Label: Poppins_600SemiBold 11px
-activePill clears after 800ms (re-tap works immediately)
-```
+## Screen status table
+
+| File | Status | Notes |
+|---|---|---|
+| index.tsx | ✅ Working — needs v5 | Remove pills, add FAB, full-width Zaeli |
+| dashboard.tsx | 🔨 Phase 4 | New screen |
+| landing.tsx | 🔨 Phase 2 | New screen |
+| pulse.tsx | 🔨 Phase 6 | New screen |
+| zen.tsx | 🔨 Phase 8 | New screen |
+| components/ZaeliFAB.tsx | 🔨 Phase 1 NEXT | Shared component |
+| calendar.tsx | ✅ Complete | Unchanged |
+| shopping.tsx | ✅ Complete | Unchanged |
+| mealplanner.tsx | ✅ Complete | Unchanged |
+| todos.tsx | Design ✅ | Not built |
+| kids.tsx | Design ✅ | Not built |
+| family.tsx | Design ✅ | Not built |
+| notes.tsx | — | Not designed |
+| travel.tsx | — | Not designed |
+| tutor.tsx | Design ✅ | Needs rebuild |
+| lib/use-chat-persistence.ts | ✅ Complete | — |
 
 ---
 
-## EVENT TIME CONTRACT (CRITICAL ✅ LOCKED)
-```
-✅ Store: "2026-04-01T16:00:00" → raw parse reads 16 → 4:00 pm ✓
-❌ Never: "...+10:00" → Supabase converts → wrong time ✗
-```
+## Key v5 decisions locked (4 Apr 2026)
 
----
-
-## Immediate next tasks (priority order)
-
-1. **Shopping sheet** — List · Pantry · Spend tabs. Follow sheet design system above.
-2. **Meals sheet** — Dinners · Recipes · Favourites tabs.
-3. **Create reminders Supabase table** (SQL in ZAELI-PRODUCT.md)
-4. **Todos + Reminders** (todos.tsx)
-5. **Kids Hub** (kids.tsx)
-6. **Our Family** (family.tsx) — sheet-based
-7. **Notes** (notes.tsx)
-8. **Tutor rebuild**
-9. **Travel** — design session first
-
----
-
-## Key decisions locked this session (2 Apr 2026)
-- Calendar sheet: 92% height, opens instantly, data async
-- All future sheets follow the locked design system above
-- Inline card: marginHorizontal:-4, pill tap removes ALL calendar cards then appends fresh
-- Persistence: brief-only restore on reload, no stacking
-- Delete: always two-tap in all three locations
-- Manual edit chip → opens sheet directly to edit form for that specific event
-- After manual save → closes sheet + injects confirmation card + Zaeli message into chat
-- paddingBottom on inputArea: lower value = lower bar position
-- `<View flex:1>` wrapping tabs+ScrollView is critical — prevents void area in sheets
+- Three-screen world: Pulse ← Dashboard → Chat (Dashboard = permanent anchor)
+- Landing: time-window only, full-screen gradient, first swipe dismisses
+- FAB: four buttons only, always present, replaces ALL previous navigation
+- No chat input bar anywhere — keyboard via Chat FAB second tap
+- Mic v2: floating pill above FAB, waveform + cancel
+- More: 3×3 floating card above FAB, full backdrop blur, Settings bottom-right, Zen added
+- Brief font: Poppins 700Bold (NOT DM Serif) — DM Serif = wordmark only
+- Zaeli messages: full width, no bubble — user replies remain right-aligned bubbles
+- Dashboard: dedicated screen, no chat bar, card tap → Chat with context
+- Pulse: third screen (swipe right from Dashboard), family awareness layer
+- Sheets: completely unchanged — 92% sheets still open from cards and chat actions
+- Inline card renders: unchanged — calendar slate card, shopping, dinner etc all same
 
 ---
 
 ## Tech reminders
 - `npx expo start --dev-client` after copying (`--clear` for bundle issues)
-- Import paths from `app/(tabs)/`: `../../lib/supabase`
+- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../components/ZaeliFAB`
 - expo-file-system: `import * as FileSystem from 'expo-file-system/legacy'`
 - Supabase: `rsvbzakyyrftezthlhtd` (Sydney)
-- Admin deploy: drag `C:\Users\richa\Downloads\index.html` to Netlify
 - Windows dev — no && chaining in PowerShell
+- router.navigate() always — never push() or replace()
 
 ---
 

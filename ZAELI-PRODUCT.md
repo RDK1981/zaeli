@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 2 April 2026 — Calendar sheet full build ✅ Inline card polish ✅ Delete flows ✅ Persistence fixed ✅*
+*Last updated: 4 April 2026 — v5 architecture locked ✅ Three-screen world ✅ FAB ✅ Pulse ✅ Landing ✅*
 
 ---
 
@@ -26,29 +26,201 @@ Australian families with children. Priority: dual-income metro couples with prim
 
 ---
 
-## Interface Philosophy (LOCKED ✅)
+## ══════════════════════════════════
+## V5 INTERFACE PHILOSOPHY (LOCKED ✅ 4 Apr 2026)
+## ══════════════════════════════════
 
-**Everything lives in Home. One conversation. One interface.**
+**Three screens. One FAB. No clutter.**
 
-Zaeli is the only navigation. No hamburger, no grid, no tab bar, no channel pages visible to users.
+The app revolves around three screens connected by a smooth horizontal swipe:
 
-**9 domain pills** always float above chat input: Home · Calendar · Shopping · Meals · To-dos · Notes · Travel · Family · More
+```
+Pulse  ←  Dashboard  →  Chat
+```
 
-**Pill tap** → inline coloured card drops into chat thread + GPT-mini follow-up 400ms later.
-**"Full ›"** on any card → 80% bottom sheet for deeper interaction.
-**Sheets** = workspaces, not destinations. Max 2 levels. Close on confirm.
+- **Dashboard** is the operational hub — your day at a glance
+- **Chat** is how you talk to Zaeli — swipe left or tap Chat in FAB
+- **Pulse** is family awareness — what everyone's doing, swipe right from Dashboard
+- **Landing** appears three times a day as an emotional anchor moment, then steps aside
+- **FAB** (floating action bar) is the only navigation — always present, always the same
+- **More** overlay gives access to all other channels and tools
+- **Sheets** are workspaces — 92% height, open from cards and chat, unchanged from v4
 
-Kids Hub + Tutor remain standalone — sustained attention use cases requiring full screen focus.
+### What's gone in v5
+- ❌ Domain pill bar (9 pills above chat)
+- ❌ Hamburger menu
+- ❌ Persistent chat input bar
+- ❌ DM Serif for the brief (now Poppins 700Bold)
+- ❌ Zaeli message bubbles (now full-width editorial text)
+
+### What's new in v5
+- ✅ FAB — four buttons, always visible, every screen
+- ✅ Landing — time-window moment screen, full gradient, Poppins brief
+- ✅ Dashboard — dedicated screen, cards only, no chat bar
+- ✅ Pulse — family awareness third tab
+- ✅ Zen — 5 min breathing tool in More
+- ✅ Mic v2 pill — floating waveform above FAB
+- ✅ More overlay — 3×3 floating card, SVG icons, channel colours
 
 ---
 
-## Design Rules (LOCKED)
+## ══════════════════════════════════
+## LANDING PAGE (LOCKED ✅ 4 Apr 2026)
+## ══════════════════════════════════
 
-- Channel bg = banner + status bar ONLY. Body = `#FAF8F5` warm white.
-- No left-border accent strips on any cards — dots, icons, badges only.
-- Send button = `#FF4545` coral always.
-- Our Family = the only channel with no chat bar.
-- **Colour lives ONLY in inline chat card renders. 80% sheets = clean black/grey.**
+Landing is a **timed emotional moment**, not a permanent screen.
+
+**Appears during:**
+- Morning window: 6:00am – 9:00am
+- Midday window: 12:00pm – 2:00pm
+- Evening window: 5:00pm – 8:00pm
+
+**Dismisses:** on first swipe in any direction. Gone for that window.
+**Outside windows:** app opens directly to Dashboard. Landing not shown.
+**Brief:** pre-generated and waiting. No load delay. Max 2 sentences, Poppins 700Bold 21px.
+
+**Three gradient states:**
+- Morning: warm amber `#FFF6EC → #FFDEB8`
+- Midday: cool blue `#EDF6FF → #C4DFFF`
+- Evening: soft purple `#F5EEFF → #D8C8F8`
+
+**Logo AI letter colour complements gradient (never matches):**
+- Morning (warm bg) → cyan `#0096C7`
+- Midday (cool bg) → magenta `#D4006A`
+- Evening (purple bg) → terracotta `#E8601A`
+
+**No swipe hint text.** Dots are the only navigation signal.
+
+---
+
+## ══════════════════════════════════
+## DASHBOARD (LOCKED ✅ 4 Apr 2026)
+## ══════════════════════════════════
+
+Dedicated screen. Background `#FAF8F5`. FAB only — no chat bar, no pills.
+
+**Card stack (top to bottom):**
+1. Calendar — dark slate `#3A3D4A`
+2. Weather + Shopping — 50/50 side by side
+3. Today's Actions — gold tint `#FFFCE6`
+4. Dinner tonight — peach tint `#FFF1E8`
+
+**Card tap:** navigates to Chat screen with that domain's context injected.
+Different cards inject different inline cards and Zaeli opening messages.
+
+---
+
+## ══════════════════════════════════
+## CHAT (LOCKED ✅ 4 Apr 2026)
+## ══════════════════════════════════
+
+**Two entry states:**
+
+1. **Fresh** (Chat FAB button tap) — Zaeli intro only: "Hey Rich. How can I help?" + 3 chips
+2. **Card-triggered** (Dashboard card tap) — inline card at top + contextual Zaeli message
+
+**Zaeli message style (v5):**
+Full width. No bubble. Small "Zaeli" label above. Poppins 400, 13px, full width.
+User replies: right-aligned dark bubble as before.
+
+**Keyboard:** opened by tapping Chat FAB button a second time.
+**Voice:** Mic FAB button.
+**No persistent input bar.** Locked.
+
+**All existing chat functionality unchanged:**
+- Tool-calling via Sonnet
+- Inline card renders (calendar slate card etc)
+- Chat persistence (24hr, 30 message cap)
+- Quick reply chips
+- Sheets opening from chat actions
+
+---
+
+## ══════════════════════════════════
+## PULSE (LOCKED ✅ 4 Apr 2026)
+## ══════════════════════════════════
+
+**Pulse is the family awareness layer** — a calm scroll of what is happening across the whole family. Not a notification feed. More like a noticeboard.
+
+**Access:** swipe right from Dashboard, or tap Pulse in More overlay.
+
+**Three zones:**
+
+### 1. Zaeli Noticed
+Aqua-tinted cards. Zaeli's unprompted observations.
+- Missed pickups, missing ingredients, overdue tasks, upcoming conflicts
+- Generated by GPT-mini on screen open or on schedule
+- Tone: calm observation, never alarm
+
+### 2. Family Activity
+White cards. What each family member has done.
+- Completed todos, added events, ticked shopping, finished homework
+- Avatar in family colour, domain badge on right
+- Reads from events, todos, shopping_items tables
+
+### 3. On the Horizon
+Cobalt-tinted cards. Upcoming dates worth knowing.
+- Birthdays, school holidays, travel dates, events 7–30 days away
+- Large countdown number (DM Serif, cobalt), event name, status note
+
+---
+
+## ══════════════════════════════════
+## FAB SYSTEM (LOCKED ✅ 4 Apr 2026)
+## ══════════════════════════════════
+
+```
+[ Dashboard ]  |  [ Chat ]  [ Mic ]  |  [ More ]
+```
+
+Always present. Same on every screen. Never changes shape or position.
+
+**Dashboard:** dark when active. Navigates to Dashboard.
+**Chat:** dark when on Chat at rest. Coral when keyboard open. Second tap = keyboard.
+**Mic:** coral when recording. Opens Mic v2 pill above FAB.
+**More:** no active state. Opens/closes More overlay card.
+
+**More overlay — 3×3 grid (LOCKED):**
+```
+Notes     · Kids Hub · Tutor
+Travel    · Family   · Meals
+Pulse     · Zen      · Settings
+```
+Settings always bottom-right. Zen always bottom-centre.
+SVG icons, thin stroke, channel colours, 10% opacity bg tiles.
+Floats above FAB. Full backdrop blur. Grows from More button upward.
+
+---
+
+## ══════════════════════════════════
+## MIC V2 (LOCKED ✅ 4 Apr 2026)
+## ══════════════════════════════════
+
+Floating pill grows above FAB when Mic is tapped.
+Animated waveform bars (coral), "Listening…" text, Cancel button.
+No full-screen overlay. Minimal. Purposeful.
+Cancel → pill dismisses. Successful input → Chat opens with message injected.
+
+---
+
+## ══════════════════════════════════
+## ZEN (NEW ✅ 4 Apr 2026)
+## ══════════════════════════════════
+
+5-minute breathing/meditation tool. Accessed from More overlay.
+Full screen, standalone. No FAB (Zen is a break from the app).
+Breathing animation + countdown. Single tap start/pause. Back button exits.
+
+---
+
+## ══════════════════════════════════
+## SHEETS (UNCHANGED ✅)
+## ══════════════════════════════════
+
+All existing 92% sheets are completely unchanged in v5.
+Calendar sheet, Shopping sheet, Meals sheet — all same design and behaviour.
+They open from card taps and chat actions exactly as before.
+Sheet design system still applies to all future sheets (Todos, Kids, Family etc).
 
 ---
 
@@ -66,23 +238,11 @@ Action chips: ✦ Edit with Zaeli · Move time · Add someone · Manual edit · 
 92% height, opens instantly (data populates async after open).
 Three tabs: Today · Tomorrow · Month.
 Header: SVG calendar icon + "Calendar" title. X closes sheet, ‹ backs from form.
-
-**Today/Tomorrow:** White event cards, 3px left-border family colour.
-Each card: ✦ Edit with Zaeli · Edit · Delete (two-tap confirm inline).
-Add event row: left tap = manual form · right button = Zaeli chat.
-
-**Month:** 7-col grid, Mon–Sun. Today = dark slate circle. Selected = coral circle.
-Family-colour dots under dates (up to 3 per day). Tap day → events reveal below.
-Auto-opens on today with today's events populated.
-
-**Edit/Add form:** All fields (Title · Time · Location · Attendees · Repeat · Reminder).
-Zaeli hint bar at top. Delete event button (edit mode only, two-tap confirm).
-Save → closes sheet, injects confirmation card + message into chat.
+Unchanged in v5.
 
 ### Card/pill tap behaviour (LOCKED ✅)
-- Re-tapping Calendar pill: removes ALL existing calendar cards, appends fresh full-day card at bottom
-- After Sonnet tool-call add: injects single-event card + confirmation
-- After manual sheet save: closes sheet, injects single-event card + warm confirmation into chat
+In v5: calendar card is triggered from Dashboard card tap, not pill.
+Behaviour after tap: Chat opens with calendar inline card injected at top.
 
 ---
 
@@ -91,71 +251,13 @@ Save → closes sheet, injects confirmation card + message into chat.
 ## ══════════════════════════════════
 
 Apply this pattern to ALL future domain sheets (Shopping, Meals, Todos, Notes, Travel, Family).
+Unchanged from v4. See CLAUDE.md for full spec.
 
 ```
-Height: 92%
-Background: #FAF8F5
-Border radius top: 24px
-Internal structure (top to bottom):
-  1. Handle bar (36×4px, rgba(0,0,0,0.12), centered, marginTop:10)
-  2. Header row (paddingH:16, paddingV:12, borderBottom rgba(0,0,0,0.08))
-     - Domain icon + title (Poppins_700Bold 18px)
-     - X/‹ button (32×32, borderRadius:9, rgba(0,0,0,0.07) bg)
-  3. Tab switcher (rgba(0,0,0,0.06) bg, borderRadius:22, padding:3, marginH:14, marginTop:12, marginBottom:6)
-     - Tab: flex:1, paddingVertical:10, borderRadius:19
-     - Active: #0A0A0A bg, white, Poppins_700Bold 13px
-     - Inactive: transparent, rgba(0,0,0,0.40)
-  4. Content wrapper: View flex:1 (CRITICAL — prevents void area)
-  5. ScrollView: flex:1, padding:16, paddingBottom:50, keyboardShouldPersistTaps:'handled'
-
-Backdrop: TouchableOpacity flex:1 (NOT Pressable — Pressable blocks scroll)
-Sheet panel: plain View (NOT Pressable — same reason)
-SafeAreaView: edges:['bottom'], flex:1
-
-Open instantly: setSheetOpen(true) BEFORE any await
-Fetch data: async after open, setState as arrives
-```
-
-### Event/item cards in sheets
-```
-backgroundColor: '#fff'
-borderRadius: 14
-marginBottom: 10
-padding: 14
-borderLeftWidth: 3, borderLeftColor: domain/member colour
-Title: Poppins_700Bold 17px #0A0A0A
-Meta: Poppins_400Regular 13px rgba(0,0,0,0.45)
-Avatars: 26×26, borderRadius:13
-Action buttons:
-  Primary (Zaeli): rgba(168,216,240,0.18) bg + border rgba(168,216,240,0.45), borderRadius:10, pV:7 pH:12
-    font: Poppins_600SemiBold 13px rgba(0,0,0,0.55)
-  Secondary (manual): rgba(0,0,0,0.06) bg, same sizing
-  Delete: rgba(0,0,0,0.04) bg (inactive) → rgba(220,38,38,0.12) red (confirm)
-  Always two-tap delete pattern
-```
-
-### Form fields in sheets
-```
-Section labels: Poppins_700Bold 11px rgba(0,0,0,0.40) uppercase letterSpacing:0.8
-Text inputs: '#fff' bg, borderRadius:12, borderWidth:1, rgba(0,0,0,0.10), pH:14 pV:12
-  font: Poppins_400Regular 17px
-Toggle pill groups (Repeat/Reminder):
-  borderWidth:1.5, borderRadius:22, pV:8 pH:16
-  Active: #0A0A0A bg + white text
-  Inactive: '#fff' bg + rgba(0,0,0,0.12) border + rgba(0,0,0,0.55) text
-  font: Poppins_600SemiBold 14px
-Attendee avatars: 44×44, borderRadius:22, selected has borderWidth:2.5 #0A0A0A ring
-Save button: flex:2, pV:16, borderRadius:14, #3A3D4A bg, Poppins_700Bold 15px white
-Cancel: flex:1, pV:16, borderRadius:14, rgba(0,0,0,0.06) bg
-```
-
-### Add row (at bottom of list in any tab)
-```
-borderWidth:1.5, borderStyle:'dashed', borderColor:rgba(0,0,0,0.12)
-borderRadius:14, padding:14, marginTop:4
-Left (TouchableOpacity): opens manual form · font: Poppins_600SemiBold 15px rgba(0,0,0,0.35)
-Right button (✦ Add with Zaeli): rgba(168,216,240,0.18) + border rgba(168,216,240,0.45)
-  borderRadius:10, pV:7 pH:12, font: Poppins_600SemiBold 13px rgba(0,0,0,0.50)
+Height: 92%, bg: #FAF8F5, borderTopRadius: 24
+Open INSTANTLY → fetch async
+Backdrop: TouchableOpacity (NOT Pressable)
+Sheets = clean black/grey (no channel colour)
 ```
 
 ---
@@ -164,53 +266,10 @@ Right button (✦ Add with Zaeli): rgba(168,216,240,0.18) + border rgba(168,216,
 ## DELETE PATTERNS (LOCKED ✅ 2 Apr 2026)
 ## ══════════════════════════════════
 
-Always two-tap to prevent accidents. Three locations:
-
-1. **Inline card expanded chip:** Delete → Confirm delete (chip turns red)
-2. **Sheet event card:** Delete button → Confirm delete button inline in card
-3. **Sheet edit form:** "Delete event" text (soft red) → confirmation row with "Keep it" + "Yes, delete event"
-
-After delete: refresh sheet/card/feed as appropriate. Never navigate away unexpectedly.
-
----
-
-## ══════════════════════════════════
-## INLINE CARD BEHAVIOUR (LOCKED ✅ 2 Apr 2026)
-## ══════════════════════════════════
-
-**Pill tap → fresh full-day card at bottom (always):**
-All previous calendar inline cards removed. Fresh card appended at bottom.
-Previous `_isPillFollowUp` Zaeli message replaced with fresh loading one.
-activePill clears after 800ms enabling immediate re-tap.
-
-**After tool-call add/edit:**
-Single-event confirmation card injected above Zaeli confirmation text.
-Warm confirmation: "[Event] locked in for [day] at [time]."
-
-**After manual sheet save:**
-Sheet closes. Single-event card + warm Zaeli message injected at bottom of chat.
-Quick replies: 'Add another' · 'See full calendar' · 'Set a reminder'
-
-**Persistence on reload:**
-Only `isBrief` messages restored. No cards, no conversation.
-`generateBrief` skips if persisted messages exist (no stacking).
-Card always re-generates fresh on pill tap.
-
----
-
-## ══════════════════════════════════
-## HOME CHANNEL (LOCKED ✅)
-## ══════════════════════════════════
-
-### Cold open sequence
-1. Zaeli brief (DM Serif 26px) — live data fetch, formula-driven, max 2 sentences
-2. "Today's overview" toggle — auto-opens 200ms after brief
-3. Card stagger: Calendar 0ms → Weather+Shopping 150ms → Actions 300ms → Dinner 450ms
-4. 900ms after brief → post-card Zaeli follow-up + 3 chips in chat thread
-5. Domain pill bar always floating
-
-### Brief formula (NON-NEGOTIABLE — 160 max tokens)
-EXACTLY 2 SHORT sentences. Name the person. Most urgent first. Confirm one win.
+Always two-tap. Three locations:
+1. Inline card expanded chip: Delete → Confirm delete (chip turns red)
+2. Sheet event card: Delete → Confirm delete inline
+3. Sheet edit form: "Delete event" → "Keep it" / "Yes, delete event"
 
 ---
 
@@ -239,26 +298,31 @@ Receipts = primary data source.
 ---
 
 ## Pre-Launch Checklist
-- [x] Home — single interface complete (brief + stagger + pills + post-card)
-- [x] Calendar inline card complete + polish (expand, delete, manual edit)
-- [x] Calendar sheet complete (Today/Tomorrow/Month, edit form, delete, add)
-- [x] Calendar complete + time fix
+
+- [x] Calendar inline card complete + polish
+- [x] Calendar sheet complete (Today/Tomorrow/Month, edit, delete, add)
 - [x] Shopping rebuild complete
 - [x] Meals rebuild complete
-- [x] Domain pill bar (SVG Option D, 9 pills, palette active colours)
-- [x] Pantry last-bought model
 - [x] API logging + admin dashboard
-- [x] Chat persistence (home, shopping, calendar, meals) — load/save fixed
-- [x] Event time contract locked (raw parse, no +10:00)
-- [x] Inline card interaction patterns locked (pill tap, confirmation cards, persistence)
-- [x] Delete patterns locked (two-tap, three locations)
-- [x] Sheet design system locked (apply to all future sheets)
-- [ ] **Shopping sheet** ← NEXT
-- [ ] **Meals sheet** ← NEXT
+- [x] Chat persistence (home, shopping, calendar, meals)
+- [x] Event time contract locked
+- [x] Inline card interaction patterns locked
+- [x] Delete patterns locked
+- [x] Sheet design system locked
+- [x] v5 architecture designed + prototype locked (4 Apr 2026)
+- [ ] **ZaeliFAB component** ← Phase 1 NEXT
+- [ ] **Landing screen** ← Phase 2
+- [ ] **Navigation architecture** ← Phase 3
+- [ ] **Dashboard screen** ← Phase 4
+- [ ] **Chat screen v5 updates** ← Phase 5
+- [ ] **Pulse screen** ← Phase 6
+- [ ] **Zen screen** ← Phase 8
+- [ ] Shopping sheet (List · Pantry · Spend tabs)
+- [ ] Meals sheet (Dinners · Recipes · Favourites tabs)
 - [ ] Create reminders Supabase table
 - [ ] Todos + Reminders build
 - [ ] Kids Hub build
-- [ ] Our Family build (sheet-based)
+- [ ] Our Family build
 - [ ] Notes build
 - [ ] Tutor rebuild
 - [ ] Travel design + build
@@ -266,16 +330,17 @@ Receipts = primary data source.
 - [ ] Real auth · Remove dev toggle
 - [ ] Website + Stripe + onboarding
 - [ ] Settings module
-- [ ] Timezone full fix (pre-launch requirement)
+- [ ] Timezone full fix
 - [ ] Wire weather to real user location
 
 ---
 
 ## Key Product Moments
 
-**The brief** — Two sentences. Specific. Named. Earns its place every morning.
-**The pill tap** — One tap, live data, Zaeli follows up. Never navigated away.
+**The brief** — Poppins bold, 21px, full-screen gradient. Earns its moment three times a day then steps aside.
+**The swipe** — One gesture reveals your day. Left for conversation, right for family.
+**The FAB** — Four buttons. Always there. Always the same. Learnable in one use.
+**Pulse** — Zaeli noticed. The thing you didn't ask about that she flagged anyway. Word of mouth.
 **The all-done moment** — Everything sorted. "Enjoy the evening." Feels like a reward.
-**"Zaeli noticed"** — Unprompted flags. Trust. Word of mouth.
-**Sheets as workspaces** — Deeper work without losing conversation underneath.
+**Sheets as workspaces** — Deeper work without losing the conversation underneath.
 **Persistent conversation** — Leave and come back, brief restores. 24hr memory.
