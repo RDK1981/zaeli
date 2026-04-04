@@ -33,6 +33,7 @@ import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import ZaeliFAB from '../components/ZaeliFAB';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
+import { getPendingChatContext, clearPendingChatContext } from '../../lib/navigation-store';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const FAMILY_ID        = '00000000-0000-0000-0000-000000000001';
@@ -2518,6 +2519,8 @@ function HomeScreen() {
   const [selectedEvent,   setSelectedEvent]   = useState<any>(null);
   // v5: FAB active button state
   const [fabActive, setFabActive] = useState<'dashboard'|'chat'|'keyboard'|null>('chat');
+  // v5: true when we arrived from Dashboard — shows back pill
+  const [returnToDashboard, setReturnToDashboard] = useState(false);
   const [screen,          setScreen]          = useState<'splash'|'entry'|'chat'>('splash');
   const [entryRecording,  setEntryRecording]  = useState(false);
   const [entryProcessing, setEntryProcessing] = useState(false);
@@ -3263,6 +3266,58 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
     // Refresh card data every time we come back to Home
     loadCardData();
 
+    // ── Check for Dashboard → Chat context ───────────────────────────────
+    const ctx = getPendingChatContext();
+    if (ctx.type) {
+      clearPendingChatContext();
+      setReturnToDashboard(ctx.returnTo === 'dashboard');
+      // Ensure we're in chat screen
+      setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+
+      if (ctx.type === 'edit_event' && ctx.event) {
+        const ev = ctx.event;
+        // Build a human-readable time string
+        const dayName = ev.date
+          ? new Date(ev.date+'T00:00:00').toLocaleDateString('en-AU', { weekday:'long' })
+          : '';
+        const timeStr = fmtTime(ev.start_time);
+        const prompt = `${ev.title}${dayName ? ` — ${dayName}` : ''}${timeStr ? ` at ${timeStr}` : ''}. What would you like to change?`;
+
+        // Inject event as inline card + Zaeli prompt with chips
+        const calCard: Msg = {
+          id: uid(), role:'zaeli', text:'', ts:nowTs(),
+          inlineData: { type:'calendar', items:[ev], tomorrowItems:[] },
+        };
+        const zaeliMsg: Msg = {
+          id: uid(), role:'zaeli', text:prompt, ts:nowTs(), isLoading:false,
+          quickReplies: ['Move the time', 'Add someone', 'Change location', 'Cancel it', 'Manual edit'],
+        };
+        setMessages(prev => {
+          const withoutOldCal = prev.filter(m => m.inlineData?.type !== 'calendar');
+          return [...withoutOldCal, calCard, zaeliMsg];
+        });
+        // Pre-load keyboard
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated:true });
+          inputRef.current?.focus();
+        }, 350);
+        return;
+      }
+
+      if (ctx.type === 'add_event') {
+        const zaeliMsg: Msg = {
+          id: uid(), role:'zaeli', text:"What's the event? Just tell me what, when, and who's going.", ts:nowTs(), isLoading:false,
+          quickReplies: ['Today', 'Tomorrow', 'This week', 'For the kids'],
+        };
+        setMessages(prev => [...prev, zaeliMsg]);
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated:true });
+          inputRef.current?.focus();
+        }, 350);
+        return;
+      }
+    }
+
     if (params.autoMic === 'true') {
       const t = setTimeout(() => { startRecording(); }, 800);
       return () => clearTimeout(t);
@@ -3332,6 +3387,7 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
     const uMsg: Msg = { id:uid(), role:'user', text:text||'', imageUri, ts:nowTs() };
     const history = [...messages, uMsg];
     setMessages(history); setInput(''); setPendingImage(null);
+    if (returnToDashboard) setReturnToDashboard(false);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 100);
     const replyId = addMsg({ role:'zaeli', text:'', isLoading:true });
     setLoading(true);
@@ -4450,6 +4506,16 @@ Only include events directly relevant to the question. Max 5 events.`;
 
         {/* FIXED BANNER — wordmark + nav only, hero scrolls with content */}
         <SafeAreaView style={[s.topBar, { backgroundColor: T.bannerBg }]} edges={['top']}>
+          {/* ← Dashboard back pill — shown when arrived from Dashboard card tap */}
+          {returnToDashboard && (
+            <TouchableOpacity
+              style={{ flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:20, paddingTop:6, paddingBottom:2 }}
+              onPress={() => { setReturnToDashboard(false); router.navigate('/(tabs)/dashboard' as any); }}
+              activeOpacity={0.75}
+            >
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(10,10,10,0.38)' }}>← Dashboard</Text>
+            </TouchableOpacity>
+          )}
           <View style={s.topBarRow}>
             <TouchableOpacity onPress={() => router.navigate('/(tabs)/')} activeOpacity={0.8}>
               <Text style={s.logoWord}>
@@ -4559,7 +4625,7 @@ Only include events directly relevant to the question. Max 5 events.`;
               activeButton={fabActive}
               onDashboard={() => {
                 setFabActive('dashboard');
-                // Phase 4: router.navigate('/(tabs)/dashboard')
+                router.navigate('/(tabs)/dashboard' as any);
               }}
               onChat={() => {
                 setFabActive('chat');

@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 4 April 2026 — ZaeliFAB Phase 1 ✅ Landing Phase 2 ✅ v5 architecture locked ✅*
+*Last updated: 5 April 2026 — ZaeliFAB ✅ Landing ✅ Dashboard Phase 4 ✅ Calendar card + Chat injection ✅*
 
 ---
 
@@ -12,6 +12,7 @@
 - Repo: https://github.com/RDK1981/zaeli (private)
 - PowerShell screen copy: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\`(tabs`)\file.tsx"`
 - PowerShell component copy: `Copy-Item "C:\Users\richa\Downloads\ZaeliFAB.tsx" "C:\Users\richa\zaeli\app\components\ZaeliFAB.tsx"`
+- PowerShell lib copy: `Copy-Item "C:\Users\richa\Downloads\file.ts" "C:\Users\richa\zaeli\lib\file.ts"`
 - Full file rewrites only — never partial diffs
 - Design before code — always discuss/mockup new screens before writing code
 - **Two fixes at a time** — bulk changes create too many debugging variables
@@ -31,13 +32,12 @@ Zaeli is an iOS-first AI family life platform for Australian families with child
 
 ## Zaeli Persona (LOCKED)
 
-Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle through delight, not detachment. Celebrates small wins. Spots chaos before it arrives.
+Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle through delight, not detachment.
 
 **Hard rules:**
 - NEVER "mate", "guys" — Never start with "I" — Plain text only
 - Always ends on a confident offer — never a bare open question
-- BE PROPORTIONATE — never manufacture drama
-- **Banned words:** "queued up", "locked in", "tidy", "sorted", "lined up", "all set", "stacked neatly", "ambush", "sprint", "chaos", "chaotic", "breathing room", "quick wins", "you've got this", "make it count"
+- **Banned words:** "queued up", "locked in", "tidy", "sorted", "ambush", "sprint", "chaos", "breathing room", "quick wins", "you've got this", "make it count"
 
 ---
 
@@ -45,10 +45,10 @@ Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle thr
 - React Native + Expo (iOS-first), dev build on iPhone 11 Pro Max
 - Supabase (Postgres, Sydney ap-southeast-2, ID: rsvbzakyyrftezthlhtd)
 - Claude Sonnet (`claude-sonnet-4-20250514`) — all tool-calling channels + vision
-- OpenAI GPT-5.4 mini (`gpt-5.4-mini`) — home_brief, landing_brief, Pulse notices, Tutor chat
-- OpenAI Whisper-1 — voice transcription (Mic button in ZaeliFAB)
-- expo-router, expo-image-picker, react-native-svg, expo-file-system (chat persistence + landing flags)
-- Poppins font (ALL UI including brief), DMSerifDisplay (wordmark + large card numbers only)
+- OpenAI GPT-5.4 mini (`gpt-5.4-mini`) — landing brief, home brief, Pulse notices
+- OpenAI Whisper-1 — voice transcription
+- expo-router, expo-image-picker, react-native-svg, expo-file-system
+- Poppins font (ALL UI), DMSerifDisplay (wordmark + large card numbers only)
 - No bottom tab bar — ZaeliFAB is the only navigation
 
 ---
@@ -56,8 +56,8 @@ Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle thr
 ## Key Constants
 ```
 DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
-SONNET          = 'claude-sonnet-4-20250514'  ← NOT claude-sonnet-4-6
-GPT_MINI        = 'gpt-5.4-mini'             ← NOT gpt-4.1-mini (retired)
+SONNET          = 'claude-sonnet-4-20250514'
+GPT_MINI        = 'gpt-5.4-mini'
 OpenAI = max_completion_tokens · Claude = max_tokens. Never mix.
 KAV must have backgroundColor:'#fff'
 always await supabase inserts
@@ -67,18 +67,20 @@ isActionQuery() runs BEFORE isCalendarQuery()
 Apostrophes in JSX: always double-quoted strings
 expo-file-system import = 'expo-file-system/legacy'
 Do NOT use @react-native-async-storage — requires native rebuild
-NEVER use literal newlines inside JSX strings or regex — use \n escape
+NEVER literal newlines inside JSX strings or regex — use \n escape
 stopPropagation on nested TouchableOpacity inside tappable parent rows
 Modal stacking iOS: close modal 1 → setTimeout 350ms → open modal 2
 NEVER append +10:00 or any timezone suffix to stored event times
 ZaeliFAB is the ONLY navigation — no pill bar, no hamburger, no tab bar
 No persistent chat input bar anywhere — keyboard via Chat FAB second tap
-Brief font = Poppins_700Bold (NOT DM Serif)
+Brief font = Poppins_600SemiBold 26px (NOT DM Serif, NOT 700Bold)
 DM Serif = wordmark and large card numbers only
-Zaeli messages = full width, no bubble (v5)
+Zaeli messages = full width, no bubble (v5 — Phase 5 pending)
 PanResponder and StatusBar must be explicitly imported from 'react-native'
-Landing is an overlay component in index.tsx — NOT a separate route
-router.navigate() always — never router.replace() or router.push()
+Landing = LandingOverlay component in index.tsx — NOT a separate route
+router.navigate() always — NEVER router.replace() or router.push()
+Navigation store: lib/navigation-store.ts — module-level, same pattern as getPendingCalendarImage
+Dashboard card order = FIXED: Calendar → Weather+Shopping → Actions → Dinner (never rearranges)
 ```
 
 ---
@@ -87,225 +89,169 @@ router.navigate() always — never router.replace() or router.push()
 ## V5 NAVIGATION ARCHITECTURE (LOCKED ✅ 4 Apr 2026)
 ## ══════════════════════════════════
 
-### The Three-Screen World
-
-After Landing dismisses, the app lives as a **horizontal three-screen strip:**
-
 ```
 Pulse  ←  Dashboard  →  Chat
 ```
 
-- **Dashboard** is the permanent anchor — centre after Landing dismisses
-- **Swipe left** from Dashboard → Chat
-- **Swipe right** from Dashboard → Pulse
-- Dots indicator always shows position (3 dots, active pill expands)
-- No pill bar. No hamburger. No tab bar. ZaeliFAB is the only navigation.
+- Dashboard = permanent anchor
+- ZaeliFAB is the ONLY navigation
+- No pill bar, no hamburger, no tab bar
 
-### Landing (time-window overlay)
+### Landing (overlay — COMPLETE ✅)
+- Embedded as `LandingOverlay` in index.tsx — NOT a separate route
+- `LandingGate` is default export, checks time window + FileSystem dismiss flag
+- Swipe >50px or FAB tap → fades out → HomeScreen beneath
+- `LANDING_TEST_MODE = true` in index.tsx — **set false before launch**
 
-Landing appears as an **absolute-positioned overlay on top of index.tsx (Chat)** during three daily windows:
-- Morning: 6:00am – 9:00am
-- Midday: 12:00pm – 2:00pm
-- Evening: 5:00pm – 8:00pm
-
-**Implementation (LOCKED ✅):**
-- `LandingGate` is the default export from `index.tsx` — wraps `HomeScreen`
-- `LandingOverlay` component renders absolutely on top of `HomeScreen`
-- No separate route — no navigation needed — overlay just fades out on dismiss
-- Dismiss flag stored in FileSystem: `landing_flags.json` — key = `YYYY-MM-DD-[morning|midday|evening]`
-- First swipe (dx or dy > 50px) → writes dismiss flag → fades out → `HomeScreen` visible beneath
-- FAB taps on Landing also call `onDismiss` directly
-- Outside windows or already dismissed → `LandingOverlay` never mounts, `HomeScreen` renders directly
-
-### Landing Visual Spec (LOCKED ✅)
+### Landing Visual (LOCKED ✅)
 ```
-Background: solid colour (LinearGradient needs EAS build — use gradient[0] for now)
-  Morning:  #FFF6EC (warm amber)
-  Midday:   #EDF6FF (cool blue)
-  Evening:  #F5EEFF (soft purple)
-
-Logo: DM Serif Display, 36px, letterSpacing -0.8
-  'a' and 'i': #F0C8C0 warm blush — on all windows
-  (contrasts with cyan highlights on cream)
-
-Greeting: Poppins 600SemiBold, 13px, uppercase, letterSpacing 0.8, rgba(10,10,10,0.35)
-Brief: Poppins 600SemiBold, 26px, lineHeight 38, letterSpacing -0.5
-  Key fact highlights: #0096C7 cyan — [square bracket] syntax in GPT output
-  (cyan chosen: cool against warm cream, not alarming, distinct from blush logo)
-
-Sub-line: Poppins 400, 13px, rgba(10,10,10,0.34)
-
-Dots: 3 dots · active = 20px wide pill · rgba(10,10,10,0.38) · paddingBottom 28
-NO swipe hint text — dots only
-
-ZaeliFAB present (activeButton=null) — all buttons call onDismiss
-Status bar: dark on all gradients
-```
-
-### Landing Brief Prompt (LOCKED ✅)
-```
-3 sentences. Max 180 characters TOTAL.
-Sentence 1: Most urgent/time-sensitive thing. Specific.
-Sentence 2: One win or clear gap. Short.
-Sentence 3: ONE warm Zaeli observation — dry wit, specific to THIS family. NOT generic.
-Key facts in [square brackets] → cyan highlight.
-Never open with name. No "I". No "Rich:" prefix.
-Banned: "sorted", "chaos", "quick wins", "you've got this", "make it count"
+Background: #FFF6EC morning · #EDF6FF midday · #F5EEFF evening
+Logo 'a'+'i': #F0C8C0 warm blush (all windows)
+Brief highlights: #0096C7 cyan (all windows)
+Brief: Poppins 600SemiBold 26px, 3 sentences, max 180 chars
+Greeting: Poppins 600, 13px, uppercase
+Dots: paddingBottom 28, active = 20px pill
 ```
 
 ---
 
 ## ══════════════════════════════════
-## ZAELIFAX — LOCKED SPEC (✅ Phase 1 Complete — 4 Apr 2026)
+## ZAELIFAX — LOCKED SPEC (✅ Phase 1 Complete)
 ## ══════════════════════════════════
 
 **File:** `app/components/ZaeliFAB.tsx`
-**Status:** Built ✅ — live in index.tsx, sizing locked on device
 
-### Sizing Constants (LOCKED — device tested ✅)
 ```
-FAB_BTN    = 58px
-FAB_PAD    = 10px
-FAB_SEP_MX = 8px
-FAB_GAP    = 4px
-FAB_WIDTH  = 318px (auto-calculated)
-borderRadius: 36px on FAB, mic pill, more card
+FAB_BTN=58px · FAB_PAD=10px · borderRadius=36px · FAB_WIDTH=318px
+Mic pill + More card: same width, same radius, bottom=124px iOS
 Root paddingBottom: 24px iOS / 14px Android
-Mic pill + More card: bottom 124px iOS / 110px Android
 ```
 
-### Button Layout
-```
-[ Dashboard ] | [ Chat ][ Mic ] | [ More ]
-```
+Button layout: `[ Dashboard ] | [ Chat ][ Mic ] | [ More ]`
 
-### Button States (LOCKED ✅)
-```
-Dashboard: dark #0A0A0A bg + white icon when active
-Chat:      dark at rest · coral #FF4545 when keyboard open
-Mic:       coral when recording
-More:      coral bg + white icon when overlay open · returns dark when closed
-```
+Button states:
+- Dashboard: dark #0A0A0A when active
+- Chat: dark at rest · coral when keyboard open
+- Mic: coral when recording
+- More: coral bg + white icon when open
 
-### Mic v2 Pill (LOCKED ✅)
+More overlay 3×3:
 ```
-Same width + borderRadius as FAB — symmetrical
-7 waveform bars, heights [10,18,28,36,28,18,10]px, coral
-"Listening…" Poppins 600, 14px · Cancel button coral
-Clean gap above FAB — no overlap
-```
-
-### More Overlay 3×3 (LOCKED ✅)
-```
-Same width + borderRadius as FAB
-Full backdrop rgba(10,10,10,0.36)
-Grid: justifyContent:'space-between', width:'31%' per item
-Icon tiles: 58×58px, borderRadius 20, 26px SVG icons
-Row 1: Notes · Kids Hub · Tutor
-Row 2: Travel · Family · Meals
-Row 3: Pulse · Zen · Settings  ← Settings always bottom-right
-```
-
-### Props Interface
-```typescript
-interface ZaeliFABProps {
-  activeButton:     'dashboard' | 'chat' | 'keyboard' | null;
-  onDashboard:      () => void;
-  onChat:           () => void;
-  onChatKeyboard?:  () => void;
-  onMoreItem?:      (itemKey: string) => void;
-  onMicResult?:     (text: string) => void;
-}
+Notes · Kids Hub · Tutor
+Travel · Family · Meals
+Pulse · Zen · Settings  ← always bottom-right
 ```
 
 ---
 
 ## ══════════════════════════════════
-## LANDING OVERLAY — IMPLEMENTATION (LOCKED ✅ Phase 2 — 4 Apr 2026)
+## DASHBOARD — PHASE 4 (✅ Complete — 5 Apr 2026)
 ## ══════════════════════════════════
 
-**Architecture decision:** Landing is NOT a separate expo-router route.
-It is a component (`LandingOverlay`) rendered inside `index.tsx` as an absolute overlay.
-This avoids all expo-router navigation issues (blank screens, unmatched routes).
+**File:** `app/(tabs)/dashboard.tsx`
 
-**Structure in index.tsx:**
-```typescript
-// Default export — checks time window + dismiss flag
-export default function LandingGate() {
-  const [showLanding, setShowLanding] = useState<boolean | null>(null);
-  // null = still checking, false = skip, true = show
-  useEffect(() => { /* check window + FileSystem flag */ }, []);
-  return (
-    <View style={{ flex: 1 }}>
-      <HomeScreen/>
-      {showLanding === true && (
-        <LandingOverlay onDismiss={() => setShowLanding(false)}/>
-      )}
-    </View>
-  );
-}
-
-// Landing overlay — absolute positioned, fades out on dismiss
-function LandingOverlay({ onDismiss }) { ... }
-
-// Main chat screen — always mounted beneath overlay
-function HomeScreen() { ... }
-```
-
-**Test mode:**
-```typescript
-const LANDING_TEST_MODE = true; // ← set false before launch
-// When true: always shows landing, clears dismiss flags on mount
-```
-
-**Key learnings from Phase 2:**
-- `router.replace()` from a tab causes blank screens — use overlay instead
-- `PanResponder` must be explicitly imported from 'react-native'
-- `onStartShouldSetPanResponder: () => false` — let taps pass through to FAB
-- `onMoveShouldSetPanResponder` threshold 12px to claim swipe
-- Release threshold 50px to dismiss — prevents accidental dismiss on light tap
-- `expo-linear-gradient` not available in dev client — use solid `backgroundColor: gradient[0]`
-- Real gradient available after EAS build
-
----
-
-## ══════════════════════════════════
-## DASHBOARD SCREEN (LOCKED ✅ 4 Apr 2026)
-## ══════════════════════════════════
-
-**Phase 4 — next major build.**
-Dedicated screen. Background `#FAF8F5`. ZaeliFAB only. No chat bar.
-
-Card stack (top to bottom):
+Fixed card order (NEVER rearranges):
 1. Calendar — dark slate `#3A3D4A`
-2. Weather `#E6F1FF` + Shopping `#E8F5EE` — 50/50 side by side
-3. Today's Actions — `#FFFCE6` gold tint
-4. Dinner tonight — `#FFF1E8` peach tint
+2. Weather `#A8D8F0` + Shopping `#D8CCFF` — side by side
+3. Actions — gold `#F0DC80`
+4. Dinner — peach `#FAC8A8`
 
-Card tap → Chat with that domain's context injected.
+### Calendar card smart switching (LOCKED ✅)
+- Shows Today normally
+- Switches to Tomorrow automatically when: all today's events are past OR after 8pm
+- Dinner also switches to tomorrow after 8pm
+- Actions shows evening mode after 8pm
+
+### CalendarCard — new interaction spec (LOCKED ✅ 5 Apr 2026)
+```
+Shows 3 events (not 4)
++ Add button: top right only (Full → removed from header)
+Event tap: expands inline within card showing:
+  - Notes (if any)
+  - Attendees
+  - Two action buttons: "✦ Edit with Zaeli" · "Delete"
+  - Delete is two-tap (Delete → "Yes, delete" / "Keep it")
+Expand footer: "N more events ∨" on left · "Full calendar →" on right
+  (Full calendar link replaces old Full button)
+```
+
+### Dashboard → Chat injection (LOCKED ✅ 5 Apr 2026)
+Uses `lib/navigation-store.ts` module store (production-ready pattern).
+
+**Edit event flow:**
+1. Tap event in Dashboard CalendarCard → tap "✦ Edit with Zaeli"
+2. `setPendingChatContext({ type:'edit_event', event:ev, returnTo:'dashboard' })`
+3. `router.navigate('/(tabs)/')` 
+4. Chat reads store on `useFocusEffect`, clears it, injects:
+   - Inline dark slate calendar card (single event)
+   - Zaeli prompt: "[Title] — [Day] at [Time]. What would you like to change?"
+   - Quick reply chips: Move the time · Add someone · Change location · Cancel it · Manual edit
+   - Keyboard pre-loads (350ms delay)
+5. "← Dashboard" back pill shown at top of Chat
+6. Pill disappears after user sends first message
+
+**Add event flow:**
+1. Tap "+ Add" on CalendarCard
+2. `setPendingChatContext({ type:'add_event', returnTo:'dashboard' })`
+3. Chat injects: Zaeli prompt + chips: Today · Tomorrow · This week · For the kids
+4. Keyboard pre-loads
+
+### Dashboard back navigation
+- "← Dashboard" back pill at top of Chat when `returnToDashboard === true`
+- Tap pill → `router.navigate('/(tabs)/dashboard')`
+- Pill cleared on first message send
+- Grid FAB button always available as alternative
 
 ---
 
 ## ══════════════════════════════════
-## CHAT SCREEN (LOCKED ✅ 4 Apr 2026)
+## NAVIGATION STORE (NEW ✅ 5 Apr 2026)
 ## ══════════════════════════════════
 
-### Two entry states (Phase 5 — not yet built)
-- **Fresh** (Chat FAB tap): "Hey Rich. How can I help?" + 3 chips
-- **Card-triggered** (Dashboard card tap): inline card + contextual Zaeli message
+**File:** `lib/navigation-store.ts`
 
-### Zaeli message style (v5 — Phase 5 pending)
-Full width, no bubble. "Zaeli" small label. Poppins 400.
-User replies: right-aligned dark bubble.
+Module-level store for Dashboard→Chat context passing.
+Same pattern as `getPendingCalendarImage` in calendar.tsx — production ready.
+
+```typescript
+type ChatEntryContext = {
+  type: 'edit_event' | 'add_event' | 'shopping' | 'actions' | 'meals' | null;
+  event?:    any;        // full event object for edit_event
+  returnTo?: 'dashboard';
+};
+
+setPendingChatContext(ctx)   // set before navigating
+getPendingChatContext()      // read in useFocusEffect
+clearPendingChatContext()    // clear after consuming
+hasPendingChatContext()      // boolean check
+```
 
 ---
 
 ## ══════════════════════════════════
-## SHEET DESIGN SYSTEM (LOCKED ✅ 2 Apr 2026)
+## CHAT SCREEN (index.tsx) — PHASE 5 PENDING
+## ══════════════════════════════════
+
+**Currently:** full chat working, cards, persistence, tool-calling all intact.
+
+**Phase 5 still to build:**
+- Full-width Zaeli messages (no bubble)
+- Two entry states: Fresh (Chat FAB) vs Card-triggered (Dashboard)
+- `returnToDashboard` state + "← Dashboard" back pill ← DONE in this session
+
+**useFocusEffect now handles:**
+1. Dashboard → edit_event context → inject inline card + prompt + keyboard
+2. Dashboard → add_event context → inject prompt + keyboard
+3. Existing: autoMic, calendarScan, seedMessage params
+
+---
+
+## ══════════════════════════════════
+## SHEET DESIGN SYSTEM (LOCKED ✅)
 ## ══════════════════════════════════
 
 92% height, `#FAF8F5` bg, borderTopRadius 24px.
-Open INSTANTLY. Fetch async after. Backdrop: TouchableOpacity. Unchanged in v5.
+Open INSTANTLY. Fetch async. Backdrop: TouchableOpacity. Unchanged in v5.
 
 ---
 
@@ -313,8 +259,8 @@ Open INSTANTLY. Fetch async after. Backdrop: TouchableOpacity. Unchanged in v5.
 ## EVENT TIME CONTRACT (CRITICAL ✅ LOCKED)
 ## ══════════════════════════════════
 ```
-✅ Store: "2026-04-01T16:00:00"  → displays 4:00 pm ✓
-❌ Never: "2026-04-01T16:00:00+10:00" → Supabase converts → wrong ✗
+✅ Store: "2026-04-01T16:00:00" → displays 4:00 pm ✓
+❌ Never: "...+10:00" → Supabase converts → wrong ✗
 fmtTime() and isoToMinutes(): raw string parse. Never new Date() for display.
 ```
 
@@ -322,23 +268,18 @@ fmtTime() and isoToMinutes(): raw string parse. Never new Date() for display.
 
 ## Per-Channel Colour System (LOCKED)
 
-| Channel | Banner bg | Accent |
-|---------|-----------|--------|
-| Home/Chat | `#FAF8F5` cream | `#FF4545` coral |
-| Calendar | `#B8EDD0` | `#0A7A3A` |
-| Shopping | `#EDE8FF` Lavender | `#5020C0` |
-| Meals | `#FAC8A8` | `#C84010` |
-| Kids Hub | `#A8E8CC` | `#0A6040` |
-| Tutor | `#D8CCFF` | `#5020C0` |
-| To-dos | `#F0DC80` | `#806000` |
-| Notes | `#C8E8A8` | `#2A6010` |
-| Travel | `#A8D8F0` | `#0060A0` |
-| Our Family | `#F0C8C0` | `#A01830` |
+| Channel | Card bg | Accent |
+|---------|---------|--------|
+| Calendar | `#3A3D4A` slate | white text |
+| Weather | `#A8D8F0` sky blue | — |
+| Shopping | `#D8CCFF` lavender | `#5020C0` |
+| Actions | `#F0DC80` gold | `#806000` |
+| Dinner | `#FAC8A8` peach | `#C84010` |
 
 **Landing colours (LOCKED ✅):**
-- Logo 'a' and 'i': `#F0C8C0` warm blush (all windows)
-- Brief highlights: `#0096C7` cyan (all windows)
-- Background: morning `#FFF6EC` · midday `#EDF6FF` · evening `#F5EEFF`
+- Logo 'a'+'i': `#F0C8C0` warm blush
+- Highlights: `#0096C7` cyan
+- Backgrounds: `#FFF6EC` · `#EDF6FF` · `#F5EEFF`
 
 ## Family Member Colours (LOCKED)
 ```
@@ -349,19 +290,16 @@ Rich: #4D8BFF · Anna: #FF7B6B · Poppy: #A855F7 · Gab: #22C55E · Duke: #F59E0
 
 ## Channel Architecture (v5)
 ```
-app/(tabs)/index.tsx          → Chat + LandingGate + LandingOverlay ✅ v5 complete
-app/(tabs)/dashboard.tsx      → Dashboard 🔨 Phase 4 NEXT
-app/(tabs)/landing.tsx        → DEPRECATED — landing is now overlay in index.tsx
-app/(tabs)/pulse.tsx          → Pulse 🔨 Phase 6
-app/(tabs)/zen.tsx            → Zen 🔨 Phase 8
-app/(tabs)/calendar.tsx       → Calendar ✅ COMPLETE (unchanged)
-app/(tabs)/shopping.tsx       → Shopping ✅ COMPLETE (unchanged)
-app/(tabs)/mealplanner.tsx    → Meals ✅ COMPLETE (unchanged)
-app/(tabs)/dashboard.tsx      → Dashboard stub ✅ (full build Phase 4)
-app/(tabs)/settings.tsx       → Settings stub ✅ (full build later)
-app/(tabs)/todos.tsx          → Todos (not yet built)
-app/(tabs)/kids.tsx           → Kids Hub (not yet built)
-app/components/ZaeliFAB.tsx   → ZaeliFAB ✅ COMPLETE Phase 1
+app/(tabs)/index.tsx          → Chat + LandingGate + LandingOverlay ✅
+app/(tabs)/dashboard.tsx      → Dashboard ✅ Phase 4 complete
+app/(tabs)/calendar.tsx       → Calendar ✅ unchanged
+app/(tabs)/shopping.tsx       → Shopping ✅ unchanged
+app/(tabs)/mealplanner.tsx    → Meals ✅ unchanged
+app/(tabs)/settings.tsx       → Stub ✅
+app/(tabs)/pulse.tsx          → 🔨 Phase 6
+app/(tabs)/zen.tsx            → 🔨 Phase 8
+app/components/ZaeliFAB.tsx   → ✅ Phase 1 complete
+lib/navigation-store.ts       → ✅ NEW — Dashboard→Chat context store
 lib/use-chat-persistence.ts   → ✅ Keys: home | shopping | calendar | meals
 ```
 
@@ -369,17 +307,16 @@ lib/use-chat-persistence.ts   → ✅ Keys: home | shopping | calendar | meals
 
 ## Build Phase Plan (v5)
 ```
-Phase 1: ZaeliFAB component       ✅ COMPLETE
-Phase 2: Landing overlay          ✅ COMPLETE — embedded in index.tsx as LandingOverlay
-Phase 3: Navigation architecture  🔨 NEXT — horizontal swipe world + dots
-Phase 4: Dashboard screen         🔨 — app/(tabs)/dashboard.tsx
-Phase 5: Chat screen v5 updates   🔨 — full-width Zaeli, two entry states
-Phase 6: Pulse screen             🔨 — app/(tabs)/pulse.tsx
-Phase 7: Sheets unchanged         ✅ confirmed
-Phase 8: Zen screen               🔨 — app/(tabs)/zen.tsx
+Phase 1: ZaeliFAB                    ✅ COMPLETE
+Phase 2: Landing overlay             ✅ COMPLETE
+Phase 4: Dashboard screen            ✅ COMPLETE (built before Phase 3)
+  └─ Calendar card interaction       ✅ COMPLETE (expand, Edit/Add → Chat)
+  └─ Navigation store                ✅ COMPLETE
+Phase 3: Navigation architecture     🔨 NEXT — swipe world + dots
+Phase 5: Chat v5 updates             🔨 — full-width Zaeli, two entry states
+Phase 6: Pulse screen                🔨
+Phase 8: Zen screen                  🔨
 ```
-
-**Phase 3 vs Phase 4 decision:** Build Dashboard (Phase 4) before navigation architecture (Phase 3) — swipe world is more satisfying once both destination screens have real content. Build order: Phase 4 → Phase 3 → Phase 5 → Phase 6 → Phase 8.
 
 ---
 
@@ -390,15 +327,14 @@ Phase 8: Zen screen               🔨 — app/(tabs)/zen.tsx
 - Date: local construction — NEVER toISOString()
 - Time: NEVER append +10:00 — store bare local datetime string
 - KAV backgroundColor: '#fff' · Send button: '#FF4545' always
-- Body bg: '#FAF8F5' — never full colour bleed on channel screens
+- Body bg: '#FAF8F5' — never full colour bleed
 - No left-border accent strips · Apostrophes in JSX: double-quoted strings
 - expo-file-system: 'expo-file-system/legacy'
 - No literal newlines in JSX strings or regex — use \n
-- stopPropagation on nested tappable inside tappable row
+- stopPropagation on nested tappable rows
 - Modal stacking: close → setTimeout 350ms → open
-- Delete patterns: always two-tap to prevent accidents
-- Sheet opens BEFORE awaiting data — open instantly, populate async
+- Delete patterns: always two-tap
+- Sheet opens BEFORE awaiting data
 - router.navigate() always — never replace() or push()
-- ZaeliFAB import: `../components/ZaeliFAB` from app/(tabs)/
-- PanResponder + StatusBar must be explicitly imported from 'react-native'
-- Landing flags file: `FileSystem.documentDirectory + 'landing_flags.json'`
+- PanResponder + StatusBar: explicitly import from 'react-native'
+- Navigation store: set before navigate, read+clear in useFocusEffect
