@@ -20,6 +20,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Animated, Easing, TextInput, KeyboardAvoidingView,
   Platform, Modal, Pressable, Image, Share, Clipboard, Keyboard,
+  PanResponder, StatusBar,
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -2440,7 +2441,45 @@ function DinnerCard({
 // ══════════════════════════════════════════════════════════════════════════
 // ── MAIN COMPONENT ─────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════
-export default function HomeScreen() {
+// ── Landing overlay — no navigation needed, renders on top of HomeScreen ──
+const LANDING_TEST_MODE = true; // ← TEMP: set false before launch
+
+export default function LandingGate() {
+  const [showLanding, setShowLanding] = React.useState<boolean | null>(null); // null = checking
+
+  React.useEffect(() => {
+    async function check() {
+      if (LANDING_TEST_MODE) { setShowLanding(true); return; }
+      const h = new Date().getHours();
+      const inWindow = (h >= 6 && h < 9) || (h >= 12 && h < 14) || (h >= 17 && h < 20);
+      if (!inWindow) { setShowLanding(false); return; }
+      const FLAGS_FILE = (require('expo-file-system/legacy').documentDirectory ?? '') + 'landing_flags.json';
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      const windowKey = h >= 6 && h < 9 ? 'morning' : h >= 12 && h < 14 ? 'midday' : 'evening';
+      const flagKey = `${dateStr}-${windowKey}`;
+      try {
+        const raw = await require('expo-file-system/legacy').readAsStringAsync(FLAGS_FILE);
+        const flags = JSON.parse(raw);
+        if (flags[flagKey]) { setShowLanding(false); return; }
+      } catch {}
+      setShowLanding(true);
+    }
+    check();
+  }, []);
+
+  // Always render HomeScreen — landing floats on top when needed
+  return (
+    <View style={{ flex: 1 }}>
+      <HomeScreen/>
+      {showLanding === true && (
+        <LandingOverlay onDismiss={() => setShowLanding(false)}/>
+      )}
+    </View>
+  );
+}
+
+function HomeScreen() {
   const router    = useRouter();
   const params    = useLocalSearchParams<{ autoMic?: string; seedMessage?: string; calendarScan?: string }>();
   const scrollRef = useRef<ScrollView>(null);
@@ -5197,6 +5236,216 @@ Only include events directly relevant to the question. Max 5 events.`;
 
         {/* MIC OVERLAY removed in v5 — ZaeliFAB handles mic pill internally */}
       </Animated.View>
+    </View>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── LANDING OVERLAY COMPONENT ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+
+const LANDING_FLAGS_FILE = (FileSystem.documentDirectory ?? '') + 'landing_flags.json';
+type LandingWindow = 'morning' | 'midday' | 'evening';
+
+const LANDING_GRADIENTS: Record<LandingWindow, string> = {
+  morning: '#FFF6EC',
+  midday:  '#EDF6FF',
+  evening: '#F5EEFF',
+};
+const LANDING_AI_COLOURS: Record<LandingWindow, string> = {
+  morning: '#F0C8C0',
+  midday:  '#F0C8C0',
+  evening: '#F0C8C0',
+};
+const LANDING_HIGHLIGHT: Record<LandingWindow, string> = {
+  morning: '#0096C7',
+  midday:  '#0096C7',
+  evening: '#0096C7',
+};
+const LANDING_GREETING: Record<LandingWindow, string> = {
+  morning: 'GOOD MORNING, RICH',
+  midday:  'GOOD AFTERNOON, RICH',
+  evening: 'GOOD EVENING, RICH',
+};
+
+const LANDING_TEST_WINDOW: LandingWindow = 'morning';
+const OPENAI_BRIEF_URL = 'https://api.openai.com/v1/chat/completions';
+
+async function writeLandingDismiss(win: LandingWindow) {
+  try {
+    const d = new Date();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    let flags: Record<string, boolean> = {};
+    try { flags = JSON.parse(await FileSystem.readAsStringAsync(LANDING_FLAGS_FILE)); } catch {}
+    flags[`${dateStr}-${win}`] = true;
+    await FileSystem.writeAsStringAsync(LANDING_FLAGS_FILE, JSON.stringify(flags));
+  } catch {}
+}
+
+function LandingOverlay({ onDismiss }: { onDismiss: () => void }) {
+  const h = new Date().getHours();
+  const win: LandingWindow = LANDING_TEST_MODE
+    ? LANDING_TEST_WINDOW
+    : h >= 6 && h < 9 ? 'morning' : h >= 12 && h < 14 ? 'midday' : 'evening';
+
+  const [briefText, setBriefText] = React.useState('');
+  const [loading,   setLoading]   = React.useState(true);
+  const fadeAnim  = React.useRef(new Animated.Value(1)).current;
+  const briefAnim = React.useRef(new Animated.Value(0)).current;
+  const dismissed = React.useRef(false);
+
+  // Generate brief on mount
+  React.useEffect(() => {
+    async function generate() {
+      try {
+        const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+        if (!key) { setBriefText('Morning. Here\'s the day ahead.'); setLoading(false); return; }
+        const today = localDateStr();
+        const [evRes, tdRes, mlRes] = await Promise.all([
+          supabase.from('events').select('title,date,start_time').eq('family_id', FAMILY_ID).eq('date', today).order('start_time').limit(4),
+          supabase.from('todos').select('title,priority').eq('family_id', FAMILY_ID).eq('status','active').limit(3),
+          supabase.from('meal_plans').select('meal_name').eq('family_id', FAMILY_ID).eq('day_key', today).limit(1),
+        ]);
+        const ctx: string[] = [];
+        if (evRes.data?.length) ctx.push(`Today: ${evRes.data.map((e:any) => e.title).join(', ')}.`);
+        else ctx.push('Calendar clear today.');
+        if (tdRes.data?.length) ctx.push(`Todos: ${tdRes.data.map((t:any) => t.title).join(', ')}.`);
+        if (mlRes.data?.length) ctx.push(`Tonight: ${mlRes.data[0].meal_name}.`);
+
+        const tod = win === 'morning' ? 'morning' : win === 'midday' ? 'afternoon' : 'evening';
+        const system = `You are Zaeli — sharp, warm AI for Rich's Australian family (Anna, Poppy 12, Gab 10, Duke 8).
+Write the ${tod} brief. EXACTLY 3 sentences. Max 180 characters TOTAL.
+Sentence 1: Most urgent thing. Specific. No waffle.
+Sentence 2: One win or clear gap. Short.
+Sentence 3: ONE warm Zaeli observation — dry wit, specific to this family. NOT generic motivation.
+Rules: Don't open with name. Wrap key facts in [square brackets]. Never start with "I". No emojis.
+Banned: "sorted", "chaos", "locked in", "quick wins", "you've got this", "make it count"
+Context: ${ctx.join(' ')}`;
+
+        const res = await fetch(OPENAI_BRIEF_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+          body: JSON.stringify({ model: 'gpt-5.4-mini', max_completion_tokens: 200, messages: [{ role: 'system', content: system }, { role: 'user', content: 'Generate.' }] }),
+        });
+        const json = await res.json();
+        const text = json?.choices?.[0]?.message?.content?.trim() ?? '';
+        setBriefText(text || 'Here\'s the day.');
+        Animated.timing(briefAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+      } catch {
+        setBriefText('Here\'s the day ahead.');
+      } finally {
+        setLoading(false);
+      }
+    }
+    generate();
+  }, []);
+
+  const dismiss = React.useCallback(async () => {
+    if (dismissed.current) return;
+    dismissed.current = true;
+    if (!LANDING_TEST_MODE) await writeLandingDismiss(win);
+    Animated.timing(fadeAnim, { toValue: 0, duration: 280, useNativeDriver: true })
+      .start(() => onDismiss());
+  }, [win, onDismiss]);
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 12 || Math.abs(gs.dy) > 12,
+      onMoveShouldSetPanResponderCapture: () => false,
+      onPanResponderRelease: (_, gs) => {
+        if (Math.abs(gs.dx) > 50 || Math.abs(gs.dy) > 50) dismiss();
+      },
+    })
+  ).current;
+
+  function renderBrief(text: string) {
+    const highlight = LANDING_HIGHLIGHT[win];
+    return text.split(/(\[[^\]]+\])/g).map((part, i) => {
+      if (part.startsWith('[') && part.endsWith(']')) {
+        return <Text key={i} style={{ color: highlight }}>{part.slice(1,-1)}</Text>;
+      }
+      return <Text key={i}>{part}</Text>;
+    });
+  }
+
+  const STATUS_H = Platform.OS === 'ios' ? 54 : (StatusBar.currentHeight ?? 24) + 8;
+
+  return (
+    <Animated.View style={{
+      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: LANDING_GRADIENTS[win],
+      opacity: fadeAnim, zIndex: 100,
+    }}>
+      <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+
+        <View style={{ flex: 1, paddingTop: STATUS_H + 8, paddingHorizontal: 28 }}>
+
+          {/* Logo */}
+          <Text style={{ fontFamily: 'DMSerifDisplay_400Regular', fontSize: 36, letterSpacing: -0.8, color: '#0A0A0A', lineHeight: 42 }}>
+            z<Text style={{ color: LANDING_AI_COLOURS[win] }}>a</Text>el<Text style={{ color: LANDING_AI_COLOURS[win] }}>i</Text>
+          </Text>
+
+          {/* Brief centred */}
+          <View style={{ flex: 1, justifyContent: 'center', paddingBottom: 24 }}>
+            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, letterSpacing: 0.8, color: 'rgba(10,10,10,0.35)', marginBottom: 18 }}>
+              {LANDING_GREETING[win]}
+            </Text>
+            {loading ? (
+              <LandingDots colour={LANDING_HIGHLIGHT[win]}/>
+            ) : (
+              <Animated.View style={{ opacity: briefAnim }}>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 26, lineHeight: 38, letterSpacing: -0.5, color: '#0A0A0A' }}>
+                  {renderBrief(briefText)}
+                </Text>
+              </Animated.View>
+            )}
+          </View>
+        </View>
+
+        {/* Dots */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, paddingBottom: 28 }}>
+          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(10,10,10,0.16)' }}/>
+          <View style={{ width: 20, height: 6, borderRadius: 3, backgroundColor: 'rgba(10,10,10,0.38)' }}/>
+          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(10,10,10,0.16)' }}/>
+        </View>
+
+        <View style={{ height: Platform.OS === 'ios' ? 96 : 82 }}/>
+      </View>
+
+      {/* FAB — taps dismiss landing */}
+      <ZaeliFAB
+        activeButton={null}
+        onDashboard={dismiss}
+        onChat={dismiss}
+        onChatKeyboard={dismiss}
+        onMoreItem={dismiss}
+        onMicResult={dismiss}
+      />
+    </Animated.View>
+  );
+}
+
+function LandingDots({ colour }: { colour: string }) {
+  const dots = React.useRef([0,1,2].map(() => new Animated.Value(0.25))).current;
+  React.useEffect(() => {
+    const anims = dots.map((dot, i) =>
+      Animated.loop(Animated.sequence([
+        Animated.delay(i * 160),
+        Animated.timing(dot, { toValue: 1, duration: 300, easing: Easing.ease, useNativeDriver: true }),
+        Animated.timing(dot, { toValue: 0.25, duration: 300, easing: Easing.ease, useNativeDriver: true }),
+        Animated.delay(500 - i * 160),
+      ]))
+    );
+    anims.forEach(a => a.start());
+    return () => anims.forEach(a => a.stop());
+  }, []);
+  return (
+    <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center', paddingVertical: 8 }}>
+      {dots.map((op, i) => (
+        <Animated.View key={i} style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colour, opacity: op }}/>
+      ))}
     </View>
   );
 }

@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 4 April 2026 — ZaeliFAB Phase 1 complete ✅ v5 architecture locked ✅*
+*Last updated: 4 April 2026 — ZaeliFAB Phase 1 ✅ Landing Phase 2 ✅ v5 architecture locked ✅*
 
 ---
 
@@ -15,7 +15,8 @@ Zaeli is an iOS-first AI family life platform for Australian families with child
 
 Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle through delight, not detachment. Energy matches the moment: get-up-and-go in the morning, calm and settled at night.
 
-**Hard rules:** Never 'mate'. Never starts with 'I'. Plain text only. Always ends on a confident offer. Be proportionate. Banned: 'queued up', 'sorted', 'tidy', 'chaos', 'ambush', 'sprint', 'locked in', 'breathing room'.
+**Hard rules:** Never 'mate'. Never starts with 'I'. Plain text only. Always ends on a confident offer. Be proportionate.
+**Banned:** 'queued up', 'sorted', 'tidy', 'chaos', 'ambush', 'sprint', 'locked in', 'breathing room', 'quick wins', 'you've got this', 'make it count'.
 
 ---
 
@@ -31,8 +32,6 @@ Australian families with children. Priority: dual-income metro couples with prim
 ## ══════════════════════════════════
 
 **Three screens. One FAB. No clutter.**
-
-The app revolves around three screens connected by smooth horizontal swipe:
 
 ```
 Pulse  ←  Dashboard  →  Chat
@@ -50,79 +49,65 @@ Pulse  ←  Dashboard  →  Chat
 - ❌ Domain pill bar (9 pills above chat)
 - ❌ Hamburger menu + NavMenu component
 - ❌ Persistent chat input bar
-- ❌ DM Serif for the brief (now Poppins 700Bold)
+- ❌ DM Serif for the brief (now Poppins 600SemiBold at 26px)
 - ❌ Zaeli message bubbles (now full-width editorial text)
 
 ### What's new in v5
-- ✅ ZaeliFAB — four buttons, device-tested, locked sizing
-- ✅ Landing — time-window moment, full gradient, Poppins brief
-- ✅ Dashboard — dedicated screen, cards only, no chat bar
-- ✅ Pulse — family awareness third tab
-- ✅ Zen — 5 min breathing tool in More
-- ✅ Mic v2 pill — floating waveform above FAB, matches FAB width
-- ✅ More overlay — 3×3 grid, SVG icons, channel colours, matches FAB width
+- ✅ ZaeliFAB — four buttons, device-tested, sizing locked
+- ✅ Landing overlay — time-window moment, embedded in index.tsx, swipe dismiss
+- ✅ Dashboard — dedicated screen (Phase 4)
+- ✅ Pulse — family awareness third tab (Phase 6)
+- ✅ Zen — 5 min breathing tool in More (Phase 8)
+- ✅ Mic v2 pill — floating waveform above FAB
+- ✅ More overlay — 3×3 grid, SVG icons, channel colours
 
 ---
 
 ## ══════════════════════════════════
-## HOME LAYOUT DESIGN JOURNEY (LOCKED ✅ 4 Apr 2026)
-## ══════════════════════════════════
-
-This section documents the design exploration and decisions made during the v5 workshop.
-
-### Problem identified
-Original home screen had too many competing heroes: banner + brief + card stack + Zaeli follow-up + floating pill bar. Anna's feedback: "too busy."
-
-### Inspiration
-Sync (task app), Blank Spaces (journaling), Linear/Notion — all share: generous whitespace, confident typography, restraint as a design choice.
-
-### Key insight: brief font
-DM Serif Italic was "borrowed elegance." Poppins 700Bold IS Zaeli — the same font as every button and label, now given full weight at display size. More confident. More consistent. **Locked: brief = Poppins 700Bold.**
-
-### Key insight: no chat input bar
-Removing the persistent input bar gives Zaeli's messages more breathing room and makes the interface feel like an ambient intelligence rather than a chat app. Keyboard triggered by second tap on Chat FAB button. **Locked: no persistent input bar.**
-
-### Key insight: FAB replaces all navigation
-One consistent floating element replaces pill bar + hamburger + send button. Learnable in one use. Four buttons: Dashboard · Chat · Mic · More. **Locked: ZaeliFAB is the only navigation.**
-
-### Key insight: Pulse as third tab
-Family awareness deserves tab-level prominence, not a More submenu. Swipe right from Dashboard. Three zones: Zaeli Noticed · Family Activity · On the Horizon. **Locked: Pulse = third screen.**
-
----
-
-## ══════════════════════════════════
-## LANDING PAGE (LOCKED ✅ 4 Apr 2026)
+## LANDING PAGE (LOCKED ✅ Phase 2 Complete — 4 Apr 2026)
 ## ══════════════════════════════════
 
 Landing is a **timed emotional moment**, not a permanent screen.
+
+**Implementation:** Embedded as `LandingOverlay` component inside `index.tsx`.
+NOT a separate expo-router route — this avoids all navigation blank screen issues.
+`LandingGate` is the default export and checks time window + dismiss flag before mounting overlay.
 
 **Appears during:**
 - Morning window: 6:00am – 9:00am
 - Midday window: 12:00pm – 2:00pm
 - Evening window: 5:00pm – 8:00pm
 
-**Dismisses:** on first swipe. Gone for that window.
-**Outside windows:** app opens directly to Dashboard.
-**Brief:** pre-generated, waiting. No load delay. Max 2 sentences, Poppins 700Bold 21px.
+**Dismisses:** swipe (dx or dy > 50px) OR any FAB button tap. Fades out, HomeScreen visible beneath.
+**Outside windows:** `LandingOverlay` never mounts, HomeScreen renders directly.
+**Dismiss persistence:** FileSystem `landing_flags.json`, key = `YYYY-MM-DD-[morning|midday|evening]`.
+**Brief:** 3 sentences, GPT-mini, max 180 chars. Key facts in [square brackets] → cyan `#0096C7` highlight.
 
-**Three gradient states:**
-- Morning: warm amber `#FFF6EC → #FFDEB8`
-- Midday: cool blue `#EDF6FF → #C4DFFF`
-- Evening: soft purple `#F5EEFF → #D8C8F8`
+**Visual spec (LOCKED ✅):**
+```
+Background:  Morning #FFF6EC · Midday #EDF6FF · Evening #F5EEFF (solid, gradient needs EAS)
+Logo:        DM Serif 36px · 'a' and 'i' → #F0C8C0 warm blush (all windows)
+Greeting:    Poppins 600, 13px, uppercase, rgba(10,10,10,0.35)
+Brief:       Poppins 600SemiBold, 26px, lineHeight 38, letterSpacing -0.5
+Highlights:  #0096C7 cyan (all windows) — cool against warm cream, not alarming
+Dots:        3 dots, active = 20px pill, paddingBottom 28 — no swipe hint text
+ZaeliFAB:   present, all buttons call onDismiss()
+```
 
-**Logo AI letter colour complements gradient:**
-- Morning (warm) → cyan `#0096C7`
-- Midday (cool) → magenta `#D4006A`
-- Evening (purple) → terracotta `#E8601A`
-
-**No swipe hint text.** Dots are the only navigation signal.
+**Colour decisions and rationale (documented for future reference):**
+- Tried `#FF4545` coral → too alarming on morning cream
+- Tried `#E8601A` terracotta → blends into warm background, looks meh
+- Tried `#D8CCFF` lavender → too pale, disappears on cream
+- Tried `#A8D8F0` sky blue for logo → too much blue with cyan highlights
+- **Settled:** `#F0C8C0` blush logo + `#0096C7` cyan highlights — warm/cool contrast works
 
 ---
 
 ## ══════════════════════════════════
-## DASHBOARD (LOCKED ✅ 4 Apr 2026)
+## DASHBOARD (LOCKED ✅ Phase 4 — 4 Apr 2026)
 ## ══════════════════════════════════
 
+**Phase 4 NEXT after navigation architecture.**
 Dedicated screen. Background `#FAF8F5`. ZaeliFAB only — no chat bar, no pills.
 
 **Card stack (top to bottom):**
@@ -131,8 +116,7 @@ Dedicated screen. Background `#FAF8F5`. ZaeliFAB only — no chat bar, no pills.
 3. Today's Actions — gold tint `#FFFCE6`
 4. Dinner tonight — peach tint `#FFF1E8`
 
-**Card tap:** navigates to Chat screen with that domain's context injected.
-Different cards = different inline cards + Zaeli opening messages.
+**Card tap:** navigates to Chat with that domain's context injected.
 
 ---
 
@@ -140,24 +124,17 @@ Different cards = different inline cards + Zaeli opening messages.
 ## CHAT (LOCKED ✅ 4 Apr 2026)
 ## ══════════════════════════════════
 
-**Two entry states:**
+**Two entry states (Phase 5):**
 1. **Fresh** (Chat FAB tap) — "Hey Rich. How can I help?" + 3 chips
-2. **Card-triggered** (Dashboard card tap) — inline card at top + contextual Zaeli message
+2. **Card-triggered** (Dashboard card tap) — inline card + contextual Zaeli message
 
-**Zaeli message style (v5):**
+**Zaeli message style (v5 — Phase 5 pending):**
 Full width. No bubble. Small "Zaeli" label above. Poppins 400, full width.
 User replies: right-aligned dark bubble as before.
 
 **Keyboard:** second tap on Chat FAB (button goes coral).
 **Voice:** Mic FAB button.
 **No persistent input bar.** Locked.
-
-**All existing chat functionality unchanged:**
-- Tool-calling via Sonnet
-- Inline card renders (calendar slate card etc)
-- Chat persistence (24hr, 30 message cap)
-- Quick reply chips
-- Sheets opening from chat actions
 
 ---
 
@@ -169,18 +146,7 @@ User replies: right-aligned dark bubble as before.
 [ Dashboard ] | [ Chat ][ Mic ] | [ More ]
 ```
 
-Always present. Same on every screen. Never changes.
-
-**Sizing locked on device (tested ✅):**
-- Button size: 58×58px
-- Bar: borderRadius 36px, glass blur backdrop
-- Mic pill + More card: same width as FAB, same borderRadius, floats above with clean gap
-
-**Button states:**
-- Dashboard: dark when active
-- Chat: dark at rest · coral when keyboard open
-- Mic: coral when listening · waveform pill appears above FAB
-- More: coral when overlay open · goes dark when closed
+Sizing locked on device. Button size 58×58px. BorderRadius 36px. FAB_WIDTH 318px.
 
 **More overlay — 3×3 grid (LOCKED ✅):**
 ```
@@ -188,8 +154,16 @@ Notes     · Kids Hub · Tutor
 Travel    · Family   · Meals
 Pulse     · Zen      · Settings  ← always bottom-right
 ```
-SVG icons, thin stroke, channel colours, 10% opacity bg tiles.
-Grows from More button. Backdrop blur. Full gap above FAB — no overlap.
+
+---
+
+## ══════════════════════════════════
+## NAVIGATION ARCHITECTURE (Phase 3 — to build)
+## ══════════════════════════════════
+
+Horizontal three-screen swipe world. Dot indicator (3 dots).
+Build order revised: **Phase 4 (Dashboard) first, then Phase 3 (navigation).**
+Reason: swipe architecture is more satisfying once destination screens have real content.
 
 ---
 
@@ -198,11 +172,8 @@ Grows from More button. Backdrop blur. Full gap above FAB — no overlap.
 ## ══════════════════════════════════
 
 Family awareness layer. Access via swipe right from Dashboard or Pulse in More.
-
-**Three zones:**
-1. **Zaeli Noticed** — aqua-tinted cards, unprompted observations
-2. **Family Activity** — white cards, what each person completed/added
-3. **On the Horizon** — cobalt-tinted, countdown days to upcoming events
+Three zones: Zaeli Noticed · Family Activity · On the Horizon.
+Live pulsing coral dot in header.
 
 ---
 
@@ -210,9 +181,8 @@ Family awareness layer. Access via swipe right from Dashboard or Pulse in More.
 ## ZEN (LOCKED ✅ 4 Apr 2026)
 ## ══════════════════════════════════
 
-5-minute breathing/meditation tool. Accessed from More overlay.
-Full screen, standalone. No ZaeliFAB (Zen = break from the app).
-Breathing animation + countdown. Tap to start/pause. Back button exits.
+5-minute breathing/meditation tool. More overlay → Zen.
+Full screen, standalone. No ZaeliFAB. Tap to start/pause. Back button exits.
 
 ---
 
@@ -220,9 +190,7 @@ Breathing animation + countdown. Tap to start/pause. Back button exits.
 ## MIC V2 (LOCKED ✅ 4 Apr 2026)
 ## ══════════════════════════════════
 
-Floating pill grows above FAB — same width, same borderRadius as FAB bar.
-Animated waveform (7 coral bars), "Listening…" label, Cancel button.
-Clean gap between pill and FAB — no overlap.
+Floating pill above FAB — same width, same borderRadius. 7 coral waveform bars.
 Cancel → dismisses. Successful input → injected into chat via send().
 
 ---
@@ -231,9 +199,8 @@ Cancel → dismisses. Successful input → injected into chat via send().
 ## SHEETS (UNCHANGED ✅)
 ## ══════════════════════════════════
 
-All existing 92% sheets completely unchanged in v5.
-Calendar, Shopping, Meals sheets — same design and behaviour.
-Sheet design system applies to all future sheets (Todos, Kids, Family etc).
+All 92% sheets completely unchanged in v5.
+Calendar, Shopping, Meals — same design and behaviour.
 
 ---
 
@@ -241,40 +208,8 @@ Sheet design system applies to all future sheets (Todos, Kids, Family etc).
 ## CALENDAR MODULE (LOCKED ✅ 2 Apr 2026)
 ## ══════════════════════════════════
 
-### Inline card (COMPLETE ✅)
-Dark slate `#3A3D4A`. Expand in-place spring animation. Never opens sheet.
-Action chips: ✦ Edit with Zaeli · Move time · Add someone · Manual edit · Delete (two-tap)
-
-### Sheet (COMPLETE ✅ 2 Apr 2026)
-92% height, opens instantly. Three tabs: Today · Tomorrow · Month. Unchanged in v5.
-
-### v5 trigger change
-Calendar card triggered from Dashboard card tap (not pill tap).
-Chat opens with calendar inline card injected at top.
-
----
-
-## ══════════════════════════════════
-## SHEET DESIGN SYSTEM (LOCKED ✅ 2 Apr 2026)
-## ══════════════════════════════════
-
-```
-Height: 92%, bg: #FAF8F5, borderTopRadius: 24
-Open INSTANTLY → fetch async
-Backdrop: TouchableOpacity (NOT Pressable)
-Sheets = clean black/grey (no channel colour)
-```
-
----
-
-## ══════════════════════════════════
-## DELETE PATTERNS (LOCKED ✅ 2 Apr 2026)
-## ══════════════════════════════════
-
-Always two-tap. Three locations:
-1. Inline card expanded chip: Delete → Confirm delete (chip turns red)
-2. Sheet event card: Delete → Confirm delete inline
-3. Sheet edit form: "Delete event" → "Keep it" / "Yes, delete event"
+Inline card: dark slate `#3A3D4A`, expand in-place spring animation.
+Sheet: 92% height, today/tomorrow/month tabs. Unchanged in v5.
 
 ---
 
@@ -306,15 +241,19 @@ Three tabs: List · Pantry · Spend. Pantry = Last Bought model. Receipts = prim
 - [x] Inline card interaction patterns locked
 - [x] Delete patterns locked
 - [x] Sheet design system locked
-- [x] v5 architecture designed + prototyped (HTML mockups) — 4 Apr 2026
-- [x] **ZaeliFAB Phase 1 — built, device tested, sizing locked** ✅ — 4 Apr 2026
-- [x] index.tsx v5 updated (pills removed, FAB added, mic overlay removed)
-- [ ] **Landing screen** ← Phase 2 NEXT — `app/(tabs)/landing.tsx`
-- [ ] **Navigation architecture** ← Phase 3 — `_layout.tsx`
-- [ ] **Dashboard screen** ← Phase 4 — `app/(tabs)/dashboard.tsx`
-- [ ] **Chat screen v5 updates** ← Phase 5 — full-width Zaeli, two entry states
-- [ ] **Pulse screen** ← Phase 6 — `app/(tabs)/pulse.tsx`
-- [ ] **Zen screen** ← Phase 8 — `app/(tabs)/zen.tsx`
+- [x] v5 architecture designed + prototyped — 4 Apr 2026
+- [x] **ZaeliFAB Phase 1** — built, device tested, sizing locked ✅
+- [x] index.tsx v5 updated (pills removed, FAB added)
+- [x] **Landing Phase 2** — overlay in index.tsx, swipe dismiss working ✅
+- [x] dashboard.tsx stub created (route warning silenced)
+- [x] settings.tsx stub created (route warning silenced)
+- [ ] **Dashboard screen Phase 4** ← NEXT (building before Phase 3)
+- [ ] **Navigation architecture Phase 3** — horizontal swipe + dots
+- [ ] **Chat screen v5 updates Phase 5** — full-width Zaeli, two entry states
+- [ ] **Pulse screen Phase 6** — `app/(tabs)/pulse.tsx`
+- [ ] **Zen screen Phase 8** — `app/(tabs)/zen.tsx`
+- [ ] Landing: real LinearGradient (needs EAS build)
+- [ ] Landing: LANDING_TEST_MODE = false before launch
 - [ ] Shopping sheet (List · Pantry · Spend tabs)
 - [ ] Meals sheet (Dinners · Recipes · Favourites tabs)
 - [ ] Create reminders Supabase table
@@ -335,10 +274,10 @@ Three tabs: List · Pantry · Spend. Pantry = Last Bought model. Receipts = prim
 
 ## Key Product Moments
 
-**The brief** — Poppins bold, 21px, full-screen gradient. Earns its moment three times a day then steps aside.
+**The brief** — Poppins 600, 26px, warm cream background. 3 sentences. Personality in sentence 3. Earns its moment three times a day then steps aside.
 **The swipe** — One gesture reveals your day. Left for conversation, right for family.
 **The FAB** — Four buttons. Always there. Always the same. Learnable in one use.
 **Pulse** — Zaeli noticed. The thing you didn't ask about. Word of mouth.
-**The all-done moment** — Everything sorted. "Enjoy the evening." Feels like a reward.
+**The all-done moment** — Everything handled. "Enjoy the evening." Feels like a reward.
 **Sheets as workspaces** — Deeper work without losing the conversation underneath.
 **Persistent conversation** — Leave and come back, brief restores. 24hr memory.

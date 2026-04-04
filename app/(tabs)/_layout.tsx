@@ -39,7 +39,9 @@ export default function TabLayout() {
         tabBarStyle: { display: 'none' },
       }}
     >
+      <Tabs.Screen name="landing"      options={{ href: null }} />
       <Tabs.Screen name="index"        options={{ href: null }} />
+      <Tabs.Screen name="dashboard"    options={{ href: null }} />
       <Tabs.Screen name="calendar"     options={{ href: null }} />
       <Tabs.Screen name="shopping"     options={{ href: null }} />
       <Tabs.Screen name="mealplanner"  options={{ href: null }} />
