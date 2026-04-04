@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 4 April 2026 — v5 architecture locked ✅ Three-screen world ✅ FAB system ✅ Pulse ✅ Landing ✅*
+*Last updated: 4 April 2026 — ZaeliFAB Phase 1 complete ✅ v5 architecture locked ✅*
 
 ---
 
@@ -10,7 +10,8 @@
 - Family: Rich (logged-in user), Anna, Poppy (Yr6, age 12, girl), Gab (Yr4, age 10, BOY — Gabriel, always he/him), Duke (Yr1, age 8, boy)
 - Local path: `C:\Users\richa\zaeli` (Windows, PowerShell — no && chaining)
 - Repo: https://github.com/RDK1981/zaeli (private)
-- PowerShell copy: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\`(tabs`)\file.tsx"`
+- PowerShell screen copy: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\`(tabs`)\file.tsx"`
+- PowerShell component copy: `Copy-Item "C:\Users\richa\Downloads\ZaeliFAB.tsx" "C:\Users\richa\zaeli\app\components\ZaeliFAB.tsx"`
 - Full file rewrites only — never partial diffs
 - Design before code — always discuss/mockup new screens before writing code
 - **Two fixes at a time** — bulk changes create too many debugging variables
@@ -45,10 +46,10 @@ Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle thr
 - Supabase (Postgres, Sydney ap-southeast-2, ID: rsvbzakyyrftezthlhtd)
 - Claude Sonnet (`claude-sonnet-4-20250514`) — all tool-calling channels + vision
 - OpenAI GPT-5.4 mini (`gpt-5.4-mini`) — home_brief, home_post_card, Pulse notices, Tutor chat
-- OpenAI Whisper-1 — voice transcription (Mic button)
+- OpenAI Whisper-1 — voice transcription (Mic button in ZaeliFAB)
 - expo-router, expo-image-picker, react-native-svg, expo-file-system (chat persistence)
-- Poppins font (ALL UI including brief), DMSerifDisplay (wordmark + card titles only)
-- No bottom tab bar — FAB is the only navigation
+- Poppins font (ALL UI including brief), DMSerifDisplay (wordmark + large card numbers only)
+- No bottom tab bar — ZaeliFAB is the only navigation
 
 ---
 
@@ -69,7 +70,11 @@ NEVER use literal newlines inside JSX strings or regex — use \n escape
 stopPropagation on nested TouchableOpacity inside tappable parent rows
 Modal stacking iOS: close modal 1 → setTimeout 350ms → open modal 2
 NEVER append +10:00 or any timezone suffix to stored event times
-FAB is the ONLY navigation — no pill bar, no hamburger, no tab bar
+ZaeliFAB is the ONLY navigation — no pill bar, no hamburger, no tab bar
+No persistent chat input bar anywhere — keyboard via Chat FAB second tap
+Brief font = Poppins_700Bold (NOT DM Serif)
+DM Serif = wordmark and large card numbers only
+Zaeli messages = full width, no bubble (v5)
 ```
 
 ---
@@ -80,7 +85,7 @@ FAB is the ONLY navigation — no pill bar, no hamburger, no tab bar
 
 ### The Three-Screen World
 
-After the Landing moment passes, the app lives as a **horizontal three-screen strip:**
+After Landing dismisses, the app lives as a **horizontal three-screen strip:**
 
 ```
 Pulse  ←  Dashboard  →  Chat
@@ -90,22 +95,21 @@ Pulse  ←  Dashboard  →  Chat
 - **Swipe left** from Dashboard → Chat
 - **Swipe right** from Dashboard → Pulse
 - Dots indicator always shows position (3 dots, active pill expands)
-- No pill bar. No hamburger. No tab bar. FAB is the only navigation.
+- No pill bar. No hamburger. No tab bar. ZaeliFAB is the only navigation.
 
 ### Landing Screen (time-window only)
 
-Landing appears as a **fourth screen** (centre position) during three daily time windows:
+Landing appears during three daily time windows:
 - Morning: 6:00am – 9:00am
 - Midday: 12:00pm – 2:00pm
 - Evening: 5:00pm – 8:00pm
 
 **Behaviour:**
-- Brief is pre-generated and waiting — no load delay on open
-- Full-screen gradient background (bleeds behind status bar — no status bar bg)
-- **First swipe in any direction dismisses Landing for that time window**
-- After dismiss: Landing screen removed, world collapses to Dashboard ↔ Chat ↔ Pulse
-- Re-appears at next time window automatically
-- Outside time windows: app opens directly to Dashboard
+- Brief pre-generated and waiting — no load delay on open
+- Full-screen gradient bleeds behind status bar
+- **First swipe dismisses Landing for that time window**
+- After dismiss: world collapses to Dashboard ↔ Chat ↔ Pulse
+- Outside windows: app opens directly to Dashboard
 
 ### Landing Visual Spec (LOCKED ✅)
 ```
@@ -115,175 +119,104 @@ Background: full-screen gradient, bleeds behind status bar
   Evening:  linear gradient #F5EEFF → #D8C8F8 (soft purple)
 
 Logo: DM Serif Display, top-left, 22px
-  'a' and 'i' colour COMPLEMENTS background (never matches):
-  Morning bg (warm) → ai colour: #0096C7 cyan
-  Midday bg (cool)  → ai colour: #D4006A magenta
-  Evening bg (purple)→ ai colour: #E8601A terracotta
+  'a' and 'i' colour COMPLEMENTS background — never matches:
+  Morning (warm)  → ai colour: #0096C7 cyan
+  Midday (cool)   → ai colour: #D4006A magenta
+  Evening (purple)→ ai colour: #E8601A terracotta
 
 Greeting: Poppins 600, 10px, uppercase, letterSpacing 0.8, rgba(10,10,10,0.28)
 Brief: Poppins 700Bold, 21px, letterSpacing -0.6, lineHeight 1.38
-  Coral #FF4545 highlights on key facts (time, name)
+  Coral #FF4545 highlights on key facts
 Sub-line: Poppins 400, 12px, rgba(10,10,10,0.32)
 
-Dots: 3 dots (Chat · Landing · Dashboard · Pulse)
-  Active dot: width 20px pill, rgba(10,10,10,0.36)
-  Inactive: 5px circle, rgba(10,10,10,0.14)
-  NO swipe hint text — dots are the only signal
+Dots: 3 dots, active = 20px wide pill, rgba(10,10,10,0.36)
+NO swipe hint text — dots only
 
-FAB: present on Landing (same as all screens)
-Status bar text: dark (ink) on all Landing gradients
+ZaeliFAB present on Landing as on all screens
+Status bar: dark text on all gradients
 ```
 
 ---
 
 ## ══════════════════════════════════
-## FAB — FLOATING ACTION BAR (LOCKED ✅ 4 Apr 2026)
+## ZAELIFAX — LOCKED SPEC (✅ Phase 1 Complete — 4 Apr 2026)
 ## ══════════════════════════════════
 
-**The FAB replaces ALL previous navigation (pill bar, hamburger, chat input bar).**
-It is present on EVERY screen, always, in the same position.
+**File:** `app/components/ZaeliFAB.tsx`
+**Status:** Built ✅ — live in index.tsx, sizing locked on device
 
-### Layout
+The ONLY navigation element in the app. Present on every screen always.
+
+### Sizing Constants (LOCKED — device tested ✅)
 ```
-Position: absolute, bottom: 18px, horizontally centred
-Background: rgba(255,255,255,0.80), blur backdrop
-Border: 1px rgba(255,255,255,0.96)
-Border radius: 26px
-Shadow: 0 8px 32px rgba(0,0,0,0.13)
-Padding: 5px 7px
+FAB_BTN    = 58px   button squares
+FAB_PAD    = 10px   internal padding each side
+FAB_SEP_W  = 1px    separator width
+FAB_SEP_MX = 8px    separator margin each side
+FAB_GAP    = 4px    gap between buttons
+FAB_WIDTH  = 318px  total (auto-calculated)
 
-Four buttons + two separators:
-[ Dashboard ]  |  [ Chat ]  [ Mic ]  |  [ More ]
-
-Each button: 44×44px, borderRadius 18px
-Active state: background #0A0A0A, icon white
-Inactive: transparent bg, icon rgba(10,10,10,0.48)
-Hover: rgba(10,10,10,0.05) bg
-```
-
-### Button Behaviours
-- **Dashboard** → navigates to Dashboard screen. Active (dark) when on Dashboard.
-- **Chat** → first tap: navigates to Chat screen. Second tap (already on Chat): opens keyboard. Active (dark) when on Chat at rest. **Coral #FF4545** when keyboard is open.
-- **Mic** → opens Mic v2 pill (see below). Coral when active.
-- **More** → opens More overlay (see below). No active state — toggles only.
-
-### No Chat Input Bar
-There is NO persistent chat input bar anywhere in the app.
-Keyboard is triggered by tapping Chat button a second time.
-Voice is triggered by the Mic button.
-This is locked and intentional.
-
----
-
-## ══════════════════════════════════
-## MIC V2 — VOICE INPUT (LOCKED ✅ 4 Apr 2026)
-## ══════════════════════════════════
-
-```
-Trigger: Mic button in FAB
-Animation: floating pill grows above FAB from bottom-centre
-  scale 0.92→1, opacity 0→1, cubic-bezier(0.16,1,0.3,1), 200ms
-
-Pill spec:
-  background: rgba(255,255,255,0.94), blur backdrop
-  border: 1px rgba(255,255,255,0.98)
-  border-radius: 22px
-  padding: 11px 16px
-  position: 64px above FAB bottom
-
-Contents (left to right):
-  Waveform: 7 animated bars, coral #FF4545
-    Heights: 7, 13, 20, 26, 20, 13, 7px
-    Animation: scaleY 0.35→1→0.35, each bar staggered 100ms, 0.9s loop
-  "Listening…" label: Poppins 600, 11px, rgba(10,10,10,0.50)
-  "Cancel" button: Poppins 700, 10px, coral, rgba(255,69,69,0.08) bg
-
-Dismiss: Cancel tap closes pill. Mic button returns to inactive.
-After processing: pill closes → Chat screen opens → message injected
+FAB bar:   borderRadius 36px · bg rgba(255,255,255,0.88) · blur backdrop
+Mic pill:  borderRadius 36px · width FAB_WIDTH · bottom 124px iOS / 110px Android
+More card: borderRadius 36px · width FAB_WIDTH · bottom 124px iOS / 110px Android
+Root:      paddingBottom 24px iOS / 14px Android
 ```
 
----
-
-## ══════════════════════════════════
-## MORE OVERLAY (LOCKED ✅ 4 Apr 2026)
-## ══════════════════════════════════
-
+### Button Layout
 ```
-Trigger: More (···) button in FAB
-Animation: card grows above FAB, scale 0.90→1, opacity 0→1, 220ms
-  transform-origin: bottom centre
-
-Backdrop: full screen, rgba(10,10,10,0.38), blur(5px)
-  Tap backdrop → closes overlay
-
-Card spec:
-  position: 76px above FAB
-  width: 236px, centred
-  background: rgba(255,255,255,0.97), blur backdrop
-  border-radius: 28px
-  padding: 22px 18px 18px
-  shadow: 0 24px 64px rgba(0,0,0,0.18)
-
-Label: "MORE" — Poppins 700, 9px, uppercase, letterSpacing 1.3, rgba(10,10,10,0.18)
-
-Grid: 3×3 — 9 items
-  Each item: 48×48px icon tile, borderRadius 16px, channel bg colour (10% opacity)
-  Icon: SVG, 21px, same thin stroke weight as FAB icons, channel colour
-  Label: Poppins 600, 9.5px, rgba(10,10,10,0.40)
-
-Grid order (left→right, top→bottom):
-  Row 1: Notes · Kids Hub · Tutor
-  Row 2: Travel · Family · Meals
-  Row 3: Pulse · Zen · Settings  ← Settings always bottom-right
-
-Channel colours for More icons:
-  Notes:    #5C8A3C sage
-  Kids Hub: #0A8A5A green
-  Tutor:    #6B35D9 violet
-  Travel:   #0096C7 cyan
-  Family:   #D4006A magenta
-  Meals:    #E8601A terracotta
-  Pulse:    #FF4545 coral
-  Zen:      #5C8A3C sage (soft)
-  Settings: #6B7280 grey
+[ Dashboard ] | [ Chat ][ Mic ] | [ More ]
 ```
 
----
-
-## ══════════════════════════════════
-## PULSE SCREEN (LOCKED ✅ 4 Apr 2026)
-## ══════════════════════════════════
-
-**Pulse is the family awareness layer** — a calm, beautiful scroll of what is happening across the whole family. Not a notification feed. More like a family noticeboard.
-
+### Button States (LOCKED ✅)
 ```
-Background: #FAF8F5 warm white (same as Dashboard and Chat)
-Header: zaeli wordmark left, "Pulse" label right with live coral dot (pulsing animation)
-FAB: present as always
+Dashboard: dark #0A0A0A bg + white icon when active
+Chat:      dark #0A0A0A bg at rest on chat screen
+           coral #FF4545 bg when keyboard open (activeButton='keyboard')
+Mic:       coral #FF4545 bg when recording
+More:      coral #FF4545 bg + white icon when overlay open
+           no active state at rest
+```
 
-Three zones (top to bottom):
+### Mic v2 Pill (LOCKED ✅)
+```
+Same width + borderRadius as FAB bar — symmetrical pair
+Waveform: 7 bars heights [10,18,28,36,28,18,10]px, coral, staggered animation
+Contents: waveform | "Listening…" Poppins 600 14px | Cancel button coral
+Appears above FAB with clean gap — no overlap
+```
 
-1. ZAELI NOTICED
-   Aqua-tinted cards (rgba(168,232,204,0.18) bg, rgba(168,232,204,0.38) border)
-   Zaeli avatar (aqua bg, 'z' label)
-   Timestamp label + plain text observation
-   Examples: missed pickup, missing ingredient, overdue task
+### More Overlay 3×3 (LOCKED ✅)
+```
+Same width + borderRadius as FAB bar
+Full backdrop blur rgba(10,10,10,0.36) — taps behind blocked
+Grid: justifyContent:'space-between', each item width:'31%'
+Icon tiles: 58×58px, borderRadius 20, 10% channel bg opacity, 26px SVG icons
 
-2. FAMILY ACTIVITY
-   White cards with family member avatar (family colour)
-   Shows: what they completed, added, or changed
-   Domain badge (small icon) shows which channel the action came from
-   Examples: Poppy added event, Anna ticked off shopping, Duke finished homework
+Row 1: Notes · Kids Hub · Tutor
+Row 2: Travel · Family · Meals
+Row 3: Pulse · Zen · Settings  ← Settings always bottom-right
 
-3. ON THE HORIZON
-   Cobalt-tinted cards (rgba(32,85,240,0.05) bg)
-   Large countdown number (DM Serif, cobalt) + "days" label
-   Event name + date + status note
-   Examples: birthdays, school holidays, travel dates
+More button goes coral when overlay open — visual toggle feedback
+Grows from More button upward: scale 0.90→1 + opacity spring
+```
 
-Data sources: reads from existing Supabase tables
-  (events, shopping_items, todos, pantry_items, family_members)
-Pulse notices generated by GPT-mini on a schedule or on open
+### More Item Channel Colours (LOCKED ✅)
+```
+Notes: #5C8A3C · Kids Hub: #0A8A5A · Tutor: #6B35D9
+Travel: #0096C7 · Family: #D4006A · Meals: #E8601A
+Pulse: #FF4545 · Zen: #5C8A3C · Settings: #6B7280
+```
+
+### Props Interface
+```typescript
+interface ZaeliFABProps {
+  activeButton:     'dashboard' | 'chat' | 'keyboard' | null;
+  onDashboard:      () => void;
+  onChat:           () => void;
+  onChatKeyboard?:  () => void;   // second tap = open keyboard
+  onMoreItem?:      (itemKey: string) => void;
+  onMicResult?:     (text: string) => void;
+}
 ```
 
 ---
@@ -292,21 +225,16 @@ Pulse notices generated by GPT-mini on a schedule or on open
 ## DASHBOARD SCREEN (LOCKED ✅ 4 Apr 2026)
 ## ══════════════════════════════════
 
-**Dashboard is a dedicated screen** — not embedded in Chat.
-Background: `#FAF8F5`. FAB only at bottom. No chat bar.
+Dedicated screen. Background `#FAF8F5`. ZaeliFAB only. No chat bar.
 
-Cards (top to bottom):
-1. **Calendar** — dark slate `#3A3D4A`, today's events, avatar initials
-2. **Weather + Shopping** — side by side 50/50
-   - Weather: `#E6F1FF` blue tint, large temp number, DM Serif
-   - Shopping: `#E8F5EE` green tint, item count, top 2 items
-3. **Today's Actions** — `#FFFCE6` gold tint, todo rows with Reminder/Overdue tags
-4. **Dinner tonight** — `#FFF1E8` peach tint, meal name DM Serif, meta line
+Card stack (top to bottom):
+1. Calendar — dark slate `#3A3D4A`
+2. Weather `#E6F1FF` + Shopping `#E8F5EE` — 50/50 side by side
+3. Today's Actions — `#FFFCE6` gold tint
+4. Dinner tonight — `#FFF1E8` peach tint
 
-**Card tap behaviour:** any card tap → navigates to Chat screen with context injected.
-Card type determines which inline card and opening Zaeli message appears.
-
-Dot position: middle dot active (Dashboard is centre of 3-screen world post-Landing)
+Card tap → Chat with that domain's context injected.
+Middle dot active (Dashboard = permanent anchor).
 
 ---
 
@@ -315,145 +243,40 @@ Dot position: middle dot active (Dashboard is centre of 3-screen world post-Land
 ## ══════════════════════════════════
 
 ### Two entry states
+- **Fresh** (Chat FAB tap): "Hey Rich. How can I help?" + 3 chips
+- **Card-triggered** (Dashboard card tap): inline card + contextual Zaeli message
 
-**Fresh entry** (tapping Chat button in FAB):
-- No inline card
-- Zaeli message: "Hey [name]. How can I help?" — full width, no bubble
-- 3 contextual quick reply chips
-
-**Card-triggered entry** (tapping a Dashboard card):
-- Relevant inline card injected at top of messages
-- Zaeli opening message addresses that domain specifically
-- Contextual quick replies for that domain
-
-### Zaeli message style (UPDATED v5)
+### Zaeli message style (v5 LOCKED ✅)
 ```
-Full width — NO bubble wrapper
+Full width — NO bubble
 Label: "Zaeli" — Poppins 700, 9px, uppercase, rgba(10,10,10,0.22)
-Text: Poppins 400, 13px, lineHeight 1.62, full width
-NO background, NO border, NO avatar bubble
+Text: Poppins 400, 13–17px, lineHeight 1.62, full width
+No background, no border, no avatar bubble
 ```
 
-### User message style (unchanged)
-```
-Right-aligned bubble
-Background: #0A0A0A ink
-Border radius: 16px 16px 3px 16px
-Poppins 500, 12px, white
-Max width: 76%
-```
+User replies: right-aligned dark bubble, #0A0A0A, borderRadius 16/16/3/16.
 
-### Context pill (top right of Chat header)
-Shows which domain the conversation is about.
-Coloured dot + domain label. Updates when card-triggered.
-
-### No chat input bar
-Keyboard opens via second tap on Chat FAB button.
-Voice input via Mic FAB button.
-Quick reply chips are the primary interaction surface.
+Keyboard = second tap Chat FAB (activeButton → 'keyboard', coral).
+Voice = Mic FAB. No persistent input bar. Locked.
 
 ---
 
 ## ══════════════════════════════════
-## ZEN SCREEN (NEW ✅ 4 Apr 2026)
+## PULSE SCREEN (LOCKED ✅ 4 Apr 2026)
 ## ══════════════════════════════════
 
-Simple 5-minute breathing/meditation tool. Accessible from More overlay.
-
-```
-Full screen, minimal
-Background: soft gradient (sage-tinted)
-Breathing animation: expanding/contracting circle
-5-minute countdown timer
-Poppins text: "Breathe in" / "Hold" / "Breathe out"
-Single tap to start/pause
-No chat, no FAB (zen is a standalone moment)
-Exit: back button top-left
-```
+Family awareness layer — calm scroll, not a notification feed.
+Three zones: Zaeli Noticed · Family Activity · On the Horizon.
+Live pulsing coral dot in header. Reads existing Supabase tables.
 
 ---
 
 ## ══════════════════════════════════
-## BRIEF — POPPINS (LOCKED ✅ 4 Apr 2026)
+## ZEN SCREEN (LOCKED ✅ 4 Apr 2026)
 ## ══════════════════════════════════
 
-**Brief is now Poppins 700Bold, NOT DM Serif.**
-DM Serif is reserved for the wordmark and large card title numbers only.
-
-```
-Brief font: Poppins_700Bold
-Brief size: 21px
-Letter spacing: -0.6
-Line height: 1.38
-Coral em highlights: #FF4545, font-weight 800
-```
-
-This applies to Landing screen brief only.
-Chat messages from Zaeli remain Poppins 400 (no change).
-
----
-
-## Per-Channel Colour System (LOCKED)
-
-| Channel | Banner bg | AI colour | Accent (dark) |
-|---------|-----------|-----------|---------------|
-| Home/Chat | `#FAF8F5` cream | `#A8E8CC` Aqua | `#FF4545` coral |
-| Calendar | `#B8EDD0` | `#F0C8C0` Warm Blush | `#0A7A3A` |
-| Shopping | `#EDE8FF` Lavender | `#D8CCFF` Deeper Lavender | `#5020C0` |
-| Meals | `#FAC8A8` | `#A8E8CC` Fresh Green | `#C84010` |
-| Kids Hub | `#A8E8CC` | `#FAC8A8` Warm Peach | `#0A6040` |
-| Tutor | `#D8CCFF` | `#A8E8CC` Fresh Green | `#5020C0` |
-| To-dos | `#F0DC80` | `#D8CCFF` Lavender | `#806000` |
-| Notes | `#C8E8A8` | `#F0C8C0` Warm Blush | `#2A6010` |
-| Travel | `#A8D8F0` | `#B8EDD0` Soft Mint | `#0060A0` |
-| Our Family | `#F0C8C0` | `#D8CCFF` Lavender | `#A01830` |
-
-**CRITICAL:** Send button = `#FF4545` coral always. Body bg = `#FAF8F5` warm white always.
-No left-border accent strips. Sheets = clean black/grey. Colour in inline cards only.
-
----
-
-## Family Member Colours (LOCKED)
-```
-Rich: #4D8BFF · Anna: #FF7B6B · Poppy: #A855F7 · Gab: #22C55E · Duke: #F59E0B
-```
-
----
-
-## Channel Architecture (v5)
-```
-app/(tabs)/index.tsx          → Chat screen ✅ (updating: remove pills, add FAB, Zaeli full-width)
-app/(tabs)/dashboard.tsx      → Dashboard screen 🔨 NEW (Phase 4)
-app/(tabs)/landing.tsx        → Landing screen 🔨 NEW (Phase 2)
-app/(tabs)/pulse.tsx          → Pulse screen 🔨 NEW (Phase 6)
-app/(tabs)/calendar.tsx       → Calendar ✅ COMPLETE (sheets unchanged)
-app/(tabs)/shopping.tsx       → Shopping ✅ REBUILD COMPLETE
-app/(tabs)/mealplanner.tsx    → Meals ✅ REBUILD COMPLETE
-app/(tabs)/todos.tsx          → Todos + Reminders (design ✅ — not yet built)
-app/(tabs)/kids.tsx           → Kids Hub (design ✅ — not yet built)
-app/(tabs)/notes.tsx          → Notes (not yet built)
-app/(tabs)/travel.tsx         → Travel (not yet built)
-app/(tabs)/family.tsx         → Our Family (not yet built)
-app/(tabs)/tutor.tsx          → Tutor (needs rebuild)
-app/(tabs)/zen.tsx            → Zen 🔨 NEW (Phase 8)
-components/ZaeliFAB.tsx       → FAB component 🔨 NEW (Phase 1)
-lib/use-chat-persistence.ts   → ✅ Keys: home | shopping | calendar | meals
-```
-
----
-
-## Build Phase Plan (v5)
-
-```
-Phase 1: ZaeliFAB component       → components/ZaeliFAB.tsx
-Phase 2: Landing screen           → app/(tabs)/landing.tsx
-Phase 3: Navigation architecture  → _layout.tsx (horizontal scroll world + dots)
-Phase 4: Dashboard screen         → app/(tabs)/dashboard.tsx
-Phase 5: Chat screen updates      → app/(tabs)/index.tsx (remove pills, add FAB, full-width Zaeli)
-Phase 6: Pulse screen             → app/(tabs)/pulse.tsx
-Phase 7: Sheets unchanged         → no changes to calendar/shopping/meals sheets
-Phase 8: Zen screen               → app/(tabs)/zen.tsx
-```
+5-min breathing tool. More overlay → Zen. Full screen, no ZaeliFAB.
+Breathing circle animation + countdown. Tap start/pause. Back button exits.
 
 ---
 
@@ -462,38 +285,11 @@ Phase 8: Zen screen               → app/(tabs)/zen.tsx
 ## ══════════════════════════════════
 
 ```
-Outer container:
-  backgroundColor: '#3A3D4A' (CAL_SLATE)
-  borderRadius: 16
-  marginHorizontal: -4
-  marginTop: 8, marginBottom: 2
-  overflow: 'hidden'
-
-Header row:
-  paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10
-  Date label: Poppins_700Bold 12px, uppercase, rgba(255,255,255,0.65)
-  + Add button: rgba(255,255,255,0.18) bg, borderRadius: 9, pV:6 pH:13
-  Full › button: pV:6 pH:4, Poppins_600SemiBold 12px rgba(255,255,255,0.55)
-
-Event rows (collapsed):
-  pH:14 pV:8
-  Time col: width:58, Poppins_500Medium 12px rgba(255,255,255,0.50), numberOfLines:1
-  Dot: 8×8 borderRadius:4, first assignee colour
-  Title: Poppins_400Regular 16px rgba(255,255,255,0.92), flex:1, numberOfLines:1
-  Avatars: 26×26 borderRadius:13
-
-Expanded event:
-  rgba(255,255,255,0.09) bg, borderRadius:12, margin:6, padding:14
-  Spring animation: tension:80 friction:10, scaleY 0.85→1
-
-Action chips:
-  ✦ Edit with Zaeli: rgba(168,216,240,0.22) bg, Poppins_600SemiBold 12px
-  Others: rgba(255,255,255,0.10) bg
-  Delete: two-tap pattern always
-
-Footer:
-  Today · Tomorrow tabs: Poppins_700Bold 11px
-  Month view ›: Poppins_600SemiBold 11px
+backgroundColor: '#3A3D4A', borderRadius: 16, marginHorizontal: -4
+Event rows: time col width:58, dot 8×8, title 16px, avatars 26×26
+Expand: spring tension:80 friction:10, scaleY 0.85→1
+Action chips: ✦ Edit with Zaeli · Move time · Add someone · Manual edit · Delete (two-tap)
+Footer: Today · Tomorrow · Month view ›
 ```
 
 ---
@@ -502,13 +298,10 @@ Footer:
 ## SHEET DESIGN SYSTEM (LOCKED ✅ 2 Apr 2026)
 ## ══════════════════════════════════
 
-All sheets: 92% height, `#FAF8F5` bg, borderTopRadius 24px.
-Open INSTANTLY (setSheetOpen true BEFORE any await).
-Fetch data async after open.
-Backdrop: TouchableOpacity (NOT Pressable).
-Panel: plain View (NOT Pressable).
-
-Sheets are completely unchanged in v5. They open from card taps and chat actions as before.
+92% height, `#FAF8F5` bg, borderTopRadius 24px.
+Open INSTANTLY (setSheetOpen true BEFORE any await). Fetch async after.
+Backdrop: TouchableOpacity (NOT Pressable). Panel: plain View (NOT Pressable).
+Sheets completely unchanged in v5.
 
 ---
 
@@ -523,11 +316,63 @@ fmtTime() and isoToMinutes(): raw string parse. Never new Date() for display.
 
 ---
 
-## Chat Persistence (LOCKED ✅)
+## Per-Channel Colour System (LOCKED)
+
+| Channel | Banner bg | Accent |
+|---------|-----------|--------|
+| Home/Chat | `#FAF8F5` cream | `#FF4545` coral |
+| Calendar | `#B8EDD0` | `#0A7A3A` |
+| Shopping | `#EDE8FF` Lavender | `#5020C0` |
+| Meals | `#FAC8A8` | `#C84010` |
+| Kids Hub | `#A8E8CC` | `#0A6040` |
+| Tutor | `#D8CCFF` | `#5020C0` |
+| To-dos | `#F0DC80` | `#806000` |
+| Notes | `#C8E8A8` | `#2A6010` |
+| Travel | `#A8D8F0` | `#0060A0` |
+| Our Family | `#F0C8C0` | `#A01830` |
+
+**CRITICAL:** Send = `#FF4545` coral always. Body bg = `#FAF8F5` always.
+No left-border accent strips on cards. Sheets = clean black/grey.
+
+## Family Member Colours (LOCKED)
 ```
-persistenceHasLoaded ref — fires exactly once
-On load: restore isBrief messages ONLY (no inline cards, no conversation)
-generateBrief: skips if persistedMessages.length > 0
+Rich: #4D8BFF · Anna: #FF7B6B · Poppy: #A855F7 · Gab: #22C55E · Duke: #F59E0B
+```
+
+---
+
+## Channel Architecture (v5)
+```
+app/(tabs)/index.tsx          → Chat ✅ v5 updated (FAB in, pills/input bar out)
+app/(tabs)/dashboard.tsx      → Dashboard 🔨 Phase 4 NEXT
+app/(tabs)/landing.tsx        → Landing 🔨 Phase 2 NEXT
+app/(tabs)/pulse.tsx          → Pulse 🔨 Phase 6
+app/(tabs)/zen.tsx            → Zen 🔨 Phase 8
+app/(tabs)/calendar.tsx       → Calendar ✅ COMPLETE (unchanged)
+app/(tabs)/shopping.tsx       → Shopping ✅ COMPLETE (unchanged)
+app/(tabs)/mealplanner.tsx    → Meals ✅ COMPLETE (unchanged)
+app/(tabs)/todos.tsx          → Todos (not yet built)
+app/(tabs)/kids.tsx           → Kids Hub (not yet built)
+app/(tabs)/notes.tsx          → Notes (not yet built)
+app/(tabs)/travel.tsx         → Travel (not yet built)
+app/(tabs)/family.tsx         → Our Family (not yet built)
+app/(tabs)/tutor.tsx          → Tutor (needs rebuild)
+app/components/ZaeliFAB.tsx   → ZaeliFAB ✅ COMPLETE Phase 1
+lib/use-chat-persistence.ts   → ✅ Keys: home | shopping | calendar | meals
+```
+
+---
+
+## Build Phase Plan (v5)
+```
+Phase 1: ZaeliFAB component       ✅ COMPLETE
+Phase 2: Landing screen           🔨 NEXT — app/(tabs)/landing.tsx
+Phase 3: Navigation architecture  🔨 — _layout.tsx (horizontal scroll + dots)
+Phase 4: Dashboard screen         🔨 — app/(tabs)/dashboard.tsx
+Phase 5: Chat screen v5 updates   🔨 — index.tsx (full-width Zaeli, two entry states)
+Phase 6: Pulse screen             🔨 — app/(tabs)/pulse.tsx
+Phase 7: Sheets unchanged         ✅ confirmed
+Phase 8: Zen screen               🔨 — app/(tabs)/zen.tsx
 ```
 
 ---
@@ -548,3 +393,4 @@ generateBrief: skips if persistedMessages.length > 0
 - Delete patterns: always two-tap to prevent accidents
 - Sheet opens BEFORE awaiting data — open instantly, populate async
 - router.navigate() always — never push() or replace()
+- ZaeliFAB import: `../components/ZaeliFAB` from app/(tabs)/

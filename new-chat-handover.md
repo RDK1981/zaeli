@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*4 April 2026 — v5 architecture locked ✅ Three-screen world ✅ FAB ✅ Pulse ✅ Landing ✅*
+*4 April 2026 — ZaeliFAB Phase 1 complete ✅ v5 architecture locked ✅*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -26,7 +26,8 @@ Then **ZAELI-PRODUCT.md** for product vision and all module decisions.
 - Richard. **Logged-in user = Rich**
 - Family: Rich, Anna, Poppy (Yr6, 12, girl), Gab (Yr4, 10, BOY — Gabriel, he/him), Duke (Yr1, 8, boy)
 - Local path: `C:\Users\richa\zaeli` (Windows, PowerShell)
-- PowerShell: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\`(tabs`)\file.tsx"`
+- Screen copy: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\`(tabs`)\file.tsx"`
+- Component copy: `Copy-Item "C:\Users\richa\Downloads\ZaeliFAB.tsx" "C:\Users\richa\zaeli\app\components\ZaeliFAB.tsx"`
 - Repo: https://github.com/RDK1981/zaeli (private)
 - Admin: https://incomparable-gumdrop-32e4ba.netlify.app
 
@@ -52,10 +53,11 @@ stopPropagation on nested TouchableOpacity inside tappable parent row
 Modal stacking iOS: close modal → setTimeout 350ms → open next modal
 NEVER append +10:00 or any timezone suffix to stored event times
 fmtTime() and isoToMinutes() use RAW STRING PARSE — never new Date()
-FAB is the ONLY navigation — no pill bar, no hamburger, no tab bar
-Zaeli messages = FULL WIDTH, no bubble (v5 change)
-Brief font = Poppins_700Bold (NOT DM Serif — v5 change)
+ZaeliFAB is the ONLY navigation — no pill bar, no hamburger, no tab bar
+No persistent chat input bar — keyboard via Chat FAB second tap
+Brief font = Poppins_700Bold (NOT DM Serif)
 DM Serif = wordmark and large card numbers only
+Zaeli messages = full width, no bubble (v5)
 ```
 
 ---
@@ -63,106 +65,102 @@ DM Serif = wordmark and large card numbers only
 ## V5 ARCHITECTURE (LOCKED ✅ 4 Apr 2026)
 
 ### The three-screen world
-
 ```
 Pulse  ←  Dashboard  →  Chat
 ```
-
-Dashboard is the permanent anchor after Landing dismisses.
-Dots indicator always shows position (3 dots).
-**FAB is the only navigation** — present on every screen always.
+Dashboard = permanent anchor after Landing dismisses.
+Dots indicator (3 dots, active pill expands).
+**ZaeliFAB is the only navigation** — present on every screen always.
 
 ### Landing (time-window only)
-Appears during: Morning 6–9am · Midday 12–2pm · Evening 5–8pm
-Full-screen gradient bleeds behind status bar.
-First swipe dismisses for that window → world collapses to Dashboard ↔ Chat ↔ Pulse.
-Outside windows: app opens directly to Dashboard.
+- Morning 6–9am · Midday 12–2pm · Evening 5–8pm
+- Full-screen gradient bleeds behind status bar
+- First swipe dismisses for that window
+- Outside windows: opens directly to Dashboard
 
-### FAB buttons
+### ZaeliFAB buttons
 ```
-[ Dashboard ]  |  [ Chat ]  [ Mic ]  |  [ More ]
+[ Dashboard ] | [ Chat ][ Mic ] | [ More ]
 
-Dashboard → navigates to Dashboard. Active = dark bg.
-Chat → first tap: go to Chat. Second tap: open keyboard. Coral when keyboard open.
-Mic → opens Mic v2 pill (waveform + listening + cancel above FAB)
-More → opens 3×3 More overlay card (floats above FAB, full backdrop blur)
+Dashboard → navigates to Dashboard. Dark when active.
+Chat      → first tap: go to Chat. Second tap: open keyboard. Coral when keyboard open.
+Mic       → Mic v2 pill appears above FAB (same width, same radius). Coral when active.
+More      → 3×3 overlay card above FAB. Coral when open.
 ```
 
-### More overlay — 3×3 grid
+### ZaeliFAB sizing (device-tested ✅ LOCKED)
 ```
-Row 1: Notes · Kids Hub · Tutor
-Row 2: Travel · Family · Meals
-Row 3: Pulse · Zen · Settings  ← Settings always bottom-right
+FAB_BTN = 58px · FAB_PAD = 10px · borderRadius = 36px
+Mic pill + More card: same width as FAB, same borderRadius, bottom 124px iOS
+Clean gap between FAB and overlays — no overlap
 ```
-SVG icons, thin stroke, channel palette colours, 10% opacity backgrounds.
+
+### More overlay — 3×3 grid (LOCKED ✅)
+```
+Notes · Kids Hub · Tutor
+Travel · Family · Meals
+Pulse · Zen · Settings  ← Settings always bottom-right
+```
+SVG icons, channel palette colours, 10% bg opacity.
 
 ### No chat input bar
-Keyboard = second tap on Chat FAB button.
+Keyboard = second tap Chat FAB button.
 Voice = Mic FAB button.
-No persistent input bar anywhere. Locked and intentional.
+No persistent bar anywhere. Locked.
 
-### Zaeli messages (v5 change)
-Full width, no bubble. Label "Zaeli" above text in small caps.
-User replies remain right-aligned dark bubbles.
+### Zaeli messages (v5)
+Full width, no bubble. "Zaeli" small label above. Poppins 400.
+User replies: right-aligned dark bubbles.
 
 ---
 
 ## What's built (4 Apr 2026)
 
-### app/(tabs)/index.tsx — Chat ✅ (needs v5 updates)
-Working chat interface with full calendar sheet, persistence, tool-calling.
-**v5 changes needed:** remove pill bar, add FAB component, Zaeli full-width messages, two entry states (fresh vs card-triggered).
+### ✅ app/components/ZaeliFAB.tsx — COMPLETE Phase 1
+Shared FAB component. Four buttons. 3×3 More overlay with SVG icons. Mic v2 pill.
+Sizing locked on device. More button goes coral when open. Overlays float above FAB with gap.
+Drop this into every screen as Phases 2–6 are built.
 
-### components/ZaeliFAB.tsx — 🔨 Phase 1 NEXT
-Shared FAB component. Four buttons. More overlay 3×3. Mic v2 pill.
-Drop into every screen.
+### ✅ app/(tabs)/index.tsx — v5 updated
+Pill bar removed. Old chat input bar removed. Old mic overlay removed.
+ZaeliFAB dropped in and wired. NavMenu/HamburgerButton removed.
+All existing functionality (brief, cards, sheets, persistence, tool-calling) unchanged.
+**Still needs:** full-width Zaeli messages (Phase 5), two entry states (Phase 5).
 
-### app/(tabs)/landing.tsx — 🔨 Phase 2
-New screen. Time-window aware. Gradient full bleed. Poppins bold brief. Dismiss on first swipe.
+### 🔨 Phase 2 NEXT — app/(tabs)/landing.tsx
+### 🔨 Phase 3 — Navigation architecture (_layout.tsx)
+### 🔨 Phase 4 — app/(tabs)/dashboard.tsx
+### 🔨 Phase 5 — index.tsx Chat v5 updates
+### 🔨 Phase 6 — app/(tabs)/pulse.tsx
+### 🔨 Phase 8 — app/(tabs)/zen.tsx
 
-### Navigation architecture — 🔨 Phase 3
-Horizontal scroll world. Dot system. Swipe dismiss for Landing.
-
-### app/(tabs)/dashboard.tsx — 🔨 Phase 4
-Dedicated screen. Cards already designed. FAB only. Card tap → Chat with context.
-
-### app/(tabs)/pulse.tsx — 🔨 Phase 6
-New screen. Three zones: Zaeli Noticed · Family Activity · On the Horizon.
-Reads existing Supabase tables.
-
-### app/(tabs)/zen.tsx — 🔨 Phase 8
-Simple 5-min breathing tool. Standalone screen from More overlay.
-
-### Unchanged and complete ✅
+### ✅ Unchanged and complete
 ```
 calendar.tsx    — full sheet, inline cards, all interactions
 shopping.tsx    — rebuild complete, lavender, persistence
 mealplanner.tsx — rebuild complete, full spec
-lib/use-chat-persistence.ts — keys: home, shopping, calendar, meals
 All 92% sheets — completely unchanged in v5
 Inline card renders — unchanged (calendar dark slate card etc)
+lib/use-chat-persistence.ts — keys: home, shopping, calendar, meals
 ```
 
 ---
 
-## Immediate build priority (Phase 1)
+## Immediate next task — Phase 2: Landing screen
 
-**ZaeliFAB component** — `components/ZaeliFAB.tsx`
+**File to create:** `app/(tabs)/landing.tsx`
 
-Props needed:
-- `activeButton`: 'dashboard' | 'chat' | 'keyboard' | 'mic' | null
-- `onDashboard`: () => void
-- `onChat`: () => void
-- `onMic`: () => void
-- `onMore`: () => void (internal — toggles overlay)
-
-Contains:
-- Four-button FAB bar (Dashboard · Chat · Mic · More)
-- More overlay (3×3 grid, SVG icons, palette backgrounds, backdrop blur)
-- Mic v2 pill (animated waveform, listening label, cancel)
-
-Test it in index.tsx first (replacing the existing pill bar + chat bar).
-Once confirmed working → drop into all other screens.
+Key requirements:
+- Full-screen gradient background (bleeds behind status bar — no SafeAreaView top padding, use absolute positioning)
+- Time-window aware — reads current hour, shows correct gradient + AI letter colour
+- Brief pre-generated via GPT-mini on mount (same system prompt as current home brief)
+- Poppins 700Bold, 21px brief, coral `#FF4545` highlights
+- Logo top-left, DM Serif, AI letters complement gradient
+- Dots indicator (3 dots — Chat · Landing · Dashboard)
+- No swipe hint text — dots only
+- ZaeliFAB present (activeButton=null on Landing)
+- First swipe in any direction → dismisses for this time window (AsyncStorage key per window)
+- After dismiss → navigate to Dashboard
 
 ---
 
@@ -170,45 +168,48 @@ Once confirmed working → drop into all other screens.
 
 | File | Status | Notes |
 |---|---|---|
-| index.tsx | ✅ Working — needs v5 | Remove pills, add FAB, full-width Zaeli |
+| components/ZaeliFAB.tsx | ✅ Phase 1 complete | Sizing locked on device |
+| index.tsx | ✅ v5 updated | Needs Phase 5 chat updates |
+| landing.tsx | 🔨 Phase 2 NEXT | New screen |
+| _layout.tsx | 🔨 Phase 3 | Horizontal scroll world |
 | dashboard.tsx | 🔨 Phase 4 | New screen |
-| landing.tsx | 🔨 Phase 2 | New screen |
 | pulse.tsx | 🔨 Phase 6 | New screen |
 | zen.tsx | 🔨 Phase 8 | New screen |
-| components/ZaeliFAB.tsx | 🔨 Phase 1 NEXT | Shared component |
 | calendar.tsx | ✅ Complete | Unchanged |
 | shopping.tsx | ✅ Complete | Unchanged |
 | mealplanner.tsx | ✅ Complete | Unchanged |
-| todos.tsx | Design ✅ | Not built |
-| kids.tsx | Design ✅ | Not built |
-| family.tsx | Design ✅ | Not built |
-| notes.tsx | — | Not designed |
-| travel.tsx | — | Not designed |
-| tutor.tsx | Design ✅ | Needs rebuild |
+| todos.tsx | Not built | — |
+| kids.tsx | Not built | — |
+| family.tsx | Not built | — |
+| notes.tsx | Not built | — |
+| travel.tsx | Not built | — |
+| tutor.tsx | Needs rebuild | — |
 | lib/use-chat-persistence.ts | ✅ Complete | — |
 
 ---
 
-## Key v5 decisions locked (4 Apr 2026)
+## Key decisions locked this session (4 Apr 2026)
 
-- Three-screen world: Pulse ← Dashboard → Chat (Dashboard = permanent anchor)
-- Landing: time-window only, full-screen gradient, first swipe dismisses
-- FAB: four buttons only, always present, replaces ALL previous navigation
-- No chat input bar anywhere — keyboard via Chat FAB second tap
-- Mic v2: floating pill above FAB, waveform + cancel
-- More: 3×3 floating card above FAB, full backdrop blur, Settings bottom-right, Zen added
-- Brief font: Poppins 700Bold (NOT DM Serif) — DM Serif = wordmark only
-- Zaeli messages: full width, no bubble — user replies remain right-aligned bubbles
-- Dashboard: dedicated screen, no chat bar, card tap → Chat with context
-- Pulse: third screen (swipe right from Dashboard), family awareness layer
-- Sheets: completely unchanged — 92% sheets still open from cards and chat actions
-- Inline card renders: unchanged — calendar slate card, shopping, dinner etc all same
+- ZaeliFAB Phase 1 complete and device-tested — sizing locked
+- FAB_BTN=58 · FAB_PAD=10 · borderRadius=36 — these are the locked values
+- Mic pill + More card: same width + borderRadius as FAB, bottom=124px iOS
+- More button: coral bg + white icon when overlay open, dark when closed
+- More grid: 3×3, `width:'31%'`, `justifyContent:'space-between'` — true 3 columns
+- Pill bar completely removed from index.tsx
+- Old full-screen mic overlay completely removed from index.tsx
+- NavMenu + HamburgerButton completely removed from index.tsx
+- No persistent chat input bar — this is final and locked
+- Brief = Poppins 700Bold — DM Serif only for wordmark
+- Zaeli messages = full width no bubble — Phase 5 implementation pending
+- Pulse confirmed as third tab (not More submenu) — bigger than a submenu
+- Zen confirmed in More grid bottom-centre
 
 ---
 
 ## Tech reminders
 - `npx expo start --dev-client` after copying (`--clear` for bundle issues)
-- Import paths from `app/(tabs)/`: `../../lib/supabase`, `../components/ZaeliFAB`
+- Import ZaeliFAB: `import ZaeliFAB from '../components/ZaeliFAB'`
+- Import paths from `app/(tabs)/`: `../../lib/supabase`
 - expo-file-system: `import * as FileSystem from 'expo-file-system/legacy'`
 - Supabase: `rsvbzakyyrftezthlhtd` (Sydney)
 - Windows dev — no && chaining in PowerShell
