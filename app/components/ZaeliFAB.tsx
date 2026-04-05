@@ -36,7 +36,7 @@
  *   - No chat input bar anywhere — this IS the input surface
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal,
   Animated, Easing, Platform, Alert,
@@ -50,7 +50,7 @@ const INK    = '#0A0A0A';
 const CORAL  = '#FF4545';
 const CREAM  = '#FAF8F5';
 
-const GPT_MINI_KEY = process.env.EXPO_PUBLIC_OPENAI_KEY ?? '';
+const GPT_MINI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
 
 // ── More grid items (3×3, Settings always bottom-right) ────────────────────
 const MORE_ITEMS = [
@@ -283,15 +283,20 @@ function WaveformBars() {
   );
 }
 
+// ── Ref handle — exposed to parent ─────────────────────────────────────────
+export interface ZaeliFABHandle {
+  startMic: () => void;
+}
+
 // ── Main component ──────────────────────────────────────────────────────────
-export default function ZaeliFAB({
+const ZaeliFAB = forwardRef<ZaeliFABHandle, ZaeliFABProps>(function ZaeliFAB({
   activeButton,
   onDashboard,
   onChat,
   onChatKeyboard,
   onMoreItem,
   onMicResult,
-}: ZaeliFABProps) {
+}, ref) {
 
   const [moreOpen, setMoreOpen]     = useState(false);
   const [micActive, setMicActive]   = useState(false);
@@ -304,6 +309,11 @@ export default function ZaeliFAB({
   // Mic pill animated values
   const micScale    = useRef(new Animated.Value(0.92)).current;
   const micOpacity  = useRef(new Animated.Value(0)).current;
+
+  // Expose startMic to parent via ref
+  useImperativeHandle(ref, () => ({
+    startMic: () => startMic(),
+  }));
 
   // ── More overlay animation ──────────────────────────────────────────────
   function openMore() {
@@ -483,7 +493,7 @@ export default function ZaeliFAB({
         </Animated.View>
       )}
 
-      {/* ── Mic v2 pill (floats above FAB) ── */}
+      {/* ── Mic v2 pill (floats above FAB, full width) ── */}
       {micActive && (
         <Animated.View
           style={[
@@ -492,65 +502,81 @@ export default function ZaeliFAB({
           ]}
           pointerEvents="box-none"
         >
+          {/* Waveform */}
           <WaveformBars/>
+          {/* Listening label */}
           <Text style={styles.micLabel}>Listening…</Text>
-          <TouchableOpacity
-            style={styles.micCancel}
-            onPress={cancelMic}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.micCancelText}>Cancel</Text>
-          </TouchableOpacity>
+          {/* Cancel + Send row */}
+          <View style={styles.micBtnRow}>
+            <TouchableOpacity
+              style={styles.micCancel}
+              onPress={cancelMic}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.micCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.micSend}
+              onPress={stopMic}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.micSendText}>Send →</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       )}
 
-      {/* ── FAB bar ── */}
-      <View style={styles.fab}>
+      {/* ── FAB bar — hidden when keyboard active (input bar takes over) ── */}
+      {activeButton !== 'keyboard' && (
+        <View style={styles.fab}>
 
-        {/* Dashboard */}
-        <TouchableOpacity
-          style={[styles.fabBtn, { backgroundColor: dashBg }]}
-          onPress={onDashboard}
-          activeOpacity={0.75}
-        >
-          <IcoDash color={dashColor}/>
-        </TouchableOpacity>
+          {/* Dashboard */}
+          <TouchableOpacity
+            style={[styles.fabBtn, { backgroundColor: dashBg }]}
+            onPress={onDashboard}
+            activeOpacity={0.75}
+          >
+            <IcoDash color={dashColor}/>
+          </TouchableOpacity>
 
-        <View style={styles.fabSep}/>
+          <View style={styles.fabSep}/>
 
-        {/* Chat */}
-        <TouchableOpacity
-          style={[styles.fabBtn, { backgroundColor: chatBg }]}
-          onPress={handleChatPress}
-          activeOpacity={0.75}
-        >
-          <IcoChat color={chatColor}/>
-        </TouchableOpacity>
+          {/* Chat */}
+          <TouchableOpacity
+            style={[styles.fabBtn, { backgroundColor: chatBg }]}
+            onPress={handleChatPress}
+            activeOpacity={0.75}
+          >
+            <IcoChat color={chatColor}/>
+          </TouchableOpacity>
 
-        {/* Mic */}
-        <TouchableOpacity
-          style={[styles.fabBtn, { backgroundColor: micBg }]}
-          onPress={handleMicPress}
-          activeOpacity={0.75}
-        >
-          <IcoMicSvg color={micColor}/>
-        </TouchableOpacity>
+          {/* Mic */}
+          <TouchableOpacity
+            style={[styles.fabBtn, { backgroundColor: micBg }]}
+            onPress={handleMicPress}
+            activeOpacity={0.75}
+          >
+            <IcoMicSvg color={micColor}/>
+          </TouchableOpacity>
 
-        <View style={styles.fabSep}/>
+          <View style={styles.fabSep}/>
 
-        {/* More */}
-        <TouchableOpacity
-          style={[styles.fabBtn, moreOpen ? { backgroundColor: CORAL } : {}]}
-          onPress={toggleMore}
-          activeOpacity={0.75}
-        >
-          <IcoMore color={moreOpen ? '#fff' : 'rgba(10,10,10,0.48)'}/>
-        </TouchableOpacity>
+          {/* More */}
+          <TouchableOpacity
+            style={[styles.fabBtn, moreOpen ? { backgroundColor: CORAL } : {}]}
+            onPress={toggleMore}
+            activeOpacity={0.75}
+          >
+            <IcoMore color={moreOpen ? '#fff' : 'rgba(10,10,10,0.48)'}/>
+          </TouchableOpacity>
 
-      </View>
+        </View>
+      )}
     </View>
   );
-}
+});
+
+export default ZaeliFAB;
 
 // ── Styles ──────────────────────────────────────────────────────────────────
 // FAB_WIDTH: fixed width — mic pill and more card match this exactly
@@ -680,47 +706,67 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
-  // ── Mic pill — same width and radius as FAB ──
+  // ── Mic pill — full screen width, vertical layout ──
   micPill: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 124 : 110,
-    width: FAB_WIDTH,
-    flexDirection: 'row',
+    left: 16,
+    right: 16,
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 14,
-    backgroundColor: 'rgba(255,255,255,0.96)',
-    borderRadius: 36,
-    paddingVertical: FAB_PAD,
+    gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderRadius: 28,
+    paddingVertical: 24,
     paddingHorizontal: 24,
-    minHeight: FAB_BTN + FAB_PAD * 2,
     shadowColor: '#000',
-    shadowOpacity: 0.14,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 14,
+    shadowOpacity: 0.16,
+    shadowRadius: 32,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.98)',
   },
 
   micLabel: {
     fontFamily: 'Poppins_600SemiBold',
-    fontSize: 14,
-    color: 'rgba(10,10,10,0.50)',
-    flex: 1,
+    fontSize: 15,
+    color: 'rgba(10,10,10,0.45)',
+  },
+
+  micBtnRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
   },
 
   micCancel: {
+    flex: 1,
     backgroundColor: 'rgba(255,69,69,0.09)',
-    borderRadius: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
 
   micCancelText: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 13,
+    fontSize: 14,
     color: CORAL,
+  },
+
+  micSend: {
+    flex: 1,
+    backgroundColor: CORAL,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+
+  micSendText: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: '#fff',
   },
 
   // ── Waveform ──

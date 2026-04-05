@@ -31,7 +31,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
-import ZaeliFAB from '../components/ZaeliFAB';
+import ZaeliFAB, { ZaeliFABHandle } from '../components/ZaeliFAB';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
 import { getPendingChatContext, clearPendingChatContext } from '../../lib/navigation-store';
 
@@ -2485,6 +2485,7 @@ function HomeScreen() {
   const params    = useLocalSearchParams<{ autoMic?: string; seedMessage?: string; calendarScan?: string }>();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef  = useRef<TextInput>(null);
+  const fabRef    = useRef<ZaeliFABHandle>(null);
   const now       = new Date();
   const h         = now.getHours();
   const dateLabel = now.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' });
@@ -4620,20 +4621,74 @@ Only include events directly relevant to the question. Max 5 events.`;
               </TouchableOpacity>
             </View>
 
+            {/* ── Chat input bar — replaces FAB when keyboard active ── */}
+            {(fabActive === 'keyboard' || keyboardOpen) && (
+              <View style={s.chatInputWrap}>
+                <View style={s.chatInputPill}>
+                  {/* Mic — triggers ZaeliFAB mic pill */}
+                  <TouchableOpacity
+                    style={s.chatInputMicBtn}
+                    onPress={() => {
+                      inputRef.current?.blur();
+                      setTimeout(() => fabRef.current?.startMic(), 150);
+                    }}
+                    activeOpacity={0.75}
+                    hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                  >
+                    <IcoMic color="rgba(10,10,10,0.40)" size={20}/>
+                  </TouchableOpacity>
+                  {/* Text input */}
+                  <TextInput
+                    ref={inputRef}
+                    style={[s.barInput, { color:INK }]}
+                    placeholder="Ask Zaeli anything…"
+                    placeholderTextColor={T.barPh}
+                    value={input}
+                    onChangeText={setInput}
+                    multiline
+                    keyboardAppearance="light"
+                    selectionColor={HOME_AI}
+                    onFocus={() => { setKeyboardOpen(true); setFabActive('keyboard'); }}
+                    onBlur={() => {
+                      setKeyboardOpen(false);
+                      if (fabActive === 'keyboard') setFabActive('chat');
+                    }}
+                    returnKeyType="send"
+                    blurOnSubmit={false}
+                    onSubmitEditing={() => { if (input.trim()) send(input); }}
+                  />
+                  {/* Send */}
+                  <TouchableOpacity
+                    style={[s.barSend, !input.trim() && { opacity:0.4 }]}
+                    onPress={() => { if (input.trim()) send(input); }}
+                    activeOpacity={0.85}
+                  >
+                    <IcoSend/>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
             {/* ── v5 FAB — replaces pill bar + chat input bar ── */}
             <ZaeliFAB
+              ref={fabRef}
               activeButton={fabActive}
               onDashboard={() => {
                 setFabActive('dashboard');
                 router.navigate('/(tabs)/dashboard' as any);
               }}
               onChat={() => {
-                setFabActive('chat');
-                // already on chat screen — nothing else needed in Phase 5
+                if (screen === 'chat') {
+                  // Already in chat — show keyboard
+                  setFabActive('keyboard');
+                  setTimeout(() => inputRef.current?.focus(), 100);
+                } else {
+                  setFabActive('chat');
+                }
               }}
               onChatKeyboard={() => {
                 setFabActive('keyboard');
-                inputRef.current?.focus();
+                setTimeout(() => inputRef.current?.focus(), 100);
               }}
               onMoreItem={(key) => {
                 // Route to relevant screen
@@ -5748,13 +5803,50 @@ const s = StyleSheet.create({
   domainPillLbl:      { fontFamily:'Poppins_600SemiBold', fontSize:11, color:'rgba(0,0,0,0.45)' },
 
   inputArea:   {
-    // CANONICAL SPEC: position:absolute bottom:0, no background (KAV #fff shows through)
     position:'absolute', bottom:0, left:0, right:0,
     paddingHorizontal:14,
     paddingBottom:Platform.OS==='ios'?16:8,
     paddingTop:10,
   },
   inputAreaKb: { paddingBottom:Platform.OS==='ios'?6:4 },
+
+  // ── Floating chat input bar — replaces FAB when keyboard up ──
+  chatInputWrap: {
+    position:'absolute',
+    bottom:0,
+    left:0,
+    right:0,
+    paddingHorizontal:14,
+    paddingBottom:Platform.OS==='ios'?24:14,
+    paddingTop:8,
+    backgroundColor:'transparent',   // no banner — content visible behind
+  },
+  chatInputPill: {
+    flexDirection:'row',
+    alignItems:'center',
+    gap:10,
+    backgroundColor:'rgba(255,255,255,0.96)',
+    borderRadius:36,
+    paddingVertical:10,
+    paddingHorizontal:14,
+    borderWidth:1,
+    borderColor:'rgba(255,255,255,0.98)',
+    shadowColor:'#000',
+    shadowOpacity:0.14,
+    shadowRadius:28,
+    shadowOffset:{ width:0, height:10 },
+    elevation:14,
+    minHeight:78,
+  },
+  chatInputMicBtn: {
+    width:36,
+    height:36,
+    borderRadius:18,
+    alignItems:'center' as const,
+    justifyContent:'center' as const,
+    backgroundColor:'rgba(10,10,10,0.06)',
+    flexShrink:0,
+  },
 
   // Image preview
   imagePreviewWrap:   { marginBottom:8, alignSelf:'flex-start', position:'relative' },

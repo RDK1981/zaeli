@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 5 April 2026 — Dashboard Phase 4 ✅ Calendar card interaction ✅ Chat injection ✅*
+*Last updated: 5 April 2026 — Dashboard Option A ✅ Word of the Day ✅ Chat input bar ✅*
 
 ---
 
@@ -28,7 +28,7 @@ Australian families with children. Priority: dual-income metro couples with prim
 ---
 
 ## ══════════════════════════════════
-## V5 INTERFACE PHILOSOPHY (LOCKED ✅ 4 Apr 2026)
+## V5 INTERFACE PHILOSOPHY (LOCKED ✅)
 ## ══════════════════════════════════
 
 **Three screens. One FAB. No clutter.**
@@ -37,159 +37,147 @@ Australian families with children. Priority: dual-income metro couples with prim
 Pulse  ←  Dashboard  →  Chat
 ```
 
-- **Dashboard** is the read surface — glance at your day
-- **Chat** is the do surface — Zaeli handles everything
-- **Pulse** is family awareness — swipe right
-- **Landing** appears three times a day, then steps aside
-- **ZaeliFAB** is the only navigation
-
-### Core UX principle (LOCKED ✅ 5 Apr 2026)
-**Dashboard = read. Chat = do. Keep users in Chat for 90% of activity.**
-
-The flow: Dashboard (read) → Chat (do) → back to Dashboard (confirm).
-Every card action routes to Chat so Zaeli can use full tool-calling.
-Sheets still available for users who want direct field editing.
+**Core UX principle (LOCKED ✅):**
+Dashboard = read. Chat = do. Keep users in Chat for 90% of activity.
 
 ### What's gone in v5
-- ❌ Domain pill bar
-- ❌ Hamburger menu
-- ❌ Persistent chat input bar
-- ❌ DM Serif brief (now Poppins 600SemiBold 26px)
-- ❌ Zaeli message bubbles (full-width, Phase 5 pending)
+- ❌ Domain pill bar · ❌ Hamburger menu · ❌ Persistent chat input bar
+- ❌ DM Serif brief · ❌ Zaeli message bubbles (full-width pending Phase 5)
 
 ### What's new in v5
-- ✅ ZaeliFAB — four buttons, device-tested
+- ✅ ZaeliFAB — four buttons, forwardRef, mic exposed
 - ✅ Landing overlay — time-window moment, swipe dismiss
-- ✅ Dashboard — fixed card stack, smart time logic
-- ✅ Calendar card interaction — expand inline, Edit/Add → Chat injection
-- ✅ Navigation store — production-ready Dashboard→Chat context passing
-- ✅ "← Dashboard" back pill in Chat
-- 🔨 Pulse — Phase 6
-- 🔨 Zen — Phase 8
+- ✅ Dashboard Option A — editorial headlines, bento layout, tap to expand
+- ✅ Word of the Day card — curated 400 words + Dictionary API
+- ✅ Chat input bar — floating pill, replaces FAB when keyboard up
+- ✅ Mic pill — full-width, Cancel + Send →, Whisper transcription
+- 🔨 Pulse — Phase 6 · 🔨 Zen — Phase 8
 
 ---
 
 ## ══════════════════════════════════
-## LANDING PAGE (LOCKED ✅ Phase 2 Complete)
+## LANDING PAGE (LOCKED ✅)
 ## ══════════════════════════════════
 
 Embedded as `LandingOverlay` in index.tsx. NOT a separate route.
 
 **Time windows:** Morning 6–9am · Midday 12–2pm · Evening 5–8pm
 **Dismiss:** swipe >50px OR FAB tap → fades out
-**Brief:** 3 sentences, GPT-mini, max 180 chars, key facts in [brackets] → cyan highlight
+**Brief:** 3 sentences, GPT-mini, max 180 chars, key facts in [brackets] → cyan
 
 **Visual (LOCKED ✅):**
 ```
-Background: #FFF6EC · #EDF6FF · #F5EEFF (solid for dev, gradient after EAS)
-Logo 'a'+'i': #F0C8C0 warm blush
-Highlights: #0096C7 cyan
+Background: #FFF6EC · #EDF6FF · #F5EEFF
+Logo 'a'+'i': #F0C8C0 blush · Highlights: #0096C7 cyan
 Brief: Poppins 600SemiBold 26px
 ```
-
-**Test mode:** `LANDING_TEST_MODE = true` in index.tsx — set false before launch.
-
----
-
-## ══════════════════════════════════
-## DASHBOARD (LOCKED ✅ Phase 4 Complete — 5 Apr 2026)
-## ══════════════════════════════════
-
-**File:** `app/(tabs)/dashboard.tsx`
-Background `#FAF8F5`. ZaeliFAB only. No chat bar. No pills.
-
-### Fixed card order (NEVER rearranges)
-1. **Calendar** — dark slate `#3A3D4A`
-2. **Weather + Shopping** — side by side
-3. **Actions** — gold `#F0DC80`
-4. **Dinner** — peach `#FAC8A8`
-
-### Smart time logic (LOCKED ✅)
-- **Calendar:** shows Today · switches to Tomorrow when all today done OR after 8pm
-- **Dinner:** shows Tonight · switches to Tomorrow after 8pm
-- **Actions:** evening mode after 8pm ("Put out tonight" + tomorrow morning preview)
-- Card ORDER never changes — only the content inside adapts
-
-### CalendarCard interaction (LOCKED ✅ 5 Apr 2026)
-
-**Layout:**
-- 3 events shown (not 4)
-- `+ Add` button top right only
-- Footer: "N more events ∨" left · "Full calendar →" right
-
-**Event tap → inline expand:**
-- Shows notes + attendees
-- Two buttons: **✦ Edit with Zaeli** · **Delete** (two-tap confirm)
-
-**Edit with Zaeli → Chat:**
-- Sets navigation store context
-- Chat injects: inline slate card (single event) + Zaeli prompt + chips
-- Chips: Move the time · Add someone · Change location · Cancel it · Manual edit
-- Keyboard pre-loads automatically
-
-**+ Add → Chat:**
-- Chat injects: Zaeli prompt + chips: Today · Tomorrow · This week · For the kids
-- Keyboard pre-loads
-
-**Full calendar →:**
-- Opens calendar.tsx directly (existing sheet)
-
-### Back to Dashboard from Chat
-- "← Dashboard" back pill at top of Chat
-- Appears when arrived from Dashboard card tap
-- Disappears after user sends first message
-- Grid FAB button always available as fallback
+`LANDING_TEST_MODE = true` — set false before launch.
 
 ---
 
 ## ══════════════════════════════════
-## NAVIGATION STORE (NEW ✅ 5 Apr 2026)
+## DASHBOARD — OPTION A (LOCKED ✅ 5 Apr 2026)
 ## ══════════════════════════════════
 
-**File:** `lib/navigation-store.ts`
+**The visual language of the whole app:**
+> Every surface leads with one bold Poppins statement. Data lives behind the tap.
 
-Production-ready module store for passing context between screens.
-Same pattern as `getPendingCalendarImage` — already proven in codebase.
+This is the differentiator. Every other family app shows you a grid of information. Zaeli shows you a sentence. It feels like someone who knows your family wrote it.
 
-```typescript
-setPendingChatContext({ type, event?, returnTo? })
-getPendingChatContext()
-clearPendingChatContext()
+### Card order (FIXED — never rearranges)
+1. **Calendar** — full width, dark slate `#3A3D4A`
+2. **Dinner** — full width, peach `#FAC8A8`
+3. **Weather** `#A8D8F0` + **Word of the Day** `#E8F4E8` — side by side
+4. **Shopping** — full width, lavender `#D8CCFF` (white font)
+5. **Actions** — full width, gold `#F0DC80`
+
+### Zaeli voice headlines (formula-driven, zero AI cost)
+```
+Calendar: "3 things on today." / "All clear today." / "One thing on today."
+Dinner:   "Pasta Carbonara for dinner tonight." / "Nothing planned for dinner."
+Shopping: "23 things on the list." / "Shopping list is clear."
+Actions:  "8 things on your plate." / "Nothing on your plate."
+WotD:     the word itself — "ephemeral." in 26px purple
 ```
 
-Types: `edit_event` · `add_event` · `shopping` · `actions` · `meals`
-Extend this as other cards get wired up.
+### Tap behaviour (LOCKED ✅)
+- Tap card header → expands
+- Tap header again → collapses
+- One card expanded at a time — second tap collapses first
+- No "Collapse" text — users learn by tapping
+- Ghost numbers: Calendar only (clipped, barely visible, dark slate works)
+- Shopping: white font on lavender (not dark), no ghost number
+- Actions: no ghost number
+
+### Smart time logic (LOCKED ✅)
+- Calendar → Tomorrow: after 8pm OR all today's events past
+- Dinner → Tomorrow: after 8pm
+- Actions → evening mode: after 8pm ("on your plate tonight")
+- Auto-refresh every 5 minutes (past events drop off automatically)
+
+### Calendar card (LOCKED ✅)
+- `+ Add` top right · event tap → inline expand
+- Inline: notes, attendees, "✦ Edit with Zaeli" + Delete (two-tap)
+- Delete: optimistic UI (instant) + Supabase background
+- Footer: "Month view →" (navigates to calendar.tsx)
+- `← Dashboard` back pill in Chat after any card-tap navigation
+
+### Other cards — stress testing pending
+Shopping, Actions, Dinner card taps → Chat context injection not yet wired for full prompts (Phase 5).
 
 ---
 
 ## ══════════════════════════════════
-## CHAT (index.tsx) — PHASE 5 PENDING
+## WORD OF THE DAY (NEW ✅ 5 Apr 2026)
 ## ══════════════════════════════════
 
-**Currently working:** full tool-calling, persistence, inline cards, sheets.
+**Why it exists:** Something enjoyable for adults. Creates a product moment beyond family logistics. Conversation starter at dinner.
 
-**New in this session:**
-- Reads navigation store on `useFocusEffect`
-- Injects inline calendar card + Zaeli prompt + keyboard for edit/add flows
-- `returnToDashboard` state drives "← Dashboard" back pill
+**Card:** `#E8F4E8` sage green · `#6B35D9` rich purple text
+**Word selection:** 400 curated words in app code, seeded by day-of-year
+- Same word all day, advances daily
+- No repeats for 400+ days
+- Never boring — all words hand-picked
+- Update annually: swap `WOTD_LIST` in `dashboard.tsx`
 
-**Phase 5 still to build:**
-- Full-width Zaeli messages (no bubble)
-- Fresh entry state: "Hey Rich. How can I help?" + chips
-- Card-triggered entry state: inline card at top + contextual prompt
+**Collapsed:** Just the word. "ephemeral." Big, purple, full stop.
+**Expanded:** Phonetic · part of speech · definition · example sentence · play button
+**Audio:** Dictionary API MP3, expo-av playback. Play icon coral when playing.
+**Definition:** `dictionaryapi.dev` — free, no API key needed, fetched on expand
+
+**Two mics — design decision (LOCKED ✅):**
+- **iOS system mic** (keyboard bottom right) — real-time dictation into text field, free, short messages
+- **ZaeliFAB mic** — Whisper transcription, better for longer commands and family names, slight delay
+- Both kept — different use cases, different users. Our mic is coral and prominent. iOS mic is system UI.
 
 ---
 
 ## ══════════════════════════════════
-## ZAELIFAX SYSTEM (LOCKED ✅ Phase 1)
+## ZAELIFAX + CHAT INPUT BAR (LOCKED ✅)
 ## ══════════════════════════════════
 
 ```
 [ Dashboard ] | [ Chat ][ Mic ] | [ More ]
-FAB_BTN=58px · borderRadius=36px · FAB_WIDTH=318px
+FAB_BTN=58px · borderRadius=36px
 ```
 
-More overlay 3×3: Notes · Kids Hub · Tutor / Travel · Family · Meals / Pulse · Zen · Settings
+**FAB hides when keyboard active** → floating pill input bar takes its place.
+**Mic pill** (above input bar): full width, waveform + Listening + Cancel/Send →.
+
+**Chat input bar:**
+- Same visual weight as FAB (same radius, shadow, height)
+- `backgroundColor:transparent` — content visible behind (no banner)
+- Mic button → triggers ZaeliFAB mic pill via `fabRef.current?.startMic()`
+- FAB restores only when keyboard dismisses (onBlur), NOT on send
+
+---
+
+## ══════════════════════════════════
+## NAVIGATION STORE (✅)
+## ══════════════════════════════════
+
+`lib/navigation-store.ts` — module-level, production ready.
+Types: `edit_event` · `add_event` · `shopping` · `actions` · `meals`
 
 ---
 
@@ -197,8 +185,7 @@ More overlay 3×3: Notes · Kids Hub · Tutor / Travel · Family · Meals / Puls
 ## SHEETS (UNCHANGED ✅)
 ## ══════════════════════════════════
 
-All 92% sheets unchanged. Calendar, Shopping, Meals — same design.
-Manual edit still available via "Manual edit" chip in Chat.
+All 92% sheets unchanged. Calendar, Shopping, Meals — same design and behaviour.
 
 ---
 
@@ -221,23 +208,31 @@ Store bare local datetime. Raw string parse. No timezone suffix. Ever.
 - [x] Event time contract locked
 - [x] Sheet design system locked
 - [x] v5 architecture designed + prototyped
-- [x] **ZaeliFAB Phase 1** ✅
-- [x] index.tsx v5 updated (pills removed, FAB added)
-- [x] **Landing Phase 2** ✅ — overlay, swipe dismiss working
-- [x] **Dashboard Phase 4** ✅ — live cards, fixed order, smart time logic
-- [x] **Calendar card interaction** ✅ — expand, Edit/Add → Chat, delete two-tap
-- [x] **Navigation store** ✅ — `lib/navigation-store.ts`
-- [x] **Chat injection** ✅ — inline card + prompt + keyboard on Dashboard entry
-- [x] **"← Dashboard" back pill** ✅ — appears on Dashboard-triggered Chat entry
-- [ ] **Navigation architecture Phase 3** ← NEXT — horizontal swipe + dots
+- [x] **ZaeliFAB Phase 1** ✅ (forwardRef, startMic exposed)
+- [x] **Landing Phase 2** ✅
+- [x] **Dashboard Phase 4 — Option A** ✅
+  - [x] All 5 cards with Zaeli voice headlines
+  - [x] Word of the Day (curated list + API)
+  - [x] Calendar card full interaction
+  - [x] Optimistic delete
+  - [x] 5-minute auto-refresh
+  - [x] Date in top bar
+  - [x] Navigation store + Chat injection (calendar)
+  - [x] "← Dashboard" back pill
+- [x] **Chat input bar** ✅ (floating pill, FAB hides, mic wired)
+- [x] **Mic pill** ✅ (full width, Cancel + Send →, Whisper)
+- [ ] **Dashboard stress testing** ← IN PROGRESS
+  - [x] Calendar card ✅
+  - [ ] Dinner card
+  - [ ] Shopping card
+  - [ ] Actions card (todos tick)
+  - [ ] Word of the Day (expand + audio)
+- [ ] **Shopping/Actions/Dinner → Chat injection** (full prompts — Phase 5)
+- [ ] **Navigation architecture Phase 3** — horizontal swipe + dots
 - [ ] **Chat v5 updates Phase 5** — full-width Zaeli, two entry states
-- [ ] **Pulse screen Phase 6** — `app/(tabs)/pulse.tsx`
-- [ ] **Zen screen Phase 8** — `app/(tabs)/zen.tsx`
-- [ ] Landing: real LinearGradient (needs EAS build)
+- [ ] **Pulse screen Phase 6**
+- [ ] **Zen screen Phase 8**
 - [ ] Landing: LANDING_TEST_MODE = false before launch
-- [ ] Other cards → Chat injection (Shopping, Actions, Dinner)
-- [ ] Shopping sheet tabs
-- [ ] Meals sheet tabs
 - [ ] Todos + Reminders build
 - [ ] Kids Hub build
 - [ ] Our Family build
@@ -248,7 +243,6 @@ Store bare local datetime. Raw string parse. No timezone suffix. Ever.
 - [ ] Real auth · Remove dev toggle
 - [ ] Website + Stripe + onboarding
 - [ ] Settings module
-- [ ] Timezone full fix
 - [ ] Wire weather to real user location
 
 ---
@@ -256,8 +250,9 @@ Store bare local datetime. Raw string parse. No timezone suffix. Ever.
 ## Key Product Moments
 
 **The brief** — 3 sentences, Poppins 600 26px, warm cream. Earns its moment 3x/day.
-**The swipe** — One gesture. Left for conversation, right for family.
-**The FAB** — Four buttons. Always there. Learnable in one use.
+**The dashboard** — One sentence per card. Tap to reveal. Editorial, not widget-like.
+**The word** — "ephemeral." Something for the adults. Conversation at dinner.
 **Dashboard → Chat** — Tap a card, Zaeli has context, keyboard ready. Seamless.
-**Pulse** — Zaeli noticed. The thing you didn't ask about. Word of mouth.
+**The mic** — Speak to Zaeli. Whisper transcription. Family names handled.
+**Pulse** — Zaeli noticed. The thing you didn't ask about.
 **The all-done moment** — Everything handled. "Enjoy the evening."
