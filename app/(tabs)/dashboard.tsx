@@ -144,9 +144,9 @@ function calHeadline(count: number, showTomorrow: boolean): string {
 }
 function shopHeadline(count: number): string {
   if (count === 0) return 'Shopping list is clear.';
-  if (count === 1) return 'One thing on the list.';
-  if (count === 2) return 'Two things on the list.';
-  return `${count} things on the list.`;
+  if (count === 1) return 'One item on the shopping list.';
+  if (count === 2) return 'Two items on the shopping list.';
+  return `${count} items on the shopping list.`;
 }
 function actionsHeadline(count: number, isEvening: boolean): string {
   if (isEvening) {
@@ -332,10 +332,6 @@ function CalendarCard({ events, showTomorrow, expanded, onToggleExpand, onAdd, o
 
   return (
     <View style={[cS.card, cS.cardCal, { overflow:'hidden' }]}>
-      {events.length > 0 && (
-        <Text style={cS.ghostLt} pointerEvents="none">{events.length}</Text>
-      )}
-
       {/* Header — tapping always toggles */}
       <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
         <Text style={cS.headlineLt}>{headline}</Text>
@@ -446,12 +442,6 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
 
   return (
     <View style={[cS.card, cS.cardDin, { overflow:'hidden' }]}>
-      {tonightMeal && (
-        <Text style={[cS.ghostLt, { color:'rgba(0,0,0,0.07)', fontSize:80, top:-16 }]} pointerEvents="none">
-          {getMealEmoji(tonightMeal.meal_name)}
-        </Text>
-      )}
-
       <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
         <Text style={cS.headlineDk}>{headline}</Text>
       </TouchableOpacity>
@@ -521,7 +511,7 @@ function WeatherCard({ weather, expanded, onToggleExpand }: {
   return (
     <TouchableOpacity style={[cS.card, cS.cardWx]} onPress={onToggleExpand} activeOpacity={0.82}>
       <Text style={cS.cardLabel}>Weather</Text>
-      <Text style={{ fontFamily:'DMSerifDisplay_400Regular', fontSize:42, color:'#1A1A1A', letterSpacing:-1.5, lineHeight:48, marginTop:4 }}>{Math.round(weather.temp)}°</Text>
+      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:42, color:'#1A1A1A', letterSpacing:-1.5, lineHeight:48, marginTop:4 }}>{Math.round(weather.temp)}°</Text>
       <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.50)', marginTop:2 }}>{weatherCondition(weather.code)}</Text>
       <View style={{ marginVertical:10 }}><WeatherIcon type={weatherType(weather.code)}/></View>
       {expanded && (
