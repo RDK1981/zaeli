@@ -2445,47 +2445,32 @@ function DinnerCard({
 // ── Landing overlay — no navigation needed, renders on top of HomeScreen ──
 const LANDING_TEST_MODE = true; // ← TEMP: set false before launch
 
-export default function LandingGate() {
-  const [showLanding, setShowLanding] = React.useState<boolean | null>(null); // null = checking
+// Default export — SwipeWorld is the app entry point
+// HomeScreen is available as named export for future ChatPage.tsx extraction
+import SwipeWorld from './swipe-world';
+export default SwipeWorld;
+export { HomeScreen };
 
-  React.useEffect(() => {
-    async function check() {
-      if (LANDING_TEST_MODE) { setShowLanding(true); return; }
-      const h = new Date().getHours();
-      const inWindow = (h >= 6 && h < 9) || (h >= 12 && h < 14) || (h >= 17 && h < 20);
-      if (!inWindow) { setShowLanding(false); return; }
-      const FLAGS_FILE = (require('expo-file-system/legacy').documentDirectory ?? '') + 'landing_flags.json';
-      const today = new Date();
-      const dateStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-      const windowKey = h >= 6 && h < 9 ? 'morning' : h >= 12 && h < 14 ? 'midday' : 'evening';
-      const flagKey = `${dateStr}-${windowKey}`;
-      try {
-        const raw = await require('expo-file-system/legacy').readAsStringAsync(FLAGS_FILE);
-        const flags = JSON.parse(raw);
-        if (flags[flagKey]) { setShowLanding(false); return; }
-      } catch {}
-      setShowLanding(true);
-    }
-    check();
-  }, []);
-
-  // Always render HomeScreen — landing floats on top when needed
-  return (
-    <View style={{ flex: 1 }}>
-      <HomeScreen/>
-      {showLanding === true && (
-        <LandingOverlay onDismiss={() => setShowLanding(false)}/>
-      )}
-    </View>
-  );
-}
-
-function HomeScreen() {
+function HomeScreen({
+  inputRef: externalInputRef,
+  fabRef: externalFabRef,
+  fabActive: externalFabActive,
+  setFabActive: externalSetFabActive,
+  onNavigateDashboard,
+  isEmbedded = false,
+}: {
+  inputRef?: React.RefObject<any>;
+  fabRef?: React.RefObject<ZaeliFABHandle>;
+  fabActive?: 'dashboard'|'chat'|'keyboard'|'myspace'|null;
+  setFabActive?: (v: any) => void;
+  onNavigateDashboard?: () => void;
+  isEmbedded?: boolean;
+} = {}) {
   const router    = useRouter();
   const params    = useLocalSearchParams<{ autoMic?: string; seedMessage?: string; calendarScan?: string }>();
   const scrollRef = useRef<ScrollView>(null);
-  const inputRef  = useRef<TextInput>(null);
-  const fabRef    = useRef<ZaeliFABHandle>(null);
+  const inputRef  = externalInputRef ?? useRef<TextInput>(null);
+  const fabRef    = externalFabRef   ?? useRef<ZaeliFABHandle>(null);
   const now       = new Date();
   const h         = now.getHours();
   const dateLabel = now.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' });
@@ -2518,8 +2503,10 @@ function HomeScreen() {
   const [liveCamera,      setLiveCamera]      = useState(false);
   const [placeholderIdx,  setPlaceholderIdx]  = useState(0);
   const [selectedEvent,   setSelectedEvent]   = useState<any>(null);
-  // v5: FAB active button state
-  const [fabActive, setFabActive] = useState<'dashboard'|'chat'|'keyboard'|null>('chat');
+  // v5: FAB active button state — use external if provided by swipe-world
+  const [internalFabActive, internalSetFabActive] = useState<'dashboard'|'chat'|'keyboard'|null>('chat');
+  const fabActive    = externalFabActive    ?? internalFabActive;
+  const setFabActive = externalSetFabActive ?? internalSetFabActive;
   // v5: true when we arrived from Dashboard — shows back pill
   const [returnToDashboard, setReturnToDashboard] = useState(false);
   const [screen,          setScreen]          = useState<'splash'|'entry'|'chat'>('splash');
@@ -3317,6 +3304,93 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         }, 350);
         return;
       }
+
+      if ((ctx.type as string) === 'noticed' && ctx.event) {
+        const notice = (ctx.event as any).title as string;
+        const zaeliMsg: Msg = {
+          id: uid(), role:'zaeli',
+          text: notice,
+          ts: nowTs(), isLoading: false,
+          quickReplies: ['Tell me more', 'What should I do?', 'Remind me later'],
+        };
+        setMessages(prev => [...prev, zaeliMsg]);
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated:true });
+          inputRef.current?.focus();
+        }, 350);
+        return;
+      }
+
+      if (ctx.type === 'shopping') {
+        const zaeliMsg: Msg = {
+          id: uid(), role:'zaeli',
+          text: "What needs to go on the list?",
+          ts: nowTs(), isLoading: false,
+          quickReplies: ['Add a few things', 'Scan a receipt', 'Weekly essentials', 'Open Shopping List'],
+        };
+        setMessages(prev => [...prev, zaeliMsg]);
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated:true });
+          inputRef.current?.focus();
+        }, 350);
+        return;
+      }
+
+      if ((ctx.type as string) === 'shopping_sheet') {
+        setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+        setTimeout(() => setShopSheetOpen(true), 300);
+        return;
+      }
+
+      if (ctx.type === 'actions') {
+        const todo = ctx.event as any;
+        let prompt: string;
+        let chips: string[];
+        if (todo?.title) {
+          const dueStr = todo.due_date
+            ? ` · due ${new Date(todo.due_date+'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' })}`
+            : '';
+          prompt = `"${todo.title}"${dueStr} — what would you like to do with this one?`;
+          chips = ['Change the due date', 'Reassign it', 'Mark as urgent', 'Break it into steps', 'Open To-dos'];
+        } else {
+          prompt = "What needs to go on the list?";
+          chips = ["Something for me", "For the family", "Set a reminder", "Open To-dos"];
+        }
+        const zaeliMsg: Msg = {
+          id: uid(), role:'zaeli', text:prompt, ts:nowTs(), isLoading:false,
+          quickReplies: chips,
+        };
+        setMessages(prev => [...prev, zaeliMsg]);
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated:true });
+          inputRef.current?.focus();
+        }, 350);
+        return;
+      }
+
+      if (ctx.type === 'meals' && ctx.event) {
+        const { meal, dayAbbr } = ctx.event as { meal:any|null; dateKey:string; dayAbbr:string };
+        const dayLabel = dayAbbr ?? 'that night';
+        let prompt: string;
+        let chips: string[];
+        if (meal) {
+          prompt = `${meal.meal_name} is on for ${dayLabel} — what would you like to do with it?`;
+          chips = ['Change the meal', 'Move to another night', 'Add to shopping list', 'Find a similar recipe', 'Open Meal Planner'];
+        } else {
+          prompt = `${dayLabel} is wide open for dinner — what are you thinking?`;
+          chips = ["Something quick", "Surprise me", "Use what's in the fridge", "Family favourite", 'Open Meal Planner'];
+        }
+        const zaeliMsg: Msg = {
+          id: uid(), role:'zaeli', text:prompt, ts:nowTs(), isLoading:false,
+          quickReplies: chips,
+        };
+        setMessages(prev => [...prev, zaeliMsg]);
+        setTimeout(() => {
+          scrollRef.current?.scrollToEnd({ animated:true });
+          inputRef.current?.focus();
+        }, 350);
+        return;
+      }
     }
 
     if (params.autoMic === 'true') {
@@ -3375,7 +3449,21 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
     }
   }, [params.autoMic, params.seedMessage]));
 
-  function handleQuickReply(chip: string) { send(chip); }
+  function handleQuickReply(chip: string) {
+    if (chip === 'Open Meal Planner') {
+      router.navigate('/(tabs)/mealplanner' as any);
+      return;
+    }
+    if (chip === 'Open Shopping List') {
+      setShopSheetOpen(true);
+      return;
+    }
+    if (chip === 'Open To-dos') {
+      router.navigate('/(tabs)/todos' as any);
+      return;
+    }
+    send(chip);
+  }
 
   // ── Send ───────────────────────────────────────────────────────────────────
   async function send(overrideText?: string, overrideImage?: string) {
@@ -4669,45 +4757,48 @@ Only include events directly relevant to the question. Max 5 events.`;
               </View>
             )}
 
-            {/* ── v5 FAB — replaces pill bar + chat input bar ── */}
-            <ZaeliFAB
-              ref={fabRef}
-              activeButton={fabActive}
-              onDashboard={() => {
-                setFabActive('dashboard');
-                router.navigate('/(tabs)/dashboard' as any);
-              }}
-              onChat={() => {
-                if (screen === 'chat') {
-                  // Already in chat — show keyboard
+            {/* ── v5 FAB — hidden when embedded in swipe-world (which renders its own FAB) ── */}
+            {!isEmbedded && (
+              <ZaeliFAB
+                ref={fabRef}
+                activeButton={fabActive}
+                userInitial="R"
+                userColor="#4D8BFF"
+                onDashboard={() => {
+                  setFabActive('dashboard');
+                  onNavigateDashboard?.();
+                }}
+                onChat={() => {
+                  if (screen === 'chat') {
+                    setFabActive('keyboard');
+                    setTimeout(() => inputRef.current?.focus(), 100);
+                  } else {
+                    setFabActive('chat');
+                  }
+                }}
+                onMySpace={() => {}}
+                onChatKeyboard={() => {
                   setFabActive('keyboard');
                   setTimeout(() => inputRef.current?.focus(), 100);
-                } else {
-                  setFabActive('chat');
-                }
-              }}
-              onChatKeyboard={() => {
-                setFabActive('keyboard');
-                setTimeout(() => inputRef.current?.focus(), 100);
-              }}
-              onMoreItem={(key) => {
-                // Route to relevant screen
-                const routes: Record<string, string> = {
-                  notes:    '/(tabs)/notes',
-                  kids:     '/(tabs)/kids',
-                  tutor:    '/(tabs)/tutor',
-                  travel:   '/(tabs)/travel',
-                  family:   '/(tabs)/family',
-                  meals:    '/(tabs)/mealplanner',
-                  settings: '/(tabs)/settings',
-                };
-                if (routes[key]) router.navigate(routes[key] as any);
-              }}
-              onMicResult={(text) => {
-                // Voice input result — treat same as typing and sending
-                if (text) send(text);
-              }}
-            />
+                }}
+                onMoreItem={(key) => {
+                  const sheetKeys = ['calendar','shopping','meals','todos','notes','travel'];
+                  if (key === 'calendar') { setCalSheetOpen(true); return; }
+                  if (key === 'shopping') { setShopSheetOpen(true); return; }
+                  if (sheetKeys.includes(key)) { return; }
+                  const routes: Record<string, string> = {
+                    tutor:    '/(tabs)/tutor',
+                    kids:     '/(tabs)/kids',
+                    family:   '/(tabs)/family',
+                    settings: '/(tabs)/settings',
+                  };
+                  if (routes[key]) router.navigate(routes[key] as any);
+                }}
+                onMicResult={(text) => {
+                  if (text) send(text);
+                }}
+              />
+            )}
           </View>{/* end scrollWrap */}
         </KeyboardAvoidingView>
 

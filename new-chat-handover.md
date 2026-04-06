@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*6 April 2026 — Dashboard stress testing COMPLETE ✅ All 5 cards working ✅*
+*6 April 2026 — Swipe world built ✅ Brand pack ✅ Wordmark updated ✅*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -7,23 +7,22 @@
 ## Hi! Continuing development of Zaeli.
 
 Zaeli is an iOS-first AI family life platform built in React Native / Expo.
-Please read **CLAUDE.md** before we start — full stack, architecture, colours, ALL specs.
+Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and all module decisions.
 
 ---
 
 ## ══════════════════════════════════
-## SCREEN ARCHITECTURE — READ THIS FIRST (LOCKED ✅)
+## SCREEN ARCHITECTURE — READ FIRST (LOCKED ✅)
 ## ══════════════════════════════════
 
-**Three navigable screens (swipe world):**
+**Three navigable screens:**
 ```
-My Space  ←  Dashboard  →  Chat
+Dashboard (0)  →  Chat (1)  →  My Space (2)
 ```
+App opens on Dashboard. Swipe right → Chat. Swipe right again → My Space.
 
-**Pulse as dedicated screen = SCRAPPED. My Space replaces it.**
-**Zen = content card inside My Space, NOT a dedicated screen.**
-**WotD = moved from Dashboard to My Space.**
+**Pulse = SCRAPPED. Zen = card in My Space. WotD = My Space only.**
 
 **92% SHEETS over Chat (never router.navigate()):**
 Calendar · Shopping · Meal Planner · Todos / Reminders · Notes · Travel
@@ -34,165 +33,152 @@ Tutor · Kids Hub · Our Family · Settings
 ---
 
 ## How I like to work
-- **Beginner developer** — always full file rewrites, never partial diffs
+- **Beginner developer** — full file rewrites always, never partial diffs
 - **Two fixes at a time** — bulk changes = too many variables
 - One PowerShell command at a time, never chained with &&
 - Plain English before code · Design before code
-- **CRITICAL:** Always upload files from `C:\Users\richa\zaeli\app\(tabs)\` — NEVER from Downloads. Stale downloads lose all previous session edits and cause regressions.
+- **CRITICAL:** Upload files from `C:\Users\richa\zaeli\app\(tabs)\` — NEVER from Downloads
 
 ---
 
 ## Who I am
 - Richard. **Logged-in user = Rich**
 - Family: Rich, Anna, Poppy (Yr6, 12, girl), Gab (Yr4, 10, BOY — Gabriel, he/him), Duke (Yr1, 8, boy)
-- Local path: `C:\Users\richa\zaeli` (Windows, PowerShell)
-- Screen copy: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\`(tabs`)\file.tsx"`
-- Component copy: `Copy-Item "C:\Users\richa\Downloads\ZaeliFAB.tsx" "C:\Users\richa\zaeli\app\components\ZaeliFAB.tsx"`
+- Local: `C:\Users\richa\zaeli` (Windows, PowerShell)
+- Screen: `Copy-Item "C:\Users\richa\Downloads\file.tsx" "C:\Users\richa\zaeli\app\`(tabs`)\file.tsx"`
+- Component: `Copy-Item "C:\Users\richa\Downloads\ZaeliFAB.tsx" "C:\Users\richa\zaeli\app\components\ZaeliFAB.tsx"`
 - Repo: https://github.com/RDK1981/zaeli (private)
 
 ---
 
-## Key constants (CRITICAL)
+## Key constants (CRITICAL — never get these wrong)
 ```
 DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
 SONNET          = 'claude-sonnet-4-20250514'
 GPT_MINI        = 'gpt-5.4-mini'
-OPENAI env var  = EXPO_PUBLIC_OPENAI_API_KEY  ← exact name, both files
+OPENAI env var  = EXPO_PUBLIC_OPENAI_API_KEY (exact, both files)
 Send button     = #FF4545 coral ALWAYS
-Body bg         = #FAF8F5 warm white always
-KAV must have backgroundColor:'#fff'
-always await supabase inserts
-expo-file-system: 'expo-file-system/legacy'
+Body bg         = #FAF8F5 warm white ALWAYS
+KAV             = backgroundColor:'#fff' always
+Wordmark font   = Poppins_800ExtraBold (NOT DM Serif)
+Wordmark a+i    = #A8D8F0 sky blue (light and dark)
+DM Serif        = ghost numbers ONLY — never readable text
+SafeAreaView    = swipe-world.tsx ONLY
+Individual pages = useSafeAreaInsets() for manual paddingTop
+expo-file-system = 'expo-file-system/legacy'
 NEVER toISOString() · NEVER +10:00
 router.navigate() only for dedicated screens
-ZaeliFAB = forwardRef — import ZaeliFABHandle alongside default import
-FAB hides when activeButton === 'keyboard' · restores on blur only
-LANDING_TEST_MODE = true — set false before launch
-Dashboard card order: Calendar → Dinner → Weather+ZaeliNoticed → Shopping → Actions
-WotD NOT on Dashboard — lives in My Space
-My Space card order: Health → Goals → WotD → NASA → Zen → Notes → Wordle
-Delete = optimistic UI first, Supabase background
-Todos: fetch IN ['active','done'] — NEVER eq('status','active') alone
-Tick handler: TOGGLE — done→active, active→done. Never one-directional.
-Card bottom buttons: full-width, borderRadius:14, paddingVertical:14, Poppins_700Bold 15px
-Nav store types: edit_event · add_event · shopping · shopping_sheet · actions · meals · noticed
-Chip intercepts in handleQuickReply: 'Open Meal Planner' · 'Open Shopping List' · 'Open To-dos'
-SafeAreaView: swipe-world.tsx ONLY — not in individual page files
+Swipe pages     = Dashboard(0) · Chat(1) · My Space(2) LOCKED
+3-dot colours   = coral for 0+1 · sky #A8D8F0 for 2
+✦ active        = #A8D8F0 sky blue
+LANDING_TEST_MODE = true (swipe-world.tsx) — set false before launch
+Todos fetch     = IN ['active','done'] — NEVER eq alone
+Tick handler    = TOGGLE — done↔active, never one-directional
+Delete          = optimistic UI first, Supabase background
+Card buttons    = full-width, borderRadius:14, paddingVertical:14, Poppins_700Bold 15px
+Nav store types = edit_event · add_event · shopping · shopping_sheet · actions · meals · noticed
+Chip intercepts = 'Open Meal Planner' · 'Open Shopping List' · 'Open To-dos'
+Family colours  = Rich:#4D8BFF · Anna:#FF7B6B · Poppy:#A855F7 · Gab:#22C55E · Duke:#F59E0B
 ```
 
 ---
 
 ## What's built (6 April 2026)
 
-### ✅ Dashboard — ALL 5 CARDS STRESS TESTED
+### ✅ Phase 3 — swipe-world.tsx (built this session)
 
-**Calendar card:**
-- Past events stay visible — muted 45% opacity, struck-through, still tappable
-- Headline forward-looking — counts upcoming only, "All clear for afternoon/evening" when done
-- `showCalTomorrow` flips only after 8pm OR zero events today
-- Tap row → inline expand: Edit/Reschedule with Zaeli · Delete (two-tap)
-- Full-width "View Full Calendar →" button
+**`app/(tabs)/swipe-world.tsx`** — container file owns:
+- Horizontal ScrollView, pagingEnabled, 3 pages (Dashboard / Chat placeholder / My Space placeholder)
+- ZaeliFAB (position:absolute, zIndex:999, renders once)
+- 3-dot indicator (position:absolute, bottom:112 iOS, zIndex:998)
+- Landing overlay (position:absolute, zIndex:1000)
+- `activePage` + `fabActive` state
 
-**Dinner card:**
-- No duplicate header in expanded state
-- Day column 92px — "Tomorrow" never wraps
-- Tap day → inline expand: Edit with Zaeli · Delete · Move · More options
-- Empty day → "✦ Plan [day] with Zaeli" (full width)
-- Full-width "Open Meal Planner →" button
-- Context: `meals` type with meal + dateKey + dayAbbr
+**`app/(tabs)/index.tsx`** — re-exports SwipeWorld as default export (expo-router entry point)
 
-**Shopping card:**
-- "Tap to see →" bright: `rgba(255,255,255,0.70)`
-- "+N more": 17px Poppins_600SemiBold, visible
-- "+ Add" always visible in header
-- Full-width "Open Shopping List →" → opens sheet directly
-- Context: `shopping` → chat, `shopping_sheet` → sheet direct
+**Known issue:** Chat page is a placeholder. `index.tsx` cannot be imported as a component because expo-router intercepts it. **Fix in Phase 5:** extract `HomeScreen` from `index.tsx` into `app/components/ChatPage.tsx`, then swipe-world imports `ChatPage` directly.
 
-**Actions card:**
-- Todos fetched: `in('status',['active','done'])` — done items persist through refresh
-- Checkbox TOGGLES — tapping done item restores to active
-- Done sorted below active, muted, struck through
-- Tap row → inline expand: Edit with Zaeli · Delete · More options
-- Full-width "Open All To-dos and Reminders →" button
-- Context: `actions` with todo as event (title-specific) or general
+### ✅ ZaeliFAB — updated to 5 buttons (this session)
 
-**Zaeli Noticed card (replaces WotD):**
-- Same `#E8F4E8` sage / `#6B35D9` violet palette
-- "ZAELI NOTICED" label 13px · count headline ("three things.") · tag summary 13px
-- Expanded: notice rows 14px, coloured dot, tap → Chat with notice
-- Currently hardcoded (Poppy assignment, weather/soccer, shopping count)
-- Phase 6: GPT mini generated
+```
+[ Grid(Dashboard) ] | [ Chat ][ Mic ] | [ ✦(My Space) ][ ···(More) ]
+```
+- ✦ = U+2756 Black Four Pointed Star — My Space button only
+- Active states: Dashboard/Chat = dark · Mic/More = coral · ✦ = sky #A8D8F0
+- `userInitial` + `userColor` props (currently hardcoded as 'R' + '#A8D8F0' in swipe-world)
+- More overlay: Family section (sheets) + Screens section (navigate) + Settings row
 
-### ✅ All Dashboard → Chat context injection wired (index.tsx)
+### ✅ Wordmark updated (this session)
 
-Every card tap navigates to Chat with the right Zaeli message and chips:
-- Calendar edit → inline card + "What would you like to change?" + chips
-- Calendar add → "What's the event?"
-- Dinner edit → "[Meal] is on for [Tonight] — what would you like to do with it?"
-- Dinner plan empty → "[Tomorrow] is wide open — what are you thinking?"
-- Shopping add → "What needs to go on the list?"
-- Shopping open → sheet opens directly, no chat message
-- Todo edit → "[Todo title] · due [date] — what would you like to do?"
-- Todo add → "What needs to go on the list?"
-- Noticed tap → surfaces that notice as Zaeli's opening
+Previously: DMSerifDisplay_400Regular
+Now: **Poppins_800ExtraBold** — matches landing splash (much better)
+- Top bar: 36px · ls:-1.5px
+- Landing: 56px · ls:-2px
+- `a` and `i` always `#A8D8F0` sky — light and dark contexts
 
-### ✅ Quick reply chip intercepts (handleQuickReply)
-- "Open Meal Planner" → router.navigate mealplanner
-- "Open Shopping List" → setShopSheetOpen(true)
-- "Open To-dos" → router.navigate todos
+### ✅ Dashboard top bar fixed (this session)
 
-### ✅ ZaeliFAB, Chat input bar, Landing overlay — unchanged, working
+Removed SafeAreaView (swipe-world owns it). Now uses `useSafeAreaInsets()` with `paddingTop: insets.top` applied directly to the top bar View. Logo and date now correctly positioned below the notch.
+
+### ✅ Brand pack created (this session)
+
+`zaeli-brand-pack-2026.html` — committed to repo root.
+8 tabs: Wordmark · Palette · Typography · Dashboard · Navigation · Channels · Family · Specs · Rules
+
+### ✅ Dashboard — all 5 cards stress tested (previous session)
+
+- Calendar: past events visible/muted/struck, forward-looking headline, full-width button
+- Dinner: no duplicate header, 92px day column, tap-expand, full-width button
+- Shopping: bright hint, +N visible, always-visible + Add, Open Shopping List → sheet
+- Actions: toggle tick, done persist through refresh, inline expand, full-width button
+- Zaeli Noticed: sage/violet, count headline, tap → Chat with notice context
+
+### ✅ All Dashboard → Chat context injection wired
+
+Navigation store + useFocusEffect handlers for all types. Quick reply chip intercepts working.
 
 ---
 
 ## Immediate next steps
 
-### 1. Phase 3 — swipe-world.tsx container (HIGHEST PRIORITY)
-Upload: `index.tsx`, `dashboard.tsx`, `ZaeliFAB.tsx`, `_layout.tsx`
+### 1. Phase 3b — My Space screen (HIGHEST PRIORITY)
 
-New container file owns:
-- Horizontal ScrollView (pagingEnabled) — 3 pages
-- Page 0: My Space · Page 1: Dashboard · Page 2: Chat
-- SafeAreaView (one place only)
-- ZaeliFAB (renders once, above scroll)
-- Landing overlay (above all three screens)
-- 3-dot indicator (active = coral pill)
-- `activePage` state — drives FAB + chat bar visibility
-- App opens on page 1 (Dashboard) via scrollTo on mount
+Build `my-space.tsx` as page 2 component inside swipe-world.tsx.
+Follow `zaeli-myspace-v4.html` mockup exactly.
+Upload `swipe-world.tsx` before starting.
 
-Build steps:
-1. Create swipe-world.tsx with 3 placeholder pages + dots + FAB
-2. Wire FAB buttons → scrollTo instead of router.navigate()
-3. Remove FAB, SafeAreaView, landing overlay from index.tsx and dashboard.tsx
-4. Register swipe-world.tsx as app entry in _layout.tsx
-5. Wire Dashboard card taps → scrollTo(2) then open sheet
+Card order: Health(slate) → Goals(gold) → WotD(sage) → NASA(slate) → Zen(peach) → Notes(lavender) → Wordle(gold)
 
-### 2. Phase 3b — My Space screen
-Build `my-space.tsx` as page 0 component in swipe-world.tsx.
-Follow zaeli-myspace-v4.html mockup exactly.
-Start: Health + Goals + WotD (reuse WotD code from old dashboard.tsx).
-Then: NASA, Zen, Notes, Wordle as separate passes.
+Start with: Health + Goals + WotD (reuse WotD code from old dashboard.tsx)
+Then: NASA, Zen, Notes, Wordle as separate passes
+
+### 2. Phase 5 — Extract ChatPage.tsx + Chat v5
+
+Extract `HomeScreen` function from `index.tsx` into `app/components/ChatPage.tsx`.
+Then swipe-world page 1 = `<ChatPage/>` instead of placeholder.
+Chat v5: full-width Zaeli messages (no bubble) · two entry states (Fresh vs Card-triggered)
 
 ### 3. Phase 6 — AI Zaeli Noticed
-Replace hardcoded notices with GPT mini generated ones.
-Family-aware, time-sensitive, Zaeli voice.
-Runs on Dashboard load, cached for the session.
 
-### 4. Phase 5 — Chat v5
-Full-width Zaeli messages (no bubble). Two entry states (Fresh vs Card-triggered).
+Replace 3 hardcoded notices with GPT mini generated ones.
+Family-aware, time-sensitive, Zaeli voice. Run on Dashboard load, cache for session.
+
+### 4. Todos sheet
+
+First of the remaining domain sheets to build.
 
 ---
 
 ## Build priority
 ```
-Phase 1: ZaeliFAB              ✅ COMPLETE
-Phase 2: Landing overlay       ✅ COMPLETE
-Phase 4: Dashboard Option A    ✅ COMPLETE
-Phase 4b: Chat input bar       ✅ COMPLETE
-Dashboard stress testing       ✅ COMPLETE — all 5 cards
-Phase 3: swipe-world.tsx       🔨 NEXT
-Phase 3b: My Space             🔨 after container
-Phase 5: Chat v5               🔨
+Phase 1: ZaeliFAB              ✅ 5 buttons, ✦, userColor
+Phase 2: Landing overlay       ✅ in swipe-world.tsx
+Phase 4: Dashboard Option A    ✅ all 5 cards
+Phase 4b: Chat input bar       ✅
+Dashboard stress testing       ✅ all 5 cards
+Phase 3: swipe-world.tsx       ✅ container built (Chat = placeholder)
+Phase 3b: My Space             🔨 NEXT
+Phase 5: ChatPage.tsx + v5     🔨 after My Space
 Phase 6: Zaeli Noticed (AI)    🔨
 Phase 7: Todos sheet           🔨
 Phase 8: Kids Hub              🔨
@@ -205,43 +191,42 @@ Phase 9: Tutor rebuild         🔨
 
 | File | Status | Notes |
 |---|---|---|
-| components/ZaeliFAB.tsx | ✅ Complete | forwardRef, startMic |
-| index.tsx | ✅ Complete | all context handlers, chip intercepts |
-| dashboard.tsx | ✅ Complete | all 5 cards stress tested |
-| lib/navigation-store.ts | ✅ Complete | all types wired |
-| settings.tsx | ✅ Stub | |
-| swipe-world.tsx | 🔨 Phase 3 | New container |
-| my-space.tsx | 🔨 Phase 3b | Designed, mockup done |
+| app/(tabs)/swipe-world.tsx | ✅ Built | 3 pages, FAB, dots, landing — Chat is placeholder |
+| app/(tabs)/index.tsx | ✅ Entry point | Re-exports SwipeWorld |
+| app/(tabs)/dashboard.tsx | ✅ Complete | All 5 cards, useSafeAreaInsets, Poppins 800 logo |
+| app/components/ZaeliFAB.tsx | ✅ Complete | 5 buttons, ✦, userInitial/userColor |
+| lib/navigation-store.ts | ✅ Complete | All types wired |
+| app/(tabs)/my-space.tsx | 🔨 Phase 3b | Designed, mockup done |
+| app/components/ChatPage.tsx | 🔨 Phase 5 | Extract from index.tsx |
 | Calendar sheet | ✅ In index.tsx | |
 | Shopping sheet | ✅ In index.tsx | Partial test |
 | Meals sheet | ✅ In index.tsx | |
-| Todos sheet | 🔨 Build in Chat | |
-| Notes (family) | 🔨 Build in Chat | |
-| Notes (personal) | 🔨 Build in My Space | |
-| Travel sheet | 🔨 Build in Chat | |
+| Todos sheet | 🔨 Build | |
+| Notes (family) | 🔨 Build | |
+| Notes (personal) | 🔨 In my-space.tsx | |
+| Travel sheet | 🔨 Build | |
 | Tutor | 🔨 Rebuild | Dedicated screen |
 | Kids Hub | 🔨 Build | Dedicated screen |
 | Our Family | 🔨 Build | Dedicated screen |
+| zaeli-brand-pack-2026.html | ✅ Repo root | Full brand reference |
 
 ---
 
-## Key decisions locked this session (6 April 2026 — stress testing session)
+## Key decisions locked this session (6 April 2026 — swipe world session)
 
-- **Dashboard stress testing complete** — all 5 cards fully tested and working
-- **Past calendar events** stay visible, muted/struck through, never disappear mid-session
-- **Calendar headline** is forward-looking — counts upcoming, time-aware "All clear" phrasing
-- **Dinner card** — no duplicate header, 92px day column, full tap-expand, full-width button
-- **Shopping "+ Add"** always visible in header (not just when expanded)
-- **Shopping "Open Shopping List"** opens sheet directly, bypasses chat entirely
-- **Todos toggle tick** — ticking a done item restores it to active (bidirectional)
-- **Todos persist done state** — fetched with `in('status',['active','done'])`, survive 5-min refresh
-- **All cards have full-width bottom buttons** — consistent design language
-- **Zaeli Noticed card** built — same sage/violet palette as old WotD, hardcoded Phase 1
-- **All Chat context injection wired** — every card tap gives Zaeli the right opening
-- **Chip intercepts** — Open Meal Planner / Shopping List / To-dos navigate instead of chat
-- **WotD removed from Dashboard** — lives in My Space only
-- **Upload discipline** — always upload from zaeli folder not Downloads to prevent regressions
+- **Swipe order locked:** Dashboard(0) → Chat(1) → My Space(2) — Chat in centre makes sense as heart of app
+- **swipe-world.tsx built** — horizontal container with all three pages, FAB, dots, landing
+- **Chat placeholder** — expo-router prevents importing index.tsx as a component; fix in Phase 5 by extracting ChatPage.tsx
+- **Wordmark font changed** — Poppins_800ExtraBold replaces DM Serif Display for the wordmark
+- **Logo colours updated** — `a` and `i` now sky blue `#A8D8F0` (previously tried violet, reverted)
+- **3rd dot + ✦ star** = `#A8D8F0` sky blue (matches logo accents for visual consistency)
+- **FAB expanded to 5 buttons** — added ✦ My Space between Mic and More
+- **✦ mark locked** — U+2756 Black Four Pointed Star, FAB navigation only, never decorative
+- **userInitial + userColor pattern** — FAB accepts these props; My Space button uses user's colour; easily extensible to all family members at auth
+- **More overlay redesigned** — two sections (Family sheets + Screens) + Settings row; full app map
+- **dashboard.tsx** — SafeAreaView replaced with useSafeAreaInsets(); logo/date now correctly positioned
+- **Brand pack created** — zaeli-brand-pack-2026.html with 8 tabs covering all design decisions
 
 ---
 
-**Read CLAUDE.md and ZAELI-PRODUCT.md first. Always upload current files from the zaeli folder.**
+**Read CLAUDE.md and ZAELI-PRODUCT.md first. Always upload from the zaeli folder, never Downloads.**

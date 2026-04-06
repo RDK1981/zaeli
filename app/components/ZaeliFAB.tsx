@@ -52,27 +52,35 @@ const CREAM  = '#FAF8F5';
 
 const GPT_MINI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
 
-// ── More grid items (3×3, Settings always bottom-right) ────────────────────
-const MORE_ITEMS = [
-  { key:'notes',    label:'Notes',    color:'#5C8A3C', bg:'rgba(92,138,60,0.10)' },
-  { key:'kids',     label:'Kids Hub', color:'#0A8A5A', bg:'rgba(10,138,90,0.10)' },
-  { key:'tutor',    label:'Tutor',    color:'#6B35D9', bg:'rgba(107,53,217,0.10)' },
-  { key:'travel',   label:'Travel',   color:'#0096C7', bg:'rgba(0,150,199,0.10)' },
-  { key:'family',   label:'Family',   color:'#D4006A', bg:'rgba(212,0,106,0.10)' },
-  { key:'meals',    label:'Meals',    color:'#E8601A', bg:'rgba(232,96,26,0.10)' },
-  { key:'pulse',    label:'Pulse',    color:'#FF4545', bg:'rgba(255,69,69,0.10)' },
-  { key:'zen',      label:'Zen',      color:'#5C8A3C', bg:'rgba(92,138,60,0.08)' },
-  { key:'settings', label:'Settings', color:'#6B7280', bg:'rgba(107,114,128,0.10)' },
+// ── More overlay — full app map ────────────────────────────────────────────
+// Section 1: Family channels (open as sheets over Chat)
+const MORE_FAMILY = [
+  { key:'calendar', label:'Calendar', color:'#3A3D4A', bg:'rgba(58,61,74,0.10)'   },
+  { key:'shopping', label:'Shopping', color:'#5020C0', bg:'rgba(80,32,192,0.10)'  },
+  { key:'meals',    label:'Meals',    color:'#E8601A', bg:'rgba(232,96,26,0.10)'  },
+  { key:'todos',    label:'To-dos',   color:'#C9A820', bg:'rgba(201,168,32,0.10)' },
+  { key:'notes',    label:'Notes',    color:'#5C8A3C', bg:'rgba(92,138,60,0.10)'  },
+  { key:'travel',   label:'Travel',   color:'#0096C7', bg:'rgba(0,150,199,0.10)'  },
 ];
+// Section 2: Dedicated screens (router.navigate)
+const MORE_SCREENS = [
+  { key:'tutor',    label:'Tutor',      color:'#6B35D9', bg:'rgba(107,53,217,0.10)' },
+  { key:'kids',     label:'Kids Hub',   color:'#0A8A5A', bg:'rgba(10,138,90,0.10)'  },
+  { key:'family',   label:'Our Family', color:'#D4006A', bg:'rgba(212,0,106,0.10)'  },
+];
+const MORE_SETTINGS = { key:'settings', label:'Settings', color:'#6B7280', bg:'rgba(107,114,128,0.10)' };
 
 // ── Types ───────────────────────────────────────────────────────────────────
-type ActiveButton = 'dashboard' | 'chat' | 'keyboard' | null;
+type ActiveButton = 'dashboard' | 'chat' | 'keyboard' | 'myspace' | null;
 
 interface ZaeliFABProps {
   activeButton:    ActiveButton;
+  userInitial:     string;   // e.g. 'R' for Rich
+  userColor:       string;   // e.g. '#4D8BFF' — user's family colour
   onDashboard:     () => void;
   onChat:          () => void;
-  onChatKeyboard?: () => void;  // called when chat btn tapped while already on chat
+  onMySpace:       () => void;
+  onChatKeyboard?: () => void;
   onMoreItem?:     (itemKey: string) => void;
   onMicResult?:    (text: string) => void;
 }
@@ -222,17 +230,50 @@ function IcoSettings({ color }: { color: string }) {
   );
 }
 
+function IcoCalendar({ color }: { color: string }) {
+  return (
+    <Svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="3" y="4" width="18" height="18" rx="2"/>
+      <Line x1="16" y1="2" x2="16" y2="6"/>
+      <Line x1="8" y1="2" x2="8" y2="6"/>
+      <Line x1="3" y1="10" x2="21" y2="10"/>
+    </Svg>
+  );
+}
+
+function IcoShopping({ color }: { color: string }) {
+  return (
+    <Svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+      <Line x1="3" y1="6" x2="21" y2="6"/>
+      <Path d="M16 10a4 4 0 01-8 0"/>
+    </Svg>
+  );
+}
+
+function IcoTodos({ color }: { color: string }) {
+  return (
+    <Svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="9 11 12 14 22 4"/>
+      <Path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+    </Svg>
+  );
+}
+
 function MoreIcon({ itemKey, color }: { itemKey: string; color: string }) {
-  const props = { color, size: 26 };
   switch (itemKey) {
-    case 'notes':    return <IcoNotes color={color}/>;
-    case 'kids':     return <IcoKids color={color}/>;
-    case 'tutor':    return <IcoTutor color={color}/>;
-    case 'travel':   return <IcoTravel color={color}/>;
-    case 'family':   return <IcoFamily color={color}/>;
+    case 'calendar': return <IcoCalendar color={color}/>;
+    case 'shopping': return <IcoShopping color={color}/>;
     case 'meals':    return <IcoMeals color={color}/>;
-    case 'pulse':    return <IcoPulse color={color}/>;
-    case 'zen':      return <IcoZen color={color}/>;
+    case 'todos':    return <IcoTodos color={color}/>;
+    case 'notes':    return <IcoNotes color={color}/>;
+    case 'travel':   return <IcoTravel color={color}/>;
+    case 'tutor':    return <IcoTutor color={color}/>;
+    case 'kids':     return <IcoKids color={color}/>;
+    case 'family':   return <IcoFamily color={color}/>;
     case 'settings': return <IcoSettings color={color}/>;
     default:         return <IcoNotes color={color}/>;
   }
@@ -291,8 +332,11 @@ export interface ZaeliFABHandle {
 // ── Main component ──────────────────────────────────────────────────────────
 const ZaeliFAB = forwardRef<ZaeliFABHandle, ZaeliFABProps>(function ZaeliFAB({
   activeButton,
+  userInitial,
+  userColor,
   onDashboard,
   onChat,
+  onMySpace,
   onChatKeyboard,
   onMoreItem,
   onMicResult,
@@ -428,19 +472,24 @@ const ZaeliFAB = forwardRef<ZaeliFABHandle, ZaeliFABProps>(function ZaeliFAB({
   }
 
   // ── Button colours ──────────────────────────────────────────────────────
-  const dashActive = activeButton === 'dashboard';
-  const chatActive = activeButton === 'chat';
-  const kbActive   = activeButton === 'keyboard';
-  const micIsOn    = micActive;
+  const dashActive  = activeButton === 'dashboard';
+  const chatActive  = activeButton === 'chat';
+  const kbActive    = activeButton === 'keyboard';
+  const msActive    = activeButton === 'myspace';
+  const micIsOn     = micActive;
 
   const dashBg    = dashActive ? INK    : 'transparent';
   const dashColor = dashActive ? '#fff' : 'rgba(10,10,10,0.48)';
 
-  const chatBg    = chatActive || kbActive ? (kbActive ? CORAL : INK)    : 'transparent';
+  const chatBg    = chatActive || kbActive ? (kbActive ? CORAL : INK) : 'transparent';
   const chatColor = chatActive || kbActive ? '#fff' : 'rgba(10,10,10,0.48)';
 
   const micBg     = micIsOn ? CORAL : 'transparent';
   const micColor  = micIsOn ? '#fff' : 'rgba(10,10,10,0.48)';
+
+  // My Space: active = user colour fill, resting = muted initial
+  const msBg      = msActive ? userColor : 'transparent';
+  const msColor   = msActive ? '#fff'    : 'rgba(10,10,10,0.42)';
 
   // ── Chat button handler ─────────────────────────────────────────────────
   function handleChatPress() {
@@ -456,7 +505,7 @@ const ZaeliFAB = forwardRef<ZaeliFABHandle, ZaeliFABProps>(function ZaeliFAB({
   return (
     <View style={styles.root} pointerEvents="box-none">
 
-      {/* ── More backdrop (full screen, behind card) ── */}
+      {/* ── More backdrop ── */}
       {moreOpen && (
         <TouchableOpacity
           style={styles.moreBackdrop}
@@ -465,18 +514,16 @@ const ZaeliFAB = forwardRef<ZaeliFABHandle, ZaeliFABProps>(function ZaeliFAB({
         />
       )}
 
-      {/* ── More card (floats above FAB) ── */}
+      {/* ── More card — two-section full app map ── */}
       {moreOpen && (
         <Animated.View
-          style={[
-            styles.moreCard,
-            { opacity: moreOpacity, transform: [{ scale: moreScale }] },
-          ]}
+          style={[styles.moreCard, { opacity: moreOpacity, transform: [{ scale: moreScale }] }]}
           pointerEvents="box-none"
         >
-          <Text style={styles.moreLabel}>More</Text>
+          {/* Family section — opens as sheets */}
+          <Text style={styles.moreSectionLabel}>Family</Text>
           <View style={styles.moreGrid}>
-            {MORE_ITEMS.map(item => (
+            {MORE_FAMILY.map(item => (
               <TouchableOpacity
                 key={item.key}
                 style={styles.moreItem}
@@ -490,43 +537,63 @@ const ZaeliFAB = forwardRef<ZaeliFABHandle, ZaeliFABProps>(function ZaeliFAB({
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* Divider */}
+          <View style={styles.moreDivider}/>
+
+          {/* Screens section — router.navigate */}
+          <Text style={styles.moreSectionLabel}>Screens</Text>
+          <View style={styles.moreGrid}>
+            {MORE_SCREENS.map(item => (
+              <TouchableOpacity
+                key={item.key}
+                style={styles.moreItem}
+                onPress={() => handleMoreItem(item.key)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.moreIcon, { backgroundColor: item.bg }]}>
+                  <MoreIcon itemKey={item.key} color={item.color}/>
+                </View>
+                <Text style={styles.moreItemLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Settings — quiet row at bottom */}
+          <View style={styles.moreDivider}/>
+          <TouchableOpacity
+            style={styles.moreSettingsRow}
+            onPress={() => handleMoreItem(MORE_SETTINGS.key)}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.moreSettingsIcon, { backgroundColor: MORE_SETTINGS.bg }]}>
+              <MoreIcon itemKey={MORE_SETTINGS.key} color={MORE_SETTINGS.color}/>
+            </View>
+            <Text style={styles.moreSettingsLabel}>{MORE_SETTINGS.label}</Text>
+          </TouchableOpacity>
         </Animated.View>
       )}
 
-      {/* ── Mic v2 pill (floats above FAB, full width) ── */}
+      {/* ── Mic pill ── */}
       {micActive && (
         <Animated.View
-          style={[
-            styles.micPill,
-            { opacity: micOpacity, transform: [{ scale: micScale }] },
-          ]}
+          style={[styles.micPill, { opacity: micOpacity, transform: [{ scale: micScale }] }]}
           pointerEvents="box-none"
         >
-          {/* Waveform */}
           <WaveformBars/>
-          {/* Listening label */}
           <Text style={styles.micLabel}>Listening…</Text>
-          {/* Cancel + Send row */}
           <View style={styles.micBtnRow}>
-            <TouchableOpacity
-              style={styles.micCancel}
-              onPress={cancelMic}
-              activeOpacity={0.75}
-            >
+            <TouchableOpacity style={styles.micCancel} onPress={cancelMic} activeOpacity={0.75}>
               <Text style={styles.micCancelText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.micSend}
-              onPress={stopMic}
-              activeOpacity={0.75}
-            >
+            <TouchableOpacity style={styles.micSend} onPress={stopMic} activeOpacity={0.75}>
               <Text style={styles.micSendText}>Send →</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
       )}
 
-      {/* ── FAB bar — hidden when keyboard active (input bar takes over) ── */}
+      {/* ── FAB bar — 5 buttons ── */}
       {activeButton !== 'keyboard' && (
         <View style={styles.fab}>
 
@@ -561,6 +628,15 @@ const ZaeliFAB = forwardRef<ZaeliFABHandle, ZaeliFABProps>(function ZaeliFAB({
 
           <View style={styles.fabSep}/>
 
+          {/* My Space — Zaeli ✦ star mark (matches app icon) */}
+          <TouchableOpacity
+            style={[styles.fabBtn, { backgroundColor: msBg }]}
+            onPress={onMySpace}
+            activeOpacity={0.75}
+          >
+            <Text style={{ fontSize: 22, color: msColor, lineHeight: 26 }}>✦</Text>
+          </TouchableOpacity>
+
           {/* More */}
           <TouchableOpacity
             style={[styles.fabBtn, moreOpen ? { backgroundColor: CORAL } : {}]}
@@ -579,14 +655,14 @@ const ZaeliFAB = forwardRef<ZaeliFABHandle, ZaeliFABProps>(function ZaeliFAB({
 export default ZaeliFAB;
 
 // ── Styles ──────────────────────────────────────────────────────────────────
-// FAB_WIDTH: fixed width — mic pill and more card match this exactly
-const FAB_BTN    = 58;   // each button square
-const FAB_PAD    = 10;   // internal padding each side
+// FAB_WIDTH: 5 buttons + 2 separators
+// (58×5) + (10×2) + (1×2) + (8×4) + (4×4) = 290+20+2+32+16 = 360
+const FAB_BTN    = 58;
+const FAB_PAD    = 10;
 const FAB_SEP_W  = 1;
-const FAB_SEP_MX = 8;    // margin around separators — adds width
+const FAB_SEP_MX = 8;
 const FAB_GAP    = 4;
-// (66×4) + (10×2) + (1×2) + (8×4) + (4×3) = 264+20+2+32+12 = 330
-const FAB_WIDTH  = FAB_BTN * 4 + FAB_PAD * 2 + FAB_SEP_W * 2 + FAB_SEP_MX * 4 + FAB_GAP * 3;
+const FAB_WIDTH  = FAB_BTN * 5 + FAB_PAD * 2 + FAB_SEP_W * 2 + FAB_SEP_MX * 4 + FAB_GAP * 4;
 
 const styles = StyleSheet.create({
 
@@ -628,6 +704,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  fabInitial: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 20,
+    letterSpacing: -0.5,
+  },
+
   fabSep: {
     width: FAB_SEP_W,
     height: 32,
@@ -638,14 +720,11 @@ const styles = StyleSheet.create({
   // ── More backdrop ──
   moreBackdrop: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: 'rgba(10,10,10,0.36)',
   },
 
-  // ── More card — matches FAB width exactly ──
+  // ── More card ──
   moreCard: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 124 : 110,
@@ -653,8 +732,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.97)',
     borderRadius: 36,
     paddingHorizontal: 18,
-    paddingTop: 26,
-    paddingBottom: 22,
+    paddingTop: 22,
+    paddingBottom: 20,
     shadowColor: '#000',
     shadowOpacity: 0.18,
     shadowRadius: 40,
@@ -664,14 +743,19 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,1)',
   },
 
-  moreLabel: {
+  moreSectionLabel: {
     fontFamily: 'Poppins_700Bold',
-    fontSize: 10,
-    letterSpacing: 1.4,
+    fontSize: 9,
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: 'rgba(10,10,10,0.20)',
-    textAlign: 'center',
-    marginBottom: 20,
+    color: 'rgba(10,10,10,0.22)',
+    marginBottom: 10,
+  },
+
+  moreDivider: {
+    height: 1,
+    backgroundColor: 'rgba(10,10,10,0.07)',
+    marginVertical: 14,
   },
 
   moreGrid: {
@@ -684,16 +768,16 @@ const styles = StyleSheet.create({
   moreItem: {
     width: '31%',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
+    gap: 6,
+    paddingVertical: 10,
     paddingHorizontal: 2,
     borderRadius: 16,
   },
 
   moreIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -704,6 +788,29 @@ const styles = StyleSheet.create({
     color: 'rgba(10,10,10,0.42)',
     textAlign: 'center',
     lineHeight: 14,
+  },
+
+  moreSettingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+  },
+
+  moreSettingsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  moreSettingsLabel: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: 'rgba(10,10,10,0.38)',
   },
 
   // ── Mic pill — full screen width, vertical layout ──

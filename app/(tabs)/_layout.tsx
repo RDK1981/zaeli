@@ -39,6 +39,7 @@ export default function TabLayout() {
         tabBarStyle: { display: 'none' },
       }}
     >
+      <Tabs.Screen name="swipe-world"   options={{ href: null }} />
       <Tabs.Screen name="landing"      options={{ href: null }} />
       <Tabs.Screen name="index"        options={{ href: null }} />
       <Tabs.Screen name="dashboard"    options={{ href: null }} />

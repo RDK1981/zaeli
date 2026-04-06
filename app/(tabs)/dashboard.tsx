@@ -26,7 +26,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Animated, Easing,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
@@ -134,13 +134,48 @@ function getTodayLabel(): string {
   return now.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
 }
 
+// ── Time helpers ──────────────────────────────────────────────────────────────
+// Raw string parse — never use new Date() on stored event times
+function isoToMinutes(t?: string | null): number {
+  if (!t) return -1;
+  const timePart = t.includes('T') ? t.split('T')[1] : t.split(' ')[1] || '';
+  if (!timePart) return -1;
+  const [hStr, mStr] = timePart.split(':');
+  const h = parseInt(hStr, 10); const m = parseInt(mStr, 10);
+  if (isNaN(h) || isNaN(m)) return -1;
+  return h * 60 + m;
+}
+function nowMinutes(): number {
+  const n = new Date(); return n.getHours() * 60 + n.getMinutes();
+}
+function isEventPast(ev: any): boolean {
+  if (!ev.start_time) return false;
+  const evMins = isoToMinutes(ev.start_time);
+  if (evMins < 0) return false;
+  return evMins < nowMinutes();
+}
+
 // ── Zaeli voice headlines ─────────────────────────────────────────────────────
-function calHeadline(count: number, showTomorrow: boolean): string {
+function calHeadline(upcomingCount: number, showTomorrow: boolean, hadPastEvents: boolean): string {
   const when = showTomorrow ? 'tomorrow' : 'today';
-  if (count === 0) return showTomorrow ? 'All clear tomorrow.' : 'All clear today.';
-  if (count === 1) return `One thing on ${when}.`;
-  if (count === 2) return `Two things on ${when}.`;
-  return `${count} things on ${when}.`;
+  if (showTomorrow) {
+    if (upcomingCount === 0) return 'All clear tomorrow.';
+    if (upcomingCount === 1) return 'One thing on tomorrow.';
+    if (upcomingCount === 2) return 'Two things on tomorrow.';
+    return `${upcomingCount} things on tomorrow.`;
+  }
+  // Today — forward-looking
+  if (upcomingCount === 0) {
+    if (hadPastEvents) {
+      const h = new Date().getHours();
+      if (h < 17) return 'All clear for the afternoon.';
+      return 'All clear for the evening.';
+    }
+    return 'All clear today.';
+  }
+  if (upcomingCount === 1) return 'One thing still to go.';
+  if (upcomingCount === 2) return 'Two things still to go.';
+  return `${upcomingCount} things on ${when}.`;
 }
 function shopHeadline(count: number): string {
   if (count === 0) return 'Shopping list is clear.';
@@ -315,7 +350,10 @@ function CalendarCard({ events, showTomorrow, expanded, onToggleExpand, onAdd, o
     if (!expanded) { setSelectedId(null); setConfirmDelId(null); }
   }, [expanded]);
 
-  const headline = calHeadline(events.length, showTomorrow);
+  // Split events into past and upcoming using raw string parse — never new Date()
+  const pastEvents     = showTomorrow ? [] : events.filter(ev => isEventPast(ev));
+  const upcomingEvents = showTomorrow ? events : events.filter(ev => !isEventPast(ev));
+  const headline = calHeadline(upcomingEvents.length, showTomorrow, pastEvents.length > 0);
 
   async function deleteEvent(ev: any) {
     // Optimistic: clear UI instantly
@@ -351,70 +389,128 @@ function CalendarCard({ events, showTomorrow, expanded, onToggleExpand, onAdd, o
           {events.length === 0 ? (
             <Text style={cS.emptyLt}>Nothing on {showTomorrow ? 'tomorrow' : 'today'}</Text>
           ) : (
-            events.map((ev:any, i:number) => {
-              const members  = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
-              const dotColor = members.length > 0 ? members[0].color : 'rgba(255,255,255,0.45)';
-              const isSel    = selectedId === ev.id;
-              const isConf   = confirmDelId === ev.id;
-              return (
-                <View key={ev.id||i}>
-                  <TouchableOpacity
-                    style={[cS.tRow, isSel && { backgroundColor:'rgba(255,255,255,0.07)', borderRadius:10, marginHorizontal:-6, paddingHorizontal:6 }]}
-                    onPress={() => { setSelectedId(isSel ? null : ev.id); setConfirmDelId(null); }}
-                    activeOpacity={0.75}
-                  >
-                    <Text style={cS.tTime}>{fmtTime(ev.start_time)}</Text>
-                    <View style={[cS.tDot, { backgroundColor:dotColor }]}/>
-                    <Text style={cS.tEv} numberOfLines={1}>{ev.title} {getEventEmoji(ev.title)}</Text>
-                    {members.slice(0,2).map((m:any) => (
-                      <View key={m.id} style={[cS.tAv, { backgroundColor:m.color }]}>
-                        <Text style={cS.tAvTxt}>{m.name[0]}</Text>
-                      </View>
-                    ))}
-                    {members.length > 2 && (
-                      <View style={[cS.tAv, { backgroundColor:'rgba(255,255,255,0.2)' }]}>
-                        <Text style={[cS.tAvTxt, { fontSize:9 }]}>+{members.length-2}</Text>
+            <>
+              {/* Upcoming events — full colour */}
+              {upcomingEvents.map((ev:any, i:number) => {
+                const members  = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+                const dotColor = members.length > 0 ? members[0].color : 'rgba(255,255,255,0.45)';
+                const isSel    = selectedId === ev.id;
+                const isConf   = confirmDelId === ev.id;
+                return (
+                  <View key={ev.id||i}>
+                    <TouchableOpacity
+                      style={[cS.tRow, isSel && { backgroundColor:'rgba(255,255,255,0.07)', borderRadius:10, marginHorizontal:-6, paddingHorizontal:6 }]}
+                      onPress={() => { setSelectedId(isSel ? null : ev.id); setConfirmDelId(null); }}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={cS.tTime}>{fmtTime(ev.start_time)}</Text>
+                      <View style={[cS.tDot, { backgroundColor:dotColor }]}/>
+                      <Text style={cS.tEv} numberOfLines={1}>{ev.title} {getEventEmoji(ev.title)}</Text>
+                      {members.slice(0,2).map((m:any) => (
+                        <View key={m.id} style={[cS.tAv, { backgroundColor:m.color }]}>
+                          <Text style={cS.tAvTxt}>{m.name[0]}</Text>
+                        </View>
+                      ))}
+                      {members.length > 2 && (
+                        <View style={[cS.tAv, { backgroundColor:'rgba(255,255,255,0.2)' }]}>
+                          <Text style={[cS.tAvTxt, { fontSize:9 }]}>+{members.length-2}</Text>
+                        </View>
+                      )}
+                      <Text style={{ color:'rgba(255,255,255,0.28)', fontSize:11 }}>{isSel ? '∧' : '›'}</Text>
+                    </TouchableOpacity>
+                    {isSel && (
+                      <View style={cS.evExpanded}>
+                        {ev.notes ? <Text style={cS.evNote}>{ev.notes}</Text> : null}
+                        {members.length > 0 && (
+                          <Text style={cS.evWho}>{members.map((m:any) => m.name).join(', ')}</Text>
+                        )}
+                        {!isConf ? (
+                          <View style={cS.evActions}>
+                            <TouchableOpacity style={cS.evEditBtn} onPress={() => onEditEvent(ev)} activeOpacity={0.75}>
+                              <Text style={cS.evEditTxt}>✦ Edit with Zaeli</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={cS.evDelBtn} onPress={() => setConfirmDelId(ev.id)} activeOpacity={0.75}>
+                              <Text style={cS.evDelTxt}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <View style={cS.evActions}>
+                            <TouchableOpacity style={cS.evDelConfirmBtn} onPress={() => deleteEvent(ev)} activeOpacity={0.75}>
+                              <Text style={cS.evDelConfirmTxt}>Yes, delete</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={cS.evEditBtn} onPress={() => setConfirmDelId(null)} activeOpacity={0.75}>
+                              <Text style={cS.evEditTxt}>Keep it</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
                       </View>
                     )}
-                    <Text style={{ color:'rgba(255,255,255,0.28)', fontSize:11 }}>{isSel ? '∧' : '›'}</Text>
-                  </TouchableOpacity>
+                  </View>
+                );
+              })}
 
-                  {isSel && (
-                    <View style={cS.evExpanded}>
-                      {ev.notes ? <Text style={cS.evNote}>{ev.notes}</Text> : null}
-                      {members.length > 0 && (
-                        <Text style={cS.evWho}>{members.map((m:any) => m.name).join(', ')}</Text>
-                      )}
-                      {!isConf ? (
-                        <View style={cS.evActions}>
-                          <TouchableOpacity style={cS.evEditBtn} onPress={() => onEditEvent(ev)} activeOpacity={0.75}>
-                            <Text style={cS.evEditTxt}>✦ Edit with Zaeli</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={cS.evDelBtn} onPress={() => setConfirmDelId(ev.id)} activeOpacity={0.75}>
-                            <Text style={cS.evDelTxt}>Delete</Text>
-                          </TouchableOpacity>
-                        </View>
-                      ) : (
-                        <View style={cS.evActions}>
-                          <TouchableOpacity style={cS.evDelConfirmBtn} onPress={() => deleteEvent(ev)} activeOpacity={0.75}>
-                            <Text style={cS.evDelConfirmTxt}>Yes, delete</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity style={cS.evEditBtn} onPress={() => setConfirmDelId(null)} activeOpacity={0.75}>
-                            <Text style={cS.evEditTxt}>Keep it</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
+              {/* Past events — muted, strikethrough, still tappable to reschedule */}
+              {pastEvents.length > 0 && (
+                <View style={{ marginTop: upcomingEvents.length > 0 ? 6 : 0, opacity:0.45 }}>
+                  {upcomingEvents.length > 0 && (
+                    <View style={{ height:1, backgroundColor:'rgba(255,255,255,0.10)', marginBottom:10 }}/>
                   )}
+                  {pastEvents.map((ev:any, i:number) => {
+                    const members  = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+                    const isSel    = selectedId === ev.id;
+                    const isConf   = confirmDelId === ev.id;
+                    return (
+                      <View key={ev.id||i}>
+                        <TouchableOpacity
+                          style={[cS.tRow, isSel && { backgroundColor:'rgba(255,255,255,0.07)', borderRadius:10, marginHorizontal:-6, paddingHorizontal:6 }]}
+                          onPress={() => { setSelectedId(isSel ? null : ev.id); setConfirmDelId(null); }}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={[cS.tTime, { color:'rgba(255,255,255,0.35)' }]}>{fmtTime(ev.start_time)}</Text>
+                          <View style={[cS.tDot, { backgroundColor:'rgba(255,255,255,0.20)' }]}/>
+                          <Text style={[cS.tEv, { textDecorationLine:'line-through', color:'rgba(255,255,255,0.50)' }]} numberOfLines={1}>
+                            {ev.title} {getEventEmoji(ev.title)}
+                          </Text>
+                          <Text style={{ color:'rgba(255,255,255,0.28)', fontSize:11 }}>{isSel ? '∧' : '›'}</Text>
+                        </TouchableOpacity>
+                        {isSel && (
+                          <View style={cS.evExpanded}>
+                            {ev.notes ? <Text style={cS.evNote}>{ev.notes}</Text> : null}
+                            {members.length > 0 && (
+                              <Text style={cS.evWho}>{members.map((m:any) => m.name).join(', ')}</Text>
+                            )}
+                            {!isConf ? (
+                              <View style={cS.evActions}>
+                                <TouchableOpacity style={cS.evEditBtn} onPress={() => onEditEvent(ev)} activeOpacity={0.75}>
+                                  <Text style={cS.evEditTxt}>✦ Reschedule with Zaeli</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={cS.evDelBtn} onPress={() => setConfirmDelId(ev.id)} activeOpacity={0.75}>
+                                  <Text style={cS.evDelTxt}>Delete</Text>
+                                </TouchableOpacity>
+                              </View>
+                            ) : (
+                              <View style={cS.evActions}>
+                                <TouchableOpacity style={cS.evDelConfirmBtn} onPress={() => deleteEvent(ev)} activeOpacity={0.75}>
+                                  <Text style={cS.evDelConfirmTxt}>Yes, delete</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={cS.evEditBtn} onPress={() => setConfirmDelId(null)} activeOpacity={0.75}>
+                                  <Text style={cS.evEditTxt}>Keep it</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
-              );
-            })
+              )}
+            </>
           )}
-          <View style={cS.calFooter}>
-            <TouchableOpacity onPress={onFullCalendar} activeOpacity={0.75}>
-              <Text style={cS.calFullLink}>Month view →</Text>
-            </TouchableOpacity>
-          </View>
+
+          <TouchableOpacity onPress={onFullCalendar} activeOpacity={0.78} style={calBtnS.openBtn}>
+            <Text style={calBtnS.openBtnTxt}>View Full Calendar →</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>
@@ -422,23 +518,37 @@ function CalendarCard({ events, showTomorrow, expanded, onToggleExpand, onAdd, o
 }
 
 // ── 2. DinnerCard ─────────────────────────────────────────────────────────────
-function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals }: {
+function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals, onEditMeal }: {
   meals:any[]; showTomorrow:boolean; expanded:boolean;
   onToggleExpand:()=>void; onPlanMeals:()=>void;
+  onEditMeal:(meal:any|null, dateKey:string, dayAbbr:string)=>void;
 }) {
-  const today       = localDateStr();
-  const tomorrow    = localDatePlusDays(1);
-  const targetDate  = showTomorrow ? tomorrow : today;
+  const today      = localDateStr();
+  const tomorrow   = localDatePlusDays(1);
+  const targetDate = showTomorrow ? tomorrow : today;
   const tonightMeal = meals.find(m => m.day_key === targetDate || m.planned_date === targetDate);
   const headline    = dinnerHeadline(tonightMeal?.meal_name ?? null, showTomorrow);
 
+  const [selectedKey,   setSelectedKey]   = useState<string|null>(null);
+  const [confirmDelKey, setConfirmDelKey] = useState<string|null>(null);
+
+  useEffect(() => {
+    if (!expanded) { setSelectedKey(null); setConfirmDelKey(null); }
+  }, [expanded]);
+
   const sevenDays = Array.from({ length:7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() + i);
-    const key  = localDateStr(d);
-    const meal = meals.find(m => m.day_key === key || m.planned_date === key);
+    const key     = localDateStr(d);
+    const meal    = meals.find(m => m.day_key === key || m.planned_date === key);
     const dayAbbr = i === 0 ? 'Tonight' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-AU', { weekday:'short' });
     return { key, meal, isTonight:i===0, dayAbbr };
   });
+
+  async function deleteMeal(meal: any) {
+    setSelectedKey(null); setConfirmDelKey(null);
+    try { await supabase.from('meal_plans').delete().eq('id', meal.id); }
+    catch (e) { console.error('[DinnerCard] deleteMeal:', e); }
+  }
 
   return (
     <View style={[cS.card, cS.cardDin, { overflow:'hidden' }]}>
@@ -457,43 +567,100 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
       )}
 
       {expanded && (
-        <View style={{ marginTop:8 }}>
-          {tonightMeal && (
-            <View style={{ flexDirection:'row', alignItems:'center', gap:14, marginBottom:18, paddingBottom:16, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
-              <Text style={{ fontSize:36, flexShrink:0 }}>{getMealEmoji(tonightMeal.meal_name)}</Text>
-              <View style={{ flex:1 }}>
-                <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:22, color:'#1A1A1A', letterSpacing:-0.5, lineHeight:26 }}>{tonightMeal.meal_name}</Text>
-                {tonightMeal.prep_mins > 0 && (
-                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(0,0,0,0.45)', marginTop:4 }}>{tonightMeal.prep_mins} min prep</Text>
+        <View style={{ marginTop:10 }}>
+          {/* 7-day list — no duplicate header */}
+          {sevenDays.map(({ key, meal, isTonight, dayAbbr }) => {
+            const isSel  = selectedKey === key;
+            const isConf = confirmDelKey === key;
+            return (
+              <View key={key}>
+                <TouchableOpacity
+                  style={[
+                    dinS.dayRow,
+                    isSel && { backgroundColor:'rgba(0,0,0,0.05)', borderRadius:10, marginHorizontal:-6, paddingHorizontal:6 },
+                  ]}
+                  onPress={() => { setSelectedKey(isSel ? null : key); setConfirmDelKey(null); }}
+                  activeOpacity={0.75}
+                >
+                  {/* 92px — wide enough for "Tomorrow" without wrapping */}
+                  <Text style={[dinS.dayLabel, isTonight && { color:'#C84010' }]}>{dayAbbr}</Text>
+                  {meal
+                    ? <Text style={dinS.mealName} numberOfLines={1}>{getMealEmoji(meal.meal_name)} {meal.meal_name}</Text>
+                    : <Text style={dinS.mealEmpty}>Nothing yet</Text>
+                  }
+                  <Text style={dinS.dayChevron}>{isSel ? '∧' : '›'}</Text>
+                </TouchableOpacity>
+
+                {isSel && (
+                  <View style={dinS.dayExpanded}>
+                    {meal ? (
+                      !isConf ? (
+                        <>
+                          {meal.prep_mins > 0 && <Text style={dinS.dayNote}>{meal.prep_mins} min prep</Text>}
+                          <View style={dinS.dayActions}>
+                            <TouchableOpacity style={[dinS.dayBtn, { flex:2 }]} onPress={() => onEditMeal(meal, key, dayAbbr)} activeOpacity={0.75}>
+                              <Text style={dinS.dayBtnTxt}>✦ Edit with Zaeli</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={dinS.dayBtnDel} onPress={() => setConfirmDelKey(key)} activeOpacity={0.75}>
+                              <Text style={dinS.dayBtnDelTxt}>Delete</Text>
+                            </TouchableOpacity>
+                          </View>
+                          <View style={[dinS.dayActions, { marginTop:8 }]}>
+                            <TouchableOpacity style={[dinS.dayBtn, { flex:1 }]} onPress={onPlanMeals} activeOpacity={0.75}>
+                              <Text style={dinS.dayBtnTxt}>Move</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[dinS.dayBtn, { flex:1 }]} onPress={onPlanMeals} activeOpacity={0.75}>
+                              <Text style={dinS.dayBtnTxt}>More options</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      ) : (
+                        <View style={dinS.dayActions}>
+                          <TouchableOpacity style={cS.evDelConfirmBtn} onPress={() => deleteMeal(meal)} activeOpacity={0.75}>
+                            <Text style={cS.evDelConfirmTxt}>Yes, delete</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={cS.evEditBtn} onPress={() => setConfirmDelKey(null)} activeOpacity={0.75}>
+                            <Text style={cS.evEditTxt}>Keep it</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )
+                    ) : (
+                      <TouchableOpacity style={[dinS.dayBtn, { alignSelf:'stretch' }]} onPress={() => onEditMeal(null, key, dayAbbr)} activeOpacity={0.75}>
+                        <Text style={dinS.dayBtnTxt}>✦ Plan {dayAbbr} with Zaeli</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 )}
               </View>
-              <View style={{ backgroundColor:'rgba(0,0,0,0.08)', borderRadius:8, paddingVertical:6, paddingHorizontal:10 }}>
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'rgba(0,0,0,0.50)' }}>✓ Planned</Text>
-              </View>
-            </View>
-          )}
+            );
+          })}
 
-          <View style={{ gap:10 }}>
-            {sevenDays.map(({ key, meal, isTonight, dayAbbr }) => (
-              <View key={key} style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
-                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:isTonight ? '#C84010' : 'rgba(0,0,0,0.38)', width:76, flexShrink:0 }}>{dayAbbr}</Text>
-                {meal ? (
-                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:16, color:'#1A1A1A', flex:1 }} numberOfLines={1}>{getMealEmoji(meal.meal_name)} {meal.meal_name}</Text>
-                ) : (
-                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(0,0,0,0.25)', fontStyle:'italic', flex:1 }}>Nothing yet</Text>
-                )}
-              </View>
-            ))}
-          </View>
-
-          <TouchableOpacity onPress={onPlanMeals} activeOpacity={0.75} style={{ marginTop:16 }}>
-            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(180,60,10,0.60)' }}>Open meal planner →</Text>
+          <TouchableOpacity onPress={onPlanMeals} activeOpacity={0.78} style={dinS.openPlanner}>
+            <Text style={dinS.openPlannerTxt}>Open Meal Planner →</Text>
           </TouchableOpacity>
         </View>
       )}
     </View>
   );
 }
+
+// ── DinnerCard scoped styles ───────────────────────────────────────────────────
+const dinS = StyleSheet.create({
+  dayRow:        { flexDirection:'row', alignItems:'center', gap:10, paddingVertical:11, borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.07)' },
+  dayLabel:      { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(0,0,0,0.38)', width:92, flexShrink:0 },
+  mealName:      { fontFamily:'Poppins_400Regular', fontSize:17, color:'#1A1A1A', flex:1 },
+  mealEmpty:     { fontFamily:'Poppins_400Regular', fontSize:17, color:'rgba(0,0,0,0.22)', fontStyle:'italic', flex:1 },
+  dayChevron:    { color:'rgba(0,0,0,0.25)', fontSize:13 },
+  dayExpanded:   { backgroundColor:'rgba(0,0,0,0.05)', borderRadius:12, padding:12, marginBottom:4, marginTop:2 },
+  dayNote:       { fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.45)', marginBottom:8 },
+  dayActions:    { flexDirection:'row', gap:8 },
+  dayBtn:        { backgroundColor:'rgba(0,0,0,0.10)', borderRadius:10, paddingVertical:11, alignItems:'center' },
+  dayBtnTxt:     { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.65)' },
+  dayBtnDel:     { backgroundColor:'rgba(255,69,69,0.12)', borderRadius:10, paddingVertical:11, paddingHorizontal:16, alignItems:'center' },
+  dayBtnDelTxt:  { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(200,10,10,0.75)' },
+  openPlanner:   { marginTop:16, backgroundColor:'rgba(0,0,0,0.10)', borderRadius:14, paddingVertical:14, alignItems:'center' },
+  openPlannerTxt:{ fontFamily:'Poppins_700Bold', fontSize:15, color:'rgba(140,50,0,0.80)' },
+});
 
 // ── 3a. WeatherCard ───────────────────────────────────────────────────────────
 function WeatherCard({ weather, expanded, onToggleExpand }: {
@@ -522,146 +689,97 @@ function WeatherCard({ weather, expanded, onToggleExpand }: {
   );
 }
 
-// ── 3b. Word of the Day ───────────────────────────────────────────────────────
-function WotdCard({ expanded, onToggleExpand }: {
+// ── 3b. Zaeli Noticed card ────────────────────────────────────────────────────
+function ZaeliNoticedCard({ notices, expanded, onToggleExpand, onChat }: {
+  notices: { text:string; tag:string; color:string }[];
   expanded:boolean; onToggleExpand:()=>void;
+  onChat:(notice:string)=>void;
 }) {
-  const word = getWordOfTheDay();
-  const [data,    setData]    = useState<WotdData|null>(null);
-  const [loading, setLoading] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const soundRef = useRef<Audio.Sound|null>(null);
-
-  useEffect(() => {
-    if (!expanded || data) return;
-    setLoading(true);
-    fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`)
-      .then(r => r.json())
-      .then((json: any) => {
-        const entry    = Array.isArray(json) ? json[0] : null;
-        if (!entry) { setLoading(false); return; }
-        const phonetic = entry.phonetic || entry.phonetics?.find((p:any) => p.text)?.text || '';
-        const meaning  = entry.meanings?.[0];
-        const def      = meaning?.definitions?.[0];
-        const audioUrl = entry.phonetics?.find((p:any) => p.audio && p.audio.length > 0)?.audio || null;
-        setData({
-          word, phonetic,
-          partOfSpeech: meaning?.partOfSpeech || '',
-          definition:   def?.definition || '',
-          example:      def?.example || '',
-          audioUrl,
-        });
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [expanded]);
-
-  useEffect(() => {
-    return () => { soundRef.current?.unloadAsync().catch(() => {}); };
-  }, []);
-
-  async function playAudio() {
-    if (!data?.audioUrl || playing) return;
-    try {
-      setPlaying(true);
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-      const uri = data.audioUrl.startsWith('//') ? `https:${data.audioUrl}` : data.audioUrl;
-      const { sound } = await Audio.Sound.createAsync({ uri });
-      soundRef.current = sound;
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.didJustFinish) setPlaying(false);
-      });
-    } catch {
-      setPlaying(false);
-    }
-  }
+  const count = notices.length;
+  const countWord = count === 1 ? 'one thing.' : count === 2 ? 'two things.' : count === 0 ? 'all quiet.' : `${count} things.`;
 
   return (
     <TouchableOpacity
       style={[cS.card, cS.cardWotd, { flex:1 }]}
-      onPress={expanded ? undefined : onToggleExpand}
-      activeOpacity={expanded ? 1 : 0.82}
+      onPress={onToggleExpand}
+      activeOpacity={0.82}
     >
-      <Text style={cS.cardLabel}>Word of the day</Text>
+      {/* Label */}
+      <Text style={[cS.cardLabel, { color:'rgba(107,53,217,0.55)', fontSize:13, letterSpacing:0.4 }]}>Zaeli{'\n'}noticed</Text>
 
       {!expanded && (
-        <View style={{ marginTop:6 }}>
-          {/* Word in forest green, same size as all other headlines */}
-          <Text style={cS.headlineWotd}>{word}.</Text>
-          <Text style={cS.tapHintDk}>Tap to explore →</Text>
+        <View style={{ marginTop:4 }}>
+          <Text style={[cS.headlineWotd, { fontSize:28, lineHeight:32 }]}>{countWord}</Text>
+          {count > 0 && (
+            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(107,53,217,0.55)', marginTop:6, lineHeight:18 }}>
+              {notices.slice(0,3).map(n => n.tag).join(' · ')}
+            </Text>
+          )}
         </View>
       )}
 
       {expanded && (
-        <TouchableOpacity onPress={onToggleExpand} activeOpacity={0.9} style={{ marginTop:6 }}>
-          <View style={{ flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between', marginBottom:4 }}>
-            <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:24, color:'#6B35D9', letterSpacing:-0.5, lineHeight:30, flex:1, paddingRight:8 }}>{word}</Text>
-            <TouchableOpacity
-              onPress={(e) => { e.stopPropagation(); playAudio(); }}
-              activeOpacity={0.75}
-              style={{ padding:4, marginTop:2 }}
-              hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-            >
-              <PlayIcon size={26} color={playing ? '#FF4545' : 'rgba(0,0,0,0.28)'}/>
-            </TouchableOpacity>
-          </View>
-
-          {loading && (
-            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.35)', fontStyle:'italic', marginTop:4 }}>Loading definition…</Text>
+        <View style={{ marginTop:8 }}>
+          {count === 0 ? (
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(107,53,217,0.45)', fontStyle:'italic' }}>Nothing unusual today.</Text>
+          ) : (
+            notices.map((n, i) => (
+              <TouchableOpacity
+                key={i}
+                style={noticedS.row}
+                onPress={(e) => { e.stopPropagation(); onChat(n.text); }}
+                activeOpacity={0.75}
+              >
+                <View style={[noticedS.dot, { backgroundColor:n.color }]}/>
+                <Text style={noticedS.txt}>{n.text}</Text>
+              </TouchableOpacity>
+            ))
           )}
-
-          {data && !loading && (
-            <>
-              {data.phonetic ? (
-                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(107,53,217,0.55)', fontStyle:'italic', marginBottom:4 }}>{data.phonetic}</Text>
-              ) : null}
-              {data.partOfSpeech ? (
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, textTransform:'uppercase', letterSpacing:0.6, color:'rgba(107,53,217,0.50)', marginBottom:10 }}>{data.partOfSpeech}</Text>
-              ) : null}
-              {data.definition ? (
-                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'#1A1A1A', lineHeight:22, marginBottom:8 }}>{data.definition}</Text>
-              ) : null}
-              {data.example ? (
-                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.45)', fontStyle:'italic', lineHeight:19 }}>"{data.example}"</Text>
-              ) : null}
-            </>
-          )}
-
-          {!data && !loading && (
-            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.35)', fontStyle:'italic', marginTop:6 }}>Definition not available.</Text>
-          )}
-        </TouchableOpacity>
+        </View>
       )}
     </TouchableOpacity>
   );
 }
 
+const noticedS = StyleSheet.create({
+  row: {
+    flexDirection:'row', alignItems:'flex-start', gap:8,
+    paddingVertical:7,
+    borderBottomWidth:1, borderBottomColor:'rgba(107,53,217,0.10)',
+  },
+  dot: {
+    width:7, height:7, borderRadius:4, flexShrink:0, marginTop:6,
+  },
+  txt: {
+    fontFamily:'Poppins_400Regular', fontSize:14,
+    color:'rgba(10,10,10,0.70)', lineHeight:20, flex:1,
+  },
+});
+
 // ── 4. ShoppingCard — white font, no ghost ────────────────────────────────────
-function ShoppingCard({ items, count, expanded, onToggleExpand, onAdd, onFull }: {
+function ShoppingCard({ items, count, expanded, onToggleExpand, onAdd, onOpenSheet }: {
   items:any[]; count:number; expanded:boolean;
-  onToggleExpand:()=>void; onAdd:()=>void; onFull:()=>void;
+  onToggleExpand:()=>void; onAdd:()=>void; onOpenSheet:()=>void;
 }) {
   const headline  = shopHeadline(count);
   const unchecked = items.filter((i:any) => i.checked !== true);
 
   return (
     <View style={[cS.card, cS.cardShop, { overflow:'hidden' }]}>
-      {/* Header tapping always toggles */}
+      {/* Header — tap to toggle. + Add always visible */}
       <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
         <Text style={cS.headlineShop}>{headline}</Text>
-        {expanded && (
-          <TouchableOpacity style={cS.addBtnLt} onPress={(e) => { e.stopPropagation(); onAdd(); }} activeOpacity={0.75}>
-            <Text style={cS.addBtnTxtLt}>+ Add</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={cS.addBtnLt}
+          onPress={(e) => { e.stopPropagation(); onAdd(); }}
+          activeOpacity={0.75}
+        >
+          <Text style={cS.addBtnTxtLt}>+ Add</Text>
+        </TouchableOpacity>
       </TouchableOpacity>
 
       {!expanded && (
-        <Text style={cS.tapHintShop}>{count > 0 ? 'Tap to see →' : ''}</Text>
+        <Text style={shopS.tapHint}>{count > 0 ? 'Tap to see →' : ''}</Text>
       )}
 
       {expanded && (
@@ -672,21 +790,79 @@ function ShoppingCard({ items, count, expanded, onToggleExpand, onAdd, onFull }:
             unchecked.slice(0,8).map((item:any, i:number) => (
               <View key={item.id||i} style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:11 }}>
                 <View style={{ width:7, height:7, borderRadius:4, backgroundColor:'rgba(255,255,255,0.40)', flexShrink:0 }}/>
-                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:17, color:'rgba(255,255,255,0.92)', flex:1 }} numberOfLines={1}>{item.name||item.item}</Text>
+                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:17, color:'rgba(255,255,255,0.92)', flex:1 }} numberOfLines={1}>
+                  {item.name||item.item}
+                </Text>
               </View>
             ))
           )}
+
+          {/* +N more — bigger and brighter */}
           {unchecked.length > 8 && (
-            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'rgba(255,255,255,0.55)', marginBottom:8 }}>+{unchecked.length - 8} more</Text>
+            <Text style={shopS.moreCount}>+{unchecked.length - 8} more</Text>
           )}
-          <TouchableOpacity onPress={onFull} activeOpacity={0.75} style={{ marginTop:6 }}>
-            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(255,255,255,0.60)' }}>Full list →</Text>
+
+          {/* Open Shopping List — full width, same pattern as Dinner */}
+          <TouchableOpacity onPress={onOpenSheet} activeOpacity={0.78} style={shopS.openBtn}>
+            <Text style={shopS.openBtnTxt}>Open Shopping List →</Text>
           </TouchableOpacity>
         </View>
       )}
     </View>
   );
 }
+
+// ── ShoppingCard scoped styles ─────────────────────────────────────────────────
+const shopS = StyleSheet.create({
+  tapHint: {
+    fontFamily:'Poppins_500Medium', fontSize:13,
+    color:'rgba(255,255,255,0.70)',
+    marginTop:10,
+  },
+  moreCount: {
+    fontFamily:'Poppins_600SemiBold', fontSize:17,
+    color:'rgba(255,255,255,0.70)',
+    marginBottom:10,
+  },
+  openBtn: {
+    marginTop:10,
+    backgroundColor:'rgba(255,255,255,0.15)',
+    borderRadius:14, paddingVertical:14,
+    alignItems:'center',
+  },
+  openBtnTxt: {
+    fontFamily:'Poppins_700Bold', fontSize:15,
+    color:'rgba(255,255,255,0.90)',
+  },
+});
+
+// Calendar full-width button (white on slate)
+const calBtnS = StyleSheet.create({
+  openBtn: {
+    marginTop:14,
+    backgroundColor:'rgba(255,255,255,0.12)',
+    borderRadius:14, paddingVertical:14,
+    alignItems:'center',
+  },
+  openBtnTxt: {
+    fontFamily:'Poppins_700Bold', fontSize:15,
+    color:'rgba(255,255,255,0.80)',
+  },
+});
+
+// Actions full-width button (dark on gold)
+const actS = StyleSheet.create({
+  openBtn: {
+    marginTop:14,
+    backgroundColor:'rgba(0,0,0,0.10)',
+    borderRadius:14, paddingVertical:14,
+    alignItems:'center',
+  },
+  openBtnTxt: {
+    fontFamily:'Poppins_700Bold', fontSize:15,
+    color:'rgba(100,70,0,0.80)',
+  },
+});
 
 // ── 5. ActionsCard — no ghost ─────────────────────────────────────────────────
 function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onToggleExpand, onAdd, onFull, onTick }: {
@@ -766,8 +942,8 @@ function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onTogg
             </>
           )}
 
-          <TouchableOpacity onPress={onFull} activeOpacity={0.75} style={{ marginTop:12 }}>
-            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(128,96,0,0.60)' }}>All todos →</Text>
+          <TouchableOpacity onPress={onFull} activeOpacity={0.78} style={actS.openBtn}>
+            <Text style={actS.openBtnTxt}>Open All To-dos and Reminders →</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -778,7 +954,8 @@ function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onTogg
 // ══════════════════════════════════════════════════════════════════════════════
 // ── MAIN SCREEN ───────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
-export default function DashboardScreen() {
+export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: () => void }) {
+  const insets = useSafeAreaInsets();
   const router     = useRouter();
   const h          = new Date().getHours();
   const isAfter8pm = h >= 20;
@@ -804,7 +981,6 @@ export default function DashboardScreen() {
       const today   = localDateStr();
       const tomorrow = localDatePlusDays(1);
       const in7days  = localDatePlusDays(7);
-      const nowMs    = Date.now() - 15 * 60 * 1000;
 
       const [evRes, shopRes, shopCountRes, todosRes, remindersRes, mealsRes] = await Promise.all([
         supabase.from('events')
@@ -831,11 +1007,7 @@ export default function DashboardScreen() {
       ]);
 
       const allEvents      = (evRes.data ?? []).filter((e:any) => !e.all_day);
-      const todayEvents    = allEvents.filter((e:any) => {
-        if (e.date !== today) return false;
-        if (!e.start_time) return true;
-        return new Date(e.start_time).getTime() >= nowMs;
-      });
+      const todayEvents    = allEvents.filter((e:any) => e.date === today);
       const tomorrowEvents = allEvents.filter((e:any) => e.date === tomorrow);
 
       let weather: WeatherData | null = null;
@@ -879,7 +1051,7 @@ export default function DashboardScreen() {
     return () => clearInterval(interval);
   }, [loadData]));
 
-  const showCalTomorrow    = isAfter8pm || cardData.todayEvents.length === 0;
+  const showCalTomorrow    = isAfter8pm || (cardData.todayEvents.length === 0 && cardData.tomorrowEvents.length > 0);
   const showDinnerTomorrow = isAfter8pm;
   const isEvening          = isAfter8pm;
   const tomorrowMorningEvs = cardData.tomorrowEvents.filter(e => {
@@ -889,7 +1061,9 @@ export default function DashboardScreen() {
 
   async function handleTodoTick(todo: any) {
     const isReminder = todo.reminder_type === 'reminder';
-    const newStatus  = isReminder ? 'acknowledged' : 'done';
+    const isDone     = todo.status === 'done' || todo.status === 'acknowledged';
+    // Toggle — ticking a done item restores it to active
+    const newStatus  = isDone ? 'active' : (isReminder ? 'acknowledged' : 'done');
     setCardData(prev => ({ ...prev, todos:prev.todos.map(t => t.id===todo.id ? {...t, status:newStatus} : t) }));
     try {
       if (isReminder) {
@@ -902,14 +1076,22 @@ export default function DashboardScreen() {
     }
   }
 
-  function goToChat()      { router.navigate('/(tabs)/' as any); }
+  function goToChat()      { onNavigateChat?.(); }
   function goToEditEvent(ev: any) {
     setPendingChatContext({ type:'edit_event', event:ev, returnTo:'dashboard' });
-    router.navigate('/(tabs)/' as any);
+    onNavigateChat?.();
   }
-  function goToAddEvent()    { setPendingChatContext({ type:'add_event',  returnTo:'dashboard' }); router.navigate('/(tabs)/' as any); }
-  function goToAddShopping() { setPendingChatContext({ type:'shopping',   returnTo:'dashboard' }); router.navigate('/(tabs)/' as any); }
-  function goToAddTodo()     { setPendingChatContext({ type:'actions',    returnTo:'dashboard' }); router.navigate('/(tabs)/' as any); }
+  function goToAddEvent()    { setPendingChatContext({ type:'add_event',  returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToAddShopping() { setPendingChatContext({ type:'shopping',   returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToAddTodo()     { setPendingChatContext({ type:'actions',    returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToEditMeal(meal: any|null, dateKey: string, dayAbbr: string) {
+    setPendingChatContext({ type:'meals', event:{ meal, dateKey, dayAbbr }, returnTo:'dashboard' });
+    onNavigateChat?.();
+  }
+  function goToEditTodo(todo: any) {
+    setPendingChatContext({ type:'actions', event:todo, returnTo:'dashboard' });
+    onNavigateChat?.();
+  }
 
   // Top bar date label
   const topDateLabel = new Date().toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
@@ -918,18 +1100,17 @@ export default function DashboardScreen() {
     <View style={s.root}>
       <ExpoStatusBar style="dark" animated/>
 
-      <SafeAreaView style={s.topBar} edges={['top']}>
+      <View style={[s.topBar, { paddingTop: insets.top }]}>
         <View style={s.topBarRow}>
-          <TouchableOpacity onPress={goToChat} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => onNavigateChat?.()} activeOpacity={0.8}>
             <Text style={s.logoWord}>
               z<Text style={{ color:'#A8D8F0' }}>a</Text>el<Text style={{ color:'#A8D8F0' }}>i</Text>
             </Text>
           </TouchableOpacity>
-          {/* Date replaces "Dashboard" label */}
           <Text style={s.dateLabel}>{topDateLabel}</Text>
         </View>
         <View style={s.topBarDivider}/>
-      </SafeAreaView>
+      </View>
 
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -962,10 +1143,11 @@ export default function DashboardScreen() {
             expanded={expandedCard === 'dinner'}
             onToggleExpand={() => toggleCard('dinner')}
             onPlanMeals={() => router.navigate('/(tabs)/mealplanner')}
+            onEditMeal={goToEditMeal}
           />
         </Animated.View>
 
-        {/* 3. Weather + Word of the Day */}
+        {/* 3. Weather + Zaeli Noticed */}
         <Animated.View style={{ opacity:cardAnims[2].opacity, transform:[{translateY:cardAnims[2].translateY}] }}>
           <View style={{ flexDirection:'row', gap:10 }}>
             <WeatherCard
@@ -973,9 +1155,18 @@ export default function DashboardScreen() {
               expanded={expandedCard === 'weather'}
               onToggleExpand={() => toggleCard('weather')}
             />
-            <WotdCard
+            <ZaeliNoticedCard
+              notices={[
+                { text:"Poppy's assignment is due tomorrow.", tag:'Poppy', color:'#A855F7' },
+                { text:"Rain from 3pm — Duke's soccer may be affected.", tag:'Weather', color:'#A8D8F0' },
+                { text:`${cardData.shopCount > 0 ? cardData.shopCount + ' items on the list' : 'Shopping list is clear'}.`, tag:'Shopping', color:'#D8CCFF' },
+              ]}
               expanded={expandedCard === 'wotd'}
               onToggleExpand={() => toggleCard('wotd')}
+              onChat={(notice) => {
+                setPendingChatContext({ type:'noticed' as any, event:{ title: notice }, returnTo:'dashboard' });
+                router.navigate('/(tabs)/' as any);
+              }}
             />
           </View>
         </Animated.View>
@@ -988,7 +1179,10 @@ export default function DashboardScreen() {
             expanded={expandedCard === 'shopping'}
             onToggleExpand={() => toggleCard('shopping')}
             onAdd={goToAddShopping}
-            onFull={() => router.navigate('/(tabs)/shopping')}
+            onOpenSheet={() => {
+              setPendingChatContext({ type:'shopping_sheet' as any, returnTo:'dashboard' });
+              router.navigate('/(tabs)/' as any);
+            }}
           />
         </Animated.View>
 
@@ -1003,27 +1197,24 @@ export default function DashboardScreen() {
             onAdd={goToAddTodo}
             onFull={() => router.navigate('/(tabs)/todos')}
             onTick={handleTodoTick}
+            onEditTodo={goToEditTodo}
+            onDeleteTodo={async (todo) => {
+              setCardData(prev => ({ ...prev, todos:prev.todos.filter(t => t.id !== todo.id) }));
+              try {
+                if (todo.reminder_type === 'reminder') {
+                  await supabase.from('reminders').delete().eq('id', todo.id);
+                } else {
+                  await supabase.from('todos').delete().eq('id', todo.id);
+                }
+              } catch {
+                setCardData(prev => ({ ...prev, todos:[...prev.todos, todo] }));
+              }
+            }}
           />
         </Animated.View>
 
         <View style={{ height:130 }}/>
       </ScrollView>
-
-      <ZaeliFAB
-        activeButton="dashboard"
-        onDashboard={() => {}}
-        onChat={goToChat}
-        onChatKeyboard={goToChat}
-        onMoreItem={(key) => {
-          const routes: Record<string, string> = {
-            notes:'/(tabs)/notes', kids:'/(tabs)/kids', tutor:'/(tabs)/tutor',
-            travel:'/(tabs)/travel', family:'/(tabs)/family', meals:'/(tabs)/mealplanner',
-            settings:'/(tabs)/settings',
-          };
-          if (routes[key]) router.navigate(routes[key] as any);
-        }}
-        onMicResult={goToChat}
-      />
     </View>
   );
 }
@@ -1034,7 +1225,7 @@ const s = StyleSheet.create({
   topBar:        { backgroundColor:'#FAF8F5' },
   topBarRow:     { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:20, paddingTop:4, paddingBottom:10 },
   topBarDivider: { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
-  logoWord:      { fontFamily:'DMSerifDisplay_400Regular', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:44 },
+  logoWord:      { fontFamily:'Poppins_800ExtraBold', fontSize:36, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:42 },
   dateLabel:     { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(10,10,10,0.42)' },
   scroll:        { flex:1 },
   scrollContent: { paddingHorizontal:14, paddingTop:14, gap:10 },

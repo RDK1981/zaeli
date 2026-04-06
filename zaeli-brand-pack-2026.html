@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli · Brand Pack 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink:      #0A0A0A;
+  --bg:       #F7F5F2;
+  --card:     #FFFFFF;
+  --border:   rgba(10,10,10,0.09);
+  --t2:       rgba(10,10,10,0.45);
+  --t3:       rgba(10,10,10,0.25);
+
+  /* Zaeli palette */
+  --coral:    #FF4545;
+  --sky:      #A8D8F0;
+  --violet:   #6B35D9;
+  --warm-white: #FAF8F5;
+
+  /* Cards */
+  --slate:    #3A3D4A;
+  --peach:    #FAC8A8;
+  --lavender: #D8CCFF;
+  --gold:     #F0DC80;
+  --sage:     #E8F4E8;
+}
+
+body {
+  background: var(--bg);
+  font-family: 'Poppins', sans-serif;
+  color: var(--ink);
+  min-height: 100vh;
+}
+
+/* ── NAV ── */
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(247,245,242,0.94);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 40px;
+  display: flex; align-items: center; gap: 0;
+  height: 56px;
+}
+.nav-brand {
+  display: flex; align-items: center; gap: 12px;
+  padding-right: 28px;
+  border-right: 1px solid var(--border);
+  margin-right: 24px; flex-shrink: 0;
+}
+.nav-logo {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 800; font-size: 22px;
+  letter-spacing: -1px; color: var(--ink);
+}
+.nav-logo .sky { color: var(--sky); }
+.nav-tabs { display: flex; gap: 2px; overflow-x: auto; }
+.nav-tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  background: none; border: none;
+  color: var(--t3); padding: 7px 14px;
+  border-radius: 8px; font-size: 12px;
+  font-weight: 600; cursor: pointer;
+  font-family: 'Poppins', sans-serif;
+  transition: all 0.15s; white-space: nowrap;
+}
+.tab-btn:hover { color: var(--t2); background: rgba(10,10,10,0.05); }
+.tab-btn.active { color: var(--ink); background: rgba(10,10,10,0.08); }
+
+/* ── SECTIONS ── */
+.section { display: none; padding: 56px 40px 80px; max-width: 1080px; margin: 0 auto; }
+.section.active { display: block; }
+
+.sec-eyebrow {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 3px;
+  color: var(--coral); margin-bottom: 10px;
+}
+.sec-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 38px; letter-spacing: -1px;
+  color: var(--ink); line-height: 1.1;
+  margin-bottom: 8px;
+}
+.sec-desc {
+  font-size: 15px; color: var(--t2);
+  line-height: 1.7; max-width: 560px;
+  margin-bottom: 48px;
+}
+
+/* ── TILES ── */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px; margin-bottom: 48px;
+}
+.tile {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px 28px 24px;
+}
+.tile-label {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--t3); margin-bottom: 16px;
+}
+.tile-desc {
+  font-size: 13px; color: var(--t2);
+  line-height: 1.6; margin-top: 12px;
+}
+
+/* ── WORDMARK ── */
+.wordmark {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 800; letter-spacing: -2px;
+  color: var(--ink); line-height: 1;
+}
+.wordmark .sky { color: var(--sky); }
+.wm-lg { font-size: 72px; }
+.wm-md { font-size: 48px; }
+.wm-sm { font-size: 32px; }
+.wm-xs { font-size: 22px; }
+
+.on-dark {
+  background: var(--ink);
+  border-radius: 16px; padding: 24px 32px;
+  display: inline-block;
+}
+.on-dark .wordmark { color: #fff; }
+
+.wm-specs {
+  margin-top: 12px;
+  font-size: 12px; color: var(--t2);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.wm-specs span { font-family: monospace; font-size: 11px; }
+
+/* ── COLOUR SWATCHES ── */
+.swatch-grid {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  margin-bottom: 40px;
+}
+.swatch {
+  display: flex; flex-direction: column;
+  align-items: flex-start; gap: 8px; width: 108px;
+}
+.swatch-box {
+  width: 108px; height: 72px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+}
+.swatch-hex {
+  font-size: 11px; font-weight: 600;
+  font-family: monospace; color: var(--ink);
+}
+.swatch-name { font-size: 11px; color: var(--t2); }
+.swatch-role { font-size: 10px; color: var(--t3); margin-top: -2px; }
+
+/* ── DASHBOARD CARDS ── */
+.card-showcase {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 40px; max-width: 420px;
+}
+.card-row { display: flex; gap: 10px; }
+.dash-card {
+  border-radius: 22px; padding: 22px;
+  flex: 1;
+}
+.dash-card-label {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  margin-bottom: 6px;
+}
+.dash-card-headline {
+  font-size: 22px; font-weight: 700;
+  letter-spacing: -0.5px; line-height: 1.2;
+}
+.dash-card-sub {
+  font-size: 12px; margin-top: 8px; opacity: 0.55;
+}
+.dash-card-btn {
+  margin-top: 16px;
+  border-radius: 14px; padding: 11px 0;
+  text-align: center;
+  font-size: 13px; font-weight: 700;
+}
+
+/* ── FONT SCALE ── */
+.font-scale { display: flex; flex-direction: column; gap: 0; margin-bottom: 40px; }
+.font-row {
+  display: flex; align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 24px;
+}
+.font-row:last-child { border-bottom: none; }
+.font-spec {
+  min-width: 280px; flex-shrink: 0;
+}
+.font-spec-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.font-spec-detail { font-size: 10px; font-family: monospace; color: var(--t2); margin-top: 2px; }
+.font-sample { flex: 1; }
+
+/* ── FAB ── */
+.fab-demo {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(255,255,255,0.90);
+  border: 1px solid rgba(255,255,255,0.98);
+  border-radius: 36px; padding: 8px 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+}
+.fab-btn {
+  width: 56px; height: 56px; border-radius: 20px;
+  display: flex; align-items: center;
+  justify-content: center; font-size: 18px;
+  color: rgba(10,10,10,0.40); transition: all 0.15s;
+  font-weight: 700;
+}
+.fab-btn.active-dark { background: #0A0A0A; color: #fff; }
+.fab-btn.active-sky  { background: #A8D8F0; color: #1A3A4A; }
+.fab-btn.active-coral{ background: #FF4545; color: #fff; }
+.fab-sep {
+  width: 1px; height: 30px;
+  background: rgba(10,10,10,0.08);
+  margin: 0 4px;
+}
+.fab-bg {
+  background: var(--warm-white);
+  border-radius: 24px; padding: 20px 24px;
+  display: inline-flex; flex-direction: column; gap: 16px;
+}
+.fab-state-label { font-size: 11px; color: var(--t2); margin-bottom: 8px; }
+
+/* ── MORE OVERLAY ── */
+.more-card {
+  background: rgba(255,255,255,0.97);
+  border-radius: 28px; padding: 24px 20px 20px;
+  width: 340px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.14);
+  border: 1px solid rgba(255,255,255,1);
+}
+.more-section-label {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  color: rgba(10,10,10,0.22); margin-bottom: 10px;
+}
+.more-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 6px; margin-bottom: 10px;
+}
+.more-item {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
+  padding: 10px 4px; border-radius: 14px;
+}
+.more-icon {
+  width: 50px; height: 50px; border-radius: 16px;
+  display: flex; align-items: center;
+  justify-content: center; font-size: 20px;
+}
+.more-item-label {
+  font-size: 10px; font-weight: 600;
+  color: rgba(10,10,10,0.42); text-align: center;
+}
+.more-divider {
+  height: 1px; background: rgba(10,10,10,0.07);
+  margin: 10px 0;
+}
+.more-settings-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 4px; border-radius: 10px;
+}
+.more-settings-icon {
+  width: 32px; height: 32px; border-radius: 10px;
+  background: rgba(10,10,10,0.06);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.more-settings-label { font-size: 12px; font-weight: 600; color: rgba(10,10,10,0.38); }
+
+/* ── FAMILY ── */
+.family-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; }
+.family-member { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.family-av {
+  width: 64px; height: 64px; border-radius: 20px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 26px; font-weight: 700; color: #fff;
+}
+.family-name { font-size: 12px; font-weight: 600; color: var(--ink); }
+.family-hex { font-size: 10px; font-family: monospace; color: var(--t2); }
+
+/* ── CHANNEL TABLE ── */
+.channel-table {
+  width: 100%; border-collapse: collapse;
+  margin-bottom: 40px;
+}
+.channel-table th {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--t3); text-align: left;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+}
+.channel-table td {
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  font-size: 13px; vertical-align: middle;
+}
+.channel-table tr:last-child td { border-bottom: none; }
+.channel-dot {
+  width: 28px; height: 28px; border-radius: 9px;
+  display: inline-block; vertical-align: middle;
+  margin-right: 8px; border: 1px solid var(--border);
+}
+.channel-hex { font-family: monospace; font-size: 12px; color: var(--t2); }
+.channel-type {
+  display: inline-block;
+  background: rgba(10,10,10,0.06);
+  border-radius: 6px; padding: 2px 8px;
+  font-size: 10px; font-weight: 600; color: var(--t2);
+}
+
+/* ── SPEC TABLE ── */
+.spec-table {
+  width: 100%; border-collapse: collapse; margin-bottom: 40px;
+}
+.spec-table tr { border-bottom: 1px solid var(--border); }
+.spec-table tr:last-child { border-bottom: none; }
+.spec-table td {
+  padding: 12px 16px; font-size: 13px;
+  vertical-align: top;
+}
+.spec-key {
+  font-weight: 600; width: 220px;
+  color: var(--ink); flex-shrink: 0;
+}
+.spec-val { font-family: monospace; font-size: 12px; color: var(--t2); }
+.spec-note { font-size: 12px; color: var(--t3); padding-top: 2px; }
+
+/* ── DOTS ── */
+.dot-demo { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.page-dot {
+  width: 6px; height: 6px; border-radius: 3px;
+  background: rgba(10,10,10,0.14);
+}
+.page-dot.active-coral { width: 18px; background: #FF4545; border-radius: 3px; }
+.page-dot.active-sky   { width: 18px; background: #A8D8F0; border-radius: 3px; }
+
+/* ── ZAELI NOTICED CARD ── */
+.noticed-card {
+  background: #E8F4E8; border-radius: 22px;
+  padding: 22px; width: 160px;
+}
+.noticed-label {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.8px;
+  color: rgba(107,53,217,0.55); margin-bottom: 6px; line-height: 1.3;
+}
+.noticed-count {
+  font-size: 26px; font-weight: 700;
+  letter-spacing: -0.5px; color: #6B35D9; line-height: 1.1;
+}
+.noticed-tags { font-size: 12px; color: rgba(107,53,217,0.50); margin-top: 6px; }
+.noticed-row {
+  display: flex; align-items: flex-start;
+  gap: 8px; padding: 7px 0;
+  border-bottom: 1px solid rgba(107,53,217,0.10);
+}
+.noticed-dot { width: 7px; height: 7px; border-radius: 4px; flex-shrink: 0; margin-top: 5px; }
+.noticed-txt { font-size: 13px; color: rgba(10,10,10,0.65); line-height: 1.5; }
+
+/* ── RULES BOX ── */
+.rules-box {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 24px 28px; margin-bottom: 40px;
+}
+.rule-item {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+  font-size: 13px; line-height: 1.6;
+}
+.rule-item:last-child { border-bottom: none; padding-bottom: 0; }
+.rule-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.rule-text strong { font-weight: 600; }
+.rule-text em { font-family: monospace; font-size: 12px; background: rgba(10,10,10,0.06); padding: 1px 5px; border-radius: 4px; font-style: normal; }
+
+/* section dividers in content */
+.content-divider { margin: 48px 0 40px; border: none; border-top: 1px solid var(--border); }
+.subsection-title { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 20px; }
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">z<span class="sky">a</span>el<span class="sky">i</span></div>
+    <span style="font-size:11px;color:var(--t3);font-weight:500;">Brand Pack · 2026</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="show('wordmark',this)">Wordmark</button>
+    <button class="tab-btn" onclick="show('palette',this)">Palette</button>
+    <button class="tab-btn" onclick="show('typography',this)">Typography</button>
+    <button class="tab-btn" onclick="show('dashboard',this)">Dashboard</button>
+    <button class="tab-btn" onclick="show('navigation',this)">Navigation</button>
+    <button class="tab-btn" onclick="show('channels',this)">Channels</button>
+    <button class="tab-btn" onclick="show('family',this)">Family</button>
+    <button class="tab-btn" onclick="show('specs',this)">Specs</button>
+    <button class="tab-btn" onclick="show('rules',this)">Rules</button>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════ -->
+<!-- WORDMARK -->
+<!-- ══════════════════════════════════ -->
+<section class="section active" id="wordmark">
+  <div class="sec-eyebrow">Identity</div>
+  <h1 class="sec-title">Wordmark</h1>
+  <p class="sec-desc">Poppins 800 ExtraBold. Sky blue highlights on the 'a' and 'i' — a quiet nod to intelligence and warmth. The only character that changes between light and dark contexts is the base colour.</p>
+
+  <div class="tile-grid">
+    <!-- Light -->
+    <div class="tile">
+      <div class="tile-label">On light background</div>
+      <div class="wordmark wm-lg">z<span class="sky">a</span>el<span class="sky">i</span></div>
+      <div class="wm-specs">
+        <span>font: Poppins_800ExtraBold</span>
+        <span>base: #0A0A0A ink</span>
+        <span>a + i: #A8D8F0 sky</span>
+        <span>letter-spacing: -1.5px (36px size)</span>
+      </div>
+    </div>
+
+    <!-- Dark -->
+    <div class="tile" style="background:#0A0A0A;">
+      <div class="tile-label" style="color:rgba(255,255,255,0.25);">On dark background</div>
+      <div class="on-dark" style="padding:0;background:none;">
+        <div class="wordmark wm-lg" style="color:#fff;">z<span class="sky">a</span>el<span class="sky">i</span></div>
+      </div>
+      <div class="wm-specs" style="color:rgba(255,255,255,0.30);">
+        <span>font: Poppins_800ExtraBold</span>
+        <span>base: #ffffff white</span>
+        <span>a + i: #A8D8F0 sky</span>
+        <span>Letter spacing: -2px (landing/56px)</span>
+      </div>
+    </div>
+
+    <!-- Size scale -->
+    <div class="tile" style="grid-column: span 2;">
+      <div class="tile-label">Size scale</div>
+      <div style="display:flex;flex-direction:column;gap:16px;align-items:flex-start;">
+        <div>
+          <div class="wordmark wm-lg">z<span class="sky">a</span>el<span class="sky">i</span></div>
+          <div style="font-size:10px;color:var(--t3);margin-top:4px;">56px — Landing / splash overlay</div>
+        </div>
+        <div>
+          <div class="wordmark wm-md">z<span class="sky">a</span>el<span class="sky">i</span></div>
+          <div style="font-size:10px;color:var(--t3);margin-top:4px;">36px — Dashboard top bar</div>
+        </div>
+        <div>
+          <div class="wordmark wm-sm">z<span class="sky">a</span>el<span class="sky">i</span></div>
+          <div style="font-size:10px;color:var(--t3);margin-top:4px;">24px — Navigation back-reference</div>
+        </div>
+        <div>
+          <div class="wordmark wm-xs">z<span class="sky">a</span>el<span class="sky">i</span></div>
+          <div style="font-size:10px;color:var(--t3);margin-top:4px;">18px — Tab bar / compact contexts</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✦ Symbol -->
+  <div class="subsection-title">The ✦ Mark</div>
+  <div class="tile-grid">
+    <div class="tile">
+      <div class="tile-label">My Space icon — ✦ (U+2756)</div>
+      <div style="display:flex;align-items:center;gap:24px;margin-top:8px;">
+        <div style="font-size:64px;color:#0A0A0A;line-height:1;">✦</div>
+        <div style="font-size:40px;color:#A8D8F0;line-height:1;">✦</div>
+        <div style="font-size:40px;color:rgba(10,10,10,0.30);line-height:1;">✦</div>
+      </div>
+      <div class="tile-desc">Black Four Pointed Star · Active state = sky #A8D8F0 · Resting = rgba(10,10,10,0.42) · Used in ZaeliFAB as My Space button</div>
+    </div>
+    <div class="tile">
+      <div class="tile-label">Usage context</div>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:13px;color:var(--t2);">The ✦ is the only Zaeli visual mark used as a navigation element. It appears exclusively as the My Space button in ZaeliFAB.</div>
+        <div style="font-size:13px;color:var(--t2);">It is NOT used decoratively elsewhere in the app — its meaning is singular and navigation-specific.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ -->
+<!-- PALETTE -->
+<!-- ══════════════════════════════════ -->
+<section class="section" id="palette">
+  <div class="sec-eyebrow">Colour</div>
+  <h1 class="sec-title">Palette</h1>
+  <p class="sec-desc">Every colour in use across the Zaeli app. Nothing is decorative — each colour has a specific role and is applied consistently throughout.</p>
+
+  <div class="subsection-title">Core — always these, everywhere</div>
+  <div class="swatch-grid">
+    <div class="swatch">
+      <div class="swatch-box" style="background:#FAF8F5;"></div>
+      <div class="swatch-hex">#FAF8F5</div>
+      <div class="swatch-name">Warm white</div>
+      <div class="swatch-role">App body bg · always</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-box" style="background:#0A0A0A;"></div>
+      <div class="swatch-hex">#0A0A0A</div>
+      <div class="swatch-name">Ink</div>
+      <div class="swatch-role">Primary text · FAB active</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-box" style="background:#1A1A1A;"></div>
+      <div class="swatch-hex">#1A1A1A</div>
+      <div class="swatch-name">Near-black</div>
+      <div class="swatch-role">Body text on light cards</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-box" style="background:#FF4545;"></div>
+      <div class="swatch-hex">#FF4545</div>
+      <div class="swatch-name">Coral</div>
+      <div class="swatch-role">Send button · CTA · dot active</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-box" style="background:#A8D8F0;"></div>
+      <div class="swatch-hex">#A8D8F0</div>
+      <div class="swatch-name">Sky</div>
+      <div class="swatch-role">Logo a+i · My Space dot · ✦ active</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-box" style="background:#6B35D9;"></div>
+      <div class="swatch-hex">#6B35D9</div>
+      <div class="swatch-name">Violet</div>
+      <div class="swatch-role">Zaeli Noticed card · WotD</div>
+    </div>
+  </div>
+
+  <hr class="content-divider">
+  <div class="subsection-title">Dashboard & My Space card backgrounds</div>
+  <div class="swatch-grid">
+    <div class="swatch">
+      <div class="swatch-box" style="background:#3A3D4A;"></div>
+      <div class="swatch-hex">#3A3D4A</div>
+      <div class="swatch-name">Slate</div>
+      <div class="swatch-role">Calendar · Health · NASA</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-box" style="background:#FAC8A8;"></div>
+      <div class="swatch-hex">#FAC8A8</div>
+      <div class="swatch-name">Peach</div>
+      <div class="swatch-role">Dinner · Zen</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-box" style="background:#D8CCFF;"></div>
+      <div class="swatch-hex">#D8CCFF</div>
+      <div class="swatch-name">Lavender</div>
+      <div class="swatch-role">Shopping · Notes</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-box" style="background:#F0DC80;"></div>
+      <div class="swatch-hex">#F0DC80</div>
+      <div class="swatch-name">Gold</div>
+      <div class="swatch-role">Actions/Todos · Goals · Wordle</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-box" style="background:#E8F4E8;"></div>
+      <div class="swatch-hex">#E8F4E8</div>
+      <div class="swatch-name">Sage</div>
+      <div class="swatch-role">Zaeli Noticed · WotD</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-box" style="background:#A8D8F0;"></div>
+      <div class="swatch-hex">#A8D8F0</div>
+      <div class="swatch-name">Sky</div>
+      <div class="swatch-role">Weather card</div>
+    </div>
+  </div>
+
+  <hr class="content-divider">
+  <div class="subsection-title">Text rules on coloured cards</div>
+  <div class="tile-grid">
+    <div class="tile">
+      <div class="tile-label">Light cards (peach, lavender, gold, sage, sky)</div>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:13px;">Headlines: <strong>#1A1A1A</strong> — except lavender which uses <strong>#ffffff</strong></div>
+        <div style="font-size:13px;">Card labels: <strong>rgba(0,0,0,0.35)</strong></div>
+        <div style="font-size:13px;">Tap hints: <strong>rgba(0,0,0,0.22)</strong></div>
+        <div style="font-size:13px;">Zaeli Noticed: <strong>#6B35D9</strong> violet throughout</div>
+      </div>
+    </div>
+    <div class="tile">
+      <div class="tile-label">Dark cards (slate)</div>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:13px;">Headlines: <strong>#ffffff</strong></div>
+        <div style="font-size:13px;">Card labels: <strong>rgba(255,255,255,0.45)</strong></div>
+        <div style="font-size:13px;">Tap hints: <strong>rgba(255,255,255,0.30)</strong></div>
+        <div style="font-size:13px;">Event text: <strong>rgba(255,255,255,0.90)</strong></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ -->
+<!-- TYPOGRAPHY -->
+<!-- ══════════════════════════════════ -->
+<section class="section" id="typography">
+  <div class="sec-eyebrow">Type</div>
+  <h1 class="sec-title">Typography</h1>
+  <p class="sec-desc">Two font families only. Poppins does all the heavy lifting at every weight. DM Serif Display is reserved exclusively for ghost/decorative numbers — it is never used for readable text.</p>
+
+  <div class="font-scale">
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Wordmark / Landing</div>
+        <div class="font-spec-detail">Poppins_800ExtraBold · 56px · ls:-2px</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:800;font-size:40px;letter-spacing:-2px;line-height:1;color:#0A0A0A;">z<span style="color:#A8D8F0;">a</span>el<span style="color:#A8D8F0;">i</span></span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Wordmark / Top bar</div>
+        <div class="font-spec-detail">Poppins_800ExtraBold · 36px · ls:-1.5px</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:800;font-size:30px;letter-spacing:-1.5px;line-height:1;color:#0A0A0A;">z<span style="color:#A8D8F0;">a</span>el<span style="color:#A8D8F0;">i</span></span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Card headlines (dark/light)</div>
+        <div class="font-spec-detail">Poppins_700Bold · 24px · ls:-0.5px · lh:30px</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:700;font-size:22px;letter-spacing:-0.5px;line-height:1.2;">3 things on today.</span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Zaeli Noticed count headline</div>
+        <div class="font-spec-detail">Poppins_700Bold · 26–28px · ls:-0.5px · #6B35D9</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:700;font-size:22px;letter-spacing:-0.5px;color:#6B35D9;">three things.</span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Weather temperature</div>
+        <div class="font-spec-detail">Poppins_600SemiBold · 42px · ls:-1.5px</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:600;font-size:36px;letter-spacing:-1.5px;line-height:1;">24°</span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Full-width card buttons</div>
+        <div class="font-spec-detail">Poppins_700Bold · 15px</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:700;font-size:14px;">Open Shopping List →</span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Date label / section labels</div>
+        <div class="font-spec-detail">Poppins_600SemiBold · 15px · rgba(10,10,10,0.42)</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:600;font-size:14px;color:rgba(10,10,10,0.42);">Mon 7 Apr</span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">List items / meal names</div>
+        <div class="font-spec-detail">Poppins_400Regular · 17px · #1A1A1A</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:400;font-size:15px;color:#1A1A1A;">🍝 Pasta Carbonara</span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Todo / action body text</div>
+        <div class="font-spec-detail">Poppins_400Regular · 16px · lh:21px</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:400;font-size:14px;">Pick up Poppy from netball</span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Tap hints</div>
+        <div class="font-spec-detail">Poppins_500Medium · 13px · opacity varies</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:500;font-size:12px;color:rgba(10,10,10,0.38);">Tap to see →</span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Zaeli Noticed tags / meta</div>
+        <div class="font-spec-detail">Poppins_500Medium · 13px · rgba(107,53,217,0.55)</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:500;font-size:12px;color:rgba(107,53,217,0.55);">Poppy · Weather · Shopping</span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Card labels (uppercase)</div>
+        <div class="font-spec-detail">Poppins_700Bold · 10px · ls:0.8px · uppercase</div>
+      </div>
+      <div class="font-sample">
+        <span style="font-family:'Poppins',sans-serif;font-weight:700;font-size:10px;letter-spacing:0.8px;text-transform:uppercase;color:rgba(10,10,10,0.35);">CALENDAR</span>
+      </div>
+    </div>
+    <div class="font-row">
+      <div class="font-spec">
+        <div class="font-spec-name">Ghost numbers — decorative only</div>
+        <div class="font-spec-detail">DMSerifDisplay_400Regular · 88px · rgba(255,255,255,0.07)</div>
+      </div>
+      <div class="font-sample" style="overflow:hidden;height:48px;position:relative;">
+        <span style="font-family:'DM Serif Display',serif;font-weight:400;font-size:64px;line-height:1;color:rgba(10,10,10,0.10);position:absolute;top:-8px;">3</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ -->
+<!-- DASHBOARD -->
+<!-- ══════════════════════════════════ -->
+<section class="section" id="dashboard">
+  <div class="sec-eyebrow">Screens</div>
+  <h1 class="sec-title">Dashboard cards</h1>
+  <p class="sec-desc">Fixed order. One bold Poppins statement per card. Data lives behind the tap. Every expanded card has a consistent full-width button at the bottom.</p>
+
+  <div class="card-showcase">
+    <!-- Calendar -->
+    <div class="dash-card" style="background:#3A3D4A;">
+      <div class="dash-card-label" style="color:rgba(255,255,255,0.40);">Calendar · slate #3A3D4A</div>
+      <div class="dash-card-headline" style="color:#fff;">3 things on today.</div>
+      <div class="dash-card-sub" style="color:rgba(255,255,255,0.45);">White text throughout · ghost number in DM Serif</div>
+      <div class="dash-card-btn" style="background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.80);">View Full Calendar →</div>
+    </div>
+
+    <!-- Dinner -->
+    <div class="dash-card" style="background:#FAC8A8;">
+      <div class="dash-card-label" style="color:rgba(0,0,0,0.38);">Dinner · peach #FAC8A8</div>
+      <div class="dash-card-headline" style="color:#1A1A1A;">Pasta Carbonara tonight.</div>
+      <div class="dash-card-sub" style="color:rgba(0,0,0,0.42);">92px day column · tap row to expand</div>
+      <div class="dash-card-btn" style="background:rgba(0,0,0,0.10);color:rgba(140,50,0,0.80);">Open Meal Planner →</div>
+    </div>
+
+    <!-- Weather + Noticed side by side -->
+    <div class="card-row">
+      <div class="dash-card" style="background:#A8D8F0;flex:0 0 130px;">
+        <div class="dash-card-label" style="color:rgba(0,0,0,0.38);font-size:8px;">Weather</div>
+        <div style="font-size:36px;font-weight:600;color:#1A1A1A;letter-spacing:-1.5px;line-height:1.1;">24°</div>
+        <div style="font-size:11px;color:rgba(0,0,0,0.50);margin-top:4px;">Sunny</div>
+      </div>
+      <div class="noticed-card" style="flex:1;">
+        <div class="noticed-label">Zaeli<br>noticed</div>
+        <div class="noticed-count">three things.</div>
+        <div class="noticed-tags">Poppy · Weather · Shopping</div>
+      </div>
+    </div>
+
+    <!-- Shopping -->
+    <div class="dash-card" style="background:#D8CCFF;">
+      <div class="dash-card-label" style="color:rgba(255,255,255,0.55);">Shopping · lavender #D8CCFF</div>
+      <div class="dash-card-headline" style="color:#fff;">12 items on the list.</div>
+      <div class="dash-card-sub" style="color:rgba(255,255,255,0.55);">White text throughout</div>
+      <div class="dash-card-btn" style="background:rgba(255,255,255,0.15);color:rgba(255,255,255,0.90);">Open Shopping List →</div>
+    </div>
+
+    <!-- Actions -->
+    <div class="dash-card" style="background:#F0DC80;">
+      <div class="dash-card-label" style="color:rgba(0,0,0,0.38);">Actions · gold #F0DC80</div>
+      <div class="dash-card-headline" style="color:#1A1A1A;">4 things on your plate.</div>
+      <div class="dash-card-sub" style="color:rgba(0,0,0,0.38);">Todos toggle tick · done items persist</div>
+      <div class="dash-card-btn" style="background:rgba(0,0,0,0.10);color:rgba(100,70,0,0.80);">Open All To-dos and Reminders →</div>
+    </div>
+  </div>
+
+  <hr class="content-divider">
+  <div class="subsection-title">Zaeli Noticed card — expanded</div>
+  <div style="background:#E8F4E8;border-radius:22px;padding:22px;max-width:320px;">
+    <div class="noticed-label">Zaeli<br>noticed</div>
+    <div style="margin-top:10px;">
+      <div class="noticed-row">
+        <div class="noticed-dot" style="background:#A855F7;"></div>
+        <div class="noticed-txt">Poppy's assignment is due tomorrow.</div>
+      </div>
+      <div class="noticed-row">
+        <div class="noticed-dot" style="background:#A8D8F0;"></div>
+        <div class="noticed-txt">Rain from 3pm — Duke's soccer may be affected.</div>
+      </div>
+      <div class="noticed-row" style="border-bottom:none;">
+        <div class="noticed-dot" style="background:#D8CCFF;"></div>
+        <div class="noticed-txt">23 items on the shopping list.</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="content-divider">
+  <div class="subsection-title">My Space card stack</div>
+  <div class="card-row" style="flex-wrap:wrap;gap:10px;max-width:600px;">
+    <div class="dash-card" style="background:#3A3D4A;flex:0 0 130px;">
+      <div class="dash-card-label" style="color:rgba(255,255,255,0.4);font-size:8px;">Health · slate</div>
+      <div style="font-size:16px;font-weight:700;color:#fff;letter-spacing:-0.3px;">6,842<br>steps.</div>
+    </div>
+    <div class="dash-card" style="background:#F0DC80;flex:0 0 130px;">
+      <div class="dash-card-label" style="color:rgba(0,0,0,0.38);font-size:8px;">Goals · gold</div>
+      <div style="font-size:16px;font-weight:700;color:#1A1A1A;letter-spacing:-0.3px;">Three things<br>to work toward.</div>
+    </div>
+    <div class="dash-card" style="background:#E8F4E8;flex:0 0 130px;">
+      <div class="dash-card-label" style="color:rgba(107,53,217,0.55);font-size:8px;">Word of day</div>
+      <div style="font-size:18px;font-weight:700;color:#6B35D9;letter-spacing:-0.3px;font-style:italic;">ephemeral.</div>
+    </div>
+    <div class="dash-card" style="background:#3A3D4A;flex:0 0 130px;">
+      <div class="dash-card-label" style="color:rgba(255,255,255,0.4);font-size:8px;">NASA · slate</div>
+      <div style="font-size:14px;font-weight:700;color:#fff;letter-spacing:-0.3px;">Saturn's rings, today.</div>
+    </div>
+    <div class="dash-card" style="background:#FAC8A8;flex:0 0 130px;">
+      <div class="dash-card-label" style="color:rgba(0,0,0,0.38);font-size:8px;">Zen · peach</div>
+      <div style="font-size:14px;font-weight:700;color:#1A1A1A;letter-spacing:-0.3px;">Four meditations ready.</div>
+    </div>
+    <div class="dash-card" style="background:#D8CCFF;flex:0 0 130px;">
+      <div class="dash-card-label" style="color:rgba(255,255,255,0.55);font-size:8px;">Notes · lavender</div>
+      <div style="font-size:14px;font-weight:700;color:#fff;letter-spacing:-0.3px;">Three notes on the go.</div>
+    </div>
+    <div class="dash-card" style="background:#F0DC80;flex:0 0 130px;">
+      <div class="dash-card-label" style="color:rgba(0,0,0,0.38);font-size:8px;">Wordle · gold</div>
+      <div style="font-size:14px;font-weight:700;color:#1A1A1A;letter-spacing:-0.3px;">12-day streak. 🔥</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ -->
+<!-- NAVIGATION -->
+<!-- ══════════════════════════════════ -->
+<section class="section" id="navigation">
+  <div class="sec-eyebrow">Navigation</div>
+  <h1 class="sec-title">ZaeliFAB & dots</h1>
+  <p class="sec-desc">The only navigation surface in the app. Five buttons. No tab bar, no hamburger, no other chrome. The FAB hides when the keyboard is active — a floating chat pill takes over.</p>
+
+  <div class="subsection-title">Three-page swipe world</div>
+  <div style="display:flex;flex-direction:column;gap:20px;margin-bottom:40px;">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="dot-demo">
+        <div class="page-dot active-coral"></div>
+        <div class="page-dot"></div>
+        <div class="page-dot"></div>
+      </div>
+      <span style="font-size:13px;color:var(--t2);">Dashboard (page 0) — coral active dot</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="dot-demo">
+        <div class="page-dot"></div>
+        <div class="page-dot active-coral"></div>
+        <div class="page-dot"></div>
+      </div>
+      <span style="font-size:13px;color:var(--t2);">Chat (page 1) — coral active dot</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="dot-demo">
+        <div class="page-dot"></div>
+        <div class="page-dot"></div>
+        <div class="page-dot active-sky"></div>
+      </div>
+      <span style="font-size:13px;color:var(--t2);">My Space (page 2) — sky blue active dot</span>
+    </div>
+    <div style="font-size:12px;color:var(--t3);">Dots position: fixed bottom, just above FAB bar · inactive: 5×5px rgba(10,10,10,0.14) · active: 16×5px pill</div>
+  </div>
+
+  <div class="subsection-title">FAB states</div>
+  <div class="fab-bg">
+    <div>
+      <div class="fab-state-label">On Dashboard — grid icon active (dark fill)</div>
+      <div class="fab-demo">
+        <div class="fab-btn active-dark">⊞</div>
+        <div class="fab-sep"></div>
+        <div class="fab-btn" style="font-size:20px;">💬</div>
+        <div class="fab-btn" style="font-size:20px;">🎤</div>
+        <div class="fab-sep"></div>
+        <div class="fab-btn" style="font-size:22px;">✦</div>
+        <div class="fab-btn" style="font-size:13px;font-weight:700;">···</div>
+      </div>
+    </div>
+    <div>
+      <div class="fab-state-label">On Chat — chat icon active (dark fill)</div>
+      <div class="fab-demo">
+        <div class="fab-btn" style="font-size:22px;">⊞</div>
+        <div class="fab-sep"></div>
+        <div class="fab-btn active-dark" style="font-size:20px;">💬</div>
+        <div class="fab-btn" style="font-size:20px;">🎤</div>
+        <div class="fab-sep"></div>
+        <div class="fab-btn" style="font-size:22px;">✦</div>
+        <div class="fab-btn" style="font-size:13px;font-weight:700;">···</div>
+      </div>
+    </div>
+    <div>
+      <div class="fab-state-label">On My Space — ✦ active (sky blue fill)</div>
+      <div class="fab-demo">
+        <div class="fab-btn" style="font-size:22px;">⊞</div>
+        <div class="fab-sep"></div>
+        <div class="fab-btn" style="font-size:20px;">💬</div>
+        <div class="fab-btn" style="font-size:20px;">🎤</div>
+        <div class="fab-sep"></div>
+        <div class="fab-btn active-sky" style="font-size:22px;">✦</div>
+        <div class="fab-btn" style="font-size:13px;font-weight:700;">···</div>
+      </div>
+    </div>
+    <div>
+      <div class="fab-state-label">Mic recording — mic active (coral fill)</div>
+      <div class="fab-demo">
+        <div class="fab-btn" style="font-size:22px;">⊞</div>
+        <div class="fab-sep"></div>
+        <div class="fab-btn" style="font-size:20px;">💬</div>
+        <div class="fab-btn active-coral" style="font-size:20px;">🎤</div>
+        <div class="fab-sep"></div>
+        <div class="fab-btn" style="font-size:22px;">✦</div>
+        <div class="fab-btn" style="font-size:13px;font-weight:700;">···</div>
+      </div>
+    </div>
+    <div>
+      <div class="fab-state-label">More open — ··· active (coral fill)</div>
+      <div class="fab-demo">
+        <div class="fab-btn" style="font-size:22px;">⊞</div>
+        <div class="fab-sep"></div>
+        <div class="fab-btn" style="font-size:20px;">💬</div>
+        <div class="fab-btn" style="font-size:20px;">🎤</div>
+        <div class="fab-sep"></div>
+        <div class="fab-btn" style="font-size:22px;">✦</div>
+        <div class="fab-btn active-coral" style="font-size:13px;font-weight:700;">···</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="content-divider">
+  <div class="subsection-title">More overlay — full app map</div>
+  <div class="more-card">
+    <div class="more-section-label">Family</div>
+    <div class="more-grid">
+      <div class="more-item"><div class="more-icon" style="background:rgba(58,61,74,0.10);">📅</div><div class="more-item-label">Calendar</div></div>
+      <div class="more-item"><div class="more-icon" style="background:rgba(80,32,192,0.10);">🛒</div><div class="more-item-label">Shopping</div></div>
+      <div class="more-item"><div class="more-icon" style="background:rgba(232,96,26,0.10);">🍽</div><div class="more-item-label">Meals</div></div>
+      <div class="more-item"><div class="more-icon" style="background:rgba(201,168,32,0.10);">✅</div><div class="more-item-label">To-dos</div></div>
+      <div class="more-item"><div class="more-icon" style="background:rgba(92,138,60,0.10);">📝</div><div class="more-item-label">Notes</div></div>
+      <div class="more-item"><div class="more-icon" style="background:rgba(0,150,199,0.10);">✈️</div><div class="more-item-label">Travel</div></div>
+    </div>
+    <div class="more-divider"></div>
+    <div class="more-section-label">Screens</div>
+    <div class="more-grid">
+      <div class="more-item"><div class="more-icon" style="background:rgba(107,53,217,0.10);">📚</div><div class="more-item-label">Tutor</div></div>
+      <div class="more-item"><div class="more-icon" style="background:rgba(10,138,90,0.10);">👨‍👩‍👧</div><div class="more-item-label">Kids Hub</div></div>
+      <div class="more-item"><div class="more-icon" style="background:rgba(212,0,106,0.10);">❤️</div><div class="more-item-label">Our Family</div></div>
+    </div>
+    <div class="more-divider"></div>
+    <div class="more-settings-row">
+      <div class="more-settings-icon">⚙️</div>
+      <div class="more-settings-label">Settings</div>
+    </div>
+  </div>
+  <div style="margin-top:12px;font-size:12px;color:var(--t3);">Family items → open as 92% sheets over Chat · Screen items → router.navigate() to dedicated screen</div>
+</section>
+
+<!-- ══════════════════════════════════ -->
+<!-- CHANNELS -->
+<!-- ══════════════════════════════════ -->
+<section class="section" id="channels">
+  <div class="sec-eyebrow">Channels</div>
+  <h1 class="sec-title">Channel colours</h1>
+  <p class="sec-desc">Every channel has a locked accent colour used for icons, sheet headers, and inline highlights. These never change.</p>
+
+  <table class="channel-table">
+    <thead>
+      <tr>
+        <th>Channel</th>
+        <th>Hex</th>
+        <th>Type</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="channel-dot" style="background:#3A3D4A;"></span>Calendar</td><td class="channel-hex">#3A3D4A</td><td><span class="channel-type">Sheet</span></td><td style="font-size:12px;color:var(--t2);">Slate — same as Dashboard card</td></tr>
+      <tr><td><span class="channel-dot" style="background:#D8CCFF;border-color:#b0a0e0;"></span>Shopping</td><td class="channel-hex">#D8CCFF</td><td><span class="channel-type">Sheet</span></td><td style="font-size:12px;color:var(--t2);">Lavender / deep purple #5020C0</td></tr>
+      <tr><td><span class="channel-dot" style="background:#FAC8A8;border-color:#d0a888;"></span>Meals</td><td class="channel-hex">#FAC8A8</td><td><span class="channel-type">Sheet</span></td><td style="font-size:12px;color:var(--t2);">Peach / terracotta #E8601A</td></tr>
+      <tr><td><span class="channel-dot" style="background:#F0DC80;border-color:#c8b850;"></span>Todos</td><td class="channel-hex">#F0DC80</td><td><span class="channel-type">Sheet</span></td><td style="font-size:12px;color:var(--t2);">Gold — same as Actions card</td></tr>
+      <tr><td><span class="channel-dot" style="background:#5C8A3C;"></span>Notes</td><td class="channel-hex">#5C8A3C</td><td><span class="channel-type">Sheet</span></td><td style="font-size:12px;color:var(--t2);">Sage olive</td></tr>
+      <tr><td><span class="channel-dot" style="background:#0096C7;"></span>Travel</td><td class="channel-hex">#0096C7</td><td><span class="channel-type">Sheet</span></td><td style="font-size:12px;color:var(--t2);">Ocean cyan</td></tr>
+      <tr><td><span class="channel-dot" style="background:#6B35D9;"></span>Tutor</td><td class="channel-hex">#6B35D9</td><td><span class="channel-type">Screen</span></td><td style="font-size:12px;color:var(--t2);">Deep violet</td></tr>
+      <tr><td><span class="channel-dot" style="background:#0A8A5A;"></span>Kids Hub</td><td class="channel-hex">#0A8A5A</td><td><span class="channel-type">Screen</span></td><td style="font-size:12px;color:var(--t2);">Emerald green</td></tr>
+      <tr><td><span class="channel-dot" style="background:#D4006A;"></span>Our Family</td><td class="channel-hex">#D4006A</td><td><span class="channel-type">Screen</span></td><td style="font-size:12px;color:var(--t2);">Magenta pink</td></tr>
+      <tr><td><span class="channel-dot" style="background:#6B7280;"></span>Settings</td><td class="channel-hex">#6B7280</td><td><span class="channel-type">Screen</span></td><td style="font-size:12px;color:var(--t2);">Slate grey</td></tr>
+      <tr><td><span class="channel-dot" style="background:#E8F4E8;border-color:#c0d8c0;"></span>Zaeli Noticed</td><td class="channel-hex">#E8F4E8</td><td><span class="channel-type">Card</span></td><td style="font-size:12px;color:var(--t2);">Sage — violet #6B35D9 text</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════ -->
+<!-- FAMILY -->
+<!-- ══════════════════════════════════ -->
+<section class="section" id="family">
+  <div class="sec-eyebrow">Identity</div>
+  <h1 class="sec-title">Family colours</h1>
+  <p class="sec-desc">Each family member has a locked colour. Used for avatar backgrounds, event assignee dots, todo assignees, and the logged-in user's FAB ✦ active state.</p>
+
+  <div class="family-row">
+    <div class="family-member">
+      <div class="family-av" style="background:#4D8BFF;">R</div>
+      <div class="family-name">Rich</div>
+      <div class="family-hex">#4D8BFF</div>
+    </div>
+    <div class="family-member">
+      <div class="family-av" style="background:#FF7B6B;">A</div>
+      <div class="family-name">Anna</div>
+      <div class="family-hex">#FF7B6B</div>
+    </div>
+    <div class="family-member">
+      <div class="family-av" style="background:#A855F7;">P</div>
+      <div class="family-name">Poppy</div>
+      <div class="family-hex">#A855F7</div>
+    </div>
+    <div class="family-member">
+      <div class="family-av" style="background:#22C55E;">G</div>
+      <div class="family-name">Gab</div>
+      <div class="family-hex">#22C55E</div>
+    </div>
+    <div class="family-member">
+      <div class="family-av" style="background:#F59E0B;">D</div>
+      <div class="family-name">Duke</div>
+      <div class="family-hex">#F59E0B</div>
+    </div>
+  </div>
+
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px 24px;max-width:480px;">
+    <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:12px;">For new family members</div>
+    <div style="font-size:13px;color:var(--t2);line-height:1.7;">Colours are assigned from the profile at signup. New users get auto-assigned a colour from a rotating palette — or they can choose during onboarding. The logged-in user's colour is used for their FAB ✦ active state — making My Space feel personally branded.</div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════ -->
+<!-- SPECS -->
+<!-- ══════════════════════════════════ -->
+<section class="section" id="specs">
+  <div class="sec-eyebrow">Engineering</div>
+  <h1 class="sec-title">Component specs</h1>
+  <p class="sec-desc">Locked measurements that must not change. These define the physical feel of the app and create visual consistency across all surfaces.</p>
+
+  <div class="subsection-title">ZaeliFAB</div>
+  <table class="spec-table">
+    <tr><td class="spec-key">FAB button size</td><td><div class="spec-val">58 × 58px</div><div class="spec-note">borderRadius: 22</div></td></tr>
+    <tr><td class="spec-key">FAB pill border radius</td><td><div class="spec-val">36px</div><div class="spec-note">padding: 10px · gap: 4px between buttons</div></td></tr>
+    <tr><td class="spec-key">FAB separator</td><td><div class="spec-val">1 × 32px · rgba(10,10,10,0.08)</div><div class="spec-note">marginHorizontal: 8px</div></td></tr>
+    <tr><td class="spec-key">FAB total width (5 buttons)</td><td><div class="spec-val">~360px</div><div class="spec-note">58×5 + 10×2 + 1×2 + 8×4 + 4×4</div></td></tr>
+    <tr><td class="spec-key">FAB background</td><td><div class="spec-val">rgba(255,255,255,0.88)</div><div class="spec-note">border: 1px solid rgba(255,255,255,0.98)</div></td></tr>
+    <tr><td class="spec-key">Icon size inside FAB</td><td><div class="spec-val">26 × 26px SVG</div><div class="spec-note">strokeWidth: 1.7 · strokeLinecap: round</div></td></tr>
+    <tr><td class="spec-key">✦ My Space mark</td><td><div class="spec-val">22px · U+2756</div><div class="spec-note">Active: userColor (sky #A8D8F0) · Resting: rgba(10,10,10,0.42)</div></td></tr>
+  </table>
+
+  <div class="subsection-title">Cards</div>
+  <table class="spec-table">
+    <tr><td class="spec-key">Card border radius</td><td><div class="spec-val">22px</div><div class="spec-note">padding: 22px</div></td></tr>
+    <tr><td class="spec-key">Card bottom button</td><td><div class="spec-val">borderRadius: 14 · paddingVertical: 14px</div><div class="spec-note">Poppins_700Bold 15px · full width always</div></td></tr>
+    <tr><td class="spec-key">Inline expand panel</td><td><div class="spec-val">borderRadius: 12 · padding: 12px</div><div class="spec-note">background: rgba(0,0,0,0.05–0.07)</div></td></tr>
+    <tr><td class="spec-key">Add button (light cards)</td><td><div class="spec-val">rgba(255,255,255,0.18)</div><div class="spec-note">borderRadius: 10 · paddingVertical: 7 · paddingHorizontal: 14</div></td></tr>
+    <tr><td class="spec-key">Add button (dark cards)</td><td><div class="spec-val">rgba(0,0,0,0.10)</div><div class="spec-note">Same dimensions as light version</div></td></tr>
+    <tr><td class="spec-key">Delete button tint</td><td><div class="spec-val">rgba(255,69,69,0.12)</div><div class="spec-note">text: rgba(200,10,10,0.75)</div></td></tr>
+    <tr><td class="spec-key">Two-tap confirm</td><td><div class="spec-val">rgba(255,69,69,0.30)</div><div class="spec-note">text: #FF9090</div></td></tr>
+    <tr><td class="spec-key">Ghost number</td><td><div class="spec-val">DMSerifDisplay 88px</div><div class="spec-note">rgba(255,255,255,0.07) · position:absolute right:-8 top:-18</div></td></tr>
+  </table>
+
+  <div class="subsection-title">Sheets</div>
+  <table class="spec-table">
+    <tr><td class="spec-key">Sheet height</td><td><div class="spec-val">92%</div><div class="spec-note">Always — never full screen, never less than 92%</div></td></tr>
+    <tr><td class="spec-key">Sheet border radius</td><td><div class="spec-val">borderTopLeftRadius: 24 · borderTopRightRadius: 24</div></td></tr>
+    <tr><td class="spec-key">Sheet handle</td><td><div class="spec-val">36 × 4px · borderRadius: 2</div><div class="spec-note">rgba(0,0,0,0.12) · alignSelf: center · marginTop: 10</div></td></tr>
+    <tr><td class="spec-key">Sheet background</td><td><div class="spec-val">#FAF8F5</div><div class="spec-note">Always warm white — never pure white</div></td></tr>
+  </table>
+
+  <div class="subsection-title">Global</div>
+  <table class="spec-table">
+    <tr><td class="spec-key">Body background</td><td><div class="spec-val">#FAF8F5</div><div class="spec-note">Warm white — every screen, always</div></td></tr>
+    <tr><td class="spec-key">Send button colour</td><td><div class="spec-val">#FF4545 coral</div><div class="spec-note">Always — no exceptions anywhere in the app</div></td></tr>
+    <tr><td class="spec-key">KAV background</td><td><div class="spec-val">#ffffff</div><div class="spec-note">KeyboardAvoidingView must have backgroundColor white</div></td></tr>
+    <tr><td class="spec-key">Modal stacking delay</td><td><div class="spec-val">350ms setTimeout</div><div class="spec-note">Close modal 1 → wait 350ms → open modal 2 (iOS requirement)</div></td></tr>
+    <tr><td class="spec-key">Optimistic delete</td><td><div class="spec-val">UI first, Supabase background</div><div class="spec-note">Always — never wait for network before updating UI</div></td></tr>
+    <tr><td class="spec-key">Date construction</td><td><div class="spec-val">Local dates only</div><div class="spec-note">NEVER toISOString() — causes UTC/AEST day-shift bugs</div></td></tr>
+    <tr><td class="spec-key">SafeAreaView</td><td><div class="spec-val">swipe-world.tsx ONLY</div><div class="spec-note">Individual screens use useSafeAreaInsets() for manual padding</div></td></tr>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════ -->
+<!-- RULES -->
+<!-- ══════════════════════════════════ -->
+<section class="section" id="rules">
+  <div class="sec-eyebrow">Hard rules</div>
+  <h1 class="sec-title">Design rules</h1>
+  <p class="sec-desc">Things that don't change. Ever. These are the decisions that make Zaeli feel like one coherent product.</p>
+
+  <div class="rules-box">
+    <div class="rule-item">
+      <div class="rule-icon">🎨</div>
+      <div class="rule-text"><strong>Body is always warm white.</strong> <em>#FAF8F5</em> on every screen, every state. Not pure white, not off-white, not system default.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-icon">🔴</div>
+      <div class="rule-text"><strong>Send button is always coral.</strong> <em>#FF4545</em> everywhere — chat send, form submit, primary CTA. No exceptions.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-icon">🔤</div>
+      <div class="rule-text"><strong>Poppins for all UI text.</strong> DM Serif Display is reserved exclusively for ghost/decorative numbers. Never for readable content.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-icon">📱</div>
+      <div class="rule-text"><strong>No tab bar, no hamburger, no nav chrome.</strong> ZaeliFAB is the only navigation element. One surface, always the same position.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-icon">📋</div>
+      <div class="rule-text"><strong>Channels open as 92% sheets.</strong> Calendar, Shopping, Meals, Todos, Notes, Travel — never dedicated screens, never router.navigate(). Tutor, Kids Hub, Our Family, Settings are the only full screens.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-icon">🗑</div>
+      <div class="rule-text"><strong>Delete is always optimistic.</strong> Remove from UI immediately. Supabase happens in background. Two-tap confirm before destructive action.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-icon">📐</div>
+      <div class="rule-text"><strong>Cards follow the headline formula.</strong> One bold Poppins statement. 24px on full-width cards, 26–28px on the half-width Zaeli Noticed card. Data lives behind the tap.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-icon">⬜</div>
+      <div class="rule-text"><strong>Every expanded card has a full-width button.</strong> borderRadius:14, paddingVertical:14, Poppins_700Bold 15px. Consistent across Calendar, Dinner, Shopping, Actions.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-icon">🌏</div>
+      <div class="rule-text"><strong>Local dates always.</strong> Never toISOString(), never +10:00 suffix. Always construct local date strings directly to avoid UTC/AEST day-shift bugs.</div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-icon">✦</div>
+      <div class="rule-text"><strong>The ✦ mark means My Space only.</strong> Never used decoratively. It is the exclusive navigation symbol for the My Space screen — its meaning must stay singular.</div>
+    </div>
+  </div>
+</section>
+
+<script>
+function show(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  window.scrollTo({ top: 0 });
+}
+</script>
+
+</body>
+</html>
