@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 6 April 2026 — My Space designed ✅ Swipe world updated ✅ Zaeli Noticed card ✅*
+*Last updated: 6 April 2026 — Dashboard stress testing complete ✅ All cards working ✅*
 
 ---
 
@@ -37,51 +37,44 @@ Australian families with children. Priority: dual-income metro couples with prim
 My Space  ←  Dashboard  →  Chat
 ```
 
-**Core UX principle (LOCKED ✅):**
-Dashboard = read. Chat = do. My Space = me. Keep users in Chat for 90% of activity.
-
-The flow: My Space (personal glance) → Dashboard (family glance) → Chat (act via Zaeli) → sheet if needed → back to Chat.
+**Core UX principle:** Dashboard = read. Chat = do. My Space = me. 90% of activity stays in Chat.
 
 ### What's gone in v5
 - ❌ Domain pill bar · ❌ Hamburger menu · ❌ Persistent chat input bar
-- ❌ Pulse as a dedicated swipe screen (was planned, now scrapped)
-- ❌ Zen as a dedicated screen (content lives inside My Space)
-- ❌ Navigating to Calendar/Shopping/Meals as full screens
+- ❌ Pulse as a dedicated swipe screen
+- ❌ Zen as a dedicated screen
+- ❌ WotD on Dashboard
 
-### What's new in v5
-- ✅ ZaeliFAB — four buttons, forwardRef, mic exposed
-- ✅ Landing overlay — time-window moment, three times a day
-- ✅ Dashboard Option A — editorial headlines, bento layout, tap to expand
-- ✅ Chat input bar — floating pill, replaces FAB when keyboard up
-- ✅ Mic pill — full-width, Cancel + Send →, Whisper transcription
-- 🔨 Phase 3 — swipe-world.tsx container + horizontal swipe + dots
-- 🔨 Phase 3b — My Space screen (Rich's personal world)
-- 🔨 Phase 5 — Chat v5 (full-width Zaeli, two entry states)
-- 🔨 Phase 6 — Zaeli Noticed card in Dashboard
-- 🔨 Phase 7 — Todos + Reminders sheet
+### What's new/complete in v5
+- ✅ ZaeliFAB — forwardRef, mic exposed
+- ✅ Landing overlay — time-window moment
+- ✅ Dashboard Option A — all 5 cards stress tested
+- ✅ Chat input bar — floating pill, FAB hides on keyboard
+- ✅ Mic pill — Whisper transcription
+- ✅ Zaeli Noticed card — replaces WotD in Dashboard
+- ✅ All dashboard → Chat context injection wired
+- ✅ Full-width bottom buttons on every expanded card
+- 🔨 Phase 3 — swipe-world.tsx horizontal container
+- 🔨 Phase 3b — My Space screen
+- 🔨 Phase 5 — Chat v5
+- 🔨 Phase 6 — AI-generated Zaeli Noticed
 
 ---
 
 ## ══════════════════════════════════
-## SCREEN ARCHITECTURE (LOCKED ✅ — CRITICAL)
+## SCREEN ARCHITECTURE (LOCKED ✅)
 ## ══════════════════════════════════
 
-**Three navigable screens (swipe world):**
+**Three navigable screens:**
 ```
 My Space  ←  Dashboard  →  Chat
 ```
 
-**These are 92% SHEETS that open over Chat — NEVER dedicated screens:**
-- Calendar · Shopping · Meal Planner · Todos / Reminders · Notes · Travel
+**92% SHEETS over Chat:**
+Calendar · Shopping · Meal Planner · Todos / Reminders · Notes · Travel
 
-**These are the ONLY dedicated full screens (besides the three above):**
-- Tutor · Kids Hub · Our Family · Settings
-
-**More overlay routing:**
-- Calendar / Shopping / Meals / Todos / Notes / Travel → open as sheet over Chat
-- Tutor / Kids Hub / Our Family / Settings → router.navigate() to full screen
-
-**Current tab files** (`shopping.tsx`, `mealplanner.tsx`, `calendar.tsx`) exist as temporary scaffolding from before v5. They will be dissolved into sheets inside Chat. Do not build new navigation assuming they are screens.
+**Dedicated full screens:**
+Tutor · Kids Hub · Our Family · Settings
 
 ---
 
@@ -89,161 +82,163 @@ My Space  ←  Dashboard  →  Chat
 ## LANDING PAGE (LOCKED ✅)
 ## ══════════════════════════════════
 
-Embedded as `LandingOverlay` in swipe-world.tsx (container level). NOT a separate route.
-Shows over the entire screen including Dashboard — not just Chat.
+Embedded in index.tsx. Moves to swipe-world.tsx container in Phase 3 (shows over all 3 screens).
 
 **Time windows:** Morning 6–9am · Midday 12–2pm · Evening 5–8pm
-**Dismiss:** swipe >50px OR FAB tap → fades out
-**Brief:** 3 sentences, GPT-mini, max 180 chars, key facts in [brackets] → cyan
-
-**Visual (LOCKED ✅):**
-```
-Background: #FFF6EC morning · #EDF6FF midday · #F5EEFF evening
-Logo 'a'+'i': #F0C8C0 blush · Highlights: #0096C7 cyan
-Brief: Poppins 600SemiBold 26px
-```
+**Visual:** `#FFF6EC/EDF6FF/F5EEFF` · Logo blush `#F0C8C0` · Highlights cyan `#0096C7`
+**Brief:** Poppins 600SemiBold 26px · 3 sentences · max 180 chars
 `LANDING_TEST_MODE = true` — set false before launch.
 
-**Zaeli brief pulls from both family data AND My Space data:**
-- Family: calendar events, dinner, shopping, actions
-- Personal: steps vs goal, upcoming milestones, goal progress, notes
-- Example: "Your 10km Noosa Run is 4 weeks away — want a dedicated training plan?"
+Zaeli brief now pulls from both family data AND My Space data:
+- Family: calendar, dinner, shopping, actions
+- Personal: steps vs goal, goal milestones, notes
+- Example: "Your Noosa Run is 4 weeks away — want a training plan?"
 
 ---
 
 ## ══════════════════════════════════
-## DASHBOARD — OPTION A (LOCKED ✅)
+## DASHBOARD — OPTION A (LOCKED + STRESS TESTED ✅)
 ## ══════════════════════════════════
 
 **The visual language of the whole app:**
 > Every surface leads with one bold Poppins statement. Data lives behind the tap.
 
-### Card order (FIXED — never rearranges)
-1. **Calendar** — full width, dark slate `#3A3D4A`
-2. **Dinner** — full width, peach `#FAC8A8`
+### Card order (FIXED)
+1. **Calendar** — `#3A3D4A` slate
+2. **Dinner** — `#FAC8A8` peach
 3. **Weather** `#A8D8F0` + **Zaeli Noticed** `#E8F4E8` — side by side
-4. **Shopping** — full width, lavender `#D8CCFF` (white font)
-5. **Actions** — full width, gold `#F0DC80`
+4. **Shopping** — `#D8CCFF` lavender (white font)
+5. **Actions** — `#F0DC80` gold
 
-**WotD has moved to My Space. Its Dashboard slot is now Zaeli Noticed.**
+### Calendar card (LOCKED ✅)
+- Past events stay visible — muted 45% opacity, struck-through title, still tappable
+- Headline counts upcoming events only, not past
+- "All clear for the afternoon/evening" when all events are done for today
+- `showCalTomorrow` flips only after 8pm OR zero events today
+- Tap row → inline expand: Edit/Reschedule with Zaeli · Delete (two-tap)
+- Full-width "View Full Calendar →" at bottom of expanded state
 
-### Zaeli Noticed card (NEW — replaces WotD slot)
-- Background: `#E8F4E8` sage · text: `#6B35D9` violet (same WotD palette — intentional)
-- Collapsed: "3 things Zaeli noticed." with animated live dot
-- Expanded inline: notice rows (avatar/icon + text + category tag) + action chips
-- No sheet needed — expands in place like Calendar card
-- Notices: AI-generated by GPT mini, family-aware, updated on load
-- Example notices: "Poppy's assignment due tomorrow", "Rain at 3pm — soccer risk", "Shopping list at 28 items"
+### Dinner card (LOCKED ✅)
+- No duplicate header block in expanded state
+- Day column 92px — "Tomorrow" never wraps
+- Tap any day → inline expand: Edit with Zaeli · Delete · Move · More options
+- Empty night → "✦ Plan [Tonight/Tomorrow/Wed] with Zaeli" — full width
+- Full-width "Open Meal Planner →" at bottom
+- Edit with Zaeli → Chat with day-specific dinner prompt + chips
 
-### Zaeli voice headlines (formula-driven, zero AI cost)
-- Calendar: "3 things on today." / "All clear today." / "One thing on today."
-- Dinner: "Pasta Carbonara for dinner tonight." / "Nothing planned for dinner."
-- Shopping: "23 items on the shopping list." / "Shopping list is clear."
-- Actions: "8 things on your plate." / "Nothing on your plate."
-- Zaeli Noticed: "3 things Zaeli noticed." / "All quiet today."
+### Shopping card (LOCKED ✅)
+- "Tap to see →" hint bright at `rgba(255,255,255,0.70)`
+- "+N more" 17px Poppins_600SemiBold
+- "+ Add" always visible in collapsed and expanded header
+- Full-width "Open Shopping List →" at bottom → opens sheet directly (no chat message)
+- "+ Add" → Chat: "What needs to go on the list?" + chips
 
-### Tap behaviour (LOCKED ✅)
-- Tap card header → expands
-- Tap header again → collapses
-- One card expanded at a time
-- No "Collapse" text
-- Ghost numbers: Calendar only
+### Actions card (LOCKED ✅)
+- Todos AND done items fetched (`in('status',['active','done'])`)
+- Checkbox toggles both ways — ticking done item restores to active
+- Done items stay visible through refreshes (struck through, muted, sorted to bottom)
+- Tap row → inline expand: Edit with Zaeli · Delete (two-tap) · More options
+- Full-width "Open All To-dos and Reminders →" at bottom
+- Edit with Zaeli → Chat: todo-specific prompt referencing title + due date
+
+### Zaeli Noticed card (LOCKED ✅ — Phase 1 hardcoded)
+- Replaces WotD in the side-by-side slot with Weather
+- Same `#E8F4E8` / `#6B35D9` visual palette — intentional continuity
+- "ZAELI NOTICED" label 13px · Count headline ("three things.") · Tag summary 13px
+- Expanded: notice rows 14px — tap any → Chat with that notice as context
+- **Phase 1 (current):** 3 hardcoded notices (Poppy assignment, weather/soccer, shopping)
+- **Phase 6:** GPT mini generated, family-aware, refreshed on load
+
+### Full-width bottom buttons (consistent design across all cards)
+Every expanded card has a prominent full-width navigation button:
+- Calendar: "View Full Calendar →"
+- Dinner: "Open Meal Planner →"
+- Shopping: "Open Shopping List →"
+- Actions: "Open All To-dos and Reminders →"
+All: `borderRadius:14`, `paddingVertical:14`, `Poppins_700Bold` 15px
 
 ### Smart time logic (LOCKED ✅)
-- Calendar → Tomorrow: after 8pm OR all today's events past
+- Calendar → Tomorrow: after 8pm OR zero events today
 - Dinner → Tomorrow: after 8pm
 - Actions → evening mode: after 8pm
-- Auto-refresh every 5 minutes
-
-### Calendar card (stress tested ✅)
-- Expand → inline event rows → tap event → notes/attendees/Edit/Delete
-- "✦ Edit with Zaeli" → Chat injection
-- "+ Add" → Chat injection
-- Delete: two-tap, optimistic
-- "Month view →" → calendar sheet
+- Auto-refresh: 5-minute interval
 
 ---
 
 ## ══════════════════════════════════
-## MY SPACE (NEW ✅ — DESIGNED, TO BUILD)
+## ZAELI NOTICED (NEW ✅)
+## ══════════════════════════════════
+
+**What it is:** Zaeli surfaces things worth your attention — without you having to ask.
+
+**Why it exists:** Every other family app shows you a dashboard. Zaeli notices. The card creates a product moment: "Zaeli already knew." No other family app does this.
+
+**Where it lives:** Side-by-side with Weather, in the slot where WotD used to be.
+
+**Design:** Same `#E8F4E8` sage background, `#6B35D9` violet text as WotD — visual continuity. Users don't feel something was removed, they feel something was upgraded.
+
+**Phase 1 (current):** 3 hardcoded notices drawn from real family data context.
+**Phase 6:** GPT mini generates notices on load. Family-aware. Time-sensitive. Sharp Zaeli voice.
+
+Example notices:
+- "Poppy's assignment is due tomorrow." (Poppy's colour dot)
+- "Rain from 3pm — Duke's soccer may be affected." (sky blue dot)
+- "23 items on the shopping list." (lavender dot)
+
+---
+
+## ══════════════════════════════════
+## MY SPACE (DESIGNED ✅ — Phase 3b to build)
 ## ══════════════════════════════════
 
 **Rich's personal world. Swipe left from Dashboard.**
 
-### Why it exists
-Every other family app is 100% about the family unit. Zaeli is the first that also knows the individual. My Space is where Rich's personal life lives — fitness, goals, curiosity, calm, creative notes. And Zaeli reads all of it to write a brief that actually feels personal.
-
-### Design language (LOCKED ✅)
-Same card language as Dashboard throughout:
-- Big bold Poppins 700 headline (~22px)
-- Coloured card background (Dashboard palette — no new colours)
-- Tap to expand — data lives behind the headline
-- One card expanded at a time
+Same card language as Dashboard: big Poppins headline, coloured card, tap to expand, one at a time.
 
 ### Card order (FIXED)
-1. **Health** — `#3A3D4A` slate — "6,842 steps so far today."
-2. **Goals** — `#F0DC80` gold — "Three things to work toward."
-3. **Word of the Day** — `#E8F4E8` sage — "ephemeral." *(moved from Dashboard)*
-4. **NASA APOD** — `#3A3D4A` slate — "Saturn's rings, today."
-5. **Zen** — `#FAC8A8` peach — "Four meditations ready for you."
-6. **Notes** — `#D8CCFF` lavender (white font) — "Three notes on the go."
-7. **Wordle** — `#F0DC80` gold — "12-day streak. Keep it going." 🔥
+| Card | Colour | Collapsed headline |
+|------|--------|--------------------|
+| Health | `#3A3D4A` slate | "6,842 steps so far today." |
+| Goals | `#F0DC80` gold | "Three things to work toward." |
+| Word of the Day | `#E8F4E8` sage | "ephemeral." *(italic violet)* |
+| NASA APOD | `#3A3D4A` slate | "Saturn's rings, today." |
+| Zen | `#FAC8A8` peach | "Four meditations ready for you." |
+| Notes | `#D8CCFF` lavender | "Three notes on the go." |
+| Wordle | `#F0DC80` gold | "12-day streak. Keep it going." 🔥 |
 
-### Health card detail
-- **Collapsed:** Big step count + % of daily goal + progress bar
-- **Expanded:** Walk/Run distance (km) · Active calories burned · Last 2 workout sessions (type, distance, duration, calories)
-- Data source: HealthKit (expo-health or react-native-health)
-- Permissions requested on first load of My Space
-- v1 metrics: steps, distance, active calories, workouts
-- v2 (later): sleep, heart rate (requires Apple Watch)
+### Health card
+- HealthKit: steps + % goal + progress bar (collapsed)
+- Expanded: walk/run distance · active calories · last 2 workout sessions
+- v1: steps, distance, active calories, workouts · v2: sleep, heart rate
 
-### Goals card detail
-- **Collapsed:** Headline + category hints ("Running · reading · hydration")
-- **Expanded:** Goal rows with mini progress bars. Tap % → detail sheet.
-- **Goal detail sheet:** Full progress bar, target date, last activity, weekly target, Zaeli coaching note, "Build a training plan with Zaeli" CTA → Chat injection with full goal context
-- + Add goal → text field in sheet, keyboard, KAV handles it
-- Goals live here permanently — the card is the overview, the sheet is the workspace
+### Goals card
+- 3-5 goals with mini progress bars
+- Tap % → detail sheet: full progress, Zaeli coaching, "Build a training plan" CTA → Chat
+- Goals live here permanently — card = overview, sheet = workspace
+- + Add → text field, keyboard, KAV
 
-### Word of the Day detail (LOCKED ✅ — moved from Dashboard)
-- `#E8F4E8` sage · `#6B35D9` violet · italic 28px Poppins 700
-- Same 400-word curated list, same Dictionary API, same expo-av audio
-- **Collapsed:** word + phonetic
-- **Expanded:** definition + example sentence + play button
-- No change to the design — just moved from Dashboard to My Space
+### Word of the Day (moved from Dashboard)
+- Same sage/violet design, same 400-word list, same Dictionary API, same expo-av audio
+- Collapsed: word + phonetic · Expanded: definition + example + play button
 
-### NASA APOD detail
+### NASA APOD
 - Free API: api.nasa.gov/planetary/apod
-- **Collapsed:** Small image preview + headline ("Saturn's rings, today.")
-- **Expanded:** Larger image + full NASA description + image credit + "View full image →" link
-- Fetched once daily, cached in FileSystem
+- Collapsed: small image + headline · Expanded: big image + full description + link
+- Cached daily in FileSystem
 
-### Zen detail
-- 4–5 AI-generated meditations per day (GPT mini, fresh each morning)
-- **Collapsed:** Headline + mood hints ("Calm · focus · evening · sleep")
-- **Expanded:** Track list with play buttons. Playing track shows pause + progress bar.
-- expo-av inline playback. No external app needed.
+### Zen
+- 4–5 GPT mini meditations per day. expo-av inline playback.
+- Collapsed: headline + mood hints · Expanded: track list, playing track shows pause + progress
 
-### Notes detail
-- **Collapsed:** Headline + preview of note titles
-- **Tap → 92% sheet slides up** (same sheet system as Chat sheets)
-- Sheet: note list, tap to open editor, keyboard appears, KAV handles it
-- Personal notes only (separate from any family Notes sheet in Chat)
-- Zaeli reads notes for the brief
+### Notes (personal)
+- Tap → 92% sheet over My Space. Keyboard + KAV same as Chat.
+- Zaeli reads notes for brief: "Your reno note hasn't been updated in a week."
 
-### Wordle detail
-- Daily word seeded by date — same answer as NYT Wordle
-- **Collapsed:** Streak headline + "Today's Wordle · N tries left"
-- **Expanded:** Full 5×6 grid + keyboard with colour-coded letters (green/yellow/grey)
-- Streak tracking stored in FileSystem or Supabase
-- No external links or accounts required
+### Wordle
+- Date-seeded, same as NYT. Inline grid + keyboard when expanded. Streak tracking.
 
 ### Zaeli brief integration
-generateBrief() pulls My Space data alongside family data:
-- Steps vs daily goal → "You're at 6,842 steps — 3,158 to go today."
-- Upcoming goal milestones → "Your Noosa Run is 4 weeks away."
-- Goal progress → "You've read 4 of your 12 book goal."
-- Notes with no recent updates → "Your reno note hasn't been touched in a week."
-Smart context loading — only fetch relevant data per message to control API cost.
+generateBrief() pulls My Space data alongside family data for the landing brief.
 
 ---
 
@@ -253,17 +248,12 @@ Smart context loading — only fetch relevant data per message to control API co
 
 ```
 [ My Space ] | [ Chat ][ Mic ] | [ More ]
-FAB_BTN=58px · borderRadius=36px · FAB_WIDTH=318px
+FAB_BTN=58px · borderRadius=36px
 ```
-
-- `forwardRef` — exposes `startMic()` to parent
-- FAB hides when keyboard active → floating pill input bar takes its place
-- Input bar: Mic · TextInput · Send — transparent bg, same height as FAB
+- forwardRef · exposes startMic()
+- FAB hides on keyboard · floating pill input bar takes over
 - Mic pill: full width, waveform + Listening + Cancel/Send →
-- FAB restores only on keyboard dismiss, NOT on send
-- My Space button → scrollTo page 0
-- Dashboard button → scrollTo page 1
-- Chat button → scrollTo page 2 (or open keyboard if already on Chat)
+- FAB restores only on blur, NOT on send
 
 ---
 
@@ -271,20 +261,9 @@ FAB_BTN=58px · borderRadius=36px · FAB_WIDTH=318px
 ## SHEETS DESIGN SYSTEM (LOCKED ✅)
 ## ══════════════════════════════════
 
-All domain channels open as 92% sheets over Chat (or My Space for personal Notes).
+All domain channels open as 92% sheets over Chat.
 - 92% height · `#FAF8F5` bg · borderTopRadius 24px
 - Open INSTANTLY · fetch async · backdrop dismisses
-- No channel colour in sheet — clean black/grey inside
-
----
-
-## ══════════════════════════════════
-## NAVIGATION STORE (✅)
-## ══════════════════════════════════
-
-`lib/navigation-store.ts` — module-level, production ready.
-Current types: `edit_event` · `add_event` · `shopping` · `actions` · `meals`
-To add: `my_space_goal` — for Goal detail → Chat injection with training plan context
 
 ---
 
@@ -299,50 +278,46 @@ Store bare local datetime. Raw string parse. No timezone suffix. Ever.
 
 ## Pre-Launch Checklist
 
-- [x] v5 architecture locked — three screens + sheets
-- [x] Screen architecture clarified — Calendar/Shopping/Meals/Todos/Notes/Travel = sheets only
-- [x] Swipe world updated — My Space replaces Pulse as third screen
-- [x] ZaeliFAB Phase 1 ✅ (forwardRef, startMic)
+- [x] v5 architecture locked
+- [x] My Space designed — mockup complete
+- [x] ZaeliFAB Phase 1 ✅
 - [x] Landing Phase 2 ✅
-- [x] Dashboard Phase 4 — Option A ✅
-- [x] Chat input bar ✅ (floating pill, mic wired)
-- [x] Calendar card — full interaction stress tested ✅
-- [x] My Space — fully designed, mockup complete ✅
-- [x] Zaeli Noticed card — designed, replaces WotD in Dashboard ✅
-- [x] WotD moved to My Space — design locked ✅
-- [ ] Dashboard stress testing — Dinner, Shopping, Actions, WotD remaining
+- [x] Dashboard Phase 4 ✅
+- [x] Chat input bar ✅
+- [x] **Dashboard stress testing — ALL 5 CARDS ✅**
+  - [x] Calendar — past events, toggle, headline, full-width button
+  - [x] Dinner — no duplicate, 92px column, tap-expand, full-width button
+  - [x] Shopping — bright hint, +N, always-visible add, open sheet button
+  - [x] Actions — toggle tick, done persist, inline expand, full-width button
+  - [x] Zaeli Noticed — sage/violet, count headline, tap → Chat
+- [x] All Dashboard → Chat context injection wired ✅
+- [x] Quick reply chip intercepts wired ✅
 - [ ] **Phase 3 — swipe-world.tsx container** ← NEXT
-- [ ] **Phase 3b — My Space screen** ← NEXT AFTER CONTAINER
-- [ ] Phase 5 — Chat v5 (full-width Zaeli, two entry states)
-- [ ] Phase 6 — Zaeli Noticed card in Dashboard (GPT mini notices)
-- [ ] Phase 7 — Todos + Reminders sheet
-- [ ] Notes sheet (personal, in My Space)
-- [ ] Notes sheet (family, in Chat)
-- [ ] Travel sheet — build inside Chat
-- [ ] Tutor — dedicated screen rebuild
-- [ ] Kids Hub — dedicated screen
-- [ ] Our Family — dedicated screen
-- [ ] Landing: LANDING_TEST_MODE = false before launch
-- [ ] HealthKit integration (expo-health)
-- [ ] NASA APOD API integration + daily cache
-- [ ] Wordle — date-seeded daily word + streak tracking
-- [ ] Zen meditations — GPT mini generation + expo-av
-- [ ] Goal → Chat injection (navigation store type: my_space_goal)
+- [ ] **Phase 3b — My Space screen**
+- [ ] Phase 5 — Chat v5
+- [ ] Phase 6 — AI Zaeli Noticed (GPT mini)
+- [ ] Todos sheet
+- [ ] Notes sheet (family + personal)
+- [ ] Travel sheet
+- [ ] Tutor rebuild
+- [ ] Kids Hub
+- [ ] Our Family
+- [ ] HealthKit integration
+- [ ] NASA APOD integration
+- [ ] Landing: LANDING_TEST_MODE = false
 - [ ] EAS build · TestFlight for Anna
-- [ ] Real auth · Remove dev toggle
+- [ ] Real auth
 - [ ] Website + Stripe + onboarding
-- [ ] Wire weather to real user location
 
 ---
 
 ## Key Product Moments
 
-**The brief** — 3 sentences, Poppins 600 26px. Earns its moment 3x/day. Now reads family AND personal data.
+**The brief** — 3 sentences, Poppins 600 26px. Earns its moment 3x/day. Reads family + personal data.
 **The dashboard** — One sentence per card. Tap to reveal. Editorial, not widget-like.
+**Zaeli noticed** — "Poppy's assignment is due tomorrow." Zaeli knew before you asked.
 **My Space** — Rich's world. Steps, goals, word, astronomy, calm, notes, Wordle. One swipe left.
-**The word** — "ephemeral." Something for the adults. Now lives where it belongs — personal space.
-**The notice** — "Poppy's assignment is due tomorrow." Zaeli noticed so you don't have to.
 **Dashboard → Chat** — Tap a card, Zaeli has context, keyboard ready. Seamless.
 **The sheet** — Slides up over Chat. Data accessible without leaving the conversation.
-**Goal coaching** — "Your Noosa Run is 4 weeks away — want a training plan?" Zaeli knows Rich personally.
+**Goal coaching** — "Your Noosa Run is 4 weeks away — want a training plan?"
 **The all-done moment** — Everything handled. "Enjoy the evening."
