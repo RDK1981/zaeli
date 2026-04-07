@@ -51,6 +51,8 @@ export default function TabLayout() {
       <Tabs.Screen name="lists"        options={{ href: null }} />
       <Tabs.Screen name="settings"     options={{ href: null }} />
       <Tabs.Screen name="zaeli-chat"   options={{ href: null }} />
+      <Tabs.Screen name="family"       options={{ href: null }} />
+      <Tabs.Screen name="kids"         options={{ href: null }} />
     </Tabs>
   );
 }
