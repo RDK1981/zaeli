@@ -133,6 +133,8 @@ export default function SwipeWorld() {
         <View style={s.page}>
           <ChatScreen
             isEmbedded={true}
+            fabActive={fabActive}
+            setFabActive={setFabActive}
             onNavigateDashboard={() => scrollToPage(PAGE_DASHBOARD)}
           />
         </View>

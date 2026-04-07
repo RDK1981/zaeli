@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 7 April 2026 — Phase 6 AI Zaeli Noticed ✅ · Weather switched to wttr.in ✅ · Chat fix identified 🔨*
+*Last updated: 7 April 2026 — Phase 6 AI Zaeli Noticed ✅ · Weather switched to wttr.in ✅ · Chat fix FAILED this session 🔴 · Next session plan documented*
 
 ---
 
@@ -119,25 +119,67 @@ wttr.in codes      = mapWttrCode() in dashboard.tsx translates to internal codes
 ---
 
 ## ══════════════════════════════════
-## WORDMARK & IDENTITY (LOCKED ✅)
+## WHAT HAPPENED THIS SESSION — READ THIS FIRST
 ## ══════════════════════════════════
 
-**Font:** `Poppins_800ExtraBold`
-**On light:** `#0A0A0A` ink base · `#A8D8F0` sky on a + i
-**On dark:** `#ffffff` white base · `#A8D8F0` sky on a + i
-**Top bar size:** 36px · letterSpacing: -1.5px · lineHeight: 42px
-**Landing size:** 56px · letterSpacing: -2px · lineHeight: 64px
+**This session was supposed to:** Remove the splash/entry/card stack from Chat and replace with a simple Zaeli greeting.
+
+**What went wrong:** 5+ hours wasted. Chat is still broken. Here is the honest post-mortem.
+
+### Root cause — two separate problems discovered:
+
+**Problem 1: The input bar was never receiving taps**
+The chat input bar (`position:absolute`) sits inside a `ScrollView`. The ScrollView's touch handler intercepts all taps in that region — including the send button. This was always broken in the swipe-world architecture, even before this session. It was masked by the entry screen which had its own separate input.
+
+**Problem 2: swipe-world never passed fabActive/setFabActive to ChatScreen**
+Without these props, the FAB and keyboard state in HomeScreen are disconnected from swipe-world's state. Chat button sets fabActive in swipe-world but HomeScreen doesn't know about it.
+
+### What was tried and failed:
+- Moving input bar inside/outside KAV — bar went behind keyboard or taps still blocked
+- display:none / opacity:0 / height:0 to keep TextInput mounted — focus() still didn't work
+- Passing fabActive as external props — caused re-render cascades with stale closures
+- openKeyboardRef, focusRef, sendRef patterns — too many moving parts
+- Multiple git restores — cache issues made it impossible to confirm what was running
+
+### Current state of files on disk:
+- `index.tsx` — TRUE ORIGINAL from last git commit (confirmed). Has splash + entry + card stack. Everything works EXCEPT it's the old interface.
+- `swipe-world.tsx` — Original + fabActive/setFabActive passed into ChatScreen (one addition).
+
+### What is safe:
+ALL work from the previous session (dashboard context flows, sheets, inline cards, event booking, shopping) is preserved in the current `index.tsx` on disk and in git commit `419589f`.
 
 ---
 
 ## ══════════════════════════════════
-## ZAELIFAX — 5 BUTTONS (LOCKED ✅)
+## CHAT FIX — NEXT SESSION PLAN
 ## ══════════════════════════════════
 
-```
-[ Grid(Dashboard) ] | [ Chat ][ Mic ] | [ ✦(My Space) ][ ···(More) ]
-58×58px buttons · borderRadius:22 · FAB pill borderRadius:36
-```
+**DO NOT attempt the same approach again.** The fundamental issue is that the input bar inside index.tsx cannot receive taps reliably from swipe-world.
+
+### The correct plan for next session:
+
+**Step 1 — Understand before touching anything**
+Upload `index.tsx`, `swipe-world.tsx`, and `ZaeliFAB.tsx` at session start. Read all three fully before writing a single line.
+
+**Step 2 — Add one console.log first**
+Before any code changes, add `console.log('SEND PRESSED')` to the send button. Confirm whether taps register. This single data point determines everything.
+
+**Step 3 — The actual fix (if taps don't register)**
+The input bar needs to move OUT of the ScrollView entirely. It should be a direct child of the main `<View style={{flex:1}}>` in HomeScreen — a sibling of the KeyboardAvoidingView, not inside it. Use `position:absolute, bottom:0` at that level. This removes it from the ScrollView's touch area completely.
+
+**Step 4 — Wire swipe-world correctly**
+swipe-world only needs to:
+- Pass `fabActive` and `setFabActive` into ChatScreen (already done)
+- Call `inputRef.current?.focus()` from `onChatKeyboard` — but ONLY after `setFabActive('keyboard')` has caused the input bar to mount
+
+**Step 5 — useFocusEffect replacement**
+`useFocusEffect` doesn't fire in a horizontal ScrollView. Replace with a `onPageFocus` callback prop that swipe-world calls whenever it scrolls to page 1. This re-runs the context check.
+
+**Key rules for next session:**
+- Maximum 2 changes at a time
+- Test each change on device before the next
+- If a change breaks something, revert immediately — don't compound
+- Never spend more than 30 minutes on any single approach without stepping back
 
 ---
 
@@ -148,24 +190,24 @@ wttr.in codes      = mapWttrCode() in dashboard.tsx translates to internal codes
 **`app/(tabs)/dashboard.tsx`** — Phase 6 complete.
 
 - All 5 cards: Calendar(slate) → Dinner(peach) → Weather+ZaeliNoticed → Shopping(lavender) → Actions(gold)
-- **Zaeli Noticed:** AI-generated via GPT mini (`gpt-4o-mini`). Fires once per session after data loads. Falls back to shopping count if API fails.
-- **Weather:** wttr.in API with 8s timeout. Fires independently — never blocks card animations.
-- **Card animations:** Fire immediately when Supabase data lands. Weather + notices fill in behind.
+- **Zaeli Noticed:** AI-generated via GPT mini. Fires once per session after data loads.
+- **Weather:** wttr.in API with 8s timeout. Fires independently.
 - All context injection wired to Chat via navigation store.
 
 ---
 
 ## ══════════════════════════════════
-## SWIPE WORLD (✅ complete)
+## SWIPE WORLD (✅ complete — with one addition)
 ## ══════════════════════════════════
 
 **`app/(tabs)/swipe-world.tsx`** — owns all 3 pages, FAB, dots, landing overlay.
 
 - Page 0: DashboardScreen ✅
-- Page 1: HomeScreen (named export from index.tsx) ✅ — require cycle warning, fix in Chat v5
+- Page 1: HomeScreen (named export from index.tsx) ✅
 - Page 2: MySpaceScreen ✅
+- fabActive + setFabActive now passed into ChatScreen ✅ (added this session)
 
-**Landing overlay:** Stays as-is. Rich likes it. `LANDING_TEST_MODE = true` — flip before launch.
+**Landing overlay:** Stays as-is. `LANDING_TEST_MODE = true` — flip before launch.
 
 ---
 
@@ -173,64 +215,33 @@ wttr.in codes      = mapWttrCode() in dashboard.tsx translates to internal codes
 ## MY SPACE (✅ Phase 3b complete)
 ## ══════════════════════════════════
 
-**`app/(tabs)/my-space.tsx`** — all 7 cards, 4 × 92% sheets. All dummy data.
-
-| Card | Colour | Interaction |
-|------|--------|-------------|
-| Health | slate | Inline expand |
-| Goals | gold | Tap 1 = inline · tap goal = 92% sheet · + Add = 92% sheet |
-| Word of the Day | sage | Inline expand + SVG play |
-| NASA APOD | slate | Inline expand |
-| Zen | peach | Inline expand + SVG play/pause |
-| Notes | lavender | → 92% sheet |
-| Wordle | gold | → 92% sheet, full grid + keyboard |
+All 7 cards built, 4 × 92% sheets. All dummy data.
 
 ---
 
 ## ══════════════════════════════════
-## CHAT — KNOWN ISSUE (🔨 fix next session)
+## CHAT — BROKEN 🔴 (fix next session)
 ## ══════════════════════════════════
 
-**Problem:** When Chat loads fresh, it shows splash screen → entry screen → dashboard-style card stack (Calendar, Dinner, Shopping, Actions) inside the chat thread. This is the old brief/overview system.
+**Current state:** index.tsx is the original — has splash/entry/card stack on load. Chat works via the entry screen. FAB chat button doesn't open keyboard directly.
 
-**What we want:** Chat opens directly. Zaeli greets warmly with a simple first message. No card stack. No splash. No brief generation. Context injection from Dashboard cards still works perfectly — keep all those paths.
+**Target state:** Chat opens directly with Zaeli greeting. No splash. No card stack. Input bar receives taps reliably. Dashboard context flows work.
 
-**What to remove from index.tsx:**
-- `overviewOpen` state and the "Today's overview" toggle
-- `renderCardStack()` and the card stack render block
-- `generateBrief()` call on fresh load
-- Splash/entry screen sequence (redundant now swipe-world owns navigation)
-
-**What to add:**
-- On fresh load (no pending context): inject a simple Zaeli greeting message into the messages array
-- Time-aware: morning / afternoon / evening tone
-
-**Context injection paths to KEEP (all working correctly):**
-- `edit_event` · `add_event` · `shopping` · `shopping_sheet` · `actions` · `meals` · `noticed`
-
-**Key insight:** index.tsx is 6,026 lines. Do this in a fresh chat session. Upload index.tsx first.
-
----
-
-## ══════════════════════════════════
-## BRAND PACK (✅)
-## ══════════════════════════════════
-
-`zaeli-brand-pack-2026.html` — repo root.
+**All context injection paths are working in the original** — edit_event, add_event, shopping, shopping_sheet, actions, meals, noticed. Do not touch these.
 
 ---
 
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
-Phase 2: Landing overlay       ✅ stays, user likes it
+Phase 2: Landing overlay       ✅
 Phase 4: Dashboard Option A    ✅ all 5 cards
 Phase 4b: Chat input bar       ✅
 Dashboard stress testing       ✅
 Phase 3: swipe-world.tsx       ✅
 Phase 3b: My Space             ✅ all 7 cards, 4 sheets
 Phase 6: Zaeli Noticed (AI)    ✅ GPT mini, wttr.in weather
-Phase 5: Chat v5 / fix         🔨 NEXT — remove card stack, add greeting
+Phase 5: Chat v5 / fix         🔴 FAILED this session — retry next session with new plan
 Phase 7: Todos sheet           🔨
 Phase 8: Shopping complete     🔨
 Phase 9: Meals sheet           🔨
@@ -262,4 +273,6 @@ Phase 15: Settings             🔨
 - Wordmark = Poppins_800ExtraBold (never DM Serif for readable text)
 - 92% sheets = height: H * 0.92 (never maxHeight)
 - Weather = wttr.in only (Open-Meteo times out in dev client)
-- GPT_MINI = 'gpt-4o-mini' (not gpt-5.4-mini — that was wrong)
+- GPT_MINI = 'gpt-4o-mini'
+- NEVER pass fabActive/setFabActive as props from swipe-world unless you are certain the input bar is outside the ScrollView
+- ALWAYS add console.log before attempting any touch/send fix — confirm the tap is registering first
