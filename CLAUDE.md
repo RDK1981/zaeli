@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 6 April 2026 — Swipe world built ✅ Brand pack created ✅ Wordmark updated ✅*
+*Last updated: 7 April 2026 — My Space Phase 3b complete ✅*
 
 ---
 
@@ -43,6 +43,8 @@ Tutor · Kids Hub · Our Family · Settings
 - Component: `Copy-Item "C:\Users\richa\Downloads\ZaeliFAB.tsx" "C:\Users\richa\zaeli\app\components\ZaeliFAB.tsx"`
 - Lib: `Copy-Item "C:\Users\richa\Downloads\file.ts" "C:\Users\richa\zaeli\lib\file.ts"`
 - **CRITICAL:** Upload files from `C:\Users\richa\zaeli\app\(tabs)\` — NEVER from Downloads.
+- **CRITICAL:** Always delete old file before copying new one to avoid stale cache issues.
+- **CRITICAL:** Always verify file updated with `Get-Content ... | Select-Object -First 5` before starting Expo.
 
 ---
 
@@ -67,7 +69,7 @@ Sharp, warm, genuinely enthusiastic. Finds the funny angle through delight, not 
 - OpenAI Whisper-1 — voice transcription
 - expo-router, expo-image-picker, react-native-svg, expo-file-system, expo-av
 - Poppins (ALL UI text) · DMSerifDisplay (ghost numbers ONLY)
-- HealthKit · NASA APOD API · Dictionary API (My Space — Phase 3b)
+- HealthKit · NASA APOD API · Dictionary API (My Space — future phases)
 
 ---
 
@@ -103,15 +105,19 @@ Card buttons       = full-width, borderRadius:14, paddingVertical:14, Poppins_70
 Nav store types    = edit_event · add_event · shopping · shopping_sheet · actions · meals · noticed
 Chip intercepts    = 'Open Meal Planner' · 'Open Shopping List' · 'Open To-dos'
 Family colours     = Rich:#4D8BFF · Anna:#FF7B6B · Poppy:#A855F7 · Gab:#22C55E · Duke:#F59E0B
+92% sheets         = height: H * 0.92 (NOT maxHeight) · borderTopLeftRadius:24 · borderTopRightRadius:24
+Sheet handle       = 36px wide · 4px tall · rgba(10,10,10,0.14) · alignSelf:center · marginTop:12
+IcoPlay SVG        = Polygon points="5 3 19 12 5 21 5 3" · 15×15 · strokeWidth 2
+IcoPause SVG       = two Lines x1=6/18 y1=4 x2=6/18 y2=20 · 15×15 · strokeWidth 2.5
 ```
 
 ---
 
 ## ══════════════════════════════════
-## WORDMARK & IDENTITY (LOCKED ✅ — updated this session)
+## WORDMARK & IDENTITY (LOCKED ✅)
 ## ══════════════════════════════════
 
-**Font:** `Poppins_800ExtraBold` — changed from DM Serif this session
+**Font:** `Poppins_800ExtraBold`
 **On light:** `#0A0A0A` ink base · `#A8D8F0` sky on a + i
 **On dark:** `#ffffff` white base · `#A8D8F0` sky on a + i
 **Top bar size:** 36px · letterSpacing: -1.5px · lineHeight: 42px
@@ -151,7 +157,7 @@ Family colours     = Rich:#4D8BFF · Anna:#FF7B6B · Poppy:#A855F7 · Gab:#22C55
 ---
 
 ## ══════════════════════════════════
-## SWIPE WORLD (✅ Phase 3 — container built)
+## SWIPE WORLD (✅ complete)
 ## ══════════════════════════════════
 
 **`app/(tabs)/swipe-world.tsx`** — owns:
@@ -163,20 +169,37 @@ Family colours     = Rich:#4D8BFF · Anna:#FF7B6B · Poppy:#A855F7 · Gab:#22C55
 
 **`app/(tabs)/index.tsx`** — thin entry point:
 - Default export = `SwipeWorld` (re-exported from swipe-world.tsx)
-- `HomeScreen` available as named export for Phase 5
+- `HomeScreen` available as named export (workaround for require cycle)
 
 **Current page status:**
-- Page 0 (Dashboard): `DashboardScreen` imported directly ✅
-- Page 1 (Chat): `ChatPlaceholder` ⚠️ — real Chat can't import from index.tsx (expo-router intercepts)
-- Page 2 (My Space): `MySpacePlaceholder` ⚠️ — Phase 3b
+- Page 0 (Dashboard): `DashboardScreen` ✅
+- Page 1 (Chat): `HomeScreen` named export from index.tsx ✅ (require cycle warn — fix in Phase 5)
+- Page 2 (My Space): `MySpaceScreen` ✅ Phase 3b complete
 
-**Phase 5 fix for Chat:** Extract `HomeScreen` logic from `index.tsx` into `app/components/ChatPage.tsx`. Then swipe-world imports `ChatPage` cleanly.
+**Phase 5 fix:** Extract `HomeScreen` from `index.tsx` into `app/components/ChatPage.tsx`. Eliminates require cycle.
 
-**dashboard.tsx changes this session:**
-- SafeAreaView removed from top bar → uses `useSafeAreaInsets()` + `paddingTop: insets.top`
-- `onNavigateChat` prop replaces router.navigate (calls scrollToPage in swipe-world)
-- ZaeliFAB removed (swipe-world owns it)
-- Logo: Poppins_800ExtraBold 36px, a+i = #A8D8F0
+---
+
+## ══════════════════════════════════
+## MY SPACE (✅ Phase 3b complete)
+## ══════════════════════════════════
+
+**`app/(tabs)/my-space.tsx`** — all 7 cards built.
+
+| Card | Colour | Interaction |
+|------|--------|-------------|
+| Health | `#3A3D4A` slate | Inline expand — steps, distance, calories, workouts |
+| Goals | `#F0DC80` gold | Tap 1 = inline (3 goals, progress bars) · Tap goal row = 92% sheet · + Add = 92% sheet |
+| Word of the Day | `#E8F4E8` sage | Inline expand — def, example, SVG play button |
+| NASA APOD | `#3A3D4A` slate | Inline expand — star placeholder, description |
+| Zen | `#FAC8A8` peach | Inline expand — 4 tracks, SVG play/pause icons |
+| Notes | `#D8CCFF` lavender | Tap → 92% sheet — note list + new note button |
+| Wordle | `#F0DC80` gold | Tap → 92% sheet — full 6×5 grid + coloured keyboard |
+
+**All data is hardcoded dummy data** — real APIs wired in later phases.
+**Card sizing matches dashboard exactly:** borderRadius:22, padding:22, headlines 24px, body text 17px, meta 13px.
+**SVG icons from index.tsx:** IcoPlay (Polygon 5 3 19 12 5 21 5 3) · IcoPause (two Lines).
+**92% sheets:** `height: H * 0.92` — Goals detail, New Goal, Notes, Wordle.
 
 ---
 
@@ -190,7 +213,7 @@ All 5 cards stress tested. Full spec in ZAELI-PRODUCT.md.
 ---
 
 ## ══════════════════════════════════
-## BRAND PACK (NEW ✅ — this session)
+## BRAND PACK (✅)
 ## ══════════════════════════════════
 
 `zaeli-brand-pack-2026.html` — committed to repo root.
@@ -205,9 +228,9 @@ Phase 2: Landing overlay       ✅ in swipe-world.tsx
 Phase 4: Dashboard Option A    ✅ all 5 cards
 Phase 4b: Chat input bar       ✅
 Dashboard stress testing       ✅ all 5 cards
-Phase 3: swipe-world.tsx       ✅ container built (Chat is placeholder)
-Phase 3b: My Space             🔨 NEXT — build my-space.tsx
-Phase 5: Chat v5               🔨 extract ChatPage.tsx · full-width Zaeli
+Phase 3: swipe-world.tsx       ✅ container built
+Phase 3b: My Space             ✅ all 7 cards, 4 sheets
+Phase 5: Chat v5               🔨 NEXT — extract ChatPage.tsx
 Phase 6: Zaeli Noticed (AI)    🔨 GPT mini
 Phase 7: Todos sheet           🔨
 Phase 8: Kids Hub              🔨
@@ -219,7 +242,9 @@ Phase 9: Tutor rebuild         🔨
 ## Coding Rules
 - SafeAreaView = swipe-world.tsx ONLY · individual pages = useSafeAreaInsets()
 - PowerShell: no && · separate lines
-- Always `npx expo start --dev-client` (`--clear` for bundles)
+- Always `npx expo start --dev-client --clear`
+- Always `Remove-Item` old file before `Copy-Item` new one
+- Always verify with `Get-Content ... | Select-Object -First 5` before running Expo
 - Date: local only — NEVER toISOString() · NEVER +10:00
 - KAV: backgroundColor:'#fff' · Send: '#FF4545' · Body: '#FAF8F5'
 - expo-file-system: 'expo-file-system/legacy'
@@ -230,3 +255,4 @@ Phase 9: Tutor rebuild         🔨
 - router.navigate() only for dedicated screens
 - Upload from zaeli folder, never Downloads
 - Wordmark = Poppins_800ExtraBold (never DM Serif for readable text)
+- 92% sheets = height: H * 0.92 (never maxHeight)

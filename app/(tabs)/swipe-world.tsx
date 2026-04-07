@@ -1,19 +1,11 @@
 /**
  * swipe-world.tsx — Zaeli Swipe World Container
- * 6 April 2026 — v2
- *
- * Architecture:
- * - Rendered by index.tsx as the app entry point
- * - Three pages in a horizontal ScrollView
- * - ZaeliFAB: position:absolute, zIndex:999 — owns all navigation
- * - 3-dot indicator: position:absolute, zIndex:998
- * - Landing overlay: position:absolute, zIndex:1000
- * - SafeAreaView thin strip just for top inset (no clipping)
+ * 7 April 2026 — v3 (Phase 3b: My Space wired)
  *
  * Pages:
- *   0 = Dashboard (DashboardScreen component)
- *   1 = Chat (placeholder until ChatPage.tsx extracted — Phase 5)
- *   2 = My Space (placeholder until Phase 3b)
+ *   0 = Dashboard
+ *   1 = Chat (HomeScreen named export from index.tsx)
+ *   2 = My Space (MySpaceScreen)
  */
 
 import React, { useRef, useState, useEffect } from 'react';
@@ -22,39 +14,13 @@ import {
   Text, TouchableOpacity,
   NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 
 import ZaeliFAB, { ZaeliFABHandle } from '../components/ZaeliFAB';
 import DashboardScreen from './dashboard';
-
-// ── Placeholder pages ────────────────────────────────────────────────────────
-function ChatPlaceholder() {
-  return (
-    <View style={{ flex:1, backgroundColor:'#FAF8F5', alignItems:'center', justifyContent:'center' }}>
-      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:20, color:'rgba(10,10,10,0.22)', letterSpacing:-0.5 }}>
-        Chat
-      </Text>
-      <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.16)', marginTop:6 }}>
-        Swipe left for Dashboard
-      </Text>
-    </View>
-  );
-}
-
-function MySpacePlaceholder() {
-  return (
-    <View style={{ flex:1, backgroundColor:'#FAF8F5', alignItems:'center', justifyContent:'center' }}>
-      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:20, color:'rgba(10,10,10,0.22)', letterSpacing:-0.5 }}>
-        My Space
-      </Text>
-      <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.16)', marginTop:6 }}>
-        Coming in Phase 3b
-      </Text>
-    </View>
-  );
-}
+import { HomeScreen as ChatScreen } from './index';
+import MySpaceScreen from './my-space';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const { width: W } = Dimensions.get('window');
@@ -63,22 +29,22 @@ const PAGE_DASHBOARD = 0;
 const PAGE_CHAT      = 1;
 const PAGE_MYSPACE   = 2;
 
-const USER_INITIAL   = 'R';
-const USER_COLOR     = '#A8D8F0';
+const USER_INITIAL = 'R';
+const USER_COLOR   = '#A8D8F0';
 
-const DOT_COLORS     = ['#FF4545', '#FF4545', '#A8D8F0'];
-const PAGE_ACTIVE    = ['dashboard', 'chat', 'myspace'] as const;
+const DOT_COLORS  = ['#FF4545', '#FF4545', '#A8D8F0'];
+const PAGE_ACTIVE = ['dashboard', 'chat', 'myspace'] as const;
 
 const LANDING_TEST_MODE = true; // set false before launch
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function SwipeWorld() {
-  const router   = useRouter();
+  const router    = useRouter();
   const scrollRef = useRef<ScrollView>(null);
   const fabRef    = useRef<ZaeliFABHandle>(null);
 
   const [activePage,  setActivePage]  = useState(PAGE_DASHBOARD);
-  const [fabActive,   setFabActive]   = useState<'dashboard'|'chat'|'keyboard'|'myspace'>('dashboard');
+  const [fabActive,   setFabActive]   = useState<'dashboard' | 'chat' | 'keyboard' | 'myspace'>('dashboard');
   const [showLanding, setShowLanding] = useState(false);
 
   // Open on Dashboard
@@ -89,7 +55,7 @@ export default function SwipeWorld() {
     return () => clearTimeout(t);
   }, []);
 
-  // Landing check
+  // Landing time-window check
   useEffect(() => {
     if (LANDING_TEST_MODE) { setShowLanding(true); return; }
     const h = new Date().getHours();
@@ -127,13 +93,12 @@ export default function SwipeWorld() {
   function onMySpace() { scrollToPage(PAGE_MYSPACE); }
 
   function onMoreItem(key: string) {
-    const sheetKeys = ['calendar','shopping','meals','todos','notes','travel'];
+    const sheetKeys = ['calendar', 'shopping', 'meals', 'todos', 'notes', 'travel'];
     if (sheetKeys.includes(key)) {
-      // Navigate to Chat — sheet opens via navigation store
       scrollToPage(PAGE_CHAT);
       return;
     }
-    const screens: Record<string,string> = {
+    const screens: Record<string, string> = {
       tutor:    '/(tabs)/tutor',
       kids:     '/(tabs)/kids',
       family:   '/(tabs)/family',
@@ -145,9 +110,9 @@ export default function SwipeWorld() {
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <View style={s.root}>
-      <ExpoStatusBar style="dark" animated/>
+      <ExpoStatusBar style="dark" animated />
 
-      {/* Horizontal scroll — 3 pages, fills entire screen */}
+      {/* ── Three-page horizontal scroll ── */}
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -161,28 +126,26 @@ export default function SwipeWorld() {
       >
         {/* Page 0 — Dashboard */}
         <View style={s.page}>
-          <DashboardScreen
-            onNavigateChat={() => scrollToPage(PAGE_CHAT)}
-          />
+          <DashboardScreen onNavigateChat={() => scrollToPage(PAGE_CHAT)} />
         </View>
 
         {/* Page 1 — Chat */}
         <View style={s.page}>
-          <ChatPlaceholder/>
+          <ChatScreen
+            isEmbedded={true}
+            onNavigateDashboard={() => scrollToPage(PAGE_DASHBOARD)}
+          />
         </View>
 
         {/* Page 2 — My Space */}
         <View style={s.page}>
-          <MySpacePlaceholder/>
+          <MySpaceScreen />
         </View>
       </ScrollView>
 
-      {/* 3 dots — float just above the FAB at bottom */}
-      <View
-        style={s.dots}
-        pointerEvents="none"
-      >
-        {[0,1,2].map(i => (
+      {/* ── 3-dot page indicator ── */}
+      <View style={s.dots} pointerEvents="none">
+        {[0, 1, 2].map(i => (
           <View
             key={i}
             style={[
@@ -197,7 +160,7 @@ export default function SwipeWorld() {
         ))}
       </View>
 
-      {/* FAB — floats above everything */}
+      {/* ── FAB ── */}
       <ZaeliFAB
         ref={fabRef}
         activeButton={fabActive}
@@ -211,7 +174,7 @@ export default function SwipeWorld() {
         onMicResult={() => scrollToPage(PAGE_CHAT)}
       />
 
-      {/* Landing overlay */}
+      {/* ── Landing overlay ── */}
       {showLanding && (
         <TouchableOpacity
           style={s.landing}
@@ -219,8 +182,8 @@ export default function SwipeWorld() {
           onPress={() => setShowLanding(false)}
         >
           <Text style={s.landingLogo}>
-            z<Text style={{ color:'#A8D8F0' }}>a</Text>el
-            <Text style={{ color:'#A8D8F0' }}>i</Text>
+            z<Text style={{ color: '#A8D8F0' }}>a</Text>el
+            <Text style={{ color: '#A8D8F0' }}>i</Text>
           </Text>
           <Text style={s.landingHint}>Tap anywhere to continue</Text>
         </TouchableOpacity>
@@ -244,7 +207,7 @@ const s = StyleSheet.create({
   },
   dots: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 112 : 96,  // sits just above the FAB bar
+    bottom: Platform.OS === 'ios' ? 112 : 96,
     left: 0,
     right: 0,
     flexDirection: 'row',
