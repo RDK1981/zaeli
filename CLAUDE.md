@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 7 April 2026 — My Space Phase 3b complete ✅*
+*Last updated: 7 April 2026 — Phase 6 AI Zaeli Noticed ✅ · Weather switched to wttr.in ✅ · Chat fix identified 🔨*
 
 ---
 
@@ -30,6 +30,7 @@ Tutor · Kids Hub · Our Family · Settings
 - WotD = My Space only, NOT on Dashboard
 - swipe-world.tsx = container (owns FAB, dots, landing, all 3 pages)
 - index.tsx = re-exports SwipeWorld as default (expo-router entry point)
+- Landing overlay = stays (lives in swipe-world.tsx, user likes it)
 
 ---
 
@@ -43,8 +44,8 @@ Tutor · Kids Hub · Our Family · Settings
 - Component: `Copy-Item "C:\Users\richa\Downloads\ZaeliFAB.tsx" "C:\Users\richa\zaeli\app\components\ZaeliFAB.tsx"`
 - Lib: `Copy-Item "C:\Users\richa\Downloads\file.ts" "C:\Users\richa\zaeli\lib\file.ts"`
 - **CRITICAL:** Upload files from `C:\Users\richa\zaeli\app\(tabs)\` — NEVER from Downloads.
-- **CRITICAL:** Always delete old file before copying new one to avoid stale cache issues.
-- **CRITICAL:** Always verify file updated with `Get-Content ... | Select-Object -First 5` before starting Expo.
+- **CRITICAL:** Always `Remove-Item` old file before `Copy-Item` new one.
+- **CRITICAL:** Always verify with `Get-Content ... | Select-Object -First 5` before running Expo.
 
 ---
 
@@ -65,10 +66,11 @@ Sharp, warm, genuinely enthusiastic. Finds the funny angle through delight, not 
 - React Native + Expo (iOS-first), iPhone 11 Pro Max dev device
 - Supabase (Sydney ap-southeast-2, ID: rsvbzakyyrftezthlhtd)
 - Claude Sonnet (`claude-sonnet-4-20250514`) — tool-calling + vision
-- OpenAI `gpt-5.4-mini` — landing brief, Zaeli Noticed notices
+- OpenAI `gpt-4o-mini` — Zaeli Noticed notices (dashboard)
 - OpenAI Whisper-1 — voice transcription
 - expo-router, expo-image-picker, react-native-svg, expo-file-system, expo-av
 - Poppins (ALL UI text) · DMSerifDisplay (ghost numbers ONLY)
+- Weather: wttr.in API (replaced Open-Meteo which was timing out)
 - HealthKit · NASA APOD API · Dictionary API (My Space — future phases)
 
 ---
@@ -77,7 +79,7 @@ Sharp, warm, genuinely enthusiastic. Finds the funny angle through delight, not 
 ```
 DUMMY_FAMILY_ID    = '00000000-0000-0000-0000-000000000001'
 SONNET             = 'claude-sonnet-4-20250514'
-GPT_MINI           = 'gpt-5.4-mini'
+GPT_MINI           = 'gpt-4o-mini'
 OPENAI env var     = EXPO_PUBLIC_OPENAI_API_KEY (exact, in both files)
 OpenAI             = max_completion_tokens · Claude = max_tokens (never mix)
 KAV                = backgroundColor:'#fff' always
@@ -109,6 +111,9 @@ Family colours     = Rich:#4D8BFF · Anna:#FF7B6B · Poppy:#A855F7 · Gab:#22C55
 Sheet handle       = 36px wide · 4px tall · rgba(10,10,10,0.14) · alignSelf:center · marginTop:12
 IcoPlay SVG        = Polygon points="5 3 19 12 5 21 5 3" · 15×15 · strokeWidth 2
 IcoPause SVG       = two Lines x1=6/18 y1=4 x2=6/18 y2=20 · 15×15 · strokeWidth 2.5
+Weather API        = wttr.in (NOT Open-Meteo — was timing out in dev client)
+wttr.in URL        = https://wttr.in/{LAT},{LON}?format=j1
+wttr.in codes      = mapWttrCode() in dashboard.tsx translates to internal codes
 ```
 
 ---
@@ -123,11 +128,6 @@ IcoPause SVG       = two Lines x1=6/18 y1=4 x2=6/18 y2=20 · 15×15 · strokeWid
 **Top bar size:** 36px · letterSpacing: -1.5px · lineHeight: 42px
 **Landing size:** 56px · letterSpacing: -2px · lineHeight: 64px
 
-**✦ My Space mark (U+2756 — Black Four Pointed Star):**
-- FAB button only — never decorative
-- Active: `#A8D8F0` sky fill · Resting: `rgba(10,10,10,0.42)`
-- 22px in FAB context
-
 ---
 
 ## ══════════════════════════════════
@@ -139,20 +139,19 @@ IcoPause SVG       = two Lines x1=6/18 y1=4 x2=6/18 y2=20 · 15×15 · strokeWid
 58×58px buttons · borderRadius:22 · FAB pill borderRadius:36
 ```
 
-| Button | Resting | Active |
-|--------|---------|--------|
-| Dashboard grid | rgba(10,10,10,0.48) | #0A0A0A dark fill |
-| Chat bubble | rgba(10,10,10,0.48) | #0A0A0A dark fill |
-| Mic | rgba(10,10,10,0.48) | #FF4545 coral fill |
-| ✦ My Space | rgba(10,10,10,0.42) | #A8D8F0 sky fill |
-| ··· More | rgba(10,10,10,0.48) | #FF4545 coral fill |
+---
 
-**Props:** `userInitial`, `userColor`, `onDashboard`, `onChat`, `onMySpace`, `onChatKeyboard`, `onMoreItem`, `onMicResult`
+## ══════════════════════════════════
+## DASHBOARD (✅ COMPLETE + STRESS TESTED)
+## ══════════════════════════════════
 
-**More overlay — two sections:**
-- Family: Calendar · Shopping · Meals · Todos · Notes · Travel → sheets
-- Screens: Tutor · Kids Hub · Our Family → router.navigate()
-- Settings: quiet row at bottom
+**`app/(tabs)/dashboard.tsx`** — Phase 6 complete.
+
+- All 5 cards: Calendar(slate) → Dinner(peach) → Weather+ZaeliNoticed → Shopping(lavender) → Actions(gold)
+- **Zaeli Noticed:** AI-generated via GPT mini (`gpt-4o-mini`). Fires once per session after data loads. Falls back to shopping count if API fails.
+- **Weather:** wttr.in API with 8s timeout. Fires independently — never blocks card animations.
+- **Card animations:** Fire immediately when Supabase data lands. Weather + notices fill in behind.
+- All context injection wired to Chat via navigation store.
 
 ---
 
@@ -160,23 +159,13 @@ IcoPause SVG       = two Lines x1=6/18 y1=4 x2=6/18 y2=20 · 15×15 · strokeWid
 ## SWIPE WORLD (✅ complete)
 ## ══════════════════════════════════
 
-**`app/(tabs)/swipe-world.tsx`** — owns:
-- Horizontal ScrollView (pagingEnabled, 3 pages)
-- ZaeliFAB (position:absolute, zIndex:999)
-- 3-dot indicator (position:absolute, bottom:112 iOS)
-- Landing overlay (position:absolute, zIndex:1000)
-- `activePage` + `fabActive` state
+**`app/(tabs)/swipe-world.tsx`** — owns all 3 pages, FAB, dots, landing overlay.
 
-**`app/(tabs)/index.tsx`** — thin entry point:
-- Default export = `SwipeWorld` (re-exported from swipe-world.tsx)
-- `HomeScreen` available as named export (workaround for require cycle)
+- Page 0: DashboardScreen ✅
+- Page 1: HomeScreen (named export from index.tsx) ✅ — require cycle warning, fix in Chat v5
+- Page 2: MySpaceScreen ✅
 
-**Current page status:**
-- Page 0 (Dashboard): `DashboardScreen` ✅
-- Page 1 (Chat): `HomeScreen` named export from index.tsx ✅ (require cycle warn — fix in Phase 5)
-- Page 2 (My Space): `MySpaceScreen` ✅ Phase 3b complete
-
-**Phase 5 fix:** Extract `HomeScreen` from `index.tsx` into `app/components/ChatPage.tsx`. Eliminates require cycle.
+**Landing overlay:** Stays as-is. Rich likes it. `LANDING_TEST_MODE = true` — flip before launch.
 
 ---
 
@@ -184,31 +173,42 @@ IcoPause SVG       = two Lines x1=6/18 y1=4 x2=6/18 y2=20 · 15×15 · strokeWid
 ## MY SPACE (✅ Phase 3b complete)
 ## ══════════════════════════════════
 
-**`app/(tabs)/my-space.tsx`** — all 7 cards built.
+**`app/(tabs)/my-space.tsx`** — all 7 cards, 4 × 92% sheets. All dummy data.
 
 | Card | Colour | Interaction |
 |------|--------|-------------|
-| Health | `#3A3D4A` slate | Inline expand — steps, distance, calories, workouts |
-| Goals | `#F0DC80` gold | Tap 1 = inline (3 goals, progress bars) · Tap goal row = 92% sheet · + Add = 92% sheet |
-| Word of the Day | `#E8F4E8` sage | Inline expand — def, example, SVG play button |
-| NASA APOD | `#3A3D4A` slate | Inline expand — star placeholder, description |
-| Zen | `#FAC8A8` peach | Inline expand — 4 tracks, SVG play/pause icons |
-| Notes | `#D8CCFF` lavender | Tap → 92% sheet — note list + new note button |
-| Wordle | `#F0DC80` gold | Tap → 92% sheet — full 6×5 grid + coloured keyboard |
-
-**All data is hardcoded dummy data** — real APIs wired in later phases.
-**Card sizing matches dashboard exactly:** borderRadius:22, padding:22, headlines 24px, body text 17px, meta 13px.
-**SVG icons from index.tsx:** IcoPlay (Polygon 5 3 19 12 5 21 5 3) · IcoPause (two Lines).
-**92% sheets:** `height: H * 0.92` — Goals detail, New Goal, Notes, Wordle.
+| Health | slate | Inline expand |
+| Goals | gold | Tap 1 = inline · tap goal = 92% sheet · + Add = 92% sheet |
+| Word of the Day | sage | Inline expand + SVG play |
+| NASA APOD | slate | Inline expand |
+| Zen | peach | Inline expand + SVG play/pause |
+| Notes | lavender | → 92% sheet |
+| Wordle | gold | → 92% sheet, full grid + keyboard |
 
 ---
 
 ## ══════════════════════════════════
-## DASHBOARD — OPTION A (✅ COMPLETE + STRESS TESTED)
+## CHAT — KNOWN ISSUE (🔨 fix next session)
 ## ══════════════════════════════════
 
-Card order: Calendar(slate) → Dinner(peach) → Weather+ZaeliNoticed → Shopping(lavender) → Actions(gold)
-All 5 cards stress tested. Full spec in ZAELI-PRODUCT.md.
+**Problem:** When Chat loads fresh, it shows splash screen → entry screen → dashboard-style card stack (Calendar, Dinner, Shopping, Actions) inside the chat thread. This is the old brief/overview system.
+
+**What we want:** Chat opens directly. Zaeli greets warmly with a simple first message. No card stack. No splash. No brief generation. Context injection from Dashboard cards still works perfectly — keep all those paths.
+
+**What to remove from index.tsx:**
+- `overviewOpen` state and the "Today's overview" toggle
+- `renderCardStack()` and the card stack render block
+- `generateBrief()` call on fresh load
+- Splash/entry screen sequence (redundant now swipe-world owns navigation)
+
+**What to add:**
+- On fresh load (no pending context): inject a simple Zaeli greeting message into the messages array
+- Time-aware: morning / afternoon / evening tone
+
+**Context injection paths to KEEP (all working correctly):**
+- `edit_event` · `add_event` · `shopping` · `shopping_sheet` · `actions` · `meals` · `noticed`
+
+**Key insight:** index.tsx is 6,026 lines. Do this in a fresh chat session. Upload index.tsx first.
 
 ---
 
@@ -216,25 +216,30 @@ All 5 cards stress tested. Full spec in ZAELI-PRODUCT.md.
 ## BRAND PACK (✅)
 ## ══════════════════════════════════
 
-`zaeli-brand-pack-2026.html` — committed to repo root.
-8 tabs: Wordmark · Palette · Typography · Dashboard · Navigation · Channels · Family · Specs · Rules
+`zaeli-brand-pack-2026.html` — repo root.
 
 ---
 
 ## Build Phase Plan
 ```
-Phase 1: ZaeliFAB              ✅ 5 buttons, ✦, userColor
-Phase 2: Landing overlay       ✅ in swipe-world.tsx
+Phase 1: ZaeliFAB              ✅
+Phase 2: Landing overlay       ✅ stays, user likes it
 Phase 4: Dashboard Option A    ✅ all 5 cards
 Phase 4b: Chat input bar       ✅
-Dashboard stress testing       ✅ all 5 cards
-Phase 3: swipe-world.tsx       ✅ container built
+Dashboard stress testing       ✅
+Phase 3: swipe-world.tsx       ✅
 Phase 3b: My Space             ✅ all 7 cards, 4 sheets
-Phase 5: Chat v5               🔨 NEXT — extract ChatPage.tsx
-Phase 6: Zaeli Noticed (AI)    🔨 GPT mini
+Phase 6: Zaeli Noticed (AI)    ✅ GPT mini, wttr.in weather
+Phase 5: Chat v5 / fix         🔨 NEXT — remove card stack, add greeting
 Phase 7: Todos sheet           🔨
-Phase 8: Kids Hub              🔨
-Phase 9: Tutor rebuild         🔨
+Phase 8: Shopping complete     🔨
+Phase 9: Meals sheet           🔨
+Phase 10: Notes sheet (family) 🔨
+Phase 11: Travel sheet         🔨
+Phase 12: Kids Hub             🔨
+Phase 13: Tutor rebuild        🔨
+Phase 14: Our Family           🔨
+Phase 15: Settings             🔨
 ```
 
 ---
@@ -256,3 +261,5 @@ Phase 9: Tutor rebuild         🔨
 - Upload from zaeli folder, never Downloads
 - Wordmark = Poppins_800ExtraBold (never DM Serif for readable text)
 - 92% sheets = height: H * 0.92 (never maxHeight)
+- Weather = wttr.in only (Open-Meteo times out in dev client)
+- GPT_MINI = 'gpt-4o-mini' (not gpt-5.4-mini — that was wrong)

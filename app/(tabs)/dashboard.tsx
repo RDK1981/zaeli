@@ -1,22 +1,16 @@
 /**
  * dashboard.tsx — Zaeli Dashboard · Option A
- * 5 April 2026 — Polish pass
+ * 7 April 2026 — Phase 6 v3: wttr.in weather API
  *
  * Changes this pass:
- * - Date in top bar (replaces "Dashboard" label)
- * - WotD headline 24px, deep forest green
- * - Shopping: white font, no ghost number
- * - Actions: no ghost number
- * - All "Tap title to close" hints removed
- * - Dinner headlines include "dinner"
- * - Shopping headlines include "the list"
- * - Actions headlines: "on your plate" idiom
- * - Dinner expanded content font sizes bumped up
+ * - Weather switched from Open-Meteo to wttr.in (faster, more reliable)
+ * - mapWttrCode() translates wttr.in codes to existing WeatherIcon logic
+ * - All other Phase 6 fixes retained (timeout, cards animate independently)
  *
  * Card order (FIXED):
  *   1. Calendar    — full width
  *   2. Dinner      — full width
- *   3. Weather | Word of the Day — side by side
+ *   3. Weather | Zaeli Noticed — side by side
  *   4. Shopping    — full width
  *   5. Actions     — full width
  */
@@ -39,6 +33,8 @@ import Svg, { Polygon } from 'react-native-svg';
 const FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
 const WEATHER_LAT = -26.39;
 const WEATHER_LON = 153.03;
+const GPT_MINI    = 'gpt-4o-mini';
+const OPENAI_KEY  = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
 
 const FAMILY_MEMBERS = [
   { id:'1', name:'Anna',  color:'#FF7B6B' },
@@ -48,7 +44,7 @@ const FAMILY_MEMBERS = [
   { id:'5', name:'Duke',  color:'#F59E0B' },
 ];
 
-// ── Word of the Day — 400 curated words, seeded by day of year ────────────────
+// ── Word of the Day ───────────────────────────────────────────────────────────
 const WOTD_LIST = [
   'ephemeral','luminous','serendipity','melancholy','ineffable','solitude','resilience',
   'wanderlust','ethereal','eloquent','tenacity','labyrinth','vivacious','sanguine',
@@ -92,50 +88,43 @@ const WOTD_LIST = [
   'make','notice','offer','protect','renew','serve',
   'use','voice','weave','express','begin','choose','expand','flow','give','hold',
   'ignite','love','marvel','name','observe','play','reach','share','tell',
-  'pellucid','susurrus','ineffable','lambent','sempiternal','palimpsest','susurration',
-  'apricity','sillage','madeleine','kenopsia','jouissance','flaneur','bricolage',
+  'pellucid','susurrus','lambent','sempiternal','palimpsest','susurration',
+  'apricity','sillage','kenopsia','jouissance','flaneur','bricolage',
   'denouement','leitmotif','limerence','numinous','ennui','schadenfreude','weltanschauung',
-  'saudade','toska','mamihlapinatapai','cafune','litost','sobremesa','ya\'aburnee',
-  'gigil','forelsket','jayus','iktsuarpok','wabi','kintsugi','mono','kokoro',
-  'aware','shokunin','gaman','amae','komorebi','waka','haiku','yugen',
-  'frisson','dépaysement','retrouvailles','l\'esprit','jamais vu','déjà vu',
-  'apophenia','gestalt','kairos','eudaimonia','ataraxia','aponia','epoché',
-  'dialectic','hermeneutic','phenomenal','noumenal','liminal','numinous',
+  'saudade','toska','cafune','litost','sobremesa',
+  'gigil','forelsket','jayus','iktsuarpok','wabi','kintsugi','kokoro',
+  'aware','shokunin','gaman','amae','komorebi','haiku','yugen',
+  'frisson','retrouvailles','kairos','eudaimonia','ataraxia','aponia',
+  'dialectic','phenomenal','noumenal','liminal',
   'apocryphal','byzantine','labyrinthine','mercurial','protean','chimerical',
-  'gossamer','iridescent','lambent','pellucid','diaphanous','translucent',
+  'gossamer','iridescent','diaphanous','translucent',
   'mellifluous','euphonious','dulcet','sonorous','plangent','resonant',
-  'ineffable','inexpressible','unutterable','nameless','sublime','transcendent',
-  'epiphany','revelation','illumination','awakening','enlightenment','insight',
-  'serenity','equanimity','composure','aplomb','sangfroid','phlegmatic',
+  'epiphany','revelation','illumination','awakening','enlightenment',
+  'serenity','equanimity','composure','aplomb','sangfroid',
   'perspicacious','sagacious','sapient','discerning','astute','shrewd',
-  'ebullient','exuberant','vivacious','buoyant','sanguine','blithe',
+  'ebullient','exuberant','vivacious','buoyant','blithe',
   'melancholy','elegiac','lachrymose','plaintive','dolorous','lugubrious',
   'quixotic','chivalrous','gallant','valiant','intrepid','dauntless',
-  'magnanimous','munificent','philanthropic','beneficent','altruistic','noble',
+  'magnanimous','munificent','philanthropic','beneficent','noble',
   'recondite','esoteric','arcane','abstruse','cryptic','enigmatic',
-  'propitious','auspicious','felicitous','fortuitous','serendipitous','providential',
-  'inefficacious','otiose','nugatory','superfluous','pleonastic','redundant',
-  'incandescent','resplendent','refulgent','lustrous','gleaming','scintillating',
-  'limpid','pellucid','crystalline','limpid','limpid','pristine',
+  'propitious','auspicious','felicitous','fortuitous','serendipitous',
+  'incandescent','resplendent','lustrous','gleaming','scintillating',
   'halcyon','idyllic','pastoral','arcadian','elysian','paradisiacal',
 ];
 
 function getWordOfTheDay(): string {
-  const now     = new Date();
-  const start   = new Date(now.getFullYear(), 0, 0);
-  const diff    = now.getTime() - start.getTime();
-  const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   return WOTD_LIST[dayOfYear % WOTD_LIST.length];
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function getTodayLabel(): string {
-  const now = new Date();
-  return now.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+  return new Date().toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
 }
 
 // ── Time helpers ──────────────────────────────────────────────────────────────
-// Raw string parse — never use new Date() on stored event times
 function isoToMinutes(t?: string | null): number {
   if (!t) return -1;
   const timePart = t.includes('T') ? t.split('T')[1] : t.split(' ')[1] || '';
@@ -157,25 +146,19 @@ function isEventPast(ev: any): boolean {
 
 // ── Zaeli voice headlines ─────────────────────────────────────────────────────
 function calHeadline(upcomingCount: number, showTomorrow: boolean, hadPastEvents: boolean): string {
-  const when = showTomorrow ? 'tomorrow' : 'today';
   if (showTomorrow) {
     if (upcomingCount === 0) return 'All clear tomorrow.';
     if (upcomingCount === 1) return 'One thing on tomorrow.';
     if (upcomingCount === 2) return 'Two things on tomorrow.';
     return `${upcomingCount} things on tomorrow.`;
   }
-  // Today — forward-looking
   if (upcomingCount === 0) {
-    if (hadPastEvents) {
-      const h = new Date().getHours();
-      if (h < 17) return 'All clear for the afternoon.';
-      return 'All clear for the evening.';
-    }
+    if (hadPastEvents) return new Date().getHours() < 17 ? 'All clear for the afternoon.' : 'All clear for the evening.';
     return 'All clear today.';
   }
   if (upcomingCount === 1) return 'One thing still to go.';
   if (upcomingCount === 2) return 'Two things still to go.';
-  return `${upcomingCount} things on ${when}.`;
+  return `${upcomingCount} things on today.`;
 }
 function shopHeadline(count: number): string {
   if (count === 0) return 'Shopping list is clear.';
@@ -216,6 +199,8 @@ function fmtTime(t?: string | null): string {
   const h12  = h === 0 ? 12 : h > 12 ? h-12 : h;
   return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
 }
+
+// ── Weather helpers ───────────────────────────────────────────────────────────
 function weatherCondition(code: number): string {
   if (code === 0) return 'Clear';
   if (code <= 3)  return 'Partly cloudy';
@@ -239,6 +224,20 @@ function weatherExtra(code: number, windspeed: number): string {
   if (code <= 67) return 'Umbrella needed';
   return 'Stay dry';
 }
+
+// ── wttr.in code → internal code for WeatherIcon/weatherExtra ────────────────
+function mapWttrCode(code: number): number {
+  if (code === 113) return 0;          // Sunny → clear
+  if (code === 116) return 2;          // Partly cloudy
+  if (code === 119 || code === 122) return 3;  // Cloudy/overcast
+  if (code >= 143 && code <= 248) return 45;   // Fog/mist
+  if (code >= 263 && code <= 299) return 61;   // Light rain/drizzle
+  if (code >= 302 && code <= 321) return 65;   // Moderate/heavy rain
+  if (code >= 323 && code <= 377) return 71;   // Snow/sleet
+  if (code >= 386 && code <= 395) return 95;   // Thunderstorm
+  return 0;
+}
+
 function getMealEmoji(name: string): string {
   const n = (name || '').toLowerCase();
   if (/pasta|bolognese|spaghetti/.test(n)) return '🍝';
@@ -285,15 +284,12 @@ function todoBadge(todo: any): { label:string; style:'rem'|'ovd' } | null {
 
 // ── Interfaces ────────────────────────────────────────────────────────────────
 interface WeatherData { temp:number; condition:string; code:number; windspeed:number; }
-interface WotdData {
-  word:string; phonetic:string; partOfSpeech:string;
-  definition:string; example:string; audioUrl:string|null;
-}
 interface CardData {
   todayEvents:any[]; tomorrowEvents:any[];
   shopItems:any[]; shopCount:number;
   todos:any[]; meals:any[]; weather:WeatherData|null;
 }
+interface Notice { text:string; tag:string; color:string; }
 type CardKey = 'calendar'|'dinner'|'weather'|'wotd'|'shopping'|'actions'|null;
 
 // ── SVG Play icon ─────────────────────────────────────────────────────────────
@@ -332,6 +328,77 @@ function WeatherIcon({ type }: { type:'sunny'|'partly'|'cloudy'|'rain'|'storm' }
   return <Text style={{ fontSize:28 }}>⛈</Text>;
 }
 
+// ── Weather fetch — wttr.in, 8s timeout ──────────────────────────────────────
+async function fetchWeather(): Promise<WeatherData | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const lat = Math.abs(WEATHER_LAT);
+    const res = await fetch(
+      `https://wttr.in/${WEATHER_LAT},${WEATHER_LON}?format=j1`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeout);
+    const json = await res.json();
+    const curr = json?.current_condition?.[0];
+    if (!curr) {
+      console.log('[Weather] unexpected wttr.in shape:', JSON.stringify(json).slice(0, 200));
+      return null;
+    }
+    const rawCode  = parseInt(curr.weatherCode ?? '113', 10);
+    const mappedCode = mapWttrCode(rawCode);
+    const tempC    = parseFloat(curr.temp_C ?? '22');
+    const windKmh  = parseFloat(curr.windspeedKmph ?? '0');
+    const desc     = curr.weatherDesc?.[0]?.value ?? weatherCondition(mappedCode);
+    console.log(`[Weather] ${tempC}° ${desc} (wttr code ${rawCode} → ${mappedCode})`);
+    return {
+      temp:      tempC,
+      code:      mappedCode,
+      windspeed: windKmh,
+      condition: desc,
+    };
+  } catch (e: any) {
+    clearTimeout(timeout);
+    if (e?.name === 'AbortError') {
+      console.log('[Weather] timed out after 8s');
+    } else {
+      console.log('[Weather] fetch error:', e?.message ?? e);
+    }
+    return null;
+  }
+}
+
+// ── AI Zaeli Noticed — GPT mini ───────────────────────────────────────────────
+async function generateNotices(data: CardData): Promise<Notice[]> {
+  const todayEvts = data.todayEvents.map(e => `${fmtTime(e.start_time)} ${e.title}`).join(', ') || 'none';
+  const tomEvts   = data.tomorrowEvents.map(e => `${fmtTime(e.start_time)} ${e.title}`).join(', ') || 'none';
+  const todos     = data.todos.filter(t => t.status !== 'done').slice(0,5).map(t => t.title).join(', ') || 'none';
+  const shop      = data.shopCount > 0 ? `${data.shopCount} items on list` : 'list clear';
+  const weather   = data.weather ? `${Math.round(data.weather.temp)}° ${data.weather.condition}` : 'unknown';
+  const meals     = data.meals.slice(0,2).map(m => `${m.day_key}: ${m.meal_name}`).join(', ') || 'nothing planned';
+  const ctx = `Today: ${localDateStr()}. Events today: ${todayEvts}. Tomorrow: ${tomEvts}. Todos: ${todos}. Shopping: ${shop}. Weather: ${weather}. Meals: ${meals}. Family: Rich (dad), Anna (mum), Poppy (girl 12), Gab (boy 10), Duke (boy 8).`;
+  const system = `You are Zaeli, a sharp warm AI for an Australian family. Generate 2-3 short notices about things worth attention right now. Each under 12 words, plain text, no emoji, specific to the data. Never start with I. End with a period. Return ONLY a JSON array, no markdown. Format: [{"text":"...","tag":"Anna","color":"#FF7B6B"}]. Tag/color pairs: Rich #4D8BFF, Anna #FF7B6B, Poppy #A855F7, Gab #22C55E, Duke #F59E0B, Weather #A8D8F0, Shopping #D8CCFF, Calendar #3A3D4A, Meals #E8601A, Todos #C9A820.`;
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${OPENAI_KEY}` },
+      body: JSON.stringify({
+        model: GPT_MINI,
+        max_completion_tokens: 200,
+        messages: [{ role:'system', content:system }, { role:'user', content:ctx }],
+      }),
+    });
+    const json    = await res.json();
+    const raw     = json.choices?.[0]?.message?.content ?? '';
+    const cleaned = raw.replace(/```json|```/g, '').trim();
+    const parsed  = JSON.parse(cleaned);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(0, 3);
+  } catch (e) {
+    console.log('[Zaeli Noticed] error:', e);
+  }
+  return [{ text: data.shopCount > 0 ? `${data.shopCount} items on the shopping list.` : 'All clear today.', tag:'Shopping', color:'#D8CCFF' }];
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // ── CARD COMPONENTS ───────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
@@ -345,169 +412,100 @@ function CalendarCard({ events, showTomorrow, expanded, onToggleExpand, onAdd, o
 }) {
   const [selectedId,   setSelectedId]   = useState<string|null>(null);
   const [confirmDelId, setConfirmDelId] = useState<string|null>(null);
+  useEffect(() => { if (!expanded) { setSelectedId(null); setConfirmDelId(null); } }, [expanded]);
 
-  useEffect(() => {
-    if (!expanded) { setSelectedId(null); setConfirmDelId(null); }
-  }, [expanded]);
-
-  // Split events into past and upcoming using raw string parse — never new Date()
   const pastEvents     = showTomorrow ? [] : events.filter(ev => isEventPast(ev));
   const upcomingEvents = showTomorrow ? events : events.filter(ev => !isEventPast(ev));
   const headline = calHeadline(upcomingEvents.length, showTomorrow, pastEvents.length > 0);
 
   async function deleteEvent(ev: any) {
-    // Optimistic: clear UI instantly
-    setSelectedId(null);
-    setConfirmDelId(null);
-    onDeleted(ev.id); // remove from parent state immediately
-    // Background: persist to Supabase
-    try {
-      await supabase.from('events').delete().eq('id', ev.id);
-    } catch (e) {
-      console.error('[CalendarCard] deleteEvent error:', e);
-    }
+    setSelectedId(null); setConfirmDelId(null); onDeleted(ev.id);
+    try { await supabase.from('events').delete().eq('id', ev.id); }
+    catch (e) { console.error('[CalendarCard] deleteEvent:', e); }
+  }
+
+  function renderEventRow(ev: any, i: number, isPast: boolean) {
+    const members  = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+    const dotColor = isPast ? 'rgba(255,255,255,0.20)' : (members.length > 0 ? members[0].color : 'rgba(255,255,255,0.45)');
+    const isSel    = selectedId === ev.id;
+    const isConf   = confirmDelId === ev.id;
+    return (
+      <View key={ev.id||i}>
+        <TouchableOpacity
+          style={[cS.tRow, isSel && { backgroundColor:'rgba(255,255,255,0.07)', borderRadius:10, marginHorizontal:-6, paddingHorizontal:6 }]}
+          onPress={() => { setSelectedId(isSel ? null : ev.id); setConfirmDelId(null); }}
+          activeOpacity={0.75}
+        >
+          <Text style={[cS.tTime, isPast && { color:'rgba(255,255,255,0.35)' }]}>{fmtTime(ev.start_time)}</Text>
+          <View style={[cS.tDot, { backgroundColor:dotColor }]}/>
+          <Text style={[cS.tEv, isPast && { textDecorationLine:'line-through', color:'rgba(255,255,255,0.50)' }]} numberOfLines={1}>
+            {ev.title} {getEventEmoji(ev.title)}
+          </Text>
+          {!isPast && members.slice(0,2).map((m:any) => (
+            <View key={m.id} style={[cS.tAv, { backgroundColor:m.color }]}>
+              <Text style={cS.tAvTxt}>{m.name[0]}</Text>
+            </View>
+          ))}
+          {!isPast && members.length > 2 && (
+            <View style={[cS.tAv, { backgroundColor:'rgba(255,255,255,0.2)' }]}>
+              <Text style={[cS.tAvTxt, { fontSize:9 }]}>+{members.length-2}</Text>
+            </View>
+          )}
+          <Text style={{ color:'rgba(255,255,255,0.28)', fontSize:11 }}>{isSel ? '∧' : '›'}</Text>
+        </TouchableOpacity>
+        {isSel && (
+          <View style={cS.evExpanded}>
+            {ev.notes ? <Text style={cS.evNote}>{ev.notes}</Text> : null}
+            {members.length > 0 && <Text style={cS.evWho}>{members.map((m:any) => m.name).join(', ')}</Text>}
+            {!isConf ? (
+              <View style={cS.evActions}>
+                <TouchableOpacity style={cS.evEditBtn} onPress={() => onEditEvent(ev)} activeOpacity={0.75}>
+                  <Text style={cS.evEditTxt}>{isPast ? '✦ Reschedule with Zaeli' : '✦ Edit with Zaeli'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={cS.evDelBtn} onPress={() => setConfirmDelId(ev.id)} activeOpacity={0.75}>
+                  <Text style={cS.evDelTxt}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={cS.evActions}>
+                <TouchableOpacity style={cS.evDelConfirmBtn} onPress={() => deleteEvent(ev)} activeOpacity={0.75}>
+                  <Text style={cS.evDelConfirmTxt}>Yes, delete</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={cS.evEditBtn} onPress={() => setConfirmDelId(null)} activeOpacity={0.75}>
+                  <Text style={cS.evEditTxt}>Keep it</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    );
   }
 
   return (
     <View style={[cS.card, cS.cardCal, { overflow:'hidden' }]}>
-      {/* Header — tapping always toggles */}
       <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
         <Text style={cS.headlineLt}>{headline}</Text>
-        <TouchableOpacity
-          style={cS.addBtnLt}
-          onPress={(e) => { e.stopPropagation(); onAdd(); }}
-          activeOpacity={0.75}
-        >
+        <TouchableOpacity style={cS.addBtnLt} onPress={(e) => { e.stopPropagation(); onAdd(); }} activeOpacity={0.75}>
           <Text style={cS.addBtnTxtLt}>+ Add</Text>
         </TouchableOpacity>
       </TouchableOpacity>
-
       {!expanded && <Text style={cS.tapHintLt}>Tap to see →</Text>}
-
       {expanded && (
         <View style={{ marginTop:6 }}>
           {events.length === 0 ? (
             <Text style={cS.emptyLt}>Nothing on {showTomorrow ? 'tomorrow' : 'today'}</Text>
           ) : (
             <>
-              {/* Upcoming events — full colour */}
-              {upcomingEvents.map((ev:any, i:number) => {
-                const members  = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
-                const dotColor = members.length > 0 ? members[0].color : 'rgba(255,255,255,0.45)';
-                const isSel    = selectedId === ev.id;
-                const isConf   = confirmDelId === ev.id;
-                return (
-                  <View key={ev.id||i}>
-                    <TouchableOpacity
-                      style={[cS.tRow, isSel && { backgroundColor:'rgba(255,255,255,0.07)', borderRadius:10, marginHorizontal:-6, paddingHorizontal:6 }]}
-                      onPress={() => { setSelectedId(isSel ? null : ev.id); setConfirmDelId(null); }}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={cS.tTime}>{fmtTime(ev.start_time)}</Text>
-                      <View style={[cS.tDot, { backgroundColor:dotColor }]}/>
-                      <Text style={cS.tEv} numberOfLines={1}>{ev.title} {getEventEmoji(ev.title)}</Text>
-                      {members.slice(0,2).map((m:any) => (
-                        <View key={m.id} style={[cS.tAv, { backgroundColor:m.color }]}>
-                          <Text style={cS.tAvTxt}>{m.name[0]}</Text>
-                        </View>
-                      ))}
-                      {members.length > 2 && (
-                        <View style={[cS.tAv, { backgroundColor:'rgba(255,255,255,0.2)' }]}>
-                          <Text style={[cS.tAvTxt, { fontSize:9 }]}>+{members.length-2}</Text>
-                        </View>
-                      )}
-                      <Text style={{ color:'rgba(255,255,255,0.28)', fontSize:11 }}>{isSel ? '∧' : '›'}</Text>
-                    </TouchableOpacity>
-                    {isSel && (
-                      <View style={cS.evExpanded}>
-                        {ev.notes ? <Text style={cS.evNote}>{ev.notes}</Text> : null}
-                        {members.length > 0 && (
-                          <Text style={cS.evWho}>{members.map((m:any) => m.name).join(', ')}</Text>
-                        )}
-                        {!isConf ? (
-                          <View style={cS.evActions}>
-                            <TouchableOpacity style={cS.evEditBtn} onPress={() => onEditEvent(ev)} activeOpacity={0.75}>
-                              <Text style={cS.evEditTxt}>✦ Edit with Zaeli</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={cS.evDelBtn} onPress={() => setConfirmDelId(ev.id)} activeOpacity={0.75}>
-                              <Text style={cS.evDelTxt}>Delete</Text>
-                            </TouchableOpacity>
-                          </View>
-                        ) : (
-                          <View style={cS.evActions}>
-                            <TouchableOpacity style={cS.evDelConfirmBtn} onPress={() => deleteEvent(ev)} activeOpacity={0.75}>
-                              <Text style={cS.evDelConfirmTxt}>Yes, delete</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={cS.evEditBtn} onPress={() => setConfirmDelId(null)} activeOpacity={0.75}>
-                              <Text style={cS.evEditTxt}>Keep it</Text>
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-
-              {/* Past events — muted, strikethrough, still tappable to reschedule */}
+              {upcomingEvents.map((ev, i) => renderEventRow(ev, i, false))}
               {pastEvents.length > 0 && (
                 <View style={{ marginTop: upcomingEvents.length > 0 ? 6 : 0, opacity:0.45 }}>
-                  {upcomingEvents.length > 0 && (
-                    <View style={{ height:1, backgroundColor:'rgba(255,255,255,0.10)', marginBottom:10 }}/>
-                  )}
-                  {pastEvents.map((ev:any, i:number) => {
-                    const members  = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
-                    const isSel    = selectedId === ev.id;
-                    const isConf   = confirmDelId === ev.id;
-                    return (
-                      <View key={ev.id||i}>
-                        <TouchableOpacity
-                          style={[cS.tRow, isSel && { backgroundColor:'rgba(255,255,255,0.07)', borderRadius:10, marginHorizontal:-6, paddingHorizontal:6 }]}
-                          onPress={() => { setSelectedId(isSel ? null : ev.id); setConfirmDelId(null); }}
-                          activeOpacity={0.75}
-                        >
-                          <Text style={[cS.tTime, { color:'rgba(255,255,255,0.35)' }]}>{fmtTime(ev.start_time)}</Text>
-                          <View style={[cS.tDot, { backgroundColor:'rgba(255,255,255,0.20)' }]}/>
-                          <Text style={[cS.tEv, { textDecorationLine:'line-through', color:'rgba(255,255,255,0.50)' }]} numberOfLines={1}>
-                            {ev.title} {getEventEmoji(ev.title)}
-                          </Text>
-                          <Text style={{ color:'rgba(255,255,255,0.28)', fontSize:11 }}>{isSel ? '∧' : '›'}</Text>
-                        </TouchableOpacity>
-                        {isSel && (
-                          <View style={cS.evExpanded}>
-                            {ev.notes ? <Text style={cS.evNote}>{ev.notes}</Text> : null}
-                            {members.length > 0 && (
-                              <Text style={cS.evWho}>{members.map((m:any) => m.name).join(', ')}</Text>
-                            )}
-                            {!isConf ? (
-                              <View style={cS.evActions}>
-                                <TouchableOpacity style={cS.evEditBtn} onPress={() => onEditEvent(ev)} activeOpacity={0.75}>
-                                  <Text style={cS.evEditTxt}>✦ Reschedule with Zaeli</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={cS.evDelBtn} onPress={() => setConfirmDelId(ev.id)} activeOpacity={0.75}>
-                                  <Text style={cS.evDelTxt}>Delete</Text>
-                                </TouchableOpacity>
-                              </View>
-                            ) : (
-                              <View style={cS.evActions}>
-                                <TouchableOpacity style={cS.evDelConfirmBtn} onPress={() => deleteEvent(ev)} activeOpacity={0.75}>
-                                  <Text style={cS.evDelConfirmTxt}>Yes, delete</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={cS.evEditBtn} onPress={() => setConfirmDelId(null)} activeOpacity={0.75}>
-                                  <Text style={cS.evEditTxt}>Keep it</Text>
-                                </TouchableOpacity>
-                              </View>
-                            )}
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })}
+                  {upcomingEvents.length > 0 && <View style={{ height:1, backgroundColor:'rgba(255,255,255,0.10)', marginBottom:10 }}/>}
+                  {pastEvents.map((ev, i) => renderEventRow(ev, i, true))}
                 </View>
               )}
             </>
           )}
-
           <TouchableOpacity onPress={onFullCalendar} activeOpacity={0.78} style={calBtnS.openBtn}>
             <Text style={calBtnS.openBtnTxt}>View Full Calendar →</Text>
           </TouchableOpacity>
@@ -523,18 +521,14 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
   onToggleExpand:()=>void; onPlanMeals:()=>void;
   onEditMeal:(meal:any|null, dateKey:string, dayAbbr:string)=>void;
 }) {
-  const today      = localDateStr();
-  const tomorrow   = localDatePlusDays(1);
-  const targetDate = showTomorrow ? tomorrow : today;
+  const today       = localDateStr();
+  const tomorrow    = localDatePlusDays(1);
+  const targetDate  = showTomorrow ? tomorrow : today;
   const tonightMeal = meals.find(m => m.day_key === targetDate || m.planned_date === targetDate);
   const headline    = dinnerHeadline(tonightMeal?.meal_name ?? null, showTomorrow);
-
   const [selectedKey,   setSelectedKey]   = useState<string|null>(null);
   const [confirmDelKey, setConfirmDelKey] = useState<string|null>(null);
-
-  useEffect(() => {
-    if (!expanded) { setSelectedKey(null); setConfirmDelKey(null); }
-  }, [expanded]);
+  useEffect(() => { if (!expanded) { setSelectedKey(null); setConfirmDelKey(null); } }, [expanded]);
 
   const sevenDays = Array.from({ length:7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() + i);
@@ -555,42 +549,30 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
       <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
         <Text style={cS.headlineDk}>{headline}</Text>
       </TouchableOpacity>
-
       {!expanded && (
         tonightMeal
           ? <Text style={cS.tapHintDk}>Tap to see the week →</Text>
-          : (
-            <TouchableOpacity onPress={(e) => { e.stopPropagation(); onPlanMeals(); }} activeOpacity={0.75} style={{ marginTop:10 }}>
+          : <TouchableOpacity onPress={(e) => { e.stopPropagation(); onPlanMeals(); }} activeOpacity={0.75} style={{ marginTop:10 }}>
               <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(180,60,10,0.65)' }}>Plan it →</Text>
             </TouchableOpacity>
-          )
       )}
-
       {expanded && (
         <View style={{ marginTop:10 }}>
-          {/* 7-day list — no duplicate header */}
           {sevenDays.map(({ key, meal, isTonight, dayAbbr }) => {
             const isSel  = selectedKey === key;
             const isConf = confirmDelKey === key;
             return (
               <View key={key}>
                 <TouchableOpacity
-                  style={[
-                    dinS.dayRow,
-                    isSel && { backgroundColor:'rgba(0,0,0,0.05)', borderRadius:10, marginHorizontal:-6, paddingHorizontal:6 },
-                  ]}
+                  style={[dinS.dayRow, isSel && { backgroundColor:'rgba(0,0,0,0.05)', borderRadius:10, marginHorizontal:-6, paddingHorizontal:6 }]}
                   onPress={() => { setSelectedKey(isSel ? null : key); setConfirmDelKey(null); }}
                   activeOpacity={0.75}
                 >
-                  {/* 92px — wide enough for "Tomorrow" without wrapping */}
                   <Text style={[dinS.dayLabel, isTonight && { color:'#C84010' }]}>{dayAbbr}</Text>
-                  {meal
-                    ? <Text style={dinS.mealName} numberOfLines={1}>{getMealEmoji(meal.meal_name)} {meal.meal_name}</Text>
-                    : <Text style={dinS.mealEmpty}>Nothing yet</Text>
-                  }
+                  {meal ? <Text style={dinS.mealName} numberOfLines={1}>{getMealEmoji(meal.meal_name)} {meal.meal_name}</Text>
+                        : <Text style={dinS.mealEmpty}>Nothing yet</Text>}
                   <Text style={dinS.dayChevron}>{isSel ? '∧' : '›'}</Text>
                 </TouchableOpacity>
-
                 {isSel && (
                   <View style={dinS.dayExpanded}>
                     {meal ? (
@@ -634,7 +616,6 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
               </View>
             );
           })}
-
           <TouchableOpacity onPress={onPlanMeals} activeOpacity={0.78} style={dinS.openPlanner}>
             <Text style={dinS.openPlannerTxt}>Open Meal Planner →</Text>
           </TouchableOpacity>
@@ -644,7 +625,6 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
   );
 }
 
-// ── DinnerCard scoped styles ───────────────────────────────────────────────────
 const dinS = StyleSheet.create({
   dayRow:        { flexDirection:'row', alignItems:'center', gap:10, paddingVertical:11, borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.07)' },
   dayLabel:      { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(0,0,0,0.38)', width:92, flexShrink:0 },
@@ -666,12 +646,11 @@ const dinS = StyleSheet.create({
 function WeatherCard({ weather, expanded, onToggleExpand }: {
   weather:WeatherData|null; expanded:boolean; onToggleExpand:()=>void;
 }) {
-  const dateLabel = getTodayLabel();
   if (!weather) {
     return (
       <TouchableOpacity style={[cS.card, cS.cardWx, { justifyContent:'center', alignItems:'center' }]} onPress={onToggleExpand} activeOpacity={0.82}>
         <Text style={cS.cardLabel}>Weather</Text>
-        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.30)', fontStyle:'italic', marginTop:8 }}>Loading…</Text>
+        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.30)', fontStyle:'italic', marginTop:8 }}>–</Text>
       </TouchableOpacity>
     );
   }
@@ -679,57 +658,49 @@ function WeatherCard({ weather, expanded, onToggleExpand }: {
     <TouchableOpacity style={[cS.card, cS.cardWx]} onPress={onToggleExpand} activeOpacity={0.82}>
       <Text style={cS.cardLabel}>Weather</Text>
       <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:42, color:'#1A1A1A', letterSpacing:-1.5, lineHeight:48, marginTop:4 }}>{Math.round(weather.temp)}°</Text>
-      <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.50)', marginTop:2 }}>{weatherCondition(weather.code)}</Text>
+      <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.50)', marginTop:2 }}>{weather.condition}</Text>
       <View style={{ marginVertical:10 }}><WeatherIcon type={weatherType(weather.code)}/></View>
       {expanded && (
         <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.42)', lineHeight:18, marginBottom:8 }}>{weatherExtra(weather.code, weather.windspeed)}</Text>
       )}
-
     </TouchableOpacity>
   );
 }
 
 // ── 3b. Zaeli Noticed card ────────────────────────────────────────────────────
-function ZaeliNoticedCard({ notices, expanded, onToggleExpand, onChat }: {
-  notices: { text:string; tag:string; color:string }[];
-  expanded:boolean; onToggleExpand:()=>void;
-  onChat:(notice:string)=>void;
+function ZaeliNoticedCard({ notices, noticesLoading, expanded, onToggleExpand, onChat }: {
+  notices:Notice[]; noticesLoading:boolean;
+  expanded:boolean; onToggleExpand:()=>void; onChat:(notice:string)=>void;
 }) {
   const count = notices.length;
-  const countWord = count === 1 ? 'one thing.' : count === 2 ? 'two things.' : count === 0 ? 'all quiet.' : `${count} things.`;
+  const countWord = noticesLoading ? 'looking…'
+    : count === 0 ? 'all quiet.'
+    : count === 1 ? 'one thing.'
+    : count === 2 ? 'two things.'
+    : `${count} things.`;
 
   return (
-    <TouchableOpacity
-      style={[cS.card, cS.cardWotd, { flex:1 }]}
-      onPress={onToggleExpand}
-      activeOpacity={0.82}
-    >
-      {/* Label */}
+    <TouchableOpacity style={[cS.card, cS.cardWotd, { flex:1 }]} onPress={onToggleExpand} activeOpacity={0.82}>
       <Text style={[cS.cardLabel, { color:'rgba(107,53,217,0.55)', fontSize:13, letterSpacing:0.4 }]}>Zaeli{'\n'}noticed</Text>
-
       {!expanded && (
         <View style={{ marginTop:4 }}>
           <Text style={[cS.headlineWotd, { fontSize:28, lineHeight:32 }]}>{countWord}</Text>
-          {count > 0 && (
+          {!noticesLoading && count > 0 && (
             <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(107,53,217,0.55)', marginTop:6, lineHeight:18 }}>
               {notices.slice(0,3).map(n => n.tag).join(' · ')}
             </Text>
           )}
         </View>
       )}
-
       {expanded && (
         <View style={{ marginTop:8 }}>
-          {count === 0 ? (
+          {noticesLoading ? (
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(107,53,217,0.45)', fontStyle:'italic' }}>Zaeli is looking…</Text>
+          ) : count === 0 ? (
             <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(107,53,217,0.45)', fontStyle:'italic' }}>Nothing unusual today.</Text>
           ) : (
             notices.map((n, i) => (
-              <TouchableOpacity
-                key={i}
-                style={noticedS.row}
-                onPress={(e) => { e.stopPropagation(); onChat(n.text); }}
-                activeOpacity={0.75}
-              >
+              <TouchableOpacity key={i} style={noticedS.row} onPress={(e) => { e.stopPropagation(); onChat(n.text); }} activeOpacity={0.75}>
                 <View style={[noticedS.dot, { backgroundColor:n.color }]}/>
                 <Text style={noticedS.txt}>{n.text}</Text>
               </TouchableOpacity>
@@ -742,67 +713,39 @@ function ZaeliNoticedCard({ notices, expanded, onToggleExpand, onChat }: {
 }
 
 const noticedS = StyleSheet.create({
-  row: {
-    flexDirection:'row', alignItems:'flex-start', gap:8,
-    paddingVertical:7,
-    borderBottomWidth:1, borderBottomColor:'rgba(107,53,217,0.10)',
-  },
-  dot: {
-    width:7, height:7, borderRadius:4, flexShrink:0, marginTop:6,
-  },
-  txt: {
-    fontFamily:'Poppins_400Regular', fontSize:14,
-    color:'rgba(10,10,10,0.70)', lineHeight:20, flex:1,
-  },
+  row: { flexDirection:'row', alignItems:'flex-start', gap:8, paddingVertical:7, borderBottomWidth:1, borderBottomColor:'rgba(107,53,217,0.10)' },
+  dot: { width:7, height:7, borderRadius:4, flexShrink:0, marginTop:6 },
+  txt: { fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(10,10,10,0.70)', lineHeight:20, flex:1 },
 });
 
-// ── 4. ShoppingCard — white font, no ghost ────────────────────────────────────
+// ── 4. ShoppingCard ───────────────────────────────────────────────────────────
 function ShoppingCard({ items, count, expanded, onToggleExpand, onAdd, onOpenSheet }: {
   items:any[]; count:number; expanded:boolean;
   onToggleExpand:()=>void; onAdd:()=>void; onOpenSheet:()=>void;
 }) {
   const headline  = shopHeadline(count);
   const unchecked = items.filter((i:any) => i.checked !== true);
-
   return (
     <View style={[cS.card, cS.cardShop, { overflow:'hidden' }]}>
-      {/* Header — tap to toggle. + Add always visible */}
       <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
         <Text style={cS.headlineShop}>{headline}</Text>
-        <TouchableOpacity
-          style={cS.addBtnLt}
-          onPress={(e) => { e.stopPropagation(); onAdd(); }}
-          activeOpacity={0.75}
-        >
+        <TouchableOpacity style={cS.addBtnLt} onPress={(e) => { e.stopPropagation(); onAdd(); }} activeOpacity={0.75}>
           <Text style={cS.addBtnTxtLt}>+ Add</Text>
         </TouchableOpacity>
       </TouchableOpacity>
-
-      {!expanded && (
-        <Text style={shopS.tapHint}>{count > 0 ? 'Tap to see →' : ''}</Text>
-      )}
-
+      {!expanded && <Text style={shopS.tapHint}>{count > 0 ? 'Tap to see →' : ''}</Text>}
       {expanded && (
         <View style={{ marginTop:8 }}>
-          {unchecked.length === 0 ? (
-            <Text style={cS.emptyShop}>List is clear</Text>
-          ) : (
-            unchecked.slice(0,8).map((item:any, i:number) => (
-              <View key={item.id||i} style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:11 }}>
-                <View style={{ width:7, height:7, borderRadius:4, backgroundColor:'rgba(255,255,255,0.40)', flexShrink:0 }}/>
-                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:17, color:'rgba(255,255,255,0.92)', flex:1 }} numberOfLines={1}>
-                  {item.name||item.item}
-                </Text>
-              </View>
-            ))
-          )}
-
-          {/* +N more — bigger and brighter */}
-          {unchecked.length > 8 && (
-            <Text style={shopS.moreCount}>+{unchecked.length - 8} more</Text>
-          )}
-
-          {/* Open Shopping List — full width, same pattern as Dinner */}
+          {unchecked.length === 0
+            ? <Text style={cS.emptyShop}>List is clear</Text>
+            : unchecked.slice(0,8).map((item:any, i:number) => (
+                <View key={item.id||i} style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:11 }}>
+                  <View style={{ width:7, height:7, borderRadius:4, backgroundColor:'rgba(255,255,255,0.40)', flexShrink:0 }}/>
+                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:17, color:'rgba(255,255,255,0.92)', flex:1 }} numberOfLines={1}>{item.name||item.item}</Text>
+                </View>
+              ))
+          }
+          {unchecked.length > 8 && <Text style={shopS.moreCount}>+{unchecked.length - 8} more</Text>}
           <TouchableOpacity onPress={onOpenSheet} activeOpacity={0.78} style={shopS.openBtn}>
             <Text style={shopS.openBtnTxt}>Open Shopping List →</Text>
           </TouchableOpacity>
@@ -812,67 +755,30 @@ function ShoppingCard({ items, count, expanded, onToggleExpand, onAdd, onOpenShe
   );
 }
 
-// ── ShoppingCard scoped styles ─────────────────────────────────────────────────
 const shopS = StyleSheet.create({
-  tapHint: {
-    fontFamily:'Poppins_500Medium', fontSize:13,
-    color:'rgba(255,255,255,0.70)',
-    marginTop:10,
-  },
-  moreCount: {
-    fontFamily:'Poppins_600SemiBold', fontSize:17,
-    color:'rgba(255,255,255,0.70)',
-    marginBottom:10,
-  },
-  openBtn: {
-    marginTop:10,
-    backgroundColor:'rgba(255,255,255,0.15)',
-    borderRadius:14, paddingVertical:14,
-    alignItems:'center',
-  },
-  openBtnTxt: {
-    fontFamily:'Poppins_700Bold', fontSize:15,
-    color:'rgba(255,255,255,0.90)',
-  },
+  tapHint:    { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.70)', marginTop:10 },
+  moreCount:  { fontFamily:'Poppins_600SemiBold', fontSize:17, color:'rgba(255,255,255,0.70)', marginBottom:10 },
+  openBtn:    { marginTop:10, backgroundColor:'rgba(255,255,255,0.15)', borderRadius:14, paddingVertical:14, alignItems:'center' },
+  openBtnTxt: { fontFamily:'Poppins_700Bold', fontSize:15, color:'rgba(255,255,255,0.90)' },
 });
-
-// Calendar full-width button (white on slate)
 const calBtnS = StyleSheet.create({
-  openBtn: {
-    marginTop:14,
-    backgroundColor:'rgba(255,255,255,0.12)',
-    borderRadius:14, paddingVertical:14,
-    alignItems:'center',
-  },
-  openBtnTxt: {
-    fontFamily:'Poppins_700Bold', fontSize:15,
-    color:'rgba(255,255,255,0.80)',
-  },
+  openBtn:    { marginTop:14, backgroundColor:'rgba(255,255,255,0.12)', borderRadius:14, paddingVertical:14, alignItems:'center' },
+  openBtnTxt: { fontFamily:'Poppins_700Bold', fontSize:15, color:'rgba(255,255,255,0.80)' },
 });
-
-// Actions full-width button (dark on gold)
 const actS = StyleSheet.create({
-  openBtn: {
-    marginTop:14,
-    backgroundColor:'rgba(0,0,0,0.10)',
-    borderRadius:14, paddingVertical:14,
-    alignItems:'center',
-  },
-  openBtnTxt: {
-    fontFamily:'Poppins_700Bold', fontSize:15,
-    color:'rgba(100,70,0,0.80)',
-  },
+  openBtn:    { marginTop:14, backgroundColor:'rgba(0,0,0,0.10)', borderRadius:14, paddingVertical:14, alignItems:'center' },
+  openBtnTxt: { fontFamily:'Poppins_700Bold', fontSize:15, color:'rgba(100,70,0,0.80)' },
 });
 
-// ── 5. ActionsCard — no ghost ─────────────────────────────────────────────────
-function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onToggleExpand, onAdd, onFull, onTick }: {
+// ── 5. ActionsCard ────────────────────────────────────────────────────────────
+function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onToggleExpand, onAdd, onFull, onTick, onEditTodo, onDeleteTodo }: {
   todos:any[]; isEvening:boolean; tomorrowMorningEvents:any[];
   expanded:boolean; onToggleExpand:()=>void;
   onAdd:()=>void; onFull:()=>void; onTick:(todo:any)=>void;
+  onEditTodo:(todo:any)=>void; onDeleteTodo:(todo:any)=>void;
 }) {
   const activeCount = todos.filter(t => t.status !== 'done' && t.status !== 'acknowledged').length;
   const headline    = actionsHeadline(activeCount, isEvening);
-
   return (
     <View style={[cS.card, cS.cardAct, { overflow:'hidden' }]}>
       <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
@@ -883,47 +789,38 @@ function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onTogg
           </TouchableOpacity>
         )}
       </TouchableOpacity>
-
-      {!expanded && (
-        <Text style={cS.tapHintDk}>{activeCount > 0 ? 'Tap to see →' : ''}</Text>
-      )}
-
+      {!expanded && <Text style={cS.tapHintDk}>{activeCount > 0 ? 'Tap to see →' : ''}</Text>}
       {expanded && (
         <View style={{ marginTop:8 }}>
-          {todos.length === 0 ? (
-            <Text style={cS.emptyDk}>Enjoy the day 🎉</Text>
-          ) : todos.slice(0,6).map((todo:any, i:number) => {
-            const isDone   = todo.status === 'done' || todo.status === 'acknowledged';
-            const dotColor = isDone ? 'rgba(0,0,0,0.12)' : todoPriorityColor(todo);
-            const badge    = todoBadge(todo);
-            const memberIds: string[] = Array.isArray(todo.assigned_to) ? todo.assigned_to : todo.assigned_to ? [todo.assigned_to] : [];
-            const members  = memberIds.map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
-            return (
-              <View key={todo.id||i} style={[cS.actRow, isDone && { opacity:0.40 }]}>
-                <TouchableOpacity
-                  style={[cS.actChk, isDone && cS.actChkDone]}
-                  onPress={() => onTick(todo)}
-                  activeOpacity={0.7}
-                  hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                >
-                  {isDone && <Text style={{ fontSize:10, color:'rgba(0,0,0,0.5)' }}>✓</Text>}
-                </TouchableOpacity>
-                <View style={[cS.actDot, { backgroundColor:dotColor }]}/>
-                <Text style={[cS.actTxt, isDone && { textDecorationLine:'line-through', color:'rgba(0,0,0,0.32)' }]} numberOfLines={1}>{todo.title}</Text>
-                {members.slice(0,1).map((m:any) => (
-                  <View key={m.id} style={[cS.actWho, { backgroundColor:m.color }]}>
-                    <Text style={cS.actWhoTxt}>{m.name[0]}</Text>
+          {todos.length === 0
+            ? <Text style={cS.emptyDk}>Enjoy the day 🎉</Text>
+            : todos.slice(0,6).map((todo:any, i:number) => {
+                const isDone   = todo.status === 'done' || todo.status === 'acknowledged';
+                const dotColor = isDone ? 'rgba(0,0,0,0.12)' : todoPriorityColor(todo);
+                const badge    = todoBadge(todo);
+                const memberIds: string[] = Array.isArray(todo.assigned_to) ? todo.assigned_to : todo.assigned_to ? [todo.assigned_to] : [];
+                const members  = memberIds.map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+                return (
+                  <View key={todo.id||i} style={[cS.actRow, isDone && { opacity:0.40 }]}>
+                    <TouchableOpacity style={[cS.actChk, isDone && cS.actChkDone]} onPress={() => onTick(todo)} activeOpacity={0.7} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+                      {isDone && <Text style={{ fontSize:10, color:'rgba(0,0,0,0.5)' }}>✓</Text>}
+                    </TouchableOpacity>
+                    <View style={[cS.actDot, { backgroundColor:dotColor }]}/>
+                    <Text style={[cS.actTxt, isDone && { textDecorationLine:'line-through', color:'rgba(0,0,0,0.32)' }]} numberOfLines={1}>{todo.title}</Text>
+                    {members.slice(0,1).map((m:any) => (
+                      <View key={m.id} style={[cS.actWho, { backgroundColor:m.color }]}>
+                        <Text style={cS.actWhoTxt}>{m.name[0]}</Text>
+                      </View>
+                    ))}
+                    {badge && !isDone && (
+                      <View style={[cS.bdg, badge.style==='ovd' ? cS.bdgOvd : cS.bdgRem]}>
+                        <Text style={[cS.bdgTxt, { color:badge.style==='ovd' ? '#B91C1C' : '#CC2020' }]}>{badge.label}</Text>
+                      </View>
+                    )}
                   </View>
-                ))}
-                {badge && !isDone && (
-                  <View style={[cS.bdg, badge.style==='ovd' ? cS.bdgOvd : cS.bdgRem]}>
-                    <Text style={[cS.bdgTxt, { color:badge.style==='ovd' ? '#B91C1C' : '#CC2020' }]}>{badge.label}</Text>
-                  </View>
-                )}
-              </View>
-            );
-          })}
-
+                );
+              })
+          }
           {isEvening && tomorrowMorningEvents.length > 0 && (
             <>
               <View style={cS.actDivider}>
@@ -934,14 +831,11 @@ function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onTogg
               {tomorrowMorningEvents.slice(0,3).map((ev:any, i:number) => (
                 <View key={ev.id||i} style={cS.actRow}>
                   <View style={[cS.actDot, { backgroundColor:'rgba(0,0,0,0.18)' }]}/>
-                  <Text style={[cS.actTxt, { color:'rgba(0,0,0,0.55)' }]} numberOfLines={1}>
-                    {ev.title}{fmtTime(ev.start_time) ? ` · ${fmtTime(ev.start_time)}` : ''}
-                  </Text>
+                  <Text style={[cS.actTxt, { color:'rgba(0,0,0,0.55)' }]} numberOfLines={1}>{ev.title}{fmtTime(ev.start_time) ? ` · ${fmtTime(ev.start_time)}` : ''}</Text>
                 </View>
               ))}
             </>
           )}
-
           <TouchableOpacity onPress={onFull} activeOpacity={0.78} style={actS.openBtn}>
             <Text style={actS.openBtnTxt}>Open All To-dos and Reminders →</Text>
           </TouchableOpacity>
@@ -955,25 +849,36 @@ function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onTogg
 // ── MAIN SCREEN ───────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: () => void }) {
-  const insets = useSafeAreaInsets();
+  const insets     = useSafeAreaInsets();
   const router     = useRouter();
-  const h          = new Date().getHours();
-  const isAfter8pm = h >= 20;
+  const isAfter8pm = new Date().getHours() >= 20;
 
-  const [expandedCard, setExpandedCard] = useState<CardKey>(null);
+  const [expandedCard,   setExpandedCard]   = useState<CardKey>(null);
+  const [cardData,       setCardData]       = useState<CardData>({
+    todayEvents:[], tomorrowEvents:[], shopItems:[], shopCount:0, todos:[], meals:[], weather:null,
+  });
+  const [cardLoading,    setCardLoading]    = useState(true);
+  const [notices,        setNotices]        = useState<Notice[]>([]);
+  const [noticesLoading, setNoticesLoading] = useState(true);
+  const noticesGeneratedRef = useRef(false);
+
   function toggleCard(key: CardKey) {
     setExpandedCard(prev => prev === key ? null : key);
   }
-
-  const [cardData, setCardData] = useState<CardData>({
-    todayEvents:[], tomorrowEvents:[], shopItems:[], shopCount:0, todos:[], meals:[], weather:null,
-  });
-  const [cardLoading, setCardLoading] = useState(true);
 
   const cardAnims = useRef([0,1,2,3,4].map(() => ({
     opacity:    new Animated.Value(0),
     translateY: new Animated.Value(20),
   }))).current;
+
+  function animateCards() {
+    cardAnims.forEach((anim, i) => {
+      Animated.parallel([
+        Animated.timing(anim.opacity,    { toValue:1, duration:420, delay:i*90, useNativeDriver:true }),
+        Animated.timing(anim.translateY, { toValue:0, duration:420, delay:i*90, easing:Easing.out(Easing.cubic), useNativeDriver:true }),
+      ]).start();
+    });
+  }
 
   const loadData = useCallback(async () => {
     setCardLoading(true);
@@ -1009,44 +914,46 @@ export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: (
       const allEvents      = (evRes.data ?? []).filter((e:any) => !e.all_day);
       const todayEvents    = allEvents.filter((e:any) => e.date === today);
       const tomorrowEvents = allEvents.filter((e:any) => e.date === tomorrow);
-
-      let weather: WeatherData | null = null;
-      try {
-        const wxRes  = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}&current=temperature_2m,weather_code,windspeed_10m&timezone=Australia%2FBrisbane`);
-        const wxJson = await wxRes.json();
-        const curr   = wxJson?.current;
-        if (curr) weather = { temp:curr.temperature_2m??22, code:curr.weather_code??0, windspeed:curr.windspeed_10m??0, condition:weatherCondition(curr.weather_code??0) };
-      } catch {}
-
-      const reminders = (remindersRes.data ?? []).map((r:any) => ({
+      const reminders      = (remindersRes.data ?? []).map((r:any) => ({
         id:r.id, title:r.title, priority:'normal', status:'active',
         due_date:r.remind_at?.slice(0,10), assigned_to:r.member_id||null, reminder_type:'reminder',
       }));
 
-      setCardData({
+      const freshData: CardData = {
         todayEvents, tomorrowEvents,
         shopItems:  shopRes.data ?? [],
         shopCount:  shopCountRes.count ?? 0,
         todos:      [...(todosRes.data ?? []), ...reminders],
         meals:      mealsRes.data ?? [],
-        weather,
+        weather:    null,
+      };
+
+      setCardData(freshData);
+
+      // Weather fires independently — never blocks cards
+      fetchWeather().then(weather => {
+        if (weather) setCardData(prev => ({ ...prev, weather }));
       });
+
+      // Notices fire once per session — never blocks cards
+      if (!noticesGeneratedRef.current) {
+        noticesGeneratedRef.current = true;
+        generateNotices(freshData).then(result => {
+          setNotices(result);
+          setNoticesLoading(false);
+        });
+      }
+
     } catch (e) {
       console.error('[Dashboard] loadData:', e);
     } finally {
       setCardLoading(false);
-      cardAnims.forEach((anim, i) => {
-        Animated.parallel([
-          Animated.timing(anim.opacity,    { toValue:1, duration:420, delay:i*90, useNativeDriver:true }),
-          Animated.timing(anim.translateY, { toValue:0, duration:420, delay:i*90, easing:Easing.out(Easing.cubic), useNativeDriver:true }),
-        ]).start();
-      });
+      animateCards();
     }
   }, []);
 
   useFocusEffect(useCallback(() => {
     loadData();
-    // Re-run every 5 minutes so past events drop off automatically
     const interval = setInterval(() => { loadData(); }, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [loadData]));
@@ -1062,44 +969,31 @@ export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: (
   async function handleTodoTick(todo: any) {
     const isReminder = todo.reminder_type === 'reminder';
     const isDone     = todo.status === 'done' || todo.status === 'acknowledged';
-    // Toggle — ticking a done item restores it to active
     const newStatus  = isDone ? 'active' : (isReminder ? 'acknowledged' : 'done');
     setCardData(prev => ({ ...prev, todos:prev.todos.map(t => t.id===todo.id ? {...t, status:newStatus} : t) }));
     try {
-      if (isReminder) {
-        await supabase.from('reminders').update({ status:newStatus }).eq('id', todo.id);
-      } else {
-        await supabase.from('todos').update({ status:newStatus, updated_at:new Date().toISOString() }).eq('id', todo.id);
-      }
+      if (isReminder) await supabase.from('reminders').update({ status:newStatus }).eq('id', todo.id);
+      else await supabase.from('todos').update({ status:newStatus, updated_at:new Date().toISOString() }).eq('id', todo.id);
     } catch {
       setCardData(prev => ({ ...prev, todos:prev.todos.map(t => t.id===todo.id ? {...t, status:todo.status} : t) }));
     }
   }
 
-  function goToChat()      { onNavigateChat?.(); }
-  function goToEditEvent(ev: any) {
-    setPendingChatContext({ type:'edit_event', event:ev, returnTo:'dashboard' });
-    onNavigateChat?.();
-  }
-  function goToAddEvent()    { setPendingChatContext({ type:'add_event',  returnTo:'dashboard' }); onNavigateChat?.(); }
-  function goToAddShopping() { setPendingChatContext({ type:'shopping',   returnTo:'dashboard' }); onNavigateChat?.(); }
-  function goToAddTodo()     { setPendingChatContext({ type:'actions',    returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToEditEvent(ev: any)   { setPendingChatContext({ type:'edit_event', event:ev, returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToAddEvent()           { setPendingChatContext({ type:'add_event',  returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToAddShopping()        { setPendingChatContext({ type:'shopping',   returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToAddTodo()            { setPendingChatContext({ type:'actions',    returnTo:'dashboard' }); onNavigateChat?.(); }
   function goToEditMeal(meal: any|null, dateKey: string, dayAbbr: string) {
     setPendingChatContext({ type:'meals', event:{ meal, dateKey, dayAbbr }, returnTo:'dashboard' });
     onNavigateChat?.();
   }
-  function goToEditTodo(todo: any) {
-    setPendingChatContext({ type:'actions', event:todo, returnTo:'dashboard' });
-    onNavigateChat?.();
-  }
+  function goToEditTodo(todo: any)  { setPendingChatContext({ type:'actions', event:todo, returnTo:'dashboard' }); onNavigateChat?.(); }
 
-  // Top bar date label
   const topDateLabel = new Date().toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
 
   return (
     <View style={s.root}>
       <ExpoStatusBar style="dark" animated/>
-
       <View style={[s.topBar, { paddingTop: insets.top }]}>
         <View style={s.topBarRow}>
           <TouchableOpacity onPress={() => onNavigateChat?.()} activeOpacity={0.8}>
@@ -1114,7 +1008,6 @@ export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: (
 
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {/* 1. Calendar */}
         <Animated.View style={{ opacity:cardAnims[0].opacity, transform:[{translateY:cardAnims[0].translateY}] }}>
           <CalendarCard
             events={showCalTomorrow ? cardData.tomorrowEvents : cardData.todayEvents}
@@ -1124,18 +1017,14 @@ export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: (
             onAdd={goToAddEvent}
             onEditEvent={goToEditEvent}
             onFullCalendar={() => router.navigate('/(tabs)/calendar')}
-            onDeleted={(eventId) => {
-              // Optimistically remove the deleted event from local state instantly
-              setCardData(prev => ({
-                ...prev,
-                todayEvents:    prev.todayEvents.filter(e => e.id !== eventId),
-                tomorrowEvents: prev.tomorrowEvents.filter(e => e.id !== eventId),
-              }));
-            }}
+            onDeleted={(eventId) => setCardData(prev => ({
+              ...prev,
+              todayEvents:    prev.todayEvents.filter(e => e.id !== eventId),
+              tomorrowEvents: prev.tomorrowEvents.filter(e => e.id !== eventId),
+            }))}
           />
         </Animated.View>
 
-        {/* 2. Dinner */}
         <Animated.View style={{ opacity:cardAnims[1].opacity, transform:[{translateY:cardAnims[1].translateY}] }}>
           <DinnerCard
             meals={cardData.meals}
@@ -1147,7 +1036,6 @@ export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: (
           />
         </Animated.View>
 
-        {/* 3. Weather + Zaeli Noticed */}
         <Animated.View style={{ opacity:cardAnims[2].opacity, transform:[{translateY:cardAnims[2].translateY}] }}>
           <View style={{ flexDirection:'row', gap:10 }}>
             <WeatherCard
@@ -1156,22 +1044,18 @@ export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: (
               onToggleExpand={() => toggleCard('weather')}
             />
             <ZaeliNoticedCard
-              notices={[
-                { text:"Poppy's assignment is due tomorrow.", tag:'Poppy', color:'#A855F7' },
-                { text:"Rain from 3pm — Duke's soccer may be affected.", tag:'Weather', color:'#A8D8F0' },
-                { text:`${cardData.shopCount > 0 ? cardData.shopCount + ' items on the list' : 'Shopping list is clear'}.`, tag:'Shopping', color:'#D8CCFF' },
-              ]}
+              notices={notices}
+              noticesLoading={noticesLoading}
               expanded={expandedCard === 'wotd'}
               onToggleExpand={() => toggleCard('wotd')}
               onChat={(notice) => {
                 setPendingChatContext({ type:'noticed' as any, event:{ title: notice }, returnTo:'dashboard' });
-                router.navigate('/(tabs)/' as any);
+                onNavigateChat?.();
               }}
             />
           </View>
         </Animated.View>
 
-        {/* 4. Shopping */}
         <Animated.View style={{ opacity:cardAnims[3].opacity, transform:[{translateY:cardAnims[3].translateY}] }}>
           <ShoppingCard
             items={cardData.shopItems}
@@ -1181,12 +1065,11 @@ export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: (
             onAdd={goToAddShopping}
             onOpenSheet={() => {
               setPendingChatContext({ type:'shopping_sheet' as any, returnTo:'dashboard' });
-              router.navigate('/(tabs)/' as any);
+              onNavigateChat?.();
             }}
           />
         </Animated.View>
 
-        {/* 5. Actions */}
         <Animated.View style={{ opacity:cardAnims[4].opacity, transform:[{translateY:cardAnims[4].translateY}] }}>
           <ActionsCard
             todos={cardData.todos}
@@ -1201,11 +1084,8 @@ export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: (
             onDeleteTodo={async (todo) => {
               setCardData(prev => ({ ...prev, todos:prev.todos.filter(t => t.id !== todo.id) }));
               try {
-                if (todo.reminder_type === 'reminder') {
-                  await supabase.from('reminders').delete().eq('id', todo.id);
-                } else {
-                  await supabase.from('todos').delete().eq('id', todo.id);
-                }
+                if (todo.reminder_type === 'reminder') await supabase.from('reminders').delete().eq('id', todo.id);
+                else await supabase.from('todos').delete().eq('id', todo.id);
               } catch {
                 setCardData(prev => ({ ...prev, todos:[...prev.todos, todo] }));
               }
@@ -1233,82 +1113,45 @@ const s = StyleSheet.create({
 
 // ── Card styles ───────────────────────────────────────────────────────────────
 const cS = StyleSheet.create({
-  card:     { borderRadius:22, padding:22 },
-  cardCal:  { backgroundColor:'#3A3D4A' },
-  cardDin:  { backgroundColor:'#FAC8A8' },
-  cardWx:   { backgroundColor:'#A8D8F0', width:120, flexShrink:0 },
-  cardWotd: { backgroundColor:'#E8F4E8' },
-  cardShop: { backgroundColor:'#D8CCFF' },
-  cardAct:  { backgroundColor:'#F0DC80' },
+  card:      { borderRadius:22, padding:22 },
+  cardCal:   { backgroundColor:'#3A3D4A' },
+  cardDin:   { backgroundColor:'#FAC8A8' },
+  cardWx:    { backgroundColor:'#A8D8F0', width:120, flexShrink:0 },
+  cardWotd:  { backgroundColor:'#E8F4E8' },
+  cardShop:  { backgroundColor:'#D8CCFF' },
+  cardAct:   { backgroundColor:'#F0DC80' },
 
-  cardLabel: {
-    fontFamily:'Poppins_700Bold', fontSize:10,
-    textTransform:'uppercase', letterSpacing:0.8,
-    color:'rgba(0,0,0,0.35)', marginBottom:4,
-  },
+  cardLabel:    { fontFamily:'Poppins_700Bold', fontSize:10, textTransform:'uppercase', letterSpacing:0.8, color:'rgba(0,0,0,0.35)', marginBottom:4 },
+  cardHeader:   { flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between' },
+  headlineLt:   { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#fff', flex:1 },
+  headlineDk:   { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#1A1A1A', flex:1 },
+  headlineShop: { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#fff', flex:1 },
+  headlineWotd: { fontFamily:'Poppins_700Bold', fontSize:26, letterSpacing:-0.5, lineHeight:32, color:'#6B35D9', flex:1 },
 
-  cardHeader: {
-    flexDirection:'row',
-    alignItems:'flex-start',
-    justifyContent:'space-between',
-  },
+  ghostLt:      { fontFamily:'DMSerifDisplay_400Regular', fontSize:88, color:'rgba(255,255,255,0.07)', position:'absolute', right:-8, top:-18, lineHeight:96 },
+  tapHintLt:    { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.30)', marginTop:10 },
+  tapHintDk:    { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(0,0,0,0.22)', marginTop:10 },
+  tapHintShop:  { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.35)', marginTop:10 },
 
-  // Headlines — 24px on every card
-  headlineLt: {
-    fontFamily:'Poppins_700Bold', fontSize:24,
-    letterSpacing:-0.5, lineHeight:30, color:'#fff', flex:1,
-  },
-  headlineDk: {
-    fontFamily:'Poppins_700Bold', fontSize:24,
-    letterSpacing:-0.5, lineHeight:30, color:'#1A1A1A', flex:1,
-  },
-  // Shopping — white on lavender
-  headlineShop: {
-    fontFamily:'Poppins_700Bold', fontSize:24,
-    letterSpacing:-0.5, lineHeight:30, color:'#fff', flex:1,
-  },
-  // Word of the Day — rich purple, slightly larger to compensate for half-width card
-  headlineWotd: {
-    fontFamily:'Poppins_700Bold', fontSize:26,
-    letterSpacing:-0.5, lineHeight:32, color:'#6B35D9', flex:1,
-  },
+  addBtnLt:     { backgroundColor:'rgba(255,255,255,0.18)', borderRadius:10, paddingVertical:7, paddingHorizontal:14, flexShrink:0 },
+  addBtnTxtLt:  { fontFamily:'Poppins_700Bold', fontSize:13, color:'rgba(255,255,255,0.85)' },
+  addBtnDk:     { backgroundColor:'rgba(0,0,0,0.10)', borderRadius:10, paddingVertical:7, paddingHorizontal:14, flexShrink:0 },
+  addBtnTxtDk:  { fontFamily:'Poppins_700Bold', fontSize:13, color:'rgba(0,0,0,0.55)' },
 
-  // Ghost number — only for calendar (overflow:hidden clips it)
-  ghostLt: {
-    fontFamily:'DMSerifDisplay_400Regular', fontSize:88,
-    color:'rgba(255,255,255,0.07)',
-    position:'absolute', right:-8, top:-18, lineHeight:96,
-  },
+  emptyLt:      { fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(255,255,255,0.40)', fontStyle:'italic' as const, paddingVertical:8 },
+  emptyDk:      { fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(0,0,0,0.32)', fontStyle:'italic' as const, paddingVertical:8 },
+  emptyShop:    { fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(255,255,255,0.50)', fontStyle:'italic' as const, paddingVertical:8 },
 
-  // Tap hints
-  tapHintLt:   { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.30)', marginTop:10 },
-  tapHintDk:   { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(0,0,0,0.22)', marginTop:10 },
-  tapHintShop: { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.35)', marginTop:10 },
+  tRow:         { flexDirection:'row', alignItems:'center', gap:10, marginBottom:12 },
+  tTime:        { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.52)', width:60, flexShrink:0 },
+  tDot:         { width:7, height:7, borderRadius:4, flexShrink:0 },
+  tEv:          { fontFamily:'Poppins_400Regular', fontSize:17, color:'rgba(255,255,255,0.90)', flex:1 },
+  tAv:          { width:28, height:28, borderRadius:14, alignItems:'center' as const, justifyContent:'center' as const, flexShrink:0 },
+  tAvTxt:       { fontFamily:'Poppins_700Bold', fontSize:10, color:'#fff' },
 
-  // Add buttons
-  addBtnLt:    { backgroundColor:'rgba(255,255,255,0.18)', borderRadius:10, paddingVertical:7, paddingHorizontal:14, flexShrink:0 },
-  addBtnTxtLt: { fontFamily:'Poppins_700Bold', fontSize:13, color:'rgba(255,255,255,0.85)' },
-  addBtnDk:    { backgroundColor:'rgba(0,0,0,0.10)', borderRadius:10, paddingVertical:7, paddingHorizontal:14, flexShrink:0 },
-  addBtnTxtDk: { fontFamily:'Poppins_700Bold', fontSize:13, color:'rgba(0,0,0,0.55)' },
+  calFooter:    { flexDirection:'row', justifyContent:'flex-end', marginTop:14, paddingTop:12, borderTopWidth:1, borderTopColor:'rgba(255,255,255,0.09)' },
+  calFullLink:  { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(255,255,255,0.40)' },
 
-  // Empty states
-  emptyLt:   { fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(255,255,255,0.40)', fontStyle:'italic' as const, paddingVertical:8 },
-  emptyDk:   { fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(0,0,0,0.32)', fontStyle:'italic' as const, paddingVertical:8 },
-  emptyShop: { fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(255,255,255,0.50)', fontStyle:'italic' as const, paddingVertical:8 },
-
-  // Calendar event rows
-  tRow:   { flexDirection:'row', alignItems:'center', gap:10, marginBottom:12 },
-  tTime:  { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.52)', width:60, flexShrink:0 },
-  tDot:   { width:7, height:7, borderRadius:4, flexShrink:0 },
-  tEv:    { fontFamily:'Poppins_400Regular', fontSize:17, color:'rgba(255,255,255,0.90)', flex:1 },
-  tAv:    { width:28, height:28, borderRadius:14, alignItems:'center' as const, justifyContent:'center' as const, flexShrink:0 },
-  tAvTxt: { fontFamily:'Poppins_700Bold', fontSize:10, color:'#fff' },
-
-  // Calendar footer
-  calFooter:   { flexDirection:'row', justifyContent:'flex-end', marginTop:14, paddingTop:12, borderTopWidth:1, borderTopColor:'rgba(255,255,255,0.09)' },
-  calFullLink: { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(255,255,255,0.40)' },
-
-  // Event inline expand
   evExpanded:      { backgroundColor:'rgba(255,255,255,0.07)', borderRadius:12, padding:12, marginBottom:10, marginTop:2 },
   evNote:          { fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(255,255,255,0.52)', marginBottom:6, lineHeight:18 },
   evWho:           { fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(255,255,255,0.38)', marginBottom:10 },
@@ -1320,7 +1163,6 @@ const cS = StyleSheet.create({
   evDelConfirmBtn: { flex:1, backgroundColor:'rgba(255,69,69,0.30)', borderRadius:10, paddingVertical:10, alignItems:'center' as const },
   evDelConfirmTxt: { fontFamily:'Poppins_700Bold', fontSize:13, color:'#FF9090' },
 
-  // Actions
   actRow:     { flexDirection:'row', alignItems:'center', gap:10, marginBottom:11 },
   actChk:     { width:26, height:26, borderRadius:13, borderWidth:1.5, borderColor:'rgba(0,0,0,0.20)', flexShrink:0, alignItems:'center' as const, justifyContent:'center' as const },
   actChkDone: { backgroundColor:'rgba(0,0,0,0.14)', borderColor:'transparent' },
