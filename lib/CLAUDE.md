@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Paste this file at the start of every new session. Last updated: March 2026.*
+*Last updated: 7 April 2026 — Outdated doc, refer to root CLAUDE.md for current state*
 
 ---
 

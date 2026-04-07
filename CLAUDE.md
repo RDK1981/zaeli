@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 7 April 2026 — Phase 6 AI Zaeli Noticed ✅ · Weather switched to wttr.in ✅ · Chat fix FAILED this session 🔴 · Next session plan documented*
+*Last updated: 7 April 2026 (evening) — Chat fix FAILED again (session 2) 🔴 · Root causes narrowed · Next session plan updated*
 
 ---
 
@@ -119,67 +119,77 @@ wttr.in codes      = mapWttrCode() in dashboard.tsx translates to internal codes
 ---
 
 ## ══════════════════════════════════
-## WHAT HAPPENED THIS SESSION — READ THIS FIRST
+## WHAT HAPPENED — SESSIONS 1 & 2 (READ THIS FIRST)
 ## ══════════════════════════════════
 
-**This session was supposed to:** Remove the splash/entry/card stack from Chat and replace with a simple Zaeli greeting.
+**Goal:** Remove the splash/entry/card stack from Chat and replace with a simple Zaeli greeting. Send button must work.
 
-**What went wrong:** 5+ hours wasted. Chat is still broken. Here is the honest post-mortem.
+**Result:** FAILED across two sessions (~12+ hours total). Chat send button still does not work.
 
-### Root cause — two separate problems discovered:
+### Three root causes identified (session 2 confirmed):
 
-**Problem 1: The input bar was never receiving taps**
-The chat input bar (`position:absolute`) sits inside a `ScrollView`. The ScrollView's touch handler intercepts all taps in that region — including the send button. This was always broken in the swipe-world architecture, even before this session. It was masked by the entry screen which had its own separate input.
+**Problem 1: ScrollView touch interception on send button**
+The send button (TouchableOpacity) inside chatInputWrap gets its taps stolen by the vertical ScrollView. TextInput works (RN special-cases focus), but TouchableOpacity does not. Moving the input bar outside scrollWrap (as a flex child of KAV) did NOT fix the send button.
 
-**Problem 2: swipe-world never passed fabActive/setFabActive to ChatScreen**
-Without these props, the FAB and keyboard state in HomeScreen are disconnected from swipe-world's state. Chat button sets fabActive in swipe-world but HomeScreen doesn't know about it.
+**Problem 2: onBlur unmounts the input bar before onPress fires**
+React Native fires TextInput.onBlur BEFORE TouchableOpacity.onPress. When user taps send:
+1. TextInput blurs → onBlur sets fabActive='chat', keyboardOpen=false
+2. Condition `(fabActive === 'keyboard' || keyboardOpen)` becomes false
+3. Input bar unmounts → send button's onPress NEVER fires
+Even a 250ms setTimeout in onBlur did not fix this — suggests a deeper issue.
 
-### What was tried and failed:
-- Moving input bar inside/outside KAV — bar went behind keyboard or taps still blocked
-- display:none / opacity:0 / height:0 to keep TextInput mounted — focus() still didn't work
-- Passing fabActive as external props — caused re-render cascades with stale closures
-- openKeyboardRef, focusRef, sendRef patterns — too many moving parts
-- Multiple git restores — cache issues made it impossible to confirm what was running
+**Problem 3: Re-render cascades between swipe-world and HomeScreen**
+When onFocus calls setFabActive('keyboard') (swipe-world's state), swipe-world re-renders, which re-renders ChatScreen. This can cause TextInput to lose focus → onBlur fires → re-render loop → app freezes. Attempting to fix with Keyboard.addListener broke everything (no chat, no mic, no dashboard context).
+
+### What was tried across both sessions (ALL FAILED):
+- Moving input bar inside/outside KAV (session 1)
+- display:none / opacity:0 / height:0 patterns (session 1)
+- Passing fabActive as external props (session 1) — re-render cascades
+- Moving input bar outside scrollWrap as flex child of KAV (session 2) — send still broken
+- Making input bar position:absolute inside KAV (session 2) — bar went behind keyboard
+- Always-rendered input bar + Keyboard listeners replacing onFocus/onBlur (session 2) — broke everything
+- setTimeout(250ms) in onBlur to delay unmount (session 2) — send still broken
+- Auto-focus useEffect when fabActive='keyboard' (session 2) — focus worked, send didn't
 
 ### Current state of files on disk:
-- `index.tsx` — TRUE ORIGINAL from last git commit (confirmed). Has splash + entry + card stack. Everything works EXCEPT it's the old interface.
-- `swipe-world.tsx` — Original + fabActive/setFabActive passed into ChatScreen (one addition).
+- `index.tsx` — TRUE ORIGINAL from last git commit `419589f` (reverted and confirmed clean)
+- `swipe-world.tsx` — Original from last git commit (reverted and confirmed clean)
 
 ### What is safe:
-ALL work from the previous session (dashboard context flows, sheets, inline cards, event booking, shopping) is preserved in the current `index.tsx` on disk and in git commit `419589f`.
+ALL work from previous sessions (dashboard context flows, sheets, inline cards, event booking, shopping, Zaeli Noticed, weather) is preserved in git commit `419589f`.
 
 ---
 
 ## ══════════════════════════════════
-## CHAT FIX — NEXT SESSION PLAN
+## CHAT FIX — SESSION 3 PLAN (CRITICAL)
 ## ══════════════════════════════════
 
-**DO NOT attempt the same approach again.** The fundamental issue is that the input bar inside index.tsx cannot receive taps reliably from swipe-world.
+**DO NOT repeat any of the approaches listed above.** Two sessions of attempting incremental fixes to the existing input bar have failed. The core problem is that conditional rendering + onBlur/onPress ordering + cross-component state = unresolvable in this architecture.
 
-### The correct plan for next session:
+### Approaches NOT yet tried (try these):
 
-**Step 1 — Understand before touching anything**
-Upload `index.tsx`, `swipe-world.tsx`, and `ZaeliFAB.tsx` at session start. Read all three fully before writing a single line.
+**Option A — onTouchEnd instead of onPress on send button**
+TouchableOpacity.onPress fires AFTER blur. But `onTouchEnd` on a raw `<View>` fires immediately on touch release, before blur propagates. Replace the send TouchableOpacity with a `<View onTouchEnd={...}>`. This bypasses the responder system entirely. SMALLEST CHANGE — try this first.
 
-**Step 2 — Add one console.log first**
-Before any code changes, add `console.log('SEND PRESSED')` to the send button. Confirm whether taps register. This single data point determines everything.
+**Option B — Pressable instead of TouchableOpacity**
+React Native's `Pressable` component uses a different touch system. May not have the same onBlur-before-onPress ordering issue.
 
-**Step 3 — The actual fix (if taps don't register)**
-The input bar needs to move OUT of the ScrollView entirely. It should be a direct child of the main `<View style={{flex:1}}>` in HomeScreen — a sibling of the KeyboardAvoidingView, not inside it. Use `position:absolute, bottom:0` at that level. This removes it from the ScrollView's touch area completely.
+**Option C — Always-mounted input bar (never unmount)**
+Remove `{(fabActive === 'keyboard' || keyboardOpen) && ...}` conditional entirely. Always render the input bar. Use a separate mechanism to show/hide the FAB (e.g. track keyboard state with Keyboard.addListener, separate from fabActive). This eliminates the unmount-before-onPress race condition. WARNING: a previous attempt at this broke everything — the failure was likely because Keyboard listeners also called setFabActive which caused the same re-render cascade. Use a SEPARATE local state for keyboard visibility instead.
 
-**Step 4 — Wire swipe-world correctly**
-swipe-world only needs to:
-- Pass `fabActive` and `setFabActive` into ChatScreen (already done)
-- Call `inputRef.current?.focus()` from `onChatKeyboard` — but ONLY after `setFabActive('keyboard')` has caused the input bar to mount
+**Option D — Minimal test first**
+Create a dead-simple test: just a TextInput + TouchableOpacity send button inside HomeScreen, outside any ScrollView/KAV, with console.log on both onPress and inside send(). Strip everything else. Confirm basic touch works in swipe-world. Then build back up.
 
-**Step 5 — useFocusEffect replacement**
-`useFocusEffect` doesn't fire in a horizontal ScrollView. Replace with a `onPageFocus` callback prop that swipe-world calls whenever it scrolls to page 1. This re-runs the context check.
+**Option E — Add console.log INSIDE send() function (line ~3464)**
+We never confirmed whether send() is actually called. The console.log on the button onPress may fire but send() may bail early (e.g. `loading` stuck at true, or `lastSendRef.current === sendKey` dedup). Add `console.log('SEND CALLED', text, loading, lastSendRef.current)` as the first line of send().
 
-**Key rules for next session:**
-- Maximum 2 changes at a time
-- Test each change on device before the next
-- If a change breaks something, revert immediately — don't compound
-- Never spend more than 30 minutes on any single approach without stepping back
+### Key rules:
+- ONE change at a time. Test on device. If broken, revert immediately.
+- Do NOT stack multiple fixes — this caused both sessions to fail
+- Do NOT change swipe-world.tsx unless absolutely necessary
+- Do NOT replace Keyboard/onFocus/onBlur patterns without testing each in isolation
+- Always verify files are clean with `git diff` before and after each change
+- Maximum 20 minutes on any single approach before stepping back
 
 ---
 
@@ -197,7 +207,7 @@ swipe-world only needs to:
 ---
 
 ## ══════════════════════════════════
-## SWIPE WORLD (✅ complete — with one addition)
+## SWIPE WORLD (✅ complete)
 ## ══════════════════════════════════
 
 **`app/(tabs)/swipe-world.tsx`** — owns all 3 pages, FAB, dots, landing overlay.
@@ -205,7 +215,7 @@ swipe-world only needs to:
 - Page 0: DashboardScreen ✅
 - Page 1: HomeScreen (named export from index.tsx) ✅
 - Page 2: MySpaceScreen ✅
-- fabActive + setFabActive now passed into ChatScreen ✅ (added this session)
+- fabActive + setFabActive passed into ChatScreen ✅
 
 **Landing overlay:** Stays as-is. `LANDING_TEST_MODE = true` — flip before launch.
 
@@ -220,14 +230,20 @@ All 7 cards built, 4 × 92% sheets. All dummy data.
 ---
 
 ## ══════════════════════════════════
-## CHAT — BROKEN 🔴 (fix next session)
+## CHAT — BROKEN 🔴 (session 3 must fix)
 ## ══════════════════════════════════
 
-**Current state:** index.tsx is the original — has splash/entry/card stack on load. Chat works via the entry screen. FAB chat button doesn't open keyboard directly.
+**Current state:** index.tsx is the ORIGINAL from commit `419589f` — has splash/entry/card stack on load. Chat works via the entry screen only. Send button in the main chat input bar does NOT work when embedded in swipe-world.
 
-**Target state:** Chat opens directly with Zaeli greeting. No splash. No card stack. Input bar receives taps reliably. Dashboard context flows work.
+**Target state:** Chat opens directly with Zaeli greeting. No splash. No card stack. Input bar receives taps reliably. Send button works. Dashboard context flows preserved.
 
 **All context injection paths are working in the original** — edit_event, add_event, shopping, shopping_sheet, actions, meals, noticed. Do not touch these.
+
+**The skip-splash changes are safe and tested:**
+- `screen` initial state: `'splash'` → `'chat'`
+- `chatOpacity` initial value: `0` → `1`
+- Mount useEffect: `generateBrief(true); loadCardData();` (replace splash animation)
+These three edits work — the chat loads. The ONLY remaining issue is the send button.
 
 ---
 
@@ -241,7 +257,7 @@ Dashboard stress testing       ✅
 Phase 3: swipe-world.tsx       ✅
 Phase 3b: My Space             ✅ all 7 cards, 4 sheets
 Phase 6: Zaeli Noticed (AI)    ✅ GPT mini, wttr.in weather
-Phase 5: Chat v5 / fix         🔴 FAILED this session — retry next session with new plan
+Phase 5: Chat v5 / fix         🔴 FAILED sessions 1+2 — retry session 3 with new approaches
 Phase 7: Todos sheet           🔨
 Phase 8: Shopping complete     🔨
 Phase 9: Meals sheet           🔨
