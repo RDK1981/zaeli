@@ -133,8 +133,6 @@ export default function SwipeWorld() {
         <View style={s.page}>
           <ChatScreen
             isEmbedded={true}
-            fabActive={fabActive}
-            setFabActive={setFabActive}
             onNavigateDashboard={() => scrollToPage(PAGE_DASHBOARD)}
           />
         </View>
@@ -162,8 +160,8 @@ export default function SwipeWorld() {
         ))}
       </View>
 
-      {/* ── FAB ── */}
-      <ZaeliFAB
+      {/* ── FAB — hidden on chat page so it doesn't block chat bar touches ── */}
+      {activePage !== PAGE_CHAT && <ZaeliFAB
         ref={fabRef}
         activeButton={fabActive}
         userInitial={USER_INITIAL}
@@ -174,7 +172,7 @@ export default function SwipeWorld() {
         onChatKeyboard={() => setFabActive('keyboard')}
         onMoreItem={onMoreItem}
         onMicResult={() => scrollToPage(PAGE_CHAT)}
-      />
+      />}
 
       {/* ── Landing overlay ── */}
       {showLanding && (

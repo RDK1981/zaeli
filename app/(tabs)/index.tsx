@@ -2509,7 +2509,7 @@ function HomeScreen({
   const setFabActive = externalSetFabActive ?? internalSetFabActive;
   // v5: true when we arrived from Dashboard — shows back pill
   const [returnToDashboard, setReturnToDashboard] = useState(false);
-  const [screen,          setScreen]          = useState<'splash'|'entry'|'chat'>('splash');
+  const [screen,          setScreen]          = useState<'splash'|'entry'|'chat'>('chat');
   const [entryRecording,  setEntryRecording]  = useState(false);
   const [entryProcessing, setEntryProcessing] = useState(false);
   const [calSheetOpen,    setCalSheetOpen]    = useState(false);
@@ -2579,7 +2579,7 @@ function HomeScreen({
   const sheetAnim        = useRef(new Animated.Value(320)).current;
   const splashOpacity    = useRef(new Animated.Value(1)).current;
   const entryOpacity     = useRef(new Animated.Value(0)).current;
-  const chatOpacity      = useRef(new Animated.Value(0)).current;
+  const chatOpacity      = useRef(new Animated.Value(1)).current;
   const starScale        = useRef(new Animated.Value(0.4)).current;
   const wordmarkOpacity  = useRef(new Animated.Value(0)).current;
   const recordingRef     = useRef<Audio.Recording | null>(null);
@@ -2734,14 +2734,9 @@ function HomeScreen({
     }
   }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Splash → Chat ─────────────────────────────────────────────────────────
+  // ── Mount → load brief + card data immediately ─────────────────────────────
   useEffect(() => {
-    Animated.spring(starScale, { toValue:1, useNativeDriver:true, tension:60, friction:8 }).start();
-    setTimeout(() => Animated.timing(wordmarkOpacity, { toValue:1, duration:500, useNativeDriver:true }).start(), 250);
-    setTimeout(() => {
-      Animated.timing(splashOpacity, { toValue:0, duration:400, useNativeDriver:true })
-        .start(() => { setScreen('chat'); chatOpacity.setValue(1); generateBrief(true); });
-    }, 3000);
+    generateBrief(true);
     loadCardData();
   }, []);
 
@@ -4594,7 +4589,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       <Animated.View style={[{ flex:1 }, screen==='chat' ? {} : { opacity:chatOpacity }]} pointerEvents={screen==='chat'?'auto':'none'}>
 
         {/* FIXED BANNER — wordmark + nav only, hero scrolls with content */}
-        <SafeAreaView style={[s.topBar, { backgroundColor: T.bannerBg }]} edges={['top']}>
+        <SafeAreaView style={[s.topBar, { backgroundColor: T.bg }]} edges={['top']}>
           {/* ← Dashboard back pill — shown when arrived from Dashboard card tap */}
           {returnToDashboard && (
             <TouchableOpacity
@@ -4621,20 +4616,19 @@ Only include events directly relevant to the question. Max 5 events.`;
           <View style={s.topBarDivider}/>
         </SafeAreaView>
 
-        {/* CHAT + CARDS */}
+        {/* CHAT */}
         <KeyboardAvoidingView
           style={s.kavWrap}
           behavior={Platform.OS==='ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={0}
-          backgroundColor="#fff"
         >
-          <View style={[s.scrollWrap, { backgroundColor: T.bg }]}>
+          <View style={{ flex:1, position:'relative' }}>
             <ScrollView
               ref={scrollRef}
               style={[s.scroll, { backgroundColor:T.bg }]}
-              contentContainerStyle={s.scrollContent}
+              contentContainerStyle={{ paddingHorizontal:0, paddingTop:14, paddingBottom:120 }}
               showsVerticalScrollIndicator={false}
-              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="always"
               onScroll={handleScroll}
               scrollEventThrottle={16}
               onContentSizeChange={() => {
@@ -4650,112 +4644,52 @@ Only include events directly relevant to the question. Max 5 events.`;
                 <View style={[s.dateLine2, { backgroundColor:T.dateLine }]}/>
               </View>
 
-              {/* ── HERO — Zaeli eyebrow + DM Serif brief ── */}
-              <View style={s.heroSection}>
-                <View style={s.zEyebrow}>
-                  <View style={[s.zStar, { backgroundColor:HOME_AI }]}>
-                    <Svg width="9" height="9" viewBox="0 0 16 16" fill={INK}><Path d="M8 1L9.5 6.5L15 8L9.5 9.5L8 15L6.5 9.5L1 8L6.5 6.5L8 1Z"/></Svg>
-                  </View>
-                  <Text style={[s.zName, { color:INK }]}>Zaeli</Text>
-                  <Text style={[s.zTs, { color:T.ink3 }]}>{nowTs()}</Text>
-                </View>
-                {briefHero ? (
-                  <Text style={s.heroLine}>{renderHeroText(briefHero, HOME_AI)}</Text>
-                ) : (
-                  <View style={{ paddingVertical:6 }}><TypingDots color={HOME_AI}/></View>
-                )}
-              </View>
-
-              {/* ── TODAY'S OVERVIEW TOGGLE ── */}
-              <TouchableOpacity
-                style={s.overviewToggle}
-                onPress={() => setOverviewOpen(o => !o)}
-                activeOpacity={0.7}
-              >
-                <View style={s.overviewLine}/>
-                <View style={s.overviewBtn}>
-                  <Text style={s.overviewChevron}>{overviewOpen ? '∧' : '∨'}</Text>
-                  <Text style={s.overviewBtnTxt}>Today's overview</Text>
-                </View>
-                <View style={s.overviewLine}/>
-              </TouchableOpacity>
-
-              {/* ── CARD STACK — collapsible ── */}
-              {overviewOpen && (
-                <View style={s.cardStack}>
-                  {renderCardStack()}
-                </View>
-              )}
-
-              {/* ── DIVIDER between cards and chat ── */}
-              <View style={[s.cardChatDivider, { marginTop:16 }]}>
-                <View style={[s.dateLine2, { backgroundColor:T.dateLine }]}/>
-                <Text style={[s.dateLabel2, { color:T.ink3 }]}>Earlier today</Text>
-                <View style={[s.dateLine2, { backgroundColor:T.dateLine }]}/>
-              </View>
-
               {/* ── CHAT THREAD ── */}
               {renderMessages()}
-              <View style={{ height:20 }}/>
             </ScrollView>
 
-            {/* ── SCROLL ARROWS (locked spec) ── */}
-            <View style={s.scrollArrowPair} pointerEvents="box-none">
-              <TouchableOpacity style={s.scrollArrowBtn} onPress={() => scrollRef.current?.scrollTo({ y:0, animated:true })} activeOpacity={0.75}>
-                <IcoArrowUp/>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.scrollArrowBtn} onPress={() => scrollRef.current?.scrollToEnd({ animated:true })} activeOpacity={0.75}>
-                <IcoArrowDown/>
-              </TouchableOpacity>
-            </View>
-
-            {/* ── Chat input bar — replaces FAB when keyboard active ── */}
-            {(fabActive === 'keyboard' || keyboardOpen) && (
-              <View style={s.chatInputWrap}>
-                <View style={s.chatInputPill}>
-                  {/* Mic — triggers ZaeliFAB mic pill */}
-                  <TouchableOpacity
-                    style={s.chatInputMicBtn}
-                    onPress={() => {
-                      inputRef.current?.blur();
-                      setTimeout(() => fabRef.current?.startMic(), 150);
-                    }}
-                    activeOpacity={0.75}
-                    hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                  >
-                    <IcoMic color="rgba(10,10,10,0.40)" size={20}/>
-                  </TouchableOpacity>
-                  {/* Text input */}
-                  <TextInput
-                    ref={inputRef}
-                    style={[s.barInput, { color:INK }]}
-                    placeholder="Ask Zaeli anything…"
-                    placeholderTextColor={T.barPh}
-                    value={input}
-                    onChangeText={setInput}
-                    multiline
-                    keyboardAppearance="light"
-                    selectionColor={HOME_AI}
-                    onFocus={() => { setKeyboardOpen(true); setFabActive('keyboard'); }}
-                    onBlur={() => {
-                      setKeyboardOpen(false);
-                      if (fabActive === 'keyboard') setFabActive('chat');
-                    }}
-                    returnKeyType="send"
-                    blurOnSubmit={false}
-                    onSubmitEditing={() => { if (input.trim()) send(input); }}
-                  />
-                  {/* Send */}
-                  <TouchableOpacity
-                    style={[s.barSend, !input.trim() && { opacity:0.4 }]}
-                    onPress={() => { if (input.trim()) send(input); }}
-                    activeOpacity={0.85}
-                  >
-                    <IcoSend/>
-                  </TouchableOpacity>
+            {/* ── BAR — absolute over scroll, KAV moves parent View above keyboard ── */}
+            <View style={s.barFloat}>
+              <View style={s.barPill} onTouchEnd={() => inputRef.current?.focus()}>
+                <TouchableOpacity
+                  style={s.barBtn}
+                  onPress={() => fabRef.current?.startMic()}
+                  activeOpacity={0.75}
+                >
+                  <Svg width={26} height={26} viewBox="0 0 24 24" fill="none"
+                    stroke="rgba(10,10,10,0.48)" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+                    <Path d="M19 10v2a7 7 0 01-14 0v-2"/>
+                    <Line x1="12" y1="19" x2="12" y2="23"/>
+                    <Line x1="8" y1="23" x2="16" y2="23"/>
+                  </Svg>
+                </TouchableOpacity>
+                <TextInput
+                  ref={inputRef}
+                  style={s.barInput}
+                  value={input}
+                  onChangeText={setInput}
+                  placeholder="Ask Zaeli anything..."
+                  placeholderTextColor="rgba(10,10,10,0.48)"
+                  multiline
+                  keyboardAppearance="light"
+                  selectionColor={HOME_AI}
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => { if (input.trim()) send(input); }}
+                />
+                <View
+                  style={[s.barBtn, { backgroundColor:'#FF4545' }, !input.trim() && { opacity:0.3 }]}
+                  onTouchStart={() => { if (input.trim()) send(input); }}
+                >
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"
+                    stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                    <Line x1="12" y1="19" x2="12" y2="5"/>
+                    <Polyline points="5 12 12 5 19 12"/>
+                  </Svg>
                 </View>
               </View>
-            )}
+            </View>
+          </View>
 
             {/* ── v5 FAB — hidden when embedded in swipe-world (which renders its own FAB) ── */}
             {!isEmbedded && (
@@ -4799,7 +4733,6 @@ Only include events directly relevant to the question. Max 5 events.`;
                 }}
               />
             )}
-          </View>{/* end scrollWrap */}
         </KeyboardAvoidingView>
 
         {/* CALENDAR SHEET */}
@@ -5813,12 +5746,12 @@ const s = StyleSheet.create({
   voiceLabelTxt: { fontFamily:'Poppins_400Regular', fontSize:10 },
 
   // Top bar
-  topBar:            { backgroundColor:'#F5EAD8' },
+  topBar:            { backgroundColor:'#FAF8F5' },
   topBarRow:         { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:20, paddingTop:4, paddingBottom:10 },
   topBarDivider:     { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
   topBarRight:       { flexDirection:'row', alignItems:'center', gap:10 },
   topBarChannelName: { fontFamily:'Poppins_600SemiBold', fontSize:16, color:'rgba(10,10,10,0.45)' },
-  logoWord:          { fontFamily:'DMSerifDisplay_400Regular', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:44 },
+  logoWord:          { fontFamily:'Poppins_800ExtraBold', fontSize:36, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:42 },
   avatar:            { width:34, height:34, borderRadius:17, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' },
   avatarTxt:         { fontFamily:'Poppins_700Bold', fontSize:13, color:'#fff' },
   heroLine:          { fontFamily:'DMSerifDisplay_400Regular', fontSize:26, color:'#0A0A0A', lineHeight:36, letterSpacing:-0.4 },
@@ -5915,11 +5848,10 @@ const s = StyleSheet.create({
   chatInputPill: {
     flexDirection:'row',
     alignItems:'center',
-    gap:10,
-    backgroundColor:'rgba(255,255,255,0.96)',
+    gap:4,
+    backgroundColor:'rgba(255,255,255,0.88)',
     borderRadius:36,
-    paddingVertical:10,
-    paddingHorizontal:14,
+    padding:10,
     borderWidth:1,
     borderColor:'rgba(255,255,255,0.98)',
     shadowColor:'#000',
@@ -5949,11 +5881,35 @@ const s = StyleSheet.create({
   barBtn:     { width:34, height:34, alignItems:'center', justifyContent:'center' },
   barMicBtn:  { width:32, height:32, alignItems:'center', justifyContent:'center', flexShrink:0 },
   barSep:     { width:1, height:18, flexShrink:0 },
-  barInput:   { flex:1, fontFamily:'Poppins_400Regular', fontSize:15, maxHeight:100, paddingVertical:0 },
+  // Bar — absolute inside flex View, floats over scroll, no background
+  barFloat: {
+    position:'absolute',
+    bottom:0, left:0, right:0,
+    alignItems:'center',
+    paddingBottom:Platform.OS === 'ios' ? 24 : 14,
+  },
+  barPill: {
+    flexDirection:'row',
+    alignItems:'center',
+    width:360,                                // FAB_WIDTH
+    gap:4,                                    // FAB_GAP
+    backgroundColor:'rgba(255,255,255,0.88)', // FAB bg
+    borderRadius:36,                          // FAB borderRadius
+    padding:10,                               // FAB_PAD
+    borderWidth:1,
+    borderColor:'rgba(255,255,255,0.98)',
+    shadowColor:'#000',
+    shadowOpacity:0.14,
+    shadowRadius:28,
+    shadowOffset:{ width:0, height:10 },
+    elevation:14,
+  },
+  barBtn:     { width:58, height:58, borderRadius:22, alignItems:'center', justifyContent:'center', flexShrink:0 },
+  barInput:   { flex:1, fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', maxHeight:100, paddingVertical:0 },
   barWaveBtn: { width:40, height:40, borderRadius:20, alignItems:'center', justifyContent:'center' },
   waveRow:    { flexDirection:'row', alignItems:'center', gap:3 },
   waveBar:    { width:3.5, height:18, borderRadius:2, backgroundColor:'#fff' },
-  barSend:    { width:32, height:32, borderRadius:16, backgroundColor:'#FF4545', alignItems:'center', justifyContent:'center', flexShrink:0 },
+  barSend:    { width:58, height:58, borderRadius:22, backgroundColor:'#FF4545', alignItems:'center', justifyContent:'center', flexShrink:0 }, // legacy — using barBtn now
 
   // Sheet
   sheetOverlay:   { flex:1, backgroundColor:'rgba(0,0,0,0.4)', justifyContent:'flex-end' },
