@@ -452,6 +452,8 @@ const ACTION_KEYWORDS = [
   'reschedule', 'cancel ', 'rename ', 'shift ', 'put ', 'book ',
   'also add', 'can you add', 'please add', 'add anna', 'add rich', 'add poppy',
   'add gab', 'add duke', 'assign ', 'invite ',
+  'mark ', 'complete', 'done', 'finish', 'tick ', 'check off',
+  'swap ', 'replace ', 'set ', 'plan ',
 ];
 
 function isActionQuery(text: string): boolean {
@@ -1462,6 +1464,13 @@ const TOOLS = [
   { name:'delete_calendar_event', description:'Delete a calendar event', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, date:{type:'string'} }, required:['search_title'] } },
   { name:'add_todo', description:'Add a todo item', input_schema:{ type:'object', properties:{ title:{type:'string'}, priority:{type:'string',enum:['low','normal','high','urgent']}, due_date:{type:'string'} }, required:['title'] } },
   { name:'add_shopping_item', description:'Add item to shopping list', input_schema:{ type:'object', properties:{ name:{type:'string'}, category:{type:'string'}, quantity:{type:'string'} }, required:['name'] } },
+  { name:'add_meal', description:'Add a meal to the weekly meal planner', input_schema:{ type:'object', properties:{ meal_name:{type:'string',description:'Name of the meal e.g. Spaghetti Bolognese'}, date:{type:'string',description:'Date in YYYY-MM-DD format'}, day_label:{type:'string',description:'Day abbreviation e.g. Mon, Tue, Wed'}, prep_mins:{type:'number',description:'Estimated prep time in minutes'} }, required:['meal_name','date'] } },
+  { name:'update_todo', description:'Update a todo item (title, priority, due date, or mark done)', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Current title to search for'}, new_title:{type:'string'}, new_priority:{type:'string',enum:['low','normal','high','urgent']}, new_due_date:{type:'string'}, mark_done:{type:'boolean'} }, required:['search_title'] } },
+  { name:'delete_todo', description:'Delete a todo item', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Title to search for'} }, required:['search_title'] } },
+  { name:'update_shopping_item', description:'Update a shopping list item (rename, change category or quantity)', input_schema:{ type:'object', properties:{ search_name:{type:'string',description:'Current item name to search for'}, new_name:{type:'string'}, new_category:{type:'string'}, new_quantity:{type:'string'} }, required:['search_name'] } },
+  { name:'delete_shopping_item', description:'Remove an item from the shopping list', input_schema:{ type:'object', properties:{ search_name:{type:'string',description:'Item name to search for'} }, required:['search_name'] } },
+  { name:'update_meal', description:'Update a planned meal (change meal name, move to different date)', input_schema:{ type:'object', properties:{ search_meal:{type:'string',description:'Current meal name to search for'}, search_date:{type:'string',description:'Date of the meal YYYY-MM-DD'}, new_meal_name:{type:'string'}, new_date:{type:'string'}, new_prep_mins:{type:'number'} }, required:['search_meal'] } },
+  { name:'delete_meal', description:'Remove a meal from the planner', input_schema:{ type:'object', properties:{ search_meal:{type:'string',description:'Meal name to search for'}, date:{type:'string',description:'Date of the meal YYYY-MM-DD'} }, required:['search_meal'] } },
 ];
 
 async function executeTool(name: string, input: any): Promise<string> {
@@ -1591,6 +1600,92 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (error) throw error;
       return `✅ **${itemName}**${input.quantity ? ' (' + input.quantity + ')' : ''} added to the shopping list.`;
     }
+    if (name === 'add_meal') {
+      const dateStr = input.date || localDateStr();
+      const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const dayLabel = input.day_label || dayNames[new Date(dateStr+'T00:00:00').getDay()] || '';
+      // Check if a meal already exists for this date — warn, don't auto-swap
+      const { data: existing } = await supabase.from('meal_plans').select('id,meal_name').eq('family_id', DUMMY_FAMILY_ID_HOME).eq('planned_date', dateStr).limit(1);
+      if (existing && existing.length > 0) {
+        return `CLASH: **${existing[0].meal_name}** is already planned for ${dayLabel}. Want to swap it for **${input.meal_name}**, or pick a different night?`;
+      }
+      const { error } = await supabase.from('meal_plans').insert({
+        family_id: DUMMY_FAMILY_ID_HOME,
+        meal_name: input.meal_name,
+        planned_date: dateStr,
+        day_key: dateStr,
+        prep_mins: input.prep_mins || null,
+      });
+      if (error) throw error;
+      return `\u2705 **${input.meal_name}** added for ${dayLabel} ${dateStr}.`;
+    }
+    if (name === 'update_todo') {
+      const { data } = await supabase.from('todos').select('id,title,status').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`).order('created_at', { ascending: false }).limit(1);
+      if (!data || data.length === 0) return `Couldn't find a to-do matching "${input.search_title}".`;
+      const todo = data[0];
+      const u: any = {};
+      if (input.new_title) u.title = input.new_title;
+      if (input.new_priority) u.priority = input.new_priority;
+      if (input.new_due_date) u.due_date = input.new_due_date;
+      if (input.mark_done) u.status = 'done';
+      if (Object.keys(u).length === 0) return `TOOL_FAILED: No valid fields to update.`;
+      const { error } = await supabase.from('todos').update(u).eq('id', todo.id);
+      if (error) throw error;
+      const what = input.mark_done ? 'marked as done' : input.new_title ? `renamed to "${input.new_title}"` : 'updated';
+      return `\u2705 "${input.new_title || todo.title}" \u2014 ${what}.`;
+    }
+    if (name === 'delete_todo') {
+      const { data } = await supabase.from('todos').select('id,title').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`).order('created_at', { ascending: false }).limit(1);
+      if (!data || data.length === 0) return `Couldn't find a to-do matching "${input.search_title}".`;
+      const { error } = await supabase.from('todos').delete().eq('id', data[0].id);
+      if (error) throw error;
+      return `\u2705 **${data[0].title}** removed from your to-do list.`;
+    }
+    if (name === 'update_shopping_item') {
+      const { data } = await supabase.from('shopping_items').select('id,name,item').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('name', `%${input.search_name}%`).neq('checked', true).order('created_at', { ascending: false }).limit(1);
+      if (!data || data.length === 0) return `Couldn't find "${input.search_name}" on the shopping list.`;
+      const item = data[0];
+      const u: any = {};
+      if (input.new_name) { u.name = input.new_name; u.item = input.new_name; }
+      if (input.new_category) u.category = input.new_category;
+      if (input.new_quantity) u.meal_source = input.new_quantity;
+      if (Object.keys(u).length === 0) return `TOOL_FAILED: No valid fields to update.`;
+      const { error } = await supabase.from('shopping_items').update(u).eq('id', item.id);
+      if (error) throw error;
+      return `\u2705 "${input.new_name || item.name}" updated on the shopping list.`;
+    }
+    if (name === 'delete_shopping_item') {
+      const { data } = await supabase.from('shopping_items').select('id,name').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('name', `%${input.search_name}%`).neq('checked', true).order('created_at', { ascending: false }).limit(1);
+      if (!data || data.length === 0) return `Couldn't find "${input.search_name}" on the shopping list.`;
+      const { error } = await supabase.from('shopping_items').delete().eq('id', data[0].id);
+      if (error) throw error;
+      return `\u2705 **${data[0].name}** removed from the shopping list.`;
+    }
+    if (name === 'update_meal') {
+      let q = supabase.from('meal_plans').select('id,meal_name,planned_date,day_key').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('meal_name', `%${input.search_meal}%`);
+      if (input.search_date) q = q.eq('planned_date', input.search_date);
+      const { data } = await q.order('planned_date').limit(1);
+      if (!data || data.length === 0) return `Couldn't find a meal matching "${input.search_meal}".`;
+      const meal = data[0];
+      const u: any = {};
+      if (input.new_meal_name) u.meal_name = input.new_meal_name;
+      if (input.new_date) { u.planned_date = input.new_date; u.day_key = input.new_date; }
+      if (input.new_prep_mins) u.prep_mins = input.new_prep_mins;
+      if (Object.keys(u).length === 0) return `TOOL_FAILED: No valid fields to update.`;
+      const { error } = await supabase.from('meal_plans').update(u).eq('id', meal.id);
+      if (error) throw error;
+      const what = input.new_date ? `moved to ${input.new_date}` : input.new_meal_name ? `changed to "${input.new_meal_name}"` : 'updated';
+      return `\u2705 "${input.new_meal_name || meal.meal_name}" \u2014 ${what}.`;
+    }
+    if (name === 'delete_meal') {
+      let q = supabase.from('meal_plans').select('id,meal_name').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('meal_name', `%${input.search_meal}%`);
+      if (input.date) q = q.eq('planned_date', input.date);
+      const { data } = await q.order('planned_date').limit(1);
+      if (!data || data.length === 0) return `Couldn't find a meal matching "${input.search_meal}".`;
+      const { error } = await supabase.from('meal_plans').delete().eq('id', data[0].id);
+      if (error) throw error;
+      return `\u2705 **${data[0].meal_name}** removed from the meal planner.`;
+    }
     return `Tool ${name} not yet implemented.`;
   } catch (e: any) {
     return `TOOL_FAILED: Something went wrong with ${name} — ${e?.message ?? 'unknown error'}`;
@@ -1600,10 +1695,20 @@ async function executeTool(name: string, input: any): Promise<string> {
 const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - USE TOOLS IMMEDIATELY when you have enough info. Never say "I'll add that" — just add it.
 - For "tomorrow" use tomorrow's actual date (today is provided in the system prompt).
-- update_calendar_event: use this to change time/date/assignees. NEVER delete and re-add.
+- CRITICAL: When the user says "change", "move", "update", "shift", "reschedule" an EXISTING item, use the UPDATE tool. NEVER use an ADD tool to modify something that already exists. This applies to ALL types: events, meals, shopping, todos.
+- update_calendar_event: use this to change time/date/assignees of an existing event. NEVER delete and re-add. NEVER use add_calendar_event when the user wants to change an existing event.
+- update_meal: use this to change a meal name, move a meal to a different date, or change prep time. NEVER use add_meal when the user wants to change or move an existing meal.
+- update_todo: use this to change title, priority, due date, or mark a todo as done. When the user says "mark X as done/complete/finished", use update_todo with mark_done:true.
+- update_shopping_item: use this to rename or change quantity/category of an existing shopping item.
+- add_meal: use this ONLY when planning a NEW meal for a day that has NO existing meal. If the tool returns "CLASH:", tell the user what's already planned and ask if they want to swap or pick a different night. NEVER auto-swap without asking.
+- When the user confirms a swap: use update_meal to change the existing meal's name (and/or move it to a new date). You can call multiple tools in one turn — e.g. update_meal to rename tomorrow's meal, then add_meal or another update_meal to move the old meal to a new date.
+- CRITICAL: NEVER say you performed an action unless a tool confirmed it with a \u2705 response. If you didn't call a tool, you didn't do the action.
+- delete_meal / delete_todo / delete_shopping_item / delete_calendar_event: use when the user wants to remove something entirely.
 - If a tool result starts with "TOOL_FAILED", tell the user honestly it didn't work.
 - Zaeli CANNOT make phone calls or send messages autonomously.
-- After adding or editing an event, confirm warmly in 1 sentence. Name the event and the time. Be enthusiastic but brief. Example: "Eumundi run is locked in for 5pm today — enjoy the drive up." Never start with "I". Never say "I've added" — say what's done, not what you did.`;
+- NEVER confuse meal planner with calendar. Meals go in meal planner (add_meal/update_meal/delete_meal). Events go in calendar (add/update/delete_calendar_event). If the user says "meal planner" or "dinner", use meal tools. If the user says "calendar" or "event", use calendar tools.
+- After adding or editing anything, confirm warmly in 1 sentence. Name what was added and when. Be enthusiastic but brief. Never start with "I". Never say "I've added" — say what's done, not what you did.
+- CRITICAL: When confirming, use the EXACT day/date the user specified. If they said "Saturday", confirm "Saturday" — never substitute a different day. Double-check dates against the day-of-week before confirming.`;
 
 // ── CalSheetEventCard ─────────────────────────────────────────────────────
 // White card with left-border family colour, used in sheet day/month views
@@ -2458,6 +2563,9 @@ function HomeScreen({
   setFabActive: externalSetFabActive,
   onNavigateDashboard,
   isEmbedded = false,
+  isActive = false,
+  pendingMicText = null,
+  onMicTextConsumed,
 }: {
   inputRef?: React.RefObject<any>;
   fabRef?: React.RefObject<ZaeliFABHandle>;
@@ -2465,6 +2573,9 @@ function HomeScreen({
   setFabActive?: (v: any) => void;
   onNavigateDashboard?: () => void;
   isEmbedded?: boolean;
+  isActive?: boolean;
+  pendingMicText?: string|null;
+  onMicTextConsumed?: () => void;
 } = {}) {
   const router    = useRouter();
   const params    = useLocalSearchParams<{ autoMic?: string; seedMessage?: string; calendarScan?: string }>();
@@ -3444,6 +3555,142 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
     }
   }, [params.autoMic, params.seedMessage]));
 
+  // ── isActive context check (fires when swipe-world scrolls to chat page) ──
+  const prevIsActive = useRef(false);
+  useEffect(() => {
+    const justBecameActive = isActive && !prevIsActive.current;
+    prevIsActive.current = isActive;
+    console.log('CHAT: isActive =', isActive, 'justBecameActive =', justBecameActive);
+    if (!justBecameActive) return;
+    const ctx = getPendingChatContext();
+    console.log('CHAT: pending context =', ctx.type);
+    if (!ctx.type) return;
+    clearPendingChatContext();
+    console.log('CHAT: processing context type =', ctx.type);
+    setReturnToDashboard(ctx.returnTo === 'dashboard');
+    setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+
+    if (ctx.type === 'edit_event' && ctx.event) {
+      const ev = ctx.event;
+      const dayName = ev.date
+        ? new Date(ev.date+'T00:00:00').toLocaleDateString('en-AU', { weekday:'long' })
+        : '';
+      const timeStr = fmtTime(ev.start_time);
+      const prompt = `${ev.title}${dayName ? ` \u2014 ${dayName}` : ''}${timeStr ? ` at ${timeStr}` : ''}. What would you like to change?`;
+      const calCard: Msg = {
+        id: uid(), role:'zaeli', text:'', ts:nowTs(),
+        inlineData: { type:'calendar', items:[ev], tomorrowItems:[] },
+      };
+      const zaeliMsg: Msg = {
+        id: uid(), role:'zaeli', text:prompt, ts:nowTs(), isLoading:false,
+        quickReplies: ['Move the time', 'Add someone', 'Change location', 'Cancel it', 'Manual edit'],
+      };
+      setMessages(prev => {
+        const withoutOldCal = prev.filter(m => m.inlineData?.type !== 'calendar');
+        return [...withoutOldCal, calCard, zaeliMsg];
+      });
+      setTimeout(() => { scrollRef.current?.scrollToEnd({ animated:true }); }, 350);
+      return;
+    }
+
+    if (ctx.type === 'add_event') {
+      const zaeliMsg: Msg = {
+        id: uid(), role:'zaeli', text:"What's the event? Just tell me what, when, and who's going.", ts:nowTs(), isLoading:false,
+        quickReplies: ['Today', 'Tomorrow', 'This week', 'For the kids'],
+      };
+      setMessages(prev => [...prev, zaeliMsg]);
+      setTimeout(() => { scrollRef.current?.scrollToEnd({ animated:true }); }, 350);
+      return;
+    }
+
+    if ((ctx.type as string) === 'noticed' && ctx.event) {
+      const notice = (ctx.event as any).title as string;
+      const zaeliMsg: Msg = {
+        id: uid(), role:'zaeli',
+        text: notice,
+        ts: nowTs(), isLoading: false,
+        quickReplies: ['Tell me more', 'What should I do?', 'Remind me later'],
+      };
+      setMessages(prev => [...prev, zaeliMsg]);
+      setTimeout(() => { scrollRef.current?.scrollToEnd({ animated:true }); }, 350);
+      return;
+    }
+
+    if (ctx.type === 'shopping') {
+      const zaeliMsg: Msg = {
+        id: uid(), role:'zaeli',
+        text: "What needs to go on the list?",
+        ts: nowTs(), isLoading: false,
+        quickReplies: ['Add a few things', 'Scan a receipt', 'Weekly essentials', 'Open Shopping List'],
+      };
+      setMessages(prev => [...prev, zaeliMsg]);
+      setTimeout(() => { scrollRef.current?.scrollToEnd({ animated:true }); }, 350);
+      return;
+    }
+
+    if ((ctx.type as string) === 'shopping_sheet') {
+      setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+      setTimeout(() => setShopSheetOpen(true), 300);
+      return;
+    }
+
+    if (ctx.type === 'actions') {
+      const todo = ctx.event as any;
+      let prompt: string;
+      let chips: string[];
+      if (todo?.title) {
+        const dueStr = todo.due_date
+          ? ` \u00b7 due ${new Date(todo.due_date+'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' })}`
+          : '';
+        prompt = `"${todo.title}"${dueStr} \u2014 what would you like to do with this one?`;
+        chips = ['Change the due date', 'Reassign it', 'Mark as urgent', 'Break it into steps', 'Open To-dos'];
+      } else {
+        prompt = "What needs to go on the list?";
+        chips = ["Something for me", "For the family", "Set a reminder", "Open To-dos"];
+      }
+      const zaeliMsg: Msg = {
+        id: uid(), role:'zaeli', text:prompt, ts:nowTs(), isLoading:false,
+        quickReplies: chips,
+      };
+      setMessages(prev => [...prev, zaeliMsg]);
+      setTimeout(() => { scrollRef.current?.scrollToEnd({ animated:true }); }, 350);
+      return;
+    }
+
+    if (ctx.type === 'meals' && ctx.event) {
+      const { meal, dayAbbr } = ctx.event as { meal:any|null; dateKey:string; dayAbbr:string };
+      const dayLabel = dayAbbr ?? 'that night';
+      let prompt: string;
+      let chips: string[];
+      if (meal) {
+        prompt = `${meal.meal_name} is on for ${dayLabel} \u2014 what would you like to do with it?`;
+        chips = ['Change the meal', 'Move to another night', 'Add to shopping list', 'Find a similar recipe', 'Open Meal Planner'];
+      } else {
+        prompt = `${dayLabel} is wide open for dinner \u2014 what are you thinking?`;
+        chips = ["Something quick", "Surprise me", "Use what's in the fridge", "Family favourite", 'Open Meal Planner'];
+      }
+      const zaeliMsg: Msg = {
+        id: uid(), role:'zaeli', text:prompt, ts:nowTs(), isLoading:false,
+        quickReplies: chips,
+      };
+      setMessages(prev => [...prev, zaeliMsg]);
+      setTimeout(() => { scrollRef.current?.scrollToEnd({ animated:true }); }, 350);
+      return;
+    }
+  }, [isActive]);
+
+  // ── Handle FAB mic transcript from dashboard/myspace ──
+  useEffect(() => {
+    if (!pendingMicText || !isActive) return;
+    const txt = pendingMicText;
+    onMicTextConsumed?.();
+    // Let the page scroll fully settle before sending
+    setTimeout(() => {
+      setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+      send(txt);
+    }, 600);
+  }, [pendingMicText, isActive]);
+
   function handleQuickReply(chip: string) {
     if (chip === 'Open Meal Planner') {
       router.navigate('/(tabs)/mealplanner' as any);
@@ -3472,9 +3719,15 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
     const history = [...messages, uMsg];
     setMessages(history); setInput(''); setPendingImage(null);
     if (returnToDashboard) setReturnToDashboard(false);
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 100);
+    isAtBottom.current = true; // force scroll-to-bottom tracking
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 50);
     const replyId = addMsg({ role:'zaeli', text:'', isLoading:true });
     setLoading(true);
+    // Aggressive scroll — thinking dots MUST be visible above keyboard
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated:false }), 100);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated:false }), 250);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 500);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 800);
     try {
       const { system, td } = await buildContext();
 
@@ -3705,6 +3958,7 @@ Only include events directly relevant to the question. Max 5 events.`;
   // ── Recording ─────────────────────────────────────────────────────────────
   async function startRecording() {
     try {
+      Keyboard.dismiss();
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) return;
       await Audio.setAudioModeAsync({ allowsRecordingIOS:true, playsInSilentModeIOS:true });
@@ -3714,12 +3968,24 @@ Only include events directly relevant to the question. Max 5 events.`;
       setMicTimer(0);
       Animated.timing(micOverlayAnim, { toValue:1, duration:220, useNativeDriver:true }).start();
       micTimerRef.current = setInterval(() => setMicTimer(t => t+1), 1000);
+      // Start waveform
+      const loops = waveAnims.map((anim, i) =>
+        Animated.loop(Animated.sequence([
+          Animated.delay(i * 60),
+          Animated.timing(anim, { toValue:1, duration:400+(i%4)*80, useNativeDriver:true }),
+          Animated.timing(anim, { toValue:0.15, duration:400+(i%3)*80, useNativeDriver:true }),
+        ]))
+      );
+      waveLoopRef.current = Animated.parallel(loops);
+      waveLoopRef.current.start();
     } catch (e) { console.error('startRecording:', e); }
   }
   async function stopRecording(cancel = false) {
     try {
       setIsRecording(false);
       if (micTimerRef.current) { clearInterval(micTimerRef.current); micTimerRef.current = null; }
+      waveLoopRef.current?.stop();
+      waveAnims.forEach(a => a.setValue(0.3));
       Animated.timing(micOverlayAnim, { toValue:0, duration:180, useNativeDriver:true }).start();
       if (!recordingRef.current) return;
       const status = await recordingRef.current.getStatusAsync();
@@ -3728,8 +3994,13 @@ Only include events directly relevant to the question. Max 5 events.`;
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
       if (!uri || cancel) return;
+      // Show thinking dots immediately while Whisper transcribes
+      const voiceThinkId = uid();
+      setMessages(prev => [...prev, { id:voiceThinkId, role:'zaeli', text:'', isLoading:true, ts:nowTs() }]);
+      isAtBottom.current = true;
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated:false }), 50);
       const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
-      if (!key) return;
+      if (!key) { setMessages(prev => prev.filter(m => m.id !== voiceThinkId)); return; }
       logWhisper(durationSec);
       const form = new FormData();
       form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
@@ -3737,6 +4008,8 @@ Only include events directly relevant to the question. Max 5 events.`;
       const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body:form });
       const data = await resp.json();
       const transcript = data?.text?.trim() ?? '';
+      // Remove the voice thinking dots
+      setMessages(prev => prev.filter(m => m.id !== voiceThinkId));
       if (!transcript) return;
       // If triggered from shop sheet mic button — parse and add as item
       if (shopMicMode.current) {
@@ -4620,13 +4893,13 @@ Only include events directly relevant to the question. Max 5 events.`;
         <KeyboardAvoidingView
           style={s.kavWrap}
           behavior={Platform.OS==='ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? -16 : 0}
         >
           <View style={{ flex:1, position:'relative' }}>
             <ScrollView
               ref={scrollRef}
               style={[s.scroll, { backgroundColor:T.bg }]}
-              contentContainerStyle={{ paddingHorizontal:0, paddingTop:14, paddingBottom:120 }}
+              contentContainerStyle={{ paddingHorizontal:0, paddingTop:14, paddingBottom:200 }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="always"
               onScroll={handleScroll}
@@ -4648,16 +4921,70 @@ Only include events directly relevant to the question. Max 5 events.`;
               {renderMessages()}
             </ScrollView>
 
+            {/* ── Mic recording — floating pill (exact match of FAB micPill) ── */}
+            {isRecording && (
+              <Animated.View style={{
+                position:'absolute',
+                bottom:Platform.OS==='ios'?124:110,
+                left:16, right:16, zIndex:60,
+                flexDirection:'column', alignItems:'center', justifyContent:'center',
+                gap:12,
+                backgroundColor:'rgba(255,255,255,0.97)',
+                borderRadius:28,
+                paddingVertical:24, paddingHorizontal:24,
+                shadowColor:'#000', shadowOpacity:0.16, shadowRadius:32, shadowOffset:{width:0,height:12},
+                elevation:16,
+                borderWidth:1, borderColor:'rgba(255,255,255,0.98)',
+                opacity:micOverlayAnim,
+              }}>
+                {/* Waveform bars — 7 bars, exact FAB heights */}
+                <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                  {[10,18,28,36,28,18,10].map((h, i) => (
+                    <Animated.View key={i} style={{ width:4, height:h, borderRadius:2, backgroundColor:'#FF4545', transform:[{ scaleY:waveAnims[i] }] }}/>
+                  ))}
+                </View>
+                {/* Label */}
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(10,10,10,0.45)' }}>{`Listening\u2026`}</Text>
+                {/* Cancel / Send buttons */}
+                <View style={{ flexDirection:'row', gap:12, marginTop:4 }}>
+                  <TouchableOpacity onPress={() => stopRecording(true)} activeOpacity={0.75} style={{ flex:1, backgroundColor:'rgba(255,69,69,0.09)', borderRadius:14, paddingVertical:12, alignItems:'center' }}>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#FF4545' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => stopRecording()} activeOpacity={0.75} style={{ flex:1, backgroundColor:'#FF4545', borderRadius:14, paddingVertical:12, alignItems:'center' }}>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#fff' }}>{`Send \u2192`}</Text>
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            )}
+
+            {/* ── UP/DOWN scroll arrows — side by side ── */}
+            <View style={{ position:'absolute', right:14, bottom:Platform.OS==='ios'?110:96, zIndex:50, flexDirection:'row', gap:8 }}>
+              <TouchableOpacity
+                onPress={() => scrollRef.current?.scrollTo({ y:0, animated:true })}
+                activeOpacity={0.7}
+                style={{ width:38, height:38, borderRadius:19, backgroundColor:'#FFFFFF', alignItems:'center', justifyContent:'center', shadowColor:'#000', shadowOpacity:0.12, shadowRadius:10, shadowOffset:{width:0,height:3}, elevation:5, borderWidth:1, borderColor:'rgba(220,220,220,0.4)' }}
+              >
+                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.45)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => scrollRef.current?.scrollToEnd({ animated:true })}
+                activeOpacity={0.7}
+                style={{ width:38, height:38, borderRadius:19, backgroundColor:'#FFFFFF', alignItems:'center', justifyContent:'center', shadowColor:'#000', shadowOpacity:0.12, shadowRadius:10, shadowOffset:{width:0,height:3}, elevation:5, borderWidth:1, borderColor:'rgba(220,220,220,0.4)' }}
+              >
+                <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.45)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="5" x2="12" y2="19"/><Polyline points="19 12 12 19 5 12"/></Svg>
+              </TouchableOpacity>
+            </View>
+
             {/* ── BAR — absolute over scroll, KAV moves parent View above keyboard ── */}
             <View style={s.barFloat}>
-              <View style={s.barPill} onTouchEnd={() => inputRef.current?.focus()}>
+              <View style={s.barPill}>
                 <TouchableOpacity
                   style={s.barBtn}
-                  onPress={() => fabRef.current?.startMic()}
+                  onPress={() => { isRecording ? stopRecording() : startRecording(); }}
                   activeOpacity={0.75}
                 >
                   <Svg width={26} height={26} viewBox="0 0 24 24" fill="none"
-                    stroke="rgba(10,10,10,0.48)" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+                    stroke={isRecording ? '#FF4545' : 'rgba(10,10,10,0.48)'} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
                     <Path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
                     <Path d="M19 10v2a7 7 0 01-14 0v-2"/>
                     <Line x1="12" y1="19" x2="12" y2="23"/>
@@ -4679,7 +5006,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                 />
                 <View
                   style={[s.barBtn, { backgroundColor:'#FF4545' }, !input.trim() && { opacity:0.3 }]}
-                  onTouchStart={() => { if (input.trim()) send(input); }}
+                  onTouchStart={() => { if (input.trim()) { const t = input; setInput(''); send(t); } }}
                 >
                   <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"
                     stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
@@ -5849,11 +6176,11 @@ const s = StyleSheet.create({
     flexDirection:'row',
     alignItems:'center',
     gap:4,
-    backgroundColor:'rgba(255,255,255,0.88)',
+    backgroundColor:'#FFFFFF',
     borderRadius:36,
     padding:10,
     borderWidth:1,
-    borderColor:'rgba(255,255,255,0.98)',
+    borderColor:'rgba(220,220,220,0.6)',
     shadowColor:'#000',
     shadowOpacity:0.14,
     shadowRadius:28,
@@ -5885,19 +6212,19 @@ const s = StyleSheet.create({
   barFloat: {
     position:'absolute',
     bottom:0, left:0, right:0,
-    alignItems:'center',
+    paddingHorizontal:14,
     paddingBottom:Platform.OS === 'ios' ? 24 : 14,
   },
   barPill: {
     flexDirection:'row',
     alignItems:'center',
-    width:360,                                // FAB_WIDTH
+    width:'100%' as any,                      // full width within paddingHorizontal
     gap:4,                                    // FAB_GAP
-    backgroundColor:'rgba(255,255,255,0.88)', // FAB bg
+    backgroundColor:'#FFFFFF',                 // solid white — no transparency
     borderRadius:36,                          // FAB borderRadius
     padding:10,                               // FAB_PAD
     borderWidth:1,
-    borderColor:'rgba(255,255,255,0.98)',
+    borderColor:'rgba(220,220,220,0.6)',
     shadowColor:'#000',
     shadowOpacity:0.14,
     shadowRadius:28,

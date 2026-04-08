@@ -848,7 +848,7 @@ function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onTogg
 // ══════════════════════════════════════════════════════════════════════════════
 // ── MAIN SCREEN ───────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
-export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: () => void }) {
+export default function DashboardScreen({ onNavigateChat, isActive = false }: { onNavigateChat?: () => void; isActive?: boolean }) {
   const insets     = useSafeAreaInsets();
   const router     = useRouter();
   const isAfter8pm = new Date().getHours() >= 20;
@@ -958,6 +958,17 @@ export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: (
     return () => clearInterval(interval);
   }, [loadData]));
 
+  // Refresh card data when swiping back to dashboard from chat
+  const prevDashActive = useRef(false);
+  useEffect(() => {
+    const justBecameActive = isActive && !prevDashActive.current;
+    prevDashActive.current = isActive;
+    if (justBecameActive) {
+      console.log('DASH: became active, refreshing data');
+      loadData();
+    }
+  }, [isActive, loadData]);
+
   const showCalTomorrow    = isAfter8pm || (cardData.todayEvents.length === 0 && cardData.tomorrowEvents.length > 0);
   const showDinnerTomorrow = isAfter8pm;
   const isEvening          = isAfter8pm;
@@ -979,10 +990,10 @@ export default function DashboardScreen({ onNavigateChat }: { onNavigateChat?: (
     }
   }
 
-  function goToEditEvent(ev: any)   { setPendingChatContext({ type:'edit_event', event:ev, returnTo:'dashboard' }); onNavigateChat?.(); }
-  function goToAddEvent()           { setPendingChatContext({ type:'add_event',  returnTo:'dashboard' }); onNavigateChat?.(); }
-  function goToAddShopping()        { setPendingChatContext({ type:'shopping',   returnTo:'dashboard' }); onNavigateChat?.(); }
-  function goToAddTodo()            { setPendingChatContext({ type:'actions',    returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToEditEvent(ev: any)   { console.log('DASH: setPending edit_event'); setPendingChatContext({ type:'edit_event', event:ev, returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToAddEvent()           { console.log('DASH: setPending add_event'); setPendingChatContext({ type:'add_event',  returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToAddShopping()        { console.log('DASH: setPending shopping'); setPendingChatContext({ type:'shopping',   returnTo:'dashboard' }); onNavigateChat?.(); }
+  function goToAddTodo()            { console.log('DASH: setPending actions'); setPendingChatContext({ type:'actions',    returnTo:'dashboard' }); onNavigateChat?.(); }
   function goToEditMeal(meal: any|null, dateKey: string, dayAbbr: string) {
     setPendingChatContext({ type:'meals', event:{ meal, dateKey, dayAbbr }, returnTo:'dashboard' });
     onNavigateChat?.();

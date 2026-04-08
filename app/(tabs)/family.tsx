@@ -99,7 +99,7 @@ const CHILD_DETAIL: Record<ChildName, { subjects: { name: string; band: string; 
 };
 
 // ── SVG Icons ────────────────────────────────────────────────────────────────
-function IcoBack({ color = INK, size = 10 }: { color?: string; size?: number }) {
+function IcoBack({ color = INK, size = 14 }: { color?: string; size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke={color} strokeWidth={2.5} strokeLinecap="round">
@@ -145,13 +145,15 @@ export default function OurFamilyScreen() {
     return (
       <>
         <View style={s.banner}>
-          <Text style={s.wordmark}>
-            z<Text style={{ color: FAM_ACCENT }}>a</Text>el
-            <Text style={{ color: FAM_ACCENT }}>i</Text>
-          </Text>
+          <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
+            <Text style={s.wordmark}>
+              z<Text style={{ color: FAM_ACCENT }}>a</Text>el
+              <Text style={{ color: FAM_ACCENT }}>i</Text>
+            </Text>
+          </TouchableOpacity>
           <View style={s.bannerRight}>
             <Text style={s.bannerLabel}>{title}</Text>
-            <View style={[s.avatar, { backgroundColor: FAMILY.Rich.colour, width: 28, height: 28 }]}>
+            <View style={[s.avatar, { backgroundColor: FAMILY.Rich.colour, width: 32, height: 32 }]}>
               <Text style={s.avatarTxt}>R</Text>
             </View>
           </View>
@@ -287,7 +289,7 @@ export default function OurFamilyScreen() {
                   {kid.sessions > 0 ? (
                     <Text style={s.kidStatN}>{kid.sessions}</Text>
                   ) : (
-                    <Text style={[s.kidStatN, { fontSize: 11 }]}>No Tutor</Text>
+                    <Text style={[s.kidStatN, { fontSize: 14 }]}>No Tutor</Text>
                   )}
                   <Text style={s.kidStatL}>{kid.sessions > 0 ? 'Sessions' : 'Not enrolled'}</Text>
                 </View>
@@ -352,8 +354,8 @@ export default function OurFamilyScreen() {
           <TouchableOpacity style={s.backBtn} onPress={goBack} activeOpacity={0.7}>
             <IcoBack />
           </TouchableOpacity>
-          <View style={[s.avatar, { backgroundColor: member.colour, width: 34, height: 34 }]}>
-            <Text style={[s.avatarTxt, { fontSize: 13 }]}>{member.initial}</Text>
+          <View style={[s.avatar, { backgroundColor: member.colour, width: 44, height: 44 }]}>
+            <Text style={[s.avatarTxt, { fontSize: 16 }]}>{member.initial}</Text>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.detailName}>{selectedChild}</Text>
@@ -370,7 +372,7 @@ export default function OurFamilyScreen() {
         {hasTutor && detail.subjects.length > 0 ? (
           <View style={s.sectionCard}>
             <View style={s.sectionCardHeader}>
-              <Text style={{ fontSize: 16 }}>{'\u{1F4DA}'}</Text>
+              <Text style={{ fontSize: 20 }}>{'\u{1F4DA}'}</Text>
               <Text style={s.sectionCardTitle}>Tutor progress</Text>
               <View style={s.streakBadge}>
                 <Text style={s.streakBadgeTxt}>{'\u{1F525}'} {kid.sessions} sessions</Text>
@@ -406,10 +408,10 @@ export default function OurFamilyScreen() {
         ) : !hasTutor ? (
           <View style={s.sectionCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 8 }}>
-              <Text style={{ fontSize: 22 }}>{'\u{1F4DA}'}</Text>
+              <Text style={{ fontSize: 26 }}>{'\u{1F4DA}'}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: INK, marginBottom: 1 }}>Tutor not enrolled</Text>
-                <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK4 }}>A$9.99/month {'\u00B7'} Australian curriculum Yr {(member as any).year}</Text>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, marginBottom: 1 }}>Tutor not enrolled</Text>
+                <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>A$9.99/month {'\u00B7'} Australian curriculum Yr {(member as any).year}</Text>
               </View>
             </View>
             <TouchableOpacity style={s.tutorCta} activeOpacity={0.7}>
@@ -421,7 +423,7 @@ export default function OurFamilyScreen() {
         {/* Kids Hub section */}
         <View style={s.sectionCard}>
           <View style={s.sectionCardHeader}>
-            <Text style={{ fontSize: 16 }}>{'\u{1F3E0}'}</Text>
+            <Text style={{ fontSize: 20 }}>{'\u{1F3E0}'}</Text>
             <Text style={s.sectionCardTitle}>Kids Hub</Text>
             <Text style={s.hubPtsBadge}>{'\u2B50'} {kid.points} pts</Text>
           </View>
@@ -591,7 +593,7 @@ export default function OurFamilyScreen() {
 
         {/* Add member */}
         <TouchableOpacity style={s.addMember} activeOpacity={0.7}>
-          <Text style={{ fontSize: 18, opacity: 0.4 }}>{'\u2795'}</Text>
+          <Text style={{ fontSize: 22, opacity: 0.4 }}>{'\u2795'}</Text>
           <Text style={s.addMemberTxt}>Add a family member</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -619,78 +621,78 @@ const s = StyleSheet.create({
   body: { flex: 1, backgroundColor: FAM_BG },
 
   // Banner
-  banner: { paddingHorizontal: 16, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: FAM_BG },
-  wordmark: { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 25, letterSpacing: -1, color: INK, lineHeight: 30 },
+  banner: { paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: FAM_BG },
+  wordmark: { fontFamily: 'Poppins_800ExtraBold', fontSize: 32, letterSpacing: -1.5, color: INK, lineHeight: 38 },
   bannerRight: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  bannerLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK4 },
+  bannerLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK4 },
   avatar: { borderRadius: 50, alignItems: 'center', justifyContent: 'center' },
-  avatarTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: '#fff' },
+  avatarTxt: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#fff' },
   divider: { height: 1, backgroundColor: 'rgba(0,0,0,0.08)' },
 
   // Sub header
-  subHeader: { paddingHorizontal: 13, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  backBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.08)', alignItems: 'center', justifyContent: 'center' },
-  subHeaderTitle: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: INK },
+  subHeader: { paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.08)', alignItems: 'center', justifyContent: 'center' },
+  subHeaderTitle: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: INK },
 
   // Section label
-  sectionLabel: { fontFamily: 'Poppins_700Bold', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', color: INK3, paddingHorizontal: 14, marginBottom: 5, marginTop: 10 },
+  sectionLabel: { fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: INK3, paddingHorizontal: 20, marginBottom: 8, marginTop: 16 },
 
   // Brief card
-  briefCard: { marginHorizontal: 12, marginTop: 10, backgroundColor: CARD, borderRadius: 16, padding: 14 },
+  briefCard: { marginHorizontal: 14, marginTop: 14, backgroundColor: CARD, borderRadius: 22, padding: 22 },
   briefEye: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 5 },
-  briefEyeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: FAM_ACCENT },
-  briefEyeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 8, letterSpacing: 0.5, textTransform: 'uppercase', color: 'rgba(161,24,48,0.5)' },
-  briefHero: { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 17, color: INK, lineHeight: 22, letterSpacing: -0.3, marginBottom: 5 },
+  briefEyeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: FAM_ACCENT },
+  briefEyeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 0.5, textTransform: 'uppercase', color: 'rgba(161,24,48,0.5)' },
+  briefHero: { fontFamily: 'Poppins_700Bold', fontSize: 24, color: INK, lineHeight: 30, letterSpacing: -0.5, marginBottom: 8 },
   briefHeroEm: { fontStyle: 'italic', color: 'rgba(0,0,0,0.3)' },
-  briefDetail: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: INK2, lineHeight: 18, marginBottom: 9 },
-  briefChips: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
-  briefChip: { borderWidth: 1, borderColor: 'rgba(0,0,0,0.12)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, backgroundColor: CARD },
-  briefChipTxt: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK2 },
+  briefDetail: { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK2, lineHeight: 22, marginBottom: 12 },
+  briefChips: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  briefChip: { borderWidth: 1, borderColor: 'rgba(0,0,0,0.12)', borderRadius: 22, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: CARD },
+  briefChipTxt: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK2 },
 
   // Brief quiet
-  briefQuiet: { marginHorizontal: 12, marginTop: 10, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 14, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  briefQuietIcon: { fontSize: 20 },
-  briefQuietTxt: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: INK2, lineHeight: 17, flex: 1 },
+  briefQuiet: { marginHorizontal: 14, marginTop: 14, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 20, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  briefQuietIcon: { fontSize: 24 },
+  briefQuietTxt: { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK2, lineHeight: 22, flex: 1 },
 
   // Pending card
-  pendingCard: { backgroundColor: CARD, borderRadius: 13, paddingHorizontal: 13, paddingVertical: 11, marginHorizontal: 12, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  pendingAvatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  pendingAvatarTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: '#fff' },
+  pendingCard: { backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, marginHorizontal: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pendingAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  pendingAvatarTxt: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' },
   pendingInfo: { flex: 1, minWidth: 0 },
-  pendingTagRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 },
-  pendingTag: { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1 },
-  pendingTagTxt: { fontFamily: 'Poppins_700Bold', fontSize: 7, textTransform: 'uppercase', letterSpacing: 0.3 },
+  pendingTagRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  pendingTag: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3 },
+  pendingTagTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
   tagJob: { backgroundColor: 'rgba(168,232,204,0.25)' },
   tagJobTxt: { color: HUB_DARK },
   tagReward: { backgroundColor: 'rgba(161,24,48,0.1)' },
   tagRewardTxt: { color: RED_ACCENT },
-  pendingTitle: { fontFamily: 'Poppins_700Bold', fontSize: 11, color: INK, marginBottom: 1 },
-  pendingSub: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK4, lineHeight: 14 },
+  pendingTitle: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, marginBottom: 2 },
+  pendingSub: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, lineHeight: 18 },
   pendingBtns: { flexDirection: 'column', gap: 4 },
-  pendingYes: { backgroundColor: HUB_DARK, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 4, alignItems: 'center' },
-  pendingYesTxt: { fontFamily: 'Poppins_700Bold', fontSize: 9, color: '#fff' },
-  pendingNo: { backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 7, paddingHorizontal: 9, paddingVertical: 4, alignItems: 'center' },
-  pendingNoTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 9, color: INK4 },
-  pendingCountBadge: { backgroundColor: RED_ACCENT, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 2 },
-  pendingCountTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: '#fff' },
+  pendingYes: { backgroundColor: HUB_DARK, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7, alignItems: 'center' },
+  pendingYesTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#fff' },
+  pendingNo: { backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7, alignItems: 'center' },
+  pendingNoTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK4 },
+  pendingCountBadge: { backgroundColor: RED_ACCENT, borderRadius: 22, paddingHorizontal: 12, paddingVertical: 4 },
+  pendingCountTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#fff' },
 
   // Kid card
-  kidCard: { backgroundColor: CARD, borderRadius: 14, marginHorizontal: 12, marginBottom: 7, padding: 12 },
-  kidTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  kidAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  kidAvatarTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#fff' },
-  kidName: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: INK },
-  kidNameMeta: { fontFamily: 'Poppins_400Regular', fontSize: 10, color: 'rgba(0,0,0,0.35)' },
-  kidMeta: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK4, marginTop: 1 },
-  kidPts: { backgroundColor: 'rgba(10,64,48,0.08)', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3, marginLeft: 'auto' },
-  kidPtsTxt: { fontFamily: 'Poppins_800ExtraBold', fontSize: 11, color: HUB_DARK },
-  kidStats: { flexDirection: 'row', gap: 6 },
-  kidStat: { flex: 1, backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 9, paddingVertical: 6, paddingHorizontal: 8, alignItems: 'center' },
-  kidStatN: { fontFamily: 'Poppins_800ExtraBold', fontSize: 13, color: INK, lineHeight: 16 },
-  kidStatL: { fontFamily: 'Poppins_600SemiBold', fontSize: 7, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 1 },
-  kidActions: { flexDirection: 'row', gap: 6, marginTop: 8 },
-  kidAction: { flex: 1, borderRadius: 9, paddingVertical: 7, alignItems: 'center' },
-  kidActionTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10 },
+  kidCard: { backgroundColor: CARD, borderRadius: 22, marginHorizontal: 14, marginBottom: 10, padding: 20 },
+  kidTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  kidAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  kidAvatarTxt: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#fff' },
+  kidName: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK },
+  kidNameMeta: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(0,0,0,0.35)' },
+  kidMeta: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, marginTop: 2 },
+  kidPts: { backgroundColor: 'rgba(10,64,48,0.08)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 5, marginLeft: 'auto' },
+  kidPtsTxt: { fontFamily: 'Poppins_800ExtraBold', fontSize: 14, color: HUB_DARK },
+  kidStats: { flexDirection: 'row', gap: 8 },
+  kidStat: { flex: 1, backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 10, alignItems: 'center' },
+  kidStatN: { fontFamily: 'Poppins_800ExtraBold', fontSize: 17, color: INK, lineHeight: 20 },
+  kidStatL: { fontFamily: 'Poppins_600SemiBold', fontSize: 9, color: 'rgba(0,0,0,0.35)', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 2 },
+  kidActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  kidAction: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  kidActionTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13 },
   kidActionTutor: { backgroundColor: TUTOR_BG },
   kidActionTutorTxt: { color: TUTOR_PURPLE },
   kidActionTutorLocked: { backgroundColor: 'rgba(0,0,0,0.05)' },
@@ -699,79 +701,79 @@ const s = StyleSheet.create({
   kidActionHubTxt: { color: HUB_DARK },
 
   // Quick links
-  quickLinks: { flexDirection: 'row', gap: 8, marginHorizontal: 12, marginTop: 12 },
-  quickLink: { flex: 1, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
-  quickLinkTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK4 },
+  quickLinks: { flexDirection: 'row', gap: 10, marginHorizontal: 14, marginTop: 16 },
+  quickLink: { flex: 1, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  quickLinkTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 },
 
   // Child detail
-  detailHeader: { paddingHorizontal: 13, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  detailName: { fontFamily: 'Poppins_800ExtraBold', fontSize: 14, color: INK, lineHeight: 18 },
-  detailMeta: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK4 },
-  editBadge: { backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 4 },
-  editBadgeTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: 'rgba(0,0,0,0.35)' },
+  detailHeader: { paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  detailName: { fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, lineHeight: 24 },
+  detailMeta: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 },
+  editBadge: { backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
+  editBadgeTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: 'rgba(0,0,0,0.35)' },
 
   // Section card (white card in detail views)
-  sectionCard: { marginHorizontal: 12, backgroundColor: CARD, borderRadius: 14, padding: 12, marginBottom: 8 },
-  sectionCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  sectionCardTitle: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: INK, flex: 1 },
-  streakBadge: { backgroundColor: TUTOR_BG, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  streakBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 9, color: TUTOR_PURPLE },
-  hubPtsBadge: { fontFamily: 'Poppins_800ExtraBold', fontSize: 11, color: HUB_DARK },
+  sectionCard: { marginHorizontal: 14, backgroundColor: CARD, borderRadius: 22, padding: 20, marginBottom: 10 },
+  sectionCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  sectionCardTitle: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, flex: 1 },
+  streakBadge: { backgroundColor: TUTOR_BG, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
+  streakBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: TUTOR_PURPLE },
+  hubPtsBadge: { fontFamily: 'Poppins_800ExtraBold', fontSize: 14, color: HUB_DARK },
 
   // Subject rows
-  subjectRow: { marginBottom: 8 },
-  subjTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-  subjName: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK },
-  subjBand: { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1 },
-  subjBandTxt: { fontFamily: 'Poppins_700Bold', fontSize: 8 },
-  subjBarWrap: { height: 5, backgroundColor: 'rgba(0,0,0,0.07)', borderRadius: 3, overflow: 'hidden', marginBottom: 2 },
-  subjBar: { height: 5, borderRadius: 3 },
-  subjNote: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK4, lineHeight: 14 },
+  subjectRow: { marginBottom: 12 },
+  subjTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 },
+  subjName: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK },
+  subjBand: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3 },
+  subjBandTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10 },
+  subjBarWrap: { height: 7, backgroundColor: 'rgba(0,0,0,0.07)', borderRadius: 4, overflow: 'hidden', marginBottom: 4 },
+  subjBar: { height: 7, borderRadius: 4 },
+  subjNote: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, lineHeight: 18 },
 
   // Recent session
-  recentSession: { backgroundColor: 'rgba(0,0,0,0.03)', borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  rsDot: { width: 6, height: 6, borderRadius: 3 },
-  rsTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK },
-  rsMeta: { fontFamily: 'Poppins_400Regular', fontSize: 8, color: 'rgba(0,0,0,0.35)' },
-  rsView: { fontFamily: 'Poppins_700Bold', fontSize: 9, color: TUTOR_PURPLE },
+  recentSession: { backgroundColor: 'rgba(0,0,0,0.03)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+  rsDot: { width: 8, height: 8, borderRadius: 4 },
+  rsTitle: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK },
+  rsMeta: { fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(0,0,0,0.35)' },
+  rsView: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: TUTOR_PURPLE },
 
   // Hub stats
-  hubStatRow: { flexDirection: 'row', gap: 6, marginBottom: 8 },
-  hubStat: { flex: 1, backgroundColor: 'rgba(168,232,204,0.15)', borderRadius: 9, paddingVertical: 7, paddingHorizontal: 8, alignItems: 'center' },
-  hubStatN: { fontFamily: 'Poppins_800ExtraBold', fontSize: 15, color: HUB_DARK, lineHeight: 18 },
-  hubStatL: { fontFamily: 'Poppins_600SemiBold', fontSize: 7, color: 'rgba(10,64,48,0.5)', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 2 },
+  hubStatRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  hubStat: { flex: 1, backgroundColor: 'rgba(168,232,204,0.15)', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 10, alignItems: 'center' },
+  hubStatN: { fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: HUB_DARK, lineHeight: 22 },
+  hubStatL: { fontFamily: 'Poppins_600SemiBold', fontSize: 9, color: 'rgba(10,64,48,0.5)', textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 2 },
 
   // Job mini
-  jobMini: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
-  jobMiniIcon: { fontSize: 13 },
-  jobMiniName: { fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK, flex: 1 },
-  jobMiniCheck: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.12)', alignItems: 'center', justifyContent: 'center' },
+  jobMini: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' },
+  jobMiniIcon: { fontSize: 18 },
+  jobMiniName: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, flex: 1 },
+  jobMiniCheck: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.12)', alignItems: 'center', justifyContent: 'center' },
   jobMiniCheckDone: { backgroundColor: HUB_GREEN, borderColor: HUB_GREEN },
 
   // Tutor CTA
-  tutorCta: { backgroundColor: TUTOR_PURPLE, borderRadius: 10, paddingVertical: 9, alignItems: 'center' },
-  tutorCtaTxt: { fontFamily: 'Poppins_700Bold', fontSize: 11, color: '#fff' },
+  tutorCta: { backgroundColor: TUTOR_PURPLE, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
+  tutorCtaTxt: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' },
 
   // Profile card
-  profileCard: { backgroundColor: CARD, borderRadius: 13, paddingHorizontal: 13, paddingVertical: 12, marginHorizontal: 12, marginBottom: 7, flexDirection: 'row', alignItems: 'center', gap: 11 },
+  profileCard: { backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, marginHorizontal: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 14 },
   profileAvWrap: { position: 'relative' },
-  profileColourRing: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  profileRingTxt: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' },
-  profileName: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: INK, marginBottom: 2 },
-  profileMeta: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK4, lineHeight: 15 },
-  loginBadge: { backgroundColor: 'rgba(34,197,94,0.12)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, alignSelf: 'flex-start', marginTop: 3 },
-  loginBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 8, color: '#166534' },
-  inviteBadge: { backgroundColor: 'rgba(99,102,241,0.1)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 1, alignSelf: 'flex-start', marginTop: 3 },
-  inviteBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 8, color: '#4338CA' },
-  parentDeviceTxt: { fontFamily: 'Poppins_400Regular', fontSize: 9, color: 'rgba(0,0,0,0.35)', marginTop: 3 },
-  roleBadge: { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start' },
-  roleBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.3 },
+  profileColourRing: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  profileRingTxt: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: '#fff' },
+  profileName: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, marginBottom: 3 },
+  profileMeta: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, lineHeight: 19 },
+  loginBadge: { backgroundColor: 'rgba(34,197,94,0.12)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 5 },
+  loginBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: '#166534' },
+  inviteBadge: { backgroundColor: 'rgba(99,102,241,0.1)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start', marginTop: 5 },
+  inviteBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: '#4338CA' },
+  parentDeviceTxt: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(0,0,0,0.35)', marginTop: 5 },
+  roleBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
+  roleBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.3 },
   roleParent: { backgroundColor: 'rgba(77,139,255,0.12)' },
   roleParentTxt: { color: '#1D4ED8' },
   roleChild: { backgroundColor: 'rgba(0,0,0,0.06)' },
   roleChildTxt: { color: INK4 },
 
   // Add member
-  addMember: { marginHorizontal: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.12)', borderRadius: 13, paddingHorizontal: 13, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  addMemberTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK4 },
+  addMember: { marginHorizontal: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.12)', borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  addMemberTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK4 },
 });

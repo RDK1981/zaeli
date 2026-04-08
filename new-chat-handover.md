@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*7 April 2026 — Phase 6 ✅ · Chat fix FAILED this session 🔴 · Next session: fix Chat properly*
+*8 April 2026 (evening) — Session 4 ✅ · Context flow + CRUD tools + Mic + Chat UI all working*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,30 +10,47 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-**CRITICAL: Read the "WHAT HAPPENED THIS SESSION" section in CLAUDE.md before touching any code.**
+---
+
+## ══════════════════════════════════
+## CURRENT STATE — EVERYTHING WORKING ✅
+## ══════════════════════════════════
+
+### What's built and fully working:
+- **Dashboard** — 5 cards, AI Zaeli Noticed (GPT mini), wttr.in weather, all context injection to chat
+- **Chat** — sends via onTouchStart, fixed [Mic][TextInput][Send] bar, context flow from dashboard
+- **My Space** — 7 cards, 4 sheets, dummy data
+- **swipe-world** — 3-page container, FAB, dots, landing overlay
+- **Context flow** — Dashboard card taps set context → chat picks it up via isActive + useEffect
+- **Dashboard refresh** — cards reload from Supabase when swiping back from chat
+- **Full CRUD tools** — all save to Supabase, triggered by Zaeli via Claude Sonnet tool-calling:
+  - Calendar: add / update / delete
+  - Todos: add / update / delete (supports mark_done)
+  - Shopping: add / update / delete
+  - Meals: add / update / delete (clash detection warns before swapping)
+- **Mic** — works in chat bar (startRecording/stopRecording directly), floating waveform pill overlay
+- **FAB mic** — Dashboard/MySpace mic passes transcript to chat via pendingMicText prop
+- **Chat UI** — solid white bar, full width, scroll arrows (UP/DOWN side-by-side), keyboard gap tuned
+- **Our Family + Kids Hub** — dedicated screens, dummy data
+
+### Key files:
+- `app/(tabs)/index.tsx` — Chat (exports SwipeWorld default + HomeScreen named)
+- `app/(tabs)/swipe-world.tsx` — Container (FAB, dots, landing, isActive props)
+- `app/(tabs)/dashboard.tsx` — Dashboard (5 cards, isActive refresh)
+- `app/(tabs)/my-space.tsx` — My Space (7 cards)
+- `app/components/ZaeliFAB.tsx` — FAB with mic waveform
+- `lib/navigation-store.ts` — Context passing between dashboard↔chat
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE OF FILES ON DISK
-## ══════════════════════════════════
-
-- `index.tsx` — TRUE ORIGINAL from git commit `419589f`. Has splash/entry/card stack. All context flows, sheets, inline cards, event booking WORK. Do not replace this file without reading CLAUDE.md first.
-- `swipe-world.tsx` — Original + `fabActive` and `setFabActive` passed into ChatScreen.
-
-**Git commit `419589f` is the safe baseline. Everything from the previous session's work is preserved here.**
-
----
-
-## ══════════════════════════════════
-## SCREEN ARCHITECTURE — READ FIRST (LOCKED ✅)
+## SCREEN ARCHITECTURE — LOCKED ✅
 ## ══════════════════════════════════
 
 **Three navigable screens:**
 ```
 Dashboard (0)  →  Chat (1)  →  My Space (2)
 ```
-App opens on Dashboard. Swipe right → Chat. Swipe right again → My Space.
 
 **92% SHEETS over Chat (never router.navigate()):**
 Calendar · Shopping · Meal Planner · Todos / Reminders · Notes · Travel
@@ -48,10 +65,9 @@ Tutor · Kids Hub · Our Family · Settings
 - **Two fixes at a time maximum** — any more = too many variables
 - One PowerShell command at a time, never chained with &&
 - Plain English before code · Design before code
-- **CRITICAL:** Upload files from `C:\Users\richa\zaeli\app\(tabs)\` — NEVER from Downloads
+- **CRITICAL:** All edits to `C:\Users\richa\zaeli` (NOT any worktree folder) — Expo runs from main folder
 - **CRITICAL:** Always `Remove-Item` old file before `Copy-Item` new one
 - **CRITICAL:** Always verify with `Get-Content ... | Select-Object -First 5` before running Expo
-- **CRITICAL:** Always add console.log to confirm taps register BEFORE attempting any fix
 
 ---
 
@@ -67,11 +83,13 @@ Tutor · Kids Hub · Our Family · Settings
 ```
 DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
 SONNET          = 'claude-sonnet-4-20250514'
-GPT_MINI        = 'gpt-4o-mini'
+GPT_MINI        = 'gpt-5.4-mini'
 OPENAI env var  = EXPO_PUBLIC_OPENAI_API_KEY
 Send button     = #FF4545 coral ALWAYS
 Body bg         = #FAF8F5 warm white ALWAYS
 KAV             = backgroundColor:'#fff' always
+Chat bar bg     = #FFFFFF solid white (NOT transparent)
+Chat bar border = rgba(220,220,220,0.6)
 Wordmark font   = Poppins_800ExtraBold (NOT DM Serif)
 Wordmark a+i    = #A8D8F0 sky blue (light and dark)
 DM Serif        = ghost numbers ONLY — never readable text
@@ -88,91 +106,29 @@ Weather API     = wttr.in (NOT Open-Meteo — times out in dev client)
 
 ---
 
-## What's built and working
-
-### ✅ Dashboard — Phase 6 complete
-All 5 cards. AI Zaeli Noticed (GPT mini). wttr.in weather. All context injection to Chat wired.
-
-### ✅ My Space — Phase 3b complete
-All 7 cards, 4 × 92% sheets. Dummy data.
-
-### ✅ swipe-world.tsx
-3-page container, FAB, dots, landing overlay. fabActive/setFabActive now passed to ChatScreen.
-
-### ✅ index.tsx — working but needs Chat interface fix
-All context flows working: edit_event, add_event, shopping, shopping_sheet, actions, meals, noticed.
-Calendar sheet, shopping sheet, inline cards, event booking, tool calling — all working.
-**Known issue:** Shows old splash → entry → card stack on fresh load. Fix documented below.
+## CRITICAL RULES (learned from 15+ hours debugging)
+- Chat bar = ALWAYS [Mic][TextInput][Send] — NEVER conditional render
+- Send button = `<View onTouchStart>` — NEVER onPress/onPressIn/TouchableOpacity
+- Clear input BEFORE calling send() — `setInput(''); send(text);`
+- NO onBlur handler on TextInput — causes unmount race
+- NO Keyboard.addListener setState — causes keyboard glitch loop
+- useFocusEffect does NOT fire on swipe in swipe-world — use isActive prop + useEffect
+- Chat mic = startRecording()/stopRecording() directly (FAB is unmounted on chat page)
+- FAB mic transcript = pendingMicText prop from swipe-world → chat useEffect sends it
+- swipe-world keyboardShouldPersistTaps = "handled" (NOT "always")
+- barPill must NOT have onTouchEnd focus handler (steals mic taps)
+- All edits to main zaeli folder, NOT worktree — Expo reads from main
 
 ---
 
-## ══════════════════════════════════
-## NEXT SESSION — FIX CHAT INTERFACE
-## ══════════════════════════════════
-
-**THIS IS THE ONLY PRIORITY FOR NEXT SESSION.**
-
-### What the problem actually is:
-1. The chat input bar is `position:absolute` inside a `ScrollView` — the ScrollView intercepts taps on the send button
-2. `useFocusEffect` doesn't fire on swipe in a horizontal ScrollView
-3. The old splash/entry screens masked problem 1 — they had their own input bar
-
-### The correct fix plan — follow this exactly:
-
-**Before writing any code:**
-- Upload `index.tsx`, `swipe-world.tsx`, `ZaeliFAB.tsx` 
-- Read all three
-- Add `console.log('SEND PRESSED')` to send button, test, confirm whether taps register
-
-**The fix (two parts only):**
-
-Part A — Move the input bar outside the ScrollView:
-- It should be a direct child of the main `<View style={{flex:1}}>` in HomeScreen
-- Sibling of KeyboardAvoidingView, NOT inside it
-- Keep `position:absolute, bottom:0` — this removes it from ScrollView touch area
-
-Part B — Replace useFocusEffect with a prop callback:
-- Add `onPageFocus` prop to HomeScreen
-- swipe-world calls it when scrolling to page 1
-- HomeScreen runs the context check inside `onPageFocus`
-
-**What NOT to do:**
-- Do not pass fabActive/setFabActive as props (causes re-render cascades)
-- Do not use display:none or opacity:0 to hide the TextInput (focus() won't work)
-- Do not use openKeyboardRef, focusRef, sendRef patterns (too complex)
-- Do not spend more than 30 minutes on any single approach
-
-### Also remove from index.tsx (safe, surgical):
-- `overviewOpen` state + "Today's overview" toggle
-- `renderCardStack()` and the card stack render
-- `generateBrief()` and `generatePostCardPrompt()`
-- Splash/entry screen render blocks
-- Add simple time-aware Zaeli greeting on fresh load
+## Next priorities
+1. 🔨 Design changes across all 3 pages (scheduled for next session)
+2. 🔨 Complete Shopping sheet
+3. 🔨 Todos sheet
+4. 🔨 Notes sheet (family)
+5. 🔨 Meals sheet
+6. 🔨 Travel sheet
 
 ---
 
-## Full project plan
-
-### Phase A — Make it solid
-1. ✅ Dashboard AI Zaeli Noticed + weather
-2. 🔴 Fix Chat interface — RETRY next session with new plan above
-3. 🔨 Complete Shopping sheet
-4. 🔨 Todos sheet
-5. 🔨 Notes sheet (family)
-6. 🔨 Meals sheet
-7. 🔨 Travel sheet
-
-### Phase B — Make it testable
-8. 🔨 Real authentication
-9. 🔨 EAS build + TestFlight
-10. 🔨 Kids Hub · Tutor rebuild · Our Family · Settings
-
-### Phase C — Make it launchable
-11. 🔨 Zaeli Voice · Push notifications · Integrations · Stripe · Website
-
-### Phase D — Scale
-12. 🔨 Live testing · Analytics · App Store · Multi-user sync
-
----
-
-**Read CLAUDE.md fully before starting. The "WHAT HAPPENED THIS SESSION" section is critical.**
+**Read CLAUDE.md fully before starting. All session 4 changes are documented there.**

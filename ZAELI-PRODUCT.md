@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 7 April 2026 — Phase 6 AI Zaeli Noticed ✅ · Full project plan added*
+*Last updated: 8 April 2026 (evening) — Session 4 ✅ · Dashboard↔Chat context flow · Full CRUD tools · Mic waveform · Chat UI refined*
 
 ---
 
@@ -50,8 +50,18 @@ Dashboard (0)  →  Chat (1)  →  My Space (2)
 - ✅ Brand pack — zaeli-brand-pack-2026.html
 - ✅ My Space — Phase 3b complete, all 7 cards, 4 sheets
 
+- ✅ Chat v5 — splash removed, fixed input bar, send via onTouchStart
+- ✅ Dashboard↔Chat context flow — isActive prop, auto-refresh on swipe back
+- ✅ Full CRUD tools — calendar, todos, shopping, meals (add/update/delete via chat)
+- ✅ Meal clash detection — warns user before swapping existing meals
+- ✅ Chat mic + waveform — direct recording with floating pill (matches FAB design)
+- ✅ FAB mic → chat pipeline — transcript passes via pendingMicText prop
+- ✅ Chat UI refined — solid white bar, full width, scroll arrows, keyboard gap
+- ✅ Our Family screen — dedicated, 4 sub-views, dummy data
+- ✅ Kids Hub screen — dedicated, jobs/rewards/games/leaderboard
+
 ### In progress / next
-- 🔨 Chat v5 — remove old card stack, add Zaeli greeting on fresh load
+- 🔨 Design changes across all 3 pages (next session)
 - 🔨 Todos sheet
 - 🔨 Complete Shopping sheet
 
@@ -139,18 +149,27 @@ Rich's personal world. All 7 cards built, all dummy data.
 ---
 
 ## ══════════════════════════════════
-## CHAT — CURRENT STATE + FIX NEEDED
+## CHAT — FULLY WORKING ✅ (sessions 3+4)
 ## ══════════════════════════════════
 
-**Current issue:** Fresh Chat load shows old splash → entry → dashboard card stack (Calendar, Dinner, Shopping, Actions). This is the old v4 brief/overview system that predates the Dashboard.
+**Resolved:** Chat opens directly (no splash/cards), fixed input bar, context flow working, full CRUD tools.
 
-**Target state:**
-- Chat opens directly — no splash, no card stack
-- Fresh load: Zaeli greets with a warm time-aware message ("Good morning Rich — what's on your mind?")
-- Context-triggered load: Zaeli already has context from the Dashboard card tap — keyboard ready
-- All existing context injection paths remain intact
+**What works:**
+- Chat opens directly with Zaeli greeting — no splash, no card stack
+- Dashboard card taps → context flows to chat via isActive + getPendingChatContext()
+- Full CRUD from chat: calendar, todos, shopping, meals (add/update/delete)
+- Meal planner clash detection — warns before swapping
+- Mic recording with waveform overlay (matches FAB design)
+- FAB mic from dashboard/myspace → transcript passes to chat
+- Thinking dots appear immediately (before Whisper transcription for voice)
+- Scroll arrows (UP/DOWN) floating above bar
+- Dashboard refreshes card data when swiping back from chat
 
-**Do in a dedicated fresh chat session — index.tsx is 6,026 lines.**
+**Tool list (all save to Supabase):**
+add_calendar_event · update_calendar_event · delete_calendar_event
+add_todo · update_todo · delete_todo
+add_shopping_item · update_shopping_item · delete_shopping_item
+add_meal · update_meal · delete_meal
 
 ---
 
@@ -161,7 +180,7 @@ Rich's personal world. All 7 cards built, all dummy data.
 ### Phase A — Make it solid (do now)
 1. ✅ Fix Dashboard load speed + Zaeli Noticed AI
 2. ✅ Fix weather (wttr.in)
-3. 🔨 Fix Chat interface — remove card stack, add Zaeli greeting
+3. ✅ Fix Chat interface — context flow, CRUD tools, mic, UI (sessions 3+4)
 4. 🔨 Complete Shopping sheet — half done, finish it
 5. 🔨 Build Todos sheet — three tabs (Mine · Family · Reminders), gold accent
 6. 🔨 Build Notes sheet (family) — quick win, similar pattern to Todos
@@ -220,7 +239,7 @@ Rich's personal world. All 7 cards built, all dummy data.
 - [x] My Space — all 7 cards, 4 sheets ✅
 - [x] AI Zaeli Noticed (GPT mini) ✅
 - [x] Weather switched to wttr.in ✅
-- [ ] Fix Chat interface (remove card stack) ← NEXT
+- [x] Fix Chat interface — context flow, CRUD tools, mic, UI ✅
 - [ ] Complete Shopping sheet
 - [ ] Todos sheet
 - [ ] Notes sheet (family)

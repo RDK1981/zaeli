@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 7 April 2026 (evening) — Chat fix FAILED again (session 2) 🔴 · Root causes narrowed · Next session plan updated*
+*Last updated: 8 April 2026 (evening) — Session 4 ✅ · Context flow WORKING · Full CRUD tools · Mic waveform · Dashboard refresh · Chat UI refined*
 
 ---
 
@@ -93,8 +93,24 @@ Individual pages   = useSafeAreaInsets() for manual paddingTop
 DM Serif           = ghost numbers ONLY (never readable UI text)
 Wordmark font      = Poppins_800ExtraBold (NOT DM Serif)
 Wordmark a+i       = #A8D8F0 sky blue — always, light and dark
-ZaeliFAB           = forwardRef, exposes startMic()
-FAB hides          = activeButton === 'keyboard' — restores on blur only
+ZaeliFAB           = forwardRef, exposes startMic() + openMore()
+FAB hides          = activeButton === 'keyboard' OR hideFabBar prop
+FAB on chat page   = HIDDEN via activePage !== PAGE_CHAT in swipe-world
+Chat bar           = fixed [Mic][TextInput][Send] — NEVER conditional render
+Chat send          = onTouchStart on raw <View> — NEVER onPress/onPressIn (blur race)
+Chat send button   = clear input BEFORE calling send() — setInput('') then send(text)
+Chat bar position  = position:absolute inside flex View inside KAV
+Chat bar width     = 100% with paddingHorizontal:14 on barFloat wrapper
+Chat bar bg        = solid #FFFFFF (NOT transparent/semi-transparent)
+Chat bar border    = rgba(220,220,220,0.6) — subtle grey not white
+Chat KAV offset    = keyboardVerticalOffset={-16} on iOS (tighter to keyboard)
+Chat paddingBottom = 200 on ScrollView contentContainer (clears bar + arrows)
+Chat scroll arrows = UP/DOWN side-by-side, 38px white circles, right:14, bottom:110
+Chat mic overlay   = floating pill above bar — exact copy of FAB micPill design
+Chat mic           = calls startRecording()/stopRecording() directly (NOT fabRef)
+Keyboard dismiss   = Keyboard.dismiss() on mic start
+Mic waveform       = 7 bars [10,18,28,36,28,18,10] width:4 coral, Cancel+Send buttons
+swipe-world scroll = keyboardShouldPersistTaps="handled" (dismiss on feed tap, keep on buttons)
 LANDING_TEST_MODE  = true (in swipe-world.tsx) — set false before launch
 Swipe pages        = Dashboard(0) · Chat(1) · My Space(2) — LOCKED
 3-dot colours      = coral(0) · coral(1) · sky #A8D8F0(2)
@@ -119,77 +135,69 @@ wttr.in codes      = mapWttrCode() in dashboard.tsx translates to internal codes
 ---
 
 ## ══════════════════════════════════
-## WHAT HAPPENED — SESSIONS 1 & 2 (READ THIS FIRST)
+## CHAT FIX — RESOLVED ✅ (session 3, 8 April 2026)
 ## ══════════════════════════════════
 
-**Goal:** Remove the splash/entry/card stack from Chat and replace with a simple Zaeli greeting. Send button must work.
+**Commit:** `590fb35` — working chat with fixed input bar
 
-**Result:** FAILED across two sessions (~12+ hours total). Chat send button still does not work.
+### The problem (sessions 1–3, ~15+ hours)
+React Native fires TextInput.onBlur BEFORE sibling TouchableOpacity.onPress. The old input bar was conditionally rendered: `{(fabActive === 'keyboard' || keyboardOpen) && ...}`. Tapping Send blurred the TextInput, which set the condition to false, which UNMOUNTED the bar before onPress could fire.
 
-### Three root causes identified (session 2 confirmed):
+### What FAILED (do NOT repeat):
+- onTouchEnd, onPressIn, Pressable — all still subject to blur ordering
+- Delayed onBlur (setTimeout) — caused keyboard flashing loop
+- Always-mounted with opacity:0 / height:0 — keyboard glitch from layout change in KAV
+- Two bars (overlay + hidden pill) — duplicates, touch confusion
+- Content swapping based on kbVisible or inputFocused — blur swaps before press fires
+- Keyboard.addListener setState — re-render during keyboard animation = glitch
+- Full rebuild to new file (chat-screen.tsx) — missing variable references, broken business logic
 
-**Problem 1: ScrollView touch interception on send button**
-The send button (TouchableOpacity) inside chatInputWrap gets its taps stolen by the vertical ScrollView. TextInput works (RN special-cases focus), but TouchableOpacity does not. Moving the input bar outside scrollWrap (as a flex child of KAV) did NOT fix the send button.
+### What WORKED (the solution):
+**Fixed bar with 3 elements that NEVER change:**
+```
+[Mic 58x58] [TextInput flex:1] [Send 58x58 coral]
+```
 
-**Problem 2: onBlur unmounts the input bar before onPress fires**
-React Native fires TextInput.onBlur BEFORE TouchableOpacity.onPress. When user taps send:
-1. TextInput blurs → onBlur sets fabActive='chat', keyboardOpen=false
-2. Condition `(fabActive === 'keyboard' || keyboardOpen)` becomes false
-3. Input bar unmounts → send button's onPress NEVER fires
-Even a 250ms setTimeout in onBlur did not fix this — suggests a deeper issue.
+**Critical implementation details:**
+1. Send button = `<View onTouchStart={send}>` — NOT onPress, NOT onPressIn, NOT TouchableOpacity
+2. Bar is `position:'absolute'` inside a `<View style={{flex:1, position:'relative'}}>` inside the KAV
+3. KAV resizes the parent View on keyboard open → bar (at bottom:0 of parent) rises above keyboard
+4. `keyboardShouldPersistTaps="always"` on ScrollView
+5. NO onBlur handler on TextInput
+6. NO conditional rendering — bar is always 3 elements, always mounted
+7. NO state changes during keyboard animation — zero layout thrash
+8. FAB hidden on chat page: `{activePage !== PAGE_CHAT && <ZaeliFAB .../>}` in swipe-world
+9. No fabActive/setFabActive coupling between swipe-world and chat
 
-**Problem 3: Re-render cascades between swipe-world and HomeScreen**
-When onFocus calls setFabActive('keyboard') (swipe-world's state), swipe-world re-renders, which re-renders ChatScreen. This can cause TextInput to lose focus → onBlur fires → re-render loop → app freezes. Attempting to fix with Keyboard.addListener broke everything (no chat, no mic, no dashboard context).
+### Render structure (LOCKED — do not change):
+```
+KAV (flex:1, behavior='padding')
+  View (flex:1, position:'relative')
+    ScrollView (flex:1, keyboardShouldPersistTaps='always')
+      date divider
+      renderMessages()
+    /ScrollView
+    View (position:'absolute', bottom:0, alignItems:'center')  ← barFloat
+      View (FAB styling: borderRadius:36, padding:10, gap:4)   ← barPill
+        [Mic] [TextInput] [Send via onTouchStart]
+      /View
+    /View
+  /View
+/KAV
+```
 
-### What was tried across both sessions (ALL FAILED):
-- Moving input bar inside/outside KAV (session 1)
-- display:none / opacity:0 / height:0 patterns (session 1)
-- Passing fabActive as external props (session 1) — re-render cascades
-- Moving input bar outside scrollWrap as flex child of KAV (session 2) — send still broken
-- Making input bar position:absolute inside KAV (session 2) — bar went behind keyboard
-- Always-rendered input bar + Keyboard listeners replacing onFocus/onBlur (session 2) — broke everything
-- setTimeout(250ms) in onBlur to delay unmount (session 2) — send still broken
-- Auto-focus useEffect when fabActive='keyboard' (session 2) — focus worked, send didn't
-
-### Current state of files on disk:
-- `index.tsx` — TRUE ORIGINAL from last git commit `419589f` (reverted and confirmed clean)
-- `swipe-world.tsx` — Original from last git commit (reverted and confirmed clean)
-
-### What is safe:
-ALL work from previous sessions (dashboard context flows, sheets, inline cards, event booking, shopping, Zaeli Noticed, weather) is preserved in git commit `419589f`.
-
----
-
-## ══════════════════════════════════
-## CHAT FIX — SESSION 3 PLAN (CRITICAL)
-## ══════════════════════════════════
-
-**DO NOT repeat any of the approaches listed above.** Two sessions of attempting incremental fixes to the existing input bar have failed. The core problem is that conditional rendering + onBlur/onPress ordering + cross-component state = unresolvable in this architecture.
-
-### Approaches NOT yet tried (try these):
-
-**Option A — onTouchEnd instead of onPress on send button**
-TouchableOpacity.onPress fires AFTER blur. But `onTouchEnd` on a raw `<View>` fires immediately on touch release, before blur propagates. Replace the send TouchableOpacity with a `<View onTouchEnd={...}>`. This bypasses the responder system entirely. SMALLEST CHANGE — try this first.
-
-**Option B — Pressable instead of TouchableOpacity**
-React Native's `Pressable` component uses a different touch system. May not have the same onBlur-before-onPress ordering issue.
-
-**Option C — Always-mounted input bar (never unmount)**
-Remove `{(fabActive === 'keyboard' || keyboardOpen) && ...}` conditional entirely. Always render the input bar. Use a separate mechanism to show/hide the FAB (e.g. track keyboard state with Keyboard.addListener, separate from fabActive). This eliminates the unmount-before-onPress race condition. WARNING: a previous attempt at this broke everything — the failure was likely because Keyboard listeners also called setFabActive which caused the same re-render cascade. Use a SEPARATE local state for keyboard visibility instead.
-
-**Option D — Minimal test first**
-Create a dead-simple test: just a TextInput + TouchableOpacity send button inside HomeScreen, outside any ScrollView/KAV, with console.log on both onPress and inside send(). Strip everything else. Confirm basic touch works in swipe-world. Then build back up.
-
-**Option E — Add console.log INSIDE send() function (line ~3464)**
-We never confirmed whether send() is actually called. The console.log on the button onPress may fire but send() may bail early (e.g. `loading` stuck at true, or `lastSendRef.current === sendKey` dedup). Add `console.log('SEND CALLED', text, loading, lastSendRef.current)` as the first line of send().
-
-### Key rules:
-- ONE change at a time. Test on device. If broken, revert immediately.
-- Do NOT stack multiple fixes — this caused both sessions to fail
-- Do NOT change swipe-world.tsx unless absolutely necessary
-- Do NOT replace Keyboard/onFocus/onBlur patterns without testing each in isolation
-- Always verify files are clean with `git diff` before and after each change
-- Maximum 20 minutes on any single approach before stepping back
+### Bar styles (session 4 refined):
+```
+barFloat: position:absolute, bottom:0, paddingHorizontal:14, paddingBottom:24(iOS)/14
+barPill: width:100%, gap:4, backgroundColor:'#FFFFFF' (solid white),
+         borderRadius:36, padding:10, borderWidth:1,
+         borderColor:'rgba(220,220,220,0.6)',
+         shadow: #000 0.14 radius:28 offset:{0,10}
+barBtn:  width:58, height:58, borderRadius:22
+Mic SVG: 26x26, strokeWidth:1.7, stroke:'rgba(10,10,10,0.48)' / coral when recording
+Send:    backgroundColor:'#FF4545', opacity:0.3 when empty
+         onTouchStart — clear input first, then send
+```
 
 ---
 
@@ -215,7 +223,8 @@ We never confirmed whether send() is actually called. The console.log on the but
 - Page 0: DashboardScreen ✅
 - Page 1: HomeScreen (named export from index.tsx) ✅
 - Page 2: MySpaceScreen ✅
-- fabActive + setFabActive passed into ChatScreen ✅
+- FAB HIDDEN on chat page: `{activePage !== PAGE_CHAT && <ZaeliFAB/>}`
+- Chat has its own input bar (not FAB-driven)
 
 **Landing overlay:** Stays as-is. `LANDING_TEST_MODE = true` — flip before launch.
 
@@ -230,20 +239,41 @@ All 7 cards built, 4 × 92% sheets. All dummy data.
 ---
 
 ## ══════════════════════════════════
-## CHAT — BROKEN 🔴 (session 3 must fix)
+## CHAT — FULLY WORKING ✅ (sessions 3+4, 8 April 2026)
 ## ══════════════════════════════════
 
-**Current state:** index.tsx is the ORIGINAL from commit `419589f` — has splash/entry/card stack on load. Chat works via the entry screen only. Send button in the main chat input bar does NOT work when embedded in swipe-world.
+**Session 3 commit:** `590fb35` — chat sends, keyboard works, bar floats
+**Session 4:** Context flow, full CRUD tools, mic, UI refinements
 
-**Target state:** Chat opens directly with Zaeli greeting. No splash. No card stack. Input bar receives taps reliably. Send button works. Dashboard context flows preserved.
+### Session 3 (send fix):
+- `screen` starts as `'chat'` (splash/entry skipped)
+- `chatOpacity` starts at `1`
+- Mount useEffect: `generateBrief(true); loadCardData();`
+- DM Serif hero + card stack + overview toggle REMOVED from chat scroll
+- Banner: Poppins_800ExtraBold 36px, warm white `#FAF8F5`
+- Old conditional input bar REPLACED with fixed [Mic][TextInput][Send]
+- Send uses `onTouchStart` (bypasses blur race condition)
+- FAB hidden on chat page in swipe-world
 
-**All context injection paths are working in the original** — edit_event, add_event, shopping, shopping_sheet, actions, meals, noticed. Do not touch these.
-
-**The skip-splash changes are safe and tested:**
-- `screen` initial state: `'splash'` → `'chat'`
-- `chatOpacity` initial value: `0` → `1`
-- Mount useEffect: `generateBrief(true); loadCardData();` (replace splash animation)
-These three edits work — the chat loads. The ONLY remaining issue is the send button.
+### Session 4 (context flow + tools + UI):
+- **Context flow WORKING:** `isActive` prop from swipe-world + useEffect checks `getPendingChatContext()`
+- **Dashboard refresh on swipe back:** `isActive` prop on DashboardScreen triggers `loadData()` when becoming active
+- **Full CRUD tools (all save to Supabase, dashboard refreshes on swipe back):**
+  - Calendar: add / update / delete ✅ (was already there)
+  - Todos: add / update / delete ✅ (NEW — update supports mark_done)
+  - Shopping: add / update / delete ✅ (NEW)
+  - Meals: add / update / delete ✅ (NEW — add checks for date clashes, warns user)
+- **CAPABILITY_RULES expanded:** update vs add distinction, meal vs calendar distinction, day accuracy, no hallucinated confirmations
+- **Mic in chat bar:** calls startRecording()/stopRecording() directly (FAB is unmounted on chat page)
+- **Mic overlay:** floating pill above bar — exact copy of FAB micPill (7 waveform bars, Cancel/Send buttons)
+- **Mic from Dashboard/MySpace:** FAB onMicResult passes transcript via pendingMicText prop → chat sends it
+- **Thinking dots:** appear immediately when mic stops (before Whisper transcription), also aggressive scrollToEnd after text send
+- **Chat bar:** solid white #FFFFFF, full width with paddingHorizontal:14, borderColor grey not white
+- **Keyboard gap:** keyboardVerticalOffset={-16} on iOS pulls bar closer to keyboard
+- **Scroll arrows:** UP/DOWN side-by-side, 38px, right-aligned, above bar
+- **Keyboard dismiss:** swipe-world uses keyboardShouldPersistTaps="handled" (tap feed = dismiss, tap buttons = persist)
+- **Input clearing:** setInput('') called BEFORE send() so bar empties instantly
+- **ScrollView paddingBottom:** 200 (clears bar + arrows)
 
 ---
 
@@ -257,7 +287,7 @@ Dashboard stress testing       ✅
 Phase 3: swipe-world.tsx       ✅
 Phase 3b: My Space             ✅ all 7 cards, 4 sheets
 Phase 6: Zaeli Noticed (AI)    ✅ GPT mini, wttr.in weather
-Phase 5: Chat v5 / fix         🔴 FAILED sessions 1+2 — retry session 3 with new approaches
+Phase 5: Chat v5 / fix         ✅ RESOLVED sessions 3+4 — send, context flow, CRUD tools, mic, UI
 Phase 7: Todos sheet           🔨
 Phase 8: Shopping complete     🔨
 Phase 9: Meals sheet           🔨
@@ -289,6 +319,15 @@ Phase 15: Settings             🔨
 - Wordmark = Poppins_800ExtraBold (never DM Serif for readable text)
 - 92% sheets = height: H * 0.92 (never maxHeight)
 - Weather = wttr.in only (Open-Meteo times out in dev client)
-- GPT_MINI = 'gpt-4o-mini'
+- GPT_MINI = 'gpt-5.4-mini' (updated model)
 - NEVER pass fabActive/setFabActive as props from swipe-world unless you are certain the input bar is outside the ScrollView
 - ALWAYS add console.log before attempting any touch/send fix — confirm the tap is registering first
+- useFocusEffect does NOT fire on swipe in swipe-world — use isActive prop + useEffect instead
+- Dashboard + Chat both need isActive prop from swipe-world for data refresh
+- Chat bar must NOT have onTouchEnd focus handler on barPill (steals mic taps → raises keyboard)
+- Mic in chat = startRecording()/stopRecording() directly (FAB is unmounted on chat page)
+- FAB mic transcript passes via pendingMicText prop through swipe-world to chat
+- swipe-world keyboardShouldPersistTaps = "handled" (NOT "always" which traps keyboard)
+- Tool CAPABILITY_RULES must explicitly say update vs add, meal vs calendar
+- Meal add_meal tool checks for date clashes — returns CLASH: warning, never auto-swaps
+- All edits go to C:\Users\richa\zaeli (NOT the worktree) — Expo runs from main folder

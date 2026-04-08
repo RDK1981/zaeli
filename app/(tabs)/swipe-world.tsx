@@ -46,6 +46,7 @@ export default function SwipeWorld() {
   const [activePage,  setActivePage]  = useState(PAGE_DASHBOARD);
   const [fabActive,   setFabActive]   = useState<'dashboard' | 'chat' | 'keyboard' | 'myspace'>('dashboard');
   const [showLanding, setShowLanding] = useState(false);
+  const [pendingMicText, setPendingMicText] = useState<string|null>(null);
 
   // Open on Dashboard
   useEffect(() => {
@@ -121,19 +122,23 @@ export default function SwipeWorld() {
         scrollEventThrottle={16}
         onScroll={handleScroll}
         bounces={false}
+        keyboardShouldPersistTaps="handled"
         style={s.scroll}
         contentContainerStyle={{ flexGrow: 0 }}
       >
         {/* Page 0 — Dashboard */}
         <View style={s.page}>
-          <DashboardScreen onNavigateChat={() => scrollToPage(PAGE_CHAT)} />
+          <DashboardScreen onNavigateChat={() => scrollToPage(PAGE_CHAT)} isActive={activePage === PAGE_DASHBOARD} />
         </View>
 
         {/* Page 1 — Chat */}
         <View style={s.page}>
           <ChatScreen
             isEmbedded={true}
+            isActive={activePage === PAGE_CHAT}
             onNavigateDashboard={() => scrollToPage(PAGE_DASHBOARD)}
+            pendingMicText={pendingMicText}
+            onMicTextConsumed={() => setPendingMicText(null)}
           />
         </View>
 
@@ -171,7 +176,7 @@ export default function SwipeWorld() {
         onMySpace={onMySpace}
         onChatKeyboard={() => setFabActive('keyboard')}
         onMoreItem={onMoreItem}
-        onMicResult={() => scrollToPage(PAGE_CHAT)}
+        onMicResult={(text: string) => { setPendingMicText(text); scrollToPage(PAGE_CHAT); }}
       />}
 
       {/* ── Landing overlay ── */}
