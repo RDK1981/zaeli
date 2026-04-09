@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 9 April 2026 — Session 6 ✅ · Design session · Dashboard restructure · My Space reshuffle · Notes & Tasks · Our Budget module full design*
+*Last updated: 10 April 2026 — Session 7 ✅ · All My Space sheets built · Wordle full game · Supabase persistence · HealthKit reminder*
 
 ---
 
@@ -484,15 +484,46 @@ Phase 3b: My Space             ✅ redesigned — 6-card grid + brief + shell sh
 Phase 6: Zaeli Noticed (AI)    ✅ GPT mini, wttr.in weather
 Phase 5: Chat v5 / fix         ✅ RESOLVED sessions 3+4
 Phase 5b: Design refresh       ✅ Session 5 — all 3 pages, briefs, new brand colours
-Phase 7a: Dashboard restructure 🔨 ← Claude Code next (zaeli-restructure.html)
-Phase 7b: My Space reshuffle   🔨 ← Claude Code next (zaeli-restructure.html)
-Phase 7c: Notes & Tasks sheet  🔨 ← Claude Code next (zaeli-restructure.html)
-Phase 8: My Space sheet content 🔨 (Fitness, Goals, Notes, Stretch, Zen, Wordle)
-Phase 9: Our Budget module     🔨 ← (zaeli-budget-final.html) — big build
+Phase 7a: Dashboard restructure ✅ Weather+Budget bento, Noticed+FamilyTasks bento
+Phase 7b: My Space reshuffle   ✅ Fitness full-width, Goals small, Budget removed
+Phase 7c: Notes & Tasks sheet  ✅ Dual tab, tasks with due dates, Supabase persistence
+Phase 8a: Notes sheet           ✅ Full editor, share toggle, send, Supabase
+Phase 8b: Goals module          ✅ 6 types, 5-step wizard, logging, milestones, Supabase
+Phase 8c: Fitness sheet         ✅ SVG ring, metrics, weekly chart, workouts, goal editor
+Phase 8d: Stretch sheet         ✅ Session picker, 6 YouTube videos, movements, mark done
+Phase 8e: Zen sheet             ✅ 4 moods, 12 sessions, hero, YouTube links
+Phase 8f: Wordle                ✅ Full playable game, 2309 words, Supabase persistence, family leaderboard
+Phase 9: Our Budget module     🔨 ← NEXT big build (zaeli-budget-final.html)
 Phase 10: Dashboard sheets     🔨 (Family Tasks, Shopping, Calendar, Meals)
 Phase 11: Dedicated pages      🔨 (Kids Hub, Tutor, Our Family, Settings)
 Phase 12: Travel sheet         🔨
 ```
+
+---
+
+## ══════════════════════════════════
+## EAS BUILD REMINDERS (do when ready for TestFlight)
+## ══════════════════════════════════
+
+**HealthKit (Fitness sheet):**
+- Needs `expo-health` or `react-native-health` package
+- Needs HealthKit entitlement in `app.json` (`NSHealthShareUsageDescription`)
+- Needs Apple Developer account with HealthKit capability
+- Needs EAS Build → TestFlight install
+- Currently using dummy data — swap constants for real HealthKit reads
+- Read fresh on each sheet open (never cache fitness data)
+
+**YouTube embedded player (Stretch + Zen sheets):**
+- Currently uses `expo-web-browser` (in-app Safari overlay)
+- `react-native-youtube-iframe` + `react-native-webview` already in package.json
+- Needs EAS Build to compile native WebView module
+- Swap `WebBrowser.openBrowserAsync()` for `<YoutubePlayer>` component
+
+**Wordle cross-family challenges:**
+- Needs real authentication first (no more DUMMY_FAMILY_ID)
+- Challenge link system: `wordle_challenges` table linking two family IDs
+- Push notifications for challenges
+- Phase C feature — after auth + TestFlight
 
 ---
 

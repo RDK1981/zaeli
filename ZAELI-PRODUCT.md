@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 9 April 2026 — Session 6 ✅ · Design session · Dashboard restructure · My Space reshuffle · Notes & Tasks · Our Budget full design*
+*Last updated: 10 April 2026 — Session 7 ✅ · All My Space sheets built · Wordle full game · Dashboard polish · Supabase tables wired*
 
 ---
 
@@ -66,12 +66,22 @@ Dashboard (0)  →  Chat (1)  →  My Space (2)
   - What If mode — sandbox income scenario modelling designed
   - Naming conventions locked: Family Tasks · Notes & Tasks · Our Budget · Tasks
 
-### In progress / Claude Code next
-- 🔨 Dashboard restructure (zaeli-restructure.html handover ready)
-- 🔨 My Space reshuffle (zaeli-restructure.html handover ready)
-- 🔨 Notes & Tasks dual-tab sheet (zaeli-restructure.html handover ready)
-- 🔨 My Space sheet content (Fitness, Goals, Notes, Stretch, Zen, Wordle)
-- 🔨 Our Budget module (zaeli-budget-final.html handover ready — big build)
+### Session 7 (10 April 2026) — all My Space sheets built:
+- ✅ Dashboard polish — text sizes, card labels 13px, tap hints 15px, Budget peach, Noticed "changes"
+- ✅ My Space polish — Fitness full-width, Goals inline, text consistency
+- ✅ Notes sheet — full editor, share toggle, send, lock/share icons, Supabase
+- ✅ Tasks tab — dual-tab Notes & Tasks, due date pills, checkboxes, Supabase
+- ✅ Goals module — 6 types, 5-step wizard, type-specific logging, milestones, Supabase
+- ✅ Fitness sheet — SVG progress ring, 3 metric pills, weekly bar chart, workouts, goal editor
+- ✅ Stretch sheet — duration + instructor picker, 6 verified YouTube videos, movements, mark done
+- ✅ Zen sheet — 4 mood tabs (amber/blue/green/purple), 12 sessions, hero with time-of-day, YouTube
+- ✅ Wordle — full playable game, 2309 words, date-seeded, Zaeli colour tiles, family leaderboard, Supabase
+
+### Next priorities
+- 🔨 Our Budget module (zaeli-budget-final.html — dedicated screen, big build)
+- 🔨 Dashboard sheets (Family Tasks, Shopping, Calendar, Meals)
+- 🔨 Dedicated pages (Kids Hub, Tutor, Our Family, Settings)
+- 🔨 EAS Build + HealthKit + embedded YouTube player
 - 🔨 Dashboard sheets (Family Tasks, Shopping, Calendar, Meals)
 
 ---
