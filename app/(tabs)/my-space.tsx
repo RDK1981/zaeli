@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polygon, Rect, Line, Path, Circle } from 'react-native-svg';
 import { setPendingChatContext } from '../../lib/navigation-store';
 import { supabase } from '../../lib/supabase';
+import * as WebBrowser from 'expo-web-browser';
 
 const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -786,12 +787,12 @@ function fmtDateAU(iso: string) {
 // ─── Stretch data ────────────────────────────────────────────────────────────
 
 const STRETCH_VIDEOS: Record<string, { title:string; channel:string; dur:string; ytId:string }> = {
-  '5-adriene':  { title:'5 Min Morning Yoga',      channel:'Yoga With Adriene', dur:'5 min',  ytId:'4pKly2JojMw' },
-  '15-adriene': { title:'15 Min Full Body Stretch', channel:'Yoga With Adriene', dur:'15 min', ytId:'g_tea8ZNkHE' },
-  '30-adriene': { title:'30 Min Deep Stretch',      channel:'Yoga With Adriene', dur:'30 min', ytId:'GLy2rYHwUqY' },
-  '5-patrick':  { title:'5 Min Quick Stretch',      channel:'Patrick Beach Yoga', dur:'5 min',  ytId:'3sMJRBPxN3o' },
-  '15-patrick': { title:'15 Min Mobility Reset',    channel:'Patrick Beach Yoga', dur:'15 min', ytId:'Yzm3-P8aBYY' },
-  '30-patrick': { title:'30 Min Full Mobility',     channel:'Patrick Beach Yoga', dur:'30 min', ytId:'v7AYKMP6rOE' },
+  '5-adriene':  { title:'5 Min Morning Yoga',         channel:'Yoga With Adriene', dur:'5 min',  ytId:'4C-gxOE0j7s' },
+  '15-adriene': { title:'15 Min Yoga Stretch',         channel:'Yoga With Adriene', dur:'15 min', ytId:'8e-xsVYFCVA' },
+  '30-adriene': { title:'Total Body Deep Stretch',     channel:'Yoga With Adriene', dur:'30 min', ytId:'GLy2rYHwUqY' },
+  '5-boho':     { title:'5 Min Full Body Stretch',     channel:'MadFit',            dur:'5 min',  ytId:'Ef6LwAaB3_E' },
+  '15-boho':    { title:'15 Min Full Body Stretch',    channel:'MadFit',            dur:'15 min', ytId:'fjfThtANcEE' },
+  '30-boho':    { title:'30 Min Full Body Stretch',    channel:'MadFit',            dur:'30 min', ytId:'7wrbgayBXlQ' },
 };
 
 const STRETCH_MOVES: Record<string, { name:string; detail:string }[]> = {
@@ -827,7 +828,7 @@ const STRETCH_MOVES: Record<string, { name:string; detail:string }[]> = {
 
 function StretchSheet({ visible, onClose }: { visible:boolean; onClose:()=>void }) {
   const [duration, setDuration] = useState<'5'|'15'|'30'>('5');
-  const [instructor, setInstructor] = useState<'adriene'|'patrick'>('adriene');
+  const [instructor, setInstructor] = useState<'adriene'|'boho'>('adriene');
   const [isDone, setIsDone] = useState(false);
   const [streak] = useState(3); // dummy
 
@@ -836,11 +837,7 @@ function StretchSheet({ visible, onClose }: { visible:boolean; onClose:()=>void 
   const moves = STRETCH_MOVES[duration];
 
   function changeDuration(d: '5'|'15'|'30') { setDuration(d); setIsDone(false); }
-  function changeInstructor(i: 'adriene'|'patrick') { setInstructor(i); setIsDone(false); }
-
-  function openYouTube() {
-    Linking.openURL(`https://www.youtube.com/watch?v=${video.ytId}`);
-  }
+  function changeInstructor(i: 'adriene'|'boho') { setInstructor(i); setIsDone(false); }
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Daily Stretch">
@@ -884,7 +881,7 @@ function StretchSheet({ visible, onClose }: { visible:boolean; onClose:()=>void 
           <View style={{ flexDirection:'row', alignItems:'center' }}>
             <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#9CA3AF', width:80 }}>Instructor</Text>
             <View style={{ flexDirection:'row', flex:1, gap:8 }}>
-              {([{ k:'adriene' as const, l:'Adriene' },{ k:'patrick' as const, l:'Patrick' }]).map(i => (
+              {([{ k:'adriene' as const, l:'Adriene' },{ k:'boho' as const, l:'MadFit' }]).map(i => (
                 <TouchableOpacity key={i.k} onPress={() => changeInstructor(i.k)} activeOpacity={0.7}
                   style={{ flex:1, paddingVertical:9, borderRadius:20, alignItems:'center',
                     backgroundColor: instructor === i.k ? '#4A7C6F' : '#F7F7F4' }}>
@@ -895,25 +892,25 @@ function StretchSheet({ visible, onClose }: { visible:boolean; onClose:()=>void 
           </View>
         </View>
 
-        {/* Video card */}
-        <TouchableOpacity onPress={openYouTube} activeOpacity={0.85}
+        {/* Video card — tap opens in-app browser */}
+        <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync(`https://www.youtube.com/watch?v=${video.ytId}`)} activeOpacity={0.85}
           style={{ marginBottom:16, borderRadius:18, overflow:'hidden', borderWidth:0.5, borderColor:'rgba(0,0,0,0.07)' }}>
           {/* Thumbnail */}
           <View style={{ aspectRatio:16/9, backgroundColor:'#1A1A2E', alignItems:'center', justifyContent:'center' }}>
-            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'rgba(255,255,255,0.5)', position:'absolute', top:'34%' as any }}>{video.channel}</Text>
-            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(255,255,255,0.3)', position:'absolute', top:'50%' as any }}>{video.title} · {video.dur}</Text>
-            <View style={{ width:60, height:60, borderRadius:16, backgroundColor:'#FF0000', alignItems:'center', justifyContent:'center' }}>
-              <Svg width={24} height={24} viewBox="0 0 24 24" fill="#fff"><Polygon points="5 3 19 12 5 21 5 3" /></Svg>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'rgba(255,255,255,0.5)', position:'absolute', top:'32%' as any }}>{video.channel}</Text>
+            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.3)', position:'absolute', top:'48%' as any }}>{video.title} · {video.dur}</Text>
+            <View style={{ width:64, height:64, borderRadius:16, backgroundColor:'#FF0000', alignItems:'center', justifyContent:'center' }}>
+              <Svg width={26} height={26} viewBox="0 0 24 24" fill="#fff"><Polygon points="5 3 19 12 5 21 5 3" /></Svg>
             </View>
           </View>
           {/* Meta bar */}
           <View style={{ backgroundColor:'#fff', padding:14, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
             <View>
-              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#1A1A1A' }}>{video.title}</Text>
-              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'#9CA3AF', marginTop:3 }}>{video.channel}</Text>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#1A1A1A' }}>{video.title}</Text>
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'#9CA3AF', marginTop:3 }}>{video.channel}</Text>
             </View>
-            <View style={{ backgroundColor:'#EAF3EE', borderRadius:20, paddingVertical:5, paddingHorizontal:12 }}>
-              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#4A7C6F' }}>{video.dur}</Text>
+            <View style={{ backgroundColor:'#EAF3EE', borderRadius:20, paddingVertical:6, paddingHorizontal:14 }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#4A7C6F' }}>{video.dur}</Text>
             </View>
           </View>
         </TouchableOpacity>
