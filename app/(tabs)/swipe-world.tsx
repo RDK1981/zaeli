@@ -122,7 +122,8 @@ export default function SwipeWorld() {
         scrollEventThrottle={16}
         onScroll={handleScroll}
         bounces={false}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
+        directionalLockEnabled={true}
         style={s.scroll}
         contentContainerStyle={{ flexGrow: 0 }}
       >
@@ -144,7 +145,7 @@ export default function SwipeWorld() {
 
         {/* Page 2 — My Space */}
         <View style={s.page}>
-          <MySpaceScreen />
+          <MySpaceScreen onNavigateChat={() => scrollToPage(PAGE_CHAT)} />
         </View>
       </ScrollView>
 

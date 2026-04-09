@@ -453,7 +453,7 @@ const ACTION_KEYWORDS = [
   'also add', 'can you add', 'please add', 'add anna', 'add rich', 'add poppy',
   'add gab', 'add duke', 'assign ', 'invite ',
   'mark ', 'complete', 'done', 'finish', 'tick ', 'check off',
-  'swap ', 'replace ', 'set ', 'plan ',
+  'swap ', 'replace ', 'set ', 'plan ', 'goal',
 ];
 
 function isActionQuery(text: string): boolean {
@@ -1471,6 +1471,9 @@ const TOOLS = [
   { name:'delete_shopping_item', description:'Remove an item from the shopping list', input_schema:{ type:'object', properties:{ search_name:{type:'string',description:'Item name to search for'} }, required:['search_name'] } },
   { name:'update_meal', description:'Update a planned meal (change meal name, move to different date)', input_schema:{ type:'object', properties:{ search_meal:{type:'string',description:'Current meal name to search for'}, search_date:{type:'string',description:'Date of the meal YYYY-MM-DD'}, new_meal_name:{type:'string'}, new_date:{type:'string'}, new_prep_mins:{type:'number'} }, required:['search_meal'] } },
   { name:'delete_meal', description:'Remove a meal from the planner', input_schema:{ type:'object', properties:{ search_meal:{type:'string',description:'Meal name to search for'}, date:{type:'string',description:'Date of the meal YYYY-MM-DD'} }, required:['search_meal'] } },
+  { name:'add_goal', description:'Add a personal goal', input_schema:{ type:'object', properties:{ title:{type:'string',description:'Goal title e.g. Run a half marathon'}, target_date:{type:'string',description:'Target date YYYY-MM-DD'}, detail:{type:'string',description:'Description of the goal and how to measure it'} }, required:['title'] } },
+  { name:'update_goal', description:'Update a goal (progress, title, target date)', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Current goal title to search for'}, new_title:{type:'string'}, new_target_date:{type:'string'}, new_progress:{type:'number',description:'Progress percentage 0-100'}, new_detail:{type:'string'} }, required:['search_title'] } },
+  { name:'delete_goal', description:'Delete a goal', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Goal title to search for'} }, required:['search_title'] } },
 ];
 
 async function executeTool(name: string, input: any): Promise<string> {
@@ -1686,6 +1689,39 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (error) throw error;
       return `\u2705 **${data[0].meal_name}** removed from the meal planner.`;
     }
+    if (name === 'add_goal') {
+      const { error } = await supabase.from('goals').insert({
+        family_id: DUMMY_FAMILY_ID_HOME,
+        title: input.title,
+        target_date: input.target_date || null,
+        detail: input.detail || '',
+        progress: 0,
+        status: 'active',
+      });
+      if (error) throw error;
+      return `\u2705 **${input.title}** added to your goals.${input.target_date ? ` Target: ${input.target_date}.` : ''}`;
+    }
+    if (name === 'update_goal') {
+      const { data } = await supabase.from('goals').select('id,title').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`).eq('status', 'active').order('created_at', { ascending: false }).limit(1);
+      if (!data || data.length === 0) return `Couldn't find a goal matching "${input.search_title}".`;
+      const u: any = {};
+      if (input.new_title) u.title = input.new_title;
+      if (input.new_target_date) u.target_date = input.new_target_date;
+      if (input.new_progress !== undefined) u.progress = input.new_progress;
+      if (input.new_detail) u.detail = input.new_detail;
+      if (Object.keys(u).length === 0) return `TOOL_FAILED: No valid fields to update.`;
+      const { error } = await supabase.from('goals').update(u).eq('id', data[0].id);
+      if (error) throw error;
+      const what = input.new_progress !== undefined ? `progress updated to ${input.new_progress}%` : input.new_title ? `renamed to "${input.new_title}"` : 'updated';
+      return `\u2705 "${input.new_title || data[0].title}" \u2014 ${what}.`;
+    }
+    if (name === 'delete_goal') {
+      const { data } = await supabase.from('goals').select('id,title').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`).order('created_at', { ascending: false }).limit(1);
+      if (!data || data.length === 0) return `Couldn't find a goal matching "${input.search_title}".`;
+      const { error } = await supabase.from('goals').delete().eq('id', data[0].id);
+      if (error) throw error;
+      return `\u2705 **${data[0].title}** removed from your goals.`;
+    }
     return `Tool ${name} not yet implemented.`;
   } catch (e: any) {
     return `TOOL_FAILED: Something went wrong with ${name} — ${e?.message ?? 'unknown error'}`;
@@ -1708,7 +1744,10 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - Zaeli CANNOT make phone calls or send messages autonomously.
 - NEVER confuse meal planner with calendar. Meals go in meal planner (add_meal/update_meal/delete_meal). Events go in calendar (add/update/delete_calendar_event). If the user says "meal planner" or "dinner", use meal tools. If the user says "calendar" or "event", use calendar tools.
 - After adding or editing anything, confirm warmly in 1 sentence. Name what was added and when. Be enthusiastic but brief. Never start with "I". Never say "I've added" — say what's done, not what you did.
-- CRITICAL: When confirming, use the EXACT day/date the user specified. If they said "Saturday", confirm "Saturday" — never substitute a different day. Double-check dates against the day-of-week before confirming.`;
+- CRITICAL: When confirming, use the EXACT day/date the user specified. If they said "Saturday", confirm "Saturday" — never substitute a different day. Double-check dates against the day-of-week before confirming.
+- add_goal: use when the user wants to set a personal goal. Ask for a title and optionally a target date and detail. After creating, offer a chip "Open Goals" to view it.
+- update_goal: use to update progress, title, target date, or detail of an existing goal. When user says "I ran 5km today" and has a running goal, update the progress.
+- delete_goal: use when the user wants to remove a goal entirely.`;
 
 // ── CalSheetEventCard ─────────────────────────────────────────────────────
 // White card with left-border family colour, used in sheet day/month views
@@ -3709,6 +3748,11 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
       router.navigate('/(tabs)/todos' as any);
       return;
     }
+    if (chip === 'Open Goals') {
+      // TODO: swipe to My Space + open goals sheet
+      send('Show me my goals');
+      return;
+    }
     send(chip);
   }
 
@@ -4901,7 +4945,10 @@ Only include events directly relevant to the question. Max 5 events.`;
               style={[s.scroll, { backgroundColor:T.bg }]}
               contentContainerStyle={{ paddingHorizontal:0, paddingTop:14, paddingBottom:200 }}
               showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="always"
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="none"
+              nestedScrollEnabled={true}
+              directionalLockEnabled={true}
               onScroll={handleScroll}
               scrollEventThrottle={16}
               onContentSizeChange={() => {

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polygon, Rect, Line, Path, Circle } from 'react-native-svg';
+import { setPendingChatContext } from '../../lib/navigation-store';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -64,10 +65,63 @@ const HEALTH = {
   ],
 };
 
-const GOALS = [
-  { icon: '🏃', name: 'Noosa 10km Run',         meta: '3 May · 4 weeks away', pct: 62, detail: 'Complete the Noosa 10km in under 55 minutes. Race day 3 May — 4 weeks away.' },
-  { icon: '📚', name: 'Read 12 books this year', meta: '4 of 12 done',          pct: 33, detail: 'Track your reading goal. 4 books done, 8 to go by end of year.' },
-  { icon: '💧', name: 'Drink 2L water daily',    meta: 'Today: 1.2L of 2L',     pct: 60, detail: 'Stay hydrated every day. Currently at 1.2L today — almost there.' },
+type GoalLog = { id:string; date:string; value:number; note:string };
+type GoalMilestone = { id:string; title:string; target_value:number; done:boolean };
+type GoalType = 'fitness'|'health'|'habit'|'learning'|'financial'|'project';
+type GoalFreq = 'daily'|'weekdays'|'x_per_week';
+type GoalItem = {
+  id:string; title:string; type:GoalType; icon:string;
+  start_value:number; target_value:number; current_value:number; unit:string;
+  frequency?:GoalFreq; frequency_target?:number; // habits only
+  deadline:string;
+  milestones:GoalMilestone[];
+  logs:GoalLog[];
+  streak:number; best_streak:number; // habits
+  status:'active'|'completed'|'paused';
+};
+
+const GOAL_TYPES: { type:GoalType; icon:string; label:string; units:string[]; startQ:string; targetQ:string; logLabel:string; logUnit:string }[] = [
+  { type:'fitness',   icon:'\u{1F3C3}', label:'Fitness',   units:['km','mins','sessions','laps'],          startQ:'Where are you now?',       targetQ:"What's the target?",   logLabel:'Add workout',   logUnit:'distance/time' },
+  { type:'health',    icon:'\u{1F4AA}', label:'Health',    units:['kg','cm','bmi'],                        startQ:'Current weight?',          targetQ:'Target weight?',       logLabel:'Log weigh-in',  logUnit:'weight' },
+  { type:'habit',     icon:'\u{1F504}', label:'Habit',     units:['days','streak'],                        startQ:'How often?',               targetQ:'Goal streak?',         logLabel:'Check in',      logUnit:'done' },
+  { type:'learning',  icon:'\u{1F4DA}', label:'Learning',  units:['books','hours','courses','modules'],    startQ:'How many done so far?',    targetQ:'How many total?',      logLabel:'Add item',      logUnit:'completed' },
+  { type:'financial', icon:'\u{1F4B0}', label:'Financial', units:['$'],                                    startQ:'How much saved so far?',   targetQ:'Target amount?',       logLabel:'Add deposit',   logUnit:'amount' },
+  { type:'project',   icon:'\u{1F3AF}', label:'Project',   units:['tasks','phases','milestones'],          startQ:'How many tasks done?',     targetQ:'How many total?',      logLabel:'Complete task',  logUnit:'task' },
+];
+
+const HABIT_FREQS: { key:GoalFreq; label:string }[] = [
+  { key:'daily', label:'Every day' },
+  { key:'weekdays', label:'Weekdays' },
+  { key:'x_per_week', label:'X times per week' },
+];
+
+const STREAK_GOALS = [7, 14, 30, 60, 100];
+
+const INITIAL_GOALS: GoalItem[] = [
+  { id:'g1', title:'Noosa 10km Run', type:'fitness', icon:'\u{1F3C3}', start_value:4, target_value:10, current_value:6.2, unit:'km', deadline:'2026-05-03', milestones:[
+    { id:'m1', title:'Run 5km non-stop', target_value:5, done:true },
+    { id:'m2', title:'Complete 8km run', target_value:8, done:false },
+    { id:'m3', title:'Race day', target_value:10, done:false },
+  ], logs:[
+    { id:'l1', date:'2026-04-01', value:4.2, note:'Morning run, felt good' },
+    { id:'l2', date:'2026-04-05', value:5.1, note:'First 5km!' },
+    { id:'l3', date:'2026-04-08', value:6.2, note:'Pushed through wall at 5km' },
+  ], streak:0, best_streak:0, status:'active' },
+  { id:'g2', title:'Read 12 books this year', type:'learning', icon:'\u{1F4DA}', start_value:2, target_value:12, current_value:4, unit:'books', deadline:'2026-12-31', milestones:[
+    { id:'m4', title:'6 books by June', target_value:6, done:false },
+    { id:'m5', title:'9 books by September', target_value:9, done:false },
+  ], logs:[
+    { id:'l4', date:'2026-02-15', value:1, note:'Atomic Habits' },
+    { id:'l5', date:'2026-03-20', value:1, note:'The Creative Act' },
+  ], streak:0, best_streak:0, status:'active' },
+  { id:'g3', title:'Drink 2L water daily', type:'habit', icon:'\u{1F504}', start_value:0, target_value:30, current_value:12, unit:'days', frequency:'daily', frequency_target:7, deadline:'', milestones:[
+    { id:'m6', title:'7-day streak', target_value:7, done:true },
+    { id:'m7', title:'30-day streak', target_value:30, done:false },
+  ], logs:[
+    { id:'l6', date:'2026-04-07', value:1, note:'' },
+    { id:'l7', date:'2026-04-08', value:1, note:'' },
+    { id:'l8', date:'2026-04-09', value:1, note:'' },
+  ], streak:3, best_streak:8, status:'active' },
 ];
 
 const FAMILY_MEMBERS = [
@@ -119,7 +173,7 @@ const KB_GREY   = new Set(['R','N','E','S','M','P','B','D','F','G','H','I','J','
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function MySpaceScreen() {
+export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () => void } = {}) {
   const insets = useSafeAreaInsets();
 
   // Inline expand
@@ -127,24 +181,17 @@ export default function MySpaceScreen() {
   // Sheet open — null | 'goals' | 'goal-detail' | 'goal-new' | 'notes' | 'wordle'
   const [sheet, setSheet]       = useState<string | null>(null);
   // Which goal is open in detail sheet
-  const [activeGoal, setActiveGoal] = useState<number | null>(null);
+  const [activeGoal, setActiveGoal] = useState<string | null>(null);
   // Zen playing track
   const [zenPlaying, setZenPlaying] = useState(0);
   // Notes state
   const [notes, setNotes] = useState<NoteItem[]>(INITIAL_NOTES);
   const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
+  // Goals state
+  const [goals, setGoals] = useState<GoalItem[]>(INITIAL_GOALS);
 
   function toggleInline(card: string) {
     setExpanded(prev => (prev === card ? null : card));
-  }
-
-  function openGoalDetail(index: number) {
-    setActiveGoal(index);
-    setSheet('goal-detail');
-  }
-
-  function openNewGoal() {
-    setSheet('goal-new');
   }
 
   function closeSheet() {
@@ -194,9 +241,9 @@ export default function MySpaceScreen() {
           </TouchableOpacity>
           <TouchableOpacity style={[s.gridCard, { backgroundColor:'#F0DC80' }]} activeOpacity={0.88} onPress={() => setSheet('goals')}>
             <Text style={[s.gridLabel, { color:'rgba(26,26,26,0.35)' }]}>GOALS</Text>
-            <Text style={[s.gridNum, { color:'#1A1A1A' }]}>3</Text>
+            <Text style={[s.gridNum, { color:'#1A1A1A' }]}>{goals.length}</Text>
             <Text style={[s.gridHl, { color:'#1A1A1A' }]}>active goals</Text>
-            <Text style={[s.gridSub, { color:'rgba(26,26,26,0.5)' }]}>1 on track</Text>
+            <Text style={[s.gridSub, { color:'rgba(26,26,26,0.5)' }]}>{goals.filter(g => g.target_value > 0 && (g.current_value/g.target_value) >= 0.5).length} on track</Text>
           </TouchableOpacity>
 
           {/* Row 2: Budget | Notes */}
@@ -233,15 +280,6 @@ export default function MySpaceScreen() {
       </ScrollView>
 
       {/* ── 92% Sheets ── */}
-      <GoalDetailSheet
-        visible={sheet === 'goal-detail'}
-        goal={activeGoal !== null ? GOALS[activeGoal] : null}
-        onClose={closeSheet}
-      />
-      <NewGoalSheet
-        visible={sheet === 'goal-new'}
-        onClose={closeSheet}
-      />
       <NotesSheet
         visible={sheet === 'notes'}
         onClose={closeSheet}
@@ -271,7 +309,17 @@ export default function MySpaceScreen() {
 
       {/* ── Shell sheets for new cards ── */}
       <ShellSheet visible={sheet === 'fitness'} title="Fitness" onClose={closeSheet} />
-      <ShellSheet visible={sheet === 'goals'} title="Goals" onClose={closeSheet} />
+      <GoalsListSheet
+        visible={sheet === 'goals'}
+        onClose={closeSheet}
+        goals={goals}
+        onGoalTap={(id) => setActiveGoal(id)}
+        onAddGoal={(g) => setGoals(prev => [g, ...prev])}
+        activeGoal={activeGoal}
+        onBackFromDetail={() => setActiveGoal(null)}
+        onUpdateGoal={(updated) => setGoals(prev => prev.map(g => g.id === updated.id ? updated : g))}
+        onDeleteGoal={(id) => { setGoals(prev => prev.filter(g => g.id !== id)); setActiveGoal(null); }}
+      />
       <ShellSheet visible={sheet === 'budget'} title="Budget" onClose={closeSheet} />
       <ShellSheet visible={sheet === 'stretch'} title="Daily Stretch" onClose={closeSheet} />
       <ShellSheet visible={sheet === 'zen'} title="Zen" onClose={closeSheet} />
@@ -551,51 +599,397 @@ function Sheet({ visible, onClose, title, subtitle, children }: {
   );
 }
 
-// ─── Goal Detail Sheet ────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function GoalDetailSheet({ visible, goal, onClose }: {
-  visible: boolean;
-  goal: typeof GOALS[0] | null;
-  onClose: () => void;
+function fmtDateAU(iso: string) {
+  if (!iso || iso.length < 10) return '';
+  try { return new Date(iso+'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' }); }
+  catch { return iso; }
+}
+
+// ─── Goals List Sheet ─────────────────────────────────────────────────────────
+
+function GoalsListSheet({ visible, onClose, goals, onGoalTap, onAddGoal,
+  activeGoal, onBackFromDetail, onUpdateGoal, onDeleteGoal }: {
+  visible:boolean; onClose:()=>void; goals:GoalItem[];
+  onGoalTap:(id:string)=>void; onAddGoal:(g:GoalItem)=>void;
+  activeGoal:string|null; onBackFromDetail:()=>void;
+  onUpdateGoal:(g:GoalItem)=>void; onDeleteGoal:(id:string)=>void;
 }) {
-  if (!goal) return null;
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizStep, setWizStep] = useState(0);
+  const [wTitle, setWTitle] = useState('');
+  const [wType, setWType] = useState<GoalType|null>(null);
+  const [wStart, setWStart] = useState('');
+  const [wTarget, setWTarget] = useState('');
+  const [wUnit, setWUnit] = useState('');
+  const [wDeadline, setWDeadline] = useState('');
+  const [wOngoing, setWOngoing] = useState(false);
+  const [wFreq, setWFreq] = useState<GoalFreq>('daily');
+  const [wFreqNum, setWFreqNum] = useState('5');
+
+  function resetWiz() {
+    setWizardOpen(false); setWizStep(0);
+    setWTitle(''); setWType(null); setWStart(''); setWTarget(''); setWUnit(''); setWDeadline(''); setWOngoing(false); setWFreq('daily'); setWFreqNum('5');
+  }
+
+  function handleSave() {
+    if (!wTitle.trim() || !wType) return;
+    const gtt = GOAL_TYPES.find(t => t.type === wType)!;
+    const startNum = parseFloat(wStart) || 0;
+    const targetNum = parseFloat(wTarget) || 0;
+    const isH = wType === 'habit';
+    const streakT = isH ? (parseInt(wTarget) || 30) : 0;
+    onAddGoal({
+      id: `g-${Date.now()}`, title: wTitle.trim(), type: wType, icon: gtt.icon,
+      start_value: startNum, target_value: isH ? streakT : targetNum,
+      current_value: startNum, unit: wUnit || gtt.units[0],
+      frequency: isH ? wFreq : undefined,
+      frequency_target: isH ? (parseInt(wFreqNum) || 7) : undefined,
+      deadline: wOngoing ? '' : wDeadline,
+      milestones: [], logs: [], streak: 0, best_streak: 0, status: 'active',
+    });
+    resetWiz();
+  }
+
+  const gt = GOAL_TYPES.find(t => t.type === wType);
+  const isHabit = wType === 'habit';
+  const isProject = wType === 'project';
+  const totalSteps = isProject ? 4 : 5;
+  const canNext = wizStep === 0 ? !!(wTitle.trim() && wType) :
+    wizStep === 1 ? (isHabit ? !!wFreq : !!wStart.trim()) :
+    wizStep === 2 ? (isProject ? true : !!wTarget.trim()) :
+    wizStep === 3 ? !!(wOngoing || wDeadline.trim()) : true;
+
+  function quickDate(days: number) {
+    const d = new Date(Date.now() + days * 86400000);
+    const p = (n:number) => String(n).padStart(2,'0');
+    setWDeadline(`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`);
+  }
+
+  if (wizardOpen) {
+    return (
+      <Sheet visible={visible} onClose={resetWiz} title="New Goal">
+        <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={100}>
+        <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow:1 }}>
+          <View style={{ flexDirection:'row', gap:6, marginBottom:24 }}>
+            {Array.from({ length:totalSteps }).map((_,i) => (
+              <View key={i} style={{ flex:1, height:3, borderRadius:2, backgroundColor: i <= wizStep ? '#F0DC80' : 'rgba(10,10,10,0.08)' }} />
+            ))}
+          </View>
+
+          {wizStep === 0 && (<View>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:20, color:'#0A0A0A', marginBottom:6 }}>{"What\u2019s the goal?"}</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(10,10,10,0.4)', marginBottom:20 }}>Give it a clear, measurable title.</Text>
+            <TextInput style={{ fontFamily:'Poppins_600SemiBold', fontSize:18, color:'#0A0A0A', borderBottomWidth:2, borderBottomColor:'#F0DC80', paddingBottom:10, marginBottom:28 }}
+              value={wTitle} onChangeText={setWTitle} placeholder="e.g. Run Noosa 10km" placeholderTextColor="rgba(10,10,10,0.2)" autoFocus />
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'#0A0A0A', marginBottom:12 }}>What type?</Text>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10 }}>
+              {GOAL_TYPES.map(t => (
+                <TouchableOpacity key={t.type} onPress={() => { setWType(t.type); setWUnit(t.units[0]); }} activeOpacity={0.7}
+                  style={{ paddingVertical:10, paddingHorizontal:16, borderRadius:14, borderWidth:2,
+                    borderColor: wType===t.type ? '#F0DC80' : 'rgba(10,10,10,0.08)',
+                    backgroundColor: wType===t.type ? 'rgba(240,220,128,0.15)' : '#fff' }}>
+                  <Text style={{ fontSize:20, textAlign:'center', marginBottom:4 }}>{t.icon}</Text>
+                  <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color: wType===t.type ? '#6B5A00' : 'rgba(10,10,10,0.5)', textAlign:'center' }}>{t.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>)}
+
+          {wizStep === 1 && (<View>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:20, color:'#0A0A0A', marginBottom:6 }}>{gt?.startQ ?? 'Starting point'}</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(10,10,10,0.4)', marginBottom:20 }}>This is where you are right now.</Text>
+            {isHabit ? (<>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#0A0A0A', marginBottom:12 }}>How often?</Text>
+              <View style={{ gap:8 }}>
+                {HABIT_FREQS.map(f => (
+                  <TouchableOpacity key={f.key} onPress={() => setWFreq(f.key)} activeOpacity={0.7}
+                    style={{ paddingVertical:14, paddingHorizontal:16, borderRadius:14, borderWidth:2,
+                      borderColor: wFreq===f.key ? '#F0DC80' : 'rgba(10,10,10,0.08)',
+                      backgroundColor: wFreq===f.key ? 'rgba(240,220,128,0.15)' : '#fff' }}>
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color: wFreq===f.key ? '#6B5A00' : 'rgba(10,10,10,0.5)' }}>{f.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {wFreq === 'x_per_week' && (
+                <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginTop:14 }}>
+                  <TextInput style={{ fontFamily:'Poppins_700Bold', fontSize:24, color:'#0A0A0A', width:50, textAlign:'center', borderBottomWidth:2, borderBottomColor:'#F0DC80', paddingBottom:4 }}
+                    value={wFreqNum} onChangeText={setWFreqNum} keyboardType="numeric" />
+                  <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(10,10,10,0.4)' }}>times per week</Text>
+                </View>
+              )}
+            </>) : (<>
+              <TextInput style={{ fontFamily:'Poppins_800ExtraBold', fontSize:36, color:'#0A0A0A', textAlign:'center' }}
+                value={wStart} onChangeText={setWStart} placeholder="0" placeholderTextColor="rgba(10,10,10,0.12)" keyboardType="numeric" autoFocus />
+              <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, justifyContent:'center', marginTop:14 }}>
+                {(gt?.units ?? []).map(u => (
+                  <TouchableOpacity key={u} onPress={() => setWUnit(u)} activeOpacity={0.7}
+                    style={{ paddingVertical:8, paddingHorizontal:16, borderRadius:20, borderWidth:1.5,
+                      borderColor: wUnit===u ? '#F0DC80' : 'rgba(10,10,10,0.1)',
+                      backgroundColor: wUnit===u ? 'rgba(240,220,128,0.15)' : '#fff' }}>
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color: wUnit===u ? '#6B5A00' : 'rgba(10,10,10,0.45)' }}>{u}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>)}
+          </View>)}
+
+          {wizStep === 2 && !isProject && (<View>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:20, color:'#0A0A0A', marginBottom:6 }}>{gt?.targetQ ?? "What\u2019s the target?"}</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(10,10,10,0.4)', marginBottom:20 }}>The finish line.</Text>
+            {isHabit ? (
+              <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10, justifyContent:'center' }}>
+                {STREAK_GOALS.map(n => (
+                  <TouchableOpacity key={n} onPress={() => setWTarget(String(n))} activeOpacity={0.7}
+                    style={{ paddingVertical:14, paddingHorizontal:22, borderRadius:14, borderWidth:2,
+                      borderColor: wTarget===String(n) ? '#F0DC80' : 'rgba(10,10,10,0.08)',
+                      backgroundColor: wTarget===String(n) ? 'rgba(240,220,128,0.15)' : '#fff' }}>
+                    <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:22, color: wTarget===String(n) ? '#6B5A00' : '#0A0A0A', textAlign:'center' }}>{n}</Text>
+                    <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(10,10,10,0.35)', textAlign:'center' }}>days</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (<>
+              <TextInput style={{ fontFamily:'Poppins_800ExtraBold', fontSize:36, color:'#0A0A0A', textAlign:'center', marginBottom:8 }}
+                value={wTarget} onChangeText={setWTarget} placeholder="0" placeholderTextColor="rgba(10,10,10,0.12)" keyboardType="numeric" autoFocus />
+              <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(10,10,10,0.35)', textAlign:'center' }}>{wUnit}</Text>
+            </>)}
+          </View>)}
+
+          {wizStep === (isProject ? 2 : 3) && (<View>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:20, color:'#0A0A0A', marginBottom:6 }}>When by?</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(10,10,10,0.4)', marginBottom:20 }}>Set a deadline or mark as ongoing.</Text>
+            {!wOngoing && (<>
+              <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:16 }}>
+                {[{l:'2 weeks',d:14},{l:'1 month',d:30},{l:'3 months',d:90},{l:'6 months',d:180}].map(q => (
+                  <TouchableOpacity key={q.l} onPress={() => quickDate(q.d)} activeOpacity={0.7}
+                    style={{ paddingVertical:10, paddingHorizontal:16, borderRadius:14, borderWidth:1.5, borderColor:'rgba(10,10,10,0.1)', backgroundColor:'#fff' }}>
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(10,10,10,0.5)' }}>{q.l}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput style={{ fontFamily:'Poppins_600SemiBold', fontSize:18, color:'#0A0A0A', borderBottomWidth:2, borderBottomColor:'#F0DC80', paddingBottom:10, marginBottom:6 }}
+                value={wDeadline} onChangeText={setWDeadline} placeholder="YYYY-MM-DD" placeholderTextColor="rgba(10,10,10,0.2)" />
+              {wDeadline.length >= 10 && <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.35)', marginBottom:10 }}>{fmtDateAU(wDeadline)}</Text>}
+            </>)}
+            <TouchableOpacity onPress={() => setWOngoing(!wOngoing)} activeOpacity={0.7} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:12 }}>
+              <View style={{ width:24, height:24, borderRadius:12, borderWidth:2, borderColor:wOngoing?'#F0DC80':'rgba(10,10,10,0.15)', backgroundColor:wOngoing?'#F0DC80':'transparent', alignItems:'center', justifyContent:'center' }}>
+                {wOngoing && <View style={{ width:10, height:10, borderRadius:5, backgroundColor:'#6B5A00' }} />}
+              </View>
+              <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'#0A0A0A' }}>Ongoing (no deadline)</Text>
+            </TouchableOpacity>
+          </View>)}
+
+          {wizStep === totalSteps - 1 && (<View>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:20, color:'#0A0A0A', marginBottom:16 }}>Looking good!</Text>
+            <View style={{ backgroundColor:'#fff', borderRadius:16, padding:18, borderWidth:1, borderColor:'rgba(10,10,10,0.06)', gap:12, marginBottom:20 }}>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
+                <Text style={{ fontSize:28 }}>{gt?.icon}</Text>
+                <View style={{ flex:1 }}>
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:17, color:'#0A0A0A' }}>{wTitle}</Text>
+                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.4)' }}>{gt?.label}</Text>
+                </View>
+              </View>
+              <View style={{ height:1, backgroundColor:'rgba(10,10,10,0.06)' }} />
+              {isHabit ? (
+                <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'rgba(10,10,10,0.5)' }}>{HABIT_FREQS.find(f=>f.key===wFreq)?.label} · {wTarget}-day goal</Text>
+              ) : (
+                <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'rgba(10,10,10,0.5)' }}>Start: {wStart} {wUnit} · Target: {wTarget} {wUnit}</Text>
+              )}
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.4)' }}>{wOngoing ? 'Ongoing' : `Deadline: ${wDeadline.length>=10 ? fmtDateAU(wDeadline) : wDeadline}`}</Text>
+            </View>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.35)', textAlign:'center' }}>You can add milestones and log progress after saving</Text>
+          </View>)}
+
+          <View style={{ flexDirection:'row', gap:10, paddingTop:24, paddingBottom:20 }}>
+            <TouchableOpacity onPress={() => { if (wizStep > 0) setWizStep(wizStep-1); else resetWiz(); }} activeOpacity={0.7}
+              style={{ flex:1, paddingVertical:14, borderRadius:14, borderWidth:1, borderColor:'rgba(10,10,10,0.12)', alignItems:'center' }}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(10,10,10,0.4)' }}>{wizStep > 0 ? 'Back' : 'Cancel'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { if (wizStep < totalSteps-1) setWizStep(wizStep+1); else handleSave(); }} activeOpacity={0.7}
+              style={{ flex:1, paddingVertical:14, borderRadius:14, backgroundColor:canNext?'#F0DC80':'rgba(10,10,10,0.06)', alignItems:'center' }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:canNext?'#6B5A00':'rgba(10,10,10,0.2)' }}>{wizStep < totalSteps-1 ? 'Next' : 'Save Goal'}</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+        </KeyboardAvoidingView>
+      </Sheet>
+    );
+  }
+
+  // Active goal for inline detail
+  const detailGoal = activeGoal ? goals.find(g => g.id === activeGoal) ?? null : null;
+
   return (
-    <Sheet visible={visible} onClose={onClose} title={`${goal.icon}  ${goal.name}`} subtitle={goal.meta}>
+    <Sheet visible={visible} onClose={() => { if (activeGoal) onBackFromDetail(); else onClose(); }} title={detailGoal ? `${detailGoal.icon}  ${detailGoal.title}` : 'Goals'}>
+      {/* Detail view (inline, replaces list) */}
+      {detailGoal && (
+        <GoalDetailInline goal={detailGoal} onBack={onBackFromDetail} onUpdate={onUpdateGoal} onDelete={onDeleteGoal} />
+      )}
+
+      {/* List view */}
+      {!detailGoal && (
       <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
-        <View style={s.goalSheetBarWrap}>
-          <View style={[s.goalSheetBarFill, { width: `${goal.pct}%` as any }]} />
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
-          <Text style={s.goalSheetPctLabel}>{goal.pct}% complete</Text>
-          <Text style={s.goalSheetPct}>{goal.pct}%</Text>
-        </View>
-        <Text style={s.goalSheetDetail}>{goal.detail}</Text>
-        <View style={s.zaeliBox}>
-          <Text style={s.zaeliBoxLbl}>Zaeli says</Text>
-          <Text style={s.zaeliBoxTxt}>Your {goal.name} is coming along well. Want help building a dedicated plan to hit your target?</Text>
-        </View>
-        <TouchableOpacity style={s.zaeliCta}>
-          <Text style={s.zaeliCtaTxt}>✦ Work on this with Zaeli</Text>
+        <TouchableOpacity style={[s.goalAddBtn, { marginBottom:16 }]} onPress={() => setWizardOpen(true)} activeOpacity={0.7}>
+          <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+            <IcoPlus2 color="#6B5A00" size={18} />
+            <Text style={s.goalAddTxt}>Add new goal</Text>
+          </View>
         </TouchableOpacity>
-        <View style={{ height: 40 }} />
+        {goals.map(g => {
+          const pct = g.target_value > 0 ? Math.round(((g.current_value - g.start_value) / (g.target_value - g.start_value)) * 100) : 0;
+          const clamp = Math.max(0, Math.min(100, pct));
+          const isH = g.type === 'habit';
+          const dl = g.deadline ? fmtDateAU(g.deadline) : 'Ongoing';
+          return (
+            <TouchableOpacity key={g.id} style={s.goalListItem} activeOpacity={0.80} onPress={() => onGoalTap(g.id)}>
+              <Text style={s.goalListIcon}>{g.icon}</Text>
+              <View style={{ flex:1 }}>
+                <Text style={s.goalListName}>{g.title}</Text>
+                <Text style={s.goalListMeta}>{isH ? `${g.streak} day streak · ${dl}` : `${g.current_value} / ${g.target_value} ${g.unit} · ${dl}`}</Text>
+                <View style={s.goalListBarWrap}>
+                  <View style={[s.goalListBarFill, { width:`${clamp}%` as any }]} />
+                </View>
+                <Text style={s.goalListBarLabel}>{clamp}% · {g.milestones.filter(m=>m.done).length}/{g.milestones.length} milestones · {g.logs.length} logs</Text>
+              </View>
+              <Text style={s.goalListPct}>{clamp}%</Text>
+            </TouchableOpacity>
+          );
+        })}
+        <View style={{ height:40 }} />
       </ScrollView>
+      )}
     </Sheet>
   );
 }
 
-// ─── New Goal Sheet ───────────────────────────────────────────────────────────
+// ─── Goal Detail Inline (renders inside GoalsListSheet) ──────────────────────
+function GoalDetailInline({ goal, onBack, onUpdate, onDelete }: {
+  goal:GoalItem; onBack:()=>void; onUpdate:(g:GoalItem)=>void; onDelete:(id:string)=>void;
+}) {
+  const gt = GOAL_TYPES.find(t => t.type === goal.type);
+  const pct = goal.target_value > 0 ? Math.round(((goal.current_value - goal.start_value) / (goal.target_value - goal.start_value)) * 100) : 0;
+  const clampPct = Math.max(0, Math.min(100, pct));
+  const doneCount = goal.milestones.filter(m => m.done).length;
+  const isHabit = goal.type === 'habit';
+  const [showLog, setShowLog] = useState(false);
+  const [logValue, setLogValue] = useState('');
+  const [logNote, setLogNote] = useState('');
+  const [confirmDel, setConfirmDel] = useState(false);
 
-function NewGoalSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  function toggleMilestone(mId: string) {
+    onUpdate({ ...goal, milestones: goal.milestones.map(m => m.id === mId ? { ...m, done:!m.done } : m) });
+  }
+
+  function addLog() {
+    const val = parseFloat(logValue) || (isHabit ? 1 : 0);
+    if (!val && !isHabit) return;
+    const newLog: GoalLog = { id:`l-${Date.now()}`, date:new Date().toISOString().slice(0,10), value:val, note:logNote };
+    // Fitness/health: log IS the current value (latest). Learning/financial/project: accumulate. Habit: increment.
+    const newCurrent = isHabit ? goal.current_value + 1 : (goal.type === 'health' || goal.type === 'fitness') ? val : goal.current_value + val;
+    const newStreak = isHabit ? goal.streak + 1 : goal.streak;
+    onUpdate({ ...goal, current_value:newCurrent, streak:newStreak, best_streak:Math.max(goal.best_streak, newStreak), logs:[...goal.logs, newLog] });
+    setLogValue(''); setLogNote(''); setShowLog(false);
+  }
+
   return (
-    <Sheet visible={visible} onClose={onClose} title="New Goal">
-      <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
-        <Text style={s.newGoalHint}>Tell Zaeli what you want to work toward and she'll help you set it up.</Text>
-        <TouchableOpacity style={s.zaeliCta}>
-          <Text style={s.zaeliCtaTxt}>✦ Start a new goal with Zaeli</Text>
-        </TouchableOpacity>
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </Sheet>
+    <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      {/* Back button */}
+      <TouchableOpacity onPress={onBack} activeOpacity={0.7} style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:16 }}>
+        <IcoChevLeft size={20} color="rgba(10,10,10,0.4)" />
+        <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'rgba(10,10,10,0.4)' }}>Back to goals</Text>
+      </TouchableOpacity>
+
+      {/* Progress card */}
+      <View style={{ backgroundColor:'#fff', borderRadius:16, padding:18, marginBottom:16, borderWidth:1, borderColor:'rgba(10,10,10,0.06)' }}>
+        <View style={{ flexDirection:'row', alignItems:'flex-end', justifyContent:'space-between', marginBottom:12 }}>
+          <View>
+            <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:36, color:'#0A0A0A', letterSpacing:-1 }}>{clampPct}%</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.4)' }}>complete</Text>
+          </View>
+          <View style={{ alignItems:'flex-end' }}>
+            {isHabit ? (<>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:17, color:'#0A0A0A' }}>{goal.streak} day streak</Text>
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(10,10,10,0.35)' }}>Best: {goal.best_streak} days</Text>
+            </>) : (<>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:17, color:'#0A0A0A' }}>{goal.current_value} / {goal.target_value}</Text>
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(10,10,10,0.35)' }}>{goal.unit}</Text>
+            </>)}
+          </View>
+        </View>
+        <View style={{ height:8, borderRadius:4, backgroundColor:'rgba(10,10,10,0.06)', overflow:'hidden' }}>
+          <View style={{ height:8, borderRadius:4, backgroundColor:'#FF4545', width:`${clampPct}%` as any }} />
+        </View>
+        {!isHabit && <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(10,10,10,0.3)', marginTop:6 }}>Started at {goal.start_value} {goal.unit}</Text>}
+      </View>
+
+      {/* Log button */}
+      <TouchableOpacity onPress={() => setShowLog(!showLog)} activeOpacity={0.7}
+        style={{ backgroundColor:'#F0DC80', borderRadius:14, paddingVertical:14, alignItems:'center', marginBottom:16 }}>
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#6B5A00' }}>{isHabit ? 'Check in today' : gt?.logLabel ?? 'Log update'}</Text>
+      </TouchableOpacity>
+
+      {/* Log form */}
+      {showLog && (
+        <View style={{ backgroundColor:'#fff', borderRadius:14, padding:16, borderWidth:1, borderColor:'rgba(10,10,10,0.06)', marginBottom:16 }}>
+          {!isHabit && (
+            <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:12 }}>
+              <TextInput style={{ flex:1, fontFamily:'Poppins_600SemiBold', fontSize:20, color:'#0A0A0A', borderBottomWidth:2, borderBottomColor:'#F0DC80', paddingBottom:6 }}
+                value={logValue} onChangeText={setLogValue} placeholder={goal.type==='health'?'Current weight':'Value'} placeholderTextColor="rgba(10,10,10,0.2)" keyboardType="numeric" autoFocus />
+              <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'rgba(10,10,10,0.35)' }}>{goal.unit}</Text>
+            </View>
+          )}
+          <TextInput style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'#0A0A0A', marginBottom:12 }}
+            value={logNote} onChangeText={setLogNote} placeholder="Note (optional)" placeholderTextColor="rgba(10,10,10,0.2)" />
+          <View style={{ flexDirection:'row', gap:10 }}>
+            <TouchableOpacity onPress={() => setShowLog(false)} activeOpacity={0.7} style={{ flex:1, paddingVertical:12, borderRadius:12, borderWidth:1, borderColor:'rgba(10,10,10,0.12)', alignItems:'center' }}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(10,10,10,0.4)' }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={addLog} activeOpacity={0.7} style={{ flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'#F0DC80', alignItems:'center' }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#6B5A00' }}>{isHabit ? 'Done!' : 'Save'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Milestones */}
+      {goal.milestones.length > 0 && (<>
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'#0A0A0A', marginBottom:12 }}>Milestones ({doneCount}/{goal.milestones.length})</Text>
+        {goal.milestones.map(m => (
+          <TouchableOpacity key={m.id} onPress={() => toggleMilestone(m.id)} activeOpacity={0.7}
+            style={{ flexDirection:'row', alignItems:'center', gap:12, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(10,10,10,0.06)' }}>
+            <View style={{ width:24, height:24, borderRadius:12, borderWidth:2, borderColor:m.done?'#22C55E':'rgba(10,10,10,0.15)', backgroundColor:m.done?'#22C55E':'transparent', alignItems:'center', justifyContent:'center' }}>
+              {m.done && <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><Path d="M20 6L9 17l-5-5"/></Svg>}
+            </View>
+            <View style={{ flex:1 }}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:m.done?'rgba(10,10,10,0.35)':'#0A0A0A', textDecorationLine:m.done?'line-through':'none' as any }}>{m.title}</Text>
+              {m.target_value > 0 && <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(10,10,10,0.3)', marginTop:2 }}>Target: {m.target_value} {goal.unit}</Text>}
+            </View>
+          </TouchableOpacity>
+        ))}
+      </>)}
+
+      {/* Recent logs */}
+      {goal.logs.length > 0 && (<>
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'#0A0A0A', marginTop:20, marginBottom:12 }}>Recent activity</Text>
+        {goal.logs.slice(-5).reverse().map(l => (
+          <View key={l.id} style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:10, borderBottomWidth:1, borderBottomColor:'rgba(10,10,10,0.04)' }}>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(10,10,10,0.3)', width:55 }}>{fmtDateAU(l.date).replace(/\s\d{4}$/,'')}</Text>
+            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A' }}>{isHabit ? 'Done' : `${l.value} ${goal.unit}`}</Text>
+            {l.note ? <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(10,10,10,0.35)', flex:1 }} numberOfLines={1}>{l.note}</Text> : null}
+          </View>
+        ))}
+      </>)}
+
+      {/* Delete */}
+      <TouchableOpacity onPress={() => { if (confirmDel) { onDelete(goal.id); } else setConfirmDel(true); }}
+        activeOpacity={0.7} style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, paddingVertical:14 }}>
+        <IcoTrash size={18} color={confirmDel?'#FF4545':'rgba(10,10,10,0.25)'} />
+        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:confirmDel?'#FF4545':'rgba(10,10,10,0.3)' }}>{confirmDel ? 'Tap again to delete' : 'Delete goal'}</Text>
+      </TouchableOpacity>
+      <View style={{ height:40 }} />
+    </ScrollView>
   );
 }
 
@@ -745,7 +1139,7 @@ function NoteEditorInline({ note, onBack, onSave, onDelete }: {
           {/* Share toggle — left */}
           <TouchableOpacity onPress={() => setShowShare(!showShare)} activeOpacity={0.7} style={ns.shareToggle}>
             {shared.length > 0 ? <IcoUsers color="rgba(10,10,10,0.45)" size={22}/> : <IcoLock color="rgba(10,10,10,0.35)" size={22}/>}
-            <Text style={ns.shareLbl}>{shared.length > 0 ? `Shared with ${shared.length}` : 'Private \u00b7 tap to add members'}</Text>
+            <Text style={ns.shareLbl}>{shared.length > 0 ? `Shared with ${shared.length}` : 'Private · tap to add members'}</Text>
           </TouchableOpacity>
 
           {/* Delete — right */}
@@ -948,6 +1342,20 @@ const s = StyleSheet.create({
   addGoalBtn: { marginTop: 14, backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
   addGoalTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: 'rgba(10,10,10,0.55)' },
 
+  // Goals list sheet
+  goalAddBtn:      { backgroundColor:'rgba(240,220,128,0.2)', borderWidth:1, borderStyle:'dashed' as any, borderColor:'rgba(107,90,0,0.25)', borderRadius:14, paddingVertical:16, alignItems:'center' as any, marginBottom:16 },
+  goalAddTxt:      { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#6B5A00' },
+  goalListItem:    { flexDirection:'row' as any, alignItems:'flex-start' as any, gap:12, paddingVertical:14, borderBottomWidth:1, borderBottomColor:'rgba(10,10,10,0.06)' },
+  goalListIcon:    { fontSize:22, width:28, textAlign:'center' as any, flexShrink:0, marginTop:2 },
+  goalListName:    { fontFamily:'Poppins_600SemiBold', fontSize:17, color:'#0A0A0A' },
+  goalListMeta:    { fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.42)', marginTop:2 },
+  goalListBarWrap: { height:5, borderRadius:3, backgroundColor:'rgba(10,10,10,0.08)', marginTop:8, overflow:'hidden' as any },
+  goalListBarFill: { height:5, borderRadius:3, backgroundColor:'#FF4545' },
+  goalListBarLabel:{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(10,10,10,0.35)' },
+  goalListPct:     { fontFamily:'Poppins_700Bold', fontSize:17, color:'#FF4545', flexShrink:0, marginTop:2 },
+  goalCta:         { backgroundColor:'#F0DC80', borderRadius:14, paddingVertical:16, alignItems:'center' as any, marginTop:20, marginBottom:12 },
+  goalCtaTxt:      { fontFamily:'Poppins_700Bold', fontSize:15, color:'#6B5A00' },
+
   // WotD
   wotdWord:    { fontFamily: 'Poppins_700Bold', fontSize: 26, color: '#6B35D9', fontStyle: 'italic', letterSpacing: -0.5, lineHeight: 32 },
   wotdDef:     { fontFamily: 'Poppins_400Regular', fontSize: 16, color: 'rgba(10,10,10,0.55)', lineHeight: 22 },
@@ -1007,8 +1415,8 @@ const s = StyleSheet.create({
   zaeliBox:          { backgroundColor: 'rgba(10,10,10,0.04)', borderRadius: 14, padding: 16, marginBottom: 14 },
   zaeliBoxLbl:       { fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 0.8, textTransform: 'uppercase', color: 'rgba(10,10,10,0.28)', marginBottom: 6 },
   zaeliBoxTxt:       { fontFamily: 'Poppins_400Regular', fontSize: 15, color: '#0A0A0A', lineHeight: 22 },
-  zaeliCta:          { backgroundColor: '#FF4545', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 12 },
-  zaeliCtaTxt:       { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' },
+  zaeliCta:          { backgroundColor: '#F0DC80', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 12 },
+  zaeliCtaTxt:       { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#6B5A00' },
 
   // New goal sheet
   newGoalHint: { fontFamily: 'Poppins_400Regular', fontSize: 16, color: 'rgba(10,10,10,0.50)', lineHeight: 23, marginBottom: 24 },
