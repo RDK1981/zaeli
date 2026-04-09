@@ -13,6 +13,7 @@ import Svg, { Polygon, Rect, Line, Path, Circle } from 'react-native-svg';
 import { setPendingChatContext } from '../../lib/navigation-store';
 import { supabase } from '../../lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
+import { ANSWER_WORDS, VALID_WORDS, getTodayWord, getTileStates, ZAELI_WIN_REACTIONS, ZAELI_LOSE_REACTIONS, KB_ROWS } from './wordle-data';
 
 const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -160,23 +161,6 @@ const ZEN_TRACKS = [
   { name: 'Let go of the day', dur: '8 min · evening' },
   { name: 'Sleep well',        dur: '10 min · sleep' },
 ];
-
-const WORDLE_ROWS = [
-  [{ l:'C',s:'g'},{l:'R',s:'x'},{l:'A',s:'y'},{l:'N',s:'x'},{l:'E',s:'x'}],
-  [{ l:'S',s:'x'},{l:'L',s:'g'},{l:'A',s:'g'},{l:'T',s:'y'},{l:'E',s:'x'}],
-  [{ l:'C',s:'c'},{l:'L',s:'c'},{l:'A',s:'c'},{l:'M',s:'c'},{l:'P',s:'c'}],
-  [{ l:'', s:'e'},{l:'', s:'e'},{l:'', s:'e'},{l:'', s:'e'},{l:'', s:'e'}],
-  [{ l:'', s:'e'},{l:'', s:'e'},{l:'', s:'e'},{l:'', s:'e'},{l:'', s:'e'}],
-  [{ l:'', s:'e'},{l:'', s:'e'},{l:'', s:'e'},{l:'', s:'e'},{l:'', s:'e'}],
-];
-const KB_ROWS = [
-  ['Q','W','E','R','T','Y','U','I','O','P'],
-  ['A','S','D','F','G','H','J','K','L'],
-  ['↵','Z','X','C','V','B','N','M','⌫'],
-];
-const KB_GREEN  = new Set(['C','L','A']);
-const KB_YELLOW = new Set(['T']);
-const KB_GREY   = new Set(['R','N','E','S','M','P','B','D','F','G','H','I','J','K','O','Q','U','V','W','X','Y','Z']);
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -2090,45 +2074,264 @@ const ns = StyleSheet.create({
 // ─── Wordle Sheet ─────────────────────────────────────────────────────────────
 
 function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const tileColor:     Record<string,string> = { g:'#6AAA64', y:'#C9B458', x:'#787C7E', e:'transparent', c:'transparent' };
-  const tileBorder:    Record<string,string> = { g:'transparent', y:'transparent', x:'transparent', e:'rgba(10,10,10,0.16)', c:'rgba(10,10,10,0.38)' };
-  const tileTextColor: Record<string,string> = { g:'#fff', y:'#fff', x:'#fff', e:'transparent', c:'#0A0A0A' };
+  const { word: answer, dayIndex } = getTodayWord();
+  const [guesses, setGuesses] = useState<string[]>([]);
+  const [currentInput, setCurrentInput] = useState('');
+  const [gameStatus, setGameStatus] = useState<'in_progress'|'won'|'lost'>('in_progress');
+  const [keyStates, setKeyStates] = useState<Record<string, 'correct'|'present'|'absent'>>({});
+  const [toast, setToast] = useState('');
+  const [streak] = useState(12); // dummy for now
 
-  function kbColor(letter: string) {
-    if (KB_GREEN.has(letter))  return { bg: '#6AAA64', txt: '#fff' };
-    if (KB_YELLOW.has(letter)) return { bg: '#C9B458', txt: '#fff' };
-    if (KB_GREY.has(letter))   return { bg: 'rgba(10,10,10,0.22)', txt: 'rgba(10,10,10,0.35)' };
-    return { bg: 'rgba(10,10,10,0.10)', txt: '#0A0A0A' };
+  const TILE_COLORS = {
+    correct: { bg:'#FF4545', border:'#FF4545', text:'#FFFFFF' },
+    present: { bg:'#F0DC80', border:'#E8C800', text:'#5A4200' },
+    absent:  { bg:'#6B7280', border:'#6B7280', text:'#FFFFFF' },
+    empty:   { bg:'rgba(255,255,255,0.6)', border:'rgba(80,32,192,0.15)', text:'transparent' },
+    typed:   { bg:'#FFFFFF', border:'#B8A4F0', text:'#1A1A1A' },
+  };
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(''), 1500);
+  }
+
+  function handleKey(key: string) {
+    if (gameStatus !== 'in_progress') return;
+    if (key === 'DEL') {
+      setCurrentInput(prev => prev.slice(0, -1));
+      return;
+    }
+    if (key === 'ENTER') {
+      if (currentInput.length < 5) { showToast('Not enough letters'); return; }
+      if (!VALID_WORDS.has(currentInput.toLowerCase())) { showToast('Not in word list'); return; }
+      submitGuess();
+      return;
+    }
+    if (currentInput.length >= 5) return;
+    setCurrentInput(prev => prev + key);
+  }
+
+  function submitGuess() {
+    const guess = currentInput.toUpperCase();
+    const states = getTileStates(guess, answer);
+
+    // Update key states
+    const newKeyStates = { ...keyStates };
+    guess.split('').forEach((l, i) => {
+      const cur = newKeyStates[l];
+      const next = states[i];
+      if (cur === 'correct') return;
+      if (next === 'correct') { newKeyStates[l] = 'correct'; return; }
+      if (cur === 'present') return;
+      if (next === 'present') { newKeyStates[l] = 'present'; return; }
+      if (!cur) newKeyStates[l] = 'absent';
+    });
+    setKeyStates(newKeyStates);
+
+    const newGuesses = [...guesses, guess];
+    setGuesses(newGuesses);
+    setCurrentInput('');
+
+    // Check win/lose
+    if (guess === answer) {
+      setGameStatus('won');
+    } else if (newGuesses.length >= 6) {
+      setGameStatus('lost');
+    }
+  }
+
+  function getReaction(): string {
+    if (gameStatus === 'won') return ZAELI_WIN_REACTIONS[guesses.length] || '';
+    if (gameStatus === 'lost') {
+      const r = ZAELI_LOSE_REACTIONS[Math.floor(Math.random() * ZAELI_LOSE_REACTIONS.length)];
+      return r.replace('{WORD}', answer);
+    }
+    return '';
+  }
+
+  function shareResult() {
+    if (gameStatus === 'in_progress') return;
+    const score = gameStatus === 'won' ? `${guesses.length}/6` : 'X/6';
+    const grid = guesses.map(g => {
+      const states = getTileStates(g, answer);
+      return states.map(s => s === 'correct' ? '\u{1F7E5}' : s === 'present' ? '\u{1F7E8}' : '\u2B1C').join('');
+    }).join('\n');
+    Share.share({ message: `Zaeli Wordle #${dayIndex + 1} \u2014 ${score}\n\n${grid}` });
+  }
+
+  // Build the 6x5 grid display
+  function renderGrid() {
+    const rows = [];
+    for (let r = 0; r < 6; r++) {
+      const tiles = [];
+      for (let c = 0; c < 5; c++) {
+        let letter = '';
+        let style = TILE_COLORS.empty;
+
+        if (r < guesses.length) {
+          // Submitted row
+          letter = guesses[r][c];
+          const states = getTileStates(guesses[r], answer);
+          style = TILE_COLORS[states[c]];
+        } else if (r === guesses.length && c < currentInput.length) {
+          // Current input row
+          letter = currentInput[c];
+          style = TILE_COLORS.typed;
+        }
+
+        tiles.push(
+          <View key={c} style={{
+            flex:1, aspectRatio:1, borderRadius:10, borderWidth:2,
+            backgroundColor:style.bg, borderColor:style.border,
+            alignItems:'center', justifyContent:'center',
+          }}>
+            <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:22, color:style.text }}>{letter}</Text>
+          </View>
+        );
+      }
+      rows.push(
+        <View key={r} style={{ flexDirection:'row', gap:6 }}>{tiles}</View>
+      );
+    }
+    return rows;
   }
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Wordle" subtitle="🔥 12-day streak">
-      <ScrollView
-        style={s.sheetBody}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }}
-      >
-        {/* Grid */}
-        <View style={s.wlGrid}>
-          {WORDLE_ROWS.map((row, ri) => (
-            <View key={ri} style={s.wlRow}>
-              {row.map((cell, ci) => (
-                <View key={ci} style={[s.wlTile, { backgroundColor: tileColor[cell.s], borderColor: tileBorder[cell.s] }]}>
-                  <Text style={[s.wlTileTxt, { color: tileTextColor[cell.s] }]}>{cell.l}</Text>
-                </View>
-              ))}
+    <Sheet visible={visible} onClose={onClose} title="Zaeli Wordle">
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow:1 }}>
+
+        {/* Lavender hero */}
+        <View style={{ backgroundColor:'#D8CCFF', paddingHorizontal:20, paddingTop:12, paddingBottom:20 }}>
+          {/* Top row */}
+          <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+            <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:15, color:'#3D1880', letterSpacing:0.3 }}>
+              Zaeli <Text style={{ color:'#FF4545' }}>Wordle</Text>
+            </Text>
+            <View style={{ backgroundColor:'rgba(255,255,255,0.4)', borderRadius:20, paddingVertical:5, paddingHorizontal:14 }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#5020C0' }}>#{dayIndex + 1}</Text>
+            </View>
+          </View>
+
+          {/* Streak */}
+          <View style={{ flexDirection:'row', alignItems:'center', gap:12, marginBottom:10 }}>
+            <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:42, color:'#1A1A1A', letterSpacing:-1, lineHeight:46 }}>{streak}</Text>
+            <View>
+              <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:18, color:'#3D1880', lineHeight:22 }}>day streak</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(61,24,128,0.6)', marginTop:1 }}>Keep it going</Text>
+            </View>
+            <Text style={{ fontSize:30, marginLeft:'auto' as any }}>🔥</Text>
+          </View>
+
+          {/* Zaeli hint */}
+          <View style={{ backgroundColor:'rgba(80,32,192,0.12)', borderRadius:14, padding:12, paddingHorizontal:16 }}>
+            <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:10, color:'#5020C0', letterSpacing:1, marginBottom:4 }}>{"ZAELI \u00B7 TODAY'S HINT"}</Text>
+            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#3D1880', lineHeight:20 }}>Something worth guessing. That's all you're getting.</Text>
+          </View>
+        </View>
+
+        {/* Game body */}
+        <View style={{ backgroundColor:'#F5F2FF', paddingHorizontal:18, paddingTop:18, paddingBottom:10 }}>
+          {/* Grid */}
+          <View style={{ gap:6, marginBottom:16 }}>
+            {renderGrid()}
+          </View>
+        </View>
+
+        {/* Keyboard */}
+        <View style={{ backgroundColor:'#F5F2FF', paddingHorizontal:12, paddingBottom:16 }}>
+          {KB_ROWS.map((row, ri) => (
+            <View key={ri} style={{ flexDirection:'row', gap:5, marginBottom:5, justifyContent:'center' }}>
+              {row.map((key) => {
+                const isWide = key === 'ENTER' || key === 'DEL';
+                const ks = keyStates[key];
+                let kbBg = '#E4DCFF';
+                let kbColor = '#3D1880';
+                if (ks === 'correct') { kbBg = '#FF4545'; kbColor = '#fff'; }
+                else if (ks === 'present') { kbBg = '#F0DC80'; kbColor = '#5A4200'; }
+                else if (ks === 'absent') { kbBg = '#6B7280'; kbColor = '#fff'; }
+
+                return (
+                  <TouchableOpacity key={key} onPress={() => handleKey(key)} activeOpacity={0.7}
+                    style={{
+                      height:50, borderRadius:10, alignItems:'center', justifyContent:'center',
+                      backgroundColor:kbBg,
+                      flex: isWide ? 1.5 : 1, maxWidth: isWide ? 58 : 38,
+                    }}>
+                    <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: isWide ? 11 : 14, color:kbColor }}>
+                      {key === 'DEL' ? '\u232B' : key}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           ))}
         </View>
 
-        {/* Keyboard */}
-        <View style={s.wlKb}>
-          {KB_ROWS.map((row, ri) => (
-            <View key={ri} style={s.wlKbRow}>
-              {row.map((k, ki) => {
-                const col = kbColor(k);
-                const isWide = k === '↵' || k === '⌫';
-                return (
+        {/* Toast */}
+        {toast ? (
+          <View style={{ position:'absolute', top:'42%' as any, alignSelf:'center', backgroundColor:'#1A1A1A', borderRadius:20, paddingVertical:10, paddingHorizontal:22, zIndex:20 }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#fff' }}>{toast}</Text>
+          </View>
+        ) : null}
+
+        {/* Result panel */}
+        {gameStatus !== 'in_progress' && (
+          <View style={{ backgroundColor:'#F5F2FF', paddingBottom:20 }}>
+            {/* Zaeli reaction */}
+            <View style={{ marginHorizontal:16, marginBottom:14, backgroundColor:'#2D3748', borderRadius:18, padding:14, paddingHorizontal:18 }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'#A8D8F0', letterSpacing:1, marginBottom:6 }}>ZAELI</Text>
+              <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'#E2E8F0', lineHeight:22 }}>{getReaction()}</Text>
+            </View>
+
+            {/* Leaderboard */}
+            <View style={{ marginHorizontal:16, marginBottom:14, backgroundColor:'#fff', borderRadius:18, padding:16, borderWidth:0.5, borderColor:'rgba(80,32,192,0.1)' }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#9CA3AF', letterSpacing:0.8, textTransform:'uppercase' as any, marginBottom:12 }}>{"Today's family"}</Text>
+
+              {/* Rich */}
+              <View style={{ flexDirection:'row', alignItems:'center', gap:12, paddingVertical:8 }}>
+                <View style={{ width:34, height:34, borderRadius:17, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' }}>
+                  <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:13, color:'#fff' }}>R</Text>
+                </View>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#1A1A1A', flex:1 }}>Rich</Text>
+                <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:15, color:'#FF4545' }}>
+                  {gameStatus === 'won' ? `${guesses.length}/6` : '\u2715'}
+                </Text>
+              </View>
+
+              {/* Anna */}
+              <View style={{ flexDirection:'row', alignItems:'center', gap:12, paddingVertical:8, borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.05)' }}>
+                <View style={{ width:34, height:34, borderRadius:17, backgroundColor:'#FF7B6B', alignItems:'center', justifyContent:'center' }}>
+                  <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:13, color:'#fff' }}>A</Text>
+                </View>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#1A1A1A', flex:1 }}>Anna</Text>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#9CA3AF' }}>\u2014</Text>
+              </View>
+
+              {/* Kids */}
+              <View style={{ flexDirection:'row', alignItems:'center', gap:12, paddingVertical:8, borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.05)' }}>
+                <View style={{ width:34, height:34, borderRadius:17, backgroundColor:'#E4DCFF', alignItems:'center', justifyContent:'center' }}>
+                  <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:13, color:'#9CA3AF' }}>P</Text>
+                </View>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#9CA3AF', flex:1 }}>Poppy</Text>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#9CA3AF' }}>Kids Hub</Text>
+              </View>
+            </View>
+
+            {/* Share button */}
+            <TouchableOpacity onPress={shareResult} activeOpacity={0.7}
+              style={{ marginHorizontal:16, backgroundColor:'#5020C0', borderRadius:14, paddingVertical:16, alignItems:'center', flexDirection:'row', justifyContent:'center', gap:8 }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'#fff' }}>Share result</Text>
+              <Text style={{ fontSize:16 }}>{'\u2B06\uFE0F'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={{ height:30, backgroundColor:'#F5F2FF' }} />
+      </ScrollView>
+    </Sheet>
+  );
+}
+
                   <TouchableOpacity
                     key={ki}
                     style={[s.wlKey, isWide && s.wlKeyWide, { backgroundColor: col.bg }]}
