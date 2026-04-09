@@ -61,10 +61,13 @@ function IcoPlus2({ color = '#5020C0', size = 18 }: { color?: string; size?: num
 // ─── Dummy data ───────────────────────────────────────────────────────────────
 
 const HEALTH = {
-  steps: 6842, goal: 10000, pct: 68, distance: 5.1, calories: 487,
+  steps: 7241, goal: 10000, pct: 72, distance: 5.2, calories: 348, activeMins: 42, standHrs: 9, standGoal: 12,
+  weekSteps: [6200, 9800, 8400, 2100, 8600, 12400, 7241],
+  weekDays: ['M','T','W','T','F','S','S'],
   workouts: [
-    { icon: '🏃', name: 'Outdoor Run',   meta: 'Yesterday · 6:34am', stats: ['6.1 km', '38 min', '412 cal'] },
-    { icon: '🚴', name: 'Outdoor Cycle', meta: 'Thu 3 Apr · 7:10am',  stats: ['22.4 km', '58 min', '620 cal'] },
+    { icon: '🏃', name: 'Outdoor Run',       meta: 'Sat 5 Apr · 5.2 km', dur: '34 min', bg: '#EBF8F1' },
+    { icon: '🚴', name: 'Cycling',            meta: 'Thu 3 Apr · 18.1 km', dur: '51 min', bg: '#EBF4FF' },
+    { icon: '🏋️', name: 'Strength Training', meta: 'Tue 1 Apr',           dur: '45 min', bg: '#FFF5EB' },
   ],
 };
 
@@ -393,7 +396,7 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
         <TouchableOpacity style={{ marginHorizontal:0, marginBottom:8, borderRadius:16, backgroundColor:'#3A3D4A', padding:16, paddingHorizontal:18 }} activeOpacity={0.88} onPress={() => setSheet('fitness')}>
           <Text style={[s.gridLabel, { color:'rgba(255,255,255,0.35)' }]}>FITNESS</Text>
           <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:32, color:'#fff', letterSpacing:-1, lineHeight:36 }}>{HEALTH.steps.toLocaleString()}</Text>
-          <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(255,255,255,0.5)', marginTop:2 }}>steps today · {HEALTH.distance} km · {HEALTH.calories} cal</Text>
+          <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(255,255,255,0.5)', marginTop:2 }}>steps today · {HEALTH.calories} cal · {HEALTH.activeMins} min active</Text>
           <View style={{ height:5, borderRadius:3, backgroundColor:'rgba(255,255,255,0.12)', overflow:'hidden', marginTop:10 }}>
             <View style={{ height:5, borderRadius:3, backgroundColor:'#A8D8F0', width:`${HEALTH.pct}%` as any }} />
           </View>
@@ -460,7 +463,7 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
       />
 
       {/* ── Shell sheets for new cards ── */}
-      <ShellSheet visible={sheet === 'fitness'} title="Fitness" onClose={closeSheet} />
+      <FitnessSheet visible={sheet === 'fitness'} onClose={closeSheet} />
       <GoalsListSheet
         visible={sheet === 'goals'}
         onClose={closeSheet}
@@ -775,6 +778,194 @@ function fmtDateAU(iso: string) {
   if (!iso || iso.length < 10) return '';
   try { return new Date(iso+'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' }); }
   catch { return iso; }
+}
+
+// ─── Fitness Sheet ───────────────────────────────────────────────────────────
+
+function FitnessSheet({ visible, onClose }: { visible:boolean; onClose:()=>void }) {
+  const [editGoal, setEditGoal] = useState(false);
+  const [goalVal, setGoalVal] = useState(String(HEALTH.goal));
+  const remaining = HEALTH.goal - HEALTH.steps;
+  const pct = Math.round((HEALTH.steps / HEALTH.goal) * 100);
+  const todayLabel = new Date().toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+
+  // SVG ring math
+  const ringR = 38;
+  const ringC = 2 * Math.PI * ringR;
+  const ringOffset = ringC - (ringC * Math.min(pct, 100) / 100);
+
+  // Weekly chart
+  const maxSteps = Math.max(...HEALTH.weekSteps, 1);
+  const barMaxH = 80;
+
+  return (
+    <Sheet visible={visible} onClose={onClose} title="Fitness">
+      <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
+
+        {/* Date badge */}
+        <View style={{ flexDirection:'row', justifyContent:'flex-end', marginBottom:12, marginTop:-4 }}>
+          <View style={{ backgroundColor:'#E8E4DE', borderRadius:20, paddingVertical:5, paddingHorizontal:14 }}>
+            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#4A5568' }}>Today · {todayLabel}</Text>
+          </View>
+        </View>
+
+        {/* Zaeli nudge */}
+        <View style={{ backgroundColor:'#2D3748', borderRadius:18, padding:16, marginBottom:16 }}>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'#A8D8F0', letterSpacing:1, marginBottom:6 }}>ZAELI</Text>
+          <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'#E2E8F0', lineHeight:22 }}>Strong week, Rich — you've moved every day since Monday. Today's looking quiet so far but it's only the afternoon.</Text>
+        </View>
+
+        {/* Section: Today's movement */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#9CA3AF', letterSpacing:0.8, textTransform:'uppercase' as any, marginBottom:10 }}>{"Today's movement"}</Text>
+
+        <View style={{ backgroundColor:'#fff', borderRadius:18, padding:18, borderWidth:0.5, borderColor:'rgba(0,0,0,0.07)', marginBottom:16 }}>
+          {/* Steps + Ring */}
+          <View style={{ flexDirection:'row', alignItems:'center', gap:20 }}>
+            {/* Progress ring */}
+            <View style={{ width:90, height:90, alignItems:'center', justifyContent:'center' }}>
+              <Svg width={90} height={90} viewBox="0 0 90 90">
+                <Circle cx={45} cy={45} r={ringR} fill="none" stroke="#E8F5EE" strokeWidth={8} />
+                <Circle cx={45} cy={45} r={ringR} fill="none" stroke="#38A169" strokeWidth={8}
+                  strokeDasharray={`${ringC}`} strokeDashoffset={`${ringOffset}`}
+                  strokeLinecap="round" rotation={-90} origin="45,45" />
+              </Svg>
+              <View style={{ position:'absolute', alignItems:'center' }}>
+                <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:18, color:'#1A1A1A', lineHeight:22 }}>{pct}%</Text>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:8, color:'#9CA3AF', letterSpacing:0.5 }}>OF GOAL</Text>
+              </View>
+            </View>
+
+            {/* Step count */}
+            <View style={{ flex:1 }}>
+              <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:36, color:'#1A1A1A', letterSpacing:-1, lineHeight:40 }}>{HEALTH.steps.toLocaleString()}</Text>
+              <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'#718096', marginTop:3 }}>steps today</Text>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:8 }}>
+                <View style={{ width:7, height:7, borderRadius:4, backgroundColor:'#38A169' }} />
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#38A169' }}>{remaining.toLocaleString()} steps to goal</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Metric pills */}
+          <View style={{ flexDirection:'row', gap:10, marginTop:16 }}>
+            <View style={{ flex:1, backgroundColor:'#F7F7F4', borderRadius:14, paddingVertical:12, paddingHorizontal:10, alignItems:'center' }}>
+              <Text style={{ fontSize:17, marginBottom:4 }}>🔥</Text>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#1A1A1A' }}>{HEALTH.calories}</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, color:'#9CA3AF', marginTop:3 }}>Active cal</Text>
+            </View>
+            <View style={{ flex:1, backgroundColor:'#F7F7F4', borderRadius:14, paddingVertical:12, paddingHorizontal:10, alignItems:'center' }}>
+              <Text style={{ fontSize:17, marginBottom:4 }}>⚡</Text>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#1A1A1A' }}>{HEALTH.activeMins}</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, color:'#9CA3AF', marginTop:3 }}>Active min</Text>
+            </View>
+            <View style={{ flex:1, backgroundColor:'#F7F7F4', borderRadius:14, paddingVertical:12, paddingHorizontal:10, alignItems:'center' }}>
+              <Text style={{ fontSize:17, marginBottom:4 }}>🧍</Text>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#1A1A1A' }}>{HEALTH.standHrs} / {HEALTH.standGoal}</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, color:'#9CA3AF', marginTop:3 }}>Stand hrs</Text>
+            </View>
+          </View>
+
+          {/* Goal edit row */}
+          <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:16, paddingTop:14, borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.07)' }}>
+            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'#718096' }}>Daily goal: <Text style={{ fontFamily:'Poppins_700Bold', color:'#1A1A1A' }}>{parseInt(goalVal).toLocaleString()} steps</Text></Text>
+            <TouchableOpacity onPress={() => setEditGoal(!editGoal)} activeOpacity={0.7}
+              style={{ backgroundColor:'#F0EDE8', borderRadius:20, paddingVertical:6, paddingHorizontal:16 }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#4A5568' }}>Edit goal</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Goal edit inline */}
+          {editGoal && (
+            <View style={{ marginTop:14 }}>
+              <TextInput
+                style={{ fontFamily:'Poppins_800ExtraBold', fontSize:28, color:'#1A1A1A', textAlign:'center', borderWidth:1.5, borderColor:'#E2E8F0', borderRadius:14, paddingVertical:12, marginBottom:12 }}
+                value={goalVal} onChangeText={setGoalVal} keyboardType="numeric"
+              />
+              <View style={{ flexDirection:'row', gap:8, marginBottom:14, justifyContent:'center' }}>
+                {[6000, 8000, 10000, 12000, 15000].map(v => (
+                  <TouchableOpacity key={v} onPress={() => setGoalVal(String(v))} activeOpacity={0.7}
+                    style={{ paddingVertical:7, paddingHorizontal:14, borderRadius:20,
+                      backgroundColor: goalVal === String(v) ? '#2D3748' : '#F0EDE8' }}>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13,
+                      color: goalVal === String(v) ? '#fff' : '#4A5568' }}>{(v/1000)}k</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity onPress={() => setEditGoal(false)} activeOpacity={0.7}
+                style={{ backgroundColor:'#FF4545', borderRadius:14, paddingVertical:15, alignItems:'center' }}>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' }}>Save goal</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Section: This week */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#9CA3AF', letterSpacing:0.8, textTransform:'uppercase' as any, marginBottom:10 }}>This week</Text>
+
+        <View style={{ backgroundColor:'#fff', borderRadius:18, padding:18, borderWidth:0.5, borderColor:'rgba(0,0,0,0.07)', marginBottom:16 }}>
+          <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'#718096', marginBottom:16, lineHeight:20 }}>
+            Active <Text style={{ fontFamily:'Poppins_700Bold', color:'#1A1A1A' }}>5 of 7 days</Text> · avg <Text style={{ fontFamily:'Poppins_700Bold', color:'#1A1A1A' }}>{Math.round(HEALTH.weekSteps.reduce((a,b)=>a+b,0)/7).toLocaleString()} steps</Text>
+          </Text>
+
+          {/* Bar chart */}
+          <View style={{ flexDirection:'row', alignItems:'flex-end', gap:8, height:barMaxH, marginBottom:6 }}>
+            {HEALTH.weekSteps.map((steps, i) => {
+              const isToday = i === HEALTH.weekDays.length - 1;
+              const h = Math.max(4, (steps / maxSteps) * barMaxH);
+              const isLow = steps < HEALTH.goal * 0.3;
+              return (
+                <View key={i} style={{ flex:1, alignItems:'center', justifyContent:'flex-end', height:barMaxH }}>
+                  <View style={{
+                    width:'100%' as any, height:h, borderRadius:5,
+                    backgroundColor: isLow ? '#E8E4DE' : isToday ? '#38A169' : '#68D391',
+                    ...(isToday ? { borderWidth:2, borderColor:'#2F855A' } : {}),
+                  }} />
+                </View>
+              );
+            })}
+          </View>
+          <View style={{ flexDirection:'row', gap:8 }}>
+            {HEALTH.weekDays.map((d, i) => {
+              const isToday = i === HEALTH.weekDays.length - 1;
+              return (
+                <View key={i} style={{ flex:1, alignItems:'center' }}>
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: isToday ? '#2F855A' : '#9CA3AF' }}>
+                    {isToday ? 'Now' : d}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Section: Recent workouts */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#9CA3AF', letterSpacing:0.8, textTransform:'uppercase' as any, marginBottom:10 }}>Recent workouts</Text>
+
+        <View style={{ backgroundColor:'#fff', borderRadius:18, overflow:'hidden', borderWidth:0.5, borderColor:'rgba(0,0,0,0.07)', marginBottom:16 }}>
+          {HEALTH.workouts.map((w, i) => (
+            <View key={i} style={{ flexDirection:'row', alignItems:'center', padding:16, gap:14, ...(i > 0 ? { borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.07)' } : {}) }}>
+              <View style={{ width:42, height:42, borderRadius:12, backgroundColor:w.bg, alignItems:'center', justifyContent:'center' }}>
+                <Text style={{ fontSize:20 }}>{w.icon}</Text>
+              </View>
+              <View style={{ flex:1 }}>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#1A1A1A' }}>{w.name}</Text>
+                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'#9CA3AF', marginTop:3 }}>{w.meta}</Text>
+              </View>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#4A5568' }}>{w.dur}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* HealthKit footer */}
+        <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:8, paddingVertical:16 }}>
+          <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#FC3C44' }} />
+          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#C0C0B8' }}>Data from Apple Health</Text>
+        </View>
+
+        <View style={{ height:30 }} />
+      </ScrollView>
+    </Sheet>
+  );
 }
 
 // ─── Goals List Sheet ─────────────────────────────────────────────────────────
