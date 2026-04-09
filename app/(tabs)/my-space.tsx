@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, Modal, Share,
+  View, Text, ScrollView, TouchableOpacity, Modal, Share, Linking,
   StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -190,6 +190,8 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
   const [activeGoal, setActiveGoal] = useState<string | null>(null);
   // Zen playing track
   const [zenPlaying, setZenPlaying] = useState(0);
+  // Fitness goal state (shared between card + sheet)
+  const [stepGoal, setStepGoal] = useState(HEALTH.goal);
   // Notes state
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
@@ -398,9 +400,9 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
           <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:32, color:'#fff', letterSpacing:-1, lineHeight:36 }}>{HEALTH.steps.toLocaleString()}</Text>
           <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(255,255,255,0.5)', marginTop:2 }}>steps today · {HEALTH.calories} cal · {HEALTH.activeMins} min active</Text>
           <View style={{ height:5, borderRadius:3, backgroundColor:'rgba(255,255,255,0.12)', overflow:'hidden', marginTop:10 }}>
-            <View style={{ height:5, borderRadius:3, backgroundColor:'#A8D8F0', width:`${HEALTH.pct}%` as any }} />
+            <View style={{ height:5, borderRadius:3, backgroundColor:'#A8D8F0', width:`${Math.min(100, Math.round((HEALTH.steps/stepGoal)*100))}%` as any }} />
           </View>
-          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(255,255,255,0.45)', marginTop:4 }}>{HEALTH.goal - HEALTH.steps} steps to go · goal {HEALTH.goal.toLocaleString()}</Text>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(255,255,255,0.45)', marginTop:4 }}>{Math.max(0, stepGoal - HEALTH.steps).toLocaleString()} steps to go · goal {stepGoal.toLocaleString()}</Text>
         </TouchableOpacity>
 
         {/* ── 4-Card Grid (2 rows x 2 columns) ── */}
@@ -463,7 +465,7 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
       />
 
       {/* ── Shell sheets for new cards ── */}
-      <FitnessSheet visible={sheet === 'fitness'} onClose={closeSheet} />
+      <FitnessSheet visible={sheet === 'fitness'} onClose={closeSheet} stepGoal={stepGoal} onGoalChange={setStepGoal} />
       <GoalsListSheet
         visible={sheet === 'goals'}
         onClose={closeSheet}
@@ -476,7 +478,7 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
         onDeleteGoal={(id) => { deleteGoal(id); setActiveGoal(null); }}
       />
       {/* Budget removed — lives on Dashboard now */}
-      <ShellSheet visible={sheet === 'stretch'} title="Daily Stretch" onClose={closeSheet} />
+      <StretchSheet visible={sheet === 'stretch'} onClose={closeSheet} />
       <ShellSheet visible={sheet === 'zen'} title="Zen" onClose={closeSheet} />
     </View>
   );
@@ -753,8 +755,9 @@ function Sheet({ visible, onClose, title, subtitle, children }: {
 }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity style={s.sheetWrap} activeOpacity={1} onPress={() => {}}>
+      <View style={s.backdrop}>
+        <TouchableOpacity style={{ flex:1 }} activeOpacity={1} onPress={onClose} />
+        <View style={s.sheetWrap}>
           <View style={s.sheetHandle} />
           <View style={s.sheetHdr}>
             <View>
@@ -766,8 +769,8 @@ function Sheet({ visible, onClose, title, subtitle, children }: {
             </TouchableOpacity>
           </View>
           {children}
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -780,13 +783,184 @@ function fmtDateAU(iso: string) {
   catch { return iso; }
 }
 
+// ─── Stretch data ────────────────────────────────────────────────────────────
+
+const STRETCH_VIDEOS: Record<string, { title:string; channel:string; dur:string; ytId:string }> = {
+  '5-adriene':  { title:'5 Min Morning Yoga',      channel:'Yoga With Adriene', dur:'5 min',  ytId:'4pKly2JojMw' },
+  '15-adriene': { title:'15 Min Full Body Stretch', channel:'Yoga With Adriene', dur:'15 min', ytId:'g_tea8ZNkHE' },
+  '30-adriene': { title:'30 Min Deep Stretch',      channel:'Yoga With Adriene', dur:'30 min', ytId:'GLy2rYHwUqY' },
+  '5-patrick':  { title:'5 Min Quick Stretch',      channel:'Patrick Beach Yoga', dur:'5 min',  ytId:'3sMJRBPxN3o' },
+  '15-patrick': { title:'15 Min Mobility Reset',    channel:'Patrick Beach Yoga', dur:'15 min', ytId:'Yzm3-P8aBYY' },
+  '30-patrick': { title:'30 Min Full Mobility',     channel:'Patrick Beach Yoga', dur:'30 min', ytId:'v7AYKMP6rOE' },
+};
+
+const STRETCH_MOVES: Record<string, { name:string; detail:string }[]> = {
+  '5': [
+    { name:'Cat-Cow stretch',       detail:'60 sec · spine mobility' },
+    { name:"Child's pose",          detail:'45 sec · lower back' },
+    { name:'Hip flexor lunge',      detail:'30 sec each side · hips' },
+    { name:'Seated hamstring',      detail:'30 sec each side' },
+    { name:'Shoulder rolls + neck', detail:'60 sec · upper body' },
+  ],
+  '15': [
+    { name:'Neck and shoulder release', detail:'90 sec · upper body' },
+    { name:'Cat-Cow flow',              detail:'60 sec · spine' },
+    { name:'Downward dog',              detail:'60 sec · full body' },
+    { name:'Pigeon pose',               detail:'90 sec each side · hips' },
+    { name:'Supine twist',              detail:'60 sec each side · lower back' },
+    { name:'Seated forward fold',       detail:'90 sec · hamstrings' },
+  ],
+  '30': [
+    { name:'Neck and shoulder rolls',   detail:'2 min · upper body' },
+    { name:'Cat-Cow + thread needle',   detail:'3 min · spine mobility' },
+    { name:'Low lunge flow',            detail:'3 min each side · hips' },
+    { name:'Downward dog to cobra',     detail:'3 min · full body' },
+    { name:'Pigeon pose hold',          detail:'2 min each side · deep hips' },
+    { name:'Seated wide-leg fold',      detail:'2 min · inner thighs' },
+    { name:'Supine spinal twist',       detail:'2 min each side · lower back' },
+    { name:'Happy baby',                detail:'2 min · hip flexors' },
+    { name:'Savasana',                  detail:'3 min · full body rest' },
+  ],
+};
+
+// ─── Stretch Sheet ───────────────────────────────────────────────────────────
+
+function StretchSheet({ visible, onClose }: { visible:boolean; onClose:()=>void }) {
+  const [duration, setDuration] = useState<'5'|'15'|'30'>('5');
+  const [instructor, setInstructor] = useState<'adriene'|'patrick'>('adriene');
+  const [isDone, setIsDone] = useState(false);
+  const [streak] = useState(3); // dummy
+
+  const videoKey = `${duration}-${instructor}`;
+  const video = STRETCH_VIDEOS[videoKey];
+  const moves = STRETCH_MOVES[duration];
+
+  function changeDuration(d: '5'|'15'|'30') { setDuration(d); setIsDone(false); }
+  function changeInstructor(i: 'adriene'|'patrick') { setInstructor(i); setIsDone(false); }
+
+  function openYouTube() {
+    Linking.openURL(`https://www.youtube.com/watch?v=${video.ytId}`);
+  }
+
+  return (
+    <Sheet visible={visible} onClose={onClose} title="Daily Stretch">
+      <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
+
+        {/* Streak badge */}
+        <View style={{ flexDirection:'row', justifyContent:'flex-end', marginBottom:12, marginTop:-4 }}>
+          <View style={{ flexDirection:'row', alignItems:'center', gap:6, backgroundColor:'#FFF8E6', borderRadius:20, paddingVertical:5, paddingHorizontal:14 }}>
+            <Text style={{ fontSize:14 }}>🔥</Text>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#92660A' }}>{streak} day streak</Text>
+          </View>
+        </View>
+
+        {/* Zaeli nudge */}
+        <View style={{ backgroundColor:'#2D3748', borderRadius:18, padding:16, marginBottom:16 }}>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'#A8D8F0', letterSpacing:1, marginBottom:6 }}>ZAELI</Text>
+          <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'#E2E8F0', lineHeight:22 }}>Good morning — a quick 5 minutes before the school run would set you up nicely today.</Text>
+        </View>
+
+        {/* Session picker */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#9CA3AF', letterSpacing:0.8, textTransform:'uppercase' as any, marginBottom:10 }}>Choose your session</Text>
+
+        <View style={{ backgroundColor:'#fff', borderRadius:18, padding:16, borderWidth:0.5, borderColor:'rgba(0,0,0,0.07)', marginBottom:16 }}>
+          {/* Duration */}
+          <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#9CA3AF', width:80 }}>Duration</Text>
+            <View style={{ flexDirection:'row', flex:1, gap:8 }}>
+              {(['5','15','30'] as const).map(d => (
+                <TouchableOpacity key={d} onPress={() => changeDuration(d)} activeOpacity={0.7}
+                  style={{ flex:1, paddingVertical:9, borderRadius:20, alignItems:'center',
+                    backgroundColor: duration === d ? '#4A7C6F' : '#F7F7F4' }}>
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color: duration === d ? '#fff' : '#718096' }}>{d} min</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={{ height:0.5, backgroundColor:'rgba(0,0,0,0.07)', marginBottom:14 }} />
+
+          {/* Instructor */}
+          <View style={{ flexDirection:'row', alignItems:'center' }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#9CA3AF', width:80 }}>Instructor</Text>
+            <View style={{ flexDirection:'row', flex:1, gap:8 }}>
+              {([{ k:'adriene' as const, l:'Adriene' },{ k:'patrick' as const, l:'Patrick' }]).map(i => (
+                <TouchableOpacity key={i.k} onPress={() => changeInstructor(i.k)} activeOpacity={0.7}
+                  style={{ flex:1, paddingVertical:9, borderRadius:20, alignItems:'center',
+                    backgroundColor: instructor === i.k ? '#4A7C6F' : '#F7F7F4' }}>
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color: instructor === i.k ? '#fff' : '#718096' }}>{i.l}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* Video card */}
+        <TouchableOpacity onPress={openYouTube} activeOpacity={0.85}
+          style={{ marginBottom:16, borderRadius:18, overflow:'hidden', borderWidth:0.5, borderColor:'rgba(0,0,0,0.07)' }}>
+          {/* Thumbnail */}
+          <View style={{ aspectRatio:16/9, backgroundColor:'#1A1A2E', alignItems:'center', justifyContent:'center' }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'rgba(255,255,255,0.5)', position:'absolute', top:'34%' as any }}>{video.channel}</Text>
+            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(255,255,255,0.3)', position:'absolute', top:'50%' as any }}>{video.title} · {video.dur}</Text>
+            <View style={{ width:60, height:60, borderRadius:16, backgroundColor:'#FF0000', alignItems:'center', justifyContent:'center' }}>
+              <Svg width={24} height={24} viewBox="0 0 24 24" fill="#fff"><Polygon points="5 3 19 12 5 21 5 3" /></Svg>
+            </View>
+          </View>
+          {/* Meta bar */}
+          <View style={{ backgroundColor:'#fff', padding:14, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+            <View>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#1A1A1A' }}>{video.title}</Text>
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'#9CA3AF', marginTop:3 }}>{video.channel}</Text>
+            </View>
+            <View style={{ backgroundColor:'#EAF3EE', borderRadius:20, paddingVertical:5, paddingHorizontal:12 }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#4A7C6F' }}>{video.dur}</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* Movements */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#9CA3AF', letterSpacing:0.8, textTransform:'uppercase' as any, marginBottom:10 }}>{"What's in this session"}</Text>
+
+        <View style={{ backgroundColor:'#fff', borderRadius:18, overflow:'hidden', borderWidth:0.5, borderColor:'rgba(0,0,0,0.07)', marginBottom:16 }}>
+          {moves.map((m, i) => (
+            <View key={i} style={{ flexDirection:'row', alignItems:'center', padding:14, gap:14, ...(i > 0 ? { borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.06)' } : {}) }}>
+              <View style={{ width:28, height:28, borderRadius:14, backgroundColor:'#EAF3EE', alignItems:'center', justifyContent:'center' }}>
+                <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:12, color:'#4A7C6F' }}>{i+1}</Text>
+              </View>
+              <View style={{ flex:1 }}>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#1A1A1A' }}>{m.name}</Text>
+                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'#9CA3AF', marginTop:3 }}>{m.detail}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Mark as done */}
+        <TouchableOpacity onPress={() => setIsDone(true)} activeOpacity={0.7}
+          style={{ backgroundColor: isDone ? '#EAF3EE' : '#4A7C6F', borderRadius:14, paddingVertical:16, alignItems:'center', flexDirection:'row', justifyContent:'center', gap:10, marginBottom:8 }}>
+          <View style={{ width:22, height:22, borderRadius:11, backgroundColor: isDone ? '#4A7C6F' : 'rgba(255,255,255,0.2)', alignItems:'center', justifyContent:'center' }}>
+            {isDone && <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><Path d="M20 6L9 17l-5-5"/></Svg>}
+            {!isDone && <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(255,255,255,0.6)' }}>✓</Text>}
+          </View>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color: isDone ? '#4A7C6F' : '#fff' }}>{isDone ? 'Done for today' : 'Mark as done'}</Text>
+        </TouchableOpacity>
+        {isDone && (
+          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#9CA3AF', textAlign:'center', marginBottom:16 }}>Saved · Zaeli will remember this 👌</Text>
+        )}
+
+        <View style={{ height:30 }} />
+      </ScrollView>
+    </Sheet>
+  );
+}
+
 // ─── Fitness Sheet ───────────────────────────────────────────────────────────
 
-function FitnessSheet({ visible, onClose }: { visible:boolean; onClose:()=>void }) {
+function FitnessSheet({ visible, onClose, stepGoal, onGoalChange }: { visible:boolean; onClose:()=>void; stepGoal:number; onGoalChange:(v:number)=>void }) {
   const [editGoal, setEditGoal] = useState(false);
-  const [goalVal, setGoalVal] = useState(String(HEALTH.goal));
-  const remaining = HEALTH.goal - HEALTH.steps;
-  const pct = Math.round((HEALTH.steps / HEALTH.goal) * 100);
+  const [goalVal, setGoalVal] = useState(String(stepGoal));
+  const remaining = Math.max(0, stepGoal - HEALTH.steps);
+  const pct = Math.min(100, Math.round((HEALTH.steps / stepGoal) * 100));
   const todayLabel = new Date().toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
 
   // SVG ring math
@@ -867,7 +1041,7 @@ function FitnessSheet({ visible, onClose }: { visible:boolean; onClose:()=>void 
 
           {/* Goal edit row */}
           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:16, paddingTop:14, borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.07)' }}>
-            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'#718096' }}>Daily goal: <Text style={{ fontFamily:'Poppins_700Bold', color:'#1A1A1A' }}>{parseInt(goalVal).toLocaleString()} steps</Text></Text>
+            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:14, color:'#718096' }}>Daily goal: <Text style={{ fontFamily:'Poppins_700Bold', color:'#1A1A1A' }}>{stepGoal.toLocaleString()} steps</Text></Text>
             <TouchableOpacity onPress={() => setEditGoal(!editGoal)} activeOpacity={0.7}
               style={{ backgroundColor:'#F0EDE8', borderRadius:20, paddingVertical:6, paddingHorizontal:16 }}>
               <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#4A5568' }}>Edit goal</Text>
@@ -891,7 +1065,7 @@ function FitnessSheet({ visible, onClose }: { visible:boolean; onClose:()=>void 
                   </TouchableOpacity>
                 ))}
               </View>
-              <TouchableOpacity onPress={() => setEditGoal(false)} activeOpacity={0.7}
+              <TouchableOpacity onPress={() => { onGoalChange(parseInt(goalVal) || 10000); setEditGoal(false); }} activeOpacity={0.7}
                 style={{ backgroundColor:'#FF4545', borderRadius:14, paddingVertical:15, alignItems:'center' }}>
                 <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' }}>Save goal</Text>
               </TouchableOpacity>
