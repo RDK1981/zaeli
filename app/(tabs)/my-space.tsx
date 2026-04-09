@@ -5,11 +5,11 @@
 
 import React, { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, Modal,
-  StyleSheet, Dimensions,
+  View, Text, ScrollView, TouchableOpacity, Modal, Share,
+  StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Polygon, Rect, Line } from 'react-native-svg';
+import Svg, { Polygon, Rect, Line, Path, Circle } from 'react-native-svg';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -34,6 +34,26 @@ function IcoPause({ color = 'rgba(10,10,10,0.55)', size = 15 }: { color?: string
   );
 }
 
+// ─── SVG Icons ───────────────────────────────────────────────────────────────
+function IcoNote({ color = 'rgba(10,10,10,0.5)', size = 20 }: { color?: string; size?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><Path d="M14 2v6h6"/><Line x1="16" y1="13" x2="8" y2="13"/><Line x1="16" y1="17" x2="8" y2="17"/><Line x1="10" y1="9" x2="8" y2="9"/></Svg>;
+}
+function IcoLock({ color = 'rgba(10,10,10,0.35)', size = 14 }: { color?: string; size?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><Path d="M7 11V7a5 5 0 0110 0v4"/></Svg>;
+}
+function IcoUsers({ color = 'rgba(10,10,10,0.35)', size = 14 }: { color?: string; size?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><Circle cx="9" cy="7" r="4"/><Path d="M23 21v-2a4 4 0 00-3-3.87"/><Path d="M16 3.13a4 4 0 010 7.75"/></Svg>;
+}
+function IcoChevLeft({ color = 'rgba(10,10,10,0.5)', size = 22 }: { color?: string; size?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><Path d="M15 18l-6-6 6-6"/></Svg>;
+}
+function IcoTrash({ color = '#FF4545', size = 18 }: { color?: string; size?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><Path d="M3 6h18"/><Path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></Svg>;
+}
+function IcoPlus2({ color = '#5020C0', size = 18 }: { color?: string; size?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round"><Line x1="12" y1="5" x2="12" y2="19"/><Line x1="5" y1="12" x2="19" y2="12"/></Svg>;
+}
+
 // ─── Dummy data ───────────────────────────────────────────────────────────────
 
 const HEALTH = {
@@ -50,10 +70,20 @@ const GOALS = [
   { icon: '💧', name: 'Drink 2L water daily',    meta: 'Today: 1.2L of 2L',     pct: 60, detail: 'Stay hydrated every day. Currently at 1.2L today — almost there.' },
 ];
 
-const NOTES = [
-  { title: 'Bathroom reno ideas',  preview: 'Hex tiles for floor. Wall-hung vanity. Keep existing window.', updated: '2 days ago' },
-  { title: 'Books to read',        preview: 'Clear — James Clear. The Creative Act — Rick Rubin.', updated: '1 week ago' },
-  { title: 'Work — Q2 priorities', preview: 'Launch Zaeli beta. Onboarding flow. Stripe. TestFlight.', updated: 'Yesterday' },
+const FAMILY_MEMBERS = [
+  { id:'1', name:'Anna',  color:'#FF7B6B' },
+  { id:'2', name:'Rich',  color:'#4D8BFF' },
+  { id:'3', name:'Poppy', color:'#A855F7' },
+  { id:'4', name:'Gab',   color:'#22C55E' },
+  { id:'5', name:'Duke',  color:'#F59E0B' },
+];
+
+type NoteItem = { id:string; title:string; text:string; preview:string; updated:string; shared:string[] };
+
+const INITIAL_NOTES: NoteItem[] = [
+  { id:'1', title:'Bathroom reno ideas',  text:'Hex tiles for floor.\nWall-hung vanity.\nKeep existing window.\nMatt black tapware throughout.\nDouble rain showerhead.\nBudget: $18-22k range.', preview:'Hex tiles for floor. Wall-hung vanity. Keep existing window.', updated:'2 days ago', shared:[] },
+  { id:'2', title:'Books to read',        text:'Clear \u2014 James Clear\nThe Creative Act \u2014 Rick Rubin\nAtomic Habits (re-read)\nFour Thousand Weeks \u2014 Oliver Burkeman\nSame as Ever \u2014 Morgan Housel', preview:'Clear \u2014 James Clear. The Creative Act \u2014 Rick Rubin.', updated:'1 week ago', shared:[] },
+  { id:'3', title:'Work \u2014 Q2 priorities', text:'Launch Zaeli beta\nOnboarding flow\nStripe integration\nTestFlight submission\nFirst 10 family testers\nWeekly retro with Anna', preview:'Launch Zaeli beta. Onboarding flow. Stripe. TestFlight.', updated:'Yesterday', shared:['1'] },
 ];
 
 const WOTD = {
@@ -100,6 +130,9 @@ export default function MySpaceScreen() {
   const [activeGoal, setActiveGoal] = useState<number | null>(null);
   // Zen playing track
   const [zenPlaying, setZenPlaying] = useState(0);
+  // Notes state
+  const [notes, setNotes] = useState<NoteItem[]>(INITIAL_NOTES);
+  const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
 
   function toggleInline(card: string) {
     setExpanded(prev => (prev === card ? null : card));
@@ -212,6 +245,24 @@ export default function MySpaceScreen() {
       <NotesSheet
         visible={sheet === 'notes'}
         onClose={closeSheet}
+        notes={notes}
+        onEdit={(n) => setEditingNote(n)}
+        onNew={() => {
+          const newNote: NoteItem = { id:`new-${Date.now()}`, title:'', text:'', preview:'', updated:'Just now', shared:[] };
+          setEditingNote(newNote);
+        }}
+        onDelete={(id) => setNotes(prev => prev.filter(n => n.id !== id))}
+        editingNote={editingNote}
+        onEditorClose={() => setEditingNote(null)}
+        onEditorSave={(updated) => {
+          setNotes(prev => {
+            const exists = prev.find(n => n.id === updated.id);
+            if (exists) return prev.map(n => n.id === updated.id ? updated : n);
+            return [updated, ...prev];
+          });
+          setEditingNote(null);
+        }}
+        onEditorDelete={(id) => { setNotes(prev => prev.filter(n => n.id !== id)); setEditingNote(null); }}
       />
       <WordleSheet
         visible={sheet === 'wordle'}
@@ -550,25 +601,205 @@ function NewGoalSheet({ visible, onClose }: { visible: boolean; onClose: () => v
 
 // ─── Notes Sheet ──────────────────────────────────────────────────────────────
 
-function NotesSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function NotesSheet({ visible, onClose, notes, onEdit, onNew, onDelete, editingNote, onEditorClose, onEditorSave, onEditorDelete }: {
+  visible: boolean; onClose: () => void;
+  notes: NoteItem[]; onEdit: (n: NoteItem) => void; onNew: () => void; onDelete: (id: string) => void;
+  editingNote: NoteItem | null; onEditorClose: () => void;
+  onEditorSave: (n: NoteItem) => void; onEditorDelete: (id: string) => void;
+}) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string|null>(null);
+
   return (
-    <Sheet visible={visible} onClose={onClose} title="📝  Notes">
-      <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity style={s.noteNewBtn}>
-          <Text style={s.noteNewTxt}>+ New note</Text>
-        </TouchableOpacity>
-        {NOTES.map((n, i) => (
-          <TouchableOpacity key={i} style={s.noteCard} activeOpacity={0.80}>
-            <Text style={s.noteCardTitle}>{n.title}</Text>
-            <Text style={s.noteCardPreview}>{n.preview}</Text>
-            <Text style={s.noteCardMeta}>Updated {n.updated}</Text>
+    <Sheet visible={visible} onClose={() => { if (editingNote) onEditorClose(); else onClose(); }} title="Notes">
+      {/* ── List view (hidden when editing) ── */}
+      {!editingNote && (
+        <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
+          {/* + New note */}
+          <TouchableOpacity style={s.noteNewBtn} onPress={onNew} activeOpacity={0.7}>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+              <IcoPlus2 color="#8A3A00" size={18} />
+              <Text style={s.noteNewTxt}>New note</Text>
+            </View>
           </TouchableOpacity>
-        ))}
-        <View style={{ height: 40 }} />
-      </ScrollView>
+
+          {/* Note list */}
+          {notes.map((n) => (
+            <TouchableOpacity key={n.id} style={s.noteCard} activeOpacity={0.80} onPress={() => { setConfirmDeleteId(null); onEdit(n); }}>
+              <Text style={s.noteCardTitle}>{n.title}</Text>
+              <Text style={s.noteCardPreview} numberOfLines={2}>{n.preview}</Text>
+              <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
+                <Text style={s.noteCardMeta}>Updated {n.updated}</Text>
+                <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
+                  {n.shared.length > 0 ? (
+                    <>
+                      <IcoUsers color="rgba(10,10,10,0.3)" size={20} />
+                      {n.shared.map(sid => {
+                        const m = FAMILY_MEMBERS.find(f => f.id === sid);
+                        return m ? <View key={sid} style={{ width:12, height:12, borderRadius:6, backgroundColor:m.color }} /> : null;
+                      })}
+                    </>
+                  ) : (
+                    <IcoLock color="rgba(10,10,10,0.22)" size={20} />
+                  )}
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation(); if (confirmDeleteId === n.id) { onDelete(n.id); setConfirmDeleteId(null); } else setConfirmDeleteId(n.id); }}
+                    activeOpacity={0.6} hitSlop={{ top:10, bottom:10, left:10, right:10 }}>
+                    <IcoTrash color={confirmDeleteId === n.id ? '#FF4545' : 'rgba(10,10,10,0.18)'} size={20} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {confirmDeleteId === n.id && (
+                <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'#FF4545', marginTop:6 }}>Tap bin again to delete</Text>
+              )}
+            </TouchableOpacity>
+          ))}
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      )}
+
+      {/* ── Editor view (replaces list when editing) ── */}
+      {editingNote && (
+        <NoteEditorInline
+          note={editingNote}
+          onBack={onEditorClose}
+          onSave={onEditorSave}
+          onDelete={onEditorDelete}
+        />
+      )}
     </Sheet>
   );
 }
+
+// ─── Note Editor (inline inside sheet — no separate modal) ───────────────────
+function NoteEditorInline({ note, onBack, onSave, onDelete }: {
+  note: NoteItem; onBack: () => void;
+  onSave: (updated: NoteItem) => void; onDelete: (id: string) => void;
+}) {
+  const isNew = note.id.startsWith('new-');
+  const [title, setTitle] = useState(note.title);
+  const [text, setText]   = useState(note.text);
+  const [shared, setShared] = useState<string[]>(note.shared);
+  const [showShare, setShowShare] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  function handleSave() {
+    const preview = text.split('\n').filter(Boolean).slice(0, 2).join('. ').slice(0, 80);
+    onSave({ ...note, title: title.trim() || 'Untitled', text, preview, updated: 'Just now', shared });
+  }
+
+  function toggleMember(id: string) {
+    setShared(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  return (
+    <View style={{ flex:1 }}>
+      {/* Header */}
+      <View style={ns.hdr}>
+        <TouchableOpacity onPress={() => { handleSave(); }} activeOpacity={0.7} style={ns.backBtn}>
+          <IcoChevLeft size={24} />
+        </TouchableOpacity>
+        <View style={{ flex:1 }} />
+        <TouchableOpacity onPress={() => {
+          if (text.trim()) {
+            Share.share({ message: `${title.trim() || 'Note'}\n\n${text}` });
+          }
+        }} activeOpacity={0.7} style={ns.sendBtn}>
+          <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#8A3A00" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <Line x1="22" y1="2" x2="11" y2="13"/><Path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+          </Svg>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => { handleSave(); }} activeOpacity={0.7} style={ns.saveBtn}>
+          <Text style={ns.saveTxt}>Done</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Title */}
+      <TextInput
+        style={ns.titleInput}
+        value={title}
+        onChangeText={setTitle}
+        placeholder="Note title"
+        placeholderTextColor="rgba(10,10,10,0.25)"
+        autoFocus={isNew}
+      />
+
+      {/* Body */}
+      <KeyboardAvoidingView style={{ flex:1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={80}>
+        <ScrollView style={{ flex:1 }} keyboardShouldPersistTaps="handled">
+          <TextInput
+            style={ns.bodyInput}
+            value={text}
+            onChangeText={setText}
+            placeholder="Start writing..."
+            placeholderTextColor="rgba(10,10,10,0.2)"
+            multiline
+            textAlignVertical="top"
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Bottom bar */}
+      <View style={ns.bottomBar}>
+        {/* Row: share left, delete right */}
+        <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+          {/* Share toggle — left */}
+          <TouchableOpacity onPress={() => setShowShare(!showShare)} activeOpacity={0.7} style={ns.shareToggle}>
+            {shared.length > 0 ? <IcoUsers color="rgba(10,10,10,0.45)" size={22}/> : <IcoLock color="rgba(10,10,10,0.35)" size={22}/>}
+            <Text style={ns.shareLbl}>{shared.length > 0 ? `Shared with ${shared.length}` : 'Private \u00b7 tap to add members'}</Text>
+          </TouchableOpacity>
+
+          {/* Delete — right */}
+          {!isNew && (
+            <TouchableOpacity
+              onPress={() => {
+                if (confirmDelete) { onDelete(note.id); }
+                else setConfirmDelete(true);
+              }}
+              activeOpacity={0.7} style={ns.deleteRow}>
+              <Text style={ns.deleteTxt}>{confirmDelete ? 'Confirm' : 'Delete'}</Text>
+              <IcoTrash size={20} color={confirmDelete ? '#FF4545' : 'rgba(10,10,10,0.3)'} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Share chips */}
+        {showShare && (
+          <View style={ns.shareChips}>
+            {FAMILY_MEMBERS.map(m => {
+              const sel = shared.includes(m.id);
+              return (
+                <TouchableOpacity key={m.id} onPress={() => toggleMember(m.id)} activeOpacity={0.7}
+                  style={[ns.shareChip, sel && { backgroundColor: m.color, borderColor: m.color }]}>
+                  <Text style={[ns.shareChipTxt, sel && { color:'#fff' }]}>{m.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        <View style={{ height: 16 }} />
+      </View>
+    </View>
+  );
+}
+
+const ns = StyleSheet.create({
+  hdr:        { flexDirection:'row', alignItems:'center', paddingHorizontal:16, paddingVertical:10, borderBottomWidth:1, borderBottomColor:'rgba(10,10,10,0.07)' },
+  backBtn:    { width:40, height:40, alignItems:'center', justifyContent:'center' },
+  sendBtn:    { width:40, height:40, alignItems:'center', justifyContent:'center' },
+  saveBtn:    { paddingHorizontal:16, paddingVertical:8, backgroundColor:'#FAC8A8', borderRadius:12 },
+  saveTxt:    { fontFamily:'Poppins_700Bold', fontSize:14, color:'#8A3A00' },
+  titleInput: { fontFamily:'Poppins_700Bold', fontSize:24, color:'#0A0A0A', letterSpacing:-0.5, paddingHorizontal:20, paddingTop:20, paddingBottom:8 },
+  bodyInput:  { fontFamily:'Poppins_400Regular', fontSize:16, color:'#0A0A0A', lineHeight:26, paddingHorizontal:20, paddingTop:8, minHeight:200 },
+  bottomBar:  { borderTopWidth:1, borderTopColor:'rgba(10,10,10,0.07)', paddingHorizontal:20, paddingTop:12, gap:10 },
+  shareToggle:{ flexDirection:'row', alignItems:'center', gap:10 },
+  shareLbl:   { fontFamily:'Poppins_500Medium', fontSize:14, color:'rgba(10,10,10,0.45)' },
+  shareChips: { flexDirection:'row', flexWrap:'wrap', gap:8, paddingTop:4 },
+  shareChip:  { paddingVertical:6, paddingHorizontal:14, borderRadius:20, borderWidth:1.5, borderColor:'rgba(10,10,10,0.12)', backgroundColor:'#fff' },
+  shareChipTxt:{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(10,10,10,0.55)' },
+  deleteRow:  { flexDirection:'row', alignItems:'center', gap:8 },
+  deleteTxt:  { fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#FF4545' },
+});
 
 // ─── Wordle Sheet ─────────────────────────────────────────────────────────────
 
@@ -761,7 +992,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: 'rgba(10,10,10,0.07)',
   },
-  sheetTitle:    { fontFamily: 'Poppins_700Bold', fontSize: 18, color: '#0A0A0A' },
+  sheetTitle:    { fontFamily: 'Poppins_700Bold', fontSize: 22, color: '#0A0A0A', letterSpacing: -0.3 },
   sheetSubtitle: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: 'rgba(10,10,10,0.42)', marginTop: 2 },
   sheetClose:    { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(10,10,10,0.07)', alignItems: 'center', justifyContent: 'center' },
   sheetCloseTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: 'rgba(10,10,10,0.45)' },
@@ -783,8 +1014,8 @@ const s = StyleSheet.create({
   newGoalHint: { fontFamily: 'Poppins_400Regular', fontSize: 16, color: 'rgba(10,10,10,0.50)', lineHeight: 23, marginBottom: 24 },
 
   // Notes sheet
-  noteNewBtn:      { backgroundColor: 'rgba(80,32,192,0.07)', borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(80,32,192,0.25)', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 14 },
-  noteNewTxt:      { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#5020C0' },
+  noteNewBtn:      { backgroundColor: 'rgba(250,200,168,0.15)', borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(138,58,0,0.25)', borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginBottom: 14 },
+  noteNewTxt:      { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#8A3A00' },
   noteCard:        { backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(10,10,10,0.07)', borderRadius: 14, padding: 16, marginBottom: 10 },
   noteCardTitle:   { fontFamily: 'Poppins_600SemiBold', fontSize: 17, color: '#0A0A0A', marginBottom: 4 },
   noteCardPreview: { fontFamily: 'Poppins_400Regular',  fontSize: 14, color: 'rgba(10,10,10,0.45)', lineHeight: 20 },
