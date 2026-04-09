@@ -121,45 +121,81 @@ export default function MySpaceScreen() {
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
+      {/* ── Fixed Header ── */}
+      <View style={s.hdr}>
+        <Text style={s.logo}>
+          z<Text style={s.logoAi}>a</Text>el<Text style={s.logoAi}>i</Text>
+        </Text>
+        <Text style={s.pageLabel}>My Space</Text>
+      </View>
+
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header ── */}
-        <View style={s.hdr}>
-          <Text style={s.logo}>
-            z<Text style={s.logoAi}>a</Text>el<Text style={s.logoAi}>i</Text>
-          </Text>
-          <Text style={s.pageLabel}>My Space</Text>
+
+        {/* ── Zaeli Brief Card (dark slate) ── */}
+        <View style={s.briefCard}>
+          <Text style={s.briefLabel}>{'\u2726'} ZAELI</Text>
+          <Text style={s.briefMsg}>Solid start to the week, Rich. <Text style={{ color:'#A8D8F0', fontWeight:'700' }}>6,842 steps</Text> already logged and three goals tracking well.</Text>
+          <View style={s.briefDivider}/>
+          <Text style={s.briefQuote}>{'"The only way to do great work is to love what you do."'}</Text>
+          <Text style={s.briefAuthor}>STEVE JOBS</Text>
         </View>
 
-        {/* ── Cards ── */}
-        <HealthCard
-          expanded={expanded === 'health'}
-          onToggle={() => toggleInline('health')}
-        />
-        <GoalsCard
-          expanded={expanded === 'goals'}
-          onToggle={() => toggleInline('goals')}
-          onGoalTap={openGoalDetail}
-          onAddGoal={openNewGoal}
-        />
+        {/* ── Word of the Day ── */}
         <WotdCard
           expanded={expanded === 'wotd'}
           onToggle={() => toggleInline('wotd')}
         />
-        <NasaCard
-          expanded={expanded === 'nasa'}
-          onToggle={() => toggleInline('nasa')}
-        />
-        <ZenCard
-          expanded={expanded === 'zen'}
-          onToggle={() => toggleInline('zen')}
-          zenPlaying={zenPlaying}
-          setZenPlaying={setZenPlaying}
-        />
-        <NotesCard onOpen={() => setSheet('notes')} />
+
+        {/* ── 6-Card Grid (3 rows x 2 columns) ── */}
+        <View style={s.grid2}>
+          {/* Row 1: Fitness | Goals */}
+          <TouchableOpacity style={[s.gridCard, { backgroundColor:'#3A3D4A' }]} activeOpacity={0.88} onPress={() => setSheet('fitness')}>
+            <Text style={s.gridLabel}>FITNESS</Text>
+            <Text style={[s.gridNum, { color:'#fff' }]}>{HEALTH.steps.toLocaleString()}</Text>
+            <Text style={[s.gridHl, { color:'#fff' }]}>steps today</Text>
+            <View style={s.gridBar}><View style={[s.gridBarFill, { width:`${HEALTH.pct}%` as any, backgroundColor:'#A8D8F0' }]}/></View>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.gridCard, { backgroundColor:'#F0DC80' }]} activeOpacity={0.88} onPress={() => setSheet('goals')}>
+            <Text style={[s.gridLabel, { color:'rgba(26,26,26,0.35)' }]}>GOALS</Text>
+            <Text style={[s.gridNum, { color:'#1A1A1A' }]}>3</Text>
+            <Text style={[s.gridHl, { color:'#1A1A1A' }]}>active goals</Text>
+            <Text style={[s.gridSub, { color:'rgba(26,26,26,0.5)' }]}>1 on track</Text>
+          </TouchableOpacity>
+
+          {/* Row 2: Budget | Notes */}
+          <TouchableOpacity style={[s.gridCard, { backgroundColor:'#E8F0FF' }]} activeOpacity={0.88} onPress={() => setSheet('budget')}>
+            <Text style={[s.gridLabel, { color:'rgba(26,26,26,0.35)' }]}>BUDGET</Text>
+            <Text style={[s.gridNum, { color:'#1A1A1A' }]}>$1,240</Text>
+            <Text style={[s.gridHl, { color:'#1A1A1A' }]}>of $2,000</Text>
+            <View style={s.gridBar}><View style={[s.gridBarFill, { width:'62%' as any, backgroundColor:'#3B6EE0' }]}/></View>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.gridCard, { backgroundColor:'#FAC8A8' }]} activeOpacity={0.88} onPress={() => setSheet('notes')}>
+            <Text style={[s.gridLabel, { color:'rgba(58,24,0,0.35)' }]}>NOTES</Text>
+            <Text style={[s.gridNum, { color:'#3A1800' }]}>3</Text>
+            <Text style={[s.gridHl, { color:'#3A1800' }]}>saved notes</Text>
+            <Text style={[s.gridSub, { color:'rgba(58,24,0,0.5)' }]}>Updated yesterday</Text>
+          </TouchableOpacity>
+
+          {/* Row 3: Stretch | Zen */}
+          <TouchableOpacity style={[s.gridCard, { backgroundColor:'#E8F4E8' }]} activeOpacity={0.88} onPress={() => setSheet('stretch')}>
+            <Text style={[s.gridLabel, { color:'rgba(42,90,26,0.45)' }]}>DAILY STRETCH</Text>
+            <Text style={[s.gridNum, { color:'#2A5A1A', fontSize:22 }]}>Morning</Text>
+            <Text style={[s.gridHl, { color:'#2A5A1A' }]}>flow</Text>
+            <Text style={[s.gridSub, { color:'rgba(42,90,26,0.5)' }]}>5 movements · 8 min</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.gridCard, { backgroundColor:'#E0F3FC' }]} activeOpacity={0.88} onPress={() => setSheet('zen')}>
+            <Text style={[s.gridLabel, { color:'rgba(10,74,106,0.45)' }]}>ZEN</Text>
+            <Text style={[s.gridNum, { color:'#0A4A6A', fontSize:22 }]}>4</Text>
+            <Text style={[s.gridHl, { color:'#0A4A6A' }]}>sessions</Text>
+            <Text style={[s.gridSub, { color:'rgba(10,74,106,0.5)' }]}>Ready to play</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Wordle Card (full width) ── */}
         <WordleCard onOpen={() => setSheet('wordle')} />
       </ScrollView>
 
@@ -181,7 +217,25 @@ export default function MySpaceScreen() {
         visible={sheet === 'wordle'}
         onClose={closeSheet}
       />
+
+      {/* ── Shell sheets for new cards ── */}
+      <ShellSheet visible={sheet === 'fitness'} title="Fitness" onClose={closeSheet} />
+      <ShellSheet visible={sheet === 'goals'} title="Goals" onClose={closeSheet} />
+      <ShellSheet visible={sheet === 'budget'} title="Budget" onClose={closeSheet} />
+      <ShellSheet visible={sheet === 'stretch'} title="Daily Stretch" onClose={closeSheet} />
+      <ShellSheet visible={sheet === 'zen'} title="Zen" onClose={closeSheet} />
     </View>
+  );
+}
+
+// ─── Shell Sheet (placeholder for new cards) ────────────────────────────────
+function ShellSheet({ visible, title, onClose }: { visible: boolean; title: string; onClose: () => void }) {
+  return (
+    <Sheet visible={visible} onClose={onClose} title={title}>
+      <View style={{ flex:1, alignItems:'center', justifyContent:'center', paddingBottom:60 }}>
+        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:16, color:'rgba(10,10,10,0.2)' }}>Coming soon</Text>
+      </View>
+    </Sheet>
   );
 }
 
@@ -583,10 +637,28 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: 14, paddingTop: 14, gap: 10, paddingBottom: 130 },
 
   // Header
-  hdr:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 6, paddingBottom: 10, paddingTop: 4 },
-  logo:      { fontFamily: 'Poppins_800ExtraBold', fontSize: 36, color: '#0A0A0A', letterSpacing: -1.5, lineHeight: 42 },
+  hdr:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10, paddingTop: 4, borderBottomWidth: 1, borderBottomColor: 'rgba(10,10,10,0.08)' },
+  logo:      { fontFamily: 'Poppins_800ExtraBold', fontSize: 40, color: '#0A0A0A', letterSpacing: -1.5, lineHeight: 46 },
   logoAi:    { color: '#A8D8F0' },
-  pageLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: 'rgba(10,10,10,0.42)' },
+  pageLabel: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: 'rgba(10,10,10,0.32)' },
+
+  // Brief card (dark slate)
+  briefCard:    { borderRadius:20, backgroundColor:'#3A3D4A', padding:16, paddingHorizontal:18, marginBottom:2 },
+  briefLabel:   { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(168,216,240,0.5)', marginBottom:9 },
+  briefMsg:     { fontFamily:'Poppins_500Medium', fontSize:17, color:'#fff', lineHeight:26, marginBottom:14 },
+  briefDivider: { height:1, backgroundColor:'rgba(255,255,255,0.08)', marginBottom:12 },
+  briefQuote:   { fontFamily:'DMSerifDisplay_400Regular', fontSize:18, color:'rgba(255,255,255,0.55)', lineHeight:26, marginBottom:6, fontStyle:'italic' as any },
+  briefAuthor:  { fontFamily:'Poppins_600SemiBold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase' as any, color:'rgba(255,255,255,0.22)' },
+
+  // 6-card grid
+  grid2:        { flexDirection:'row' as any, flexWrap:'wrap' as any, gap:8, marginBottom:2 },
+  gridCard:     { width:(W - 28 - 8) / 2, minHeight:120, borderRadius:16, padding:14 },
+  gridLabel:    { fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.9, textTransform:'uppercase' as any, color:'rgba(255,255,255,0.35)', marginBottom:6 },
+  gridNum:      { fontFamily:'Poppins_800ExtraBold', fontSize:30, letterSpacing:-0.8, lineHeight:34 },
+  gridHl:       { fontFamily:'Poppins_700Bold', fontSize:15, letterSpacing:-0.3, lineHeight:20 },
+  gridSub:      { fontFamily:'Poppins_500Medium', fontSize:11, marginTop:5 },
+  gridBar:      { height:4, borderRadius:2, backgroundColor:'rgba(255,255,255,0.15)', marginTop:8, overflow:'hidden' as any },
+  gridBarFill:  { height:4, borderRadius:2 },
 
   // Card base
   card:      { borderRadius: 22, padding: 22, overflow: 'hidden', position: 'relative' },

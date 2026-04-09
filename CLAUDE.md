@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 8 April 2026 (evening) — Session 4 ✅ · Context flow WORKING · Full CRUD tools · Mic waveform · Dashboard refresh · Chat UI refined*
+*Last updated: 9 April 2026 — Session 5 ✅ · Design refresh all 3 pages · Peach dashboard · Lavender chat · My Space 6-card grid · Briefs on all pages*
 
 ---
 
@@ -92,7 +92,7 @@ NEVER SafeAreaView in individual page files — swipe-world.tsx ONLY
 Individual pages   = useSafeAreaInsets() for manual paddingTop
 DM Serif           = ghost numbers ONLY (never readable UI text)
 Wordmark font      = Poppins_800ExtraBold (NOT DM Serif)
-Wordmark a+i       = #A8D8F0 sky blue — always, light and dark
+Wordmark a+i       = Dashboard:#FAC8A8 peach · Chat:#C4B4FF lavender · MySpace:#A8D8F0 sky
 ZaeliFAB           = forwardRef, exposes startMic() + openMore()
 FAB hides          = activeButton === 'keyboard' OR hideFabBar prop
 FAB on chat page   = HIDDEN via activePage !== PAGE_CHAT in swipe-world
@@ -113,7 +113,7 @@ Mic waveform       = 7 bars [10,18,28,36,28,18,10] width:4 coral, Cancel+Send bu
 swipe-world scroll = keyboardShouldPersistTaps="handled" (dismiss on feed tap, keep on buttons)
 LANDING_TEST_MODE  = true (in swipe-world.tsx) — set false before launch
 Swipe pages        = Dashboard(0) · Chat(1) · My Space(2) — LOCKED
-3-dot colours      = coral(0) · coral(1) · sky #A8D8F0(2)
+3-dot colours      = peach #FAC8A8(0) · lavender #D8CCFF(1) · sky #A8D8F0(2)
 ✦ active colour    = #A8D8F0 sky blue (userColor)
 Delete             = optimistic UI first, Supabase background
 Todos fetch        = IN ['active','done'] — NEVER eq('status','active')
@@ -277,6 +277,65 @@ All 7 cards built, 4 × 92% sheets. All dummy data.
 
 ---
 
+## ══════════════════════════════════
+## SESSION 5 — DESIGN REFRESH (9 April 2026) ✅
+## ══════════════════════════════════
+
+**All 3 pages redesigned to match new brand specs.**
+
+### Dashboard changes:
+- Logo a+i tinted peach `#FAC8A8` (was sky blue)
+- Logo 40px (was 36)
+- Date header 17px/700 weight
+- NEW peach Zaeli brief card (#FAC8A8) above all cards — GPT mini, 2 sentences, fires once per session
+- Dinner/Meal planner card changed to mint `#B8EDD0` (was peach — too much peach with new branding)
+- FAB dashboard icon: peach `#FAC8A8` bg when active (was black)
+- 3-dot page indicator: peach for dashboard
+
+### Chat changes:
+- Avatar removed from header
+- Header label "Home" → "Chat" (18px/700)
+- Logo a+i tinted lavender `#C4B4FF` (was sky blue)
+- Logo 40px
+- NEW lavender brief card (#D8CCFF) above chat thread — sparkle + ZAELI label, Poppins 17 text, white chips (13px matching feed)
+- 3-dot page indicator: lavender for chat
+- Reduced gap above date divider, increased gap before brief
+
+### My Space changes:
+- Header now FIXED (doesn't scroll with content)
+- Logo 40px, "My Space" label 18px/700
+- NEW dark slate Zaeli brief card (#3A3D4A) with DM Serif italic quote (18px)
+- WotD card: stays as inline expand
+- **NEW 6-card grid (2×3):** Fitness(slate) | Goals(gold) | Budget(blue #E8F0FF) | Notes(peach) | Stretch(sage) | Zen(light blue #E0F3FC)
+- Wordle card: full width below grid (lavender)
+- NASA APOD card: REMOVED from layout
+- All grid cards uniform: minHeight 120, borderRadius 16, padding 14
+- Grid labels 11px/700 uppercase
+- Grid numbers 30px/800 Poppins
+- Grid headlines 15px/700
+- Stretch + Zen: use big number style (22px) for "Morning" / "4"
+- All grid cards + Wordle open 92% shell sheets (placeholder "Coming soon")
+
+### Swipe-world changes:
+- 3-dot colours: peach(0) · lavender(1) · sky(2)
+
+### Key constants updated:
+```
+Dashboard logo a+i   = #FAC8A8 peach
+Chat logo a+i        = #C4B4FF lavender
+My Space logo a+i    = #A8D8F0 sky blue (unchanged)
+Dinner card          = #B8EDD0 mint (was #FAC8A8 peach)
+Budget card          = #E8F0FF blue
+Zen card             = #E0F3FC light blue
+FAB dash active      = #FAC8A8 peach bg, #8A3A00 icon
+3-dot colours        = peach(0) · lavender(1) · sky(2)
+All logos            = 40px Poppins_800ExtraBold
+All page labels      = 18px Poppins_700Bold
+Brief text           = Poppins 17px on all 3 pages
+```
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -285,18 +344,15 @@ Phase 4: Dashboard Option A    ✅ all 5 cards
 Phase 4b: Chat input bar       ✅
 Dashboard stress testing       ✅
 Phase 3: swipe-world.tsx       ✅
-Phase 3b: My Space             ✅ all 7 cards, 4 sheets
+Phase 3b: My Space             ✅ redesigned — 6-card grid + brief + shell sheets
 Phase 6: Zaeli Noticed (AI)    ✅ GPT mini, wttr.in weather
 Phase 5: Chat v5 / fix         ✅ RESOLVED sessions 3+4 — send, context flow, CRUD tools, mic, UI
-Phase 7: Todos sheet           🔨
-Phase 8: Shopping complete     🔨
-Phase 9: Meals sheet           🔨
-Phase 10: Notes sheet (family) 🔨
-Phase 11: Travel sheet         🔨
-Phase 12: Kids Hub             🔨
-Phase 13: Tutor rebuild        🔨
-Phase 14: Our Family           🔨
-Phase 15: Settings             🔨
+Phase 5b: Design refresh       ✅ Session 5 — all 3 pages, briefs, new brand colours
+Phase 7: My Space sheets       🔨 ← NEXT (Fitness, Goals, Budget, Notes, Stretch, Zen, Wordle)
+Phase 8: Dashboard sheets      🔨 (Todos, Shopping, Calendar, Meals)
+Phase 9: Dedicated pages       🔨 (Kids Hub, Tutor, Our Family, Settings)
+Phase 10: Travel sheet         🔨
+Phase 11: Notes sheet (family) 🔨
 ```
 
 ---

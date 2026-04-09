@@ -2602,6 +2602,8 @@ function HomeScreen({
   const micOverlayAnim    = useRef(new Animated.Value(0)).current;
   const [showScrollBtn,   setShowScrollBtn]   = useState(false);
   const [briefReplies,    setBriefReplies]    = useState<string[]>([]);
+  const [chatBriefText,   setChatBriefText]   = useState('');
+  const [chatBriefChips,  setChatBriefChips]  = useState<string[]>([]);
   const [briefHero,       setBriefHero]       = useState<string>('');
   const [briefChips,      setBriefChips]      = useState<string[]>([]);
   const [activePill,      setActivePill]      = useState<string>('');
@@ -3251,6 +3253,9 @@ EXAMPLES OF GOOD BRIEFS:
       cachedBriefText = JSON.stringify({ hero, chips });
       setBriefHero(hero);
       setBriefChips(chips);
+      // Store for lavender brief card
+      setChatBriefText(hero);
+      setChatBriefChips(chips);
 
       // Also push a brief detail message into the chat thread
       // This is the secondary line + chips that appear below the card stack
@@ -4876,15 +4881,10 @@ Only include events directly relevant to the question. Max 5 events.`;
           <View style={s.topBarRow}>
             <TouchableOpacity onPress={() => router.navigate('/(tabs)/')} activeOpacity={0.8}>
               <Text style={s.logoWord}>
-                z<Text style={{ color:HOME_AI }}>a</Text>el<Text style={{ color:HOME_AI }}>i</Text>
+                z<Text style={{ color:'#C4B4FF' }}>a</Text>el<Text style={{ color:'#C4B4FF' }}>i</Text>
               </Text>
             </TouchableOpacity>
-            <View style={s.topBarRight}>
-              <Text style={s.topBarChannelName}>Home</Text>
-              <TouchableOpacity style={s.avatar} onPress={() => {}} activeOpacity={0.8}>
-                <Text style={s.avatarTxt}>R</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={s.topBarChannelName}>Chat</Text>
           </View>
           <View style={s.topBarDivider}/>
         </SafeAreaView>
@@ -4916,6 +4916,22 @@ Only include events directly relevant to the question. Max 5 events.`;
                 <Text style={[s.dateLabel2, { color:T.ink3 }]}>{dateLabel.toUpperCase()}</Text>
                 <View style={[s.dateLine2, { backgroundColor:T.dateLine }]}/>
               </View>
+
+              {/* ── LAVENDER BRIEF CARD ── */}
+              {chatBriefText ? (
+                <View style={{ marginHorizontal:12, marginBottom:12, borderRadius:18, backgroundColor:'#D8CCFF', padding:16, paddingHorizontal:18 }}>
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(60,20,140,0.4)', marginBottom:8 }}>{'\u2726'} ZAELI</Text>
+                  <Text style={{ fontFamily:'Poppins_500Medium', fontSize:17, color:'#1A0A40', lineHeight:26, marginBottom:12 }}>{chatBriefText.replace(/\[([^\]]+)\]/g, '$1')}</Text>
+                  <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+                    {chatBriefChips.map((chip, i) => (
+                      <TouchableOpacity key={i} onPress={() => handleQuickReply(chip)} activeOpacity={0.7}
+                        style={{ backgroundColor:'#fff', borderWidth:1, borderColor:'rgba(10,10,10,0.1)', borderRadius:20, paddingVertical:6, paddingHorizontal:13 }}>
+                        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.65)' }}>{chip}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : null}
 
               {/* ── CHAT THREAD ── */}
               {renderMessages()}
@@ -6077,8 +6093,8 @@ const s = StyleSheet.create({
   topBarRow:         { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:20, paddingTop:4, paddingBottom:10 },
   topBarDivider:     { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
   topBarRight:       { flexDirection:'row', alignItems:'center', gap:10 },
-  topBarChannelName: { fontFamily:'Poppins_600SemiBold', fontSize:16, color:'rgba(10,10,10,0.45)' },
-  logoWord:          { fontFamily:'Poppins_800ExtraBold', fontSize:36, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:42 },
+  topBarChannelName: { fontFamily:'Poppins_700Bold', fontSize:18, color:'rgba(10,10,10,0.35)' },
+  logoWord:          { fontFamily:'Poppins_800ExtraBold', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:46 },
   avatar:            { width:34, height:34, borderRadius:17, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' },
   avatarTxt:         { fontFamily:'Poppins_700Bold', fontSize:13, color:'#fff' },
   heroLine:          { fontFamily:'DMSerifDisplay_400Regular', fontSize:26, color:'#0A0A0A', lineHeight:36, letterSpacing:-0.4 },
@@ -6097,7 +6113,7 @@ const s = StyleSheet.create({
   briefChipTxt:      { fontFamily:'Poppins_600SemiBold', fontSize:11, color:'rgba(0,0,0,0.55)' },
   briefChipAccentTxt:{ color:'rgba(0,0,0,0.70)' },
   cardStack:      { paddingHorizontal:14, paddingTop:4, paddingBottom:4, gap:10 },
-  cardChatDivider:{ flexDirection:'row', alignItems:'center', marginHorizontal:18, marginTop:16, marginBottom:4, gap:10 },
+  cardChatDivider:{ flexDirection:'row', alignItems:'center', marginHorizontal:18, marginTop:4, marginBottom:14, gap:10 },
   dateLine2:      { flex:1, height:1 },
   dateLabel2:     { fontFamily:'Poppins_600SemiBold', fontSize:9, letterSpacing:1.2, textTransform:'uppercase' as const },
 

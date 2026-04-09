@@ -32,7 +32,7 @@ const PAGE_MYSPACE   = 2;
 const USER_INITIAL = 'R';
 const USER_COLOR   = '#A8D8F0';
 
-const DOT_COLORS  = ['#FF4545', '#FF4545', '#A8D8F0'];
+const DOT_COLORS  = ['#FAC8A8', '#D8CCFF', '#A8D8F0'];
 const PAGE_ACTIVE = ['dashboard', 'chat', 'myspace'] as const;
 
 const LANDING_TEST_MODE = true; // set false before launch

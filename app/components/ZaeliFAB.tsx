@@ -478,8 +478,8 @@ const ZaeliFAB = forwardRef<ZaeliFABHandle, ZaeliFABProps>(function ZaeliFAB({
   const msActive    = activeButton === 'myspace';
   const micIsOn     = micActive;
 
-  const dashBg    = dashActive ? INK    : 'transparent';
-  const dashColor = dashActive ? '#fff' : 'rgba(10,10,10,0.48)';
+  const dashBg    = dashActive ? '#FAC8A8' : 'transparent';
+  const dashColor = dashActive ? '#8A3A00' : 'rgba(10,10,10,0.48)';
 
   const chatBg    = chatActive || kbActive ? (kbActive ? CORAL : INK) : 'transparent';
   const chatColor = chatActive || kbActive ? '#fff' : 'rgba(10,10,10,0.48)';

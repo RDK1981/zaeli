@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 8 April 2026 (evening) — Session 4 ✅ · Dashboard↔Chat context flow · Full CRUD tools · Mic waveform · Chat UI refined*
+*Last updated: 9 April 2026 — Session 5 ✅ · Design refresh all 3 pages · Peach dashboard · Lavender chat · My Space 6-card grid*
 
 ---
 
@@ -60,10 +60,15 @@ Dashboard (0)  →  Chat (1)  →  My Space (2)
 - ✅ Our Family screen — dedicated, 4 sub-views, dummy data
 - ✅ Kids Hub screen — dedicated, jobs/rewards/games/leaderboard
 
+- ✅ Design refresh — peach dashboard, lavender chat, My Space 6-card grid, briefs on all pages
+- ✅ Dinner card → mint #B8EDD0 (was peach)
+- ✅ Per-page logo tints: peach (dashboard) · lavender (chat) · sky (my space)
+- ✅ My Space 6-card grid + shell sheets (Fitness, Goals, Budget, Notes, Stretch, Zen, Wordle)
+
 ### In progress / next
-- 🔨 Design changes across all 3 pages (next session)
-- 🔨 Todos sheet
-- 🔨 Complete Shopping sheet
+- 🔨 My Space sheet content (Fitness, Goals, Budget, Notes, Stretch, Zen, Wordle)
+- 🔨 Dashboard sheets (Todos, Shopping, Calendar)
+- 🔨 Dedicated pages (Kids Hub, Tutor, Our Family, Settings)
 
 ---
 
@@ -181,6 +186,7 @@ add_meal · update_meal · delete_meal
 1. ✅ Fix Dashboard load speed + Zaeli Noticed AI
 2. ✅ Fix weather (wttr.in)
 3. ✅ Fix Chat interface — context flow, CRUD tools, mic, UI (sessions 3+4)
+3b. ✅ Design refresh — all 3 pages, per-page branding, briefs, 6-card grid (session 5)
 4. 🔨 Complete Shopping sheet — half done, finish it
 5. 🔨 Build Todos sheet — three tabs (Mine · Family · Reminders), gold accent
 6. 🔨 Build Notes sheet (family) — quick win, similar pattern to Todos

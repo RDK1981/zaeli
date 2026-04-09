@@ -333,9 +333,8 @@ async function fetchWeather(): Promise<WeatherData | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const lat = Math.abs(WEATHER_LAT);
     const res = await fetch(
-      `https://wttr.in/${WEATHER_LAT},${WEATHER_LON}?format=j1`,
+      `https://wttr.in/${WEATHER_LAT},${WEATHER_LON}?format=j1&lang=en`,
       { signal: controller.signal }
     );
     clearTimeout(timeout);
@@ -397,6 +396,27 @@ async function generateNotices(data: CardData): Promise<Notice[]> {
     console.log('[Zaeli Noticed] error:', e);
   }
   return [{ text: data.shopCount > 0 ? `${data.shopCount} items on the shopping list.` : 'All clear today.', tag:'Shopping', color:'#D8CCFF' }];
+}
+
+async function generateDashBrief(data: CardData): Promise<string> {
+  const todayEvts = data.todayEvents.map(e => `${fmtTime(e.start_time)} ${e.title}`).join(', ') || 'nothing on';
+  const tomEvts   = data.tomorrowEvents.map(e => `${fmtTime(e.start_time)} ${e.title}`).join(', ') || 'nothing on';
+  const todos     = data.todos.filter(t => t.status !== 'done').slice(0,5).map(t => t.title).join(', ') || 'none';
+  const shop      = data.shopCount > 0 ? `${data.shopCount} items on list` : 'list clear';
+  const meals     = data.meals.slice(0,2).map(m => `${m.day_key}: ${m.meal_name}`).join(', ') || 'nothing planned';
+  const h = new Date().getHours();
+  const timeWord = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  const ctx = `Today: ${localDateStr()}. Time: ${timeWord}. Events today: ${todayEvts}. Tomorrow: ${tomEvts}. Todos: ${todos}. Shopping: ${shop}. Meals: ${meals}. Family: Rich (dad), Anna (mum), Poppy (girl 12), Gab (boy 10), Duke (boy 8).`;
+  const system = `You are Zaeli, a sharp warm AI co-pilot for an Australian family. Write exactly 2 sentences summarising the most important thing right now. Sentence 1: name the person + most time-sensitive item. Sentence 2: one reassuring or forward-looking note. Max 20 words per sentence. Never start with "I". Never say mate. Plain text only. Wrap 1-2 key phrases in **bold**. Return ONLY the 2 sentences, no JSON.`;
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${OPENAI_KEY}` },
+      body: JSON.stringify({ model: GPT_MINI, max_completion_tokens: 100, messages: [{ role:'system', content:system }, { role:'user', content:ctx }] }),
+    });
+    const json = await res.json();
+    return json.choices?.[0]?.message?.content?.trim() ?? '';
+  } catch { return ''; }
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -861,6 +881,8 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
   const [notices,        setNotices]        = useState<Notice[]>([]);
   const [noticesLoading, setNoticesLoading] = useState(true);
   const noticesGeneratedRef = useRef(false);
+  const [dashBrief,     setDashBrief]     = useState('');
+  const dashBriefGenRef = useRef(false);
 
   function toggleCard(key: CardKey) {
     setExpandedCard(prev => prev === key ? null : key);
@@ -944,6 +966,14 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
         });
       }
 
+      // Dashboard brief fires once per session
+      if (!dashBriefGenRef.current) {
+        dashBriefGenRef.current = true;
+        generateDashBrief(freshData).then(text => {
+          if (text) setDashBrief(text);
+        });
+      }
+
     } catch (e) {
       console.error('[Dashboard] loadData:', e);
     } finally {
@@ -1009,7 +1039,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
         <View style={s.topBarRow}>
           <TouchableOpacity onPress={() => onNavigateChat?.()} activeOpacity={0.8}>
             <Text style={s.logoWord}>
-              z<Text style={{ color:'#A8D8F0' }}>a</Text>el<Text style={{ color:'#A8D8F0' }}>i</Text>
+              z<Text style={{ color:'#FAC8A8' }}>a</Text>el<Text style={{ color:'#FAC8A8' }}>i</Text>
             </Text>
           </TouchableOpacity>
           <Text style={s.dateLabel}>{topDateLabel}</Text>
@@ -1018,6 +1048,14 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
       </View>
 
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+
+        {/* ── Zaeli Dashboard Brief ── */}
+        {dashBrief ? (
+          <View style={s.dashBrief}>
+            <Text style={s.dashBriefLabel}>{'\u2726'} ZAELI</Text>
+            <Text style={s.dashBriefMsg}>{dashBrief.replace(/\*\*(.*?)\*\*/g, '$1')}</Text>
+          </View>
+        ) : null}
 
         <Animated.View style={{ opacity:cardAnims[0].opacity, transform:[{translateY:cardAnims[0].translateY}] }}>
           <CalendarCard
@@ -1116,8 +1154,11 @@ const s = StyleSheet.create({
   topBar:        { backgroundColor:'#FAF8F5' },
   topBarRow:     { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:20, paddingTop:4, paddingBottom:10 },
   topBarDivider: { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
-  logoWord:      { fontFamily:'Poppins_800ExtraBold', fontSize:36, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:42 },
-  dateLabel:     { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(10,10,10,0.42)' },
+  logoWord:      { fontFamily:'Poppins_800ExtraBold', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:46 },
+  dateLabel:     { fontFamily:'Poppins_700Bold', fontSize:17, color:'rgba(10,10,10,0.35)' },
+  dashBrief:     { marginHorizontal:0, marginBottom:10, borderRadius:18, backgroundColor:'#FAC8A8', padding:16, paddingHorizontal:18 },
+  dashBriefLabel:{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(120,50,0,0.45)', marginBottom:8 },
+  dashBriefMsg:  { fontFamily:'Poppins_500Medium', fontSize:17, color:'#3A1800', lineHeight:26 },
   scroll:        { flex:1 },
   scrollContent: { paddingHorizontal:14, paddingTop:14, gap:10 },
 });
@@ -1126,7 +1167,7 @@ const s = StyleSheet.create({
 const cS = StyleSheet.create({
   card:      { borderRadius:22, padding:22 },
   cardCal:   { backgroundColor:'#3A3D4A' },
-  cardDin:   { backgroundColor:'#FAC8A8' },
+  cardDin:   { backgroundColor:'#B8EDD0' },
   cardWx:    { backgroundColor:'#A8D8F0', width:120, flexShrink:0 },
   cardWotd:  { backgroundColor:'#E8F4E8' },
   cardShop:  { backgroundColor:'#D8CCFF' },
