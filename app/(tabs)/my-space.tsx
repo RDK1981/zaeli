@@ -431,7 +431,7 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
           </TouchableOpacity>
           <TouchableOpacity style={[s.gridCard, { backgroundColor:'#E0F3FC' }]} activeOpacity={0.88} onPress={() => setSheet('zen')}>
             <Text style={[s.gridLabel, { color:'rgba(10,74,106,0.45)' }]}>ZEN</Text>
-            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A4A6A', letterSpacing:-0.5, marginTop:4 }}>4 sessions</Text>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A4A6A', letterSpacing:-0.5, marginTop:4 }}>12 sessions</Text>
             <Text style={[s.gridSub, { color:'rgba(10,74,106,0.5)' }]}>Ready to play</Text>
           </TouchableOpacity>
         </View>
@@ -480,7 +480,7 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
       />
       {/* Budget removed — lives on Dashboard now */}
       <StretchSheet visible={sheet === 'stretch'} onClose={closeSheet} />
-      <ShellSheet visible={sheet === 'zen'} title="Zen" onClose={closeSheet} />
+      <ZenSheet visible={sheet === 'zen'} onClose={closeSheet} />
     </View>
   );
 }
@@ -782,6 +782,206 @@ function fmtDateAU(iso: string) {
   if (!iso || iso.length < 10) return '';
   try { return new Date(iso+'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' }); }
   catch { return iso; }
+}
+
+// ─── Zen data ────────────────────────────────────────────────────────────────
+
+type ZenMood = 'morning'|'focus'|'midday'|'sleep';
+type ZenSession = { id:number; title:string; duration:string; descriptor:string; ytId:string; ytChannel:string };
+
+const ZEN_SESSIONS: Record<ZenMood, ZenSession[]> = {
+  morning: [
+    { id:1,  title:'Morning calm',    duration:'8 min',  descriptor:'Gentle wake · breathwork',   ytId:'p8oxM5j9eNE', ytChannel:'Yoga With Adriene' },
+    { id:2,  title:'Rise & energise', duration:'10 min', descriptor:'Uplift · set intentions',    ytId:'j7d5Plai03g', ytChannel:'Goodful' },
+    { id:3,  title:'Gratitude flow',  duration:'7 min',  descriptor:'Positive start · warmth',    ytId:'gJqD2C11g6I', ytChannel:'Great Meditation' },
+  ],
+  focus: [
+    { id:4,  title:'Focus + clarity', duration:'10 min', descriptor:'Sharp mind · concentration', ytId:'YFRZI3xMovM', ytChannel:'Great Meditation' },
+    { id:5,  title:'Deep work prep',  duration:'8 min',  descriptor:'Clear the noise · lock in',  ytId:'ngH7rL-XZLs', ytChannel:'Great Meditation' },
+    { id:6,  title:'Anxiety relief',  duration:'12 min', descriptor:'Calm nerves · breathe',      ytId:'8_jcEpwKQXc', ytChannel:'The Honest Guys' },
+  ],
+  midday: [
+    { id:7,  title:'Midday reset',    duration:'5 min',  descriptor:'Let go · recharge',          ytId:'inpok4MKVLM', ytChannel:'Goodful' },
+    { id:8,  title:'Stress release',  duration:'8 min',  descriptor:'Body scan · tension',         ytId:'zYzFUBMJO9E', ytChannel:'The Honest Guys' },
+    { id:9,  title:'Clear & present', duration:'6 min',  descriptor:'Mindful moment · ground',    ytId:'qjzTH5e7_iU', ytChannel:'Great Meditation' },
+  ],
+  sleep: [
+    { id:10, title:'Sleep wind-down',    duration:'12 min', descriptor:'Calm body · quiet mind',     ytId:'TP2gb2fSYXY', ytChannel:'The Honest Guys' },
+    { id:11, title:'Body scan sleep',    duration:'15 min', descriptor:'Deep relaxation · drift off', ytId:'tvhR8i0o5Ho', ytChannel:'The Honest Guys' },
+    { id:12, title:'Breathing for sleep', duration:'10 min', descriptor:'4-7-8 breath · slow down',  ytId:'VUjiXcfKBn8', ytChannel:'Great Meditation' },
+  ],
+};
+
+const ZEN_NUDGE: Record<ZenMood, string> = {
+  morning: 'Morning calm is a lovely way to start the day \u2014 a few minutes before the chaos kicks off.',
+  focus:   'Focus sessions work best before a big task. Give yourself 10 minutes before you dive in.',
+  midday:  'Even 5 minutes at lunchtime makes the afternoon feel completely different.',
+  sleep:   'Wind-down sessions are best listened to in bed with the lights already low.',
+};
+
+const ZEN_MOOD_STYLES: Record<ZenMood, { idleBg:string; activeBg:string; text:string; tabActive:string; tabIdle:string }> = {
+  morning: { idleBg:'#FFF8ED', activeBg:'#2D1F08', text:'#7A4A0A', tabActive:'#8B5E1A', tabIdle:'#FFF8ED' },
+  focus:   { idleBg:'#EEF4FF', activeBg:'#0D1F3C', text:'#1A3A8A', tabActive:'#1A3A8A', tabIdle:'#EEF4FF' },
+  midday:  { idleBg:'#EDFBF4', activeBg:'#0D2B1E', text:'#0D5C32', tabActive:'#0D5C32', tabIdle:'#EDFBF4' },
+  sleep:   { idleBg:'#F0EDFF', activeBg:'#1A0F35', text:'#3D1880', tabActive:'#3D1880', tabIdle:'#F0EDFF' },
+};
+
+function getZenTimeOfDay(): { greeting:string; icon:string; mood:ZenMood; dots:number } {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return { greeting:'Good morning, Rich', icon:'\u{1F305}', mood:'morning', dots:2 };
+  if (h >= 12 && h < 17) return { greeting:'Good afternoon, Rich', icon:'\u2600\uFE0F', mood:'focus', dots:3 };
+  if (h >= 17 && h < 21) return { greeting:'Good evening, Rich', icon:'\u{1F307}', mood:'midday', dots:4 };
+  return { greeting:'Late night, Rich', icon:'\u{1F319}', mood:'sleep', dots:4 };
+}
+
+// ─── Zen Sheet ───────────────────────────────────────────────────────────────
+
+function ZenSheet({ visible, onClose }: { visible:boolean; onClose:()=>void }) {
+  const tod = getZenTimeOfDay();
+  const [activeMood, setActiveMood] = useState<ZenMood>(tod.mood);
+  const [activeSessionId, setActiveSessionId] = useState<number|null>(null);
+
+  const ms = ZEN_MOOD_STYLES[activeMood];
+  const sessions = ZEN_SESSIONS[activeMood];
+
+  function switchMood(mood: ZenMood) {
+    setActiveMood(mood);
+    setActiveSessionId(null);
+  }
+
+  function toggleSession(id: number) {
+    if (activeSessionId === id) {
+      setActiveSessionId(null);
+    } else {
+      setActiveSessionId(null);
+      setTimeout(() => setActiveSessionId(id), 50);
+    }
+  }
+
+  return (
+    <Sheet visible={visible} onClose={onClose} title="Zen">
+      <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
+
+        {/* Hero */}
+        <View style={{ marginBottom:14, borderRadius:22, overflow:'hidden', height:130 }}>
+          {/* Gradient background */}
+          <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'#1B2A4A' }}>
+            {/* Orbs */}
+            <View style={{ position:'absolute', width:120, height:120, borderRadius:60, backgroundColor:'#A8D8F0', opacity:0.18, top:-30, right:-20 }} />
+            <View style={{ position:'absolute', width:80, height:80, borderRadius:40, backgroundColor:'#C4B4FF', opacity:0.18, bottom:-20, left:20 }} />
+            <View style={{ position:'absolute', width:60, height:60, borderRadius:30, backgroundColor:'#FAC8A8', opacity:0.18, top:20, left:100 }} />
+          </View>
+
+          {/* Time dots */}
+          <View style={{ position:'absolute', top:14, left:16, flexDirection:'row', alignItems:'center', gap:6 }}>
+            {[1,2,3,4].map(i => (
+              <View key={i} style={{ width:7, height:7, borderRadius:4, backgroundColor: i <= tod.dots ? '#A8D8F0' : 'rgba(255,255,255,0.25)' }} />
+            ))}
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'rgba(255,255,255,0.5)', letterSpacing:0.5, marginLeft:4 }}>{activeMood.toUpperCase()}</Text>
+          </View>
+
+          {/* Icon */}
+          <View style={{ position:'absolute', top:14, right:16, width:40, height:40, borderRadius:20, backgroundColor:'rgba(255,255,255,0.1)', alignItems:'center', justifyContent:'center' }}>
+            <Text style={{ fontSize:22 }}>{activeMood === 'morning' ? '\u{1F305}' : activeMood === 'focus' ? '\u{1F9E0}' : activeMood === 'midday' ? '\u2600\uFE0F' : '\u{1F319}'}</Text>
+          </View>
+
+          {/* Greeting */}
+          <View style={{ position:'absolute', bottom:14, left:16, right:16 }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'rgba(255,255,255,0.5)', letterSpacing:0.8, marginBottom:4 }}>ZEN · TODAY</Text>
+            <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:22, color:'#fff', letterSpacing:-0.4, lineHeight:26 }}>
+              {activeMood === 'morning' ? 'Good morning, Rich' : activeMood === 'focus' ? 'Time to focus, Rich' : activeMood === 'midday' ? 'Midday reset, Rich' : 'Wind down, Rich'}
+            </Text>
+          </View>
+        </View>
+
+        {/* Zaeli nudge */}
+        <View style={{ backgroundColor:'#2D3748', borderRadius:18, padding:16, marginBottom:16 }}>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'#A8D8F0', letterSpacing:1, marginBottom:6 }}>ZAELI</Text>
+          <Text style={{ fontFamily:'Poppins_500Medium', fontSize:17, color:'#E2E8F0', lineHeight:26 }}>{ZEN_NUDGE[activeMood]}</Text>
+        </View>
+
+        {/* Mood tabs */}
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#9CA3AF', letterSpacing:0.8, textTransform:'uppercase' as any, marginBottom:10 }}>Choose your mood</Text>
+
+        <View style={{ flexDirection:'row', gap:7, marginBottom:14 }}>
+          {(['morning','focus','midday','sleep'] as ZenMood[]).map(mood => {
+            const mst = ZEN_MOOD_STYLES[mood];
+            const isActive = activeMood === mood;
+            return (
+              <TouchableOpacity key={mood} onPress={() => switchMood(mood)} activeOpacity={0.7}
+                style={{ flex:1, paddingVertical:9, borderRadius:20, alignItems:'center',
+                  backgroundColor: isActive ? mst.tabActive : mst.tabIdle }}>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color: isActive ? '#fff' : mst.text,
+                  textTransform:'capitalize' as any }}>{mood}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Session cards */}
+        <View style={{ gap:10, marginBottom:16 }}>
+          {sessions.map((session, i) => {
+            const isActive = activeSessionId === session.id;
+            return (
+              <TouchableOpacity key={session.id} onPress={() => toggleSession(session.id)} activeOpacity={0.88}
+                style={{ borderRadius:18, overflow:'hidden', borderWidth:0.5, borderColor:'rgba(0,0,0,0.07)',
+                  backgroundColor: isActive ? ms.activeBg : ms.idleBg }}>
+                {/* Top row */}
+                <View style={{ flexDirection:'row', alignItems:'center', padding:15, gap:14 }}>
+                  <View style={{ width:30, height:30, borderRadius:15, alignItems:'center', justifyContent:'center',
+                    backgroundColor: isActive ? 'rgba(255,255,255,0.15)' : `${ms.text}15` }}>
+                    <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:13,
+                      color: isActive ? 'rgba(255,255,255,0.9)' : ms.text }}>{i+1}</Text>
+                  </View>
+                  <View style={{ flex:1 }}>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16,
+                      color: isActive ? '#fff' : ms.text }}>{session.title}</Text>
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, marginTop:2,
+                      color: isActive ? 'rgba(255,255,255,0.5)' : `${ms.text}88` }}>{session.descriptor}</Text>
+                  </View>
+                  <View style={{ borderRadius:20, paddingVertical:5, paddingHorizontal:12,
+                    backgroundColor: isActive ? 'rgba(255,255,255,0.12)' : `${ms.text}12` }}>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12,
+                      color: isActive ? 'rgba(255,255,255,0.8)' : ms.text }}>{session.duration}</Text>
+                  </View>
+                </View>
+
+                {/* YouTube embed (when active) */}
+                {isActive && (
+                  <TouchableOpacity
+                    onPress={() => { if (session.ytId !== 'PLACEHOLDER') WebBrowser.openBrowserAsync(`https://www.youtube.com/watch?v=${session.ytId}`); }}
+                    activeOpacity={0.85}
+                    style={{ marginHorizontal:14, marginBottom:14, borderRadius:14, overflow:'hidden' }}>
+                    <View style={{ aspectRatio:16/9, backgroundColor:'#111827', alignItems:'center', justifyContent:'center' }}>
+                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'rgba(255,255,255,0.4)', position:'absolute', top:'36%' as any }}>{session.ytChannel}</Text>
+                      <Text style={{ fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(255,255,255,0.25)', position:'absolute', top:'52%' as any }}>{session.title} · {session.duration}</Text>
+                      <View style={{ width:56, height:56, borderRadius:14, backgroundColor:'#FF0000', alignItems:'center', justifyContent:'center' }}>
+                        <Svg width={22} height={22} viewBox="0 0 24 24" fill="#fff"><Polygon points="5 3 19 12 5 21 5 3" /></Svg>
+                      </View>
+                    </View>
+                    <View style={{ padding:12, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                      <View>
+                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'rgba(255,255,255,0.9)', lineHeight:18 }}>{session.title}</Text>
+                        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(255,255,255,0.45)', marginTop:2 }}>{session.ytChannel} · {session.duration}</Text>
+                      </View>
+                      {/* Waveform bars */}
+                      <View style={{ flexDirection:'row', alignItems:'center', gap:2, height:22 }}>
+                        {[4,10,14,8,12,6,10].map((h,bi) => (
+                          <View key={bi} style={{ width:3, height:h, borderRadius:2, backgroundColor:'rgba(255,255,255,0.4)' }} />
+                        ))}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={{ height:30 }} />
+      </ScrollView>
+    </Sheet>
+  );
 }
 
 // ─── Stretch data ────────────────────────────────────────────────────────────
