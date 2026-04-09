@@ -3,7 +3,7 @@
  * Phase 3b Pass 3 — Two-tap Goals · SVG play icons · True 92% sheets
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal, Share,
   StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, Alert,
@@ -11,6 +11,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polygon, Rect, Line, Path, Circle } from 'react-native-svg';
 import { setPendingChatContext } from '../../lib/navigation-store';
+import { supabase } from '../../lib/supabase';
+
+const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -185,10 +188,129 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
   // Zen playing track
   const [zenPlaying, setZenPlaying] = useState(0);
   // Notes state
-  const [notes, setNotes] = useState<NoteItem[]>(INITIAL_NOTES);
+  const [notes, setNotes] = useState<NoteItem[]>([]);
   const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
   // Goals state
-  const [goals, setGoals] = useState<GoalItem[]>(INITIAL_GOALS);
+  const [goals, setGoals] = useState<GoalItem[]>([]);
+
+  // Load from Supabase on mount
+  useEffect(() => {
+    loadNotes();
+    loadGoals();
+  }, []);
+
+  async function loadNotes() {
+    try {
+      const { data } = await supabase.from('personal_notes')
+        .select('id,title,text,preview,shared,updated_at')
+        .eq('family_id', FAMILY_ID)
+        .order('updated_at', { ascending:false });
+      if (data && data.length > 0) {
+        setNotes(data.map((n:any) => ({
+          id:n.id, title:n.title, text:n.text, preview:n.preview,
+          updated: timeAgo(n.updated_at), shared:n.shared || [],
+        })));
+      } else {
+        // No notes yet — show initial dummy data
+        setNotes(INITIAL_NOTES);
+      }
+    } catch { setNotes(INITIAL_NOTES); }
+  }
+
+  async function loadGoals() {
+    try {
+      const { data } = await supabase.from('goals')
+        .select('*')
+        .eq('family_id', FAMILY_ID)
+        .eq('status', 'active')
+        .order('created_at', { ascending:false });
+      if (data && data.length > 0) {
+        setGoals(data.map((g:any) => ({
+          id:g.id, title:g.title, type:g.type, icon:g.icon,
+          start_value:g.start_value, target_value:g.target_value,
+          current_value:g.current_value, unit:g.unit,
+          frequency:g.frequency, frequency_target:g.frequency_target,
+          deadline:g.deadline || '', milestones:g.milestones || [],
+          logs:g.logs || [], streak:g.streak, best_streak:g.best_streak,
+          status:g.status,
+        })));
+      } else {
+        setGoals(INITIAL_GOALS);
+      }
+    } catch { setGoals(INITIAL_GOALS); }
+  }
+
+  function timeAgo(iso: string): string {
+    const ms = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(ms / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days} days ago`;
+    return `${Math.floor(days/7)} weeks ago`;
+  }
+
+  // ── Supabase CRUD helpers ──
+  async function saveNote(note: NoteItem) {
+    try {
+      const isNew = note.id.startsWith('new-');
+      if (isNew) {
+        const { data } = await supabase.from('personal_notes').insert({
+          family_id:FAMILY_ID, title:note.title, text:note.text,
+          preview:note.preview, shared:note.shared,
+        }).select('id').single();
+        if (data) {
+          setNotes(prev => [{ ...note, id:data.id, updated:'Just now' }, ...prev.filter(n => n.id !== note.id)]);
+        }
+      } else {
+        await supabase.from('personal_notes').update({
+          title:note.title, text:note.text, preview:note.preview,
+          shared:note.shared, updated_at:new Date().toISOString(),
+        }).eq('id', note.id);
+        setNotes(prev => prev.map(n => n.id === note.id ? { ...note, updated:'Just now' } : n));
+      }
+    } catch (e) { console.log('saveNote error:', e); }
+  }
+
+  async function deleteNote(id: string) {
+    setNotes(prev => prev.filter(n => n.id !== id));
+    try { await supabase.from('personal_notes').delete().eq('id', id); } catch {}
+  }
+
+  async function saveGoal(goal: GoalItem) {
+    try {
+      const isNew = goal.id.startsWith('g-');
+      if (isNew) {
+        const { data } = await supabase.from('goals').insert({
+          family_id:FAMILY_ID, title:goal.title, type:goal.type, icon:goal.icon,
+          start_value:goal.start_value, target_value:goal.target_value,
+          current_value:goal.current_value, unit:goal.unit,
+          frequency:goal.frequency || null, frequency_target:goal.frequency_target || null,
+          deadline:goal.deadline || null, milestones:goal.milestones, logs:goal.logs,
+          streak:goal.streak, best_streak:goal.best_streak, status:goal.status,
+        }).select('id').single();
+        if (data) {
+          setGoals(prev => [{ ...goal, id:data.id }, ...prev.filter(g => g.id !== goal.id)]);
+        }
+      } else {
+        await supabase.from('goals').update({
+          title:goal.title, current_value:goal.current_value,
+          milestones:goal.milestones, logs:goal.logs,
+          streak:goal.streak, best_streak:goal.best_streak,
+          updated_at:new Date().toISOString(),
+        }).eq('id', goal.id);
+        setGoals(prev => prev.map(g => g.id === goal.id ? goal : g));
+      }
+    } catch (e) { console.log('saveGoal error:', e); }
+  }
+
+  async function deleteGoal(id: string) {
+    setGoals(prev => prev.filter(g => g.id !== id));
+    try { await supabase.from('goals').delete().eq('id', id); } catch {}
+  }
 
   function toggleInline(card: string) {
     setExpanded(prev => (prev === card ? null : card));
@@ -289,18 +411,11 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
           const newNote: NoteItem = { id:`new-${Date.now()}`, title:'', text:'', preview:'', updated:'Just now', shared:[] };
           setEditingNote(newNote);
         }}
-        onDelete={(id) => setNotes(prev => prev.filter(n => n.id !== id))}
+        onDelete={(id) => deleteNote(id)}
         editingNote={editingNote}
         onEditorClose={() => setEditingNote(null)}
-        onEditorSave={(updated) => {
-          setNotes(prev => {
-            const exists = prev.find(n => n.id === updated.id);
-            if (exists) return prev.map(n => n.id === updated.id ? updated : n);
-            return [updated, ...prev];
-          });
-          setEditingNote(null);
-        }}
-        onEditorDelete={(id) => { setNotes(prev => prev.filter(n => n.id !== id)); setEditingNote(null); }}
+        onEditorSave={(updated) => { saveNote(updated); setEditingNote(null); }}
+        onEditorDelete={(id) => { deleteNote(id); setEditingNote(null); }}
       />
       <WordleSheet
         visible={sheet === 'wordle'}
@@ -314,11 +429,11 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
         onClose={closeSheet}
         goals={goals}
         onGoalTap={(id) => setActiveGoal(id)}
-        onAddGoal={(g) => setGoals(prev => [g, ...prev])}
+        onAddGoal={(g) => { setGoals(prev => [g, ...prev]); saveGoal(g); }}
         activeGoal={activeGoal}
         onBackFromDetail={() => setActiveGoal(null)}
-        onUpdateGoal={(updated) => setGoals(prev => prev.map(g => g.id === updated.id ? updated : g))}
-        onDeleteGoal={(id) => { setGoals(prev => prev.filter(g => g.id !== id)); setActiveGoal(null); }}
+        onUpdateGoal={(updated) => { setGoals(prev => prev.map(g => g.id === updated.id ? updated : g)); saveGoal(updated); }}
+        onDeleteGoal={(id) => { deleteGoal(id); setActiveGoal(null); }}
       />
       <ShellSheet visible={sheet === 'budget'} title="Budget" onClose={closeSheet} />
       <ShellSheet visible={sheet === 'stretch'} title="Daily Stretch" onClose={closeSheet} />
