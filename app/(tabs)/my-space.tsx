@@ -2080,7 +2080,118 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
   const [gameStatus, setGameStatus] = useState<'in_progress'|'won'|'lost'>('in_progress');
   const [keyStates, setKeyStates] = useState<Record<string, 'correct'|'present'|'absent'>>({});
   const [toast, setToast] = useState('');
-  const [streak] = useState(12); // dummy for now
+  const [streak, setStreak] = useState(0);
+  const [leaderboard, setLeaderboard] = useState<{name:string; color:string; score:string|null; isKid?:boolean}[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const todayStr = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; })();
+
+  // Load game state + streak on mount
+  useEffect(() => {
+    if (!visible) return;
+    loadGameState();
+    loadStreak();
+  }, [visible]);
+
+  // Load leaderboard when game completes
+  useEffect(() => {
+    if (gameStatus !== 'in_progress') loadLeaderboard();
+  }, [gameStatus]);
+
+  async function loadGameState() {
+    try {
+      const { data } = await supabase.from('wordle_results')
+        .select('guesses,status,score')
+        .eq('family_id', FAMILY_ID).eq('member_name', 'Rich').eq('game_date', todayStr)
+        .limit(1).single();
+      if (data) {
+        const savedGuesses = (data.guesses as string[]) || [];
+        setGuesses(savedGuesses);
+        setGameStatus(data.status as any);
+        // Rebuild key states from saved guesses
+        const ks: Record<string, 'correct'|'present'|'absent'> = {};
+        savedGuesses.forEach(g => {
+          const states = getTileStates(g, answer);
+          g.split('').forEach((l, i) => {
+            const cur = ks[l]; const next = states[i];
+            if (cur === 'correct') return;
+            if (next === 'correct') { ks[l] = 'correct'; return; }
+            if (cur === 'present') return;
+            if (next === 'present') { ks[l] = 'present'; return; }
+            if (!cur) ks[l] = 'absent';
+          });
+        });
+        setKeyStates(ks);
+      }
+    } catch {}
+    setLoaded(true);
+  }
+
+  async function saveGameState(newGuesses: string[], status: 'in_progress'|'won'|'lost', score?: number) {
+    try {
+      // Check if row exists
+      const { data: existing } = await supabase.from('wordle_results')
+        .select('id').eq('family_id', FAMILY_ID).eq('member_name', 'Rich').eq('game_date', todayStr).limit(1).single();
+      if (existing) {
+        await supabase.from('wordle_results').update({
+          guesses: newGuesses, current_row: newGuesses.length,
+          status, score: score || null, updated_at: new Date().toISOString(),
+        }).eq('id', existing.id);
+      } else {
+        await supabase.from('wordle_results').insert({
+          family_id: FAMILY_ID, member_name: 'Rich', game_date: todayStr,
+          game_number: dayIndex, guesses: newGuesses, current_row: newGuesses.length,
+          status, score: score || null,
+        });
+      }
+    } catch (e) { console.log('wordle save error:', e); }
+  }
+
+  async function loadStreak() {
+    try {
+      const { data } = await supabase.from('wordle_results')
+        .select('game_date')
+        .eq('family_id', FAMILY_ID).eq('member_name', 'Rich')
+        .in('status', ['won','lost'])
+        .order('game_date', { ascending: false }).limit(60);
+      if (!data || data.length === 0) { setStreak(0); return; }
+      let count = 0;
+      const today = new Date(todayStr + 'T00:00:00');
+      for (let i = 0; i < data.length; i++) {
+        const expected = new Date(today.getTime() - (i * 86400000));
+        const expStr = `${expected.getFullYear()}-${String(expected.getMonth()+1).padStart(2,'0')}-${String(expected.getDate()).padStart(2,'0')}`;
+        if (data[i].game_date === expStr) { count++; } else break;
+      }
+      setStreak(count);
+    } catch { setStreak(0); }
+  }
+
+  async function loadLeaderboard() {
+    try {
+      const { data } = await supabase.from('wordle_results')
+        .select('member_name,status,score')
+        .eq('family_id', FAMILY_ID).eq('game_date', todayStr)
+        .not('member_name', 'is', null);
+      const members = [
+        { name:'Rich', color:'#4D8BFF' },
+        { name:'Anna', color:'#FF7B6B' },
+      ];
+      const lb = members.map(m => {
+        const row = data?.find((d:any) => d.member_name === m.name);
+        return {
+          name: m.name, color: m.color,
+          score: row ? (row.status === 'won' ? `${row.score}/6` : '\u2715') : null,
+        };
+      });
+      lb.push({ name:'Poppy', color:'#E4DCFF', score:null, isKid:true });
+      setLeaderboard(lb);
+    } catch {
+      setLeaderboard([
+        { name:'Rich', color:'#4D8BFF', score: gameStatus === 'won' ? `${guesses.length}/6` : '\u2715' },
+        { name:'Anna', color:'#FF7B6B', score:null },
+        { name:'Poppy', color:'#E4DCFF', score:null, isKid:true },
+      ]);
+    }
+  }
 
   const TILE_COLORS = {
     correct: { bg:'#FF4545', border:'#FF4545', text:'#FFFFFF' },
@@ -2135,8 +2246,14 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
     // Check win/lose
     if (guess === answer) {
       setGameStatus('won');
+      saveGameState(newGuesses, 'won', newGuesses.length);
+      loadStreak();
     } else if (newGuesses.length >= 6) {
       setGameStatus('lost');
+      saveGameState(newGuesses, 'lost');
+      loadStreak();
+    } else {
+      saveGameState(newGuesses, 'in_progress');
     }
   }
 
@@ -2286,35 +2403,21 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
             {/* Leaderboard */}
             <View style={{ marginHorizontal:16, marginBottom:14, backgroundColor:'#fff', borderRadius:18, padding:16, borderWidth:0.5, borderColor:'rgba(80,32,192,0.1)' }}>
               <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#9CA3AF', letterSpacing:0.8, textTransform:'uppercase' as any, marginBottom:12 }}>{"Today's family"}</Text>
-
-              {/* Rich */}
-              <View style={{ flexDirection:'row', alignItems:'center', gap:12, paddingVertical:8 }}>
-                <View style={{ width:34, height:34, borderRadius:17, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' }}>
-                  <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:13, color:'#fff' }}>R</Text>
+              {leaderboard.map((lb, i) => (
+                <View key={lb.name} style={{ flexDirection:'row', alignItems:'center', gap:12, paddingVertical:8, ...(i > 0 ? { borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.05)' } : {}) }}>
+                  <View style={{ width:34, height:34, borderRadius:17, backgroundColor:lb.color, alignItems:'center', justifyContent:'center' }}>
+                    <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:13, color: lb.isKid ? '#9CA3AF' : '#fff' }}>{lb.name[0]}</Text>
+                  </View>
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color: lb.isKid ? '#9CA3AF' : '#1A1A1A', flex:1 }}>{lb.name}</Text>
+                  {lb.isKid ? (
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#9CA3AF' }}>Kids Hub</Text>
+                  ) : lb.score ? (
+                    <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:15, color:'#FF4545' }}>{lb.score}</Text>
+                  ) : (
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#9CA3AF' }}>{'\u2014'}</Text>
+                  )}
                 </View>
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#1A1A1A', flex:1 }}>Rich</Text>
-                <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:15, color:'#FF4545' }}>
-                  {gameStatus === 'won' ? `${guesses.length}/6` : '\u2715'}
-                </Text>
-              </View>
-
-              {/* Anna */}
-              <View style={{ flexDirection:'row', alignItems:'center', gap:12, paddingVertical:8, borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.05)' }}>
-                <View style={{ width:34, height:34, borderRadius:17, backgroundColor:'#FF7B6B', alignItems:'center', justifyContent:'center' }}>
-                  <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:13, color:'#fff' }}>A</Text>
-                </View>
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#1A1A1A', flex:1 }}>Anna</Text>
-                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#9CA3AF' }}>\u2014</Text>
-              </View>
-
-              {/* Kids */}
-              <View style={{ flexDirection:'row', alignItems:'center', gap:12, paddingVertical:8, borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.05)' }}>
-                <View style={{ width:34, height:34, borderRadius:17, backgroundColor:'#E4DCFF', alignItems:'center', justifyContent:'center' }}>
-                  <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:13, color:'#9CA3AF' }}>P</Text>
-                </View>
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#9CA3AF', flex:1 }}>Poppy</Text>
-                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#9CA3AF' }}>Kids Hub</Text>
-              </View>
+              ))}
             </View>
 
             {/* Share button */}
