@@ -321,11 +321,11 @@ function WeatherIcon({ type }: { type:'sunny'|'partly'|'cloudy'|'rain'|'storm' }
     anim?.start();
     return () => anim?.stop();
   }, [type]);
-  if (type === 'sunny') return <Animated.Text style={{ fontSize:28, transform:[{scale:pulse}] }}>☀️</Animated.Text>;
-  if (type === 'partly') return <Animated.Text style={{ fontSize:28, transform:[{translateX:drift}] }}>⛅</Animated.Text>;
-  if (type === 'cloudy') return <Animated.Text style={{ fontSize:28, transform:[{translateX:drift}] }}>☁️</Animated.Text>;
-  if (type === 'rain')   return <Text style={{ fontSize:28 }}>🌧</Text>;
-  return <Text style={{ fontSize:28 }}>⛈</Text>;
+  if (type === 'sunny') return <Animated.Text style={{ fontSize:36, transform:[{scale:pulse}] }}>☀️</Animated.Text>;
+  if (type === 'partly') return <Animated.Text style={{ fontSize:36, transform:[{translateX:drift}] }}>⛅</Animated.Text>;
+  if (type === 'cloudy') return <Animated.Text style={{ fontSize:36, transform:[{translateX:drift}] }}>☁️</Animated.Text>;
+  if (type === 'rain')   return <Text style={{ fontSize:36 }}>🌧</Text>;
+  return <Text style={{ fontSize:36 }}>⛈</Text>;
 }
 
 // ── Weather fetch — wttr.in, 8s timeout ──────────────────────────────────────
@@ -677,11 +677,13 @@ function WeatherCard({ weather, expanded, onToggleExpand }: {
   return (
     <TouchableOpacity style={[cS.card, cS.cardWx]} onPress={onToggleExpand} activeOpacity={0.82}>
       <Text style={cS.cardLabel}>Weather</Text>
-      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:42, color:'#1A1A1A', letterSpacing:-1.5, lineHeight:48, marginTop:4 }}>{Math.round(weather.temp)}°</Text>
-      <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.50)', marginTop:2 }}>{weather.condition}</Text>
-      <View style={{ marginVertical:10 }}><WeatherIcon type={weatherType(weather.code)}/></View>
+      <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginTop:4 }}>
+        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:42, color:'#1A1A1A', letterSpacing:-1.5, lineHeight:48 }}>{Math.round(weather.temp)}°</Text>
+        <View style={{ marginTop:4 }}><WeatherIcon type={weatherType(weather.code)}/></View>
+      </View>
+      <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(0,0,0,0.50)', marginTop:4 }}>{weather.condition}</Text>
       {expanded && (
-        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.42)', lineHeight:18, marginBottom:8 }}>{weatherExtra(weather.code, weather.windspeed)}</Text>
+        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.42)', lineHeight:20, marginTop:8, marginBottom:4 }}>{weatherExtra(weather.code, weather.windspeed)}</Text>
       )}
     </TouchableOpacity>
   );
@@ -695,18 +697,17 @@ function ZaeliNoticedCard({ notices, noticesLoading, expanded, onToggleExpand, o
   const count = notices.length;
   const countWord = noticesLoading ? 'looking…'
     : count === 0 ? 'all quiet.'
-    : count === 1 ? 'one thing.'
-    : count === 2 ? 'two things.'
-    : `${count} things.`;
+    : count === 1 ? '1 change.'
+    : `${count} changes.`;
 
   return (
     <TouchableOpacity style={[cS.card, cS.cardWotd, { flex:1 }]} onPress={onToggleExpand} activeOpacity={0.82}>
       <Text style={[cS.cardLabel, { color:'rgba(107,53,217,0.55)', fontSize:13, letterSpacing:0.4 }]}>Zaeli{'\n'}noticed</Text>
       {!expanded && (
         <View style={{ marginTop:4 }}>
-          <Text style={[cS.headlineWotd, { fontSize:28, lineHeight:32 }]}>{countWord}</Text>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#6B35D9', letterSpacing:-0.5, lineHeight:28 }}>{countWord}</Text>
           {!noticesLoading && count > 0 && (
-            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(107,53,217,0.55)', marginTop:6, lineHeight:18 }}>
+            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(107,53,217,0.55)', marginTop:6, lineHeight:20 }}>
               {notices.slice(0,3).map(n => n.tag).join(' · ')}
             </Text>
           )}
@@ -733,9 +734,9 @@ function ZaeliNoticedCard({ notices, noticesLoading, expanded, onToggleExpand, o
 }
 
 const noticedS = StyleSheet.create({
-  row: { flexDirection:'row', alignItems:'flex-start', gap:8, paddingVertical:7, borderBottomWidth:1, borderBottomColor:'rgba(107,53,217,0.10)' },
-  dot: { width:7, height:7, borderRadius:4, flexShrink:0, marginTop:6 },
-  txt: { fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(10,10,10,0.70)', lineHeight:20, flex:1 },
+  row: { flexDirection:'row', alignItems:'flex-start', gap:10, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'rgba(107,53,217,0.10)' },
+  dot: { width:8, height:8, borderRadius:4, flexShrink:0, marginTop:7 },
+  txt: { fontFamily:'Poppins_500Medium', fontSize:16, color:'rgba(10,10,10,0.70)', lineHeight:22, flex:1 },
 });
 
 // ── 4. ShoppingCard ───────────────────────────────────────────────────────────
@@ -776,7 +777,7 @@ function ShoppingCard({ items, count, expanded, onToggleExpand, onAdd, onOpenShe
 }
 
 const shopS = StyleSheet.create({
-  tapHint:    { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.70)', marginTop:10 },
+  tapHint:    { fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(255,255,255,0.70)', marginTop:10 },
   moreCount:  { fontFamily:'Poppins_600SemiBold', fontSize:17, color:'rgba(255,255,255,0.70)', marginBottom:10 },
   openBtn:    { marginTop:10, backgroundColor:'rgba(255,255,255,0.15)', borderRadius:14, paddingVertical:14, alignItems:'center' },
   openBtnTxt: { fontFamily:'Poppins_700Bold', fontSize:15, color:'rgba(255,255,255,0.90)' },
@@ -1087,12 +1088,12 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
               expanded={expandedCard === 'weather'}
               onToggleExpand={() => toggleCard('weather')}
             />
-            <TouchableOpacity style={[cS.card, { backgroundColor:'#ECFDF5', flex:1 }]} activeOpacity={0.88} onPress={() => {}}>
-              <Text style={[cS.cardLabel, { color:'rgba(5,150,105,0.6)' }]}>Our Budget</Text>
-              <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:20, color:'#047857', letterSpacing:-0.8, lineHeight:24 }}>$3,960</Text>
-              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:9, color:'rgba(5,150,105,0.6)', marginTop:2 }}>left this month</Text>
-              <View style={{ height:3, borderRadius:2, backgroundColor:'rgba(5,150,105,0.15)', overflow:'hidden', marginTop:8 }}>
-                <View style={{ height:3, borderRadius:2, backgroundColor:'#059669', width:'42%' as any }} />
+            <TouchableOpacity style={[cS.card, { backgroundColor:'#FAC8A8', flex:1 }]} activeOpacity={0.88} onPress={() => {}}>
+              <Text style={[cS.cardLabel, { color:'rgba(120,50,0,0.45)' }]}>Our Budget</Text>
+              <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:32, color:'#3A1800', letterSpacing:-1, lineHeight:36, marginTop:2 }}>$3,960</Text>
+              <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(58,24,0,0.5)', marginTop:3 }}>left this month</Text>
+              <View style={{ height:3, borderRadius:2, backgroundColor:'rgba(58,24,0,0.15)', overflow:'hidden', marginTop:8 }}>
+                <View style={{ height:3, borderRadius:2, backgroundColor:'#8A3A00', width:'42%' as any }} />
               </View>
             </TouchableOpacity>
           </View>
@@ -1129,8 +1130,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
             <TouchableOpacity style={[cS.card, { backgroundColor:'#F0DC80', flex:1 }]} activeOpacity={0.88}
               onPress={() => toggleCard('actions')}>
               <Text style={[cS.cardLabel, { color:'rgba(58,42,0,0.4)' }]}>Family Tasks</Text>
-              <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:26, color:'#3A2A00', letterSpacing:-0.8, lineHeight:30 }}>{cardData.todos.filter(t => t.status !== 'done').length}</Text>
-              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:9, color:'rgba(58,42,0,0.5)', marginTop:3 }}>on your plate</Text>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#3A2A00', letterSpacing:-0.5, lineHeight:28, marginTop:4 }}>{cardData.todos.filter(t => t.status !== 'done').length} things on your plate.</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -1161,12 +1161,12 @@ const cS = StyleSheet.create({
   card:      { borderRadius:22, padding:22 },
   cardCal:   { backgroundColor:'#3A3D4A' },
   cardDin:   { backgroundColor:'#B8EDD0' },
-  cardWx:    { backgroundColor:'#A8D8F0', width:120, flexShrink:0 },
+  cardWx:    { backgroundColor:'#A8D8F0', flex:1 },
   cardWotd:  { backgroundColor:'#E8F4E8' },
   cardShop:  { backgroundColor:'#D8CCFF' },
   cardAct:   { backgroundColor:'#F0DC80' },
 
-  cardLabel:    { fontFamily:'Poppins_700Bold', fontSize:10, textTransform:'uppercase', letterSpacing:0.8, color:'rgba(0,0,0,0.35)', marginBottom:4 },
+  cardLabel:    { fontFamily:'Poppins_700Bold', fontSize:13, textTransform:'uppercase', letterSpacing:0.8, color:'rgba(0,0,0,0.35)', marginBottom:6 },
   cardHeader:   { flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between' },
   headlineLt:   { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#fff', flex:1 },
   headlineDk:   { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#1A1A1A', flex:1 },
@@ -1174,8 +1174,8 @@ const cS = StyleSheet.create({
   headlineWotd: { fontFamily:'Poppins_700Bold', fontSize:26, letterSpacing:-0.5, lineHeight:32, color:'#6B35D9', flex:1 },
 
   ghostLt:      { fontFamily:'DMSerifDisplay_400Regular', fontSize:88, color:'rgba(255,255,255,0.07)', position:'absolute', right:-8, top:-18, lineHeight:96 },
-  tapHintLt:    { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.30)', marginTop:10 },
-  tapHintDk:    { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(0,0,0,0.22)', marginTop:10 },
+  tapHintLt:    { fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(255,255,255,0.30)', marginTop:10 },
+  tapHintDk:    { fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(0,0,0,0.22)', marginTop:10 },
   tapHintShop:  { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(255,255,255,0.35)', marginTop:10 },
 
   addBtnLt:     { backgroundColor:'rgba(255,255,255,0.18)', borderRadius:10, paddingVertical:7, paddingHorizontal:14, flexShrink:0 },

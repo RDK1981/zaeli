@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 9 April 2026 — Session 5 ✅ · Design refresh all 3 pages · Peach dashboard · Lavender chat · My Space 6-card grid · Briefs on all pages*
+*Last updated: 9 April 2026 — Session 6 ✅ · Design session · Dashboard restructure · My Space reshuffle · Notes & Tasks · Our Budget module full design*
 
 ---
 
@@ -14,14 +14,14 @@ Dashboard (0)  →  Chat (1)  →  My Space (2)
 App opens on Dashboard (page 0). Swipe right for Chat, right again for My Space.
 
 **92% SHEETS over Chat — NEVER dedicated screens:**
-Calendar · Shopping · Meal Planner · Todos / Reminders · Notes · Travel
+Calendar · Shopping · Meal Planner · Family Tasks · Notes & Tasks · Travel
 
 **Dedicated full screens only:**
-Tutor · Kids Hub · Our Family · Settings
+Tutor · Kids Hub · Our Family · Settings · Our Budget
 
 **More overlay routes:**
 - Family channels → 92% sheet over Chat
-- Tutor / Kids Hub / Our Family / Settings → router.navigate()
+- Tutor / Kids Hub / Our Family / Settings / Our Budget → router.navigate()
 
 **LOCKED architecture decisions:**
 - Pulse as swipe screen = SCRAPPED
@@ -92,7 +92,7 @@ NEVER SafeAreaView in individual page files — swipe-world.tsx ONLY
 Individual pages   = useSafeAreaInsets() for manual paddingTop
 DM Serif           = ghost numbers ONLY (never readable UI text)
 Wordmark font      = Poppins_800ExtraBold (NOT DM Serif)
-Wordmark a+i       = Dashboard:#FAC8A8 peach · Chat:#C4B4FF lavender · MySpace:#A8D8F0 sky
+Wordmark a+i       = Dashboard:#FAC8A8 peach · Chat:#C4B4FF lavender · MySpace:#A8D8F0 sky · OurBudget:#059669 emerald
 ZaeliFAB           = forwardRef, exposes startMic() + openMore()
 FAB hides          = activeButton === 'keyboard' OR hideFabBar prop
 FAB on chat page   = HIDDEN via activePage !== PAGE_CHAT in swipe-world
@@ -134,6 +134,222 @@ wttr.in codes      = mapWttrCode() in dashboard.tsx translates to internal codes
 
 ---
 
+## Channel Accent Colours (LOCKED)
+```
+Home/Chat          = Electric Coral #FF4545
+Calendar           = Cobalt Blue #2055F0
+Shopping           = Lavender #D8CCFF / deep purple #5020C0
+Meals              = Terracotta #E8601A
+Tutor              = Deep Violet #6B35D9
+Family Tasks       = Zaeli Gold #F0DC80 (renamed from Todos)
+Travel             = Ocean Cyan #0096C7 / #A8D8F0
+Notes & Tasks      = Peach #FAC8A8 (My Space — personal)
+Our Family         = Magenta Pink #D4006A
+Our Budget         = Emerald #059669
+Settings           = Slate Grey #6B7280
+```
+
+---
+
+## Naming Conventions (LOCKED — session 6)
+```
+"Family Tasks"     = Dashboard card + sheet (NOT Todos, NOT To-Dos)
+"Notes & Tasks"    = My Space card + sheet (personal — dual tab)
+"Our Budget"       = Full-screen module + Dashboard tile
+"Tasks"            = The consistent noun across both contexts
+personal_tasks     = Supabase table (member-scoped, NOT family-scoped)
+budget_transactions = Supabase table (family-scoped)
+budget_categories  = Supabase table (family-scoped)
+```
+
+---
+
+## ══════════════════════════════════
+## DASHBOARD — LOCKED CARD ORDER (Session 6 ✅)
+## ══════════════════════════════════
+
+**Card order (top to bottom):**
+1. Calendar — `#3A3D4A` slate · full width
+2. Dinner/Meals — `#B8EDD0` mint · full width
+3. **2-col bento:** Weather (left) + Our Budget (right, `#ECFDF5` emerald card)
+4. Shopping — `#D8CCFF` lavender · full width
+5. **2-col bento:** Zaeli Noticed (left, `#E8F4E8` sage) + Family Tasks (right, `#F0DC80` gold)
+
+**Our Budget tile** (new — Dashboard summary only):
+- Background `#ECFDF5` · label "Our Budget" in `rgba(5,150,105,0.6)`
+- Headline: remaining budget in Poppins 800 `#047857` · sub "left this month"
+- Thin progress bar (spend ÷ total budget)
+- Tap → `router.navigate('/(tabs)/our-budget')`
+- If no budget set up: show "Set up Our Budget →" in muted text
+
+**Family Tasks tile** (renamed from Todos):
+- Same gold `#F0DC80` background · label "Family Tasks"
+- Count number Poppins 800 `#3A2A00` · sub "on your plate"
+- Tap opens existing Todos/Family Tasks sheet (logic unchanged)
+
+---
+
+## ══════════════════════════════════
+## MY SPACE — LOCKED CARD ORDER (Session 6 ✅)
+## ══════════════════════════════════
+
+**Card order (top to bottom):**
+1. Zaeli brief (dark slate `#3A3D4A`) + DM Serif quote — unchanged
+2. Word of the Day — sage `#E8F4E8` — inline expand only (unchanged)
+3. **Goals — FULL WIDTH** — gold `#F0DC80` (promoted from 2-col grid)
+   - Shows goal count + active goal name pills (up to 2) on right side
+   - Same sheet, same logic
+4. **2-col:** Fitness (slate) + Notes & Tasks (peach `#FAC8A8`)
+5. **2-col:** Daily Stretch (sage) + Zen (light blue `#E0F3FC`)
+6. Wordle — full width lavender `#D8CCFF`
+
+**Budget card REMOVED** from My Space entirely. Budget lives only in Our Budget module.
+
+**Notes & Tasks card** (renamed from Notes):
+- Label: "Notes & Tasks" · Count: `3 · 4` format (notes · open tasks) · Sub: "notes · tasks"
+- Colour stays peach `#FAC8A8` · Tap opens modified Notes & Tasks sheet (dual tab)
+
+---
+
+## ══════════════════════════════════
+## NOTES & TASKS SHEET (Session 6 — new dual tab)
+## ══════════════════════════════════
+
+Sheet title: "Notes & Tasks". Dual tab at top: **Notes | Tasks**.
+
+**Notes tab:** Zero changes from current build. Exact same layout.
+
+**Tasks tab (new):**
+- Sections: "Today & overdue" → "Upcoming" → "Done"
+- Task row: circular checkbox (22×22) · title · due date pill · optional "from note" tag
+- Checkbox: empty = border only · done = `#059669` green fill + white tick ✓
+- Tap checkbox → optimistic update → mark is_complete = true in Supabase
+- Due date pill colours:
+  - Overdue/Today: `#FEE2E2` bg · `#991B1B` text
+  - This week: `#FEF3C7` bg · `#92400E` text
+  - Next week+: `#D1FAE5` bg · `#047857` text
+  - No date: `rgba(10,10,10,0.06)` bg · `rgba(10,10,10,0.4)` text
+- "from note" tag: shown when linked_note_id is not null · muted `rgba(10,10,10,0.3)` 9px
+- "+ Add a task…" row at bottom · tap opens add-task sub-sheet (350ms delay)
+
+**Add task sub-sheet:** title input (auto-focus) · due date quick picks (Today/Tomorrow/This week/Pick…) · optional note link · Save button peach
+
+**Zaeli nudge (Notes tab):** After loading notes, run local regex scan for action keywords ("call", "book", "order", "email", "check", "pick up", "remind", "schedule", "pay", "send"). If keyword found and no matching task exists → show nudge card. Max one nudge per session. No Claude API call — regex only.
+
+**personal_tasks Supabase table (new):**
+```sql
+id uuid PK
+family_id uuid FK
+member_id uuid  -- task owner, member-scoped NOT family-scoped
+title text
+due_date date nullable  -- bare local date YYYY-MM-DD, NEVER toISOString()
+is_complete bool default false
+completed_at timestamptz nullable
+linked_note_id uuid nullable FK to notes
+created_at timestamptz auto
+```
+
+**My Space card count query:** Fetch notes.length + personal_tasks count (is_complete = false) for currentMember. Display as `${noteCount} · ${taskCount}`.
+
+---
+
+## ══════════════════════════════════
+## OUR BUDGET MODULE (Session 6 — full design complete)
+## ══════════════════════════════════
+
+**File:** `app/(tabs)/our-budget.tsx`
+**Type:** Full screen (not a sheet) — like Calendar, Shopping
+**Colour:** Emerald `#059669` primary · `#047857` dark · `#34D399` mid · `#ECFDF5` card · `#D1FAE5` border
+**Logo tint:** 'a' + 'i' in `#059669` on this screen
+
+**Three tabs:** Overview · Categories · Goals
+
+### Overview tab
+- Zaeli brief (emerald green card) — cached once per day in `budget_brief_cache` table
+- Four upload methods (2×2 grid, Share and Paste as primary/bordered, Photo and File as secondary):
+  1. **Share from bank app** — iOS share extension, Zaeli registered as share target
+  2. **Paste statement** — `Clipboard.getString()`, step-by-step guide for CommBank/ANZ/Westpac/NAB
+  3. **Photo / screenshot** — `expo-image-picker`, multi-page, Claude Vision reads images
+  4. **CSV or PDF file** — `expo-document-picker`
+- "Last upload · N days ago · Bank name" below grid
+- Income card (dark slate): monthly income · Edit income button · budgeted amount · progress bar · spent/remaining/% stats
+- 3-bucket status row: On track (green) · Watch out (amber) · Over (red)
+- "Needs attention" — top 2 flagged categories only
+
+### Categories tab
+- Fixed expenses section (mortgage, phones, insurance etc — recur monthly)
+- Variable expenses section (groceries, dining, kids activities etc)
+- Progress bars: green on track · amber ≥80% used · red over
+- Status text per category
+- + Add custom category at bottom
+
+### Goals tab (Savings Goals)
+- Goal cards: name · % complete · progress bar · 3-stat row (saved/target/date) · Zaeli projection
+- On track: green Zaeli note · At risk: amber warning with specific increase suggestion
+- + Add savings goal at bottom
+
+### Income editor sheet
+- Combined total (dark slate card at top)
+- Per-person income streams (Anna salary / Richard salary / rental etc)
+- Each stream: name · type badge · amount · Edit ✎ link · sub-label (pay cycle)
+- + Add income stream (freelance / investments / side income)
+- What If… mode toggle at bottom (off by default)
+- Save button
+
+### What If mode
+- Amber banner: "What If mode — exploring only. Nothing is saved." + Exit button
+- Sliders for income adjustment per person
+- Toggle for removing fixed expenses (e.g. car loan)
+- Live results panel: income / unallocated / savings potential / goal dates — all recalculate instantly
+- Zaeli summary from local template strings — NO Claude API call
+- **Nothing saved while What If is active.** Zero Supabase writes.
+- Amber banner always visible — user must never mistake What If for real data
+
+### Setup flow (first time only, 3 steps)
+1. **Income entry:** After-tax amount · pay cycle toggle · income earners toggle · privacy note
+2. **Template selection:** Australian family (recommended) · Barefoot buckets · 50/30/20 · From scratch
+3. **First upload:** Optional bank statement · bank-specific export instructions · privacy note · skip option
+
+### Statement parsing (Claude Sonnet + vision)
+- Model: `claude-sonnet-4-20250514` with vision for photo/PDF
+- Extracts: date, description, amount (debit only) per transaction
+- Maps to family's existing category names only — never invents categories
+- Returns JSON: `[{date, description, amount, category, confidence}]`
+- Confident items (≥80%) → auto-categorised list
+- Uncertain items (<80%) → human review with tap-to-select category
+- User confirms → saved to `budget_transactions`
+- Privacy: raw statement content never stored — only confirmed totals
+
+### Supabase tables (all new)
+```
+budget_settings    (family_id, monthly_income, pay_cycle, setup_complete)
+income_streams     (id, family_id, member_id nullable, label, type, monthly_amount, is_active)
+budget_categories  (id, family_id, name, emoji, type fixed/variable, monthly_limit, is_active, sort_order)
+budget_transactions (id, family_id, category_id, amount, description, transaction_date local date, source, created_by, created_at)
+savings_goals      (id, family_id, name, emoji, target_amount, current_amount, monthly_contribution, target_date nullable, is_active)
+budget_brief_cache (family_id, date, brief_text)
+```
+
+### Australian family template seed categories
+**Fixed:** Mortgage/Rent · Council rates · Home/Contents/Car/Health/Life insurance · Car registration · Mobile phones · Internet · Netflix · Stan · Disney+ · Spotify · Apple One · iCloud · Amazon Prime · Gym membership · School fees · Childcare · Car loan
+
+**Variable:** Groceries · Dining out · Coffee & snacks · Fuel · Tolls · Kids activities · Kids pocket money · Clothing · Health & medical · Personal care · Entertainment · Holidays & travel · Home maintenance · Gifts · Education · Pet care · Charity · Miscellaneous
+
+All seeded with `monthly_limit = 0` — user sets amounts during setup.
+
+### Build order (recommended)
+1. Create all 5 Supabase tables + budget_brief_cache
+2. Setup flow (income, template, first upload stub)
+3. Categories tab (seed data, manual add transaction, budget edit)
+4. Overview tab (income card, status tiles, flagged categories, brief stub)
+5. Savings Goals tab (goal cards, add goal, projections)
+6. Paste + Photo upload (no native modules — ship these first)
+7. Statement review flow (Claude Sonnet parsing, uncertain item UI, confirm)
+8. Income editor + What If mode
+9. Share extension (native module — last, requires EAS build step)
+
+---
+
 ## ══════════════════════════════════
 ## CHAT FIX — RESOLVED ✅ (session 3, 8 April 2026)
 ## ══════════════════════════════════
@@ -150,91 +366,13 @@ React Native fires TextInput.onBlur BEFORE sibling TouchableOpacity.onPress. The
 - Two bars (overlay + hidden pill) — duplicates, touch confusion
 - Content swapping based on kbVisible or inputFocused — blur swaps before press fires
 - Keyboard.addListener setState — re-render during keyboard animation = glitch
-- Full rebuild to new file (chat-screen.tsx) — missing variable references, broken business logic
 
-### What WORKED (the solution):
-**Fixed bar with 3 elements that NEVER change:**
-```
-[Mic 58x58] [TextInput flex:1] [Send 58x58 coral]
-```
-
-**Critical implementation details:**
-1. Send button = `<View onTouchStart={send}>` — NOT onPress, NOT onPressIn, NOT TouchableOpacity
-2. Bar is `position:'absolute'` inside a `<View style={{flex:1, position:'relative'}}>` inside the KAV
-3. KAV resizes the parent View on keyboard open → bar (at bottom:0 of parent) rises above keyboard
-4. `keyboardShouldPersistTaps="always"` on ScrollView
-5. NO onBlur handler on TextInput
-6. NO conditional rendering — bar is always 3 elements, always mounted
-7. NO state changes during keyboard animation — zero layout thrash
-8. FAB hidden on chat page: `{activePage !== PAGE_CHAT && <ZaeliFAB .../>}` in swipe-world
-9. No fabActive/setFabActive coupling between swipe-world and chat
-
-### Render structure (LOCKED — do not change):
-```
-KAV (flex:1, behavior='padding')
-  View (flex:1, position:'relative')
-    ScrollView (flex:1, keyboardShouldPersistTaps='always')
-      date divider
-      renderMessages()
-    /ScrollView
-    View (position:'absolute', bottom:0, alignItems:'center')  ← barFloat
-      View (FAB styling: borderRadius:36, padding:10, gap:4)   ← barPill
-        [Mic] [TextInput] [Send via onTouchStart]
-      /View
-    /View
-  /View
-/KAV
-```
-
-### Bar styles (session 4 refined):
-```
-barFloat: position:absolute, bottom:0, paddingHorizontal:14, paddingBottom:24(iOS)/14
-barPill: width:100%, gap:4, backgroundColor:'#FFFFFF' (solid white),
-         borderRadius:36, padding:10, borderWidth:1,
-         borderColor:'rgba(220,220,220,0.6)',
-         shadow: #000 0.14 radius:28 offset:{0,10}
-barBtn:  width:58, height:58, borderRadius:22
-Mic SVG: 26x26, strokeWidth:1.7, stroke:'rgba(10,10,10,0.48)' / coral when recording
-Send:    backgroundColor:'#FF4545', opacity:0.3 when empty
-         onTouchStart — clear input first, then send
-```
-
----
-
-## ══════════════════════════════════
-## DASHBOARD (✅ COMPLETE + STRESS TESTED)
-## ══════════════════════════════════
-
-**`app/(tabs)/dashboard.tsx`** — Phase 6 complete.
-
-- All 5 cards: Calendar(slate) → Dinner(peach) → Weather+ZaeliNoticed → Shopping(lavender) → Actions(gold)
-- **Zaeli Noticed:** AI-generated via GPT mini. Fires once per session after data loads.
-- **Weather:** wttr.in API with 8s timeout. Fires independently.
-- All context injection wired to Chat via navigation store.
-
----
-
-## ══════════════════════════════════
-## SWIPE WORLD (✅ complete)
-## ══════════════════════════════════
-
-**`app/(tabs)/swipe-world.tsx`** — owns all 3 pages, FAB, dots, landing overlay.
-
-- Page 0: DashboardScreen ✅
-- Page 1: HomeScreen (named export from index.tsx) ✅
-- Page 2: MySpaceScreen ✅
-- FAB HIDDEN on chat page: `{activePage !== PAGE_CHAT && <ZaeliFAB/>}`
-- Chat has its own input bar (not FAB-driven)
-
-**Landing overlay:** Stays as-is. `LANDING_TEST_MODE = true` — flip before launch.
-
----
-
-## ══════════════════════════════════
-## MY SPACE (✅ Phase 3b complete)
-## ══════════════════════════════════
-
-All 7 cards built, 4 × 92% sheets. All dummy data.
+### What WORKS:
+- Fixed bar, always mounted, never conditionally rendered
+- `onTouchStart` on raw `<View>` (not TouchableOpacity) — fires before blur
+- `setInput('')` BEFORE `send(text)` — bar clears instantly
+- No onBlur handler at all
+- No Keyboard.addListener that triggers setState
 
 ---
 
@@ -259,21 +397,19 @@ All 7 cards built, 4 × 92% sheets. All dummy data.
 - **Context flow WORKING:** `isActive` prop from swipe-world + useEffect checks `getPendingChatContext()`
 - **Dashboard refresh on swipe back:** `isActive` prop on DashboardScreen triggers `loadData()` when becoming active
 - **Full CRUD tools (all save to Supabase, dashboard refreshes on swipe back):**
-  - Calendar: add / update / delete ✅ (was already there)
-  - Todos: add / update / delete ✅ (NEW — update supports mark_done)
-  - Shopping: add / update / delete ✅ (NEW)
-  - Meals: add / update / delete ✅ (NEW — add checks for date clashes, warns user)
+  - Calendar: add / update / delete ✅
+  - Todos: add / update / delete ✅ (update supports mark_done)
+  - Shopping: add / update / delete ✅
+  - Meals: add / update / delete ✅ (add checks for date clashes, warns user)
 - **CAPABILITY_RULES expanded:** update vs add distinction, meal vs calendar distinction, day accuracy, no hallucinated confirmations
 - **Mic in chat bar:** calls startRecording()/stopRecording() directly (FAB is unmounted on chat page)
-- **Mic overlay:** floating pill above bar — exact copy of FAB micPill (7 waveform bars, Cancel/Send buttons)
-- **Mic from Dashboard/MySpace:** FAB onMicResult passes transcript via pendingMicText prop → chat sends it
-- **Thinking dots:** appear immediately when mic stops (before Whisper transcription), also aggressive scrollToEnd after text send
-- **Chat bar:** solid white #FFFFFF, full width with paddingHorizontal:14, borderColor grey not white
-- **Keyboard gap:** keyboardVerticalOffset={-16} on iOS pulls bar closer to keyboard
+- **Mic overlay:** floating pill above bar — exact copy of FAB micPill
+- **Mic from Dashboard/MySpace:** FAB onMicResult passes transcript via pendingMicText prop
+- **Thinking dots:** appear immediately when mic stops (before Whisper transcription)
+- **Chat bar:** solid white #FFFFFF, full width with paddingHorizontal:14
+- **Keyboard gap:** keyboardVerticalOffset={-16} on iOS
 - **Scroll arrows:** UP/DOWN side-by-side, 38px, right-aligned, above bar
-- **Keyboard dismiss:** swipe-world uses keyboardShouldPersistTaps="handled" (tap feed = dismiss, tap buttons = persist)
-- **Input clearing:** setInput('') called BEFORE send() so bar empties instantly
-- **ScrollView paddingBottom:** 200 (clears bar + arrows)
+- **Input clearing:** setInput('') called BEFORE send()
 
 ---
 
@@ -284,55 +420,55 @@ All 7 cards built, 4 × 92% sheets. All dummy data.
 **All 3 pages redesigned to match new brand specs.**
 
 ### Dashboard changes:
-- Logo a+i tinted peach `#FAC8A8` (was sky blue)
-- Logo 40px (was 36)
-- Date header 17px/700 weight
-- NEW peach Zaeli brief card (#FAC8A8) above all cards — GPT mini, 2 sentences, fires once per session
-- Dinner/Meal planner card changed to mint `#B8EDD0` (was peach — too much peach with new branding)
-- FAB dashboard icon: peach `#FAC8A8` bg when active (was black)
+- Logo a+i tinted peach `#FAC8A8`
+- Logo 40px · Date header 17px/700
+- NEW peach Zaeli brief card above all cards
+- Dinner card → mint `#B8EDD0`
+- FAB dashboard icon: peach `#FAC8A8` bg when active
 - 3-dot page indicator: peach for dashboard
 
 ### Chat changes:
 - Avatar removed from header
-- Header label "Home" → "Chat" (18px/700)
-- Logo a+i tinted lavender `#C4B4FF` (was sky blue)
-- Logo 40px
-- NEW lavender brief card (#D8CCFF) above chat thread — sparkle + ZAELI label, Poppins 17 text, white chips (13px matching feed)
+- Header label "Home" → "Chat"
+- Logo a+i tinted lavender `#C4B4FF`
+- NEW lavender brief card above chat thread
 - 3-dot page indicator: lavender for chat
-- Reduced gap above date divider, increased gap before brief
 
 ### My Space changes:
 - Header now FIXED (doesn't scroll with content)
-- Logo 40px, "My Space" label 18px/700
-- NEW dark slate Zaeli brief card (#3A3D4A) with DM Serif italic quote (18px)
-- WotD card: stays as inline expand
-- **NEW 6-card grid (2×3):** Fitness(slate) | Goals(gold) | Budget(blue #E8F0FF) | Notes(peach) | Stretch(sage) | Zen(light blue #E0F3FC)
+- NEW dark slate Zaeli brief card with DM Serif italic quote
+- NEW 6-card grid (2×3): Fitness(slate) | Goals(gold) | Budget(blue) | Notes(peach) | Stretch(sage) | Zen(light blue)
 - Wordle card: full width below grid (lavender)
 - NASA APOD card: REMOVED from layout
-- All grid cards uniform: minHeight 120, borderRadius 16, padding 14
-- Grid labels 11px/700 uppercase
-- Grid numbers 30px/800 Poppins
-- Grid headlines 15px/700
-- Stretch + Zen: use big number style (22px) for "Morning" / "4"
-- All grid cards + Wordle open 92% shell sheets (placeholder "Coming soon")
+- All grid cards + Wordle open 92% shell sheets
 
-### Swipe-world changes:
-- 3-dot colours: peach(0) · lavender(1) · sky(2)
+---
 
-### Key constants updated:
-```
-Dashboard logo a+i   = #FAC8A8 peach
-Chat logo a+i        = #C4B4FF lavender
-My Space logo a+i    = #A8D8F0 sky blue (unchanged)
-Dinner card          = #B8EDD0 mint (was #FAC8A8 peach)
-Budget card          = #E8F0FF blue
-Zen card             = #E0F3FC light blue
-FAB dash active      = #FAC8A8 peach bg, #8A3A00 icon
-3-dot colours        = peach(0) · lavender(1) · sky(2)
-All logos            = 40px Poppins_800ExtraBold
-All page labels      = 18px Poppins_700Bold
-Brief text           = Poppins 17px on all 3 pages
-```
+## ══════════════════════════════════
+## SESSION 6 — DESIGN SESSION (9 April 2026) ✅
+## ══════════════════════════════════
+
+No code written this session — full design/architecture session producing Claude Code handover HTML mockups.
+
+### Decisions locked:
+- **Dashboard card order** revised — see DASHBOARD section above
+- **"Todos" renamed "Family Tasks"** everywhere on Dashboard
+- **My Space Budget card removed** — Budget is its own module
+- **Goals promoted to full width** in My Space
+- **"Notes" renamed "Notes & Tasks"** — dual tab sheet (Notes unchanged + new Tasks tab)
+- **Wordle stays full width** at bottom of My Space
+- **Our Budget** = new dedicated full-screen module, emerald green identity
+- **What If mode** = sandbox income/expense scenario modelling, nothing saved
+- **Upload methods** priority order: Share from bank → Paste → Photo → CSV/PDF
+- **Australian family template** seeds ~40 budget categories on first setup
+
+### Handover documents produced:
+- `zaeli-restructure.html` — Dashboard before/after · My Space before/after · Notes & Tasks sheet (3 states) + Claude Code modification brief
+- `zaeli-budget-final.html` — Our Budget module all 9 screen states (Overview, Categories, Goals, Upload ×4, Setup ×3, Income editor, What If ×2) + full Claude Code technical spec
+
+### Open questions / not yet decided:
+- Whether to add Budget detail view to My Space (currently: no — Budget is module only)
+- Share extension exact implementation (blocked on EAS build — build last)
 
 ---
 
@@ -346,13 +482,16 @@ Dashboard stress testing       ✅
 Phase 3: swipe-world.tsx       ✅
 Phase 3b: My Space             ✅ redesigned — 6-card grid + brief + shell sheets
 Phase 6: Zaeli Noticed (AI)    ✅ GPT mini, wttr.in weather
-Phase 5: Chat v5 / fix         ✅ RESOLVED sessions 3+4 — send, context flow, CRUD tools, mic, UI
+Phase 5: Chat v5 / fix         ✅ RESOLVED sessions 3+4
 Phase 5b: Design refresh       ✅ Session 5 — all 3 pages, briefs, new brand colours
-Phase 7: My Space sheets       🔨 ← NEXT (Fitness, Goals, Budget, Notes, Stretch, Zen, Wordle)
-Phase 8: Dashboard sheets      🔨 (Todos, Shopping, Calendar, Meals)
-Phase 9: Dedicated pages       🔨 (Kids Hub, Tutor, Our Family, Settings)
-Phase 10: Travel sheet         🔨
-Phase 11: Notes sheet (family) 🔨
+Phase 7a: Dashboard restructure 🔨 ← Claude Code next (zaeli-restructure.html)
+Phase 7b: My Space reshuffle   🔨 ← Claude Code next (zaeli-restructure.html)
+Phase 7c: Notes & Tasks sheet  🔨 ← Claude Code next (zaeli-restructure.html)
+Phase 8: My Space sheet content 🔨 (Fitness, Goals, Notes, Stretch, Zen, Wordle)
+Phase 9: Our Budget module     🔨 ← (zaeli-budget-final.html) — big build
+Phase 10: Dashboard sheets     🔨 (Family Tasks, Shopping, Calendar, Meals)
+Phase 11: Dedicated pages      🔨 (Kids Hub, Tutor, Our Family, Settings)
+Phase 12: Travel sheet         🔨
 ```
 
 ---
@@ -375,15 +514,20 @@ Phase 11: Notes sheet (family) 🔨
 - Wordmark = Poppins_800ExtraBold (never DM Serif for readable text)
 - 92% sheets = height: H * 0.92 (never maxHeight)
 - Weather = wttr.in only (Open-Meteo times out in dev client)
-- GPT_MINI = 'gpt-5.4-mini' (updated model)
-- NEVER pass fabActive/setFabActive as props from swipe-world unless you are certain the input bar is outside the ScrollView
-- ALWAYS add console.log before attempting any touch/send fix — confirm the tap is registering first
+- GPT_MINI = 'gpt-4o-mini'
+- NEVER pass fabActive/setFabActive as props from swipe-world unless certain input bar is outside ScrollView
+- ALWAYS add console.log before attempting any touch/send fix
 - useFocusEffect does NOT fire on swipe in swipe-world — use isActive prop + useEffect instead
 - Dashboard + Chat both need isActive prop from swipe-world for data refresh
-- Chat bar must NOT have onTouchEnd focus handler on barPill (steals mic taps → raises keyboard)
+- Chat bar must NOT have onTouchEnd focus handler on barPill
 - Mic in chat = startRecording()/stopRecording() directly (FAB is unmounted on chat page)
 - FAB mic transcript passes via pendingMicText prop through swipe-world to chat
-- swipe-world keyboardShouldPersistTaps = "handled" (NOT "always" which traps keyboard)
+- swipe-world keyboardShouldPersistTaps = "handled" (NOT "always")
 - Tool CAPABILITY_RULES must explicitly say update vs add, meal vs calendar
 - Meal add_meal tool checks for date clashes — returns CLASH: warning, never auto-swaps
 - All edits go to C:\Users\richa\zaeli (NOT the worktree) — Expo runs from main folder
+- personal_tasks table = member-scoped (NOT family-scoped)
+- budget_transactions table = family-scoped
+- Date rule for budget dates: bare local YYYY-MM-DD, never toISOString()
+- What If mode = zero Supabase writes, nothing persisted, amber banner always visible
+- Our Budget upload: privacy rule — raw statement content never stored

@@ -381,14 +381,7 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
         showsVerticalScrollIndicator={false}
       >
 
-        {/* ── Zaeli Brief Card (dark slate) ── */}
-        <View style={s.briefCard}>
-          <Text style={s.briefLabel}>{'\u2726'} ZAELI</Text>
-          <Text style={s.briefMsg}>Solid start to the week, Rich. <Text style={{ color:'#A8D8F0', fontWeight:'700' }}>6,842 steps</Text> already logged and three goals tracking well.</Text>
-          <View style={s.briefDivider}/>
-          <Text style={s.briefQuote}>{'"The only way to do great work is to love what you do."'}</Text>
-          <Text style={s.briefAuthor}>STEVE JOBS</Text>
-        </View>
+        {/* ── Zaeli Brief — REMOVED (design review) ── */}
 
         {/* ── Word of the Day ── */}
         <WotdCard
@@ -396,48 +389,43 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
           onToggle={() => toggleInline('wotd')}
         />
 
-        {/* ── Goals — full width ── */}
-        <TouchableOpacity style={{ marginHorizontal:0, marginBottom:8, borderRadius:16, backgroundColor:'#F0DC80', padding:13, paddingHorizontal:15, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }} activeOpacity={0.88} onPress={() => setSheet('goals')}>
-          <View>
-            <Text style={[s.gridLabel, { color:'rgba(58,42,0,0.4)' }]}>GOALS</Text>
-            <Text style={[s.gridNum, { color:'#3A2A00' }]}>{goals.length}</Text>
-            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:9, color:'rgba(58,42,0,0.5)', marginTop:3 }}>active goal{goals.length !== 1 ? 's' : ''} · {goals.filter(g => g.target_value > 0 && ((g.current_value - g.start_value) / (g.target_value - g.start_value)) >= 0.5).length} on track</Text>
+        {/* ── Fitness — full width ── */}
+        <TouchableOpacity style={{ marginHorizontal:0, marginBottom:8, borderRadius:16, backgroundColor:'#3A3D4A', padding:16, paddingHorizontal:18 }} activeOpacity={0.88} onPress={() => setSheet('fitness')}>
+          <Text style={[s.gridLabel, { color:'rgba(255,255,255,0.35)' }]}>FITNESS</Text>
+          <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:32, color:'#fff', letterSpacing:-1, lineHeight:36 }}>{HEALTH.steps.toLocaleString()}</Text>
+          <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(255,255,255,0.5)', marginTop:2 }}>steps today · {HEALTH.distance} km · {HEALTH.calories} cal</Text>
+          <View style={{ height:5, borderRadius:3, backgroundColor:'rgba(255,255,255,0.12)', overflow:'hidden', marginTop:10 }}>
+            <View style={{ height:5, borderRadius:3, backgroundColor:'#A8D8F0', width:`${HEALTH.pct}%` as any }} />
           </View>
-          <View style={{ alignItems:'flex-end', gap:5 }}>
-            {goals.slice(0,2).map(g => (
-              <View key={g.id} style={{ backgroundColor:'rgba(58,42,0,0.1)', borderRadius:20, paddingVertical:3, paddingHorizontal:10 }}>
-                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:9, color:'#3A2A00' }}>{g.icon} {g.title.length > 16 ? g.title.slice(0,16) + '...' : g.title}</Text>
-              </View>
-            ))}
-          </View>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(255,255,255,0.45)', marginTop:4 }}>{HEALTH.goal - HEALTH.steps} steps to go · goal {HEALTH.goal.toLocaleString()}</Text>
         </TouchableOpacity>
 
         {/* ── 4-Card Grid (2 rows x 2 columns) ── */}
         <View style={s.grid2}>
-          {/* Row 1: Fitness | Notes & Tasks */}
-          <TouchableOpacity style={[s.gridCard, { backgroundColor:'#3A3D4A' }]} activeOpacity={0.88} onPress={() => setSheet('fitness')}>
-            <Text style={s.gridLabel}>FITNESS</Text>
-            <Text style={[s.gridNum, { color:'#fff' }]}>{HEALTH.steps.toLocaleString()}</Text>
-            <Text style={[s.gridHl, { color:'#fff' }]}>steps today</Text>
-            <View style={s.gridBar}><View style={[s.gridBarFill, { width:`${HEALTH.pct}%` as any, backgroundColor:'#A8D8F0' }]}/></View>
+          {/* Row 1: Goals | Notes & Tasks */}
+          <TouchableOpacity style={[s.gridCard, { backgroundColor:'#F0DC80' }]} activeOpacity={0.88} onPress={() => setSheet('goals')}>
+            <Text style={[s.gridLabel, { color:'rgba(58,42,0,0.4)' }]}>GOALS</Text>
+            <View style={{ flexDirection:'row', alignItems:'baseline', gap:6 }}>
+              <Text style={[s.gridNum, { color:'#3A2A00' }]}>{goals.length}</Text>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#3A2A00' }}>active</Text>
+            </View>
+            <Text style={[s.gridSub, { color:'rgba(58,42,0,0.5)' }]}>{goals.filter(g => g.target_value > 0 && ((g.current_value - g.start_value) / (g.target_value - g.start_value)) >= 0.5).length} on track</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.gridCard, { backgroundColor:'#FAC8A8' }]} activeOpacity={0.88} onPress={() => setSheet('notes')}>
             <Text style={[s.gridLabel, { color:'rgba(58,24,0,0.35)' }]}>NOTES & TASKS</Text>
-            <Text style={[s.gridNum, { color:'#3A1800', fontSize:18 }]}>{notes.length} · {tasks.filter(t=>!t.is_complete).length}</Text>
-            <Text style={[s.gridHl, { color:'#3A1800' }]}>notes · tasks</Text>
+            <Text style={[s.gridNum, { color:'#3A1800', fontSize:24 }]}>{notes.length} · {tasks.filter(t=>!t.is_complete).length}</Text>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'#3A1800' }}>notes · tasks</Text>
           </TouchableOpacity>
 
           {/* Row 2: Stretch | Zen */}
           <TouchableOpacity style={[s.gridCard, { backgroundColor:'#E8F4E8' }]} activeOpacity={0.88} onPress={() => setSheet('stretch')}>
             <Text style={[s.gridLabel, { color:'rgba(42,90,26,0.45)' }]}>DAILY STRETCH</Text>
-            <Text style={[s.gridNum, { color:'#2A5A1A', fontSize:22 }]}>Morning</Text>
-            <Text style={[s.gridHl, { color:'#2A5A1A' }]}>flow</Text>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#2A5A1A', letterSpacing:-0.5, marginTop:4 }}>Morning flow</Text>
             <Text style={[s.gridSub, { color:'rgba(42,90,26,0.5)' }]}>5 movements · 8 min</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.gridCard, { backgroundColor:'#E0F3FC' }]} activeOpacity={0.88} onPress={() => setSheet('zen')}>
             <Text style={[s.gridLabel, { color:'rgba(10,74,106,0.45)' }]}>ZEN</Text>
-            <Text style={[s.gridNum, { color:'#0A4A6A', fontSize:22 }]}>4</Text>
-            <Text style={[s.gridHl, { color:'#0A4A6A' }]}>sessions</Text>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A4A6A', letterSpacing:-0.5, marginTop:4 }}>4 sessions</Text>
             <Text style={[s.gridSub, { color:'rgba(10,74,106,0.5)' }]}>Ready to play</Text>
           </TouchableOpacity>
         </View>
@@ -726,12 +714,30 @@ function NotesCard({ onOpen }: { onOpen: () => void }) {
 
 function WordleCard({ onOpen }: { onOpen: () => void }) {
   return (
-    <TouchableOpacity style={[s.card, s.cardGold]} activeOpacity={0.88} onPress={onOpen}>
-      <View style={s.row}>
-        <Text style={[s.headlineDk, { flex: 1 }]}>12-day streak.{'\n'}Keep it going.</Text>
-        <Text style={{ fontSize: 28, marginTop: 2, flexShrink: 0 }}>🔥</Text>
+    <TouchableOpacity style={[s.card, { backgroundColor:'#D8CCFF' }]} activeOpacity={0.88} onPress={onOpen}>
+      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+        <Text style={[s.cardLabel, { color:'rgba(60,20,140,0.45)' }]}>ZAELI WORDLE</Text>
+        <Text style={{ fontFamily:'Poppins_500Medium', fontSize:11, color:'rgba(60,20,140,0.4)' }}>Tap to play →</Text>
       </View>
-      <Text style={s.tapHintDk}>Today's Wordle · 3 tries left</Text>
+      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+        <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:20, color:'#2A0A80', letterSpacing:-0.5 }}>12-day streak 🔥</Text>
+        <View>
+          <View style={{ flexDirection:'row', gap:3, marginBottom:3 }}>
+            <View style={{ width:22, height:22, borderRadius:4, backgroundColor:'#5A8A3C', alignItems:'center', justifyContent:'center' }}><Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:9, color:'#fff' }}>C</Text></View>
+            <View style={{ width:22, height:22, borderRadius:4, backgroundColor:'rgba(42,10,128,0.15)', alignItems:'center', justifyContent:'center' }}><Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:9, color:'rgba(42,10,128,0.4)' }}>R</Text></View>
+            <View style={{ width:22, height:22, borderRadius:4, backgroundColor:'#C8A820', alignItems:'center', justifyContent:'center' }}><Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:9, color:'#fff' }}>A</Text></View>
+            <View style={{ width:22, height:22, borderRadius:4, backgroundColor:'rgba(42,10,128,0.15)', alignItems:'center', justifyContent:'center' }}><Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:9, color:'rgba(42,10,128,0.4)' }}>N</Text></View>
+            <View style={{ width:22, height:22, borderRadius:4, backgroundColor:'rgba(42,10,128,0.15)', alignItems:'center', justifyContent:'center' }}><Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:9, color:'rgba(42,10,128,0.4)' }}>E</Text></View>
+          </View>
+          <View style={{ flexDirection:'row', gap:3 }}>
+            <View style={{ width:22, height:22, borderRadius:4, backgroundColor:'#5A8A3C', alignItems:'center', justifyContent:'center' }}><Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:9, color:'#fff' }}>C</Text></View>
+            <View style={{ width:22, height:22, borderRadius:4, backgroundColor:'#5A8A3C', alignItems:'center', justifyContent:'center' }}><Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:9, color:'#fff' }}>H</Text></View>
+            <View style={{ width:22, height:22, borderRadius:4, backgroundColor:'#5A8A3C', alignItems:'center', justifyContent:'center' }}><Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:9, color:'#fff' }}>A</Text></View>
+            <View style={{ width:22, height:22, borderRadius:4, backgroundColor:'#5A8A3C', alignItems:'center', justifyContent:'center' }}><Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:9, color:'#fff' }}>I</Text></View>
+            <View style={{ width:22, height:22, borderRadius:4, backgroundColor:'#5A8A3C', alignItems:'center', justifyContent:'center' }}><Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:9, color:'#fff' }}>R</Text></View>
+          </View>
+        </View>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -1204,18 +1210,18 @@ function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, o
 
       {/* ── Tab bar + content ── */}
       {!editingNote && (<>
-        <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.05)', borderRadius:12, marginHorizontal:18, marginTop:4, marginBottom:14, padding:3 }}>
+        <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.05)', borderRadius:14, marginHorizontal:18, marginTop:4, marginBottom:14, padding:4 }}>
           <TouchableOpacity onPress={() => setActiveTab('notes')} activeOpacity={0.7}
-            style={{ flex:1, paddingVertical:7, borderRadius:9, alignItems:'center',
+            style={{ flex:1, paddingVertical:13, borderRadius:11, alignItems:'center',
               backgroundColor: activeTab==='notes' ? '#fff' : 'transparent',
               ...(activeTab==='notes' ? { shadowColor:'#000', shadowOpacity:0.1, shadowRadius:4, shadowOffset:{width:0,height:1} } : {}) }}>
-            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: activeTab==='notes' ? '#0A0A0A' : 'rgba(10,10,10,0.38)' }}>Notes</Text>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color: activeTab==='notes' ? '#0A0A0A' : 'rgba(10,10,10,0.38)' }}>Notes</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setActiveTab('tasks')} activeOpacity={0.7}
-            style={{ flex:1, paddingVertical:7, borderRadius:9, alignItems:'center',
+            style={{ flex:1, paddingVertical:13, borderRadius:11, alignItems:'center',
               backgroundColor: activeTab==='tasks' ? '#fff' : 'transparent',
               ...(activeTab==='tasks' ? { shadowColor:'#000', shadowOpacity:0.1, shadowRadius:4, shadowOffset:{width:0,height:1} } : {}) }}>
-            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: activeTab==='tasks' ? '#0A0A0A' : 'rgba(10,10,10,0.38)' }}>Tasks</Text>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color: activeTab==='tasks' ? '#0A0A0A' : 'rgba(10,10,10,0.38)' }}>Tasks</Text>
           </TouchableOpacity>
         </View>
 
@@ -1265,26 +1271,65 @@ function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, o
         {/* ── TASKS TAB ── */}
         {activeTab === 'tasks' && (
           <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* + Add task button (matches + New note style) */}
+            {!showAddTask && (
+              <TouchableOpacity style={s.noteNewBtn} onPress={() => setShowAddTask(true)} activeOpacity={0.7}>
+                <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                  <IcoPlus2 color="#8A3A00" size={18} />
+                  <Text style={s.noteNewTxt}>New task</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {/* Add task form */}
+            {showAddTask && (
+              <View style={{ backgroundColor:'#fff', borderRadius:14, padding:16, borderWidth:1, borderColor:'rgba(10,10,10,0.06)', marginBottom:14 }}>
+                <TextInput style={{ fontFamily:'Poppins_600SemiBold', fontSize:17, color:'#0A0A0A', borderBottomWidth:2, borderBottomColor:'#FAC8A8', paddingBottom:10, marginBottom:14 }}
+                  value={newTaskTitle} onChangeText={setNewTaskTitle} placeholder="What needs doing?" placeholderTextColor="rgba(10,10,10,0.25)" autoFocus />
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.8, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginBottom:8 }}>Due date</Text>
+                <View style={{ flexDirection:'row', gap:8, marginBottom:16 }}>
+                  {[{l:'Today',v:today},{l:'Tomorrow',v:new Date(Date.now()+86400000).toISOString().slice(0,10)},{l:'This week',v:new Date(Date.now()+7*86400000).toISOString().slice(0,10)},{l:'None',v:''}].map(q => (
+                    <TouchableOpacity key={q.l} onPress={() => setNewTaskDue(q.v)} activeOpacity={0.7}
+                      style={{ paddingVertical:9, paddingHorizontal:14, borderRadius:12,
+                        backgroundColor: newTaskDue === q.v ? '#FAC8A8' : 'rgba(10,10,10,0.06)' }}>
+                      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13,
+                        color: newTaskDue === q.v ? '#3A1000' : 'rgba(10,10,10,0.5)' }}>{q.l}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={{ flexDirection:'row', gap:10 }}>
+                  <TouchableOpacity onPress={() => { setShowAddTask(false); setNewTaskTitle(''); setNewTaskDue(''); }} activeOpacity={0.7}
+                    style={{ flex:1, paddingVertical:14, borderRadius:14, borderWidth:1, borderColor:'rgba(10,10,10,0.12)', alignItems:'center' }}>
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(10,10,10,0.4)' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleAddTask} activeOpacity={0.7}
+                    style={{ flex:1, paddingVertical:14, borderRadius:14, backgroundColor:'#FAC8A8', alignItems:'center' }}>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#3A1000' }}>Save task</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
             {/* Today & overdue */}
             {todayTasks.length > 0 && (
               <>
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginBottom:8 }}>Today & overdue</Text>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginBottom:10 }}>Today & overdue</Text>
                 {todayTasks.map(t => {
                   const pill = duePillStyle(t.due_date);
                   return (
-                    <View key={t.id} style={{ flexDirection:'row', alignItems:'flex-start', gap:11, paddingVertical:11, borderBottomWidth:1, borderBottomColor:'rgba(10,10,10,0.06)' }}>
-                      <TouchableOpacity onPress={() => onToggleTask(t.id)} style={{ width:20, height:20, borderRadius:10, borderWidth:2, borderColor:'rgba(10,10,10,0.2)', marginTop:1 }} />
-                      <View style={{ flex:1 }}>
-                        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#0A0A0A', lineHeight:18 }}>{t.title}</Text>
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:3 }}>
-                          <View style={{ backgroundColor:pill.bg, borderRadius:8, paddingVertical:2, paddingHorizontal:7 }}>
-                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, color:pill.color }}>{pill.label}</Text>
-                          </View>
-                        </View>
+                    <View key={t.id} style={s.noteCard}>
+                      <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
+                        <TouchableOpacity onPress={() => onToggleTask(t.id)} style={{ width:24, height:24, borderRadius:12, borderWidth:2, borderColor:'rgba(10,10,10,0.2)' }} />
+                        <Text style={s.noteCardTitle}>{t.title}</Text>
                       </View>
-                      <TouchableOpacity onPress={() => onDeleteTask(t.id)} hitSlop={{top:8,bottom:8,left:8,right:8}}>
-                        <IcoTrash color="rgba(10,10,10,0.15)" size={16} />
-                      </TouchableOpacity>
+                      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
+                        <View style={{ backgroundColor:pill.bg, borderRadius:10, paddingVertical:3, paddingHorizontal:10 }}>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:pill.color }}>{pill.label}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => onDeleteTask(t.id)} hitSlop={{top:10,bottom:10,left:10,right:10}}>
+                          <IcoTrash color="rgba(10,10,10,0.18)" size={20} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   );
                 })}
@@ -1294,23 +1339,23 @@ function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, o
             {/* Upcoming */}
             {upcomingTasks.length > 0 && (
               <>
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginTop:12, marginBottom:8 }}>Upcoming</Text>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginTop:14, marginBottom:10 }}>Upcoming</Text>
                 {upcomingTasks.map(t => {
                   const pill = duePillStyle(t.due_date);
                   return (
-                    <View key={t.id} style={{ flexDirection:'row', alignItems:'flex-start', gap:11, paddingVertical:11, borderBottomWidth:1, borderBottomColor:'rgba(10,10,10,0.06)' }}>
-                      <TouchableOpacity onPress={() => onToggleTask(t.id)} style={{ width:20, height:20, borderRadius:10, borderWidth:2, borderColor:'rgba(10,10,10,0.2)', marginTop:1 }} />
-                      <View style={{ flex:1 }}>
-                        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#0A0A0A', lineHeight:18 }}>{t.title}</Text>
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:3 }}>
-                          <View style={{ backgroundColor:pill.bg, borderRadius:8, paddingVertical:2, paddingHorizontal:7 }}>
-                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, color:pill.color }}>{pill.label}</Text>
-                          </View>
-                        </View>
+                    <View key={t.id} style={s.noteCard}>
+                      <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
+                        <TouchableOpacity onPress={() => onToggleTask(t.id)} style={{ width:24, height:24, borderRadius:12, borderWidth:2, borderColor:'rgba(10,10,10,0.2)' }} />
+                        <Text style={s.noteCardTitle}>{t.title}</Text>
                       </View>
-                      <TouchableOpacity onPress={() => onDeleteTask(t.id)} hitSlop={{top:8,bottom:8,left:8,right:8}}>
-                        <IcoTrash color="rgba(10,10,10,0.15)" size={16} />
-                      </TouchableOpacity>
+                      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
+                        <View style={{ backgroundColor:pill.bg, borderRadius:10, paddingVertical:3, paddingHorizontal:10 }}>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:pill.color }}>{pill.label}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => onDeleteTask(t.id)} hitSlop={{top:10,bottom:10,left:10,right:10}}>
+                          <IcoTrash color="rgba(10,10,10,0.18)" size={20} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   );
                 })}
@@ -1320,54 +1365,19 @@ function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, o
             {/* Done */}
             {doneTasks.length > 0 && (
               <>
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginTop:12, marginBottom:8 }}>Done</Text>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginTop:14, marginBottom:10 }}>Done</Text>
                 {doneTasks.map(t => (
-                  <View key={t.id} style={{ flexDirection:'row', alignItems:'center', gap:11, paddingVertical:11, borderBottomWidth:1, borderBottomColor:'rgba(10,10,10,0.06)' }}>
-                    <TouchableOpacity onPress={() => onToggleTask(t.id)}
-                      style={{ width:20, height:20, borderRadius:10, backgroundColor:'#059669', alignItems:'center', justifyContent:'center' }}>
-                      <Svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><Path d="M20 6L9 17l-5-5"/></Svg>
-                    </TouchableOpacity>
-                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(10,10,10,0.28)', textDecorationLine:'line-through', flex:1 }}>{t.title}</Text>
+                  <View key={t.id} style={[s.noteCard, { opacity:0.6 }]}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
+                      <TouchableOpacity onPress={() => onToggleTask(t.id)}
+                        style={{ width:24, height:24, borderRadius:12, backgroundColor:'#059669', alignItems:'center', justifyContent:'center' }}>
+                        <Svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><Path d="M20 6L9 17l-5-5"/></Svg>
+                      </TouchableOpacity>
+                      <Text style={[s.noteCardTitle, { color:'rgba(10,10,10,0.35)', textDecorationLine:'line-through' }]}>{t.title}</Text>
+                    </View>
                   </View>
                 ))}
               </>
-            )}
-
-            {/* Add task */}
-            {!showAddTask && (
-              <TouchableOpacity onPress={() => setShowAddTask(true)} style={{ flexDirection:'row', alignItems:'center', gap:11, paddingVertical:11, borderTopWidth:1, borderTopColor:'rgba(10,10,10,0.06)', marginTop:4 }}>
-                <View style={{ width:20, height:20, borderRadius:10, borderWidth:2, borderStyle:'dashed' as any, borderColor:'rgba(10,10,10,0.2)' }} />
-                <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(10,10,10,0.32)' }}>Add a task...</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Add task form */}
-            {showAddTask && (
-              <View style={{ backgroundColor:'#fff', borderRadius:14, padding:16, borderWidth:1, borderColor:'rgba(10,10,10,0.06)', marginTop:8 }}>
-                <TextInput style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A', borderBottomWidth:2, borderBottomColor:'#FAC8A8', paddingBottom:8, marginBottom:12 }}
-                  value={newTaskTitle} onChangeText={setNewTaskTitle} placeholder="Task title" placeholderTextColor="rgba(10,10,10,0.25)" autoFocus />
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:0.8, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginBottom:6 }}>Due date</Text>
-                <View style={{ flexDirection:'row', gap:6, marginBottom:14 }}>
-                  {[{l:'Today',v:today},{l:'Tomorrow',v:new Date(Date.now()+86400000).toISOString().slice(0,10)},{l:'This week',v:new Date(Date.now()+7*86400000).toISOString().slice(0,10)},{l:'None',v:''}].map(q => (
-                    <TouchableOpacity key={q.l} onPress={() => setNewTaskDue(q.v)} activeOpacity={0.7}
-                      style={{ paddingVertical:7, paddingHorizontal:12, borderRadius:10,
-                        backgroundColor: newTaskDue === q.v ? '#FAC8A8' : 'rgba(10,10,10,0.06)' }}>
-                      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11,
-                        color: newTaskDue === q.v ? '#3A1000' : 'rgba(10,10,10,0.5)' }}>{q.l}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={{ flexDirection:'row', gap:10 }}>
-                  <TouchableOpacity onPress={() => { setShowAddTask(false); setNewTaskTitle(''); setNewTaskDue(''); }} activeOpacity={0.7}
-                    style={{ flex:1, paddingVertical:12, borderRadius:12, borderWidth:1, borderColor:'rgba(10,10,10,0.12)', alignItems:'center' }}>
-                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(10,10,10,0.4)' }}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={handleAddTask} activeOpacity={0.7}
-                    style={{ flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'#FAC8A8', alignItems:'center' }}>
-                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#3A1000' }}>Save task</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
             )}
 
             {tasks.length === 0 && !showAddTask && (
@@ -1588,20 +1598,20 @@ const s = StyleSheet.create({
   pageLabel: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: 'rgba(10,10,10,0.32)' },
 
   // Brief card (dark slate)
-  briefCard:    { borderRadius:20, backgroundColor:'#3A3D4A', padding:16, paddingHorizontal:18, marginBottom:2 },
-  briefLabel:   { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(168,216,240,0.5)', marginBottom:9 },
-  briefMsg:     { fontFamily:'Poppins_500Medium', fontSize:17, color:'#fff', lineHeight:26, marginBottom:14 },
-  briefDivider: { height:1, backgroundColor:'rgba(255,255,255,0.08)', marginBottom:12 },
-  briefQuote:   { fontFamily:'DMSerifDisplay_400Regular', fontSize:18, color:'rgba(255,255,255,0.55)', lineHeight:26, marginBottom:6, fontStyle:'italic' as any },
-  briefAuthor:  { fontFamily:'Poppins_600SemiBold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase' as any, color:'rgba(255,255,255,0.22)' },
+  briefCard:    { borderRadius:20, backgroundColor:'#A8D8F0', padding:16, paddingHorizontal:18, marginBottom:2 },
+  briefLabel:   { fontFamily:'Poppins_700Bold', fontSize:13, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(0,60,100,0.45)', marginBottom:9 },
+  briefMsg:     { fontFamily:'Poppins_500Medium', fontSize:17, color:'#0A2A40', lineHeight:26, marginBottom:14 },
+  briefDivider: { height:1, backgroundColor:'rgba(0,60,100,0.12)', marginBottom:12 },
+  briefQuote:   { fontFamily:'DMSerifDisplay_400Regular', fontSize:18, color:'rgba(0,40,70,0.5)', lineHeight:26, marginBottom:6, fontStyle:'italic' as any },
+  briefAuthor:  { fontFamily:'Poppins_600SemiBold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase' as any, color:'rgba(0,40,70,0.3)' },
 
   // 6-card grid
   grid2:        { flexDirection:'row' as any, flexWrap:'wrap' as any, gap:8, marginBottom:2 },
   gridCard:     { width:(W - 28 - 8) / 2, minHeight:120, borderRadius:16, padding:14 },
-  gridLabel:    { fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.9, textTransform:'uppercase' as any, color:'rgba(255,255,255,0.35)', marginBottom:6 },
+  gridLabel:    { fontFamily:'Poppins_700Bold', fontSize:13, letterSpacing:0.9, textTransform:'uppercase' as any, color:'rgba(255,255,255,0.35)', marginBottom:6 },
   gridNum:      { fontFamily:'Poppins_800ExtraBold', fontSize:30, letterSpacing:-0.8, lineHeight:34 },
   gridHl:       { fontFamily:'Poppins_700Bold', fontSize:15, letterSpacing:-0.3, lineHeight:20 },
-  gridSub:      { fontFamily:'Poppins_500Medium', fontSize:11, marginTop:5 },
+  gridSub:      { fontFamily:'Poppins_500Medium', fontSize:13, marginTop:5 },
   gridBar:      { height:4, borderRadius:2, backgroundColor:'rgba(255,255,255,0.15)', marginTop:8, overflow:'hidden' as any },
   gridBarFill:  { height:4, borderRadius:2 },
 
@@ -1618,12 +1628,12 @@ const s = StyleSheet.create({
   headlineDk: { fontFamily: 'Poppins_700Bold', fontSize: 24, letterSpacing: -0.5, lineHeight: 30, color: '#1A1A1A' },
 
   // Labels & hints
-  cardLabel:   { fontFamily: 'Poppins_700Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(107,53,217,0.45)', marginBottom: 4 },
+  cardLabel:   { fontFamily: 'Poppins_700Bold', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(107,53,217,0.45)', marginBottom: 6 },
   cardLabelLt: { fontFamily: 'Poppins_700Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8, color: 'rgba(255,255,255,0.35)', marginBottom: 6 },
   tapHintDk:   { fontFamily: 'Poppins_500Medium', fontSize: 13, color: 'rgba(0,0,0,0.22)', marginTop: 10 },
   tapHintLt:   { fontFamily: 'Poppins_500Medium', fontSize: 13, color: 'rgba(255,255,255,0.40)', marginTop: 10 },
-  tapHintWotd: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: 'rgba(107,53,217,0.45)', marginTop: 4 },
-  tapHintLav:  { fontFamily: 'Poppins_500Medium', fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 10 },
+  tapHintWotd: { fontFamily: 'Poppins_500Medium', fontSize: 15, color: 'rgba(107,53,217,0.45)', marginTop: 4 },
+  tapHintLav:  { fontFamily: 'Poppins_500Medium', fontSize: 15, color: 'rgba(255,255,255,0.55)', marginTop: 10 },
 
   row:     { flexDirection: 'row', alignItems: 'flex-start' },
   divider: { height: 1, marginVertical: 12, backgroundColor: 'rgba(255,255,255,0.15)' },
