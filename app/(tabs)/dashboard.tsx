@@ -1049,13 +1049,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
 
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {/* ── Zaeli Dashboard Brief ── */}
-        {dashBrief ? (
-          <View style={s.dashBrief}>
-            <Text style={s.dashBriefLabel}>{'\u2726'} ZAELI</Text>
-            <Text style={s.dashBriefMsg}>{dashBrief.replace(/\*\*(.*?)\*\*/g, '$1')}</Text>
-          </View>
-        ) : null}
+        {/* ── Zaeli Dashboard Brief — REMOVED (design changes pending) ── */}
 
         <Animated.View style={{ opacity:cardAnims[0].opacity, transform:[{translateY:cardAnims[0].translateY}] }}>
           <CalendarCard
@@ -1085,6 +1079,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
           />
         </Animated.View>
 
+        {/* ROW: Weather + Our Budget */}
         <Animated.View style={{ opacity:cardAnims[2].opacity, transform:[{translateY:cardAnims[2].translateY}] }}>
           <View style={{ flexDirection:'row', gap:10 }}>
             <WeatherCard
@@ -1092,19 +1087,18 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
               expanded={expandedCard === 'weather'}
               onToggleExpand={() => toggleCard('weather')}
             />
-            <ZaeliNoticedCard
-              notices={notices}
-              noticesLoading={noticesLoading}
-              expanded={expandedCard === 'wotd'}
-              onToggleExpand={() => toggleCard('wotd')}
-              onChat={(notice) => {
-                setPendingChatContext({ type:'noticed' as any, event:{ title: notice }, returnTo:'dashboard' });
-                onNavigateChat?.();
-              }}
-            />
+            <TouchableOpacity style={[cS.card, { backgroundColor:'#ECFDF5', flex:1 }]} activeOpacity={0.88} onPress={() => {}}>
+              <Text style={[cS.cardLabel, { color:'rgba(5,150,105,0.6)' }]}>Our Budget</Text>
+              <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:20, color:'#047857', letterSpacing:-0.8, lineHeight:24 }}>$3,960</Text>
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:9, color:'rgba(5,150,105,0.6)', marginTop:2 }}>left this month</Text>
+              <View style={{ height:3, borderRadius:2, backgroundColor:'rgba(5,150,105,0.15)', overflow:'hidden', marginTop:8 }}>
+                <View style={{ height:3, borderRadius:2, backgroundColor:'#059669', width:'42%' as any }} />
+              </View>
+            </TouchableOpacity>
           </View>
         </Animated.View>
 
+        {/* Shopping — full width */}
         <Animated.View style={{ opacity:cardAnims[3].opacity, transform:[{translateY:cardAnims[3].translateY}] }}>
           <ShoppingCard
             items={cardData.shopItems}
@@ -1119,27 +1113,26 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
           />
         </Animated.View>
 
+        {/* ROW: Zaeli Noticed + Family Tasks */}
         <Animated.View style={{ opacity:cardAnims[4].opacity, transform:[{translateY:cardAnims[4].translateY}] }}>
-          <ActionsCard
-            todos={cardData.todos}
-            isEvening={isEvening}
-            tomorrowMorningEvents={tomorrowMorningEvs}
-            expanded={expandedCard === 'actions'}
-            onToggleExpand={() => toggleCard('actions')}
-            onAdd={goToAddTodo}
-            onFull={() => router.navigate('/(tabs)/todos')}
-            onTick={handleTodoTick}
-            onEditTodo={goToEditTodo}
-            onDeleteTodo={async (todo) => {
-              setCardData(prev => ({ ...prev, todos:prev.todos.filter(t => t.id !== todo.id) }));
-              try {
-                if (todo.reminder_type === 'reminder') await supabase.from('reminders').delete().eq('id', todo.id);
-                else await supabase.from('todos').delete().eq('id', todo.id);
-              } catch {
-                setCardData(prev => ({ ...prev, todos:[...prev.todos, todo] }));
-              }
-            }}
-          />
+          <View style={{ flexDirection:'row', gap:10 }}>
+            <ZaeliNoticedCard
+              notices={notices}
+              noticesLoading={noticesLoading}
+              expanded={expandedCard === 'wotd'}
+              onToggleExpand={() => toggleCard('wotd')}
+              onChat={(notice) => {
+                setPendingChatContext({ type:'noticed' as any, event:{ title: notice }, returnTo:'dashboard' });
+                onNavigateChat?.();
+              }}
+            />
+            <TouchableOpacity style={[cS.card, { backgroundColor:'#F0DC80', flex:1 }]} activeOpacity={0.88}
+              onPress={() => toggleCard('actions')}>
+              <Text style={[cS.cardLabel, { color:'rgba(58,42,0,0.4)' }]}>Family Tasks</Text>
+              <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:26, color:'#3A2A00', letterSpacing:-0.8, lineHeight:30 }}>{cardData.todos.filter(t => t.status !== 'done').length}</Text>
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:9, color:'rgba(58,42,0,0.5)', marginTop:3 }}>on your plate</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
 
         <View style={{ height:130 }}/>

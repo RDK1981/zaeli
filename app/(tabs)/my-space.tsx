@@ -190,12 +190,16 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
   // Notes state
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
+  // Tasks state
+  type TaskItem = { id:string; title:string; due_date:string|null; is_complete:boolean; linked_note_id:string|null; completed_at:string|null };
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
   // Goals state
   const [goals, setGoals] = useState<GoalItem[]>([]);
 
   // Load from Supabase on mount
   useEffect(() => {
     loadNotes();
+    loadTasks();
     loadGoals();
   }, []);
 
@@ -215,6 +219,46 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
         setNotes(INITIAL_NOTES);
       }
     } catch { setNotes(INITIAL_NOTES); }
+  }
+
+  async function loadTasks() {
+    try {
+      const { data } = await supabase.from('personal_tasks')
+        .select('id,title,due_date,is_complete,linked_note_id,completed_at')
+        .eq('family_id', FAMILY_ID)
+        .order('is_complete').order('due_date', { ascending:true, nullsFirst:false }).order('created_at', { ascending:false });
+      if (data) setTasks(data);
+    } catch {}
+  }
+
+  async function addTask(title: string, due_date?: string) {
+    const tempId = `t-${Date.now()}`;
+    const task: TaskItem = { id:tempId, title, due_date:due_date||null, is_complete:false, linked_note_id:null, completed_at:null };
+    setTasks(prev => [task, ...prev]);
+    try {
+      const { data } = await supabase.from('personal_tasks').insert({
+        family_id:FAMILY_ID, title, due_date:due_date||null,
+      }).select('id').single();
+      if (data) setTasks(prev => prev.map(t => t.id === tempId ? { ...t, id:data.id } : t));
+    } catch {}
+  }
+
+  async function toggleTask(id: string) {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, is_complete:!t.is_complete, completed_at:!t.is_complete ? new Date().toISOString() : null } : t));
+    try {
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        await supabase.from('personal_tasks').update({
+          is_complete:!task.is_complete,
+          completed_at:!task.is_complete ? new Date().toISOString() : null,
+        }).eq('id', id);
+      }
+    } catch {}
+  }
+
+  async function deleteTask(id: string) {
+    setTasks(prev => prev.filter(t => t.id !== id));
+    try { await supabase.from('personal_tasks').delete().eq('id', id); } catch {}
   }
 
   async function loadGoals() {
@@ -352,37 +396,38 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
           onToggle={() => toggleInline('wotd')}
         />
 
-        {/* ── 6-Card Grid (3 rows x 2 columns) ── */}
+        {/* ── Goals — full width ── */}
+        <TouchableOpacity style={{ marginHorizontal:0, marginBottom:8, borderRadius:16, backgroundColor:'#F0DC80', padding:13, paddingHorizontal:15, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }} activeOpacity={0.88} onPress={() => setSheet('goals')}>
+          <View>
+            <Text style={[s.gridLabel, { color:'rgba(58,42,0,0.4)' }]}>GOALS</Text>
+            <Text style={[s.gridNum, { color:'#3A2A00' }]}>{goals.length}</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:9, color:'rgba(58,42,0,0.5)', marginTop:3 }}>active goal{goals.length !== 1 ? 's' : ''} · {goals.filter(g => g.target_value > 0 && ((g.current_value - g.start_value) / (g.target_value - g.start_value)) >= 0.5).length} on track</Text>
+          </View>
+          <View style={{ alignItems:'flex-end', gap:5 }}>
+            {goals.slice(0,2).map(g => (
+              <View key={g.id} style={{ backgroundColor:'rgba(58,42,0,0.1)', borderRadius:20, paddingVertical:3, paddingHorizontal:10 }}>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:9, color:'#3A2A00' }}>{g.icon} {g.title.length > 16 ? g.title.slice(0,16) + '...' : g.title}</Text>
+              </View>
+            ))}
+          </View>
+        </TouchableOpacity>
+
+        {/* ── 4-Card Grid (2 rows x 2 columns) ── */}
         <View style={s.grid2}>
-          {/* Row 1: Fitness | Goals */}
+          {/* Row 1: Fitness | Notes & Tasks */}
           <TouchableOpacity style={[s.gridCard, { backgroundColor:'#3A3D4A' }]} activeOpacity={0.88} onPress={() => setSheet('fitness')}>
             <Text style={s.gridLabel}>FITNESS</Text>
             <Text style={[s.gridNum, { color:'#fff' }]}>{HEALTH.steps.toLocaleString()}</Text>
             <Text style={[s.gridHl, { color:'#fff' }]}>steps today</Text>
             <View style={s.gridBar}><View style={[s.gridBarFill, { width:`${HEALTH.pct}%` as any, backgroundColor:'#A8D8F0' }]}/></View>
           </TouchableOpacity>
-          <TouchableOpacity style={[s.gridCard, { backgroundColor:'#F0DC80' }]} activeOpacity={0.88} onPress={() => setSheet('goals')}>
-            <Text style={[s.gridLabel, { color:'rgba(26,26,26,0.35)' }]}>GOALS</Text>
-            <Text style={[s.gridNum, { color:'#1A1A1A' }]}>{goals.length}</Text>
-            <Text style={[s.gridHl, { color:'#1A1A1A' }]}>active goals</Text>
-            <Text style={[s.gridSub, { color:'rgba(26,26,26,0.5)' }]}>{goals.filter(g => g.target_value > 0 && (g.current_value/g.target_value) >= 0.5).length} on track</Text>
-          </TouchableOpacity>
-
-          {/* Row 2: Budget | Notes */}
-          <TouchableOpacity style={[s.gridCard, { backgroundColor:'#E8F0FF' }]} activeOpacity={0.88} onPress={() => setSheet('budget')}>
-            <Text style={[s.gridLabel, { color:'rgba(26,26,26,0.35)' }]}>BUDGET</Text>
-            <Text style={[s.gridNum, { color:'#1A1A1A' }]}>$1,240</Text>
-            <Text style={[s.gridHl, { color:'#1A1A1A' }]}>of $2,000</Text>
-            <View style={s.gridBar}><View style={[s.gridBarFill, { width:'62%' as any, backgroundColor:'#3B6EE0' }]}/></View>
-          </TouchableOpacity>
           <TouchableOpacity style={[s.gridCard, { backgroundColor:'#FAC8A8' }]} activeOpacity={0.88} onPress={() => setSheet('notes')}>
-            <Text style={[s.gridLabel, { color:'rgba(58,24,0,0.35)' }]}>NOTES</Text>
-            <Text style={[s.gridNum, { color:'#3A1800' }]}>3</Text>
-            <Text style={[s.gridHl, { color:'#3A1800' }]}>saved notes</Text>
-            <Text style={[s.gridSub, { color:'rgba(58,24,0,0.5)' }]}>Updated yesterday</Text>
+            <Text style={[s.gridLabel, { color:'rgba(58,24,0,0.35)' }]}>NOTES & TASKS</Text>
+            <Text style={[s.gridNum, { color:'#3A1800', fontSize:18 }]}>{notes.length} · {tasks.filter(t=>!t.is_complete).length}</Text>
+            <Text style={[s.gridHl, { color:'#3A1800' }]}>notes · tasks</Text>
           </TouchableOpacity>
 
-          {/* Row 3: Stretch | Zen */}
+          {/* Row 2: Stretch | Zen */}
           <TouchableOpacity style={[s.gridCard, { backgroundColor:'#E8F4E8' }]} activeOpacity={0.88} onPress={() => setSheet('stretch')}>
             <Text style={[s.gridLabel, { color:'rgba(42,90,26,0.45)' }]}>DAILY STRETCH</Text>
             <Text style={[s.gridNum, { color:'#2A5A1A', fontSize:22 }]}>Morning</Text>
@@ -406,12 +451,16 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
         visible={sheet === 'notes'}
         onClose={closeSheet}
         notes={notes}
+        tasks={tasks}
         onEdit={(n) => setEditingNote(n)}
         onNew={() => {
           const newNote: NoteItem = { id:`new-${Date.now()}`, title:'', text:'', preview:'', updated:'Just now', shared:[] };
           setEditingNote(newNote);
         }}
         onDelete={(id) => deleteNote(id)}
+        onAddTask={addTask}
+        onToggleTask={toggleTask}
+        onDeleteTask={deleteTask}
         editingNote={editingNote}
         onEditorClose={() => setEditingNote(null)}
         onEditorSave={(updated) => { saveNote(updated); setEditingNote(null); }}
@@ -435,7 +484,7 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
         onUpdateGoal={(updated) => { setGoals(prev => prev.map(g => g.id === updated.id ? updated : g)); saveGoal(updated); }}
         onDeleteGoal={(id) => { deleteGoal(id); setActiveGoal(null); }}
       />
-      <ShellSheet visible={sheet === 'budget'} title="Budget" onClose={closeSheet} />
+      {/* Budget removed — lives on Dashboard now */}
       <ShellSheet visible={sheet === 'stretch'} title="Daily Stretch" onClose={closeSheet} />
       <ShellSheet visible={sheet === 'zen'} title="Zen" onClose={closeSheet} />
     </View>
@@ -1110,71 +1159,227 @@ function GoalDetailInline({ goal, onBack, onUpdate, onDelete }: {
 
 // ─── Notes Sheet ──────────────────────────────────────────────────────────────
 
-function NotesSheet({ visible, onClose, notes, onEdit, onNew, onDelete, editingNote, onEditorClose, onEditorSave, onEditorDelete }: {
+function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, onAddTask, onToggleTask, onDeleteTask, editingNote, onEditorClose, onEditorSave, onEditorDelete }: {
   visible: boolean; onClose: () => void;
-  notes: NoteItem[]; onEdit: (n: NoteItem) => void; onNew: () => void; onDelete: (id: string) => void;
+  notes: NoteItem[]; tasks: { id:string; title:string; due_date:string|null; is_complete:boolean; linked_note_id:string|null; completed_at:string|null }[];
+  onEdit: (n: NoteItem) => void; onNew: () => void; onDelete: (id: string) => void;
+  onAddTask: (title:string, due?:string) => void; onToggleTask: (id:string) => void; onDeleteTask: (id:string) => void;
   editingNote: NoteItem | null; onEditorClose: () => void;
   onEditorSave: (n: NoteItem) => void; onEditorDelete: (id: string) => void;
 }) {
+  const [activeTab, setActiveTab] = useState<'notes'|'tasks'>('notes');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string|null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDue, setNewTaskDue] = useState('');
+  const [showAddTask, setShowAddTask] = useState(false);
+
+  const today = new Date().toISOString().slice(0,10);
+  const todayTasks = tasks.filter(t => !t.is_complete && t.due_date && t.due_date <= today);
+  const upcomingTasks = tasks.filter(t => !t.is_complete && (!t.due_date || t.due_date > today));
+  const doneTasks = tasks.filter(t => t.is_complete);
+
+  function duePillStyle(due: string|null): { bg:string; color:string; label:string } {
+    if (!due) return { bg:'rgba(10,10,10,0.06)', color:'rgba(10,10,10,0.4)', label:'No date' };
+    const d = new Date(due+'T00:00:00');
+    const diff = Math.ceil((d.getTime() - new Date(today+'T00:00:00').getTime()) / 86400000);
+    if (diff < 0) return { bg:'#FEE2E2', color:'#991B1B', label:'Overdue' };
+    if (diff === 0) return { bg:'#FEE2E2', color:'#991B1B', label:'Today' };
+    if (diff <= 7) return { bg:'#FEF3C7', color:'#92400E', label:'This week' };
+    if (diff <= 14) return { bg:'#D1FAE5', color:'#047857', label:'Next week' };
+    return { bg:'#D1FAE5', color:'#047857', label:fmtDateAU(due) };
+  }
+
+  function handleAddTask() {
+    if (!newTaskTitle.trim()) return;
+    onAddTask(newTaskTitle.trim(), newTaskDue || undefined);
+    setNewTaskTitle(''); setNewTaskDue(''); setShowAddTask(false);
+  }
 
   return (
-    <Sheet visible={visible} onClose={() => { if (editingNote) onEditorClose(); else onClose(); }} title="Notes">
-      {/* ── List view (hidden when editing) ── */}
-      {!editingNote && (
-        <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
-          {/* + New note */}
-          <TouchableOpacity style={s.noteNewBtn} onPress={onNew} activeOpacity={0.7}>
-            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-              <IcoPlus2 color="#8A3A00" size={18} />
-              <Text style={s.noteNewTxt}>New note</Text>
-            </View>
-          </TouchableOpacity>
+    <Sheet visible={visible} onClose={() => { if (editingNote) onEditorClose(); else onClose(); }} title="Notes & Tasks">
+      {/* ── Editor view (replaces everything when editing a note) ── */}
+      {editingNote && (
+        <NoteEditorInline note={editingNote} onBack={onEditorClose} onSave={onEditorSave} onDelete={onEditorDelete} />
+      )}
 
-          {/* Note list */}
-          {notes.map((n) => (
-            <TouchableOpacity key={n.id} style={s.noteCard} activeOpacity={0.80} onPress={() => { setConfirmDeleteId(null); onEdit(n); }}>
-              <Text style={s.noteCardTitle}>{n.title}</Text>
-              <Text style={s.noteCardPreview} numberOfLines={2}>{n.preview}</Text>
-              <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
-                <Text style={s.noteCardMeta}>Updated {n.updated}</Text>
-                <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
-                  {n.shared.length > 0 ? (
-                    <>
-                      <IcoUsers color="rgba(10,10,10,0.3)" size={20} />
-                      {n.shared.map(sid => {
-                        const m = FAMILY_MEMBERS.find(f => f.id === sid);
-                        return m ? <View key={sid} style={{ width:12, height:12, borderRadius:6, backgroundColor:m.color }} /> : null;
-                      })}
-                    </>
-                  ) : (
-                    <IcoLock color="rgba(10,10,10,0.22)" size={20} />
-                  )}
-                  <TouchableOpacity
-                    onPress={(e) => { e.stopPropagation(); if (confirmDeleteId === n.id) { onDelete(n.id); setConfirmDeleteId(null); } else setConfirmDeleteId(n.id); }}
-                    activeOpacity={0.6} hitSlop={{ top:10, bottom:10, left:10, right:10 }}>
-                    <IcoTrash color={confirmDeleteId === n.id ? '#FF4545' : 'rgba(10,10,10,0.18)'} size={20} />
+      {/* ── Tab bar + content ── */}
+      {!editingNote && (<>
+        <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.05)', borderRadius:12, marginHorizontal:18, marginTop:4, marginBottom:14, padding:3 }}>
+          <TouchableOpacity onPress={() => setActiveTab('notes')} activeOpacity={0.7}
+            style={{ flex:1, paddingVertical:7, borderRadius:9, alignItems:'center',
+              backgroundColor: activeTab==='notes' ? '#fff' : 'transparent',
+              ...(activeTab==='notes' ? { shadowColor:'#000', shadowOpacity:0.1, shadowRadius:4, shadowOffset:{width:0,height:1} } : {}) }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: activeTab==='notes' ? '#0A0A0A' : 'rgba(10,10,10,0.38)' }}>Notes</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setActiveTab('tasks')} activeOpacity={0.7}
+            style={{ flex:1, paddingVertical:7, borderRadius:9, alignItems:'center',
+              backgroundColor: activeTab==='tasks' ? '#fff' : 'transparent',
+              ...(activeTab==='tasks' ? { shadowColor:'#000', shadowOpacity:0.1, shadowRadius:4, shadowOffset:{width:0,height:1} } : {}) }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: activeTab==='tasks' ? '#0A0A0A' : 'rgba(10,10,10,0.38)' }}>Tasks</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── NOTES TAB ── */}
+        {activeTab === 'notes' && (
+          <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false}>
+            <TouchableOpacity style={s.noteNewBtn} onPress={onNew} activeOpacity={0.7}>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                <IcoPlus2 color="#8A3A00" size={18} />
+                <Text style={s.noteNewTxt}>New note</Text>
+              </View>
+            </TouchableOpacity>
+            {notes.map((n) => (
+              <TouchableOpacity key={n.id} style={s.noteCard} activeOpacity={0.80} onPress={() => { setConfirmDeleteId(null); onEdit(n); }}>
+                <Text style={s.noteCardTitle}>{n.title}</Text>
+                <Text style={s.noteCardPreview} numberOfLines={2}>{n.preview}</Text>
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
+                  <Text style={s.noteCardMeta}>Updated {n.updated}</Text>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:12 }}>
+                    {n.shared.length > 0 ? (
+                      <>
+                        <IcoUsers color="rgba(10,10,10,0.3)" size={20} />
+                        {n.shared.map(sid => {
+                          const m = FAMILY_MEMBERS.find(f => f.id === sid);
+                          return m ? <View key={sid} style={{ width:12, height:12, borderRadius:6, backgroundColor:m.color }} /> : null;
+                        })}
+                      </>
+                    ) : (
+                      <IcoLock color="rgba(10,10,10,0.22)" size={20} />
+                    )}
+                    <TouchableOpacity
+                      onPress={(e) => { e.stopPropagation(); if (confirmDeleteId === n.id) { onDelete(n.id); setConfirmDeleteId(null); } else setConfirmDeleteId(n.id); }}
+                      activeOpacity={0.6} hitSlop={{ top:10, bottom:10, left:10, right:10 }}>
+                      <IcoTrash color={confirmDeleteId === n.id ? '#FF4545' : 'rgba(10,10,10,0.18)'} size={20} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {confirmDeleteId === n.id && (
+                  <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'#FF4545', marginTop:6 }}>Tap bin again to delete</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+            <View style={{ height:40 }} />
+          </ScrollView>
+        )}
+
+        {/* ── TASKS TAB ── */}
+        {activeTab === 'tasks' && (
+          <ScrollView style={s.sheetBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Today & overdue */}
+            {todayTasks.length > 0 && (
+              <>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginBottom:8 }}>Today & overdue</Text>
+                {todayTasks.map(t => {
+                  const pill = duePillStyle(t.due_date);
+                  return (
+                    <View key={t.id} style={{ flexDirection:'row', alignItems:'flex-start', gap:11, paddingVertical:11, borderBottomWidth:1, borderBottomColor:'rgba(10,10,10,0.06)' }}>
+                      <TouchableOpacity onPress={() => onToggleTask(t.id)} style={{ width:20, height:20, borderRadius:10, borderWidth:2, borderColor:'rgba(10,10,10,0.2)', marginTop:1 }} />
+                      <View style={{ flex:1 }}>
+                        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#0A0A0A', lineHeight:18 }}>{t.title}</Text>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:3 }}>
+                          <View style={{ backgroundColor:pill.bg, borderRadius:8, paddingVertical:2, paddingHorizontal:7 }}>
+                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, color:pill.color }}>{pill.label}</Text>
+                          </View>
+                        </View>
+                      </View>
+                      <TouchableOpacity onPress={() => onDeleteTask(t.id)} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+                        <IcoTrash color="rgba(10,10,10,0.15)" size={16} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Upcoming */}
+            {upcomingTasks.length > 0 && (
+              <>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginTop:12, marginBottom:8 }}>Upcoming</Text>
+                {upcomingTasks.map(t => {
+                  const pill = duePillStyle(t.due_date);
+                  return (
+                    <View key={t.id} style={{ flexDirection:'row', alignItems:'flex-start', gap:11, paddingVertical:11, borderBottomWidth:1, borderBottomColor:'rgba(10,10,10,0.06)' }}>
+                      <TouchableOpacity onPress={() => onToggleTask(t.id)} style={{ width:20, height:20, borderRadius:10, borderWidth:2, borderColor:'rgba(10,10,10,0.2)', marginTop:1 }} />
+                      <View style={{ flex:1 }}>
+                        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#0A0A0A', lineHeight:18 }}>{t.title}</Text>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:3 }}>
+                          <View style={{ backgroundColor:pill.bg, borderRadius:8, paddingVertical:2, paddingHorizontal:7 }}>
+                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, color:pill.color }}>{pill.label}</Text>
+                          </View>
+                        </View>
+                      </View>
+                      <TouchableOpacity onPress={() => onDeleteTask(t.id)} hitSlop={{top:8,bottom:8,left:8,right:8}}>
+                        <IcoTrash color="rgba(10,10,10,0.15)" size={16} />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </>
+            )}
+
+            {/* Done */}
+            {doneTasks.length > 0 && (
+              <>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginTop:12, marginBottom:8 }}>Done</Text>
+                {doneTasks.map(t => (
+                  <View key={t.id} style={{ flexDirection:'row', alignItems:'center', gap:11, paddingVertical:11, borderBottomWidth:1, borderBottomColor:'rgba(10,10,10,0.06)' }}>
+                    <TouchableOpacity onPress={() => onToggleTask(t.id)}
+                      style={{ width:20, height:20, borderRadius:10, backgroundColor:'#059669', alignItems:'center', justifyContent:'center' }}>
+                      <Svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"><Path d="M20 6L9 17l-5-5"/></Svg>
+                    </TouchableOpacity>
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(10,10,10,0.28)', textDecorationLine:'line-through', flex:1 }}>{t.title}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+
+            {/* Add task */}
+            {!showAddTask && (
+              <TouchableOpacity onPress={() => setShowAddTask(true)} style={{ flexDirection:'row', alignItems:'center', gap:11, paddingVertical:11, borderTopWidth:1, borderTopColor:'rgba(10,10,10,0.06)', marginTop:4 }}>
+                <View style={{ width:20, height:20, borderRadius:10, borderWidth:2, borderStyle:'dashed' as any, borderColor:'rgba(10,10,10,0.2)' }} />
+                <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(10,10,10,0.32)' }}>Add a task...</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Add task form */}
+            {showAddTask && (
+              <View style={{ backgroundColor:'#fff', borderRadius:14, padding:16, borderWidth:1, borderColor:'rgba(10,10,10,0.06)', marginTop:8 }}>
+                <TextInput style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A', borderBottomWidth:2, borderBottomColor:'#FAC8A8', paddingBottom:8, marginBottom:12 }}
+                  value={newTaskTitle} onChangeText={setNewTaskTitle} placeholder="Task title" placeholderTextColor="rgba(10,10,10,0.25)" autoFocus />
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:0.8, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.28)', marginBottom:6 }}>Due date</Text>
+                <View style={{ flexDirection:'row', gap:6, marginBottom:14 }}>
+                  {[{l:'Today',v:today},{l:'Tomorrow',v:new Date(Date.now()+86400000).toISOString().slice(0,10)},{l:'This week',v:new Date(Date.now()+7*86400000).toISOString().slice(0,10)},{l:'None',v:''}].map(q => (
+                    <TouchableOpacity key={q.l} onPress={() => setNewTaskDue(q.v)} activeOpacity={0.7}
+                      style={{ paddingVertical:7, paddingHorizontal:12, borderRadius:10,
+                        backgroundColor: newTaskDue === q.v ? '#FAC8A8' : 'rgba(10,10,10,0.06)' }}>
+                      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11,
+                        color: newTaskDue === q.v ? '#3A1000' : 'rgba(10,10,10,0.5)' }}>{q.l}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={{ flexDirection:'row', gap:10 }}>
+                  <TouchableOpacity onPress={() => { setShowAddTask(false); setNewTaskTitle(''); setNewTaskDue(''); }} activeOpacity={0.7}
+                    style={{ flex:1, paddingVertical:12, borderRadius:12, borderWidth:1, borderColor:'rgba(10,10,10,0.12)', alignItems:'center' }}>
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(10,10,10,0.4)' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={handleAddTask} activeOpacity={0.7}
+                    style={{ flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'#FAC8A8', alignItems:'center' }}>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#3A1000' }}>Save task</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-              {confirmDeleteId === n.id && (
-                <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'#FF4545', marginTop:6 }}>Tap bin again to delete</Text>
-              )}
-            </TouchableOpacity>
-          ))}
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      )}
+            )}
 
-      {/* ── Editor view (replaces list when editing) ── */}
-      {editingNote && (
-        <NoteEditorInline
-          note={editingNote}
-          onBack={onEditorClose}
-          onSave={onEditorSave}
-          onDelete={onEditorDelete}
-        />
-      )}
+            {tasks.length === 0 && !showAddTask && (
+              <View style={{ alignItems:'center', paddingTop:40 }}>
+                <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(10,10,10,0.2)' }}>No tasks yet</Text>
+              </View>
+            )}
+
+            <View style={{ height:40 }} />
+          </ScrollView>
+        )}
+      </>)}
     </Sheet>
   );
 }
