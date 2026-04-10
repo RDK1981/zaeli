@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*10 April 2026 — Session 7 ✅ · All My Space sheets built · Wordle full game · Supabase wired*
+*10 April 2026 (evening) — Sessions 7+8 ✅ · All sheets built · Wordle · Calendar/Shopping fixed · Navigation unified*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -96,10 +96,20 @@ Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 ## NEXT PRIORITIES (in order)
 ## ══════════════════════════════════
 
-1. 🔨 **Our Budget module** — dedicated screen, 5 Supabase tables, setup flow, categories, overview, goals, upload, What If (zaeli-budget-final.html)
-2. 🔨 **Dashboard sheets** — Family Tasks, Shopping, Calendar, Meals (92% sheets over Chat)
-3. 🔨 **Dedicated pages** — Kids Hub, Tutor, Our Family, Settings
-4. 🔨 **EAS Build** — HealthKit, embedded YouTube, real auth, TestFlight
+### Session 8 (10 April evening):
+- ✅ Calendar sheet fixed — collapsible cards, manual add stays in sheet, end time auto-fill
+- ✅ Shopping sheet fixed — crash fix (missing tables), data loading, text size increase
+- ✅ Navigation unified — no more router.navigate to dedicated pages
+- ✅ FAB More → Calendar/Shopping open sheets directly
+- ✅ Whisper "Zaeli" spelling correction
+- ✅ Wordle expanded (12,966 words), clean share, bigger delete key
+
+### Next priorities:
+1. 🔨 **Test shopping sheet** — verify items load, add/check off/pantry work
+2. 🔨 **Meal Planner sheet** — new 92% sheet build
+3. 🔨 **Our Budget module** — dedicated screen (zaeli-budget-final.html)
+4. 🔨 **Dedicated pages** — Kids Hub, Tutor, Our Family, Settings
+5. 🔨 **EAS Build** — HealthKit, embedded YouTube, real auth, TestFlight
 
 ---
 

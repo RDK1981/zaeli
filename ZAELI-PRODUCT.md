@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 10 April 2026 — Session 7 ✅ · All My Space sheets built · Wordle full game · Dashboard polish · Supabase tables wired*
+*Last updated: 10 April 2026 (evening) — Sessions 7+8 ✅ · All My Space sheets · Wordle · Calendar/Shopping sheets fixed · Navigation unified*
 
 ---
 
@@ -77,9 +77,19 @@ Dashboard (0)  →  Chat (1)  →  My Space (2)
 - ✅ Zen sheet — 4 mood tabs (amber/blue/green/purple), 12 sessions, hero with time-of-day, YouTube
 - ✅ Wordle — full playable game, 2309 words, date-seeded, Zaeli colour tiles, family leaderboard, Supabase
 
+### Session 8 (10 April 2026 evening):
+- ✅ Calendar sheet — collapsible cards, manual add stays in sheet, end time auto-fill, text sizes
+- ✅ Shopping sheet — crash fix, data loading fix, text size increase
+- ✅ Navigation unified — all router.navigate to dedicated pages removed, everything uses sheets/context
+- ✅ FAB More menu — Calendar + Shopping open sheets directly
+- ✅ Whisper "Zaeli" spelling correction
+- ✅ Meal/calendar clash awareness
+- ✅ Wordle — expanded word list (12,966), clean share format, bigger delete key
+
 ### Next priorities
+- 🔨 Test shopping sheet (items loading, add, check off, pantry)
+- 🔨 Meal Planner sheet (new build — 92% sheet over chat)
 - 🔨 Our Budget module (zaeli-budget-final.html — dedicated screen, big build)
-- 🔨 Dashboard sheets (Family Tasks, Shopping, Calendar, Meals)
 - 🔨 Dedicated pages (Kids Hub, Tutor, Our Family, Settings)
 - 🔨 EAS Build + HealthKit + embedded YouTube player
 - 🔨 Dashboard sheets (Family Tasks, Shopping, Calendar, Meals)

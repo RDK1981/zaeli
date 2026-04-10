@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 10 April 2026 — Session 7 ✅ · All My Space sheets built · Wordle full game · Supabase persistence · HealthKit reminder*
+*Last updated: 10 April 2026 (evening) — Sessions 7+8 ✅ · All My Space sheets · Wordle · Calendar/Shopping sheets fixed · Dashboard restructure · Text size pass*
 
 ---
 
@@ -498,6 +498,41 @@ Phase 10: Dashboard sheets     🔨 (Family Tasks, Shopping, Calendar, Meals)
 Phase 11: Dedicated pages      🔨 (Kids Hub, Tutor, Our Family, Settings)
 Phase 12: Travel sheet         🔨
 ```
+
+---
+
+## ══════════════════════════════════
+## SESSION 8 — CALENDAR/SHOPPING FIX + POLISH (10 April 2026 evening)
+## ══════════════════════════════════
+
+### Navigation fixes:
+- ALL router.navigate to dedicated pages REMOVED (calendar, shopping, todos, mealplanner)
+- Calendar "Full" button → opens calendar sheet (month view) via context
+- Shopping → opens shopping sheet via openShopSheet() with data loading
+- FAB "More" menu Calendar/Shopping → set context + scroll to chat + open sheet
+- "Open Meal Planner" / "Open To-dos" chips → send message to Zaeli (sheets coming)
+- Dashboard calendar/dinner cards → context flow to chat
+
+### Calendar sheet:
+- Collapsible event cards — compact by default (time + title + avatars), tap to expand actions
+- ~40% smaller per card when collapsed — busy days now scrollable
+- Manual add stays in sheet (no longer jumps to chat with inline render)
+- End time auto-fills 1hr after start time for new events
+- Text size increase: header 22px, tabs 15px, event titles 19px, times 16px, chips 14px
+
+### Shopping sheet:
+- Fixed crash caused by missing pantry_items/receipts Supabase tables
+- All Supabase calls wrapped in try/catch — missing tables fail silently
+- Context handlers now call openShopSheet() to load data (was just opening empty modal)
+- Text size increase: header 22px, tabs 15px, item names 17px, categories 13px, chips 14px
+- Bin icon 17px, checkboxes 26px, emoji 22px, qty badges 12px
+
+### Other fixes:
+- Whisper spelling: fixZaeliSpelling() corrects Zelie/Zeli/Zayli etc to "Zaeli"
+- Meal/calendar clash awareness rule added to CAPABILITY_RULES
+- Wordle share: clean text format (no emoji grid), with zaeli.app link
+- Wordle valid words expanded to 12,966 (was 2,309)
+- Wordle delete key bumped to 22px
 
 ---
 
