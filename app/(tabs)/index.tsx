@@ -1831,7 +1831,6 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
             )}
           </View>
         )}
-      </View>
     </TouchableOpacity>
   );
 }
