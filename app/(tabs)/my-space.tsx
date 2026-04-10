@@ -2269,11 +2269,20 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
   function shareResult() {
     if (gameStatus === 'in_progress') return;
     const score = gameStatus === 'won' ? `${guesses.length}/6` : 'X/6';
-    const grid = guesses.map(g => {
-      const states = getTileStates(g, answer);
-      return states.map(s => s === 'correct' ? '\u{1F7E5}' : s === 'present' ? '\u{1F7E8}' : '\u2B1B').join('');
-    }).join('\n');
-    Share.share({ message: `Zaeli Wordle #${dayIndex + 1} \u2014 ${score}\n\n${grid}\n\nzaeli.app` });
+    const flare = gameStatus === 'won'
+      ? guesses.length <= 2 ? '\u{1F525}\u{1F525}\u{1F525}'
+      : guesses.length <= 4 ? '\u{1F525}'
+      : ''
+      : '';
+    const verb = gameStatus === 'won'
+      ? guesses.length === 1 ? 'First guess. Unreal.'
+      : guesses.length === 2 ? 'Two guesses. Showing off.'
+      : guesses.length === 3 ? 'Nailed it in three.'
+      : guesses.length === 4 ? 'Got there in four.'
+      : guesses.length === 5 ? 'Five guesses. Close call.'
+      : 'Last chance and got it.'
+      : 'Didn\'t get this one.';
+    Share.share({ message: `Zaeli Wordle #${dayIndex + 1} \u2014 ${score} ${flare}\n${verb}\nzaeli.app` });
   }
 
   // Build the 6x5 grid display
