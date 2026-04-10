@@ -3507,7 +3507,7 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
 
       if ((ctx.type as string) === 'shopping_sheet') {
         setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
-        setTimeout(() => setShopSheetOpen(true), 300);
+        setTimeout(() => openShopSheet('list'), 300);
         return;
       }
 
@@ -3699,7 +3699,7 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
 
     if ((ctx.type as string) === 'shopping_sheet') {
       setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
-      setTimeout(() => setShopSheetOpen(true), 300);
+      setTimeout(() => openShopSheet('list'), 300);
       return;
     }
 
@@ -5321,8 +5321,8 @@ Only include events directly relevant to the question. Max 5 events.`;
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setShopSheetOpen(false)} activeOpacity={1}/>
-            <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column', display:'flex' }}>
-              <SafeAreaView style={{ flex:1, flexDirection:'column', display:'flex' }} edges={['bottom']}>
+            <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }}>
+              <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={['bottom']}>
 
                 {/* Handle */}
                 <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginTop:10 }}/>
