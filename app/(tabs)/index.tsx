@@ -3492,6 +3492,12 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         return;
       }
 
+      if ((ctx.type as string) === 'calendar_sheet') {
+        setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+        setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today'), 300);
+        return;
+      }
+
       if (ctx.type === 'actions') {
         const todo = ctx.event as any;
         let prompt: string;
@@ -3678,6 +3684,12 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
       return;
     }
 
+    if ((ctx.type as string) === 'calendar_sheet') {
+      setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+      setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today'), 300);
+      return;
+    }
+
     if (ctx.type === 'actions') {
       const todo = ctx.event as any;
       let prompt: string;
@@ -3737,7 +3749,8 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
 
   function handleQuickReply(chip: string) {
     if (chip === 'Open Meal Planner') {
-      router.navigate('/(tabs)/mealplanner' as any);
+      // TODO: open Meal Planner sheet when built
+      send('Show me the meal plan for this week');
       return;
     }
     if (chip === 'Open Shopping List') {
@@ -3745,7 +3758,8 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
       return;
     }
     if (chip === 'Open To-dos') {
-      router.navigate('/(tabs)/todos' as any);
+      // TODO: open Family Tasks sheet when built
+      send('Show me my tasks');
       return;
     }
     if (chip === 'Open Goals') {
@@ -4663,7 +4677,7 @@ Only include events directly relevant to the question. Max 5 events.`;
               {msg.inlineData!.showPortalPill && (
                 <View style={s.quickRepliesWrap}>
                   <View style={s.qrChips}>
-                    <TouchableOpacity style={s.calPortalChip} onPress={() => router.navigate('/(tabs)/calendar')} activeOpacity={0.75}>
+                    <TouchableOpacity style={s.calPortalChip} onPress={() => openCalSheet('month')} activeOpacity={0.75}>
                       <Text style={s.calPortalChipTxt}>Open Calendar →</Text>
                     </TouchableOpacity>
                     {(msg.quickReplies||[]).map((chip, ci) => (
@@ -4747,7 +4761,7 @@ Only include events directly relevant to the question. Max 5 events.`;
         events={calEvents}
         isEvening={isEvening}
         onAdd={() => handleCardAdd('calendar')}
-        onFullCalendar={() => router.navigate('/(tabs)/calendar')}
+        onFullCalendar={() => openCalSheet('month')}
         onEventPress={ev => setSelectedEvent(ev)}
       />
     );
@@ -4768,7 +4782,7 @@ Only include events directly relevant to the question. Max 5 events.`;
         timeState={timeState}
         tomorrowMorningEvents={tomorrowMorningEvents}
         onAdd={() => handleCardAdd('actions')}
-        onFull={() => router.navigate('/(tabs)/todos')}
+        onFull={() => { /* TODO: open Family Tasks sheet */ }}
         onTick={handleTodoTick}
       />
     );
@@ -4776,7 +4790,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       <DinnerCard
         meals={cardData.meals}
         timeState={timeState}
-        onPlanMeals={() => router.navigate('/(tabs)/mealplanner')}
+        onPlanMeals={() => { /* TODO: open Meal Planner sheet */ }}
       />
     );
 

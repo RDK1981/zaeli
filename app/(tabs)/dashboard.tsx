@@ -1060,7 +1060,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
             onToggleExpand={() => toggleCard('calendar')}
             onAdd={goToAddEvent}
             onEditEvent={goToEditEvent}
-            onFullCalendar={() => router.navigate('/(tabs)/calendar')}
+            onFullCalendar={() => { setPendingChatContext({ type:'calendar_sheet' as any, event:{ tab:'month' }, returnTo:'dashboard' }); onNavigateChat?.(); }}
             onDeleted={(eventId) => setCardData(prev => ({
               ...prev,
               todayEvents:    prev.todayEvents.filter(e => e.id !== eventId),
@@ -1075,7 +1075,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
             showTomorrow={showDinnerTomorrow}
             expanded={expandedCard === 'dinner'}
             onToggleExpand={() => toggleCard('dinner')}
-            onPlanMeals={() => router.navigate('/(tabs)/mealplanner')}
+            onPlanMeals={() => { setPendingChatContext({ type:'meals' as any, event:{ meal:null, dateKey:'', dayAbbr:'this week' }, returnTo:'dashboard' }); onNavigateChat?.(); }}
             onEditMeal={goToEditMeal}
           />
         </Animated.View>
