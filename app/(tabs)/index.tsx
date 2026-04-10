@@ -1761,6 +1761,7 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
   ev: any; onEditWithZaeli: (ev:any)=>void; onManualEdit: (ev:any)=>void;
   onDeleted?: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
   const borderColor = members.length > 0 ? members[0].color : 'rgba(0,0,0,0.15)';
@@ -1773,57 +1774,65 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
   }
 
   return (
-    <View style={{ backgroundColor:'#fff', borderRadius:16, marginBottom:12, padding:16, borderLeftWidth:4, borderLeftColor:borderColor }}>
-      <View style={{ flexDirection:'row', alignItems:'flex-start', gap:14 }}>
+    <TouchableOpacity onPress={() => { setExpanded(!expanded); setConfirmDelete(false); }} activeOpacity={0.88}
+      style={{ backgroundColor:'#fff', borderRadius:16, marginBottom:10, padding:16, borderLeftWidth:4, borderLeftColor:borderColor }}>
+      {/* Compact view — always visible */}
+      <View style={{ flexDirection:'row', alignItems:'center', gap:14 }}>
         <View style={{ width:60, flexShrink:0 }}>
           <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'rgba(0,0,0,0.45)', textAlign:'right' }} numberOfLines={1}>{fmtTime(ev.start_time)}</Text>
         </View>
         <View style={{ flex:1 }}>
-          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:19, color:'#0A0A0A', marginBottom:4 }}>{ev.title}</Text>
-          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(0,0,0,0.45)', lineHeight:22 }}>
-            {fmtTime(ev.start_time)}{ev.end_time && ev.end_time !== ev.start_time ? `–${fmtTime(ev.end_time)}` : ''}{location ? ` · ${location}` : ''}
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:17, color:'#0A0A0A' }} numberOfLines={1}>{ev.title}</Text>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.40)', marginTop:2 }}>
+            {fmtTime(ev.start_time)}{ev.end_time && ev.end_time !== ev.start_time ? ` – ${fmtTime(ev.end_time)}` : ''}{location ? ` · ${location}` : ''}
           </Text>
-          {members.length > 0 && (
-            <View style={{ flexDirection:'row', gap:7, marginTop:10, marginBottom:10 }}>
-              {members.map((m:any) => (
-                <View key={m.id} style={{ width:30, height:30, borderRadius:15, backgroundColor:m.color, alignItems:'center', justifyContent:'center' }}>
-                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#fff' }}>{m.name[0]}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-          <View style={{ flexDirection:'row', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+        </View>
+        {members.length > 0 && (
+          <View style={{ flexDirection:'row', gap:4 }}>
+            {members.slice(0,3).map((m:any) => (
+              <View key={m.id} style={{ width:26, height:26, borderRadius:13, backgroundColor:m.color, alignItems:'center', justifyContent:'center' }}>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'#fff' }}>{m.name[0]}</Text>
+              </View>
+            ))}
+            {members.length > 3 && <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, color:'rgba(0,0,0,0.3)', marginLeft:2 }}>+{members.length-3}</Text>}
+          </View>
+        )}
+      </View>
+
+      {/* Expanded actions — only visible on tap */}
+      {expanded && (
+        <View style={{ flexDirection:'row', gap:8, flexWrap:'wrap', alignItems:'center', marginTop:12, paddingTop:12, borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.08)' }}>
+          <TouchableOpacity
+            style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'rgba(168,216,240,0.18)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
+            onPress={() => onEditWithZaeli(ev)} activeOpacity={0.75}
+          >
+            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.55)' }}>✦ Edit with Zaeli</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ backgroundColor:'rgba(0,0,0,0.06)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
+            onPress={() => onManualEdit(ev)} activeOpacity={0.75}
+          >
+            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.45)' }}>Edit</Text>
+          </TouchableOpacity>
+          {confirmDelete ? (
             <TouchableOpacity
-              style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'rgba(168,216,240,0.18)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
-              onPress={() => onEditWithZaeli(ev)} activeOpacity={0.75}
+              style={{ backgroundColor:'rgba(220,38,38,0.12)', borderWidth:1, borderColor:'rgba(220,38,38,0.35)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
+              onPress={deleteEvent} activeOpacity={0.75}
             >
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.55)' }}>✦ Edit with Zaeli</Text>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#DC2626' }}>Confirm delete</Text>
             </TouchableOpacity>
+          ) : (
             <TouchableOpacity
-              style={{ backgroundColor:'rgba(0,0,0,0.06)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
-              onPress={() => onManualEdit(ev)} activeOpacity={0.75}
+              style={{ backgroundColor:'rgba(0,0,0,0.04)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
+              onPress={() => setConfirmDelete(true)} activeOpacity={0.75}
             >
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.45)' }}>Edit</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.30)' }}>Delete</Text>
             </TouchableOpacity>
-            {confirmDelete ? (
-              <TouchableOpacity
-                style={{ backgroundColor:'rgba(220,38,38,0.12)', borderWidth:1, borderColor:'rgba(220,38,38,0.35)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
-                onPress={deleteEvent} activeOpacity={0.75}
-              >
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#DC2626' }}>Confirm delete</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={{ backgroundColor:'rgba(0,0,0,0.04)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
-                onPress={() => setConfirmDelete(true)} activeOpacity={0.75}
-              >
-                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.30)' }}>Delete</Text>
-              </TouchableOpacity>
             )}
           </View>
-        </View>
+        )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -2000,7 +2009,12 @@ function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDel
     return { h: h24===0?12:h24>12?h24-12:h24, m, ap: (h24>=12?'pm':'am') as 'am'|'pm' };
   };
   const st = parseTime(ev.start_time);
-  const et = parseTime(ev.end_time || ev.start_time);
+  // Auto-fill end time: 1hr after start for new events
+  const et = ev.end_time ? parseTime(ev.end_time) : (() => {
+    const sh24 = toH24(st.h, st.ap) + 1;
+    const endH24 = sh24 >= 24 ? 23 : sh24;
+    return { h: endH24===0?12:endH24>12?endH24-12:endH24, m: st.m, ap: (endH24>=12?'pm':'am') as 'am'|'pm' };
+  })();
   const [startH, setStartH] = useState(st.h);
   const [startM, setStartM] = useState(st.m);
   const [startAp, setStartAp] = useState<'am'|'pm'>(st.ap);
