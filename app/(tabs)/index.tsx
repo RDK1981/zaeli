@@ -447,6 +447,11 @@ const CALENDAR_KEYWORDS = [
   "week ahead", "what have we got", "busy", "free",
 ];
 
+// Fix Whisper misspellings of "Zaeli"
+function fixZaeliSpelling(text: string): string {
+  return text.replace(/\b(zelie|zeli|zayli|zaylee|zaily|zalie|zellie|zailee|zaelie)\b/gi, 'Zaeli');
+}
+
 const ACTION_KEYWORDS = [
   'add ', 'remove ', 'delete ', 'change ', 'move ', 'update ', 'edit ',
   'reschedule', 'cancel ', 'rename ', 'shift ', 'put ', 'book ',
@@ -1743,6 +1748,7 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - If a tool result starts with "TOOL_FAILED", tell the user honestly it didn't work.
 - Zaeli CANNOT make phone calls or send messages autonomously.
 - NEVER confuse meal planner with calendar. Meals go in meal planner (add_meal/update_meal/delete_meal). Events go in calendar (add/update/delete_calendar_event). If the user says "meal planner" or "dinner", use meal tools. If the user says "calendar" or "event", use calendar tools.
+- CLASH AWARENESS: After adding a dinner/restaurant event to the calendar, check if there's already a meal planned for that date. If so, proactively ask: "There's [meal] planned for tonight in the meal planner — want me to move it to another night since you're eating out?" Same in reverse: after adding a meal, check if there's a dinner event that night.
 - After adding or editing anything, confirm warmly in 1 sentence. Name what was added and when. Be enthusiastic but brief. Never start with "I". Never say "I've added" — say what's done, not what you did.
 - CRITICAL: When confirming, use the EXACT day/date the user specified. If they said "Saturday", confirm "Saturday" — never substitute a different day. Double-check dates against the day-of-week before confirming.
 - add_goal: use when the user wants to set a personal goal. Ask for a title and optionally a target date and detail. After creating, offer a chip "Open Goals" to view it.
@@ -4070,7 +4076,8 @@ Only include events directly relevant to the question. Max 5 events.`;
       form.append('model', 'whisper-1');
       const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body:form });
       const data = await resp.json();
-      const transcript = data?.text?.trim() ?? '';
+      const rawTranscript = data?.text?.trim() ?? '';
+      const transcript = fixZaeliSpelling(rawTranscript);
       // Remove the voice thinking dots
       setMessages(prev => prev.filter(m => m.id !== voiceThinkId));
       if (!transcript) return;
@@ -4483,7 +4490,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       form.append('model', 'whisper-1');
       const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body:form });
       const data = await resp.json();
-      const transcript = data?.text?.trim() ?? '';
+      const transcript = fixZaeliSpelling(data?.text?.trim() ?? '');
       _finishEntry(transcript);
     } catch (e) { console.error('entry mic stop:', e); _finishEntry(); }
   }
