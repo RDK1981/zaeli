@@ -4279,20 +4279,20 @@ Only include events directly relevant to the question. Max 5 events.`;
           <TouchableOpacity
             onPress={() => shopMarkBought(item)}
             hitSlop={{ top:10, bottom:10, left:10, right:10 }}
-            style={{ width:24, height:24, borderRadius:12, borderWidth:1.5, borderColor:'rgba(0,0,0,0.22)', flexShrink:0, alignItems:'center', justifyContent:'center' }}
+            style={{ width:26, height:26, borderRadius:13, borderWidth:1.5, borderColor:'rgba(0,0,0,0.22)', flexShrink:0, alignItems:'center', justifyContent:'center' }}
             activeOpacity={0.75}
           />
           {/* Emoji */}
-          <Text style={{ fontSize:20, flexShrink:0 }}>{emoji}</Text>
+          <Text style={{ fontSize:22, flexShrink:0 }}>{emoji}</Text>
           {/* Name + category */}
           <View style={{ flex:1, minWidth:0 }}>
-            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:16, color:'#0A0A0A', lineHeight:21 }} numberOfLines={1}>{item.name || item.item}</Text>
-            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.40)', marginTop:2 }}>{cat}</Text>
+            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:17, color:'#0A0A0A', lineHeight:22 }} numberOfLines={1}>{item.name || item.item}</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.40)', marginTop:2 }}>{cat}</Text>
           </View>
           {/* Qty badge from meal_source */}
           {!!item.meal_source && (
-            <View style={{ backgroundColor:'rgba(0,0,0,0.05)', borderRadius:8, paddingVertical:3, paddingHorizontal:9, flexShrink:0 }}>
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, color:'rgba(0,0,0,0.45)' }}>{item.meal_source}</Text>
+            <View style={{ backgroundColor:'rgba(0,0,0,0.05)', borderRadius:8, paddingVertical:4, paddingHorizontal:10, flexShrink:0 }}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(0,0,0,0.45)' }}>{item.meal_source}</Text>
             </View>
           )}
           {/* Bin icon */}
@@ -4301,11 +4301,11 @@ Only include events directly relevant to the question. Max 5 events.`;
               if (isConfirm) { shopDeleteItem(item.id); }
               else { setShopDelConfirmId(item.id); setShopExpandedId(null); setShopEditingId(null); }
             }}
-            style={{ width:32, height:32, alignItems:'center', justifyContent:'center', borderRadius:8, backgroundColor: isConfirm ? 'rgba(255,59,59,0.12)' : 'transparent', flexShrink:0 }}
+            style={{ width:34, height:34, alignItems:'center', justifyContent:'center', borderRadius:9, backgroundColor: isConfirm ? 'rgba(255,59,59,0.12)' : 'transparent', flexShrink:0 }}
             hitSlop={{ top:6, bottom:6, left:6, right:6 }}
             activeOpacity={0.75}
           >
-            <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={isConfirm ? '#FF3B3B' : 'rgba(0,0,0,0.28)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <Svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke={isConfirm ? '#FF3B3B' : 'rgba(0,0,0,0.28)'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <Path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
             </Svg>
           </TouchableOpacity>
@@ -4348,10 +4348,10 @@ Only include events directly relevant to the question. Max 5 events.`;
                 style={{ backgroundColor: SHOP_ACCENT, borderRadius:10, paddingVertical:8, paddingHorizontal:14 }}
                 activeOpacity={0.8}
               >
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#fff' }}>Save</Text>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#fff' }}>Save</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => { setShopEditingId(null); setShopEditText(''); setShopEditQty(''); }} style={{ paddingVertical:4, alignItems:'center' }} activeOpacity={0.7}>
-                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(0,0,0,0.35)' }}>Cancel</Text>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.35)' }}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -4360,21 +4360,21 @@ Only include events directly relevant to the question. Max 5 events.`;
         {/* Expanded panel */}
         {isExpanded && !isEditing && (
           <View style={{ backgroundColor:'rgba(0,0,0,0.025)', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.06)', padding:12, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.45)' }}>{cat}</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.45)' }}>{cat}</Text>
             <View style={{ flexDirection:'row', gap:8 }}>
               <TouchableOpacity
                 onPress={() => { setShopEditText(item.name || item.item || ''); setShopEditQty(item.meal_source || ''); setShopEditingId(item.id); setShopExpandedId(null); }}
-                style={{ backgroundColor:'rgba(80,32,192,0.08)', borderRadius:9, paddingVertical:6, paddingHorizontal:13 }}
+                style={{ backgroundColor:'rgba(80,32,192,0.08)', borderRadius:10, paddingVertical:8, paddingHorizontal:14 }}
                 activeOpacity={0.75}
               >
-                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color: SHOP_ACCENT }}>Edit</Text>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color: SHOP_ACCENT }}>Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => { setShopDelConfirmId(item.id); setShopExpandedId(null); }}
-                style={{ backgroundColor:'rgba(255,59,59,0.08)', borderRadius:9, paddingVertical:6, paddingHorizontal:13 }}
+                style={{ backgroundColor:'rgba(255,59,59,0.08)', borderRadius:10, paddingVertical:8, paddingHorizontal:14 }}
                 activeOpacity={0.75}
               >
-                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#FF3B3B' }}>Delete</Text>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#FF3B3B' }}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -5320,27 +5320,27 @@ Only include events directly relevant to the question. Max 5 events.`;
                 {/* Header */}
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
                   <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-                    <PilIcoShop color="rgba(80,32,192,0.70)"/>
-                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#0A0A0A' }}>Shopping</Text>
+                    <Text style={{ fontSize:20 }}>🛒</Text>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A0A0A', letterSpacing:-0.3 }}>Shopping</Text>
                   </View>
                   <TouchableOpacity
                     onPress={() => setShopSheetOpen(false)}
-                    style={{ width:32, height:32, borderRadius:9, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
+                    style={{ width:36, height:36, borderRadius:10, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
                     activeOpacity={0.7}
                   >
-                    <Text style={{ fontSize:14, color:'rgba(0,0,0,0.5)' }}>✕</Text>
+                    <Text style={{ fontSize:16, color:'rgba(0,0,0,0.5)' }}>✕</Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Tab switcher */}
-                <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:3, marginHorizontal:14, marginTop:12, marginBottom:6, flexShrink:0 }}>
+                <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:4, marginHorizontal:14, marginTop:12, marginBottom:8, flexShrink:0 }}>
                   {(['list','pantry','spend'] as const).map(tab => (
                     <TouchableOpacity
                       key={tab}
-                      style={{ flex:1, alignItems:'center', paddingVertical:10, borderRadius:19, backgroundColor: shopSheetTab===tab ? '#0A0A0A' : 'transparent' }}
+                      style={{ flex:1, alignItems:'center', paddingVertical:13, borderRadius:19, backgroundColor: shopSheetTab===tab ? '#0A0A0A' : 'transparent' }}
                       onPress={() => setShopSheetTab(tab)} activeOpacity={0.75}
                     >
-                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color: shopSheetTab===tab ? '#fff' : 'rgba(0,0,0,0.40)', textTransform:'capitalize' }}>
+                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color: shopSheetTab===tab ? '#fff' : 'rgba(0,0,0,0.40)', textTransform:'capitalize' }}>
                         {tab === 'list' ? 'List' : tab === 'pantry' ? 'Pantry' : 'Spend'}
                       </Text>
                     </TouchableOpacity>
@@ -5397,7 +5397,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                                   onBlur={() => { if (!shopSearchText) setShopSearchOpen(false); }}
                                 />
                               ) : (
-                                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.30)', flex:1 }}>Search items…</Text>
+                                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.30)', flex:1 }}>Search items…</Text>
                               )}
                             </TouchableOpacity>
                             <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:14, padding:2, flexShrink:0 }}>
@@ -5406,7 +5406,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                                 return (
                                   <TouchableOpacity key={mode} onPress={() => setShopAisleMode(mode === 'Aisle')} activeOpacity={0.75}
                                     style={{ paddingVertical:5, paddingHorizontal:11, borderRadius:12, backgroundColor: isOn ? '#fff' : 'transparent' }}>
-                                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, color: isOn ? '#0A0A0A' : 'rgba(0,0,0,0.40)' }}>{mode}</Text>
+                                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color: isOn ? '#0A0A0A' : 'rgba(0,0,0,0.40)' }}>{mode}</Text>
                                   </TouchableOpacity>
                                 );
                               })}
@@ -5415,7 +5415,7 @@ Only include events directly relevant to the question. Max 5 events.`;
 
                           {/* TO GET header */}
                           {!shopAisleMode && !shopSearchText && filtered.length > 0 && (
-                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:10 }}>
+                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:10 }}>
                               TO GET · {filtered.length} {filtered.length === 1 ? 'item' : 'items'}
                             </Text>
                           )}
@@ -5429,7 +5429,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                             // Aisle grouped view
                             Object.entries(byAisle).map(([cat, catItems]) => (
                               <View key={cat}>
-                                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', paddingBottom:6, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.06)', marginTop:12, marginBottom:0 }}>{cat}</Text>
+                                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', paddingBottom:6, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.06)', marginTop:12, marginBottom:0 }}>{cat}</Text>
                                 {catItems.map((item: any) => renderShopItem(item))}
                               </View>
                             ))
@@ -5446,7 +5446,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                           {/* Recently Bought */}
                           {!shopSearchText && shopSheetBought.length > 0 && (
                             <View style={{ marginTop:24 }}>
-                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:10 }}>Recently Bought</Text>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:10 }}>Recently Bought</Text>
                               {shopSheetBought.slice(0,10).map((item: any) => {
                                 const boughtEmoji = getItemEmoji(item.name || item.item || '');
                                 const boughtDate  = item.created_at
@@ -5601,11 +5601,11 @@ Only include events directly relevant to the question. Max 5 events.`;
                           <Text style={{ fontSize:22, flexShrink:0 }}>{emoji}</Text>
                           <View style={{ flex:1 }}>
                             <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:16, color:'#0A0A0A', lineHeight:21 }}>{item.name}</Text>
-                            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.40)', marginTop:2 }}>Last bought {fmtLastBought(item.last_bought)}</Text>
+                            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.40)', marginTop:2 }}>Last bought {fmtLastBought(item.last_bought)}</Text>
                           </View>
                           {onList ? (
                             <View style={{ backgroundColor:'rgba(26,122,69,0.08)', borderRadius:12, paddingVertical:8, paddingHorizontal:14 }}>
-                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color: SHOP_GREEN }}>On list ✓</Text>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color: SHOP_GREEN }}>On list ✓</Text>
                             </View>
                           ) : (
                             <TouchableOpacity
@@ -5620,7 +5620,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                               style={{ backgroundColor:'rgba(80,32,192,0.09)', borderRadius:12, paddingVertical:8, paddingHorizontal:14 }}
                               activeOpacity={0.75}
                             >
-                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color: SHOP_ACCENT }}>+ List</Text>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color: SHOP_ACCENT }}>+ List</Text>
                             </TouchableOpacity>
                           )}
                         </TouchableOpacity>
@@ -5652,9 +5652,9 @@ Only include events directly relevant to the question. Max 5 events.`;
                                 <Circle cx="11" cy="11" r="8"/><Line x1="21" y1="21" x2="16.65" y2="16.65"/>
                               </Svg>
                               {shopSearchOpen ? (
-                                <TextInput autoFocus style={{ flex:1, fontFamily:'Poppins_400Regular', fontSize:13, color:'#0A0A0A', paddingVertical:0 }} value={shopSearchText} onChangeText={setShopSearchText} placeholder="Search pantry…" placeholderTextColor="rgba(0,0,0,0.30)" onBlur={() => { if (!shopSearchText) setShopSearchOpen(false); }}/>
+                                <TextInput autoFocus style={{ flex:1, fontFamily:'Poppins_400Regular', fontSize:14, color:'#0A0A0A', paddingVertical:0 }} value={shopSearchText} onChangeText={setShopSearchText} placeholder="Search pantry…" placeholderTextColor="rgba(0,0,0,0.30)" onBlur={() => { if (!shopSearchText) setShopSearchOpen(false); }}/>
                               ) : (
-                                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.30)', flex:1 }}>Search pantry…</Text>
+                                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.30)', flex:1 }}>Search pantry…</Text>
                               )}
                             </TouchableOpacity>
                             <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:14, padding:2, flexShrink:0 }}>
@@ -5663,19 +5663,19 @@ Only include events directly relevant to the question. Max 5 events.`;
                                 return (
                                   <TouchableOpacity key={mode} onPress={() => setShopPantryAisle(mode === 'Aisle')} activeOpacity={0.75}
                                     style={{ paddingVertical:5, paddingHorizontal:11, borderRadius:12, backgroundColor: isOn ? '#fff' : 'transparent' }}>
-                                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, color: isOn ? '#0A0A0A' : 'rgba(0,0,0,0.40)' }}>{mode}</Text>
+                                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color: isOn ? '#0A0A0A' : 'rgba(0,0,0,0.40)' }}>{mode}</Text>
                                   </TouchableOpacity>
                                 );
                               })}
                             </View>
                           </View>
 
-                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:8 }}>Your Pantry · {filtered.length} items</Text>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:8 }}>Your Pantry · {filtered.length} items</Text>
 
                           {shopPantryAisle
                             ? Object.entries(byAisle).map(([cat, catItems]) => (
                               <View key={cat}>
-                                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', paddingBottom:6, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.06)', marginTop:12 }}>{cat}</Text>
+                                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', paddingBottom:6, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.06)', marginTop:12 }}>{cat}</Text>
                                 {catItems.map(renderPantryItem)}
                               </View>
                             ))
@@ -5686,9 +5686,9 @@ Only include events directly relevant to the question. Max 5 events.`;
                         {/* Sticky add row */}
                         <View style={{ position:'absolute', bottom:0, left:0, right:0, backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', padding:14, paddingBottom: Platform.OS === 'ios' ? 20 : 14 }}>
                           <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderWidth:1.5, borderStyle:'dashed', borderColor:'rgba(0,0,0,0.14)', borderRadius:14, padding:12, backgroundColor:'rgba(255,255,255,0.6)' }}>
-                            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.32)', flex:1 }}>+ Add an item</Text>
+                            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:16, color:'rgba(0,0,0,0.32)', flex:1 }}>+ Add an item</Text>
                             <TouchableOpacity style={{ backgroundColor:'rgba(168,216,240,0.18)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }} activeOpacity={0.75}>
-                              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.50)' }}>✦ Add with Zaeli</Text>
+                              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(0,0,0,0.50)' }}>✦ Add with Zaeli</Text>
                             </TouchableOpacity>
                           </View>
                         </View>
@@ -5709,7 +5709,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                         </Text>
                       </View>
 
-                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:9, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:10 }}>Recent Receipts</Text>
+                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:10 }}>Recent Receipts</Text>
 
                       {shopSheetReceipts.length === 0 ? (
                         <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.35)', fontStyle:'italic' }}>No receipts scanned yet — scan one in the Pantry tab.</Text>
