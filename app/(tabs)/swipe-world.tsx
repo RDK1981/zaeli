@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { setPendingChatContext } from '../../lib/navigation-store';
 
 import ZaeliFAB, { ZaeliFABHandle } from '../components/ZaeliFAB';
 import DashboardScreen from './dashboard';
@@ -94,7 +95,17 @@ export default function SwipeWorld() {
   function onMySpace() { scrollToPage(PAGE_MYSPACE); }
 
   function onMoreItem(key: string) {
-    const sheetKeys = ['calendar', 'shopping', 'meals', 'todos', 'notes', 'travel'];
+    if (key === 'calendar') {
+      setPendingChatContext({ type:'calendar_sheet' as any, event:{ tab:'today' }, returnTo:'dashboard' } as any);
+      scrollToPage(PAGE_CHAT);
+      return;
+    }
+    if (key === 'shopping') {
+      setPendingChatContext({ type:'shopping_sheet' as any, returnTo:'dashboard' } as any);
+      scrollToPage(PAGE_CHAT);
+      return;
+    }
+    const sheetKeys = ['meals', 'todos', 'notes', 'travel'];
     if (sheetKeys.includes(key)) {
       scrollToPage(PAGE_CHAT);
       return;
