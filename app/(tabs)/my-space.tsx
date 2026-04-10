@@ -2435,23 +2435,6 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
   );
 }
 
-                  <TouchableOpacity
-                    key={ki}
-                    style={[s.wlKey, isWide && s.wlKeyWide, { backgroundColor: col.bg }]}
-                    activeOpacity={0.70}
-                  >
-                    <Text style={[s.wlKeyTxt, { color: col.txt }]}>{k}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-    </Sheet>
-  );
-}
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
