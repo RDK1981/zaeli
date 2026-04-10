@@ -1767,51 +1767,51 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
   }
 
   return (
-    <View style={{ backgroundColor:'#fff', borderRadius:14, marginBottom:10, padding:14, borderLeftWidth:3, borderLeftColor:borderColor }}>
-      <View style={{ flexDirection:'row', alignItems:'flex-start', gap:12 }}>
-        <View style={{ width:56, flexShrink:0 }}>
-          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'rgba(0,0,0,0.45)', textAlign:'right' }} numberOfLines={1}>{fmtTime(ev.start_time)}</Text>
+    <View style={{ backgroundColor:'#fff', borderRadius:16, marginBottom:12, padding:16, borderLeftWidth:4, borderLeftColor:borderColor }}>
+      <View style={{ flexDirection:'row', alignItems:'flex-start', gap:14 }}>
+        <View style={{ width:60, flexShrink:0 }}>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'rgba(0,0,0,0.45)', textAlign:'right' }} numberOfLines={1}>{fmtTime(ev.start_time)}</Text>
         </View>
         <View style={{ flex:1 }}>
-          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:17, color:'#0A0A0A', marginBottom:3 }}>{ev.title}</Text>
-          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.45)', lineHeight:19 }}>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:19, color:'#0A0A0A', marginBottom:4 }}>{ev.title}</Text>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(0,0,0,0.45)', lineHeight:22 }}>
             {fmtTime(ev.start_time)}{ev.end_time && ev.end_time !== ev.start_time ? `–${fmtTime(ev.end_time)}` : ''}{location ? ` · ${location}` : ''}
           </Text>
           {members.length > 0 && (
-            <View style={{ flexDirection:'row', gap:6, marginTop:8, marginBottom:10 }}>
+            <View style={{ flexDirection:'row', gap:7, marginTop:10, marginBottom:10 }}>
               {members.map((m:any) => (
-                <View key={m.id} style={{ width:26, height:26, borderRadius:13, backgroundColor:m.color, alignItems:'center', justifyContent:'center' }}>
-                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'#fff' }}>{m.name[0]}</Text>
+                <View key={m.id} style={{ width:30, height:30, borderRadius:15, backgroundColor:m.color, alignItems:'center', justifyContent:'center' }}>
+                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#fff' }}>{m.name[0]}</Text>
                 </View>
               ))}
             </View>
           )}
           <View style={{ flexDirection:'row', gap:8, flexWrap:'wrap', alignItems:'center' }}>
             <TouchableOpacity
-              style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'rgba(168,216,240,0.18)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}
+              style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'rgba(168,216,240,0.18)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
               onPress={() => onEditWithZaeli(ev)} activeOpacity={0.75}
             >
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.55)' }}>✦ Edit with Zaeli</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.55)' }}>✦ Edit with Zaeli</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={{ backgroundColor:'rgba(0,0,0,0.06)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}
+              style={{ backgroundColor:'rgba(0,0,0,0.06)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
               onPress={() => onManualEdit(ev)} activeOpacity={0.75}
             >
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.45)' }}>Edit</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.45)' }}>Edit</Text>
             </TouchableOpacity>
             {confirmDelete ? (
               <TouchableOpacity
-                style={{ backgroundColor:'rgba(220,38,38,0.12)', borderWidth:1, borderColor:'rgba(220,38,38,0.35)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}
+                style={{ backgroundColor:'rgba(220,38,38,0.12)', borderWidth:1, borderColor:'rgba(220,38,38,0.35)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
                 onPress={deleteEvent} activeOpacity={0.75}
               >
-                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#DC2626' }}>Confirm delete</Text>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#DC2626' }}>Confirm delete</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
-                style={{ backgroundColor:'rgba(0,0,0,0.04)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}
+                style={{ backgroundColor:'rgba(0,0,0,0.04)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
                 onPress={() => setConfirmDelete(true)} activeOpacity={0.75}
               >
-                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.30)' }}>Delete</Text>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.30)' }}>Delete</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -5157,19 +5157,19 @@ Only include events directly relevant to the question. Max 5 events.`;
                 {/* Header — changes between list and edit form */}
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
                   {calSheetEditEv ? (
-                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#0A0A0A' }}>{calSheetEditEv?.id ? 'Edit Event' : 'Add Event'}</Text>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A0A0A', letterSpacing:-0.3 }}>{calSheetEditEv?.id ? 'Edit Event' : 'Add Event'}</Text>
                   ) : (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                       <PilIcoCal color="rgba(58,61,74,0.80)"/>
-                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#0A0A0A' }}>Calendar</Text>
+                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A0A0A', letterSpacing:-0.3 }}>Calendar</Text>
                     </View>
                   )}
                   <TouchableOpacity
                     onPress={() => calSheetEditEv ? setCalSheetEditEv(null) : setCalSheetOpen(false)}
-                    style={{ width:32, height:32, borderRadius:9, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
+                    style={{ width:36, height:36, borderRadius:10, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
                     activeOpacity={0.7}
                   >
-                    <Text style={{ fontSize:14, color:'rgba(0,0,0,0.5)' }}>{calSheetEditEv ? '‹' : '✕'}</Text>
+                    <Text style={{ fontSize:16, color:'rgba(0,0,0,0.5)' }}>{calSheetEditEv ? '‹' : '✕'}</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -5182,36 +5182,9 @@ Only include events directly relevant to the question. Max 5 events.`;
                     onEditWithZaeli={handleSheetEditWithZaeli}
                     onSaved={async () => {
                       setCalSheetEditEv(null);
-                      setCalSheetOpen(false);
+                      // Stay in sheet — refresh the event list
+                      await openCalSheet(calSheetTab);
                       loadCardData();
-                      // Fetch the saved event and inject as confirmation card in chat
-                      try {
-                        const dateStr = calSheetEditEv?.date || localDateStr();
-                        const title = calSheetEditEv?.title?.trim() || '';
-                        let q = supabase.from('events')
-                          .select('id,title,date,start_time,end_time,assignees,notes')
-                          .eq('family_id', FAMILY_ID)
-                          .eq('date', dateStr)
-                          .order('created_at', { ascending: false })
-                          .limit(1);
-                        if (title) q = (q as any).ilike('title', `%${title}%`);
-                        const { data: evData } = await (q as any);
-                        if (evData && evData.length > 0) {
-                          const ev = evData[0];
-                          const confirmCard: Msg = {
-                            id: uid(), role: 'zaeli', text: '', ts: nowTs(),
-                            inlineData: { type: 'calendar', items: [ev], tomorrowItems: [] },
-                          };
-                          const dayName = new Date(dateStr+'T00:00:00').toLocaleDateString('en-AU', { weekday:'long' });
-                          const confirmMsg: Msg = {
-                            id: uid(), role: 'zaeli', ts: nowTs(), isLoading: false,
-                            text: `${ev.title} locked in for ${dayName} at ${fmtTime(ev.start_time)}.`,
-                            quickReplies: ['Add another', 'See full calendar', 'Set a reminder'],
-                          };
-                          setMessages(prev => [...prev, confirmCard, confirmMsg]);
-                          setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 150);
-                        }
-                      } catch { /* silent — sheet still closed fine */ }
                     }}
                     onDeleted={() => {
                       setCalSheetEditEv(null);
@@ -5222,14 +5195,14 @@ Only include events directly relevant to the question. Max 5 events.`;
                 ) : (
                   <View style={{ flex:1 }}>
                     {/* Tabs */}
-                    <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:3, marginHorizontal:14, marginTop:12, marginBottom:6 }}>
+                    <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:4, marginHorizontal:14, marginTop:12, marginBottom:8 }}>
                       {(['today','tomorrow','month'] as const).map(tab => (
                         <TouchableOpacity
                           key={tab}
-                          style={{ flex:1, alignItems:'center', paddingVertical:10, borderRadius:19, backgroundColor: calSheetTab===tab ? '#0A0A0A' : 'transparent' }}
+                          style={{ flex:1, alignItems:'center', paddingVertical:13, borderRadius:19, backgroundColor: calSheetTab===tab ? '#0A0A0A' : 'transparent' }}
                           onPress={() => setCalSheetTab(tab)} activeOpacity={0.75}
                         >
-                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color: calSheetTab===tab ? '#fff' : 'rgba(0,0,0,0.40)', textTransform:'capitalize' }}>{tab}</Text>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color: calSheetTab===tab ? '#fff' : 'rgba(0,0,0,0.40)', textTransform:'capitalize' }}>{tab}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -5249,9 +5222,9 @@ Only include events directly relevant to the question. Max 5 events.`;
                         const dateLabel2 = new Date(dateStr+'T00:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
                         return (
                           <>
-                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'rgba(0,0,0,0.50)', marginBottom:16 }}>{dateLabel2}</Text>
+                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:17, color:'rgba(0,0,0,0.50)', marginBottom:16 }}>{dateLabel2}</Text>
                             {evs.length === 0 ? (
-                              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:16, color:'rgba(0,0,0,0.35)', fontStyle:'italic', marginBottom:16 }}>Nothing on {calSheetTab}</Text>
+                              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:17, color:'rgba(0,0,0,0.35)', fontStyle:'italic', marginBottom:16 }}>Nothing on {calSheetTab}</Text>
                             ) : evs.map((ev:any) => (
                               <CalSheetEventCard
                                 key={ev.id} ev={ev}
@@ -5267,8 +5240,8 @@ Only include events directly relevant to the question. Max 5 events.`;
                                 activeOpacity={0.75}
                                 style={{ flexDirection:'row', alignItems:'center', gap:10, flex:1 }}
                               >
-                                <Text style={{ fontSize:18, color:'rgba(0,0,0,0.22)' }}>+</Text>
-                                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(0,0,0,0.35)' }}>Add event for {calSheetTab}</Text>
+                                <Text style={{ fontSize:20, color:'rgba(0,0,0,0.22)' }}>+</Text>
+                                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:16, color:'rgba(0,0,0,0.35)' }}>Add event for {calSheetTab}</Text>
                               </TouchableOpacity>
                               <TouchableOpacity onPress={handleSheetAddWithZaeli} activeOpacity={0.75}
                                 style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'rgba(168,216,240,0.18)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:10, paddingVertical:7, paddingHorizontal:12 }}>
