@@ -2374,7 +2374,7 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
                       backgroundColor:kbBg,
                       flex: isWide ? 1.5 : 1, maxWidth: isWide ? 58 : 38,
                     }}>
-                    <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: isWide ? 11 : 14, color:kbColor }}>
+                    <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: key === 'DEL' ? 22 : isWide ? 12 : 14, color:kbColor }}>
                       {key === 'DEL' ? '\u232B' : key}
                     </Text>
                   </TouchableOpacity>

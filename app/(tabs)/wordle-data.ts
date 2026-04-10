@@ -32,8 +32,10 @@ export const ANSWER_WORDS = [
 'zebra','zesty','zonal',
 ];
 
-// For now, valid guesses = answer words. Can expand to ~10K later.
-export const VALID_WORDS = new Set(ANSWER_WORDS);
+import { EXTRA_VALID_WORDS } from './wordle-extra-words';
+
+// Full valid words = answers (2,309) + extra guesses (10,657) = ~12,966 total
+export const VALID_WORDS = new Set([...ANSWER_WORDS, ...EXTRA_VALID_WORDS]);
 
 export const START_DATE = '2026-04-10';
 
