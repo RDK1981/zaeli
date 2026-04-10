@@ -4164,25 +4164,30 @@ Only include events directly relevant to the question. Max 5 events.`;
     setShopExpandedId(null);
     setShopSheetOpen(true); // open immediately
 
-    // Fetch all data in background
-    const today = localDateStr();
-    const monthStart = today.slice(0, 7) + '-01';
-    const [listRes, boughtRes, pantryRes, receiptsRes] = await Promise.all([
-      supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', FAMILY_ID).neq('checked', true).order('created_at', { ascending: false }).limit(100),
-      supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', FAMILY_ID).eq('checked', true).order('created_at', { ascending: false }).limit(30),
-      supabase.from('pantry_items').select('id,name,emoji,last_bought,family_id').eq('family_id', FAMILY_ID).order('name').limit(100),
-      supabase.from('receipts').select('id,store,purchase_date,total_amount,item_count,items').eq('family_id', FAMILY_ID).order('purchase_date', { ascending: false }).limit(20),
-    ]);
-    setShopSheetItems(listRes.data ?? []);
-    setShopSheetBought(boughtRes.data ?? []);
-    setShopSheetPantry(pantryRes.data ?? []);
-    setShopSheetReceipts(receiptsRes.data ?? []);
+    // Fetch all data in background — gracefully handle missing tables
+    try {
+      const today = localDateStr();
+      const monthStart = today.slice(0, 7) + '-01';
+      const [listRes, boughtRes] = await Promise.all([
+        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', FAMILY_ID).neq('checked', true).order('created_at', { ascending: false }).limit(100),
+        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', FAMILY_ID).eq('checked', true).order('created_at', { ascending: false }).limit(30),
+      ]);
+      setShopSheetItems(listRes.data ?? []);
+      setShopSheetBought(boughtRes.data ?? []);
 
-    // Month spend totals
-    const monthReceipts = (receiptsRes.data ?? []).filter((r: any) => (r.purchase_date || '') >= monthStart);
-    setShopSheetMonthSpend(monthReceipts.reduce((sum: number, r: any) => sum + (r.total_amount || 0), 0));
-    setShopSheetMonthShops(monthReceipts.length);
-    setShopSheetMonthItems(monthReceipts.reduce((sum: number, r: any) => sum + (r.item_count || 0), 0));
+      // Pantry + receipts — may not exist yet, fail silently
+      try {
+        const { data: pantryData } = await supabase.from('pantry_items').select('id,name,emoji,last_bought,family_id').eq('family_id', FAMILY_ID).order('name').limit(100);
+        setShopSheetPantry(pantryData ?? []);
+      } catch { setShopSheetPantry([]); }
+      try {
+        const { data: receiptData } = await supabase.from('receipts').select('id,store,purchase_date,total_amount,item_count,items').eq('family_id', FAMILY_ID).order('purchase_date', { ascending: false }).limit(20);
+        setShopSheetReceipts(receiptData ?? []);
+      } catch { setShopSheetReceipts([]); }
+    } catch (e) {
+      console.log('shopSheet load error:', e);
+    }
+
   }
 
   async function openShopSheetToEdit(item: any) {
@@ -4197,29 +4202,34 @@ Only include events directly relevant to the question. Max 5 events.`;
   }
 
   async function refreshShopList() {
-    const [listRes, boughtRes] = await Promise.all([
-      supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', FAMILY_ID).neq('checked', true).order('created_at', { ascending: false }).limit(100),
-      supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', FAMILY_ID).eq('checked', true).order('created_at', { ascending: false }).limit(30),
-    ]);
-    setShopSheetItems(listRes.data ?? []);
-    setShopSheetBought(boughtRes.data ?? []);
-    // Refresh inline card data too
+    try {
+      const [listRes, boughtRes] = await Promise.all([
+        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', FAMILY_ID).neq('checked', true).order('created_at', { ascending: false }).limit(100),
+        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', FAMILY_ID).eq('checked', true).order('created_at', { ascending: false }).limit(30),
+      ]);
+      setShopSheetItems(listRes.data ?? []);
+      setShopSheetBought(boughtRes.data ?? []);
+    } catch (e) { console.log('refreshShopList error:', e); }
     loadCardData();
   }
 
   async function shopMarkBought(item: any) {
-    await supabase.from('shopping_items').update({ checked: true }).eq('id', item.id);
-    // Sync food items to pantry last_bought
-    const cat = item.category || guessCategory(item.name || item.item || '');
-    if (FOOD_CATS.includes(cat)) {
-      const name = (item.name || item.item || '').toLowerCase().trim();
-      const { data: existing } = await supabase.from('pantry_items').select('id').eq('family_id', FAMILY_ID).ilike('name', name).limit(1);
-      if (existing && existing.length > 0) {
-        await supabase.from('pantry_items').update({ last_bought: localDateStr() }).eq('id', existing[0].id);
-      } else {
-        await supabase.from('pantry_items').insert({ family_id: FAMILY_ID, name: item.name || item.item, emoji: '🛒', last_bought: localDateStr() });
-      }
-    }
+    try {
+      await supabase.from('shopping_items').update({ checked: true }).eq('id', item.id);
+      // Sync food items to pantry last_bought (pantry_items table may not exist)
+      try {
+        const cat = item.category || guessCategory(item.name || item.item || '');
+        if (FOOD_CATS.includes(cat)) {
+          const name = (item.name || item.item || '').toLowerCase().trim();
+          const { data: existing } = await supabase.from('pantry_items').select('id').eq('family_id', FAMILY_ID).ilike('name', name).limit(1);
+          if (existing && existing.length > 0) {
+            await supabase.from('pantry_items').update({ last_bought: localDateStr() }).eq('id', existing[0].id);
+          } else {
+            await supabase.from('pantry_items').insert({ family_id: FAMILY_ID, name: item.name || item.item, emoji: '🛒', last_bought: localDateStr() });
+          }
+        }
+      } catch { /* pantry table may not exist yet */ }
+    } catch (e) { console.log('shopMarkBought error:', e); }
     refreshShopList();
   }
 
