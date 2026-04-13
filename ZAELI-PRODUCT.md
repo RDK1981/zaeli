@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 13 April 2026 — Session 9 ✅ · Design session · Dashboard redesign · Meal Planner · Camera/Upload · AI Brief system · Zaeli persona · Model routing · Philosophy B locked*
+*Last updated: 13 April 2026 — Session 10 ✅ · Shopping sheet complete · Receipt/Pantry scan pipeline · Duplicate checking · Tick/undo flow*
 
 ---
 
@@ -256,8 +256,9 @@ Our Family · Tutor · Our Budget (coming soon) · Settings · Upload options (T
 10. ✅ Camera/Upload designed (Session 9)
 11. ✅ AI Brief system designed (Session 9)
 12. ✅ Zaeli persona + model routing locked (Session 9)
-13. 🔨 Dashboard redesign build (zaeli-dashboard-redesign.html)
+13. ✅ Shopping sheet complete (Session 10) — List/Pantry/Spend, receipt scan, tick/undo
 14. 🔨 Meal Planner sheet build (zaeli-meals-mockup.html)
+15. 🔨 Dashboard redesign build (zaeli-dashboard-redesign.html)
 15. 🔨 Camera/Upload build (zaeli-camera-upload.html)
 16. 🔨 AI Brief system implementation (Sonnet briefs, GPT-5.4 mini routing)
 
@@ -306,7 +307,7 @@ Our Family · Tutor · Our Budget (coming soon) · Settings · Upload options (T
 - [x] Chat interface — context flow, CRUD tools, mic ✅
 - [x] Design refresh — all 3 pages ✅
 - [x] Calendar sheet fixed ✅
-- [x] Shopping sheet fixed ✅
+- [x] Shopping sheet complete ✅ (Session 10 — List/Pantry/Spend, receipt scan, tick/undo, duplicate check)
 - [x] Navigation unified ✅
 - [x] Dashboard redesign — design locked ✅
 - [x] Meal Planner sheet — design locked ✅

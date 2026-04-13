@@ -869,7 +869,7 @@ function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onTogg
 // ══════════════════════════════════════════════════════════════════════════════
 // ── MAIN SCREEN ───────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
-export default function DashboardScreen({ onNavigateChat, isActive = false }: { onNavigateChat?: () => void; isActive?: boolean }) {
+export default function DashboardScreen({ onNavigateChat, isActive = false, onContextTrigger }: { onNavigateChat?: () => void; isActive?: boolean; onContextTrigger?: () => void }) {
   const insets     = useSafeAreaInsets();
   const router     = useRouter();
   const isAfter8pm = new Date().getHours() >= 20;
@@ -1060,7 +1060,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
             onToggleExpand={() => toggleCard('calendar')}
             onAdd={goToAddEvent}
             onEditEvent={goToEditEvent}
-            onFullCalendar={() => { setPendingChatContext({ type:'calendar_sheet' as any, event:{ tab:'month' }, returnTo:'dashboard' }); onNavigateChat?.(); }}
+            onFullCalendar={() => { setPendingChatContext({ type:'calendar_sheet' as any, event:{ tab:'month' }, returnTo:'dashboard' }); onContextTrigger?.(); onNavigateChat?.(); }}
             onDeleted={(eventId) => setCardData(prev => ({
               ...prev,
               todayEvents:    prev.todayEvents.filter(e => e.id !== eventId),
@@ -1109,6 +1109,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false }: { 
             onAdd={goToAddShopping}
             onOpenSheet={() => {
               setPendingChatContext({ type:'shopping_sheet' as any, returnTo:'dashboard' });
+              onContextTrigger?.();
               onNavigateChat?.();
             }}
           />

@@ -48,6 +48,7 @@ export default function SwipeWorld() {
   const [fabActive,   setFabActive]   = useState<'dashboard' | 'chat' | 'keyboard' | 'myspace'>('dashboard');
   const [showLanding, setShowLanding] = useState(false);
   const [pendingMicText, setPendingMicText] = useState<string|null>(null);
+  const [contextTrigger, setContextTrigger] = useState(0);
 
   // Open on Dashboard
   useEffect(() => {
@@ -97,11 +98,13 @@ export default function SwipeWorld() {
   function onMoreItem(key: string) {
     if (key === 'calendar') {
       setPendingChatContext({ type:'calendar_sheet' as any, event:{ tab:'today' }, returnTo:'dashboard' } as any);
+      setContextTrigger(c => c + 1);
       scrollToPage(PAGE_CHAT);
       return;
     }
     if (key === 'shopping') {
       setPendingChatContext({ type:'shopping_sheet' as any, returnTo:'dashboard' } as any);
+      setContextTrigger(c => c + 1);
       scrollToPage(PAGE_CHAT);
       return;
     }
@@ -140,7 +143,7 @@ export default function SwipeWorld() {
       >
         {/* Page 0 — Dashboard */}
         <View style={s.page}>
-          <DashboardScreen onNavigateChat={() => scrollToPage(PAGE_CHAT)} isActive={activePage === PAGE_DASHBOARD} />
+          <DashboardScreen onNavigateChat={() => scrollToPage(PAGE_CHAT)} isActive={activePage === PAGE_DASHBOARD} onContextTrigger={() => setContextTrigger(c => c + 1)} />
         </View>
 
         {/* Page 1 — Chat */}
@@ -148,6 +151,7 @@ export default function SwipeWorld() {
           <ChatScreen
             isEmbedded={true}
             isActive={activePage === PAGE_CHAT}
+            contextTrigger={contextTrigger}
             onNavigateDashboard={() => scrollToPage(PAGE_DASHBOARD)}
             pendingMicText={pendingMicText}
             onMicTextConsumed={() => setPendingMicText(null)}

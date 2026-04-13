@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*13 April 2026 — Session 9 ✅ · Design session · Dashboard redesign · Meal Planner · Camera/Upload · AI Brief system · Zaeli persona · Model routing · Philosophy B*
+*13 April 2026 — Session 10 ✅ · Shopping sheet complete · Receipt/Pantry scan · Duplicate checking · Tick/undo · contextTrigger nav fix*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -21,12 +21,25 @@ Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 - **Chat** — lavender-branded. Fixed [Mic][TextInput+Camera][Send] bar. Full CRUD tools. Context flow from dashboard. Mic with waveform. Camera icon inside input field (Session 9 design — not yet built).
 - **My Space** — sky-branded. Fixed header. WotD inline expand. Fitness full-width. 4-card grid (Goals, Notes & Tasks, Stretch, Zen) + Wordle. ALL sheets fully built with real content + Supabase persistence.
 
+### Shopping sheet (Session 10 — COMPLETE):
+- **List tab**: structured add form (Item+Qty), tick/undo (5s timer, green checkbox, strikethrough, Undo link), tap-to-expand Edit/Delete, red border delete confirm, duplicate checking, Recently Bought in muted grey
+- **Pantry tab**: same add form, tap-to-expand Edit/Delete, "+ List" / "On list ✓" toggle, Scan/Upload buttons (receipt + pantry), pantry limit 500
+- **Spend tab**: Poppins total (not DM Serif), A$ currency, Scan/Upload receipt, expandable receipt cards with delete, spend totals recalculate on delete
+- **Receipt scan pipeline**: single Sonnet call, structured JSON extraction, pantry cross-check (update last_bought / add new), shopping list tick-off (only if item.created_at < receipt_date), receipt saved to Spend tab, ~A$0.02-0.04 per scan
+- **Pantry scan pipeline**: single Sonnet call, add/update pantry items
+- **HEIC fix**: expo-image-manipulator converts iOS HEIC → JPEG before API calls
+- **Share button**: header icon, formats list as text for SMS/copy
+
 ### Infrastructure:
-- Context flow: isActive prop from swipe-world + useEffect checks getPendingChatContext()
+- Context flow: isActive prop + contextTrigger counter from swipe-world (fixes scroll race condition)
+- ← Dashboard pill: uses onNavigateDashboard() not router.navigate() (fixes FAB disappearing)
 - Dashboard refresh: isActive triggers loadData() on swipe back
 - Full CRUD tools: calendar, todos, shopping, meals (add/update/delete)
+- Shopping tools: duplicate check (list + pantry), SHOPPING RULES in system prompt, A$ currency rule
 - Meal clash detection: warns before swapping
 - Mic: direct startRecording/stopRecording in chat + FAB mic pipeline via pendingMicText
+- Mic from shopping: routes through AI (not regex) for smart multi-item parsing
+- Shopping context detection: checks for shopping chips on last Zaeli message
 - 3-dot indicators: peach(0) · lavender(1) · sky(2)
 
 ---
@@ -103,10 +116,11 @@ Upload-only approach without live bank feeds not compelling enough for Dashboard
 ## ══════════════════════════════════
 
 **Immediate — Claude Code with handover files:**
-1. **Dashboard redesign** — 5 clean rows, On the Radar card, Our Budget removed (`zaeli-dashboard-redesign.html`)
+1. ✅ **Shopping sheet** — COMPLETE (Session 10)
 2. **Meal Planner sheet** — 3 tabs, swap/move, who's cooking, recipe upload (`zaeli-meals-mockup.html`)
-3. **Camera/Upload** — chat bar icon + FAB More sheet (`zaeli-camera-upload.html`)
-4. **AI Brief system** — implement Sonnet briefs, GPT-5.4 mini routing, `zaeli_briefs` table (`zaeli-brief-examples.html`)
+3. **Dashboard redesign** — 5 clean rows, On the Radar card, Our Budget removed (`zaeli-dashboard-redesign.html`)
+4. **Camera/Upload** — chat bar icon + FAB More sheet (`zaeli-camera-upload.html`)
+5. **AI Brief system** — implement Sonnet briefs, GPT-5.4 mini routing, `zaeli_briefs` table (`zaeli-brief-examples.html`)
 
 **Then:**
 5. **Dedicated pages** — Kids Hub, Tutor, Our Family, Settings
@@ -182,6 +196,14 @@ Supabase (meals)     →  meal_plan         (family-scoped, NEW session 9)
 - CHAT_MODEL = gpt-5.4-mini · NOTICED_MODEL = gpt-4o-mini · NEVER swap these
 - Brief model = SONNET always — never downgrade briefs to mini
 - Camera icon = inside right of TextInput wrapper, NOT outside the bar
+- KAV doesn't work in Modals on iOS — use Keyboard listener + shopKbHeight marginBottom instead
+- contextTrigger counter for reliable sheet opening (not just isActive transitions)
+- ← Dashboard pill = onNavigateDashboard() not router.navigate() (fixes FAB + activePage)
+- Receipt scan = single Sonnet call, structured JSON, local cross-check (not general send() pipeline)
+- Receipt tick-off = only if item.created_at < receipt_date (protects re-added items)
+- HEIC → JPEG via expo-image-manipulator before any API call
+- Currency = A$ always (system prompt CURRENCY rule)
+- Pantry limit = 500 (not 100)
 
 ---
 

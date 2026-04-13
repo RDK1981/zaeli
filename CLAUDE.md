@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 13 April 2026 — Session 9 ✅ · Design session · Dashboard redesign · Meal Planner sheets · Camera/Upload · AI Brief system · Zaeli persona expanded · Model routing locked · Philosophy B*
+*Last updated: 13 April 2026 — Session 10 ✅ · Shopping sheet complete · Receipt/Pantry scan pipeline · Duplicate checking · Tick/undo flow · HEIC fix · contextTrigger nav fix*
 
 ---
 
@@ -480,6 +480,86 @@ No code written — full design + strategy session.
 
 ---
 
+## ══════════════════════════════════
+## SESSION 10 — SHOPPING SHEET COMPLETE (13 April 2026) ✅
+## ══════════════════════════════════
+
+Full build session — Shopping sheet polished to production quality across all 3 tabs.
+
+### Navigation fix:
+- **contextTrigger** added to swipe-world → fixes race condition where `handleScroll` clobbered `activePage` during programmatic scroll
+- Dashboard `onOpenSheet` + FAB `onMoreItem` both bump `contextTrigger` counter
+- ChatScreen watches `contextTrigger` in dedicated useEffect — reliable sheet opening regardless of `isActive` timing
+- **← Dashboard pill** fixed — was using `router.navigate()` (broken), now uses `onNavigateDashboard()` which calls `scrollToPage()` properly
+
+### List tab:
+- Trash bin icons removed from item rows — cleaner design
+- Tap item → expand panel with Edit + Delete buttons
+- Delete → red border card + "Tap bin again to delete" confirm row (matches screenshot pattern)
+- **Tick/undo flow**: tap checkbox → green fill + strikethrough + "Undo" link, 5-second timer, then item disappears to Recently Bought. No flash on commit.
+- **Structured add form**: collapsed "Add an item..." bar expands to Item name + Qty fields + "Add to list" coral button + Done. Green "✓ Added [name]" confirmation flash.
+- **Duplicate checking**: manual add checks `shopSheetItems` locally, shows amber "⚠ already on the list" warning
+- **Keyboard handling**: `shopKbHeight` state from Keyboard listener (KAV doesn't work in Modals), applied as `marginBottom` on add bar
+- Recently Bought items: card-style layout, muted grey text (`rgba(0,0,0,0.38)`), tap to expand Edit/Delete, same red confirm pattern
+- Share button in header — formats list as text, opens iOS share sheet
+
+### Pantry tab:
+- Same structured add form as List tab (Add to pantry + Zaeli button)
+- Tap-to-expand on pantry items → Edit + Delete buttons
+- Inline edit form (name field + Save/Cancel)
+- Delete with red border confirm pattern
+- "+ List" button adds to shopping list, "On list ✓" tappable to remove from list (toggle)
+- Duplicate checking on add
+- Scan/Upload buttons: "📷 Scan/Upload Receipt" + "🥦 Scan/Upload Pantry" → source picker overlay (Take photo / Choose from library)
+- Pantry item limit increased from 100 → 500
+
+### Spend tab:
+- Monthly total font changed from DM Serif → Poppins_800ExtraBold
+- All currency symbols changed to A$ (never £ or US$)
+- Scan/Upload receipt button added
+- Receipt cards: expand to see items, "Delete receipt" with confirm
+- Deleting a receipt recalculates spend totals immediately
+- Spend totals now calculated on sheet open AND after scan
+
+### Receipt scan pipeline (dedicated — single Sonnet call):
+- Image resized to 1200px wide JPEG via `expo-image-manipulator` (fixes HEIC from iOS camera)
+- HEIC → JPEG conversion in both scan pipeline and general `send()` flow
+- Single Sonnet call with receipt-specific prompt → structured JSON response
+- Extracts: store, purchase date, items (name/qty/price), total
+- **Pantry cross-check**: existing items → update `last_bought`, new items → add to pantry
+- **Shopping list tick-off**: only ticks items where `created_at < receipt_date` (items added after receipt = left on list)
+- Receipt saved to `receipts` table for Spend tab
+- Post-scan refresh: pantry + spend data + shopping list all refresh
+- Cost: ~A$0.02-0.04 per scan (single call vs old triple-call A$0.05)
+- Receipt date extraction prompt insists on reading actual printed date, not defaulting to today
+
+### Pantry scan pipeline (dedicated — single Sonnet call):
+- Same image resize/HEIC conversion
+- Extracts visible items → add/update pantry with today's date
+- Summary: "Found X items. Y refreshed, Z new."
+
+### AI shopping improvements:
+- `add_shopping_item` tool now checks for duplicates (existing list + pantry stock level)
+- Returns DUPLICATE: or PANTRY: warnings that AI relays naturally
+- Shopping context detection: checks for "Back to Full List"/"Add more items" chips on last Zaeli message (not just inline cards)
+- SHOPPING RULES in system prompt: one tool call per item, never write chips as markdown text
+- CURRENCY rule added: "Always Australian dollars (A$). Never £, US$, or bare $."
+- Inline shopping card removed after add actions — just text confirmation + chips
+- Chip text stripping: AI's markdown chip text cleaned from response, proper chips injected
+- Mic from shopping sheet routes through AI (not regex parsing) for smart multi-item parsing
+
+### Scroll arrows:
+- All 3 tabs have chat-style arrows: 38px white circles, side by side, shadow + border
+
+### Key patterns established:
+- `shopKbHeight` + `marginBottom` for keyboard in Modals (not KAV)
+- `shopPendingBought` Set + timers for tick/undo flow
+- `scanFromSheet()` dedicated pipeline pattern for vision tasks
+- `contextTrigger` counter for reliable cross-component sheet opening
+- Receipt date > item created_at comparison for smart tick-off
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -502,6 +582,7 @@ Phase 8d: Stretch sheet        ✅
 Phase 8e: Zen sheet            ✅
 Phase 8f: Wordle               ✅
 Phase 8g: Calendar/Shopping fix ✅
+Phase 10a: Shopping sheet      ✅ Full rebuild — List/Pantry/Spend all polished
 Phase 9a: Dashboard redesign   🔨 ← Claude Code next (zaeli-dashboard-redesign.html)
 Phase 9b: Meal Planner sheet   🔨 ← Claude Code next (zaeli-meals-mockup.html)
 Phase 9c: Camera/Upload        🔨 ← Claude Code next (zaeli-camera-upload.html)
