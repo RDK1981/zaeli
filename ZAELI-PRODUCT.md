@@ -1,34 +1,61 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 10 April 2026 (evening) — Sessions 7+8 ✅ · All My Space sheets · Wordle · Calendar/Shopping sheets fixed · Navigation unified*
+*Last updated: 13 April 2026 — Session 9 ✅ · Design session · Dashboard redesign · Meal Planner · Camera/Upload · AI Brief system · Zaeli persona · Model routing · Philosophy B locked*
 
 ---
 
 ## What Zaeli Is
 
-Zaeli is an iOS-first AI family life platform for Australian families with children. A switched-on family assistant that knows your family's life — through conversation, not data entry.
+Zaeli is an iOS-first AI family life platform for Australian families with children. An AI companion that knows your family's life — through conversation, not data entry. Zaeli speaks first. You respond. Everything else flows from that conversation.
 
-**Tagline:** Less chaos. More family.
+**Tagline:** Less Chaos. More Family.
+
+**Core positioning (LOCKED Session 9):** Zaeli is not competing with better calendars or better shopping apps. Zaeli is competing on *relationship*. Rich doesn't open Zaeli to check his calendar — he opens Zaeli to talk to someone who already knows what's going on and has been thinking about his family. That's a different category entirely.
 
 ---
 
-## Zaeli's Voice (LOCKED)
+## Philosophy B — AI First (LOCKED Session 9 ✅)
 
-Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle through delight, not detachment. Energy matches the moment: get-up-and-go in the morning, calm and settled at night.
+Every product decision flows from this: **Zaeli is an AI companion that also manages family life — not a family management platform that has AI.**
 
-**Hard rules:** Never 'mate'. Never starts with 'I'. Plain text only. Always ends on a confident offer.
-**Banned:** 'queued up', 'sorted', 'tidy', 'chaos', 'ambush', 'sprint', 'locked in', 'breathing room', 'quick wins', 'you've got this', 'make it count'.
+What this means in practice:
+- Chat is the product's beating heart, not a feature
+- Zaeli speaks first every time Rich opens the app — the conversation has already started
+- Dashboard is a reference layer, not the home
+- Zaeli Noticed is not a card — it's Zaeli being proactive
+- The brief is Zaeli's daily audition. Every morning she gets one chance to remind Rich why he pays $14.99/month.
+
+**The navigation architecture review** (Chat as home, Dashboard as left swipe) is deferred to Phase 2 — build with current working architecture and revisit with real usage data.
+
+---
+
+## Zaeli's Voice (LOCKED — expanded Session 9)
+
+Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle through delight, not detachment. Energy matches the moment — get-up-and-go in the morning, calm and settled at night.
+
+**The winning mantra:** Zaeli makes Rich feel capable, in control, and like he's winning at family life. This is the core emotional job. Not organisation. Not reminders. Winning.
+
+**Hard rules:** Never 'mate'. Never starts with 'I'. Plain text only. Always ends on a confident offer or warm close.
+
+**Active credit:** Zaeli uses first person for actions she took. "I've updated Gab's soccer" — not passive voice. She is an active participant, not a reporter.
+
+**Banned:** 'queued up', 'sorted', 'tidy', 'chaos', 'ambush', 'sprint', 'locked in', 'breathing room', 'quick wins', 'you've got this', 'make it count', 'absolutely', 'certainly', 'of course'.
+
+**Mini warmth rules:** GPT-5.4 mini responses must sound like Zaeli too. Never just confirms. Matches user energy. Closes casual exchanges with one warm line. Occasional acknowledgement of effort — "You've earned a quiet evening." Never manufactured, always earned.
 
 ---
 
 ## Target Market
 
 Australian families with children. Priority: dual-income metro couples with primary school-aged kids.
+
 **Revenue:** A$14.99/month family · A$9.99/child/month Tutor · 100% web sales.
+
+**Word of mouth is the primary growth mechanism.** People don't talk about apps — they talk about experiences that surprised them. Zaeli has to earn that surprise every single morning brief.
 
 ---
 
 ## ══════════════════════════════════
-## V5 INTERFACE PHILOSOPHY (LOCKED ✅)
+## INTERFACE PHILOSOPHY (LOCKED ✅)
 ## ══════════════════════════════════
 
 **Three screens. One FAB. No clutter.**
@@ -37,62 +64,115 @@ Australian families with children. Priority: dual-income metro couples with prim
 Dashboard (0)  →  Chat (1)  →  My Space (2)
 ```
 
-**Core UX principle:** Dashboard = read. Chat = do. My Space = me. 90% of activity stays in Chat.
+**Core UX principle:** Dashboard = glance. Chat = relationship. My Space = personal. Zaeli lives in Chat.
 
-### What's complete
-- ✅ ZaeliFAB — 5 buttons, ✦ My Space, forwardRef mic, user colour
-- ✅ Landing overlay — in swipe-world.tsx, user likes it, stays
-- ✅ swipe-world.tsx — horizontal container, dots, FAB, landing
-- ✅ Dashboard — all cards, peach brand, Zaeli brief, Zaeli Noticed AI
-- ✅ AI Zaeli Noticed — GPT mini, wttr.in weather, fires independently
-- ✅ All Dashboard → Chat context injection wired
-- ✅ Wordmark updated — Poppins_800ExtraBold, sky blue a+i
-- ✅ Brand pack — zaeli-brand-pack-2026.html
-- ✅ My Space — Phase 3b complete, all 7 cards, shell sheets
-- ✅ Chat v5 — splash removed, fixed input bar, send via onTouchStart
-- ✅ Dashboard↔Chat context flow — isActive prop, auto-refresh on swipe back
-- ✅ Full CRUD tools — calendar, todos, shopping, meals (add/update/delete via chat)
-- ✅ Meal clash detection — warns user before swapping existing meals
-- ✅ Chat mic + waveform — direct recording with floating pill
-- ✅ FAB mic → chat pipeline — transcript passes via pendingMicText prop
-- ✅ Design refresh — peach dashboard, lavender chat, My Space 6-card grid, briefs on all pages
-- ✅ **Session 6 — Design architecture session:**
-  - Dashboard card order revised and locked
-  - "Todos" renamed "Family Tasks" everywhere
-  - My Space Budget card removed
-  - Goals promoted to full width in My Space
-  - "Notes" renamed "Notes & Tasks" — dual tab sheet designed
-  - Our Budget module — full design complete (9 screen states, Claude Code spec)
-  - What If mode — sandbox income scenario modelling designed
-  - Naming conventions locked: Family Tasks · Notes & Tasks · Our Budget · Tasks
+---
 
-### Session 7 (10 April 2026) — all My Space sheets built:
-- ✅ Dashboard polish — text sizes, card labels 13px, tap hints 15px, Budget peach, Noticed "changes"
-- ✅ My Space polish — Fitness full-width, Goals inline, text consistency
-- ✅ Notes sheet — full editor, share toggle, send, lock/share icons, Supabase
-- ✅ Tasks tab — dual-tab Notes & Tasks, due date pills, checkboxes, Supabase
-- ✅ Goals module — 6 types, 5-step wizard, type-specific logging, milestones, Supabase
-- ✅ Fitness sheet — SVG progress ring, 3 metric pills, weekly bar chart, workouts, goal editor
-- ✅ Stretch sheet — duration + instructor picker, 6 verified YouTube videos, movements, mark done
-- ✅ Zen sheet — 4 mood tabs (amber/blue/green/purple), 12 sessions, hero with time-of-day, YouTube
-- ✅ Wordle — full playable game, 2309 words, date-seeded, Zaeli colour tiles, family leaderboard, Supabase
+## ══════════════════════════════════
+## AI BRIEF SYSTEM (Session 9 ✅)
+## ══════════════════════════════════
 
-### Session 8 (10 April 2026 evening):
-- ✅ Calendar sheet — collapsible cards, manual add stays in sheet, end time auto-fill, text sizes
-- ✅ Shopping sheet — crash fix, data loading fix, text size increase
-- ✅ Navigation unified — all router.navigate to dedicated pages removed, everything uses sheets/context
-- ✅ FAB More menu — Calendar + Shopping open sheets directly
-- ✅ Whisper "Zaeli" spelling correction
-- ✅ Meal/calendar clash awareness
-- ✅ Wordle — expanded word list (12,966), clean share format, bigger delete key
+Three proactive briefs per day — morning / midday / evening. Generated by Sonnet. Cached family-wide. Displayed as opening message in Chat when Rich opens the app.
 
-### Next priorities
-- 🔨 Test shopping sheet (items loading, add, check off, pantry)
-- 🔨 Meal Planner sheet (new build — 92% sheet over chat)
-- 🔨 Our Budget module (zaeli-budget-final.html — dedicated screen, big build)
-- 🔨 Dedicated pages (Kids Hub, Tutor, Our Family, Settings)
-- 🔨 EAS Build + HealthKit + embedded YouTube player
-- 🔨 Dashboard sheets (Family Tasks, Shopping, Calendar, Meals)
+**Brief firing logic:** Fires on app open if time window has changed AND there's been a natural break (app closed, or last message >15 min ago). Held if actively mid-conversation — fires on next open.
+
+**Time windows:** Morning 05:00–11:59 · Midday 12:00–16:59 · Evening 17:00–23:59
+
+**Format rules:**
+- Morning: max 120 words · open positively if warranted · today + overnight + tomorrow
+- Midday: max 80 words · acknowledge morning progress first · afternoon + dinner
+- Evening: max 90 words · NEVER open with a task · open with genuine day acknowledgement · max 2 chips
+
+**The winning mantra in briefs:**
+- Open with good news where true ("You're actually in good shape today")
+- Acknowledge what's been handled before listing what needs doing
+- Zaeli takes active credit ("I've already updated Gab's soccer")
+- Win banner (mint highlight) used max once per brief for genuine encouraging moments
+- Evening brief always acknowledges the day's effort genuinely
+
+**Caching:** Brief text saved to `zaeli_briefs` Supabase table, family-scoped. Prompt caching (Anthropic API) used on input tokens — ~90% cost reduction on repeated context.
+
+---
+
+## ══════════════════════════════════
+## MODEL ROUTING (Session 9 ✅)
+## ══════════════════════════════════
+
+```
+Sonnet 4.6      → briefs · vision · complex multi-tool · personality-heavy
+GPT-5.4 mini    → general chat · simple CRUD · confirmations
+GPT-4o-mini     → Zaeli Noticed ONLY (already working, don't change)
+Whisper-1       → voice transcription (unchanged)
+```
+
+**Cost:** ~$2.67/family/month with prompt caching (18% of revenue) at 1,500 calls/month stress test. Average family ~$1.35/month. Comfortable at $14.99 revenue.
+
+**Why GPT-5.4 mini not Haiku:** Benchmarks significantly higher on reasoning and general knowledge. Better conversational quality. At $0.75/$4.50 per M tokens, similar cost to Haiku but meaningfully better output for Zaeli's voice.
+
+---
+
+## ══════════════════════════════════
+## DASHBOARD — REDESIGNED (Session 9 ✅)
+## ══════════════════════════════════
+
+**5 clean rows — LOCKED:**
+1. **Calendar** — dark slate · full width · collapsed headline + events on expand
+2. **Meal Planner** — mint · full width · tonight's meal + week on expand · renamed from Dinner
+3. **Weather + Zaeli Noticed** — bento · Weather left · Zaeli Noticed RIGHT (promoted from bottom)
+4. **Shopping** — lavender · full width · unchanged
+5. **On the Radar** — gold · full width · personal + shared tasks due in 7 days · renamed from Family Tasks
+
+**Removed:** Our Budget tile (→ More sheet placeholder) · Zaeli brief card (→ Chat)
+**Promoted:** Zaeli Noticed from bottom bento to weather bento row
+**Renamed:** Family Tasks → "On the Radar" on Dashboard (My Space card still "Notes & Tasks")
+
+---
+
+## ══════════════════════════════════
+## CAMERA & UPLOAD (Session 9 ✅)
+## ══════════════════════════════════
+
+**Chat bar:** SVG camera icon (coral) inside right of text input. Taps open 92% action sheet: Take photo · Choose from library · Upload file. Image/file → Sonnet vision → conversational response.
+
+**FAB More sheet:** 3-column upload grid at top of More sheet. Same three options. After selection → navigate to Chat with image pre-loaded.
+
+**Permissions:** Request on first use only. Camera permission for camera. Library permission for library. Toast if denied.
+
+---
+
+## ══════════════════════════════════
+## MEAL PLANNER SHEET (Session 9 ✅)
+## ══════════════════════════════════
+
+Three tabs: **Meals · Recipes · Favourites**
+
+**Meals tab:** 7-day planner with today highlighted. Each day: meal name, cooking avatar(s), heart to favourite, Swap or + Add. Swap picker inline with Favourites + Move night tabs. Who's cooking picker with family colour circles.
+
+**Recipes tab:** + Add Recipe + Upload Recipe buttons. Search. 2-column grid. Tap → detail with pantry-aware ingredient list + "Send to shopping list" (cross-checks pantry, user can override status).
+
+**Favourites tab:** Same grid, hearted only. Empty state. Recipes saved from both Meals tab hearts and Recipes tab hearts.
+
+**Recipe upload:** Photo of recipe book via Sonnet vision → pre-filled form for review before saving.
+
+**Shopping list send:** Shows all ingredients with pantry status. User can tap "In pantry ✓" to override to "Adding →". Confirm button count updates live.
+
+**Reference:** `zaeli-meals-mockup.html` — 10 screen states + build notes
+
+---
+
+## ══════════════════════════════════
+## OUR BUDGET (Deferred — Session 9)
+## ══════════════════════════════════
+
+Deferred to Phase 2. Upload-only approach without live bank feeds not compelling enough for Dashboard real estate. Basiq enquiry sent — awaiting pricing response.
+
+**Current state:** "Coming soon" placeholder in FAB More sheet. Emerald identity `#059669` preserved.
+
+**When to build:** After Basiq (or alternative) pricing confirmed. Direct bank feeds are what make this feature genuinely magical. Upload-only is a half-feature.
+
+**Backup providers researched:** Frollo (enterprise-focused, likely expensive), Adatree, Moneytree. All require CDR accreditation. Basiq remains best fit for consumer fintech.
+
+**Reference:** `zaeli-budget-final.html` — full design + Claude Code spec ready when it's time.
 
 ---
 
@@ -109,38 +189,23 @@ Dashboard (0)  →  Chat (1)  →  My Space (2)
 Calendar · Shopping · Meal Planner · Family Tasks · Notes & Tasks · Travel
 
 **Dedicated full screens:**
-Tutor · Kids Hub · Our Family · Settings · **Our Budget** (new)
+Tutor · Kids Hub · Our Family · Settings · Our Budget (when built)
+
+**FAB More sheet contents:**
+Our Family · Tutor · Our Budget (coming soon) · Settings · Upload options (Take photo · Choose photo · Upload file)
 
 ---
 
 ## ══════════════════════════════════
-## DASHBOARD — CARD ORDER (LOCKED Session 6 ✅)
-## ══════════════════════════════════
-
-1. Calendar — slate `#3A3D4A` · full width
-2. Dinner/Meals — mint `#B8EDD0` · full width
-3. **2-col bento:** Weather + Our Budget (`#ECFDF5` emerald card)
-4. Shopping — lavender `#D8CCFF` · full width
-5. **2-col bento:** Zaeli Noticed (sage) + Family Tasks (gold `#F0DC80`)
-
-**Removed from previous design:** Todos as full-width card at bottom
-**Added:** Our Budget summary tile next to Weather
-
----
-
-## ══════════════════════════════════
-## MY SPACE — CARD ORDER (LOCKED Session 6 ✅)
+## MY SPACE — CARD ORDER (LOCKED ✅)
 ## ══════════════════════════════════
 
 1. Zaeli brief + quote (dark slate)
 2. Word of the Day (sage — inline expand only)
-3. **Goals — FULL WIDTH** (gold — promoted from 2-col)
+3. **Goals — FULL WIDTH** (gold)
 4. **2-col:** Fitness (slate) + Notes & Tasks (peach)
 5. **2-col:** Daily Stretch (sage) + Zen (light blue)
 6. Wordle — full width (lavender)
-
-**Removed:** Budget card (Budget lives only in Our Budget module)
-**Renamed:** Notes → Notes & Tasks (count shows `3 · 4` format)
 
 ---
 
@@ -149,108 +214,33 @@ Tutor · Kids Hub · Our Family · Settings · **Our Budget** (new)
 ## ══════════════════════════════════
 
 **The wordmark:** `zaeli` — Poppins_800ExtraBold
-**Per-screen tints:**
 - Dashboard: 'a' + 'i' = peach `#FAC8A8`
 - Chat: 'a' + 'i' = lavender `#C4B4FF`
 - My Space: 'a' + 'i' = sky blue `#A8D8F0`
-- Our Budget: 'a' + 'i' = emerald `#059669` (new)
+- Our Budget: 'a' + 'i' = emerald `#059669`
 
 ---
 
 ## ══════════════════════════════════
-## LANDING PAGE (LOCKED ✅ — keep as-is)
+## KEY PRODUCT MOMENTS
 ## ══════════════════════════════════
 
-Lives in `swipe-world.tsx`. Rich likes it — stays.
-`LANDING_TEST_MODE = true` — set false before launch.
+**The morning brief** — Zaeli has already been thinking about the family. "You're in good shape today." That's the word-of-mouth moment.
+
+**Zaeli takes credit** — "I've already moved Gab's soccer to Sunday." Not a notification. A partner.
+
+**The winning close** — "You've earned a quiet evening." Eight words. Rich reads it out to Anna when she gets home. That's the referral.
+
+**The pantry cross-check** — Rich finds a recipe, sends ingredients to the list, Zaeli already knows what's in the pantry. Only adds what's needed. Genuinely magical.
+
+**The all-done moment** — Everything handled. Calendar clear. Shopping sorted. Dinner planned. "Enjoy the evening." That exhale is the product working.
+
+**The casual reply** — Rich says "haha ok thanks" and Zaeli closes with "Enjoy lunch. You've got a good afternoon ahead." Nobody expects an AI to handle that well. That's the surprise.
 
 ---
 
 ## ══════════════════════════════════
-## OUR BUDGET MODULE (Design complete — Session 6)
-## ══════════════════════════════════
-
-**The most compelling daily-use module after Calendar.** Designed to give Australian families a real picture of their finances without the friction of traditional budgeting apps.
-
-**Colour identity:** Emerald `#059669` throughout.
-
-**Three tabs:** Overview · Categories · Savings Goals
-
-**Key differentiators vs other budget apps:**
-- Four upload methods — Share from bank app (iOS share extension), Paste from clipboard, Photo/screenshot, CSV/PDF. Priority is Share → Paste → Photo (not CSV-first like most apps)
-- Claude Vision reads statement screenshots — user just takes screenshots, no file management
-- Australian family template — includes school fees, childcare, HECS which generic templates miss
-- **What If mode** — sandbox scenario modelling: "What if I went part time?" "What if we paid off the car?" Instant recalculation, nothing saved, amber banner always visible
-- Savings Goals with Zaeli projections — honest about at-risk goals, constructive not alarming
-
-**Upload method priority (most → least friction):**
-1. Share from bank app (iOS share sheet → Zaeli)
-2. Paste from clipboard (copy statement → paste)
-3. Photo/screenshot (select from camera roll)
-4. CSV or PDF file (via Files app)
-
-**Statement review flow:**
-- Claude Sonnet categorises all transactions
-- Confident (≥80%) → auto-categorised list
-- Uncertain (<80%) → human picks category from tap-to-select
-- User confirms → saved to `budget_transactions`
-- Raw statement content never stored — privacy
-
-**What If mode:**
-- Income sliders per person
-- Toggle to remove fixed expenses
-- Instant recalculation of all budget ratios + goal projections
-- Zaeli summary from local templates — no API call
-- Amber banner always visible, zero Supabase writes
-
-**Build order:** Tables → Setup → Categories → Overview → Goals → Paste/Photo upload → Statement review → Income/What If → Share extension (last, needs EAS)
-
-**Reference:** `zaeli-budget-final.html` — full Claude Code handover with all 9 screen states + technical spec
-
----
-
-## ══════════════════════════════════
-## NOTES & TASKS (Design complete — Session 6)
-## ══════════════════════════════════
-
-**Context:** My Space personal card. Dual-tab sheet.
-
-**Notes tab:** Completely unchanged from current build.
-
-**Tasks tab (new):**
-- Personal tasks (member-scoped, not family-wide)
-- Sections: Today & overdue → Upcoming → Done
-- Circular checkboxes, due date pills (colour-coded), "from note" cross-reference tags
-- Zaeli nudge: scans note bodies for action keywords locally (no API), suggests creating task
-
-**Cross-reference magic:** Tasks can be linked to notes (linked_note_id FK). Notes tab shows nudge if action keyword found. Tasks tab shows "from note" tag. This is the AI bridging behaviour that makes it genuinely useful.
-
-**New Supabase table:** `personal_tasks` (member-scoped)
-
-**Reference:** `zaeli-restructure.html` — Claude Code modification brief included
-
----
-
-## ══════════════════════════════════
-## FAMILY TASKS vs NOTES & TASKS
-## ══════════════════════════════════
-
-Two distinct task contexts — this distinction is locked:
-
-| | Family Tasks | Notes & Tasks |
-|---|---|---|
-| Location | Dashboard bento tile | My Space card |
-| Scope | Family-wide (everyone sees) | Personal (Anna only) |
-| Examples | "Sign Duke's permission slip" "Call the plumber" | "Book dentist" "Order bathroom tiles" |
-| Colour | Gold `#F0DC80` | Peach `#FAC8A8` |
-| Supabase | Existing todos table | New `personal_tasks` table |
-
-The word "Tasks" is consistent across both. "Todos" is retired everywhere.
-
----
-
-## ══════════════════════════════════
-## FULL PROJECT PLAN (Updated 9 April 2026)
+## FULL PROJECT PLAN (Updated 13 April 2026)
 ## ══════════════════════════════════
 
 ### Phase A — Make it solid
@@ -258,41 +248,46 @@ The word "Tasks" is consistent across both. "Todos" is retired everywhere.
 2. ✅ Fix weather (wttr.in)
 3. ✅ Fix Chat interface — context flow, CRUD tools, mic, UI
 4. ✅ Design refresh — all 3 pages, briefs, 6-card grid
-5. ✅ Design architecture session — Dashboard restructure, My Space reshuffle, Notes & Tasks, Our Budget
-6. 🔨 Dashboard restructure (Claude Code — zaeli-restructure.html)
-7. 🔨 My Space reshuffle (Claude Code — zaeli-restructure.html)
-8. 🔨 Notes & Tasks dual-tab sheet (Claude Code — zaeli-restructure.html)
-9. 🔨 My Space sheet content (Fitness, Goals, Notes, Stretch, Zen, Wordle)
+5. ✅ All My Space sheets built (Notes, Tasks, Goals, Fitness, Stretch, Zen, Wordle)
+6. ✅ Calendar + Shopping sheets fixed
+7. ✅ Navigation unified
+8. ✅ Dashboard redesign locked (Session 9)
+9. ✅ Meal Planner sheet designed (Session 9)
+10. ✅ Camera/Upload designed (Session 9)
+11. ✅ AI Brief system designed (Session 9)
+12. ✅ Zaeli persona + model routing locked (Session 9)
+13. 🔨 Dashboard redesign build (zaeli-dashboard-redesign.html)
+14. 🔨 Meal Planner sheet build (zaeli-meals-mockup.html)
+15. 🔨 Camera/Upload build (zaeli-camera-upload.html)
+16. 🔨 AI Brief system implementation (Sonnet briefs, GPT-5.4 mini routing)
 
 ### Phase B — Make it testable
-10. 🔨 Our Budget module — full build (zaeli-budget-final.html)
-11. 🔨 Real authentication (replace DUMMY_FAMILY_ID)
-12. 🔨 EAS build + TestFlight
-13. 🔨 `LANDING_TEST_MODE = false`
-14. 🔨 Kids Hub — dedicated screen
-15. 🔨 Tutor rebuild — dedicated screen
-16. 🔨 Our Family module
-17. 🔨 Settings (account, family members, subscription)
-18. 🔨 Dashboard sheets (Family Tasks, Shopping, Calendar, Meals)
+17. 🔨 Real authentication (replace DUMMY_FAMILY_ID)
+18. 🔨 EAS build + TestFlight
+19. 🔨 LANDING_TEST_MODE = false
+20. 🔨 Kids Hub — dedicated screen
+21. 🔨 Tutor rebuild — dedicated screen
+22. 🔨 Our Family module
+23. 🔨 Settings (account, family members, subscription)
+24. 🔨 Our Budget — if Basiq confirmed
+25. 🔨 Nav architecture review (with real usage data)
 
 ### Phase C — Make it launchable
-19. 🔨 Zaeli Voice (ElevenLabs)
-20. 🔨 Push notifications
-21. 🔨 Gmail + Outlook Calendar integration
-22. 🔨 Spoonacular integration (meals data)
-23. 🔨 Zaeli Persona review + memory
-24. 🔨 Interactive onboarding module
-25. 🔨 Website + Stripe + web signup flow
-26. 🔨 Admin console updates + billing
+26. 🔨 Zaeli Voice (ElevenLabs)
+27. 🔨 Push notifications (daily brief trigger)
+28. 🔨 Gmail + Outlook Calendar integration
+29. 🔨 Spoonacular integration (Recipes tab)
+30. 🔨 Interactive onboarding
+31. 🔨 Website + Stripe + web signup flow
+32. 🔨 Admin console updates + billing
 
 ### Phase D — Scale
-27. 🔨 Live testing with 10 families
-28. 🔨 Analytics
-29. 🔨 Data export / GDPR compliance
-30. 🔨 Multi-user real-time sync
-31. 🔨 App Store submission
-32. 🔨 Offline mode (post-launch)
-33. 🔨 Backup / restore
+33. 🔨 Live testing with 10 families
+34. 🔨 Analytics
+35. 🔨 Data export / GDPR compliance
+36. 🔨 Multi-user real-time sync
+37. 🔨 App Store submission
+38. 🔨 Offline mode (post-launch)
 
 ---
 
@@ -302,68 +297,50 @@ The word "Tasks" is consistent across both. "Todos" is retired everywhere.
 - [x] ZaeliFAB ✅
 - [x] Landing overlay ✅
 - [x] Dashboard — all cards ✅
-- [x] Dashboard stress testing ✅
 - [x] Dashboard → Chat context injection ✅
 - [x] swipe-world.tsx container ✅
 - [x] Wordmark updated ✅
-- [x] Brand pack ✅
-- [x] My Space — all 7 cards, shell sheets ✅
+- [x] My Space — all 7 cards + full sheets ✅
 - [x] AI Zaeli Noticed (GPT mini) ✅
 - [x] Weather switched to wttr.in ✅
-- [x] Chat interface — context flow, CRUD tools, mic, UI ✅
+- [x] Chat interface — context flow, CRUD tools, mic ✅
 - [x] Design refresh — all 3 pages ✅
-- [x] Dashboard restructure — design locked ✅
-- [x] My Space reshuffle — design locked ✅
-- [x] Notes & Tasks — design locked ✅
-- [x] Our Budget — full design + Claude Code spec ✅
-- [ ] Dashboard restructure — build
-- [ ] My Space reshuffle — build
-- [ ] Notes & Tasks dual-tab — build (personal_tasks table)
-- [ ] My Space sheet content (Fitness, Goals, Stretch, Zen, Wordle)
-- [ ] Our Budget module — full build (5 Supabase tables + 9 screens)
-- [ ] Family Tasks sheet (renamed from Todos)
-- [ ] Shopping sheet
-- [ ] Calendar sheet
-- [ ] Meals sheet
-- [ ] Travel sheet
+- [x] Calendar sheet fixed ✅
+- [x] Shopping sheet fixed ✅
+- [x] Navigation unified ✅
+- [x] Dashboard redesign — design locked ✅
+- [x] Meal Planner sheet — design locked ✅
+- [x] Camera/Upload — design locked ✅
+- [x] AI Brief system — design locked ✅
+- [x] Zaeli persona + model routing — locked ✅
+- [x] Philosophy B — locked ✅
+- [ ] Dashboard redesign — build
+- [ ] Meal Planner sheet — build
+- [ ] Camera/Upload — build
+- [ ] AI Brief system — implement
+- [ ] GPT-5.4 mini routing — implement
+- [ ] zaeli_briefs Supabase table
+- [ ] recipes + meal_plan Supabase tables
 - [ ] Real authentication
 - [ ] EAS build · TestFlight
-- [ ] `LANDING_TEST_MODE = false`
+- [ ] LANDING_TEST_MODE = false
 - [ ] Kids Hub
 - [ ] Tutor rebuild
 - [ ] Our Family
 - [ ] Settings
+- [ ] Our Budget (pending Basiq)
 - [ ] Zaeli Voice (ElevenLabs)
 - [ ] Push notifications
 - [ ] Gmail + Outlook Calendar integration
 - [ ] Spoonacular integration
-- [ ] Zaeli Persona review + memory
 - [ ] Interactive onboarding
 - [ ] Website + Stripe + web signup
-- [ ] Admin console updates + billing
-- [ ] HealthKit (My Space Fitness card)
-- [ ] WotD rotating word list (My Space)
-- [ ] expo-audio for Zen card
-- [ ] Supabase `goals` table
-- [ ] personal_tasks table (session 6 ✅ designed)
-- [ ] budget_settings / income_streams / budget_categories / budget_transactions / savings_goals tables (session 6 ✅ designed)
-- [ ] Wordle game logic
+- [ ] HealthKit (Fitness sheet — EAS build)
+- [ ] YouTube embedded player (Stretch + Zen — EAS build)
+- [ ] Wordle cross-family challenges (after real auth)
 - [ ] Live testing with 10 families
 - [ ] Analytics
 - [ ] GDPR / data export
 - [ ] Multi-user sync
 - [ ] App Store submission
 - [ ] Offline mode
-
----
-
-## Key Product Moments
-
-**The landing** — Dark overlay, wordmark, tap to continue. Earns its moment 3x/day.
-**The dashboard** — One sentence per card. Tap to reveal. Editorial, not widget-like.
-**Zaeli noticed** — "Poppy's assignment is due tomorrow." Zaeli knew before you asked.
-**My Space** — Anna's world. Steps, goals, word, tasks, calm, Wordle. One swipe right.
-**Dashboard → Chat** — Tap a card, Zaeli has context, keyboard ready. Seamless.
-**The sheet** — Slides up over Chat. Data without leaving the conversation.
-**Our Budget What If** — "What if I went part time?" Instant honest answer. No judgment.
-**The all-done moment** — Everything handled. "Enjoy the evening."
