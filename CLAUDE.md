@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 13 April 2026 — Session 10 ✅ · Shopping sheet complete · Receipt/Pantry scan pipeline · Duplicate checking · Tick/undo flow · HEIC fix · contextTrigger nav fix*
+*Last updated: 13 April 2026 — Session 10 ✅ · Shopping complete · Meal Planner sheet built · Receipt/Pantry scan · contextTrigger nav fix*
 
 ---
 
@@ -560,6 +560,83 @@ Full build session — Shopping sheet polished to production quality across all 
 
 ---
 
+## ══════════════════════════════════
+## SESSION 10b — MEAL PLANNER SHEET (13 April 2026 evening) ✅
+## ══════════════════════════════════
+
+Full Meal Planner 92% sheet built inside index.tsx. Same Modal pattern as Shopping.
+
+### Meals tab (7-day planner):
+- Day cards Mon–Sun with date label, meal name or "Nothing planned"
+- Today: mint border + mint bg + "Tonight" badge (12px)
+- Cook avatars: 28px family colour circles, tap to open cook picker
+- Heart toggle on meals (persists via recipes tags)
+- "Swap" button (open inline swap picker) or "+ Add" (same picker for empty days)
+- Tap meal name → opens recipe detail
+
+### Swap picker (inline below day card):
+- Two sub-tabs: "❤️ Favourites" | "📅 Move night"
+- Favourites: list favourite recipes as pick options + free-type input + "Set" button
+- Move night: 7 day buttons, empty in mint, occupied show meal name. Tap to swap/move.
+
+### Cook picker overlay:
+- Family circles (56px, tap to toggle, green check on selected)
+- Save → checks if kid selected → triggers kids job popup
+
+### Kids job popup:
+- "Create a job for [KidName]?" with point pills (5/10/15/Custom)
+- Saves to `kids_jobs` Supabase table (family_id, child_name, title, points, source, linked_date)
+
+### Recipes tab:
+- "+ Add Recipe" (mint primary) + "Upload Recipe" (mint secondary) buttons
+- Search bar, 2-column recipe grid (emoji thumb, name, cook time, heart)
+- Tap recipe → recipe detail
+
+### Favourites tab:
+- Same grid filtered to `is_favourite` (via tags array containing 'favourite')
+- Empty state with 🤍 icon
+
+### Add recipe form:
+- Name, cook time, ingredients (multiline, one per line), method (multiline)
+- Save button → inserts to `recipes` table (stores ingredients/method in `notes` field)
+
+### Upload recipe (multi-image):
+- Camera + library buttons, multi-select from library (`allowsMultipleSelection: true`)
+- Collect multiple photos (thumbnails with ✕ remove)
+- "Scan X photos with Zaeli" → single Sonnet call with all images → pre-fills form
+
+### Recipe detail:
+- Emoji hero banner (120px, mint bg)
+- Title, meta pills (time/serves/difficulty)
+- Action buttons: "+ Meal plan" + "🛒 Shopping list"
+- "Edit recipe" button → same form layout pre-filled, saves updates
+- Ingredients with pantry status badges (In pantry ✓ / Need to buy)
+- Numbered method steps with mint circle numbers
+- Delete recipe option
+
+### Send to list (pantry cross-check):
+- Three-state badges — all tappable:
+  - "In pantry ✓" (green) → "Adding →" (coral) → "Skipping" (grey, strikethrough)
+- Dynamic confirm button count
+- Batch insert to shopping_items
+
+### Navigation:
+- `meals_sheet` context type added to contextTrigger, isActive, and useFocusEffect handlers
+- Dashboard dinner card → opens meal sheet directly
+- FAB More "Meals" → opens meal sheet directly
+- "Open Meal Planner" chip → opens meal sheet
+- Dynamic header: back arrow ← on sub-views, heart toggle on recipe detail
+
+### Supabase schema notes:
+- `recipes` table: uses `prep_mins` (not cook_time), `notes` (stores ingredients + method as text), `tags` (array, 'favourite' tag for favourites)
+- `meal_plans` table: uses `source` field to store cook_ids as JSON. No cook_ids or is_favourite columns.
+- `kids_jobs` table: NEW — id, family_id, child_name, title, points, source, linked_date, is_complete, created_at
+
+### Chat bar fix:
+- Added `inputRef.current?.clear()` as native backup on send (onTouchStart + onSubmitEditing) to prevent text sticking
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -583,6 +660,7 @@ Phase 8e: Zen sheet            ✅
 Phase 8f: Wordle               ✅
 Phase 8g: Calendar/Shopping fix ✅
 Phase 10a: Shopping sheet      ✅ Full rebuild — List/Pantry/Spend all polished
+Phase 10b: Meal Planner sheet  ✅ 3 tabs, 7-day planner, recipes, favourites, cook picker, kids jobs
 Phase 9a: Dashboard redesign   🔨 ← Claude Code next (zaeli-dashboard-redesign.html)
 Phase 9b: Meal Planner sheet   🔨 ← Claude Code next (zaeli-meals-mockup.html)
 Phase 9c: Camera/Upload        🔨 ← Claude Code next (zaeli-camera-upload.html)

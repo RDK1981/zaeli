@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*13 April 2026 — Session 10 ✅ · Shopping sheet complete · Receipt/Pantry scan · Duplicate checking · Tick/undo · contextTrigger nav fix*
+*13 April 2026 — Session 10 ✅ · Shopping complete · Meal Planner sheet built · Receipt/Pantry scan · Kids jobs · contextTrigger nav fix*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -29,6 +29,17 @@ Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 - **Pantry scan pipeline**: single Sonnet call, add/update pantry items
 - **HEIC fix**: expo-image-manipulator converts iOS HEIC → JPEG before API calls
 - **Share button**: header icon, formats list as text for SMS/copy
+
+### Meal Planner sheet (Session 10 — BUILT, stress testing):
+- **Meals tab**: 7-day planner, today mint highlight, cook avatars (28px), heart favourite, Swap/+Add, inline swap picker (Favourites + Move night)
+- **Cook picker**: family circles, kids job popup (5/10/15/custom points → `kids_jobs` table)
+- **Recipes tab**: Add + Upload buttons, search, 2-column grid, heart toggle
+- **Favourites tab**: filtered grid, empty state
+- **Add recipe form**: name, cook time, ingredients, method → saves to `recipes` (notes field)
+- **Upload recipe**: multi-image (camera + library multi-select), single Sonnet call combines all pages
+- **Recipe detail**: hero, meta pills, Edit button (same form pre-filled), ingredients with pantry status, method steps
+- **Send to list**: 3-state tappable badges (Adding → Skipping → In pantry), dynamic count, batch add to shopping
+- **Supabase**: `recipes` uses prep_mins/notes/tags, `meal_plans` stores cooks in source field as JSON, `kids_jobs` NEW table
 
 ### Infrastructure:
 - Context flow: isActive prop + contextTrigger counter from swipe-world (fixes scroll race condition)
@@ -117,7 +128,7 @@ Upload-only approach without live bank feeds not compelling enough for Dashboard
 
 **Immediate — Claude Code with handover files:**
 1. ✅ **Shopping sheet** — COMPLETE (Session 10)
-2. **Meal Planner sheet** — 3 tabs, swap/move, who's cooking, recipe upload (`zaeli-meals-mockup.html`)
+2. ✅ **Meal Planner sheet** — BUILT (Session 10) — stress testing in progress
 3. **Dashboard redesign** — 5 clean rows, On the Radar card, Our Budget removed (`zaeli-dashboard-redesign.html`)
 4. **Camera/Upload** — chat bar icon + FAB More sheet (`zaeli-camera-upload.html`)
 5. **AI Brief system** — implement Sonnet briefs, GPT-5.4 mini routing, `zaeli_briefs` table (`zaeli-brief-examples.html`)
@@ -204,6 +215,11 @@ Supabase (meals)     →  meal_plan         (family-scoped, NEW session 9)
 - HEIC → JPEG via expo-image-manipulator before any API call
 - Currency = A$ always (system prompt CURRENCY rule)
 - Pantry limit = 500 (not 100)
+- recipes table = prep_mins (NOT cook_time), notes (stores ingredients+method as text), tags (array)
+- meal_plans table = NO cook_ids or is_favourite columns. Cooks stored in source field as JSON.
+- kids_jobs table = NEW (family_id, child_name, title, points, source, linked_date, is_complete)
+- Meal sheet entry = meals_sheet context type (same pattern as shopping_sheet/calendar_sheet)
+- Chat bar clear = setInput('') + inputRef.current?.clear() (native backup)
 
 ---
 

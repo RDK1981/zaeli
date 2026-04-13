@@ -108,7 +108,13 @@ export default function SwipeWorld() {
       scrollToPage(PAGE_CHAT);
       return;
     }
-    const sheetKeys = ['meals', 'todos', 'notes', 'travel'];
+    if (key === 'meals') {
+      setPendingChatContext({ type:'meals_sheet' as any, returnTo:'dashboard' } as any);
+      setContextTrigger(c => c + 1);
+      scrollToPage(PAGE_CHAT);
+      return;
+    }
+    const sheetKeys = ['todos', 'notes', 'travel'];
     if (sheetKeys.includes(key)) {
       scrollToPage(PAGE_CHAT);
       return;

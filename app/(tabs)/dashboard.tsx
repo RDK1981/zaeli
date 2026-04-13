@@ -1075,7 +1075,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false, onCo
             showTomorrow={showDinnerTomorrow}
             expanded={expandedCard === 'dinner'}
             onToggleExpand={() => toggleCard('dinner')}
-            onPlanMeals={() => { setPendingChatContext({ type:'meals' as any, event:{ meal:null, dateKey:'', dayAbbr:'this week' }, returnTo:'dashboard' }); onNavigateChat?.(); }}
+            onPlanMeals={() => { setPendingChatContext({ type:'meals_sheet' as any, returnTo:'dashboard' }); onContextTrigger?.(); onNavigateChat?.(); }}
             onEditMeal={goToEditMeal}
           />
         </Animated.View>

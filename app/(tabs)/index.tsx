@@ -74,6 +74,12 @@ const T = {
 const CAL_AI = '#F0C8C0';
 const CAL_BG = '#B8EDD0';
 
+// ── Meal Planner colours ──────────────────────────────────────────────────
+const MEAL_MINT       = '#B8EDD0';
+const MEAL_MINT_TEXT  = '#2D7A52';
+const MEAL_MINT_DEEP  = '#1A6640';
+const MEAL_MINT_LIGHT = 'rgba(184,237,208,0.35)';
+
 // ── Shopping colours ───────────────────────────────────────────────────────
 const SHOP_C      = '#D8CCFF';               // lavender — inline card bg
 const SHOP_ACCENT = '#5020C0';               // deep purple — text on card
@@ -2761,6 +2767,31 @@ function HomeScreen({
   const [shopScanPickerOpen, setShopScanPickerOpen] = useState(false);
   const [shopScanMode,       setShopScanMode]       = useState<'receipt'|'pantry'>('receipt');
 
+  // ── Meal Planner sheet state ──────────────────────────────────────────────
+  const [mealSheetOpen,      setMealSheetOpen]      = useState(false);
+  const [mealSheetTab,       setMealSheetTab]       = useState<'meals'|'recipes'|'favourites'>('meals');
+  const [mealSheetPlans,     setMealSheetPlans]     = useState<any[]>([]);
+  const [mealSheetRecipes,   setMealSheetRecipes]   = useState<any[]>([]);
+  const [mealSwapDay,        setMealSwapDay]        = useState<{dayKey:string;dayLabel:string;mealId?:string;mealName?:string}|null>(null);
+  const [mealSwapMode,       setMealSwapMode]       = useState<'favourites'|'move'>('favourites');
+  const [mealSwapInput,      setMealSwapInput]      = useState('');
+  const [mealCookPicker,     setMealCookPicker]     = useState<{dayKey:string;mealId:string;mealName:string}|null>(null);
+  const [mealCookSelected,   setMealCookSelected]   = useState<string[]>([]);
+  const [mealKidJobPopup,    setMealKidJobPopup]    = useState<{kidId:string;kidName:string;mealName:string;dayKey:string}|null>(null);
+  const [mealKidJobPoints,   setMealKidJobPoints]   = useState(10);
+  const [mealRecipeDetail,   setMealRecipeDetail]   = useState<any|null>(null);
+  const [mealAddRecipeMode,  setMealAddRecipeMode]  = useState<'closed'|'form'|'upload'|'scanning'>('closed');
+  const [mealSendToList,     setMealSendToList]     = useState<any|null>(null);
+  const [mealSearchText,     setMealSearchText]     = useState('');
+  const [mealAddName,        setMealAddName]        = useState('');
+  const [mealAddTime,        setMealAddTime]        = useState('');
+  const [mealAddIngredients, setMealAddIngredients] = useState('');
+  const [mealAddMethod,      setMealAddMethod]      = useState('');
+  const [mealSaving,         setMealSaving]         = useState(false);
+  const [mealEditingRecipe,  setMealEditingRecipe]  = useState(false);
+  const [mealUploadImages,   setMealUploadImages]   = useState<string[]>([]); // collected image URIs for recipe upload
+  const mealScrollRef        = useRef<ScrollView>(null);
+
   // Track keyboard height for shopping sheet (KAV doesn't work in Modals)
   useEffect(() => {
     const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
@@ -3584,6 +3615,12 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         return;
       }
 
+      if ((ctx.type as string) === 'meals_sheet') {
+        setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+        setTimeout(() => openMealSheet('meals'), 300);
+        return;
+      }
+
       if (ctx.type === 'actions') {
         const todo = ctx.event as any;
         let prompt: string;
@@ -3776,6 +3813,12 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
       return;
     }
 
+    if ((ctx.type as string) === 'meals_sheet') {
+      setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+      setTimeout(() => openMealSheet('meals'), 300);
+      return;
+    }
+
     if (ctx.type === 'actions') {
       const todo = ctx.event as any;
       let prompt: string;
@@ -3839,6 +3882,10 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
       setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today'), 300);
       return;
     }
+    if ((ctx.type as string) === 'meals_sheet') {
+      setTimeout(() => openMealSheet('meals'), 300);
+      return;
+    }
   }, [contextTrigger]);
 
   // ── Handle FAB mic transcript from dashboard/myspace ──
@@ -3855,8 +3902,7 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
 
   function handleQuickReply(chip: string) {
     if (chip === 'Open Meal Planner') {
-      // TODO: open Meal Planner sheet when built
-      send('Show me the meal plan for this week');
+      openMealSheet('meals');
       return;
     }
     if (chip === 'Open Shopping List' || chip === 'Back to Full List') {
@@ -4485,6 +4531,242 @@ Only include events directly relevant to the question. Max 5 events.`;
   }
 
   // Render a single shopping list item in the sheet (with expand/delete)
+  // ══════════════════════════════════════════════════════════════════════════
+  // ── MEAL PLANNER SHEET — functions ─────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
+
+  function getMealWeekDays(): { date: Date; key: string; dayName: string; dayNum: number; isToday: boolean }[] {
+    const today = new Date();
+    const todayStr = localDateStr();
+    // Start from Monday of current week
+    const dow = today.getDay(); // 0=Sun
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() + mondayOffset + i);
+      const key = localDateStr(d);
+      return {
+        date: d,
+        key,
+        dayName: ['SUN','MON','TUE','WED','THU','FRI','SAT'][d.getDay()],
+        dayNum: d.getDate(),
+        isToday: key === todayStr,
+      };
+    });
+  }
+
+  async function openMealSheet(tab: 'meals'|'recipes'|'favourites' = 'meals') {
+    setMealSheetTab(tab);
+    setMealSwapDay(null);
+    setMealCookPicker(null);
+    setMealRecipeDetail(null);
+    setMealAddRecipeMode('closed');
+    setMealSendToList(null);
+    setMealSearchText('');
+    setMealSheetOpen(true);
+    await refreshMealData();
+  }
+
+  async function refreshMealData() {
+    try {
+      const days = getMealWeekDays();
+      const keys = days.map(d => d.key);
+      const [plansRes, recipesRes] = await Promise.all([
+        supabase.from('meal_plans').select('*').eq('family_id', FAMILY_ID).in('day_key', keys).order('created_at', { ascending: true }),
+        supabase.from('recipes').select('id,name,source_type,prep_mins,notes,tags,family_id,created_at').eq('family_id', FAMILY_ID).order('created_at', { ascending: false }).limit(100),
+      ]);
+      setMealSheetPlans(plansRes.data ?? []);
+      // Enrich recipes with parsed data for the UI
+      const enriched = (recipesRes.data ?? []).map((r:any) => {
+        const notes = r.notes || '';
+        const ingMatch = notes.match(/INGREDIENTS:\n([\s\S]*?)(?=\n\nMETHOD:|$)/);
+        const methMatch = notes.match(/METHOD:\n([\s\S]*?)$/);
+        const ingredients = ingMatch ? ingMatch[1].split('\n').filter((l:string) => l.trim()).map((l:string) => ({ name: l.trim(), qty: '' })) : [];
+        const method = methMatch ? methMatch[1].split('\n').filter((l:string) => l.trim()).map((l:string) => l.replace(/^\d+\.\s*/, '').trim()) : [];
+        // Check if name is in favourited meals
+        const isFav = mealSheetPlans.some((p:any) => p.is_favourite && p.meal_name?.toLowerCase() === r.name?.toLowerCase());
+        return { ...r, emoji: getMealEmoji(r.name), cook_time: r.prep_mins, ingredients, method, is_favourite: isFav || (r.tags || []).includes('favourite') };
+      });
+      setMealSheetRecipes(enriched);
+    } catch (e) { console.log('mealSheet load error:', e); }
+  }
+
+  // ── Meal CRUD ──
+  async function addMealToDay(dayKeyStr: string, mealName: string) {
+    try {
+      console.log('[meal] Adding meal:', mealName, 'to', dayKeyStr);
+      await supabase.from('meal_plans').delete().eq('family_id', FAMILY_ID).eq('day_key', dayKeyStr);
+      const { error } = await supabase.from('meal_plans').insert({
+        family_id: FAMILY_ID, meal_name: mealName, planned_date: dayKeyStr, day_key: dayKeyStr,
+        meal_type: 'dinner', source: 'manual',
+      });
+      if (error) { console.error('[meal] addMealToDay Supabase error:', error.message, error.details); return; }
+      console.log('[meal] Meal added OK');
+      await refreshMealData();
+    } catch (e) { console.log('addMealToDay error:', e); }
+  }
+
+  async function removeMealFromDay(dayKey: string) {
+    try {
+      await supabase.from('meal_plans').delete().eq('family_id', FAMILY_ID).eq('day_key', dayKey);
+      await refreshMealData();
+    } catch (e) { console.log('removeMealFromDay error:', e); }
+  }
+
+  async function swapMeals(dayKey1: string, dayKey2: string) {
+    try {
+      const plan1 = mealSheetPlans.find((p:any) => p.day_key === dayKey1);
+      const plan2 = mealSheetPlans.find((p:any) => p.day_key === dayKey2);
+      if (plan1 && plan2) {
+        // Both have meals — swap names
+        await Promise.all([
+          supabase.from('meal_plans').update({ meal_name: plan2.meal_name }).eq('id', plan1.id),
+          supabase.from('meal_plans').update({ meal_name: plan1.meal_name }).eq('id', plan2.id),
+        ]);
+      } else if (plan1 && !plan2) {
+        await supabase.from('meal_plans').update({ day_key: dayKey2, planned_date: dayKey2 }).eq('id', plan1.id);
+      } else if (!plan1 && plan2) {
+        await supabase.from('meal_plans').update({ day_key: dayKey1, planned_date: dayKey1 }).eq('id', plan2.id);
+      }
+      setMealSwapDay(null);
+      await refreshMealData();
+    } catch (e) { console.log('swapMeals error:', e); }
+  }
+
+  async function updateMealCooks(mealId: string, cookIds: string[]) {
+    // meal_plans table doesn't have cook_ids column yet — store in source field as JSON for now
+    try {
+      await supabase.from('meal_plans').update({ source: JSON.stringify({ cooks: cookIds }) }).eq('id', mealId);
+      // Optimistic update
+      setMealSheetPlans(prev => prev.map((p:any) => p.id === mealId ? { ...p, _cooks: cookIds } : p));
+    } catch (e) { console.log('updateMealCooks error:', e); }
+  }
+
+  async function toggleMealFavourite(mealId: string, currentFav: boolean) {
+    // No is_favourite on meal_plans — toggle recipe favourite via tags instead
+    try {
+      const plan = mealSheetPlans.find((p:any) => p.id === mealId);
+      if (!plan) return;
+      // Find or create matching recipe, toggle its favourite tag
+      const recipe = mealSheetRecipes.find((r:any) => r.name?.toLowerCase() === plan.meal_name?.toLowerCase());
+      if (recipe) {
+        await toggleRecipeFavourite(recipe.id, currentFav);
+      } else {
+        // Create recipe entry and mark as favourite
+        await supabase.from('recipes').insert({ family_id: FAMILY_ID, name: plan.meal_name, source_type: 'manual', tags: ['favourite'] });
+        await refreshMealData();
+      }
+      // Optimistic update on plans
+      setMealSheetPlans(prev => prev.map((p:any) => p.id === mealId ? { ...p, _isFav: !currentFav } : p));
+    } catch (e) { console.log('toggleMealFav error:', e); }
+  }
+
+  async function saveRecipe(data: { name:string; cook_time?:number; ingredients?:any[]; method?:any[]; source_type?:string }) {
+    try {
+      console.log('[meal] Saving recipe:', data.name);
+      // recipes table has: name, source_type, prep_mins, notes, tags, family_id
+      // Store ingredients + method in notes as formatted text
+      const notesParts: string[] = [];
+      if (data.ingredients?.length) notesParts.push('INGREDIENTS:\n' + data.ingredients.map((i:any) => typeof i === 'string' ? i : i.name + (i.qty ? ` (${i.qty})` : '')).join('\n'));
+      if (data.method?.length) notesParts.push('METHOD:\n' + data.method.map((s:any, i:number) => `${i+1}. ${typeof s === 'string' ? s : s.text || s}`).join('\n'));
+      const { error } = await supabase.from('recipes').insert({
+        family_id: FAMILY_ID, name: data.name,
+        prep_mins: data.cook_time || null,
+        source_type: data.source_type || 'manual',
+        notes: notesParts.join('\n\n') || null,
+        tags: [],
+      });
+      if (error) { console.error('[meal] saveRecipe Supabase error:', error.message, error.details); return; }
+      console.log('[meal] Recipe saved OK');
+      await refreshMealData();
+    } catch (e) { console.error('[meal] saveRecipe error:', e); }
+  }
+
+  async function toggleRecipeFavourite(recipeId: string, currentFav: boolean) {
+    try {
+      // Use tags array to track favourite status (no is_favourite column)
+      const recipe = mealSheetRecipes.find((r:any) => r.id === recipeId);
+      const tags: string[] = recipe?.tags || [];
+      const newTags = currentFav ? tags.filter((t:string) => t !== 'favourite') : [...tags, 'favourite'];
+      await supabase.from('recipes').update({ tags: newTags }).eq('id', recipeId);
+      // Optimistic update
+      setMealSheetRecipes(prev => prev.map((r:any) => r.id === recipeId ? { ...r, is_favourite: !currentFav, tags: newTags } : r));
+    } catch (e) { console.log('toggleRecipeFav error:', e); }
+  }
+
+  async function deleteRecipe(recipeId: string) {
+    try {
+      await supabase.from('recipes').delete().eq('id', recipeId);
+      await refreshMealData();
+    } catch (e) { console.log('deleteRecipe error:', e); }
+  }
+
+  async function createKidJob(kidName: string, title: string, points: number, linkedDate: string) {
+    try {
+      await supabase.from('kids_jobs').insert({
+        family_id: FAMILY_ID, child_name: kidName, title, points, source: 'meals', linked_date: linkedDate, is_complete: false,
+      });
+    } catch (e) { console.log('createKidJob error:', e); }
+  }
+
+  async function handleRecipeUpload(uris: string[]) {
+    setMealAddRecipeMode('scanning');
+    try {
+      // Resize all images to JPEG
+      const imageContents: any[] = [];
+      for (const uri of uris) {
+        const resized = await manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.7, format: SaveFormat.JPEG });
+        const imageBase64 = await FileSystem.readAsStringAsync(resized.uri, { encoding:'base64' as any });
+        imageContents.push({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:imageBase64 } });
+      }
+      const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+      if (!claudeKey) { setMealAddRecipeMode('form'); return; }
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
+        body:JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:1500,
+          messages:[{ role:'user', content:[
+            ...imageContents,
+            { type:'text', text:`Extract the recipe from ${uris.length > 1 ? 'these images (they may be different pages of the same recipe)' : 'this image'}. Combine all information into one recipe. Return ONLY valid JSON, no markdown:\n{"name":"","cook_time":"","ingredients":"ingredient1\\ningredient2\\n...","method":"step1. step2. ..."}` },
+          ]}],
+        }),
+      });
+      const json = await res.json();
+      const rawText = json?.content?.[0]?.text || '';
+      let cleaned = rawText.replace(/```json\s*/g, '').replace(/```/g, '').trim();
+      const jsonStart = cleaned.search(/[\[{]/);
+      if (jsonStart > 0) cleaned = cleaned.slice(jsonStart);
+      const lastBrace = Math.max(cleaned.lastIndexOf('}'), cleaned.lastIndexOf(']'));
+      if (lastBrace > 0) cleaned = cleaned.slice(0, lastBrace + 1);
+      const parsed = JSON.parse(cleaned);
+      setMealAddName(parsed.name || '');
+      setMealAddTime(parsed.cook_time ? String(parsed.cook_time).replace(/[^0-9]/g, '') : '');
+      setMealAddIngredients(parsed.ingredients || '');
+      setMealAddMethod(parsed.method || '');
+      setMealUploadImages([]);
+      setMealAddRecipeMode('form');
+    } catch (e) {
+      console.log('handleRecipeUpload error:', e);
+      setMealUploadImages([]);
+      setMealAddRecipeMode('form');
+    }
+  }
+
+  async function sendIngredientsToShoppingList(ingredients: { name:string; qty?:string }[]) {
+    try {
+      for (const ing of ingredients) {
+        const name = ing.name.charAt(0).toUpperCase() + ing.name.slice(1);
+        const cat = guessCategory(name);
+        await supabase.from('shopping_items').insert({
+          family_id: FAMILY_ID, name, item: name, category: cat,
+          meal_source: ing.qty || null, checked: false,
+        });
+      }
+      refreshShopList();
+    } catch (e) { console.log('sendIngredientsToList error:', e); }
+  }
+
   function renderShopItem(item: any) {
     const isExpanded  = shopExpandedId === item.id;
     const isConfirm   = shopDelConfirmId === item.id;
@@ -5306,7 +5588,7 @@ Rules:
       <DinnerCard
         meals={cardData.meals}
         timeState={timeState}
-        onPlanMeals={() => { /* TODO: open Meal Planner sheet */ }}
+        onPlanMeals={() => openMealSheet('meals')}
       />
     );
 
@@ -5595,11 +5877,11 @@ Rules:
                   keyboardAppearance="light"
                   selectionColor={HOME_AI}
                   blurOnSubmit={false}
-                  onSubmitEditing={() => { if (input.trim()) send(input); }}
+                  onSubmitEditing={() => { if (input.trim()) { const t = input; setInput(''); inputRef.current?.clear(); send(t); } }}
                 />
                 <View
                   style={[s.barBtn, { backgroundColor:'#FF4545' }, !input.trim() && { opacity:0.3 }]}
-                  onTouchStart={() => { if (input.trim()) { const t = input; setInput(''); send(t); } }}
+                  onTouchStart={() => { if (input.trim()) { const t = input; setInput(''); inputRef.current?.clear(); send(t); } }}
                 >
                   <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"
                     stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
@@ -6609,6 +6891,869 @@ Rules:
                     </View>
                   </View>
                 )}
+
+              </SafeAreaView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ── MEAL PLANNER SHEET ── */}
+        <Modal
+          visible={mealSheetOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setMealSheetOpen(false)}
+        >
+          <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
+            <TouchableOpacity style={{ flex:1 }} onPress={() => setMealSheetOpen(false)} activeOpacity={1}/>
+            <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }}>
+              <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={['bottom']}>
+
+                {/* Handle */}
+                <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginTop:10 }}/>
+
+                {/* Header — dynamic based on sub-view */}
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:8, flex:1, minWidth:0 }}>
+                    {(!!mealRecipeDetail || mealAddRecipeMode !== 'closed' || !!mealSendToList || !!mealCookPicker || mealEditingRecipe) && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (mealEditingRecipe) { setMealEditingRecipe(false); return; }
+                          if (mealSendToList) { setMealSendToList(null); return; }
+                          if (mealRecipeDetail) { setMealRecipeDetail(null); setMealEditingRecipe(false); return; }
+                          if (mealAddRecipeMode !== 'closed') { setMealAddRecipeMode('closed'); return; }
+                          if (mealCookPicker) { setMealCookPicker(null); return; }
+                        }}
+                        style={{ width:32, height:32, borderRadius:8, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center', marginRight:4 }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontSize:14, color:'rgba(0,0,0,0.5)' }}>←</Text>
+                      </TouchableOpacity>
+                    )}
+                    <Text style={{ fontSize:20 }}>{mealCookPicker ? '👨‍🍳' : mealSendToList ? '🛒' : '🍽'}</Text>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize: mealRecipeDetail ? 17 : 22, color:'#0A0A0A', letterSpacing:-0.3, flex:1 }} numberOfLines={1}>
+                      {mealCookPicker ? "Who's cooking?" : mealSendToList ? 'Send to list?' : mealEditingRecipe ? 'Edit recipe' : mealAddRecipeMode === 'form' ? 'Add recipe' : mealAddRecipeMode === 'upload' || mealAddRecipeMode === 'scanning' ? 'Upload recipe' : mealRecipeDetail ? mealRecipeDetail.name : 'Meal Planner'}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:8, flexShrink:0 }}>
+                    {!!mealRecipeDetail && !mealSendToList && (
+                      <TouchableOpacity onPress={() => toggleRecipeFavourite(mealRecipeDetail.id, mealRecipeDetail.is_favourite)} hitSlop={{ top:8,bottom:8,left:8,right:8 }}>
+                        <Text style={{ fontSize:18 }}>{mealRecipeDetail.is_favourite ? '❤️' : '🤍'}</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => { setMealSheetOpen(false); setMealRecipeDetail(null); setMealAddRecipeMode('closed'); setMealSendToList(null); setMealCookPicker(null); }}
+                      style={{ width:36, height:36, borderRadius:10, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize:16, color:'rgba(0,0,0,0.5)' }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Tab switcher — dark pill, matching shopping */}
+                {!mealCookPicker && !mealRecipeDetail && mealAddRecipeMode === 'closed' && !mealSendToList && (
+                  <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:4, marginHorizontal:14, marginTop:12, marginBottom:8, flexShrink:0 }}>
+                    {(['meals','recipes','favourites'] as const).map(tab => (
+                      <TouchableOpacity
+                        key={tab}
+                        style={{ flex:1, alignItems:'center', paddingVertical:13, borderRadius:19, backgroundColor: mealSheetTab===tab ? '#0A0A0A' : 'transparent' }}
+                        onPress={() => { setMealSheetTab(tab); setMealSwapDay(null); }} activeOpacity={0.75}
+                      >
+                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color: mealSheetTab===tab ? '#fff' : 'rgba(0,0,0,0.40)', textTransform:'capitalize' }}>
+                          {tab === 'meals' ? 'Meals' : tab === 'recipes' ? 'Recipes' : 'Favourites'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {/* ── Tab content ── */}
+                <View style={{ flex:1, position:'relative' }}>
+
+                  {/* ════ MEALS TAB ════ */}
+                  {mealSheetTab === 'meals' && !mealCookPicker && !mealRecipeDetail && mealAddRecipeMode === 'closed' && !mealSendToList && (() => {
+                    const weekDays = getMealWeekDays();
+                    return (
+                      <>
+                        <ScrollView ref={mealScrollRef} style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:20 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                          {weekDays.map(day => {
+                            const plan = mealSheetPlans.find((p:any) => p.day_key === day.key);
+                            const hasMeal = !!plan?.meal_name;
+                            const isSwapOpen = mealSwapDay?.dayKey === day.key;
+                            // Read cooks from source field (stored as JSON) or _cooks optimistic update
+                            let cooks: string[] = plan?._cooks || [];
+                            if (!cooks.length && plan?.source) { try { const s = JSON.parse(plan.source); cooks = s.cooks || []; } catch {} }
+                            const cookMembers = cooks.map((id:string) => FAMILY_MEMBERS.find(m => m.id === id)).filter(Boolean);
+
+                            return (
+                              <View key={day.key} style={{ marginBottom:8 }}>
+                                <View style={{
+                                  backgroundColor: day.isToday ? MEAL_MINT_LIGHT : '#fff',
+                                  borderRadius: isSwapOpen ? 16 : 14,
+                                  borderWidth: day.isToday ? 2 : 0,
+                                  borderColor: day.isToday ? MEAL_MINT_TEXT : 'transparent',
+                                  overflow:'hidden',
+                                  borderBottomLeftRadius: isSwapOpen ? 0 : (day.isToday ? 16 : 14),
+                                  borderBottomRightRadius: isSwapOpen ? 0 : (day.isToday ? 16 : 14),
+                                }}>
+                                  <View style={{ flexDirection:'row', alignItems:'center', gap:10, padding:14 }}>
+                                    {/* Day label */}
+                                    <View style={{ width:38, alignItems:'center' }}>
+                                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'rgba(0,0,0,0.30)', textTransform:'uppercase', letterSpacing:0.5 }}>{day.dayName}</Text>
+                                      <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:20, color: day.isToday ? MEAL_MINT_TEXT : '#0A0A0A', lineHeight:24 }}>{day.dayNum}</Text>
+                                    </View>
+                                    {/* Divider */}
+                                    <View style={{ width:1, height:36, backgroundColor:'rgba(0,0,0,0.08)' }}/>
+                                    {/* Meal info */}
+                                    <View style={{ flex:1, minWidth:0 }}>
+                                      {hasMeal ? (
+                                        <>
+                                          <TouchableOpacity onPress={() => {
+                                            // Find matching recipe to show detail
+                                            const match = mealSheetRecipes.find((r:any) => r.name?.toLowerCase() === plan.meal_name?.toLowerCase());
+                                            if (match) { setMealRecipeDetail(match); }
+                                            else { setMealRecipeDetail({ id: plan.id, name: plan.meal_name, emoji: getMealEmoji(plan.meal_name), cook_time: null, ingredients: [], method: [], is_favourite: false, _fromPlan: true }); }
+                                          }} activeOpacity={0.7}>
+                                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'#0A0A0A', lineHeight:20 }} numberOfLines={1}>{plan.meal_name}</Text>
+                                          </TouchableOpacity>
+                                          {day.isToday && (
+                                            <View style={{ backgroundColor:MEAL_MINT, borderRadius:10, paddingVertical:4, paddingHorizontal:10, alignSelf:'flex-start', marginTop:5 }}>
+                                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:MEAL_MINT_DEEP }}>Tonight</Text>
+                                            </View>
+                                          )}
+                                          {/* Cook avatars */}
+                                          {cookMembers.length > 0 && (
+                                            <View style={{ flexDirection:'row', alignItems:'center', marginTop:5 }}>
+                                              {cookMembers.map((m:any) => (
+                                                <View key={m.id} style={{ width:28, height:28, borderRadius:14, backgroundColor:m.color, alignItems:'center', justifyContent:'center', marginRight:-5, borderWidth:2, borderColor:'#fff' }}>
+                                                  <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:11, color:'#fff' }}>{m.name.charAt(0)}</Text>
+                                                </View>
+                                              ))}
+                                              <TouchableOpacity
+                                                onPress={() => { setMealCookSelected(cooks); setMealCookPicker({ dayKey:day.key, mealId:plan.id, mealName:plan.meal_name }); }}
+                                                style={{ width:28, height:28, borderRadius:14, backgroundColor:'rgba(0,0,0,0.06)', borderWidth:1.5, borderStyle:'dashed', borderColor:'rgba(0,0,0,0.18)', alignItems:'center', justifyContent:'center', marginLeft:8 }}
+                                              >
+                                                <Text style={{ fontSize:11, color:'rgba(0,0,0,0.30)' }}>+</Text>
+                                              </TouchableOpacity>
+                                            </View>
+                                          )}
+                                          {cookMembers.length === 0 && (
+                                            <TouchableOpacity
+                                              onPress={() => { setMealCookSelected([]); setMealCookPicker({ dayKey:day.key, mealId:plan.id, mealName:plan.meal_name }); }}
+                                              style={{ flexDirection:'row', alignItems:'center', marginTop:5, gap:4 }}
+                                            >
+                                              <View style={{ width:28, height:28, borderRadius:14, backgroundColor:'rgba(0,0,0,0.06)', borderWidth:1.5, borderStyle:'dashed', borderColor:'rgba(0,0,0,0.18)', alignItems:'center', justifyContent:'center' }}>
+                                                <Text style={{ fontSize:11, color:'rgba(0,0,0,0.30)' }}>+</Text>
+                                              </View>
+                                              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.30)' }}>Who's cooking?</Text>
+                                            </TouchableOpacity>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <TouchableOpacity onPress={() => setMealSwapDay(isSwapOpen ? null : { dayKey:day.key, dayLabel:`${day.dayName} ${day.dayNum}` })} activeOpacity={0.75}>
+                                          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'rgba(0,0,0,0.30)', fontStyle:'italic' }}>Nothing planned</Text>
+                                        </TouchableOpacity>
+                                      )}
+                                    </View>
+                                    {/* Actions */}
+                                    <View style={{ flexDirection:'row', alignItems:'center', gap:6, flexShrink:0 }}>
+                                      {hasMeal && (
+                                        <TouchableOpacity onPress={() => {
+                                          const isFav = plan._isFav ?? mealSheetRecipes.some((r:any) => r.is_favourite && r.name?.toLowerCase() === plan.meal_name?.toLowerCase());
+                                          toggleMealFavourite(plan.id, isFav);
+                                        }} hitSlop={{ top:8,bottom:8,left:8,right:8 }}>
+                                          <Text style={{ fontSize:16 }}>{(plan._isFav ?? mealSheetRecipes.some((r:any) => r.is_favourite && r.name?.toLowerCase() === plan.meal_name?.toLowerCase())) ? '❤️' : '🤍'}</Text>
+                                        </TouchableOpacity>
+                                      )}
+                                      {hasMeal ? (
+                                        <TouchableOpacity
+                                          onPress={() => setMealSwapDay(isSwapOpen ? null : { dayKey:day.key, dayLabel:`${day.dayName} ${day.dayNum}`, mealId:plan.id, mealName:plan.meal_name })}
+                                          style={{ backgroundColor: isSwapOpen ? MEAL_MINT_TEXT : MEAL_MINT, borderRadius:10, paddingVertical:6, paddingHorizontal:12 }}
+                                          activeOpacity={0.75}
+                                        >
+                                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color: isSwapOpen ? '#fff' : MEAL_MINT_TEXT }}>{isSwapOpen ? 'Close' : 'Swap'}</Text>
+                                        </TouchableOpacity>
+                                      ) : (
+                                        <TouchableOpacity
+                                          onPress={() => setMealSwapDay(isSwapOpen ? null : { dayKey:day.key, dayLabel:`${day.dayName} ${day.dayNum}` })}
+                                          style={{ backgroundColor:'rgba(0,0,0,0.06)', borderRadius:10, paddingVertical:6, paddingHorizontal:12 }}
+                                          activeOpacity={0.75}
+                                        >
+                                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'rgba(0,0,0,0.35)' }}>+ Add</Text>
+                                        </TouchableOpacity>
+                                      )}
+                                    </View>
+                                  </View>
+                                </View>
+
+                                {/* ── Swap picker inline panel ── */}
+                                {isSwapOpen && (
+                                  <View style={{ backgroundColor:MEAL_MINT_LIGHT, borderBottomLeftRadius:16, borderBottomRightRadius:16, borderWidth:2, borderTopWidth:1, borderColor:MEAL_MINT_TEXT, borderTopColor:'rgba(184,237,208,0.5)', padding:14 }}>
+                                    {/* Sub-tabs */}
+                                    <View style={{ flexDirection:'row', gap:6, marginBottom:12 }}>
+                                      <TouchableOpacity onPress={() => setMealSwapMode('favourites')} style={{ flex:1, alignItems:'center', paddingVertical:8, borderRadius:10, backgroundColor: mealSwapMode==='favourites' ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.06)' }} activeOpacity={0.75}>
+                                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color: mealSwapMode==='favourites' ? '#fff' : 'rgba(0,0,0,0.35)' }}>❤️ Favourites</Text>
+                                      </TouchableOpacity>
+                                      <TouchableOpacity onPress={() => setMealSwapMode('move')} style={{ flex:1, alignItems:'center', paddingVertical:8, borderRadius:10, backgroundColor: mealSwapMode==='move' ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.06)' }} activeOpacity={0.75}>
+                                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color: mealSwapMode==='move' ? '#fff' : 'rgba(0,0,0,0.35)' }}>📅 Move night</Text>
+                                      </TouchableOpacity>
+                                    </View>
+
+                                    {mealSwapMode === 'favourites' ? (
+                                      <>
+                                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:MEAL_MINT_TEXT, textTransform:'uppercase', letterSpacing:0.5, marginBottom:8 }}>Swap with a favourite</Text>
+                                        {mealSheetRecipes.filter((r:any) => r.is_favourite).length === 0 ? (
+                                          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.35)', fontStyle:'italic', marginBottom:8 }}>No favourites yet — heart a recipe to see it here</Text>
+                                        ) : (
+                                          mealSheetRecipes.filter((r:any) => r.is_favourite).map((recipe:any) => (
+                                            <TouchableOpacity
+                                              key={recipe.id}
+                                              onPress={() => { addMealToDay(day.key, recipe.name); setMealSwapDay(null); }}
+                                              style={{ flexDirection:'row', alignItems:'center', gap:10, padding:10, backgroundColor:'#fff', borderRadius:12, marginBottom:6 }}
+                                              activeOpacity={0.75}
+                                            >
+                                              <Text style={{ fontSize:18 }}>{recipe.emoji || getMealEmoji(recipe.name)}</Text>
+                                              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A', flex:1 }}>{recipe.name}</Text>
+                                              {recipe.cook_time && <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.35)' }}>{recipe.cook_time} min</Text>}
+                                              <View style={{ backgroundColor:MEAL_MINT, borderRadius:8, paddingVertical:3, paddingHorizontal:9 }}>
+                                                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:MEAL_MINT_TEXT }}>Pick</Text>
+                                              </View>
+                                            </TouchableOpacity>
+                                          ))
+                                        )}
+                                        {/* Free-type input */}
+                                        <View style={{ flexDirection:'row', gap:6, marginTop:8 }}>
+                                          <TextInput
+                                            style={{ flex:1, borderWidth:1.5, borderColor:'rgba(0,0,0,0.08)', borderRadius:12, paddingHorizontal:12, paddingVertical:8, fontSize:14, fontFamily:'Poppins_400Regular', color:'#0A0A0A', backgroundColor:'#fff' }}
+                                            placeholder="Type anything…"
+                                            placeholderTextColor="rgba(0,0,0,0.30)"
+                                            value={mealSwapInput}
+                                            onChangeText={setMealSwapInput}
+                                            returnKeyType="done"
+                                            onSubmitEditing={() => { if (mealSwapInput.trim()) { addMealToDay(day.key, mealSwapInput.trim()); setMealSwapInput(''); setMealSwapDay(null); } }}
+                                          />
+                                          <TouchableOpacity
+                                            onPress={() => { if (mealSwapInput.trim()) { addMealToDay(day.key, mealSwapInput.trim()); setMealSwapInput(''); setMealSwapDay(null); } }}
+                                            style={{ backgroundColor:MEAL_MINT_TEXT, borderRadius:12, paddingVertical:8, paddingHorizontal:16, justifyContent:'center' }}
+                                            activeOpacity={0.8}
+                                          >
+                                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#fff' }}>Set</Text>
+                                          </TouchableOpacity>
+                                        </View>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:MEAL_MINT_TEXT, textTransform:'uppercase', letterSpacing:0.5, marginBottom:8 }}>
+                                          Move {mealSwapDay?.mealName || 'meal'} to…
+                                        </Text>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+                                          {weekDays.filter(d => d.key !== day.key).map(targetDay => {
+                                            const targetPlan = mealSheetPlans.find((p:any) => p.day_key === targetDay.key);
+                                            const isEmpty = !targetPlan?.meal_name;
+                                            return (
+                                              <TouchableOpacity
+                                                key={targetDay.key}
+                                                onPress={() => swapMeals(day.key, targetDay.key)}
+                                                style={{ paddingVertical:10, paddingHorizontal:14, borderRadius:12, backgroundColor: isEmpty ? MEAL_MINT_LIGHT : '#fff', borderWidth:1.5, borderColor: isEmpty ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.08)', alignItems:'center', minWidth:70 }}
+                                                activeOpacity={0.75}
+                                              >
+                                                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'rgba(0,0,0,0.35)', textTransform:'uppercase' }}>{targetDay.dayName}</Text>
+                                                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:10, color: isEmpty ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.35)', marginTop:2 }} numberOfLines={1}>
+                                                  {isEmpty ? 'Empty \u2713' : targetPlan.meal_name}
+                                                </Text>
+                                              </TouchableOpacity>
+                                            );
+                                          })}
+                                        </View>
+                                        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.30)', marginTop:8, lineHeight:16 }}>
+                                          Tapping a night with a meal will swap them. Tapping an empty night moves the meal there.
+                                        </Text>
+                                      </>
+                                    )}
+                                  </View>
+                                )}
+                              </View>
+                            );
+                          })}
+                        </ScrollView>
+
+                        {/* Scroll arrows */}
+                        <View style={{ position:'absolute', right:14, bottom:16, flexDirection:'row', gap:8, zIndex:10 }}>
+                          <TouchableOpacity onPress={() => mealScrollRef.current?.scrollTo({ y:0, animated:true })} activeOpacity={0.7} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#FFFFFF', alignItems:'center', justifyContent:'center', shadowColor:'#000', shadowOpacity:0.12, shadowRadius:10, shadowOffset:{width:0,height:3}, elevation:5, borderWidth:1, borderColor:'rgba(220,220,220,0.4)' }}>
+                            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.45)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => mealScrollRef.current?.scrollToEnd({ animated:true })} activeOpacity={0.7} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#FFFFFF', alignItems:'center', justifyContent:'center', shadowColor:'#000', shadowOpacity:0.12, shadowRadius:10, shadowOffset:{width:0,height:3}, elevation:5, borderWidth:1, borderColor:'rgba(220,220,220,0.4)' }}>
+                            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.45)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="5" x2="12" y2="19"/><Polyline points="19 12 12 19 5 12"/></Svg>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    );
+                  })()}
+
+                  {/* ════ COOK PICKER OVERLAY ════ */}
+                  {!!mealCookPicker && (
+                    <View style={{ flex:1, padding:16 }}>
+                      <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.50)', marginBottom:12 }}>{mealCookPicker.mealName}</Text>
+                      <View style={{ backgroundColor:'#fff', borderRadius:16, padding:16 }}>
+                        <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:17, color:'#0A0A0A', marginBottom:14 }}>Who's cooking?</Text>
+                        <View style={{ flexDirection:'row', gap:12, flexWrap:'wrap', justifyContent:'center' }}>
+                          {FAMILY_MEMBERS.map((m:any) => {
+                            const selected = mealCookSelected.includes(m.id);
+                            return (
+                              <TouchableOpacity key={m.id} onPress={() => setMealCookSelected(prev => selected ? prev.filter(id => id !== m.id) : [...prev, m.id])} style={{ alignItems:'center', gap:5 }} activeOpacity={0.75}>
+                                <View style={{ width:56, height:56, borderRadius:28, backgroundColor:m.color, alignItems:'center', justifyContent:'center', borderWidth: selected ? 3 : 0, borderColor: selected ? MEAL_MINT_TEXT : 'transparent' }}>
+                                  <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:18, color:'#fff' }}>{m.name.charAt(0)}</Text>
+                                  {selected && (
+                                    <View style={{ position:'absolute', bottom:-2, right:-2, width:18, height:18, borderRadius:9, backgroundColor:MEAL_MINT, alignItems:'center', justifyContent:'center', borderWidth:2, borderColor:'#fff' }}>
+                                      <Text style={{ fontSize:10, color:MEAL_MINT_DEEP, fontWeight:'800' }}>✓</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: selected ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.35)' }}>{m.name}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                        <TouchableOpacity
+                          onPress={async () => {
+                            await updateMealCooks(mealCookPicker.mealId, mealCookSelected);
+                            // Check if any kids selected → trigger job popup
+                            const kidIds = ['3','4','5']; // Poppy, Gab, Duke
+                            const selectedKid = mealCookSelected.find(id => kidIds.includes(id));
+                            if (selectedKid) {
+                              const kidMember = FAMILY_MEMBERS.find(m => m.id === selectedKid);
+                              setMealKidJobPopup({ kidId: selectedKid, kidName: kidMember?.name || '', mealName: mealCookPicker.mealName, dayKey: mealCookPicker.dayKey });
+                            }
+                            setMealCookPicker(null);
+                          }}
+                          style={{ backgroundColor:MEAL_MINT_TEXT, borderRadius:12, paddingVertical:12, alignItems:'center', marginTop:16 }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' }}>Save</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* ════ KIDS JOB POPUP ════ */}
+                  {!!mealKidJobPopup && (
+                    <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.35)', justifyContent:'center', alignItems:'center', zIndex:99, padding:24 }}>
+                      <View style={{ backgroundColor:'#FAF8F5', borderRadius:20, padding:20, width:'100%', maxWidth:320 }}>
+                        <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:17, color:'#0A0A0A', marginBottom:6 }}>Create a job for {mealKidJobPopup.kidName}?</Text>
+                        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.50)', marginBottom:16 }}>Help cook dinner — {mealKidJobPopup.mealName}</Text>
+                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.30)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:8 }}>Points</Text>
+                        <View style={{ flexDirection:'row', gap:8, marginBottom:16 }}>
+                          {[5, 10, 15].map(pts => (
+                            <TouchableOpacity
+                              key={pts}
+                              onPress={() => setMealKidJobPoints(pts)}
+                              style={{ flex:1, paddingVertical:10, borderRadius:12, backgroundColor: mealKidJobPoints === pts ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.06)', alignItems:'center' }}
+                              activeOpacity={0.75}
+                            >
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color: mealKidJobPoints === pts ? '#fff' : 'rgba(0,0,0,0.40)' }}>{pts}</Text>
+                            </TouchableOpacity>
+                          ))}
+                          <TextInput
+                            style={{ flex:1, borderWidth:1.5, borderColor: mealKidJobPoints > 15 ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.10)', borderRadius:12, paddingHorizontal:10, paddingVertical:8, textAlign:'center', fontFamily:'Poppins_700Bold', fontSize:15, color:'#0A0A0A' }}
+                            placeholder="Custom"
+                            placeholderTextColor="rgba(0,0,0,0.25)"
+                            keyboardType="number-pad"
+                            onChangeText={(v) => { const n = parseInt(v); if (n > 0) setMealKidJobPoints(n); }}
+                          />
+                        </View>
+                        <View style={{ flexDirection:'row', gap:8 }}>
+                          <TouchableOpacity
+                            onPress={async () => {
+                              await createKidJob(mealKidJobPopup.kidName, `Help cook dinner \u2014 ${mealKidJobPopup.mealName}`, mealKidJobPoints, mealKidJobPopup.dayKey);
+                              setMealKidJobPopup(null);
+                              setMealKidJobPoints(10);
+                            }}
+                            style={{ flex:1, backgroundColor:MEAL_MINT_TEXT, borderRadius:12, paddingVertical:12, alignItems:'center' }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#fff' }}>Add Job</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => { setMealKidJobPopup(null); setMealKidJobPoints(10); }}
+                            style={{ flex:1, paddingVertical:12, alignItems:'center' }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.40)' }}>Skip</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* ════ RECIPES TAB ════ */}
+                  {mealSheetTab === 'recipes' && !mealRecipeDetail && mealAddRecipeMode === 'closed' && !mealSendToList && (() => {
+                    const filtered = mealSearchText.trim()
+                      ? mealSheetRecipes.filter((r:any) => r.name.toLowerCase().includes(mealSearchText.toLowerCase()))
+                      : mealSheetRecipes;
+                    return (
+                      <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:20 }} showsVerticalScrollIndicator={false}>
+                        {/* Action buttons */}
+                        <View style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
+                          <TouchableOpacity onPress={() => setMealAddRecipeMode('form')} style={{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor:MEAL_MINT_TEXT, borderRadius:12, paddingVertical:12 }} activeOpacity={0.8}>
+                            <Svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><Line x1="12" y1="5" x2="12" y2="19"/><Line x1="5" y1="12" x2="19" y2="12"/></Svg>
+                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#fff' }}>Add recipe</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => { setMealUploadImages([]); setMealAddRecipeMode('upload'); }} style={{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor:MEAL_MINT, borderRadius:12, paddingVertical:12 }} activeOpacity={0.8}>
+                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:MEAL_MINT_DEEP }}>📷 Upload recipe</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {/* Search */}
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#fff', borderWidth:1.5, borderColor:'rgba(0,0,0,0.09)', borderRadius:14, paddingVertical:10, paddingHorizontal:12, marginBottom:12 }}>
+                          <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.30)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Circle cx="11" cy="11" r="8"/><Line x1="21" y1="21" x2="16.65" y2="16.65"/></Svg>
+                          <TextInput style={{ flex:1, fontFamily:'Poppins_400Regular', fontSize:14, color:'#0A0A0A', paddingVertical:0 }} placeholder="Search recipes…" placeholderTextColor="rgba(0,0,0,0.30)" value={mealSearchText} onChangeText={setMealSearchText}/>
+                        </View>
+                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:8 }}>Your recipes ({filtered.length})</Text>
+                        {/* 2-col grid */}
+                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                          {filtered.map((recipe:any) => (
+                            <TouchableOpacity key={recipe.id} onPress={() => setMealRecipeDetail(recipe)} style={{ width:'48.5%', backgroundColor:'#fff', borderRadius:14, overflow:'hidden', marginBottom:4 }} activeOpacity={0.75}>
+                              <View style={{ aspectRatio:4/3, backgroundColor:MEAL_MINT_LIGHT, alignItems:'center', justifyContent:'center' }}>
+                                <Text style={{ fontSize:38 }}>{recipe.emoji || getMealEmoji(recipe.name)}</Text>
+                              </View>
+                              <View style={{ padding:10 }}>
+                                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#0A0A0A', lineHeight:17, marginBottom:4 }} numberOfLines={1}>{recipe.name}</Text>
+                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                  {recipe.cook_time ? <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, color:'rgba(0,0,0,0.35)' }}>{recipe.cook_time} min</Text> : <View/>}
+                                  <TouchableOpacity onPress={() => toggleRecipeFavourite(recipe.id, recipe.is_favourite)} hitSlop={{ top:8,bottom:8,left:8,right:8 }}>
+                                    <Text style={{ fontSize:14 }}>{recipe.is_favourite ? '❤️' : '🤍'}</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                        {filtered.length === 0 && (
+                          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.35)', fontStyle:'italic', textAlign:'center', paddingVertical:30 }}>No recipes yet — add one above!</Text>
+                        )}
+                      </ScrollView>
+                    );
+                  })()}
+
+                  {/* ════ FAVOURITES TAB ════ */}
+                  {mealSheetTab === 'favourites' && !mealRecipeDetail && mealAddRecipeMode === 'closed' && !mealSendToList && (() => {
+                    const favs = mealSheetRecipes.filter((r:any) => r.is_favourite);
+                    return (
+                      <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:20 }} showsVerticalScrollIndicator={false}>
+                        {favs.length === 0 ? (
+                          <View style={{ alignItems:'center', paddingVertical:50 }}>
+                            <Text style={{ fontSize:44, marginBottom:12 }}>🤍</Text>
+                            <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:17, color:'#0A0A0A', marginBottom:6 }}>Nothing saved yet</Text>
+                            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.35)', textAlign:'center', lineHeight:20 }}>Tap the \u2764\ufe0f on any recipe or on a meal{'\n'}in your planner to save it here.</Text>
+                          </View>
+                        ) : (
+                          <>
+                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:8 }}>{favs.length} saved recipe{favs.length !== 1 ? 's' : ''}</Text>
+                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                              {favs.map((recipe:any) => (
+                                <TouchableOpacity key={recipe.id} onPress={() => setMealRecipeDetail(recipe)} style={{ width:'48.5%', backgroundColor:'#fff', borderRadius:14, overflow:'hidden', marginBottom:4 }} activeOpacity={0.75}>
+                                  <View style={{ aspectRatio:4/3, backgroundColor:MEAL_MINT_LIGHT, alignItems:'center', justifyContent:'center' }}>
+                                    <Text style={{ fontSize:38 }}>{recipe.emoji || getMealEmoji(recipe.name)}</Text>
+                                  </View>
+                                  <View style={{ padding:10 }}>
+                                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#0A0A0A', lineHeight:17, marginBottom:4 }} numberOfLines={1}>{recipe.name}</Text>
+                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                                      {recipe.cook_time ? <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, color:'rgba(0,0,0,0.35)' }}>{recipe.cook_time} min</Text> : <View/>}
+                                      <Text style={{ fontSize:14 }}>❤️</Text>
+                                    </View>
+                                  </View>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          </>
+                        )}
+                      </ScrollView>
+                    );
+                  })()}
+
+                  {/* ════ ADD RECIPE FORM ════ */}
+                  {mealAddRecipeMode === 'form' && (
+                    <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                      <View style={{ gap:14 }}>
+                        <View>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.35)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Recipe name</Text>
+                          <TextInput autoFocus style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'#0A0A0A', backgroundColor:'#fff', borderRadius:12, borderWidth:1.5, borderColor:'rgba(0,0,0,0.09)', paddingHorizontal:14, paddingVertical:10 }} placeholder="e.g. Mum's lasagne" placeholderTextColor="rgba(0,0,0,0.28)" value={mealAddName} onChangeText={setMealAddName} returnKeyType="next"/>
+                        </View>
+                        <View>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.35)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Cook time</Text>
+                          <TextInput style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'#0A0A0A', backgroundColor:'#fff', borderRadius:12, borderWidth:1.5, borderColor:'rgba(0,0,0,0.09)', paddingHorizontal:14, paddingVertical:10, width:140 }} placeholder="e.g. 45 min" placeholderTextColor="rgba(0,0,0,0.28)" value={mealAddTime} onChangeText={setMealAddTime} keyboardType="number-pad"/>
+                        </View>
+                        <View>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.35)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Ingredients</Text>
+                          <TextInput multiline style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'#0A0A0A', backgroundColor:'#fff', borderRadius:12, borderWidth:1.5, borderColor:'rgba(0,0,0,0.09)', paddingHorizontal:14, paddingVertical:10, minHeight:90, textAlignVertical:'top' }} placeholder={"One per line\ne.g. 400g penne pasta\n500g beef mince"} placeholderTextColor="rgba(0,0,0,0.28)" value={mealAddIngredients} onChangeText={setMealAddIngredients}/>
+                          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.30)', marginTop:4 }}>One ingredient per line — Zaeli will split them automatically</Text>
+                        </View>
+                        <View>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.35)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Method</Text>
+                          <TextInput multiline style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'#0A0A0A', backgroundColor:'#fff', borderRadius:12, borderWidth:1.5, borderColor:'rgba(0,0,0,0.09)', paddingHorizontal:14, paddingVertical:10, minHeight:100, textAlignVertical:'top' }} placeholder="Write steps or paste from anywhere — Zaeli will number them" placeholderTextColor="rgba(0,0,0,0.28)" value={mealAddMethod} onChangeText={setMealAddMethod}/>
+                        </View>
+                        <TouchableOpacity
+                          onPress={async () => {
+                            if (!mealAddName.trim()) return;
+                            setMealSaving(true);
+                            const ingredients = mealAddIngredients.split('\n').filter(l => l.trim()).map(l => ({ name: l.trim(), qty:'' }));
+                            const method = mealAddMethod.split(/[.\n]/).filter(s => s.trim()).map(s => s.trim());
+                            await saveRecipe({ name: mealAddName.trim(), cook_time: parseInt(mealAddTime) || undefined, ingredients, method, source_type: 'manual' });
+                            setMealAddName(''); setMealAddTime(''); setMealAddIngredients(''); setMealAddMethod('');
+                            setMealAddRecipeMode('closed');
+                            setMealSaving(false);
+                          }}
+                          style={{ backgroundColor:MEAL_MINT_TEXT, borderRadius:14, paddingVertical:14, alignItems:'center', opacity: mealSaving ? 0.5 : 1 }}
+                          activeOpacity={0.8}
+                          disabled={mealSaving}
+                        >
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' }}>Save recipe</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </ScrollView>
+                  )}
+
+                  {/* ════ UPLOAD RECIPE ════ */}
+                  {mealAddRecipeMode === 'upload' && (
+                    <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:30 }} showsVerticalScrollIndicator={false}>
+                      <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.50)', lineHeight:20, marginBottom:16 }}>Take photos of recipe pages — you can add multiple shots (e.g. ingredients on one page, method on another). Zaeli will combine them.</Text>
+
+                      {/* Collected images */}
+                      {mealUploadImages.length > 0 && (
+                        <View style={{ marginBottom:14 }}>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.30)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:8 }}>{mealUploadImages.length} photo{mealUploadImages.length > 1 ? 's' : ''} added</Text>
+                          <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
+                            {mealUploadImages.map((uri, i) => (
+                              <View key={i} style={{ position:'relative' }}>
+                                <Image source={{ uri }} style={{ width:80, height:80, borderRadius:12, backgroundColor:'rgba(0,0,0,0.05)' }}/>
+                                <TouchableOpacity
+                                  onPress={() => setMealUploadImages(prev => prev.filter((_, idx) => idx !== i))}
+                                  style={{ position:'absolute', top:-6, right:-6, width:22, height:22, borderRadius:11, backgroundColor:'#0A0A0A', alignItems:'center', justifyContent:'center' }}
+                                  activeOpacity={0.75}
+                                >
+                                  <Text style={{ fontSize:11, color:'#fff', fontWeight:'700' }}>✕</Text>
+                                </TouchableOpacity>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Add photo buttons */}
+                      <View style={{ flexDirection:'row', gap:10, marginBottom:14 }}>
+                        <TouchableOpacity
+                          onPress={async () => {
+                            const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+                            if (!granted) return;
+                            const r = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
+                            if (r.canceled || !r.assets?.[0]) return;
+                            setMealUploadImages(prev => [...prev, r.assets[0].uri]);
+                          }}
+                          style={{ flex:1, alignItems:'center', gap:8, paddingVertical:20, backgroundColor:'#fff', borderRadius:16, borderWidth:1.5, borderColor:'rgba(0,0,0,0.08)' }}
+                          activeOpacity={0.75}
+                        >
+                          <View style={{ width:44, height:44, borderRadius:13, backgroundColor:'rgba(255,69,69,0.10)', alignItems:'center', justifyContent:'center' }}><Text style={{ fontSize:22 }}>📷</Text></View>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#0A0A0A' }}>Take a photo</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={async () => {
+                            const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                            if (!granted) return;
+                            const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85, allowsMultipleSelection: true });
+                            if (r.canceled || !r.assets?.length) return;
+                            setMealUploadImages(prev => [...prev, ...r.assets.map((a:any) => a.uri)]);
+                          }}
+                          style={{ flex:1, alignItems:'center', gap:8, paddingVertical:20, backgroundColor:'#fff', borderRadius:16, borderWidth:1.5, borderColor:'rgba(0,0,0,0.08)' }}
+                          activeOpacity={0.75}
+                        >
+                          <View style={{ width:44, height:44, borderRadius:13, backgroundColor:MEAL_MINT_LIGHT, alignItems:'center', justifyContent:'center' }}><Text style={{ fontSize:22 }}>🖼</Text></View>
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#0A0A0A' }}>From library</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {/* Scan button — appears when images collected */}
+                      {mealUploadImages.length > 0 && (
+                        <TouchableOpacity
+                          onPress={() => handleRecipeUpload(mealUploadImages)}
+                          style={{ backgroundColor:MEAL_MINT_TEXT, borderRadius:14, paddingVertical:14, alignItems:'center' }}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' }}>Scan {mealUploadImages.length} photo{mealUploadImages.length > 1 ? 's' : ''} with Zaeli</Text>
+                        </TouchableOpacity>
+                      )}
+                    </ScrollView>
+                  )}
+                  {mealAddRecipeMode === 'scanning' && (
+                    <View style={{ flex:1, alignItems:'center', justifyContent:'center', gap:12 }}>
+                      <Text style={{ fontSize:36 }}>📖</Text>
+                      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(0,0,0,0.40)' }}>Zaeli is reading your recipe…</Text>
+                    </View>
+                  )}
+
+                  {/* ════ RECIPE DETAIL ════ */}
+                  {!!mealRecipeDetail && !mealSendToList && (() => {
+                    const r = mealRecipeDetail;
+                    const ingredients: any[] = r.ingredients || [];
+                    const method: any[] = r.method || [];
+
+                    // ── Edit mode ──
+                    if (mealEditingRecipe) {
+                      return (
+                        <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                          <View style={{ gap:14 }}>
+                            <View>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.35)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Recipe name</Text>
+                              <TextInput autoFocus style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'#0A0A0A', backgroundColor:'#fff', borderRadius:12, borderWidth:1.5, borderColor:'rgba(0,0,0,0.09)', paddingHorizontal:14, paddingVertical:10 }} value={mealAddName} onChangeText={setMealAddName} returnKeyType="next"/>
+                            </View>
+                            <View>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.35)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Cook time</Text>
+                              <TextInput style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'#0A0A0A', backgroundColor:'#fff', borderRadius:12, borderWidth:1.5, borderColor:'rgba(0,0,0,0.09)', paddingHorizontal:14, paddingVertical:10, width:140 }} value={mealAddTime} onChangeText={setMealAddTime} keyboardType="number-pad"/>
+                            </View>
+                            <View>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.35)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Ingredients</Text>
+                              <TextInput multiline style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'#0A0A0A', backgroundColor:'#fff', borderRadius:12, borderWidth:1.5, borderColor:'rgba(0,0,0,0.09)', paddingHorizontal:14, paddingVertical:10, minHeight:90, textAlignVertical:'top' }} value={mealAddIngredients} onChangeText={setMealAddIngredients}/>
+                              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.30)', marginTop:4 }}>One ingredient per line</Text>
+                            </View>
+                            <View>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.35)', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Method</Text>
+                              <TextInput multiline style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'#0A0A0A', backgroundColor:'#fff', borderRadius:12, borderWidth:1.5, borderColor:'rgba(0,0,0,0.09)', paddingHorizontal:14, paddingVertical:10, minHeight:100, textAlignVertical:'top' }} value={mealAddMethod} onChangeText={setMealAddMethod}/>
+                            </View>
+                            <TouchableOpacity
+                              onPress={async () => {
+                                if (!mealAddName.trim()) return;
+                                setMealSaving(true);
+                                const newIngredients = mealAddIngredients.split('\n').filter(l => l.trim()).map(l => ({ name: l.trim(), qty:'' }));
+                                const newMethod = mealAddMethod.split(/[.\n]/).filter(s => s.trim()).map(s => s.trim());
+                                const notesParts: string[] = [];
+                                if (newIngredients.length) notesParts.push('INGREDIENTS:\n' + newIngredients.map(i => i.name).join('\n'));
+                                if (newMethod.length) notesParts.push('METHOD:\n' + newMethod.map((s,i) => `${i+1}. ${s}`).join('\n'));
+                                try {
+                                  if (r.id && !r._fromPlan) {
+                                    await supabase.from('recipes').update({ name: mealAddName.trim(), prep_mins: parseInt(mealAddTime) || null, notes: notesParts.join('\n\n') || null }).eq('id', r.id);
+                                  } else {
+                                    await supabase.from('recipes').insert({ family_id: FAMILY_ID, name: mealAddName.trim(), prep_mins: parseInt(mealAddTime) || null, notes: notesParts.join('\n\n') || null, source_type: 'manual', tags: [] });
+                                  }
+                                } catch (e) { console.log('editRecipe error:', e); }
+                                await refreshMealData();
+                                setMealEditingRecipe(false);
+                                // Update the detail view with fresh data
+                                const fresh = mealSheetRecipes.find((rr:any) => rr.name?.toLowerCase() === mealAddName.trim().toLowerCase());
+                                if (fresh) setMealRecipeDetail(fresh);
+                                setMealSaving(false);
+                              }}
+                              style={{ backgroundColor:MEAL_MINT_TEXT, borderRadius:14, paddingVertical:14, alignItems:'center', opacity: mealSaving ? 0.5 : 1 }}
+                              activeOpacity={0.8}
+                              disabled={mealSaving}
+                            >
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' }}>Save changes</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setMealEditingRecipe(false)} style={{ alignItems:'center', paddingVertical:8 }} activeOpacity={0.7}>
+                              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.40)' }}>Cancel</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </ScrollView>
+                      );
+                    }
+
+                    // ── View mode ──
+                    return (
+                      <View style={{ flex:1 }}>
+                        {/* Hero */}
+                        <View style={{ height:120, backgroundColor:MEAL_MINT_LIGHT, alignItems:'center', justifyContent:'center' }}>
+                          <Text style={{ fontSize:56 }}>{r.emoji || getMealEmoji(r.name)}</Text>
+                        </View>
+                        <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:30 }} showsVerticalScrollIndicator={false}>
+                          {/* Title */}
+                          <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:22, color:'#0A0A0A', letterSpacing:-0.4, marginBottom:8 }}>{r.name}</Text>
+                          {/* Meta pills */}
+                          <View style={{ flexDirection:'row', gap:6, flexWrap:'wrap', marginBottom:14 }}>
+                            {r.cook_time && <View style={{ backgroundColor:MEAL_MINT, borderRadius:20, paddingVertical:4, paddingHorizontal:12 }}><Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:MEAL_MINT_DEEP }}>{r.cook_time} min</Text></View>}
+                            {r.serves && <View style={{ backgroundColor:MEAL_MINT, borderRadius:20, paddingVertical:4, paddingHorizontal:12 }}><Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:MEAL_MINT_DEEP }}>Serves {r.serves}</Text></View>}
+                            {r.difficulty && <View style={{ backgroundColor:MEAL_MINT, borderRadius:20, paddingVertical:4, paddingHorizontal:12 }}><Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:MEAL_MINT_DEEP }}>{r.difficulty}</Text></View>}
+                          </View>
+                          {/* Action buttons */}
+                          <View style={{ flexDirection:'row', gap:8, marginBottom:18 }}>
+                            <TouchableOpacity
+                              onPress={() => {
+                                // Open a simple day picker — reuse swap mode
+                                setMealRecipeDetail(null);
+                                setMealSwapDay({ dayKey:'', dayLabel:'Pick a night' });
+                                setMealSwapMode('move');
+                                // Store recipe name for use after day pick
+                                setMealSwapInput(r.name);
+                              }}
+                              style={{ flex:1, backgroundColor:MEAL_MINT_TEXT, borderRadius:14, paddingVertical:12, alignItems:'center' }}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#fff' }}>+ Meal plan</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => {
+                                // Open send to list with pantry cross-check
+                                const checks = ingredients.map((ing:any) => ({
+                                  name: typeof ing === 'string' ? ing : (ing.name || ''),
+                                  qty: typeof ing === 'string' ? '' : (ing.qty || ''),
+                                  inPantry: false, // will check below
+                                  adding: false,
+                                }));
+                                // Cross-check pantry
+                                checks.forEach(c => {
+                                  const lName = c.name.toLowerCase();
+                                  const pantryMatch = shopSheetPantry.find((p:any) => (p.name||'').toLowerCase().includes(lName) || lName.includes((p.name||'').toLowerCase()));
+                                  if (pantryMatch) c.inPantry = true;
+                                  // Also check shopping list
+                                  const onList = shopSheetItems.find((s:any) => (s.name||s.item||'').toLowerCase().includes(lName));
+                                  if (onList) c.inPantry = true; // treat as "have"
+                                });
+                                setMealSendToList({ recipe: r, ingredients: checks });
+                              }}
+                              style={{ flex:1, backgroundColor:MEAL_MINT, borderRadius:14, paddingVertical:12, alignItems:'center', flexDirection:'row', justifyContent:'center', gap:6 }}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={{ fontSize:14 }}>🛒</Text>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:MEAL_MINT_DEEP }}>Shopping list</Text>
+                            </TouchableOpacity>
+                          </View>
+                          {/* Edit button */}
+                          <TouchableOpacity
+                            onPress={() => {
+                              setMealAddName(r.name || '');
+                              setMealAddTime(r.cook_time ? String(r.cook_time) : '');
+                              setMealAddIngredients(ingredients.map((i:any) => typeof i === 'string' ? i : (i.name || '')).join('\n'));
+                              setMealAddMethod(method.map((s:any) => typeof s === 'string' ? s : (s.text || s.step || '')).join('\n'));
+                              setMealEditingRecipe(true);
+                            }}
+                            style={{ backgroundColor:'rgba(0,0,0,0.05)', borderRadius:12, paddingVertical:10, alignItems:'center', marginBottom:4 }}
+                            activeOpacity={0.75}
+                          >
+                            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.45)' }}>Edit recipe</Text>
+                          </TouchableOpacity>
+                          {/* Ingredients */}
+                          {ingredients.length > 0 && (
+                            <>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginBottom:8 }}>Ingredients</Text>
+                              {ingredients.map((ing:any, i:number) => {
+                                const name = typeof ing === 'string' ? ing : (ing.name || '');
+                                const qty = typeof ing === 'string' ? '' : (ing.qty || '');
+                                const emoji = getItemEmoji(name);
+                                const inPantry = shopSheetPantry.some((p:any) => (p.name||'').toLowerCase().includes(name.toLowerCase()));
+                                return (
+                                  <View key={i} style={{ flexDirection:'row', alignItems:'center', gap:8, padding:10, backgroundColor:'#fff', borderRadius:12, marginBottom:6 }}>
+                                    <Text style={{ fontSize:16 }}>{emoji}</Text>
+                                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A', flex:1 }}>{name}</Text>
+                                    {!!qty && <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.35)' }}>{qty}</Text>}
+                                    <View style={{ backgroundColor: inPantry ? MEAL_MINT : 'rgba(255,69,69,0.08)', borderRadius:8, paddingVertical:3, paddingHorizontal:8 }}>
+                                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color: inPantry ? MEAL_MINT_TEXT : '#FF4545' }}>{inPantry ? 'In pantry \u2713' : 'Need to buy'}</Text>
+                                    </View>
+                                  </View>
+                                );
+                              })}
+                            </>
+                          )}
+                          {/* Method */}
+                          {method.length > 0 && (
+                            <>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:0.8, textTransform:'uppercase', color:'rgba(0,0,0,0.30)', marginTop:16, marginBottom:8 }}>Method</Text>
+                              {method.map((step:any, i:number) => {
+                                const stepText = typeof step === 'string' ? step : (step.text || step.step || '');
+                                return (
+                                  <View key={i} style={{ flexDirection:'row', gap:10, marginBottom:10 }}>
+                                    <View style={{ width:26, height:26, borderRadius:13, backgroundColor:MEAL_MINT, alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                                      <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:11, color:MEAL_MINT_DEEP }}>{i+1}</Text>
+                                    </View>
+                                    <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'#0A0A0A', lineHeight:21, flex:1 }}>{stepText}</Text>
+                                  </View>
+                                );
+                              })}
+                            </>
+                          )}
+                          {/* Delete recipe */}
+                          <TouchableOpacity onPress={() => { deleteRecipe(r.id); setMealRecipeDetail(null); }} style={{ marginTop:20, alignItems:'center', paddingVertical:12 }} activeOpacity={0.7}>
+                            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(255,59,59,0.5)' }}>Delete recipe</Text>
+                          </TouchableOpacity>
+                        </ScrollView>
+                      </View>
+                    );
+                  })()}
+
+                  {/* ════ SEND TO LIST — PANTRY CROSS-CHECK ════ */}
+                  {!!mealSendToList && (() => {
+                    const { recipe, ingredients } = mealSendToList;
+                    // Count items that will be added: not in pantry AND not skipped, OR in pantry but overridden to adding
+                    const addCount = ingredients.filter((i:any) => ((!i.inPantry && !i.skipped) || i.adding)).length;
+                    return (
+                      <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:30 }} showsVerticalScrollIndicator={false}>
+                        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.50)', lineHeight:20, marginBottom:14 }}>Zaeli checked your pantry. Tap any badge to change its status.</Text>
+                        <View style={{ backgroundColor:'#fff', borderRadius:16, padding:14 }}>
+                          <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:15, color:'#0A0A0A', marginBottom:12 }}>{recipe.name} · {ingredients.length} ingredients</Text>
+                          {ingredients.map((ing:any, i:number) => {
+                            // Three states: inPantry (green), adding (coral), skipped (grey)
+                            let status: 'pantry' | 'adding' | 'skipped';
+                            if (ing.inPantry && !ing.adding) status = 'pantry';
+                            else if (ing.skipped) status = 'skipped';
+                            else status = 'adding';
+
+                            const bgColor = status === 'pantry' ? MEAL_MINT : status === 'adding' ? 'rgba(255,69,69,0.10)' : 'rgba(0,0,0,0.06)';
+                            const txtColor = status === 'pantry' ? MEAL_MINT_TEXT : status === 'adding' ? '#FF4545' : 'rgba(0,0,0,0.35)';
+                            const label = status === 'pantry' ? 'In pantry \u2713' : status === 'adding' ? 'Adding \u2192' : 'Skipping';
+
+                            return (
+                              <TouchableOpacity
+                                key={i}
+                                onPress={() => {
+                                  const updated = [...ingredients];
+                                  if (status === 'pantry') {
+                                    // pantry → adding (override)
+                                    updated[i] = { ...ing, adding: true, skipped: false };
+                                  } else if (status === 'adding') {
+                                    // adding → skipped
+                                    updated[i] = { ...ing, adding: false, skipped: true };
+                                  } else {
+                                    // skipped → back to original state
+                                    if (ing.inPantry) { updated[i] = { ...ing, adding: false, skipped: false }; }
+                                    else { updated[i] = { ...ing, adding: false, skipped: false }; }
+                                  }
+                                  setMealSendToList({ recipe, ingredients: updated });
+                                }}
+                                style={{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:9, borderTopWidth: i > 0 ? 1 : 0, borderTopColor:'rgba(0,0,0,0.06)', opacity: status === 'skipped' ? 0.5 : 1 }}
+                                activeOpacity={0.75}
+                              >
+                                <Text style={{ fontSize:15 }}>{getItemEmoji(ing.name)}</Text>
+                                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color: status === 'skipped' ? 'rgba(0,0,0,0.35)' : '#0A0A0A', flex:1, textDecorationLine: status === 'skipped' ? 'line-through' : 'none' }}>{ing.name}{ing.qty ? ` ${ing.qty}` : ''}</Text>
+                                <View style={{ backgroundColor: bgColor, borderRadius:8, paddingVertical:3, paddingHorizontal:9 }}>
+                                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: txtColor }}>{label}</Text>
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          })}
+                          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:10, color:'rgba(0,0,0,0.30)', textAlign:'center', marginTop:10, lineHeight:15 }}>Tap any badge to cycle: Adding → Skipping → In pantry</Text>
+                          <View style={{ flexDirection:'row', gap:8, marginTop:14 }}>
+                            <TouchableOpacity
+                              onPress={async () => {
+                                const toAdd = ingredients.filter((i:any) => ((!i.inPantry && !i.skipped) || i.adding));
+                                await sendIngredientsToShoppingList(toAdd);
+                                setMealSendToList(null);
+                                setMealRecipeDetail(null);
+                              }}
+                              style={{ flex:1, backgroundColor: addCount > 0 ? '#FF4545' : 'rgba(0,0,0,0.08)', borderRadius:14, paddingVertical:12, alignItems:'center' }}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color: addCount > 0 ? '#fff' : 'rgba(0,0,0,0.30)' }}>Add {addCount} item{addCount !== 1 ? 's' : ''} to list</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => setMealSendToList(null)}
+                              style={{ backgroundColor:'rgba(0,0,0,0.06)', borderRadius:14, paddingVertical:12, paddingHorizontal:20, alignItems:'center' }}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.40)' }}>Cancel</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </ScrollView>
+                    );
+                  })()}
+
+                </View>{/* end tab content */}
 
               </SafeAreaView>
             </View>
