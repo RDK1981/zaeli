@@ -56,10 +56,10 @@ const AMBER_TXT = '#92400E';
 type ChildName = 'Poppy' | 'Gab' | 'Duke';
 type AgeTier = 'little' | 'middle' | 'older';
 
-const CHILDREN: { name: ChildName; initial: string; colour: string; year: number; age: number; tier: AgeTier; points: number; streak: number }[] = [
-  { name: 'Poppy', initial: 'P', colour: '#A855F7', year: 6, age: 12, tier: 'older',  points: 340, streak: 12 },
-  { name: 'Gab',   initial: 'G', colour: '#22C55E', year: 4, age: 10, tier: 'middle', points: 185, streak: 5 },
-  { name: 'Duke',  initial: 'D', colour: '#F59E0B', year: 1, age: 8,  tier: 'little', points: 90,  streak: 3 },
+const CHILDREN: { name: ChildName; initial: string; colour: string; bgLight: string; year: number; age: number; tier: AgeTier; points: number; streak: number }[] = [
+  { name: 'Poppy', initial: 'P', colour: '#A855F7', bgLight: '#EDE5FF', year: 6, age: 12, tier: 'older',  points: 340, streak: 12 },
+  { name: 'Gab',   initial: 'G', colour: '#22C55E', bgLight: '#D4F5E0', year: 4, age: 10, tier: 'middle', points: 185, streak: 5 },
+  { name: 'Duke',  initial: 'D', colour: '#F59E0B', bgLight: '#FEF3CD', year: 1, age: 8,  tier: 'little', points: 90,  streak: 3 },
 ];
 
 // Jobs per child
@@ -174,6 +174,8 @@ export default function KidsHubScreen() {
   const [triviaScore, setTriviaScore] = useState(0);
   const [triviaSelected, setTriviaSelected] = useState<number | null>(null);
   const [triviaTotal, setTriviaTotal] = useState(0);
+  const [showCompletedJobs, setShowCompletedJobs] = useState(false);
+  const [expandedJobId, setExpandedJobId] = useState<string|null>(null);
   // Suggest a job form
   const [suggestFormOpen, setSuggestFormOpen] = useState(false);
   const [suggestTitle, setSuggestTitle] = useState('');
@@ -262,6 +264,39 @@ export default function KidsHubScreen() {
         await supabase.from('kids_points_log').insert({ family_id: FAMILY_ID, child_name: selectedChild, points: pts, reason: job.name, source: 'job_complete' });
       } catch (e) { console.log('[kids] completeJob error:', e); }
     }
+  }
+
+  async function uncompleteJob(job: any) {
+    if (!job.done) return;
+    const jobId = job.id || job._raw?.id;
+    const pts = job.pts || 10;
+    // Optimistic undo
+    setDbJobs(prev => prev.map((j: any) => j.id === jobId ? { ...j, is_complete: false, completed_at: null } : j));
+    setDbPoints(prev => ({ ...prev, [selectedChild]: Math.max(0, (prev[selectedChild] || 0) - pts) }));
+    // Persist
+    if (jobId) {
+      try {
+        await supabase.from('kids_jobs').update({ is_complete: false, completed_at: null }).eq('id', jobId);
+        // Remove the points log entry
+        await supabase.from('kids_points_log').delete()
+          .eq('family_id', FAMILY_ID).eq('child_name', selectedChild)
+          .eq('reason', job.name).eq('source', 'job_complete')
+          .order('created_at', { ascending: false }).limit(1);
+      } catch (e) { console.log('[kids] uncompleteJob error:', e); }
+    }
+  }
+
+  async function repeatJob(job: any) {
+    // Send a repeat request to parent for approval
+    try {
+      await supabase.from('kids_pending_approvals').insert({
+        family_id: FAMILY_ID, child_name: selectedChild,
+        type: 'job_suggestion', title: `Repeat: ${job.name}`,
+        emoji: job.icon || '📋', points: job.pts || 10,
+        note: `${selectedChild} wants to do this job again`,
+        status: 'pending',
+      });
+    } catch (e) { console.log('[kids] repeatJob error:', e); }
   }
 
   async function submitJobSuggestion() {
@@ -405,19 +440,14 @@ export default function KidsHubScreen() {
   function Banner() {
     return (
       <>
-        <View style={s.banner}>
+        <View style={[s.banner, view === 'hub' && { backgroundColor: childWithDb.bgLight || HUB_BG }]}>
           <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
             <Text style={s.wordmark}>
-              z<Text style={{ color: HUB_PEACH }}>a</Text>el
-              <Text style={{ color: HUB_PEACH }}>i</Text>
+              z<Text style={{ color: view === 'hub' ? child.colour : HUB_PEACH }}>a</Text>el
+              <Text style={{ color: view === 'hub' ? child.colour : HUB_PEACH }}>i</Text>
             </Text>
           </TouchableOpacity>
-          <View style={s.bannerRight}>
-            <Text style={s.bannerLabel}>Kids Hub</Text>
-            <View style={[s.avatar, { backgroundColor: view === 'hub' ? child.colour : '#4D8BFF' }]}>
-              <Text style={s.avatarTxt}>{view === 'hub' ? child.initial : 'R'}</Text>
-            </View>
-          </View>
+          <Text style={s.bannerLabel}>Kids Hub</Text>
         </View>
         <View style={s.divider} />
       </>
@@ -431,13 +461,9 @@ export default function KidsHubScreen() {
     return (
       <View style={s.selectBody}>
         <View style={s.selectHero}>
-          <Text style={s.selectGreet}>Good morning, Rich {'\u{1F44B}'}</Text>
           <Text style={s.selectTitle}>
             Whose hub{'\n'}<Text style={s.selectTitleEm}>today?</Text>
           </Text>
-        </View>
-        <View style={s.familyBadge}>
-          <Text style={s.familyBadgeTxt}>Family Plan {'\u2713'}</Text>
         </View>
         <View style={s.selectCards}>
           {CHILDREN.map(c => (
@@ -467,88 +493,47 @@ export default function KidsHubScreen() {
   // ══════════════════════════════════════════════════════════════════════════
   // HUB HOME — header + tabs + content
   // ══════════════════════════════════════════════════════════════════════════
-  function HubHomeView() {
-    const isLittle = child.tier === 'little';
-    const isOlder = child.tier === 'older';
+  // Compute next reward distance
+  const nextReward = rewards.find((r: any) => (r.cost || 0) > childPoints);
+  const toNextReward = nextReward ? (nextReward.cost || 0) - childPoints : 0;
 
+  function HubHomeView() {
     return (
       <View style={{ flex: 1 }}>
-        {/* Header */}
+        {/* Header — unified for all kids */}
         <View style={s.hubHeader}>
           <TouchableOpacity style={s.backBtn} onPress={goBack} activeOpacity={0.7}>
             <IcoBack />
           </TouchableOpacity>
-          {isLittle ? (
-            <>
-              <Text style={{ fontSize: 20 }}>{'\u{1F44B}'}</Text>
-              <Text style={s.hubHeaderTitle}>Hey {selectedChild}!</Text>
-            </>
-          ) : (
-            <Text style={s.hubHeaderTitle}>{isOlder ? selectedChild : `${selectedChild}'s Hub`}</Text>
-          )}
-          <View style={s.ptsBadge}>
+          <Text style={{ fontSize: 22 }}>{'\u{1F44B}'}</Text>
+          <Text style={s.hubHeaderTitle}>Hey {selectedChild}!</Text>
+          <View style={[s.ptsBadge, { backgroundColor: child.colour }]}>
             <Text style={s.ptsBadgeN}>{childWithDb.points}</Text>
             <Text style={s.ptsBadgeL}>pts</Text>
           </View>
         </View>
 
-        {/* Streak strip (Little tier) */}
-        {isLittle && (
-          <View style={s.streakStrip}>
-            <Text style={s.streakFire}>{'\u{1F525}'}</Text>
-            <View>
-              <Text style={s.streakNum}>{childWithDb.streak}</Text>
-              <Text style={s.streakLbl}>Day Streak</Text>
-            </View>
-            <Text style={{ marginLeft: 'auto', fontSize: 26 }}>
-              {Array(Math.min(child.streak, 5)).fill('\u2B50').join('')}
-            </Text>
-          </View>
-        )}
-
-        {/* Older header card */}
-        {isOlder && (
-          <View style={s.olderHeaderCard}>
-            <View>
-              <Text style={s.olderPtsBig}>{childWithDb.points}</Text>
-              <Text style={s.olderPtsLbl}>points this month</Text>
-              <View style={s.olderStreakPill}>
-                <Text style={s.olderStreakPillTxt}>{'\u{1F525}'} {childWithDb.streak} day streak</Text>
-              </View>
-            </View>
-            <View style={{ marginLeft: 'auto', alignItems: 'flex-end' }}>
-              <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginBottom: 3 }}>Next reward</Text>
-              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK }}>Sleepover {'\u{1F389}'}</Text>
-              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: HUB_DARK }}>60 pts to go</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Middle stats */}
-        {child.tier === 'middle' && (
-          <View style={s.midStats}>
-            <View style={s.midStat}><Text style={s.midStatN}>{'\u{1F525}'} {childWithDb.streak}</Text><Text style={s.midStatL}>Streak</Text></View>
-            <View style={s.midStat}><Text style={s.midStatN}>{jobsDone}/{jobsTotal}</Text><Text style={s.midStatL}>Jobs today</Text></View>
-            <View style={s.midStat}><Text style={s.midStatN}>45</Text><Text style={s.midStatL}>To next reward</Text></View>
-          </View>
-        )}
+        {/* 3-stat row — same for all kids */}
+        <View style={s.midStats}>
+          <View style={s.midStat}><Text style={s.midStatN}>{'\u{1F525}'} {childWithDb.streak}</Text><Text style={s.midStatL}>Streak</Text></View>
+          <View style={s.midStat}><Text style={s.midStatN}>{jobsDone}/{jobsTotal}</Text><Text style={s.midStatL}>Jobs today</Text></View>
+          <View style={s.midStat}><Text style={s.midStatN}>{toNextReward > 0 ? toNextReward : '\u2713'}</Text><Text style={s.midStatL}>{toNextReward > 0 ? 'To next reward' : 'Reward ready!'}</Text></View>
+        </View>
 
         {/* Tabs — hidden when game is active */}
         {!activeGame && <View style={s.tabs}>
           <TouchableOpacity style={[s.tab, activeTab === 'jobs' && s.tabOn]} onPress={() => setActiveTab('jobs')}>
-            <Text style={[s.tabTxt, activeTab === 'jobs' && s.tabTxtOn]}>{isLittle ? 'My Jobs' : 'Jobs'}</Text>
+            <Text style={[s.tabTxt, activeTab === 'jobs' && s.tabTxtOn]}>Jobs</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.tab, activeTab === 'rewards' && s.tabOn]} onPress={() => setActiveTab('rewards')}>
             <Text style={[s.tabTxt, activeTab === 'rewards' && s.tabTxtOn]}>Rewards</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.tab, activeTab === 'games' && s.tabOn]} onPress={() => setActiveTab('games')}>
-            <Text style={[s.tabTxt, activeTab === 'games' && s.tabTxtOn]}>{isLittle ? 'Games \u{1F3AE}' : 'Games'}</Text>
+            <Text style={[s.tabTxt, activeTab === 'games' && s.tabTxtOn]}>Games</Text>
           </TouchableOpacity>
-          {!isLittle && (
-            <TouchableOpacity style={[s.tab, activeTab === 'leaderboard' && s.tabOn]} onPress={() => setActiveTab('leaderboard')}>
-              <Text style={[s.tabTxt, activeTab === 'leaderboard' && s.tabTxtOn]}>{'\u{1F3C6}'}</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity style={[s.tab, activeTab === 'leaderboard' && s.tabOn]} onPress={() => setActiveTab('leaderboard')}>
+            <Text style={[s.tabTxt, activeTab === 'leaderboard' && s.tabTxtOn]}>{'\u{1F3C6}'}</Text>
+          </TouchableOpacity>
         </View>}
 
         {/* Tab content or active game */}
@@ -894,16 +879,17 @@ export default function KidsHubScreen() {
                 <Text style={s.confirmYesTxt}>Yes, request this reward {redeemItem?.icon}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.confirmNo} onPress={() => setRedeemItem(null)} activeOpacity={0.7}>
-                <Text style={s.confirmNoTxt}>Not yet \u2014 keep saving</Text>
+                <Text style={s.confirmNoTxt}>Not yet — keep saving</Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
 
         {/* Suggest a Job form modal */}
-        <Modal visible={suggestFormOpen} transparent animationType="slide">
+        <Modal visible={suggestFormOpen} transparent animationType="slide" onRequestClose={() => setSuggestFormOpen(false)}>
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.4)', justifyContent:'flex-end' }}>
-            <TouchableOpacity style={{ flex:1 }} onPress={() => setSuggestFormOpen(false)} activeOpacity={1}/>
+            <TouchableOpacity style={{ flex:1 }} onPress={() => { Keyboard.dismiss(); setSuggestFormOpen(false); }} activeOpacity={1}/>
+            <ScrollView scrollEnabled={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 0 }}>
             <View style={{ backgroundColor:'#fff', borderTopLeftRadius:24, borderTopRightRadius:24, padding:20 }}>
               <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginBottom:16 }}/>
               <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:INK, marginBottom:4 }}>Suggest a job</Text>
@@ -916,7 +902,6 @@ export default function KidsHubScreen() {
                 placeholderTextColor="rgba(0,0,0,0.30)"
                 value={suggestTitle}
                 onChangeText={setSuggestTitle}
-                autoFocus
               />
 
               <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:INK4, textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>How many points?</Text>
@@ -948,6 +933,7 @@ export default function KidsHubScreen() {
               </TouchableOpacity>
               <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:INK4, textAlign:'center' }}>They'll get a notification and can approve, change the points, or send a note back.</Text>
             </View>
+            </ScrollView>
           </View>
         </Modal>
       </View>
@@ -956,50 +942,143 @@ export default function KidsHubScreen() {
 
   // ── Jobs Tab ─────────────────────────────────────────────────────────────
   function JobsTab() {
-    const isOlder = child.tier === 'older';
+    const todayStr = localDateStr();
+    const activeJobs = jobs.filter(j => !j.done);
+    const completedToday = jobs.filter(j => j.done);
+    // Older completed: from Supabase, completed on previous days, not in today's list
+    const olderCompleted = dbJobs.filter((j: any) =>
+      j.child_name === selectedChild && j.is_complete &&
+      j.completed_at && !j.completed_at.startsWith(todayStr)
+    );
 
     return (
       <View style={s.tabContent}>
-        {jobs.map((job, i) => (
-          <TouchableOpacity
-            key={i}
-            style={isOlder ? s.olderJob : s.jobCard}
-            activeOpacity={0.7}
-            onPress={() => {
-              if (!job.done) completeJob(job);
-            }}
-          >
-            <Text style={isOlder ? s.olderJobIcon : s.jobIcon}>{job.icon}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={isOlder ? s.olderJobName : s.jobName}>{job.name}</Text>
-              {!isOlder && (
-                <Text style={s.jobPts}>
-                  {job.pts} pts {'\u00B7'}{' '}
-                  <Text style={[s.jobType, job.type === 'daily' ? s.jobTypeDaily : s.jobTypeOneoff]}>
-                    {job.type === 'daily' ? 'daily' : 'this week'}
+        {/* All done hero */}
+        {activeJobs.length === 0 && completedToday.length > 0 && (
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 18, padding: 20, alignItems: 'center', marginBottom: 8 }}>
+            <Text style={{ fontSize: 32, marginBottom: 8 }}>{'\u{1F31F}'}</Text>
+            <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: INK }}>All done today!</Text>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginTop: 4 }}>Keep it up tomorrow for day {childWithDb.streak + 1}</Text>
+          </View>
+        )}
+
+        {/* ── Active jobs ── */}
+        {activeJobs.map((job, i) => {
+          const jid = job.id || String(i);
+          const isExp = expandedJobId === jid;
+          return (
+            <View key={jid} style={s.jobCard}>
+              {/* Card body — tap to expand */}
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 }} activeOpacity={0.7} onPress={() => setExpandedJobId(isExp ? null : jid)}>
+                <Text style={s.jobIcon}>{job.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.jobName}>{job.name}</Text>
+                  <Text style={s.jobPts}>
+                    {job.pts} pts {'\u00B7'}{' '}
+                    <Text style={[s.jobType, job.type === 'daily' ? s.jobTypeDaily : s.jobTypeOneoff]}>
+                      {job.type === 'daily' ? 'daily' : job.type === 'weekly' ? 'weekly' : 'this week'}
+                    </Text>
                   </Text>
-                </Text>
+                </View>
+              </TouchableOpacity>
+              {/* Checkbox — tap to complete */}
+              <TouchableOpacity
+                onPress={() => { setExpandedJobId(null); completeJob(job); }}
+                style={s.jobCheck}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              />
+            </View>
+          );
+        })}
+
+        {/* ── Completed today — strikethrough ── */}
+        {completedToday.length > 0 && (
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: 'rgba(0,0,0,0.25)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 8, marginBottom: 4, paddingHorizontal: 2 }}>Done today</Text>
+        )}
+        {completedToday.map((job, i) => {
+          const jid = job.id || ('d' + i);
+          const isExp = expandedJobId === jid;
+          return (
+            <View key={jid}>
+              <View style={[s.jobCard, { opacity: 0.55 }]}>
+                {/* Card body — tap to expand options */}
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 }} activeOpacity={0.7} onPress={() => setExpandedJobId(isExp ? null : jid)}>
+                  <Text style={[s.jobIcon, { opacity: 0.6 }]}>{job.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.jobName, { textDecorationLine: 'line-through', color: 'rgba(0,0,0,0.35)' }]}>{job.name}</Text>
+                    <Text style={[s.jobPts, { color: 'rgba(0,0,0,0.25)' }]}>+{job.pts} pts earned</Text>
+                  </View>
+                </TouchableOpacity>
+                {/* Checkbox — tap to undo */}
+                <TouchableOpacity
+                  onPress={() => uncompleteJob(job)}
+                  style={[s.jobCheck, s.jobCheckDone]}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <IcoCheck size={14} />
+                </TouchableOpacity>
+              </View>
+              {/* Expanded options */}
+              {isExp && (
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 14, marginTop: -4, marginBottom: 4, padding: 12, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+                  <TouchableOpacity onPress={() => { setExpandedJobId(null); repeatJob(job); }} style={{ backgroundColor: HUB_DARK, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#fff' }}>Repeat</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setExpandedJobId(null); uncompleteJob(job); }} style={{ backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK4 }}>Undo</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
-            {isOlder && <Text style={s.olderJobPts}>{job.pts} pts{job.type === 'daily' ? ' \u00B7 daily' : ''}</Text>}
-            <View style={[isOlder ? s.olderJobCheck : s.jobCheck, job.done && (isOlder ? s.olderJobCheckDone : s.jobCheckDone)]}>
-              {job.done && <IcoCheck size={isOlder ? 10 : 12} />}
-            </View>
-          </TouchableOpacity>
-        ))}
+          );
+        })}
 
         {/* Suggest a job */}
-        <TouchableOpacity style={[child.tier === 'older' ? s.olderJob : s.jobCard, s.suggestJob]} activeOpacity={0.7} onPress={() => setSuggestFormOpen(true)}>
-          <Text style={{ fontSize: child.tier === 'older' ? 20 : 26, opacity: 0.3 }}>{'\u2795'}</Text>
+        <TouchableOpacity style={[s.jobCard, s.suggestJob]} activeOpacity={0.7} onPress={() => setSuggestFormOpen(true)}>
+          <Text style={{ fontSize: 26, opacity: 0.3 }}>{'\u2795'}</Text>
           <View style={{ flex: 1 }}>
-            <Text style={[child.tier === 'older' ? s.olderJobName : s.jobName, { color: INK4 }]}>
-              {child.tier === 'older' ? 'Suggest a job to Dad or Mum' : 'Suggest a job'}
-            </Text>
-            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(0,0,0,0.25)' }}>
-              Propose points \u2014 parent approves
+            <Text style={[s.jobName, { color: INK4 }]}>Suggest a job</Text>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(0,0,0,0.25)' }}>
+              Propose points — parent approves
             </Text>
           </View>
         </TouchableOpacity>
+
+        {/* ── Completed Jobs history (previous days) ── */}
+        {olderCompleted.length > 0 && (
+          <>
+            <TouchableOpacity onPress={() => setShowCompletedJobs(v => !v)} style={{ paddingVertical: 12, alignItems: 'center', marginTop: 4 }} activeOpacity={0.7}>
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>
+                {showCompletedJobs ? 'Hide completed jobs' : `Show completed jobs (${olderCompleted.length})`}
+              </Text>
+            </TouchableOpacity>
+            {showCompletedJobs && olderCompleted.slice(0, 20).map((j: any) => {
+              const jid = 'old-' + j.id;
+              const isExp = expandedJobId === jid;
+              const completedDate = j.completed_at ? new Date(j.completed_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+              return (
+                <View key={j.id}>
+                  <TouchableOpacity style={[s.jobCard, { opacity: 0.4 }]} activeOpacity={0.7} onPress={() => setExpandedJobId(isExp ? null : jid)}>
+                    <Text style={[s.jobIcon, { opacity: 0.5 }]}>{j.emoji || '\u{1F4CB}'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.jobName, { textDecorationLine: 'line-through', color: 'rgba(0,0,0,0.30)' }]}>{j.title}</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(0,0,0,0.20)' }}>+{j.points} pts {completedDate ? `\u00B7 ${completedDate}` : ''}</Text>
+                    </View>
+                  </TouchableOpacity>
+                  {isExp && (
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 14, marginTop: -4, marginBottom: 4, padding: 12, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+                      <TouchableOpacity onPress={() => { setExpandedJobId(null); repeatJob({ name: j.title, icon: j.emoji, pts: j.points }); }} style={{ backgroundColor: HUB_DARK, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
+                        <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#fff' }}>Repeat</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </>
+        )}
       </View>
     );
   }
@@ -1008,26 +1087,10 @@ export default function KidsHubScreen() {
   function RewardsTab() {
     return (
       <View style={s.tabContent}>
-        {/* Balance hero */}
-        <View style={s.balanceHero}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.balanceNum}>{childWithDb.points}</Text>
-            <Text style={s.balanceLbl}>points to spend</Text>
-            <View style={s.balanceStreak}>
-              <Text style={s.balanceStreakTxt}>{'\u{1F525}'} {childWithDb.streak} day streak</Text>
-            </View>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={s.earnLabel}>Earning this week</Text>
-            <Text style={s.earnNum}>+{jobsDone * 15} pts</Text>
-            <Text style={s.earnSub}>from {jobsDone} jobs done</Text>
-          </View>
-        </View>
-
         {/* Reward cards */}
         {rewards.map((reward, i) => {
-          const pct = Math.min(100, Math.round((child.points / reward.cost) * 100));
-          const canAfford = child.points >= reward.cost;
+          const pct = Math.min(100, Math.round((childPoints / reward.cost) * 100));
+          const canAfford = childPoints >= reward.cost;
           const isAlmost = !canAfford && pct >= 70;
 
           return (
@@ -1045,7 +1108,7 @@ export default function KidsHubScreen() {
                   <Text style={[s.rewardName, !canAfford && !isAlmost && { color: INK2 }]}>{reward.name}</Text>
                   <Text style={s.rewardCost}>
                     Costs {reward.cost} pts
-                    {!canAfford && ` \u00B7 ${reward.cost - child.points} more to go`}
+                    {!canAfford && ` \u00B7 ${reward.cost - childPoints} more to go`}
                   </Text>
                 </View>
                 {canAfford && (
@@ -1075,7 +1138,7 @@ export default function KidsHubScreen() {
                   canAfford && { color: HUB_DARK, fontFamily: 'Poppins_700Bold' },
                   isAlmost && { color: GOLD, fontFamily: 'Poppins_700Bold' },
                 ]}>
-                  {canAfford ? 'Ready to redeem!' : isAlmost ? `${reward.cost - child.points} pts away` : `${pct}%`}
+                  {canAfford ? 'Ready to redeem!' : isAlmost ? `${reward.cost - childPoints} pts away` : `${pct}%`}
                 </Text>
               </View>
 
@@ -1096,12 +1159,30 @@ export default function KidsHubScreen() {
                   isAlmost && s.redeemBtnTxtAlmost,
                   !canAfford && !isAlmost && s.redeemBtnTxtDisabled,
                 ]}>
-                  {canAfford ? `Redeem for ${reward.cost} pts \u2192` : isAlmost ? `Need ${reward.cost - child.points} more pts to unlock` : `${reward.cost - child.points} pts needed`}
+                  {canAfford ? `Redeem for ${reward.cost} pts \u2192` : isAlmost ? `Need ${reward.cost - childPoints} more pts to unlock` : `${reward.cost - childPoints} pts needed`}
                 </Text>
               </TouchableOpacity>
             </View>
           );
         })}
+
+        {/* Suggest a reward */}
+        <TouchableOpacity style={[s.rewardCard, s.suggestJob]} activeOpacity={0.7} onPress={() => {
+          setSuggestTitle('');
+          setSuggestPts(100);
+          setSuggestNote('');
+          setSuggestFormOpen(true);
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Text style={{ fontSize: 26, opacity: 0.3 }}>{'\u2795'}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.rewardName, { color: INK4 }]}>Suggest a reward</Text>
+              <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(0,0,0,0.25)' }}>
+                Tell Mum or Dad what you'd love to earn
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -1110,24 +1191,12 @@ export default function KidsHubScreen() {
   function GamesTab() {
     return (
       <View style={s.tabContent}>
-        {/* Daily Wordle banner */}
-        <View style={s.dailyBanner}>
-          <Text style={{ fontSize: 22 }}>{'\u{1F7E9}'}</Text>
-          <View>
-            <Text style={s.dailyBannerTxt}>Zaeli{"'"}s Wordle {'\u00B7'} Today{"'"}s word</Text>
-            <Text style={s.dailyBannerWord}>_ _ _ _ _</Text>
-          </View>
-          <TouchableOpacity style={s.dailyBannerPlay} activeOpacity={0.7} onPress={startWordle}>
-            <Text style={s.dailyBannerPlayTxt}>Play now</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Games grid */}
         <View style={s.gamesGrid}>
           {GAMES.map((game, i) => {
             if (game.featured) {
               return (
-                <TouchableOpacity key={i} style={s.gameFeatured} activeOpacity={0.7} onPress={startWordle}>
+                <TouchableOpacity key={i} style={[s.gameFeatured, { backgroundColor: child.colour }]} activeOpacity={0.7} onPress={startWordle}>
                   <Text style={s.gameFeaturedIcon}>{game.icon}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={s.gameFeaturedName}>{game.name}</Text>
@@ -1237,10 +1306,10 @@ export default function KidsHubScreen() {
 
   // ── Main render ────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
+    <SafeAreaView style={[s.safe, view === 'hub' && { backgroundColor: childWithDb.bgLight || HUB_BG }]} edges={['top']}>
       <RNStatusBar barStyle="dark-content" />
       <Banner />
-      <View style={s.body}>
+      <View style={[s.body, view === 'hub' && { backgroundColor: childWithDb.bgLight || HUB_BG }]}>
         {view === 'select' && <ChildSelectView />}
         {view === 'hub' && <HubHomeView />}
       </View>
@@ -1255,85 +1324,82 @@ const s = StyleSheet.create({
 
   // Banner
   banner: { paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: HUB_BG },
-  wordmark: { fontFamily: 'Poppins_800ExtraBold', fontSize: 32, letterSpacing: -1.5, color: INK, lineHeight: 38 },
-  bannerRight: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  bannerLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK4 },
-  avatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  avatarTxt: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#fff' },
+  wordmark: { fontFamily: 'Poppins_800ExtraBold', fontSize: 40, letterSpacing: -1.5, color: INK, lineHeight: 46 },
+  bannerLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 17, color: INK4 },
   divider: { height: 1, backgroundColor: 'rgba(0,0,0,0.08)' },
 
   // Child Select
   selectBody: { flex: 1 },
   selectHero: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14 },
   selectGreet: { fontFamily: 'Poppins_500Medium', fontSize: 15, color: INK4, marginBottom: 4 },
-  selectTitle: { fontFamily: 'Poppins_700Bold', fontSize: 28, color: INK, lineHeight: 34, letterSpacing: -0.5 },
+  selectTitle: { fontFamily: 'Poppins_700Bold', fontSize: 32, color: INK, lineHeight: 38, letterSpacing: -0.5 },
   selectTitleEm: { fontStyle: 'italic', color: 'rgba(0,0,0,0.28)' },
   familyBadge: { marginLeft: 20, alignSelf: 'flex-start', backgroundColor: 'rgba(10,64,48,0.12)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 16 },
   familyBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 11, color: HUB_DARK, textTransform: 'uppercase', letterSpacing: 0.3 },
-  selectCards: { paddingHorizontal: 14, gap: 10 },
-  selectCard: { borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  selectCardAv: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  selectCardAvTxt: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: '#fff' },
-  selectCardName: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, marginBottom: 2 },
-  selectCardMeta: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: INK4 },
-  selectCardPts: { backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5 },
-  selectCardPtsTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: HUB_DARK },
+  selectCards: { paddingHorizontal: 14, gap: 12 },
+  selectCard: { borderRadius: 22, paddingHorizontal: 20, paddingVertical: 20, flexDirection: 'row', alignItems: 'center', gap: 16 },
+  selectCardAv: { width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center' },
+  selectCardAvTxt: { fontFamily: 'Poppins_700Bold', fontSize: 22, color: '#fff' },
+  selectCardName: { fontFamily: 'Poppins_700Bold', fontSize: 20, color: INK, marginBottom: 3 },
+  selectCardMeta: { fontFamily: 'Poppins_500Medium', fontSize: 14, color: INK4 },
+  selectCardPts: { backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 9 },
+  selectCardPtsTxt: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: HUB_DARK },
 
   // Hub header
-  hubHeader: { paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(0,0,0,0.08)', alignItems: 'center', justifyContent: 'center' },
-  hubHeaderTitle: { fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: INK },
-  ptsBadge: { marginLeft: 'auto', backgroundColor: HUB_DARK, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  ptsBadgeN: { fontFamily: 'Poppins_800ExtraBold', fontSize: 17, color: HUB_BG },
-  ptsBadgeL: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: 'rgba(168,232,204,0.6)', textTransform: 'uppercase', letterSpacing: 0.3 },
+  hubHeader: { paddingHorizontal: 20, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(0,0,0,0.08)', alignItems: 'center', justifyContent: 'center' },
+  hubHeaderTitle: { fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK },
+  ptsBadge: { marginLeft: 'auto', borderRadius: 28, paddingHorizontal: 22, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  ptsBadgeN: { fontFamily: 'Poppins_800ExtraBold', fontSize: 26, color: '#fff' },
+  ptsBadgeL: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 0.3 },
 
   // Streak strip (little)
-  streakStrip: { marginHorizontal: 14, marginBottom: 12, backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  streakFire: { fontSize: 28 },
-  streakNum: { fontFamily: 'Poppins_800ExtraBold', fontSize: 24, color: INK, lineHeight: 26 },
-  streakLbl: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.3 },
+  streakStrip: { marginHorizontal: 14, marginBottom: 12, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 18, paddingHorizontal: 18, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  streakFire: { fontSize: 32 },
+  streakNum: { fontFamily: 'Poppins_800ExtraBold', fontSize: 28, color: INK, lineHeight: 32 },
+  streakLbl: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK4, textTransform: 'uppercase', letterSpacing: 0.3 },
 
   // Older header card
-  olderHeaderCard: { marginHorizontal: 14, marginBottom: 12, backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 20, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  olderPtsBig: { fontFamily: 'Poppins_800ExtraBold', fontSize: 34, color: INK, lineHeight: 36 },
-  olderPtsLbl: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.3 },
-  olderStreakPill: { backgroundColor: HUB_DARK, borderRadius: 22, paddingHorizontal: 14, paddingVertical: 6, marginTop: 6, alignSelf: 'flex-start' },
-  olderStreakPillTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: HUB_BG },
+  olderHeaderCard: { marginHorizontal: 14, marginBottom: 12, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 22, paddingHorizontal: 22, paddingVertical: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  olderPtsBig: { fontFamily: 'Poppins_800ExtraBold', fontSize: 38, color: INK, lineHeight: 44 },
+  olderPtsLbl: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK4, textTransform: 'uppercase', letterSpacing: 0.3 },
+  olderStreakPill: { backgroundColor: HUB_DARK, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 7, marginTop: 8, alignSelf: 'flex-start' },
+  olderStreakPillTxt: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: HUB_BG },
 
   // Middle stats
   midStats: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginBottom: 12 },
-  midStat: { flex: 1, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center' },
-  midStatN: { fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, lineHeight: 24 },
-  midStatL: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 2 },
+  midStat: { flex: 1, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 16, paddingVertical: 12, paddingHorizontal: 12, alignItems: 'center' },
+  midStatN: { fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, lineHeight: 26 },
+  midStatL: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.3, marginTop: 3 },
 
   // Tabs
-  tabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginBottom: 10 },
-  tab: { flex: 1, backgroundColor: 'rgba(255,255,255,0.35)', borderRadius: 12, paddingVertical: 10, alignItems: 'center' },
+  tabs: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginBottom: 12 },
+  tab: { flex: 1, backgroundColor: 'rgba(255,255,255,0.35)', borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
   tabOn: { backgroundColor: CARD },
-  tabTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: 'rgba(0,0,0,0.45)' },
+  tabTxt: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: 'rgba(0,0,0,0.45)' },
   tabTxtOn: { color: HUB_DARK },
 
   // Tab content
   tabContent: { paddingHorizontal: 14, gap: 8 },
 
   // Job card (Little/Middle)
-  jobCard: { backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  jobIcon: { fontSize: 26 },
-  jobName: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, marginBottom: 3 },
-  jobPts: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: INK4 },
-  jobType: { fontFamily: 'Poppins_700Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.3 },
+  jobCard: { backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 20, paddingVertical: 18, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  jobIcon: { fontSize: 30 },
+  jobName: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: INK, marginBottom: 3 },
+  jobPts: { fontFamily: 'Poppins_500Medium', fontSize: 14, color: INK4 },
+  jobType: { fontFamily: 'Poppins_700Bold', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3 },
   jobTypeDaily: { color: HUB_DARK },
   jobTypeOneoff: { color: AMBER_TXT },
-  jobCheck: { width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: 'rgba(0,0,0,0.15)', alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' },
+  jobCheck: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: 'rgba(0,0,0,0.15)', alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' },
   jobCheckDone: { backgroundColor: HUB_BG, borderColor: HUB_BG },
   suggestJob: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.12)', backgroundColor: 'rgba(0,0,0,0.02)' },
 
   // Older job card
-  olderJob: { backgroundColor: CARD, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  olderJobIcon: { fontSize: 20 },
-  olderJobName: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK, flex: 1 },
-  olderJobPts: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: HUB_DARK },
-  olderJobCheck: { width: 30, height: 30, borderRadius: 8, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.15)', alignItems: 'center', justifyContent: 'center' },
+  olderJob: { backgroundColor: CARD, borderRadius: 18, paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  olderJobIcon: { fontSize: 22 },
+  olderJobName: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: INK, flex: 1 },
+  olderJobPts: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: HUB_DARK },
+  olderJobCheck: { width: 34, height: 34, borderRadius: 10, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.15)', alignItems: 'center', justifyContent: 'center' },
   olderJobCheckDone: { backgroundColor: HUB_BG, borderColor: HUB_BG },
 
   // Rewards
@@ -1346,26 +1412,26 @@ const s = StyleSheet.create({
   earnNum: { fontFamily: 'Poppins_800ExtraBold', fontSize: 16, color: HUB_BG },
   earnSub: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 },
 
-  rewardCard: { backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16 },
+  rewardCard: { backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 20, paddingVertical: 18 },
   rewardCardAfford: { borderWidth: 2, borderColor: HUB_BG },
   rewardCardFar: { backgroundColor: 'rgba(255,255,255,0.55)' },
   rewardTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
-  rewardIcon: { fontSize: 26 },
-  rewardName: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, marginBottom: 2 },
-  rewardCost: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 },
-  affordTag: { backgroundColor: HUB_BG, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 'auto' },
-  affordTagTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: HUB_DARK },
-  almostTag: { backgroundColor: AMBER_BG, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginLeft: 'auto' },
-  almostTagTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: AMBER_TXT },
+  rewardIcon: { fontSize: 28 },
+  rewardName: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: INK, marginBottom: 2 },
+  rewardCost: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4 },
+  affordTag: { backgroundColor: HUB_BG, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5, marginLeft: 'auto' },
+  affordTagTxt: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: HUB_DARK },
+  almostTag: { backgroundColor: AMBER_BG, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5, marginLeft: 'auto' },
+  almostTagTxt: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: AMBER_TXT },
   rewardBarWrap: { height: 8, backgroundColor: 'rgba(0,0,0,0.07)', borderRadius: 4, overflow: 'hidden', marginBottom: 6 },
   rewardBar: { height: 8, borderRadius: 4 },
   rewardBarRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  rewardBarLabel: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK4 },
+  rewardBarLabel: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4 },
   redeemBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  redeemBtnAfford: { backgroundColor: HUB_DARK },
+  redeemBtnAfford: { backgroundColor: '#22C55E' },
   redeemBtnAlmost: { backgroundColor: AMBER_BG },
   redeemBtnDisabled: { backgroundColor: 'rgba(0,0,0,0.07)' },
-  redeemBtnTxt: { fontFamily: 'Poppins_700Bold', fontSize: 15 },
+  redeemBtnTxt: { fontFamily: 'Poppins_700Bold', fontSize: 16 },
   redeemBtnTxtAfford: { color: '#fff' },
   redeemBtnTxtAlmost: { color: AMBER_TXT },
   redeemBtnTxtDisabled: { color: 'rgba(0,0,0,0.3)' },
@@ -1378,16 +1444,16 @@ const s = StyleSheet.create({
   dailyBannerPlayTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: HUB_BG },
 
   gamesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  gameFeatured: { width: '100%', backgroundColor: HUB_DARK, borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
+  gameFeatured: { width: '100%', borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
   gameFeaturedIcon: { fontSize: 36 },
-  gameFeaturedName: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#fff', marginBottom: 3 },
-  gameFeaturedDesc: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 18 },
+  gameFeaturedName: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: '#fff', marginBottom: 3 },
+  gameFeaturedDesc: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 20 },
   gameBadgeDaily: { backgroundColor: 'rgba(168,232,204,0.2)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginTop: 8 },
   gameBadgeDailyTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: HUB_BG },
   gameCard: { width: (W - 28 - 10) / 2, backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 16 },
   gameIcon: { fontSize: 30, marginBottom: 8 },
-  gameName: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: INK, marginBottom: 3 },
-  gameDesc: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK4, lineHeight: 18 },
+  gameName: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, marginBottom: 3 },
+  gameDesc: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, lineHeight: 19 },
   gameBadge: { backgroundColor: 'rgba(168,232,204,0.3)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginTop: 8 },
   gameBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: HUB_DARK },
   gameBadgeWeekly: { backgroundColor: AMBER_BG },
