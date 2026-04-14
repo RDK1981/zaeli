@@ -218,6 +218,17 @@ export const TRIVIA_LITTLE: TriviaQuestion[] = [
   { question: 'What sport do the Wallabies play?', options: ['Cricket', 'Soccer', 'Rugby', 'Tennis'], correct: 2 },
   { question: 'What is the biggest reef in Australia?', options: ['Ningaloo', 'Great Barrier Reef', 'Gold Coast Reef', 'Sydney Reef'], correct: 1 },
   { question: 'Which Australian animal sleeps up to 22 hours a day?', options: ['Kangaroo', 'Koala', 'Emu', 'Dingo'], correct: 1 },
+  // World trivia
+  { question: 'What is the biggest animal in the world?', options: ['Elephant', 'Blue whale', 'Giraffe', 'Shark'], correct: 1 },
+  { question: 'How many continents are there?', options: ['5', '6', '7', '8'], correct: 2 },
+  { question: 'What planet is closest to the sun?', options: ['Venus', 'Earth', 'Mercury', 'Mars'], correct: 2 },
+  { question: 'What is the tallest animal?', options: ['Elephant', 'Giraffe', 'Horse', 'Bear'], correct: 1 },
+  { question: 'How many legs does a spider have?', options: ['6', '8', '10', '4'], correct: 1 },
+  { question: 'What colour do you get when you mix red and yellow?', options: ['Green', 'Purple', 'Orange', 'Brown'], correct: 2 },
+  { question: 'Which is the largest ocean?', options: ['Atlantic', 'Indian', 'Pacific', 'Arctic'], correct: 2 },
+  { question: 'What do caterpillars turn into?', options: ['Beetles', 'Butterflies', 'Bees', 'Birds'], correct: 1 },
+  { question: 'How many days are in a year?', options: ['365', '360', '350', '400'], correct: 0 },
+  { question: 'What is frozen water called?', options: ['Steam', 'Rain', 'Ice', 'Fog'], correct: 2 },
 ];
 
 export const TRIVIA_MIDDLE: TriviaQuestion[] = [
@@ -231,6 +242,17 @@ export const TRIVIA_MIDDLE: TriviaQuestion[] = [
   { question: 'Which marsupial is known for being the happiest animal?', options: ['Koala', 'Quokka', 'Wallaby', 'Wombat'], correct: 1 },
   { question: 'What year did Australia become a federation?', options: ['1788', '1851', '1901', '1945'], correct: 2 },
   { question: 'Which Australian swimmer won 5 Olympic gold medals?', options: ['Grant Hackett', 'Ian Thorpe', 'Ariarne Titmus', 'Dawn Fraser'], correct: 1 },
+  // World trivia
+  { question: 'What is the longest river in the world?', options: ['Amazon', 'Nile', 'Mississippi', 'Yangtze'], correct: 1 },
+  { question: 'Which country has the most people?', options: ['USA', 'India', 'China', 'Brazil'], correct: 1 },
+  { question: 'What is the capital of Japan?', options: ['Beijing', 'Seoul', 'Tokyo', 'Bangkok'], correct: 2 },
+  { question: 'Which planet is known as the Red Planet?', options: ['Jupiter', 'Mars', 'Venus', 'Saturn'], correct: 1 },
+  { question: 'What language do people speak in Brazil?', options: ['Spanish', 'English', 'Portuguese', 'French'], correct: 2 },
+  { question: 'Mount Everest is in which mountain range?', options: ['Andes', 'Alps', 'Rockies', 'Himalayas'], correct: 3 },
+  { question: 'Which country is shaped like a boot?', options: ['France', 'Spain', 'Italy', 'Greece'], correct: 2 },
+  { question: 'What sport is played at Wimbledon?', options: ['Cricket', 'Tennis', 'Golf', 'Rugby'], correct: 1 },
+  { question: 'How many sides does a hexagon have?', options: ['5', '6', '7', '8'], correct: 1 },
+  { question: 'What is the hardest natural substance?', options: ['Gold', 'Iron', 'Diamond', 'Marble'], correct: 2 },
 ];
 
 export const TRIVIA_OLDER: TriviaQuestion[] = [
@@ -244,6 +266,17 @@ export const TRIVIA_OLDER: TriviaQuestion[] = [
   { question: 'What is the name of the wind pattern that brings rain to northern Australia?', options: ['El Nino', 'Trade winds', 'Monsoon', 'Westerlies'], correct: 2 },
   { question: 'Which Australian author wrote "The Magic Pudding"?', options: ['May Gibbs', 'Norman Lindsay', 'Banjo Paterson', 'Henry Lawson'], correct: 1 },
   { question: 'What does ANZAC stand for?', options: ['Australian New Zealand Army Command', 'Australian New Zealand Army Corps', 'Allied Nations Zone Army Corps', 'Australian Naval Zone Army Corps'], correct: 1 },
+  // World trivia
+  { question: 'Which gas makes up most of Earth\'s atmosphere?', options: ['Oxygen', 'Carbon dioxide', 'Nitrogen', 'Hydrogen'], correct: 2 },
+  { question: 'Who painted the Mona Lisa?', options: ['Michelangelo', 'Picasso', 'Leonardo da Vinci', 'Van Gogh'], correct: 2 },
+  { question: 'What is the speed of light approximately?', options: ['300 km/s', '3,000 km/s', '30,000 km/s', '300,000 km/s'], correct: 3 },
+  { question: 'Which element has the chemical symbol Fe?', options: ['Fluorine', 'Iron', 'Lead', 'Gold'], correct: 1 },
+  { question: 'The Great Wall of China is visible from space — true or false?', options: ['True', 'False — it\'s too narrow', 'Only with binoculars', 'Only from low orbit'], correct: 1 },
+  { question: 'What is the smallest country in the world?', options: ['Monaco', 'Malta', 'Vatican City', 'Liechtenstein'], correct: 2 },
+  { question: 'Which ocean lies between Africa and Australia?', options: ['Pacific', 'Atlantic', 'Indian', 'Southern'], correct: 2 },
+  { question: 'What year did humans first land on the Moon?', options: ['1965', '1969', '1972', '1959'], correct: 1 },
+  { question: 'What is the pH of pure water?', options: ['5', '7', '9', '10'], correct: 1 },
+  { question: 'Which Shakespeare play features the line "To be or not to be"?', options: ['Macbeth', 'Othello', 'Hamlet', 'Romeo and Juliet'], correct: 2 },
 ];
 
 // ── MINI CROSSWORD DATA ─────────────────────────────────────────────────────

@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, { Polyline } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   WORDLE_LITTLE, WORDLE_MIDDLE, WORDLE_OLDER,
   SCRAMBLE_LITTLE, SCRAMBLE_MIDDLE, SCRAMBLE_OLDER,
@@ -106,10 +107,10 @@ const REWARDS: Record<ChildName, { icon: string; name: string; cost: number; sta
 
 // Games
 const GAMES = [
-  { icon: '\u{1F7E9}', name: "Zaeli's Wordle", desc: 'Daily 5-letter word \u2014 family shares the same one', badge: 'daily', badgeText: "Today's word waiting!", featured: true },
+  { icon: '\u{1F7E9}', name: "Zaeli's Wordle", desc: 'Daily word challenge \u2014 guess the hidden word!', badge: 'daily', badgeText: "Today's word waiting!", featured: true },
   { icon: '\u{1F524}', name: 'Word Scramble', desc: 'Unscramble the letters to find the hidden word', badge: 'anytime', badgeText: 'Anytime', featured: false },
   { icon: '\u26A1', name: 'Maths Sprint', desc: '60 seconds \u2014 how many can you get?', badge: 'anytime', badgeText: 'Beat your best', featured: false },
-  { icon: '\u{1F998}', name: 'Aussie Trivia', desc: 'Australian animals, places, sport and culture', badge: 'anytime', badgeText: 'Anytime', featured: false },
+  { icon: '\u{1F30D}', name: 'World Trivia', desc: 'Questions about Australia and the world', badge: 'anytime', badgeText: 'Anytime', featured: false },
   { icon: '\u270F\uFE0F', name: 'Mini Crossword', desc: 'New puzzle every Monday \u2014 5\u00D75 grid', badge: 'weekly', badgeText: 'New Monday', featured: false },
 ];
 
@@ -161,6 +162,7 @@ export default function KidsHubScreen() {
   const [scrambleAnswer, setScrambleAnswer] = useState('');
   const [scrambleScrambled, setScrambleScrambled] = useState('');
   const [scrambleHint, setScrambleHint] = useState('');
+  const [scrambleHintVisible, setScrambleHintVisible] = useState(false);
   const [scrambleInput, setScrambleInput] = useState('');
   const [scrambleScore, setScrambleScore] = useState(0);
   const [scrambleRound, setScrambleRound] = useState(0);
@@ -177,6 +179,7 @@ export default function KidsHubScreen() {
   const [crosswordSel, setCrosswordSel] = useState<{ r: number; c: number } | null>(null);
   const [crosswordGrid, setCrosswordGrid] = useState<Record<string, string>>({});
   const [crosswordChecked, setCrosswordChecked] = useState(false);
+  const [showGameInfo, setShowGameInfo] = useState(false);
   // Trivia state
   const [triviaQ, setTriviaQ] = useState<TriviaQuestion | null>(null);
   const [triviaIndex, setTriviaIndex] = useState(0);
@@ -343,27 +346,53 @@ export default function KidsHubScreen() {
     return () => clearTimeout(t);
   }, [celebration]);
 
+  // ── Game save/load ──
+  const gameStorageKey = (game: string) => `kidshub_${selectedChild}_${game}_${localDateStr()}`;
+  async function saveGameState(game: string, state: any) {
+    try { await AsyncStorage.setItem(gameStorageKey(game), JSON.stringify(state)); } catch {}
+  }
+  async function loadGameState(game: string): Promise<any|null> {
+    try { const v = await AsyncStorage.getItem(gameStorageKey(game)); return v ? JSON.parse(v) : null; } catch { return null; }
+  }
+
   // ── Game launchers ──
-  function startWordle() {
+  async function startWordle() {
     const tier = child.tier;
     const list = tier === 'little' ? WORDLE_LITTLE : tier === 'middle' ? WORDLE_MIDDLE : WORDLE_OLDER;
     const dayIndex = Math.floor((Date.now() - Date.parse('2026-01-01')) / 86400000);
-    const word = list[((dayIndex % list.length) + list.length) % list.length];
-    setWordleAnswer(word.toUpperCase());
-    setWordleGuesses([]);
+    const word = list[((dayIndex % list.length) + list.length) % list.length].toUpperCase();
+    setWordleAnswer(word);
     setWordleInput('');
-    setWordleWon(false);
-    setWordleKeyStates({});
     setCelebration(null);
+    // Try loading saved state
+    const saved = await loadGameState('wordle');
+    if (saved && saved.answer === word) {
+      setWordleGuesses(saved.guesses || []);
+      setWordleWon(saved.won || false);
+      setWordleKeyStates(saved.keyStates || {});
+    } else {
+      setWordleGuesses([]);
+      setWordleWon(false);
+      setWordleKeyStates({});
+    }
     setActiveGame('wordle');
   }
 
-  function startScramble() {
+  async function startScramble() {
     const tier = child.tier;
     const list = tier === 'little' ? SCRAMBLE_LITTLE : tier === 'middle' ? SCRAMBLE_MIDDLE : SCRAMBLE_OLDER;
-    setScrambleRound(0);
-    setScrambleScore(0);
-    loadScrambleRound(list, 0);
+    setCelebration(null);
+    // Try loading saved state
+    const saved = await loadGameState('scramble');
+    if (saved && saved.round < Math.min(10, list.length)) {
+      setScrambleRound(saved.round);
+      setScrambleScore(saved.score);
+      loadScrambleRound(list, saved.round);
+    } else {
+      setScrambleRound(0);
+      setScrambleScore(0);
+      loadScrambleRound(list, 0);
+    }
     setActiveGame('scramble');
   }
   function loadScrambleRound(list: any[], round: number) {
@@ -373,11 +402,12 @@ export default function KidsHubScreen() {
     setScrambleScrambled(scrambleWord(item.word.toUpperCase()));
     setScrambleHint(item.hint);
     setScrambleInput('');
+    setScrambleHintVisible(false);
   }
 
   function startMaths() {
     setMathsScore(0);
-    setMathsTimeLeft(60);
+    setMathsTimeLeft(120);
     setMathsActive(true);
     nextMathsQuestion();
     setActiveGame('maths');
@@ -554,9 +584,36 @@ export default function KidsHubScreen() {
           </TouchableOpacity>
         </View>}
 
-        {/* Tab content or active game */}
-        {activeGame ? (
-          <View style={{ flex: 1 }}>
+        {/* Tab content — always visible */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {activeTab === 'jobs' && <JobsTab />}
+          {activeTab === 'rewards' && <RewardsTab />}
+          {activeTab === 'games' && <GamesTab />}
+          {activeTab === 'leaderboard' && <LeaderboardTab />}
+        </ScrollView>
+
+        {/* ── GAME MODAL (92% sheet) ── */}
+        <Modal visible={activeGame !== null} transparent animationType="slide" onRequestClose={goBack}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.40)', justifyContent: 'flex-end' }}>
+            <View style={{ backgroundColor: childWithDb.bgLight || HUB_BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '92%', flexDirection: 'column' }}>
+              {/* Handle + close */}
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)', alignSelf: 'center', marginTop: 10 }}/>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 }}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 18, color: INK, flex: 1 }}>
+                  {activeGame === 'wordle' ? "Zaeli's Wordle" : activeGame === 'scramble' ? 'Word Scramble' : activeGame === 'maths' ? 'Maths Sprint' : activeGame === 'trivia' ? 'World Trivia' : activeGame === 'crossword' ? 'Mini Crossword' : ''}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {(activeGame === 'wordle' || activeGame === 'crossword') && (
+                    <TouchableOpacity onPress={() => setShowGameInfo(true)} style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.07)', alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.7}>
+                      <Text style={{ fontSize: 16, color: 'rgba(0,0,0,0.5)' }}>?</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={goBack} style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.07)', alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.7}>
+                    <Text style={{ fontSize: 16, color: 'rgba(0,0,0,0.5)' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={{ flex: 1 }}>
             {/* ── WORDLE ── */}
             {activeGame === 'wordle' && (() => {
               const wordLen = wordleAnswer.length;
@@ -583,9 +640,12 @@ export default function KidsHubScreen() {
                     });
                     setWordleKeyStates(newKS);
                   }
-                  if (guess === wordleAnswer) { setWordleWon(true); setCelebration({ emoji: '🎉', title: 'You got it!', sub: `${newGuesses.length}/${maxGuesses} guesses` }); }
+                  const won = guess === wordleAnswer;
+                  if (won) { setWordleWon(true); setCelebration({ emoji: '🎉', title: 'You got it!', sub: `${newGuesses.length}/${maxGuesses} guesses` }); }
                   else if (newGuesses.length >= maxGuesses) { setCelebration({ emoji: '😅', title: `The word was ${wordleAnswer}`, sub: 'Better luck tomorrow!' }); }
                   setWordleInput('');
+                  // Save state
+                  saveGameState('wordle', { answer: wordleAnswer, guesses: newGuesses, won, keyStates: wordLen === 5 ? { ...wordleKeyStates } : {} });
                   return;
                 }
                 if (wordleInput.length >= wordLen) return;
@@ -636,16 +696,13 @@ export default function KidsHubScreen() {
                           return (
                             <TouchableOpacity key={key} onPress={() => handleWordleKey(key)} activeOpacity={0.7}
                               style={{ height: 48, flex: isWide ? 1.5 : 1, maxWidth: isWide ? 60 : 36, borderRadius: 8, backgroundColor: kbBg, alignItems: 'center', justifyContent: 'center' }}>
-                              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 11 : 15, color: kbC }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 16 : 17, color: kbC }}>{key === 'DEL' ? '\u232B' : key}</Text>
                             </TouchableOpacity>
                           );
                         })}
                       </View>
                     ))}
                   </View>
-                  <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }} activeOpacity={0.7}>
-                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
-                  </TouchableOpacity>
                 </ScrollView>
               );
             })()}
@@ -665,8 +722,11 @@ export default function KidsHubScreen() {
                   } else {
                     setCelebration({ emoji: '🤔', title: `It was ${scrambleAnswer}`, sub: 'Keep going!' });
                   }
+                  const correct = scrambleInput.toUpperCase() === scrambleAnswer;
                   const next = scrambleRound + 1;
+                  const newScore = correct ? scrambleScore + 1 : scrambleScore;
                   setScrambleRound(next);
+                  saveGameState('scramble', { round: next, score: newScore });
                   if (next < maxRounds) setTimeout(() => loadScrambleRound(list, next), 500);
                   return;
                 }
@@ -682,7 +742,13 @@ export default function KidsHubScreen() {
                       {/* Scrambled word */}
                       <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 20, alignItems: 'center', width: '100%', marginBottom: 10 }}>
                         <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 34, color: child.colour, letterSpacing: 8 }}>{scrambleScrambled}</Text>
-                        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, marginTop: 8 }}>{scrambleHint}</Text>
+                        {scrambleHintVisible ? (
+                          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginTop: 8 }}>{scrambleHint}</Text>
+                        ) : (
+                          <TouchableOpacity onPress={() => setScrambleHintVisible(true)} style={{ marginTop: 8 }} activeOpacity={0.7}>
+                            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: child.colour }}>Need a hint?</Text>
+                          </TouchableOpacity>
+                        )}
                       </View>
                       {/* Input tiles */}
                       <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
@@ -701,7 +767,7 @@ export default function KidsHubScreen() {
                               return (
                                 <TouchableOpacity key={key} onPress={() => handleScrambleKey(key)} activeOpacity={0.7}
                                   style={{ height: 48, flex: isWide ? 1.5 : 1, maxWidth: isWide ? 60 : 36, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
-                                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 11 : 15, color: INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 16 : 17, color: INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
                                 </TouchableOpacity>
                               );
                             })}
@@ -719,9 +785,6 @@ export default function KidsHubScreen() {
                       </TouchableOpacity>
                     </View>
                   )}
-                  <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }} activeOpacity={0.7}>
-                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
-                  </TouchableOpacity>
                 </ScrollView>
               );
             })()}
@@ -748,7 +811,7 @@ export default function KidsHubScreen() {
                   <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 10 }}>Maths Sprint</Text>
                   {/* Timer bar */}
                   <View style={{ width: '90%', height: 8, backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 4, overflow: 'hidden', marginBottom: 12 }}>
-                    <View style={{ height: 8, borderRadius: 4, backgroundColor: mathsTimeLeft <= 10 ? '#FF4545' : child.colour, width: `${(mathsTimeLeft / 60) * 100}%` }}/>
+                    <View style={{ height: 8, borderRadius: 4, backgroundColor: mathsTimeLeft <= 10 ? '#FF4545' : child.colour, width: `${(mathsTimeLeft / 120) * 100}%` }}/>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 16, marginBottom: 14 }}>
                     <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 8, alignItems: 'center' }}>
@@ -774,7 +837,7 @@ export default function KidsHubScreen() {
                           <View key={ri} style={{ flexDirection: 'row', gap: 6 }}>
                             {row.map(key => (
                               <TouchableOpacity key={key} onPress={() => handleMathsKey(key)} activeOpacity={0.7}
-                                style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: key === 'GO' ? child.colour : key === 'DEL' ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
+                                style={{ flex: 1, height: 62, borderRadius: 14, backgroundColor: key === 'GO' ? child.colour : key === 'DEL' ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
                                 <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: key === 'GO' || key === 'DEL' ? 14 : 22, color: key === 'GO' ? '#fff' : INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
                               </TouchableOpacity>
                             ))}
@@ -786,7 +849,7 @@ export default function KidsHubScreen() {
                     <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 24, alignItems: 'center', width: '90%' }}>
                       <Text style={{ fontSize: 44 }}>{mathsScore >= 15 ? '🔥' : mathsScore >= 8 ? '⭐' : '💪'}</Text>
                       <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, marginTop: 8 }}>Time's up!</Text>
-                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4, marginTop: 4 }}>{mathsScore} correct in 60 seconds</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4, marginTop: 4 }}>{mathsScore} correct in 2 minutes</Text>
                       <TouchableOpacity onPress={startMaths} style={{ backgroundColor: child.colour, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 28, marginTop: 16 }} activeOpacity={0.8}>
                         <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Try again</Text>
                       </TouchableOpacity>
@@ -796,9 +859,6 @@ export default function KidsHubScreen() {
                       <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#fff' }}>Start!</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }} activeOpacity={0.7}>
-                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
-                  </TouchableOpacity>
                 </View>
               );
             })()}
@@ -855,9 +915,6 @@ export default function KidsHubScreen() {
                       </TouchableOpacity>
                     </View>
                   )}
-                  <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }} activeOpacity={0.7}>
-                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
-                  </TouchableOpacity>
                 </ScrollView>
               );
             })()}
@@ -869,8 +926,13 @@ export default function KidsHubScreen() {
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', padding: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
                   <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 4 }}>Mini Crossword</Text>
                   <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, marginBottom: 12 }}>Weekly puzzle — tap cells to fill in</Text>
-                  {/* Grid — interactive: tap to select, keyboard to fill */}
-                  <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 12, alignItems: 'center', marginBottom: 10 }}>
+                  {/* Grid — interactive with clue numbers */}
+                  {(() => {
+                    // Build a map of clue numbers per cell position
+                    const cellNums: Record<string, number> = {};
+                    [...puzzle.acrossClues, ...puzzle.downClues].forEach(cl => { cellNums[`${cl.row}-${cl.col}`] = cl.num; });
+                    return (
+                  <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 8, alignItems: 'center', marginBottom: 10 }}>
                     {puzzle.grid.map((row, r) => (
                       <View key={r} style={{ flexDirection: 'row' }}>
                         {row.map((cell, c) => {
@@ -880,17 +942,23 @@ export default function KidsHubScreen() {
                           const isChecked = crosswordChecked;
                           const isCorrect = isChecked && userVal.toUpperCase() === cell.toUpperCase();
                           const isWrong = isChecked && userVal && userVal.toUpperCase() !== cell.toUpperCase();
+                          const clueNum = cellNums[`${r}-${c}`];
                           return (
                             <TouchableOpacity key={c} activeOpacity={isBlack ? 1 : 0.7}
                               onPress={() => { if (!isBlack) setCrosswordSel({ r, c }); }}
-                              style={{ width: 48, height: 48, borderWidth: 1, borderColor: isBlack ? 'transparent' : isSelected ? child.colour : 'rgba(0,0,0,0.15)', backgroundColor: isBlack ? '#1A1A1A' : isSelected ? `${child.colour}20` : isCorrect ? 'rgba(34,197,94,0.12)' : isWrong ? 'rgba(255,69,69,0.08)' : '#fff', alignItems: 'center', justifyContent: 'center' }}>
-                              {!isBlack && <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 18, color: isCorrect ? '#22C55E' : isWrong ? '#FF4545' : INK }}>{userVal}</Text>}
+                              style={{ width: 52, height: 52, borderWidth: 1.5, borderColor: isBlack ? 'transparent' : isSelected ? child.colour : 'rgba(0,0,0,0.15)', backgroundColor: isBlack ? '#1A1A1A' : isSelected ? `${child.colour}20` : isCorrect ? 'rgba(34,197,94,0.12)' : isWrong ? 'rgba(255,69,69,0.08)' : '#fff', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                              {!!clueNum && !isBlack && (
+                                <Text style={{ position: 'absolute', top: 2, left: 4, fontFamily: 'Poppins_700Bold', fontSize: 8, color: 'rgba(0,0,0,0.35)' }}>{clueNum}</Text>
+                              )}
+                              {!isBlack && <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 20, color: isCorrect ? '#22C55E' : isWrong ? '#FF4545' : INK }}>{userVal}</Text>}
                             </TouchableOpacity>
                           );
                         })}
                       </View>
                     ))}
                   </View>
+                    );
+                  })()}
                   {/* Clues */}
                   <View style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 16, padding: 14, marginBottom: 10 }}>
                     <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Across</Text>
@@ -932,7 +1000,7 @@ export default function KidsHubScreen() {
                                 }
                               }} activeOpacity={0.7}
                                 style={{ height: 44, flex: isWide ? 1.5 : 1, maxWidth: isWide ? 56 : 34, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
-                                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 11 : 14, color: INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 16 : 16, color: INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
                               </TouchableOpacity>
                             );
                           })}
@@ -940,12 +1008,54 @@ export default function KidsHubScreen() {
                       ))}
                     </View>
                   )}
-                  <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }} activeOpacity={0.7}>
-                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
-                  </TouchableOpacity>
                 </ScrollView>
               );
             })()}
+
+            {/* ── Game info overlay ── */}
+            {showGameInfo && (
+              <TouchableOpacity
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 24 }}
+                activeOpacity={1}
+                onPress={() => setShowGameInfo(false)}
+              >
+                <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxWidth: 320 }}>
+                  {activeGame === 'wordle' && (
+                    <>
+                      <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: INK, marginBottom: 10 }}>How to play</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, lineHeight: 21, marginBottom: 12 }}>Guess the hidden word in 6 tries. Each guess must be a real word.</Text>
+                      <View style={{ gap: 8, marginBottom: 14 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: child.colour, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 16, color: '#fff' }}>A</Text></View>
+                          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK }}>Correct letter, correct spot</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#F0DC80', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 16, color: '#5A4200' }}>B</Text></View>
+                          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK }}>Correct letter, wrong spot</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                          <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#6B7280', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 16, color: '#fff' }}>C</Text></View>
+                          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK }}>Letter not in the word</Text>
+                        </View>
+                      </View>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>A new word every day!</Text>
+                    </>
+                  )}
+                  {activeGame === 'crossword' && (
+                    <>
+                      <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: INK, marginBottom: 10 }}>How to play</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, lineHeight: 21, marginBottom: 8 }}>Fill in the grid using the clues below.</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, lineHeight: 21, marginBottom: 8 }}>Tap a white cell to select it, then use the keyboard to type a letter. The cursor moves to the next cell automatically.</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, lineHeight: 21, marginBottom: 8 }}>When you're done, tap "Check answers" to see which letters are correct (green) or wrong (red).</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>New puzzle every week!</Text>
+                    </>
+                  )}
+                  <TouchableOpacity onPress={() => setShowGameInfo(false)} style={{ backgroundColor: child.colour, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 14 }} activeOpacity={0.8}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Got it!</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            )}
 
             {/* ── Celebration overlay (shared across games) ── */}
             {celebration && (
@@ -959,15 +1069,10 @@ export default function KidsHubScreen() {
                 {!!celebration.sub && <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 15, color: 'rgba(255,255,255,0.6)', marginTop: 6, textAlign: 'center' }}>{celebration.sub}</Text>}
               </TouchableOpacity>
             )}
+              </View>
+            </View>
           </View>
-        ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-          {activeTab === 'jobs' && <JobsTab />}
-          {activeTab === 'rewards' && <RewardsTab />}
-          {activeTab === 'games' && <GamesTab />}
-          {activeTab === 'leaderboard' && <LeaderboardTab />}
-        </ScrollView>
-        )}
+        </Modal>
 
         {/* GIPHY celebration overlay */}
         {showGiphy && (
@@ -1358,7 +1463,7 @@ export default function KidsHubScreen() {
             const gameActions: Record<string, () => void> = {
               'Word Scramble': startScramble,
               'Maths Sprint': startMaths,
-              'Aussie Trivia': startTrivia,
+              'World Trivia': startTrivia,
               'Mini Crossword': () => { setCrosswordGrid({}); setCrosswordSel(null); setCrosswordChecked(false); setCelebration(null); setActiveGame('crossword'); },
             };
             return (
@@ -1595,14 +1700,14 @@ const s = StyleSheet.create({
   gameFeaturedIcon: { fontSize: 36 },
   gameFeaturedName: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: '#fff', marginBottom: 3 },
   gameFeaturedDesc: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 20 },
-  gameBadgeDaily: { backgroundColor: 'rgba(168,232,204,0.2)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginTop: 8 },
-  gameBadgeDailyTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: HUB_BG },
+  gameBadgeDaily: { backgroundColor: 'rgba(168,232,204,0.2)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5, alignSelf: 'flex-start', marginTop: 8 },
+  gameBadgeDailyTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: HUB_BG },
   gameCard: { width: (W - 28 - 10) / 2, backgroundColor: CARD, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 16 },
   gameIcon: { fontSize: 30, marginBottom: 8 },
   gameName: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, marginBottom: 3 },
   gameDesc: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, lineHeight: 19 },
-  gameBadge: { backgroundColor: 'rgba(168,232,204,0.3)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginTop: 8 },
-  gameBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: HUB_DARK },
+  gameBadge: { backgroundColor: 'rgba(168,232,204,0.3)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5, alignSelf: 'flex-start', marginTop: 8 },
+  gameBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: HUB_DARK },
   gameBadgeWeekly: { backgroundColor: AMBER_BG },
   gameBadgeWeeklyTxt: { color: AMBER_TXT },
   gameBadgeAnytime: { backgroundColor: 'rgba(99,102,241,0.12)' },
