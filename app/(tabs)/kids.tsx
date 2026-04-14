@@ -28,6 +28,7 @@ import {
   generateMathsQuestion, scrambleWord, getWeeklyCrossword,
   type TriviaQuestion, type CrosswordPuzzle,
 } from './kids-games-data';
+import { KB_ROWS, getTileStates } from './wordle-data';
 
 const { width: W, height: H } = Dimensions.get('window');
 const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
@@ -153,6 +154,9 @@ export default function KidsHubScreen() {
   const [wordleInput, setWordleInput] = useState('');
   const [wordleAnswer, setWordleAnswer] = useState('');
   const [wordleWon, setWordleWon] = useState(false);
+  const [wordleKeyStates, setWordleKeyStates] = useState<Record<string, 'correct'|'present'|'absent'>>({});
+  // Shared celebration overlay
+  const [celebration, setCelebration] = useState<{ emoji: string; title: string; sub: string } | null>(null);
   // Scramble state
   const [scrambleAnswer, setScrambleAnswer] = useState('');
   const [scrambleScrambled, setScrambleScrambled] = useState('');
@@ -167,7 +171,12 @@ export default function KidsHubScreen() {
   const [mathsScore, setMathsScore] = useState(0);
   const [mathsTimeLeft, setMathsTimeLeft] = useState(60);
   const [mathsActive, setMathsActive] = useState(false);
+  const [mathsFlash, setMathsFlash] = useState<'correct'|'wrong'|null>(null);
   const mathsTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Crossword state
+  const [crosswordSel, setCrosswordSel] = useState<{ r: number; c: number } | null>(null);
+  const [crosswordGrid, setCrosswordGrid] = useState<Record<string, string>>({});
+  const [crosswordChecked, setCrosswordChecked] = useState(false);
   // Trivia state
   const [triviaQ, setTriviaQ] = useState<TriviaQuestion | null>(null);
   const [triviaIndex, setTriviaIndex] = useState(0);
@@ -327,6 +336,13 @@ export default function KidsHubScreen() {
     } catch (e) { console.log('[kids] requestReward error:', e); }
   }
 
+  // Auto-dismiss celebration after 2.5s
+  React.useEffect(() => {
+    if (!celebration) return;
+    const t = setTimeout(() => setCelebration(null), 2500);
+    return () => clearTimeout(t);
+  }, [celebration]);
+
   // ── Game launchers ──
   function startWordle() {
     const tier = child.tier;
@@ -337,6 +353,8 @@ export default function KidsHubScreen() {
     setWordleGuesses([]);
     setWordleInput('');
     setWordleWon(false);
+    setWordleKeyStates({});
+    setCelebration(null);
     setActiveGame('wordle');
   }
 
@@ -538,80 +556,97 @@ export default function KidsHubScreen() {
 
         {/* Tab content or active game */}
         {activeGame ? (
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 14, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View style={{ flex: 1 }}>
             {/* ── WORDLE ── */}
             {activeGame === 'wordle' && (() => {
               const wordLen = wordleAnswer.length;
               const maxGuesses = wordLen === 4 ? 5 : 6;
-              function getColors(guess: string): string[] {
-                const res = Array(wordLen).fill('#787C7E');
-                const ans = wordleAnswer.split('');
-                const g = guess.split('');
-                const used = Array(wordLen).fill(false);
-                for (let i = 0; i < wordLen; i++) { if (g[i] === ans[i]) { res[i] = '#6AAA64'; used[i] = true; } }
-                for (let i = 0; i < wordLen; i++) { if (res[i] !== '#6AAA64') { const j = ans.findIndex((c, k) => c === g[i] && !used[k]); if (j >= 0) { res[i] = '#C9B458'; used[j] = true; } } }
-                return res;
+              const gameOver = wordleWon || wordleGuesses.length >= maxGuesses;
+              const accent = child.colour;
+              function handleWordleKey(key: string) {
+                if (gameOver) return;
+                if (key === 'DEL') { setWordleInput(prev => prev.slice(0, -1)); return; }
+                if (key === 'ENTER') {
+                  if (wordleInput.length < wordLen) return;
+                  const guess = wordleInput.toUpperCase();
+                  const newGuesses = [...wordleGuesses, guess];
+                  setWordleGuesses(newGuesses);
+                  // Update keyboard states
+                  if (wordLen === 5) {
+                    const states = getTileStates(guess, wordleAnswer);
+                    const newKS = { ...wordleKeyStates };
+                    guess.split('').forEach((l, i) => {
+                      const s = states[i];
+                      if (s === 'correct') newKS[l] = 'correct';
+                      else if (s === 'present' && newKS[l] !== 'correct') newKS[l] = 'present';
+                      else if (s === 'absent' && !newKS[l]) newKS[l] = 'absent';
+                    });
+                    setWordleKeyStates(newKS);
+                  }
+                  if (guess === wordleAnswer) { setWordleWon(true); setCelebration({ emoji: '🎉', title: 'You got it!', sub: `${newGuesses.length}/${maxGuesses} guesses` }); }
+                  else if (newGuesses.length >= maxGuesses) { setCelebration({ emoji: '😅', title: `The word was ${wordleAnswer}`, sub: 'Better luck tomorrow!' }); }
+                  setWordleInput('');
+                  return;
+                }
+                if (wordleInput.length >= wordLen) return;
+                setWordleInput(prev => prev + key);
               }
               return (
-                <View style={{ alignItems: 'center', gap: 10 }}>
-                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK }}>Zaeli's Wordle</Text>
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>{wordLen}-letter word ({child.tier} mode)</Text>
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', paddingTop: 10, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 10 }}>Zaeli's Wordle</Text>
                   {/* Grid */}
                   {Array.from({ length: maxGuesses }).map((_, row) => {
                     const guess = wordleGuesses[row] || (row === wordleGuesses.length ? wordleInput.padEnd(wordLen, ' ') : '');
-                    const colors = wordleGuesses[row] ? getColors(wordleGuesses[row]) : null;
+                    const isSubmitted = !!wordleGuesses[row];
+                    const states = isSubmitted && wordLen === 5 ? getTileStates(wordleGuesses[row], wordleAnswer) : null;
+                    // For 4-letter words, compute inline
+                    const states4 = isSubmitted && wordLen === 4 ? (() => {
+                      const r: string[] = Array(4).fill('absent'); const a = wordleAnswer.split(''); const g = wordleGuesses[row].split(''); const u = [false,false,false,false];
+                      for (let i=0;i<4;i++) { if (g[i]===a[i]) { r[i]='correct'; u[i]=true; } }
+                      for (let i=0;i<4;i++) { if (r[i]==='correct') continue; const j=a.findIndex((c,k)=>c===g[i]&&!u[k]); if (j>=0) { r[i]='present'; u[j]=true; } }
+                      return r;
+                    })() : null;
+                    const tileStates = states || states4;
                     return (
-                      <View key={row} style={{ flexDirection: 'row', gap: 5 }}>
+                      <View key={row} style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
                         {Array.from({ length: wordLen }).map((_, col) => {
                           const letter = guess[col] || '';
-                          const bg = colors ? colors[col] : (letter.trim() ? 'rgba(0,0,0,0.08)' : 'transparent');
+                          const ts = tileStates?.[col];
+                          const bg = ts === 'correct' ? accent : ts === 'present' ? '#F0DC80' : ts === 'absent' ? '#6B7280' : letter.trim() ? '#fff' : 'rgba(255,255,255,0.4)';
+                          const textC = ts ? '#fff' : letter.trim() ? INK : 'transparent';
+                          const bdr = ts ? bg : letter.trim() ? `${accent}50` : 'rgba(0,0,0,0.10)';
                           return (
-                            <View key={col} style={{ width: wordLen === 4 ? 56 : 50, height: wordLen === 4 ? 56 : 50, borderRadius: 10, backgroundColor: bg, borderWidth: colors ? 0 : 2, borderColor: 'rgba(0,0,0,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-                              <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: wordLen === 4 ? 24 : 22, color: colors ? '#fff' : INK }}>{letter.trim()}</Text>
+                            <View key={col} style={{ width: wordLen === 4 ? 58 : 52, height: wordLen === 4 ? 58 : 52, borderRadius: 10, backgroundColor: bg, borderWidth: 2, borderColor: bdr, alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: wordLen === 4 ? 26 : 22, color: textC }}>{letter.trim()}</Text>
                             </View>
                           );
                         })}
                       </View>
                     );
                   })}
-                  {/* Result */}
-                  {wordleWon && <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#6AAA64', marginTop: 8 }}>You got it!</Text>}
-                  {wordleGuesses.length >= maxGuesses && !wordleWon && <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#FF4545', marginTop: 8 }}>The word was {wordleAnswer}</Text>}
-                  {/* Input */}
-                  {!wordleWon && wordleGuesses.length < maxGuesses && (
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                      <TextInput
-                        style={{ flex: 1, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.12)', paddingHorizontal: 14, paddingVertical: 10, fontFamily: 'Poppins_700Bold', fontSize: 18, color: INK, textAlign: 'center', letterSpacing: 4, textTransform: 'uppercase' }}
-                        value={wordleInput}
-                        onChangeText={t => setWordleInput(t.toUpperCase().slice(0, wordLen))}
-                        maxLength={wordLen}
-                        autoCapitalize="characters"
-                        returnKeyType="done"
-                        onSubmitEditing={() => {
-                          if (wordleInput.length === wordLen) {
-                            const newGuesses = [...wordleGuesses, wordleInput.toUpperCase()];
-                            setWordleGuesses(newGuesses);
-                            if (wordleInput.toUpperCase() === wordleAnswer) setWordleWon(true);
-                            setWordleInput('');
-                          }
-                        }}
-                      />
-                      <TouchableOpacity onPress={() => {
-                        if (wordleInput.length === wordLen) {
-                          const newGuesses = [...wordleGuesses, wordleInput.toUpperCase()];
-                          setWordleGuesses(newGuesses);
-                          if (wordleInput.toUpperCase() === wordleAnswer) setWordleWon(true);
-                          setWordleInput('');
-                        }
-                      }} style={{ backgroundColor: HUB_DARK, borderRadius: 12, paddingHorizontal: 20, justifyContent: 'center' }} activeOpacity={0.8}>
-                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' }}>Go</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  <TouchableOpacity onPress={goBack} style={{ marginTop: 12 }} activeOpacity={0.7}>
+                  {/* Embedded keyboard */}
+                  <View style={{ gap: 5, paddingHorizontal: 6, marginTop: 10, width: '100%' }}>
+                    {KB_ROWS.map((row, ri) => (
+                      <View key={ri} style={{ flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
+                        {row.map(key => {
+                          const isWide = key === 'ENTER' || key === 'DEL';
+                          const ks = wordleKeyStates[key];
+                          const kbBg = ks === 'correct' ? accent : ks === 'present' ? '#F0DC80' : ks === 'absent' ? '#6B7280' : 'rgba(255,255,255,0.7)';
+                          const kbC = ks ? '#fff' : INK;
+                          return (
+                            <TouchableOpacity key={key} onPress={() => handleWordleKey(key)} activeOpacity={0.7}
+                              style={{ height: 48, flex: isWide ? 1.5 : 1, maxWidth: isWide ? 60 : 36, borderRadius: 8, backgroundColor: kbBg, alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 11 : 15, color: kbC }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    ))}
+                  </View>
+                  <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }} activeOpacity={0.7}>
                     <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
                   </TouchableOpacity>
-                </View>
+                </ScrollView>
               );
             })()}
 
@@ -619,104 +654,154 @@ export default function KidsHubScreen() {
             {activeGame === 'scramble' && (() => {
               const tier = child.tier;
               const list = tier === 'little' ? SCRAMBLE_LITTLE : tier === 'middle' ? SCRAMBLE_MIDDLE : SCRAMBLE_OLDER;
-              const isDone = scrambleRound >= list.length;
+              const maxRounds = Math.min(10, list.length);
+              const isDone = scrambleRound >= maxRounds;
+              function handleScrambleKey(key: string) {
+                if (key === 'DEL') { setScrambleInput(prev => prev.slice(0, -1)); return; }
+                if (key === 'ENTER') {
+                  if (scrambleInput.toUpperCase() === scrambleAnswer) {
+                    setScrambleScore(prev => prev + 1);
+                    setCelebration({ emoji: '🎉', title: 'Correct!', sub: `${scrambleAnswer} — nice one!` });
+                  } else {
+                    setCelebration({ emoji: '🤔', title: `It was ${scrambleAnswer}`, sub: 'Keep going!' });
+                  }
+                  const next = scrambleRound + 1;
+                  setScrambleRound(next);
+                  if (next < maxRounds) setTimeout(() => loadScrambleRound(list, next), 500);
+                  return;
+                }
+                if (scrambleInput.length >= scrambleAnswer.length) return;
+                setScrambleInput(prev => prev + key);
+              }
               return (
-                <View style={{ alignItems: 'center', gap: 14 }}>
-                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK }}>Word Scramble</Text>
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>Score: {scrambleScore}/{list.length} | Round {Math.min(scrambleRound + 1, list.length)}/{list.length}</Text>
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', paddingTop: 10, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 4 }}>Word Scramble</Text>
+                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginBottom: 12 }}>Score: {scrambleScore} | Round {Math.min(scrambleRound + 1, maxRounds)}/{maxRounds}</Text>
                   {!isDone ? (
                     <>
-                      <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, alignItems: 'center', width: '100%' }}>
-                        <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 32, color: HUB_DARK, letterSpacing: 6 }}>{scrambleScrambled}</Text>
-                        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, marginTop: 8 }}>Hint: {scrambleHint}</Text>
+                      {/* Scrambled word */}
+                      <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 20, alignItems: 'center', width: '100%', marginBottom: 10 }}>
+                        <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 34, color: child.colour, letterSpacing: 8 }}>{scrambleScrambled}</Text>
+                        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, marginTop: 8 }}>{scrambleHint}</Text>
                       </View>
-                      <TextInput
-                        style={{ width: '100%', backgroundColor: '#fff', borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.12)', paddingHorizontal: 14, paddingVertical: 12, fontFamily: 'Poppins_700Bold', fontSize: 18, color: INK, textAlign: 'center', letterSpacing: 3, textTransform: 'uppercase' }}
-                        value={scrambleInput}
-                        onChangeText={t => setScrambleInput(t.toUpperCase())}
-                        autoCapitalize="characters"
-                        returnKeyType="done"
-                        onSubmitEditing={() => {
-                          if (scrambleInput.toUpperCase() === scrambleAnswer) {
-                            setScrambleScore(prev => prev + 1);
-                          }
-                          const next = scrambleRound + 1;
-                          setScrambleRound(next);
-                          if (next < list.length) loadScrambleRound(list, next);
-                        }}
-                      />
-                      <TouchableOpacity onPress={() => {
-                        if (scrambleInput.toUpperCase() === scrambleAnswer) setScrambleScore(prev => prev + 1);
-                        const next = scrambleRound + 1;
-                        setScrambleRound(next);
-                        if (next < list.length) loadScrambleRound(list, next);
-                      }} style={{ backgroundColor: HUB_DARK, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 30 }} activeOpacity={0.8}>
-                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Submit</Text>
-                      </TouchableOpacity>
+                      {/* Input tiles */}
+                      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                        {Array.from({ length: scrambleAnswer.length }).map((_, i) => (
+                          <View key={i} style={{ width: 44, height: 48, borderRadius: 10, backgroundColor: scrambleInput[i] ? '#fff' : 'rgba(255,255,255,0.4)', borderWidth: 2, borderColor: scrambleInput[i] ? `${child.colour}50` : 'rgba(0,0,0,0.10)', alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK }}>{scrambleInput[i] || ''}</Text>
+                          </View>
+                        ))}
+                      </View>
+                      {/* Keyboard */}
+                      <View style={{ gap: 5, paddingHorizontal: 6, width: '100%' }}>
+                        {KB_ROWS.map((row, ri) => (
+                          <View key={ri} style={{ flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
+                            {row.map(key => {
+                              const isWide = key === 'ENTER' || key === 'DEL';
+                              return (
+                                <TouchableOpacity key={key} onPress={() => handleScrambleKey(key)} activeOpacity={0.7}
+                                  style={{ height: 48, flex: isWide ? 1.5 : 1, maxWidth: isWide ? 60 : 36, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 11 : 15, color: INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+                        ))}
+                      </View>
                     </>
                   ) : (
-                    <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, alignItems: 'center', width: '100%' }}>
-                      <Text style={{ fontSize: 40 }}>🎉</Text>
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 24, alignItems: 'center', width: '100%' }}>
+                      <Text style={{ fontSize: 44 }}>{scrambleScore >= maxRounds * 0.8 ? '🏆' : '🎉'}</Text>
                       <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, marginTop: 8 }}>All done!</Text>
-                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK4, marginTop: 4 }}>You got {scrambleScore} out of {list.length}</Text>
-                      <TouchableOpacity onPress={startScramble} style={{ backgroundColor: HUB_DARK, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24, marginTop: 14 }} activeOpacity={0.8}>
-                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' }}>Play again</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4, marginTop: 4 }}>{scrambleScore} out of {maxRounds} correct</Text>
+                      <TouchableOpacity onPress={startScramble} style={{ backgroundColor: child.colour, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 28, marginTop: 16 }} activeOpacity={0.8}>
+                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Play again</Text>
                       </TouchableOpacity>
                     </View>
                   )}
-                  <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
+                  <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }} activeOpacity={0.7}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              );
+            })()}
+
+            {/* ── MATHS SPRINT ── */}
+            {activeGame === 'maths' && (() => {
+              const NUM_ROWS = [['1','2','3'],['4','5','6'],['7','8','9'],['0','DEL','GO']];
+              function handleMathsKey(key: string) {
+                if (!mathsActive) return;
+                if (key === 'DEL') { setMathsInput(prev => prev.slice(0, -1)); return; }
+                if (key === 'GO') {
+                  const correct = parseInt(mathsInput) === mathsAnswer;
+                  if (correct) { setMathsScore(prev => prev + 1); setMathsFlash('correct'); }
+                  else { setMathsFlash('wrong'); }
+                  setTimeout(() => setMathsFlash(null), 400);
+                  nextMathsQuestion();
+                  return;
+                }
+                if (mathsInput.length >= 6) return;
+                setMathsInput(prev => prev + key);
+              }
+              return (
+                <View style={{ flex: 1, alignItems: 'center', paddingTop: 10 }}>
+                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 10 }}>Maths Sprint</Text>
+                  {/* Timer bar */}
+                  <View style={{ width: '90%', height: 8, backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 4, overflow: 'hidden', marginBottom: 12 }}>
+                    <View style={{ height: 8, borderRadius: 4, backgroundColor: mathsTimeLeft <= 10 ? '#FF4545' : child.colour, width: `${(mathsTimeLeft / 60) * 100}%` }}/>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 16, marginBottom: 14 }}>
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 8, alignItems: 'center' }}>
+                      <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 26, color: mathsTimeLeft <= 10 ? '#FF4545' : INK }}>{mathsTimeLeft}s</Text>
+                    </View>
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 8, alignItems: 'center' }}>
+                      <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 26, color: child.colour }}>{mathsScore}</Text>
+                      <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK4 }}>correct</Text>
+                    </View>
+                  </View>
+                  {mathsActive ? (
+                    <>
+                      <View style={{ backgroundColor: mathsFlash === 'correct' ? 'rgba(34,197,94,0.15)' : mathsFlash === 'wrong' ? 'rgba(255,69,69,0.10)' : 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 28, alignItems: 'center', width: '90%', marginBottom: 10 }}>
+                        <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 40, color: INK }}>{mathsQuestion}</Text>
+                      </View>
+                      {/* Answer display */}
+                      <View style={{ backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, minWidth: 120, alignItems: 'center', marginBottom: 10 }}>
+                        <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 28, color: INK }}>{mathsInput || '?'}</Text>
+                      </View>
+                      {/* Number pad */}
+                      <View style={{ gap: 6, width: '80%' }}>
+                        {NUM_ROWS.map((row, ri) => (
+                          <View key={ri} style={{ flexDirection: 'row', gap: 6 }}>
+                            {row.map(key => (
+                              <TouchableOpacity key={key} onPress={() => handleMathsKey(key)} activeOpacity={0.7}
+                                style={{ flex: 1, height: 56, borderRadius: 12, backgroundColor: key === 'GO' ? child.colour : key === 'DEL' ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: key === 'GO' || key === 'DEL' ? 14 : 22, color: key === 'GO' ? '#fff' : INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  ) : mathsTimeLeft === 0 ? (
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 24, alignItems: 'center', width: '90%' }}>
+                      <Text style={{ fontSize: 44 }}>{mathsScore >= 15 ? '🔥' : mathsScore >= 8 ? '⭐' : '💪'}</Text>
+                      <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, marginTop: 8 }}>Time's up!</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4, marginTop: 4 }}>{mathsScore} correct in 60 seconds</Text>
+                      <TouchableOpacity onPress={startMaths} style={{ backgroundColor: child.colour, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 28, marginTop: 16 }} activeOpacity={0.8}>
+                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Try again</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity onPress={startMaths} style={{ backgroundColor: child.colour, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32, marginTop: 20 }} activeOpacity={0.8}>
+                      <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#fff' }}>Start!</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }} activeOpacity={0.7}>
                     <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
                   </TouchableOpacity>
                 </View>
               );
             })()}
-
-            {/* ── MATHS SPRINT ── */}
-            {activeGame === 'maths' && (
-              <View style={{ alignItems: 'center', gap: 14 }}>
-                <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK }}>Maths Sprint</Text>
-                <View style={{ flexDirection: 'row', gap: 16 }}>
-                  <View style={{ backgroundColor: mathsTimeLeft <= 10 ? 'rgba(255,69,69,0.12)' : 'rgba(255,255,255,0.5)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8, alignItems: 'center' }}>
-                    <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 24, color: mathsTimeLeft <= 10 ? '#FF4545' : INK }}>{mathsTimeLeft}s</Text>
-                  </View>
-                  <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8, alignItems: 'center' }}>
-                    <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 24, color: HUB_DARK }}>{mathsScore}</Text>
-                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK4 }}>correct</Text>
-                  </View>
-                </View>
-                {mathsActive ? (
-                  <>
-                    <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, alignItems: 'center', width: '100%' }}>
-                      <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 36, color: INK }}>{mathsQuestion}</Text>
-                    </View>
-                    <TextInput
-                      style={{ width: '100%', backgroundColor: '#fff', borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.12)', paddingHorizontal: 14, paddingVertical: 12, fontFamily: 'Poppins_700Bold', fontSize: 24, color: INK, textAlign: 'center' }}
-                      value={mathsInput}
-                      onChangeText={setMathsInput}
-                      keyboardType="number-pad"
-                      autoFocus
-                      returnKeyType="done"
-                      onSubmitEditing={() => {
-                        if (parseInt(mathsInput) === mathsAnswer) setMathsScore(prev => prev + 1);
-                        nextMathsQuestion();
-                      }}
-                    />
-                  </>
-                ) : (
-                  <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, alignItems: 'center', width: '100%' }}>
-                    <Text style={{ fontSize: 40 }}>{mathsScore >= 10 ? '🔥' : mathsScore >= 5 ? '⭐' : '💪'}</Text>
-                    <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, marginTop: 8 }}>Time's up!</Text>
-                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK4, marginTop: 4 }}>You got {mathsScore} correct in 60 seconds</Text>
-                    <TouchableOpacity onPress={startMaths} style={{ backgroundColor: HUB_DARK, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24, marginTop: 14 }} activeOpacity={0.8}>
-                      <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' }}>Try again</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-                <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
-                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
-                </TouchableOpacity>
-              </View>
-            )}
 
             {/* ── AUSSIE TRIVIA ── */}
             {activeGame === 'trivia' && (() => {
@@ -724,54 +809,56 @@ export default function KidsHubScreen() {
               const list = tier === 'little' ? TRIVIA_LITTLE : tier === 'middle' ? TRIVIA_MIDDLE : TRIVIA_OLDER;
               const isDone = triviaIndex >= list.length;
               return (
-                <View style={{ alignItems: 'center', gap: 14 }}>
-                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK }}>Aussie Trivia</Text>
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>Score: {triviaScore}/{triviaTotal} | Q{Math.min(triviaIndex + 1, list.length)}/{list.length}</Text>
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', padding: 14, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
+                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 4 }}>Aussie Trivia</Text>
+                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginBottom: 14 }}>Q{Math.min(triviaIndex + 1, list.length)}/{list.length} | Score: {triviaScore}</Text>
                   {!isDone && triviaQ ? (
-                    <>
-                      <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 18, width: '100%' }}>
-                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, lineHeight: 22, marginBottom: 14 }}>{triviaQ.question}</Text>
-                        {triviaQ.options.map((opt, i) => {
-                          const isSelected = triviaSelected === i;
-                          const isCorrect = i === triviaQ!.correct;
-                          const showResult = triviaSelected !== null;
-                          return (
-                            <TouchableOpacity
-                              key={i}
-                              onPress={() => {
-                                if (triviaSelected !== null) return;
-                                setTriviaSelected(i);
-                                if (i === triviaQ!.correct) setTriviaScore(prev => prev + 1);
-                                // Auto advance after 1.5s
-                                setTimeout(() => {
-                                  const next = triviaIndex + 1;
-                                  setTriviaIndex(next);
-                                  if (next < list.length) { setTriviaQ(list[next]); setTriviaSelected(null); }
-                                }, 1500);
-                              }}
-                              style={{ borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 2, borderColor: showResult ? (isCorrect ? '#6AAA64' : isSelected ? '#FF4545' : 'rgba(0,0,0,0.08)') : (isSelected ? HUB_DARK : 'rgba(0,0,0,0.08)'), backgroundColor: showResult && isCorrect ? 'rgba(106,170,100,0.08)' : showResult && isSelected && !isCorrect ? 'rgba(255,69,69,0.05)' : 'transparent' }}
-                              activeOpacity={0.75}
-                            >
-                              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: showResult && isCorrect ? '#6AAA64' : showResult && isSelected ? '#FF4545' : INK }}>{opt}</Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </>
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 18, width: '100%' }}>
+                      <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, lineHeight: 24, marginBottom: 16 }}>{triviaQ.question}</Text>
+                      {triviaQ.options.map((opt, i) => {
+                        const isSelected = triviaSelected === i;
+                        const isCorrect = i === triviaQ!.correct;
+                        const showResult = triviaSelected !== null;
+                        return (
+                          <TouchableOpacity
+                            key={i}
+                            onPress={() => {
+                              if (triviaSelected !== null) return;
+                              setTriviaSelected(i);
+                              if (i === triviaQ!.correct) {
+                                setTriviaScore(prev => prev + 1);
+                                setCelebration({ emoji: '✅', title: 'Correct!', sub: opt });
+                              } else {
+                                setCelebration({ emoji: '❌', title: `Nope — it was ${triviaQ!.options[triviaQ!.correct]}`, sub: '' });
+                              }
+                              setTimeout(() => {
+                                const next = triviaIndex + 1;
+                                setTriviaIndex(next);
+                                if (next < list.length) { setTriviaQ(list[next]); setTriviaSelected(null); }
+                              }, 2000);
+                            }}
+                            style={{ borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 2, backgroundColor: showResult && isCorrect ? 'rgba(34,197,94,0.10)' : showResult && isSelected && !isCorrect ? 'rgba(255,69,69,0.06)' : '#fff', borderColor: showResult ? (isCorrect ? '#22C55E' : isSelected ? '#FF4545' : 'rgba(0,0,0,0.06)') : 'rgba(0,0,0,0.06)' }}
+                            activeOpacity={0.75}
+                          >
+                            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: showResult && isCorrect ? '#22C55E' : showResult && isSelected && !isCorrect ? '#FF4545' : INK }}>{opt}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   ) : (
-                    <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, alignItems: 'center', width: '100%' }}>
-                      <Text style={{ fontSize: 40 }}>{triviaScore >= list.length * 0.8 ? '🏆' : triviaScore >= list.length * 0.5 ? '⭐' : '💪'}</Text>
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 24, alignItems: 'center', width: '100%' }}>
+                      <Text style={{ fontSize: 44 }}>{triviaScore >= list.length * 0.8 ? '🏆' : triviaScore >= list.length * 0.5 ? '⭐' : '💪'}</Text>
                       <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, marginTop: 8 }}>Quiz complete!</Text>
-                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK4, marginTop: 4 }}>{triviaScore} out of {list.length} correct</Text>
-                      <TouchableOpacity onPress={startTrivia} style={{ backgroundColor: HUB_DARK, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24, marginTop: 14 }} activeOpacity={0.8}>
-                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' }}>Play again</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4, marginTop: 4 }}>{triviaScore} out of {list.length} correct</Text>
+                      <TouchableOpacity onPress={startTrivia} style={{ backgroundColor: child.colour, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 28, marginTop: 16 }} activeOpacity={0.8}>
+                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Play again</Text>
                       </TouchableOpacity>
                     </View>
                   )}
-                  <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
+                  <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }} activeOpacity={0.7}>
                     <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
                   </TouchableOpacity>
-                </View>
+                </ScrollView>
               );
             })()}
 
@@ -779,40 +866,100 @@ export default function KidsHubScreen() {
             {activeGame === 'crossword' && (() => {
               const puzzle = getWeeklyCrossword();
               return (
-                <View style={{ alignItems: 'center', gap: 14 }}>
-                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK }}>Mini Crossword</Text>
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>Weekly puzzle</Text>
-                  {/* Grid */}
-                  <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, alignItems: 'center' }}>
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', padding: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 4 }}>Mini Crossword</Text>
+                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, marginBottom: 12 }}>Weekly puzzle — tap cells to fill in</Text>
+                  {/* Grid — interactive: tap to select, keyboard to fill */}
+                  <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 12, alignItems: 'center', marginBottom: 10 }}>
                     {puzzle.grid.map((row, r) => (
                       <View key={r} style={{ flexDirection: 'row' }}>
-                        {row.map((cell, c) => (
-                          <View key={c} style={{ width: 44, height: 44, borderWidth: 1, borderColor: cell === '#' ? '#fff' : 'rgba(0,0,0,0.15)', backgroundColor: cell === '#' ? '#0A0A0A' : '#fff', alignItems: 'center', justifyContent: 'center' }}>
-                            {cell !== '#' && <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK }}>{cell}</Text>}
-                          </View>
-                        ))}
+                        {row.map((cell, c) => {
+                          const isBlack = cell === '#';
+                          const isSelected = crosswordSel?.r === r && crosswordSel?.c === c;
+                          const userVal = crosswordGrid[`${r}-${c}`] || '';
+                          const isChecked = crosswordChecked;
+                          const isCorrect = isChecked && userVal.toUpperCase() === cell.toUpperCase();
+                          const isWrong = isChecked && userVal && userVal.toUpperCase() !== cell.toUpperCase();
+                          return (
+                            <TouchableOpacity key={c} activeOpacity={isBlack ? 1 : 0.7}
+                              onPress={() => { if (!isBlack) setCrosswordSel({ r, c }); }}
+                              style={{ width: 48, height: 48, borderWidth: 1, borderColor: isBlack ? 'transparent' : isSelected ? child.colour : 'rgba(0,0,0,0.15)', backgroundColor: isBlack ? '#1A1A1A' : isSelected ? `${child.colour}20` : isCorrect ? 'rgba(34,197,94,0.12)' : isWrong ? 'rgba(255,69,69,0.08)' : '#fff', alignItems: 'center', justifyContent: 'center' }}>
+                              {!isBlack && <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 18, color: isCorrect ? '#22C55E' : isWrong ? '#FF4545' : INK }}>{userVal}</Text>}
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                     ))}
                   </View>
                   {/* Clues */}
-                  <View style={{ width: '100%', backgroundColor: '#fff', borderRadius: 14, padding: 14 }}>
+                  <View style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 16, padding: 14, marginBottom: 10 }}>
                     <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Across</Text>
-                    {puzzle.acrossClues.map(c => (
-                      <Text key={c.num} style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK, marginBottom: 4 }}>{c.num}. {c.clue}</Text>
+                    {puzzle.acrossClues.map(cl => (
+                      <Text key={cl.num} style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, marginBottom: 4 }}>{cl.num}. {cl.clue}</Text>
                     ))}
                     <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 10, marginBottom: 6 }}>Down</Text>
-                    {puzzle.downClues.map(c => (
-                      <Text key={c.num} style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK, marginBottom: 4 }}>{c.num}. {c.clue}</Text>
+                    {puzzle.downClues.map(cl => (
+                      <Text key={cl.num} style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, marginBottom: 4 }}>{cl.num}. {cl.clue}</Text>
                     ))}
                   </View>
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: INK4 }}>Interactive input coming soon - for now, solve on paper!</Text>
-                  <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
+                  {/* Check button */}
+                  <TouchableOpacity onPress={() => setCrosswordChecked(true)} style={{ backgroundColor: child.colour, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 28, marginBottom: 8 }} activeOpacity={0.8}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Check answers</Text>
+                  </TouchableOpacity>
+                  {/* Keyboard for crossword */}
+                  {crosswordSel && (
+                    <View style={{ gap: 5, paddingHorizontal: 6, width: '100%', marginTop: 6 }}>
+                      {KB_ROWS.map((row, ri) => (
+                        <View key={ri} style={{ flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
+                          {row.map(key => {
+                            const isWide = key === 'ENTER' || key === 'DEL';
+                            return (
+                              <TouchableOpacity key={key} onPress={() => {
+                                if (!crosswordSel) return;
+                                const { r, c } = crosswordSel;
+                                if (key === 'DEL') {
+                                  setCrosswordGrid(prev => { const n = { ...prev }; delete n[`${r}-${c}`]; return n; });
+                                } else if (key === 'ENTER') {
+                                  setCrosswordSel(null);
+                                } else {
+                                  setCrosswordGrid(prev => ({ ...prev, [`${r}-${c}`]: key }));
+                                  // Auto advance to next cell in row
+                                  const puzzle = getWeeklyCrossword();
+                                  for (let nc = c + 1; nc < 5; nc++) {
+                                    if (puzzle.grid[r][nc] !== '#') { setCrosswordSel({ r, c: nc }); return; }
+                                  }
+                                  setCrosswordSel(null);
+                                }
+                              }} activeOpacity={0.7}
+                                style={{ height: 44, flex: isWide ? 1.5 : 1, maxWidth: isWide ? 56 : 34, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 11 : 14, color: INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  <TouchableOpacity onPress={goBack} style={{ marginTop: 14 }} activeOpacity={0.7}>
                     <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back to Games</Text>
                   </TouchableOpacity>
-                </View>
+                </ScrollView>
               );
             })()}
-          </ScrollView>
+
+            {/* ── Celebration overlay (shared across games) ── */}
+            {celebration && (
+              <TouchableOpacity
+                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', zIndex: 99 }}
+                activeOpacity={1}
+                onPress={() => setCelebration(null)}
+              >
+                <Text style={{ fontSize: 56 }}>{celebration.emoji}</Text>
+                <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 24, color: '#fff', marginTop: 10, textAlign: 'center' }}>{celebration.title}</Text>
+                {!!celebration.sub && <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 15, color: 'rgba(255,255,255,0.6)', marginTop: 6, textAlign: 'center' }}>{celebration.sub}</Text>}
+              </TouchableOpacity>
+            )}
+          </View>
         ) : (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {activeTab === 'jobs' && <JobsTab />}
@@ -1212,7 +1359,7 @@ export default function KidsHubScreen() {
               'Word Scramble': startScramble,
               'Maths Sprint': startMaths,
               'Aussie Trivia': startTrivia,
-              'Mini Crossword': () => setActiveGame('crossword'),
+              'Mini Crossword': () => { setCrosswordGrid({}); setCrosswordSel(null); setCrosswordChecked(false); setCelebration(null); setActiveGame('crossword'); },
             };
             return (
               <TouchableOpacity key={i} style={s.gameCard} activeOpacity={0.7} onPress={gameActions[game.name] || (() => {})}>
