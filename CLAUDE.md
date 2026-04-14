@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 14 April 2026 — Session 11 ✅ · Meal Planner polished + locked · Recipe photos · Rolling 10-day planner · Search Recipes with day context*
+*Last updated: 14 April 2026 — Session 11 ✅ · Meal Planner locked · Kids Hub wired to Supabase · Recipe photos*
 
 ---
 
@@ -683,6 +683,7 @@ Phase 8g: Calendar/Shopping fix ✅
 Phase 10a: Shopping sheet      ✅ Full rebuild — List/Pantry/Spend all polished
 Phase 10b: Meal Planner sheet  ✅ 3 tabs, 7-day planner, recipes, favourites, cook picker, kids jobs
 Phase 11:  Meal Planner polish ✅ Recipe photos, rolling 10-day, Search Recipes day context, move in detail
+Phase 12:  Kids Hub wired      ✅ Supabase tables, job completion, GIPHY, rewards, suggest job, parent approvals
 Phase 9a: Dashboard redesign   🔨 ← Claude Code next (zaeli-dashboard-redesign.html)
 Phase 9b: Meal Planner sheet   🔨 ← Claude Code next (zaeli-meals-mockup.html)
 Phase 9c: Camera/Upload        🔨 ← Claude Code next (zaeli-camera-upload.html)

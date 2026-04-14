@@ -12,11 +12,14 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  Dimensions, StatusBar as RNStatusBar,
+  Dimensions, StatusBar as RNStatusBar, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, { Polyline, Path } from 'react-native-svg';
+import { supabase } from '../../lib/supabase';
+
+const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 
 const { width: W } = Dimensions.get('window');
 
@@ -122,10 +125,62 @@ export default function OurFamilyScreen() {
   const router = useRouter();
   const [view, setView] = useState<'home' | 'child-detail' | 'pending' | 'profiles'>('home');
   const [selectedChild, setSelectedChild] = useState<ChildName>('Poppy');
+  const [dbPending, setDbPending] = useState<any[]>([]);
+  const [dbPoints, setDbPoints] = useState<Record<string, number>>({});
 
   useFocusEffect(useCallback(() => {
     RNStatusBar.setBarStyle('dark-content', true);
+    loadFamilyData();
   }, []));
+
+  async function loadFamilyData() {
+    try {
+      // Load pending approvals
+      const { data: pending } = await supabase.from('kids_pending_approvals')
+        .select('*').eq('family_id', FAMILY_ID).eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      setDbPending(pending ?? []);
+      // Load points per child
+      const { data: pointsData } = await supabase.from('kids_points_log')
+        .select('child_name, points').eq('family_id', FAMILY_ID);
+      const pts: Record<string, number> = {};
+      (pointsData ?? []).forEach((p: any) => { pts[p.child_name] = (pts[p.child_name] || 0) + (p.points || 0); });
+      setDbPoints(pts);
+    } catch (e) { console.log('[family] loadFamilyData error:', e); }
+  }
+
+  async function approveItem(item: any) {
+    try {
+      if (item.type === 'job_suggestion') {
+        // Create the job and award points
+        await supabase.from('kids_jobs').insert({
+          family_id: FAMILY_ID, child_name: item.child_name, title: item.title,
+          emoji: item.emoji || '📋', points: item.points, type: 'oneoff',
+          source: 'child_suggested', approved: true,
+        });
+        await supabase.from('kids_points_log').insert({
+          family_id: FAMILY_ID, child_name: item.child_name,
+          points: item.points, reason: item.title, source: 'job_complete',
+        });
+      } else if (item.type === 'reward_redemption') {
+        // Deduct points
+        await supabase.from('kids_points_log').insert({
+          family_id: FAMILY_ID, child_name: item.child_name,
+          points: -(item.points), reason: `Redeemed: ${item.title}`, source: 'reward_redeem',
+        });
+      }
+      // Mark as approved
+      await supabase.from('kids_pending_approvals').update({ status: 'approved' }).eq('id', item.id);
+      loadFamilyData();
+    } catch (e) { console.log('[family] approveItem error:', e); }
+  }
+
+  async function declineItem(item: any) {
+    try {
+      await supabase.from('kids_pending_approvals').update({ status: 'declined' }).eq('id', item.id);
+      loadFamilyData();
+    } catch (e) { console.log('[family] declineItem error:', e); }
+  }
 
   function goBack() {
     if (view === 'home') {
@@ -180,7 +235,7 @@ export default function OurFamilyScreen() {
   // HOME VIEW
   // ══════════════════════════════════════════════════════════════════════════
   function HomeView() {
-    const hasPending = PENDING_ACTIONS.length > 0;
+    const hasPending = dbPending.length > 0 || PENDING_ACTIONS.length > 0;
 
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
@@ -217,31 +272,37 @@ export default function OurFamilyScreen() {
         {hasPending && (
           <>
             <Text style={s.sectionLabel}>Needs your attention</Text>
-            {PENDING_ACTIONS.map(action => {
-              const member = FAMILY[action.child];
+            {(dbPending.length > 0 ? dbPending : PENDING_ACTIONS).map((action: any) => {
+              const childName = action.child_name || action.child;
+              const member = FAMILY[childName as keyof typeof FAMILY];
+              const isJob = (action.type === 'job_suggestion' || action.type === 'job');
+              const pts = action.points || 0;
+              const title = action.title || '';
+              const sub = action.note || action.sub || (isJob ? `Suggests ${pts} pts` : `${pts} pts`);
+              const isReal = !!action.child_name; // from Supabase
               return (
                 <View key={action.id} style={s.pendingCard}>
-                  <View style={[s.pendingAvatar, { backgroundColor: member.colour }]}>
-                    <Text style={s.pendingAvatarTxt}>{member.initial}</Text>
+                  <View style={[s.pendingAvatar, { backgroundColor: member?.colour || '#999' }]}>
+                    <Text style={s.pendingAvatarTxt}>{member?.initial || '?'}</Text>
                   </View>
                   <View style={s.pendingInfo}>
                     <View style={s.pendingTagRow}>
-                      <View style={[s.pendingTag, action.type === 'job' ? s.tagJob : s.tagReward]}>
-                        <Text style={[s.pendingTagTxt, action.type === 'job' ? s.tagJobTxt : s.tagRewardTxt]}>
-                          {action.type === 'job' ? 'Job request' : 'Reward request'}
+                      <View style={[s.pendingTag, isJob ? s.tagJob : s.tagReward]}>
+                        <Text style={[s.pendingTagTxt, isJob ? s.tagJobTxt : s.tagRewardTxt]}>
+                          {isJob ? 'Job request' : 'Reward request'}
                         </Text>
                       </View>
                     </View>
-                    <Text style={s.pendingTitle}>{action.title}</Text>
-                    <Text style={s.pendingSub}>{action.sub}</Text>
+                    <Text style={s.pendingTitle}>{action.emoji || ''} {title}</Text>
+                    <Text style={s.pendingSub}>{sub}</Text>
                   </View>
                   <View style={s.pendingBtns}>
-                    <TouchableOpacity style={s.pendingYes} activeOpacity={0.7}>
+                    <TouchableOpacity style={s.pendingYes} activeOpacity={0.7} onPress={() => isReal && approveItem(action)}>
                       <Text style={s.pendingYesTxt}>
-                        {action.type === 'job' ? `\u2713 ${action.points} pts` : '\u2713 Grant'}
+                        {isJob ? `\u2713 ${pts} pts` : '\u2713 Grant'}
                       </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={s.pendingNo} activeOpacity={0.7}>
+                    <TouchableOpacity style={s.pendingNo} activeOpacity={0.7} onPress={() => isReal && declineItem(action)}>
                       <Text style={s.pendingNoTxt}>{action.type === 'job' ? 'Edit' : 'Not yet'}</Text>
                     </TouchableOpacity>
                   </View>

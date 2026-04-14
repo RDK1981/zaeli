@@ -12,16 +12,24 @@
  * All dummy data — Supabase integration later
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal, StyleSheet,
-  Dimensions, StatusBar as RNStatusBar,
+  Dimensions, StatusBar as RNStatusBar, Image, TextInput, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, { Polyline } from 'react-native-svg';
+import { supabase } from '../../lib/supabase';
 
 const { width: W, height: H } = Dimensions.get('window');
+const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+function localDateStr(d?: Date): string {
+  const dt = d || new Date();
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+// Curated GIPHY search tags — kid-safe, celebratory
+const GIPHY_TAGS = ['congratulations', 'you rock', 'celebration', 'nailed it', 'high five', 'amazing', 'well done', 'awesome', 'proud of you'];
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const HUB_BG    = '#A8E8CC';
@@ -123,11 +131,131 @@ export default function KidsHubScreen() {
   const [selectedChild, setSelectedChild] = useState<ChildName>('Duke');
   const [activeTab, setActiveTab] = useState<'jobs' | 'rewards' | 'games' | 'leaderboard'>('jobs');
   const [showGiphy, setShowGiphy] = useState(false);
+  const [giphyData, setGiphyData] = useState<{ pts: number; jobName: string; gifUrl: string | null }>({ pts: 0, jobName: '', gifUrl: null });
   const [redeemItem, setRedeemItem] = useState<null | typeof REWARDS.Poppy[0]>(null);
+  // Supabase-driven state
+  const [dbJobs, setDbJobs] = useState<any[]>([]);
+  const [dbRewards, setDbRewards] = useState<any[]>([]);
+  const [dbPoints, setDbPoints] = useState<Record<string, number>>({});
+  const [dbStreaks, setDbStreaks] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(false);
+  // Suggest a job form
+  const [suggestFormOpen, setSuggestFormOpen] = useState(false);
+  const [suggestTitle, setSuggestTitle] = useState('');
+  const [suggestPts, setSuggestPts] = useState(20);
+  const [suggestNote, setSuggestNote] = useState('');
 
   useFocusEffect(useCallback(() => {
     RNStatusBar.setBarStyle('dark-content', true);
+    loadKidsData();
   }, []));
+
+  async function loadKidsData() {
+    setLoading(true);
+    try {
+      // Load jobs for all children
+      const { data: jobsData } = await supabase.from('kids_jobs')
+        .select('*').eq('family_id', FAMILY_ID).eq('approved', true)
+        .order('created_at', { ascending: true });
+      setDbJobs(jobsData ?? []);
+
+      // Load rewards
+      const { data: rewardsData } = await supabase.from('kids_rewards')
+        .select('*').eq('family_id', FAMILY_ID).eq('is_active', true)
+        .order('cost', { ascending: true });
+      setDbRewards(rewardsData ?? []);
+
+      // Calculate points per child from points log
+      const { data: pointsData } = await supabase.from('kids_points_log')
+        .select('child_name, points').eq('family_id', FAMILY_ID);
+      const pts: Record<string, number> = {};
+      (pointsData ?? []).forEach((p: any) => {
+        pts[p.child_name] = (pts[p.child_name] || 0) + (p.points || 0);
+      });
+      setDbPoints(pts);
+
+      // Calculate streaks — consecutive days with at least 1 completed job
+      const streaks: Record<string, number> = {};
+      for (const c of CHILDREN) {
+        const childJobs = (jobsData ?? []).filter((j: any) => j.child_name === c.name && j.is_complete && j.completed_at);
+        const completeDates = [...new Set(childJobs.map((j: any) => j.completed_at?.split('T')[0]).filter(Boolean))].sort().reverse();
+        let streak = 0;
+        const today = localDateStr();
+        let checkDate = today;
+        for (const d of completeDates) {
+          if (d === checkDate) {
+            streak++;
+            const prev = new Date(checkDate + 'T00:00:00');
+            prev.setDate(prev.getDate() - 1);
+            checkDate = localDateStr(prev);
+          } else break;
+        }
+        streaks[c.name] = streak;
+      }
+      setDbStreaks(streaks);
+    } catch (e) {
+      console.log('[kids] loadKidsData error:', e);
+    }
+    setLoading(false);
+  }
+
+  async function completeJob(job: any) {
+    if (job.done) return;
+    const jobId = job.id || job._raw?.id;
+    const pts = job.pts || 10;
+    // Optimistic UI update
+    setDbJobs(prev => prev.map((j: any) => j.id === jobId ? { ...j, is_complete: true, completed_at: new Date().toISOString() } : j));
+    setDbPoints(prev => ({ ...prev, [selectedChild]: (prev[selectedChild] || 0) + pts }));
+    // Show GIPHY celebration
+    setGiphyData({ pts, jobName: job.name, gifUrl: null });
+    setShowGiphy(true);
+    // Fetch a random GIPHY GIF
+    try {
+      const tag = GIPHY_TAGS[Math.floor(Math.random() * GIPHY_TAGS.length)];
+      const giphyKey = process.env.EXPO_PUBLIC_GIPHY_API_KEY || '';
+      if (giphyKey) {
+        const res = await fetch(`https://api.giphy.com/v1/gifs/random?api_key=${giphyKey}&tag=${encodeURIComponent(tag)}&rating=g`);
+        const data = await res.json();
+        const gifUrl = data?.data?.images?.fixed_height?.url || data?.data?.images?.original?.url || null;
+        if (gifUrl) setGiphyData(prev => ({ ...prev, gifUrl }));
+      }
+    } catch { /* GIPHY optional */ }
+    // Persist to Supabase
+    if (jobId) {
+      try {
+        await supabase.from('kids_jobs').update({ is_complete: true, completed_at: new Date().toISOString() }).eq('id', jobId);
+        await supabase.from('kids_points_log').insert({ family_id: FAMILY_ID, child_name: selectedChild, points: pts, reason: job.name, source: 'job_complete' });
+      } catch (e) { console.log('[kids] completeJob error:', e); }
+    }
+  }
+
+  async function submitJobSuggestion() {
+    if (!suggestTitle.trim()) return;
+    try {
+      await supabase.from('kids_pending_approvals').insert({
+        family_id: FAMILY_ID, child_name: selectedChild,
+        type: 'job_suggestion', title: suggestTitle.trim(),
+        emoji: '📋', points: suggestPts, note: suggestNote.trim() || null,
+        status: 'pending',
+      });
+      setSuggestFormOpen(false);
+      setSuggestTitle('');
+      setSuggestPts(20);
+      setSuggestNote('');
+    } catch (e) { console.log('[kids] submitJobSuggestion error:', e); }
+  }
+
+  async function requestReward(reward: any) {
+    try {
+      await supabase.from('kids_pending_approvals').insert({
+        family_id: FAMILY_ID, child_name: selectedChild,
+        type: 'reward_redemption', title: reward.name,
+        emoji: reward.icon, points: reward.cost, note: null,
+        status: 'pending',
+      });
+      setRedeemItem(null);
+    } catch (e) { console.log('[kids] requestReward error:', e); }
+  }
 
   function goBack() {
     if (view === 'hub') {
@@ -145,8 +273,26 @@ export default function KidsHubScreen() {
   }
 
   const child = CHILDREN.find(c => c.name === selectedChild)!;
-  const jobs = JOBS[selectedChild];
-  const rewards = REWARDS[selectedChild];
+  // Use Supabase data if available, otherwise dummy
+  const childPoints = dbPoints[selectedChild] ?? child.points;
+  const childStreak = dbStreaks[selectedChild] ?? child.streak;
+  const childWithDb = { ...child, points: childPoints, streak: childStreak };
+  const today = localDateStr();
+  // Get jobs for selected child — daily jobs: only show if not completed today
+  const childDbJobs = dbJobs.filter((j: any) => j.child_name === selectedChild);
+  const jobs = childDbJobs.length > 0
+    ? childDbJobs.map((j: any) => ({
+        id: j.id, icon: j.emoji || '📋', name: j.title, pts: j.points || 10,
+        type: j.type || 'oneoff', done: j.is_complete && (j.type !== 'daily' || j.completed_at?.startsWith(today)),
+        _raw: j,
+      }))
+    : JOBS[selectedChild];
+  const rewards = dbRewards.filter((r: any) => r.child_name === selectedChild).length > 0
+    ? dbRewards.filter((r: any) => r.child_name === selectedChild).map((r: any) => ({
+        icon: r.emoji || '🎁', name: r.title, cost: r.cost,
+        status: childPoints >= r.cost ? 'afford' as const : childPoints >= r.cost * 0.7 ? 'almost' as const : 'saving' as const,
+      }))
+    : REWARDS[selectedChild];
   const jobsDone = jobs.filter(j => j.done).length;
   const jobsTotal = jobs.length;
 
@@ -201,10 +347,10 @@ export default function KidsHubScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.selectCardName}>{c.name}</Text>
-                <Text style={s.selectCardMeta}>Year {c.year} {'\u00B7'} {'\u{1F525}'} {c.streak} day streak</Text>
+                <Text style={s.selectCardMeta}>Year {c.year} {'\u00B7'} {'\u{1F525}'} {dbStreaks[c.name] ?? c.streak} day streak</Text>
               </View>
               <View style={s.selectCardPts}>
-                <Text style={s.selectCardPtsTxt}>{'\u2B50'} {c.points} pts</Text>
+                <Text style={s.selectCardPtsTxt}>{'\u2B50'} {dbPoints[c.name] ?? c.points} pts</Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -236,7 +382,7 @@ export default function KidsHubScreen() {
             <Text style={s.hubHeaderTitle}>{isOlder ? selectedChild : `${selectedChild}'s Hub`}</Text>
           )}
           <View style={s.ptsBadge}>
-            <Text style={s.ptsBadgeN}>{child.points}</Text>
+            <Text style={s.ptsBadgeN}>{childWithDb.points}</Text>
             <Text style={s.ptsBadgeL}>pts</Text>
           </View>
         </View>
@@ -246,7 +392,7 @@ export default function KidsHubScreen() {
           <View style={s.streakStrip}>
             <Text style={s.streakFire}>{'\u{1F525}'}</Text>
             <View>
-              <Text style={s.streakNum}>{child.streak}</Text>
+              <Text style={s.streakNum}>{childWithDb.streak}</Text>
               <Text style={s.streakLbl}>Day Streak</Text>
             </View>
             <Text style={{ marginLeft: 'auto', fontSize: 26 }}>
@@ -259,10 +405,10 @@ export default function KidsHubScreen() {
         {isOlder && (
           <View style={s.olderHeaderCard}>
             <View>
-              <Text style={s.olderPtsBig}>{child.points}</Text>
+              <Text style={s.olderPtsBig}>{childWithDb.points}</Text>
               <Text style={s.olderPtsLbl}>points this month</Text>
               <View style={s.olderStreakPill}>
-                <Text style={s.olderStreakPillTxt}>{'\u{1F525}'} {child.streak} day streak</Text>
+                <Text style={s.olderStreakPillTxt}>{'\u{1F525}'} {childWithDb.streak} day streak</Text>
               </View>
             </View>
             <View style={{ marginLeft: 'auto', alignItems: 'flex-end' }}>
@@ -276,7 +422,7 @@ export default function KidsHubScreen() {
         {/* Middle stats */}
         {child.tier === 'middle' && (
           <View style={s.midStats}>
-            <View style={s.midStat}><Text style={s.midStatN}>{'\u{1F525}'} {child.streak}</Text><Text style={s.midStatL}>Streak</Text></View>
+            <View style={s.midStat}><Text style={s.midStatN}>{'\u{1F525}'} {childWithDb.streak}</Text><Text style={s.midStatL}>Streak</Text></View>
             <View style={s.midStat}><Text style={s.midStatN}>{jobsDone}/{jobsTotal}</Text><Text style={s.midStatL}>Jobs today</Text></View>
             <View style={s.midStat}><Text style={s.midStatN}>45</Text><Text style={s.midStatL}>To next reward</Text></View>
           </View>
@@ -316,17 +462,21 @@ export default function KidsHubScreen() {
             onPress={() => setShowGiphy(false)}
           >
             <View style={s.giphyFrame}>
-              <Text style={s.giphyPlaceholder}>{'\u{1F389}'}</Text>
-              <Text style={s.giphyApiNote}>GIF loads here via GIPHY API</Text>
+              {giphyData.gifUrl ? (
+                <Image source={{ uri: giphyData.gifUrl }} style={{ width: 260, height: 195, borderRadius: 20 }} resizeMode="cover"/>
+              ) : (
+                <Text style={s.giphyPlaceholder}>{'\u{1F389}'}</Text>
+              )}
             </View>
             <View style={s.giphyPtsEarned}>
-              <Text style={s.giphyPtsText}>+10 points! {'\u2B50'}</Text>
+              <Text style={s.giphyPtsText}>+{giphyData.pts} points! {'\u2B50'}</Text>
             </View>
             <Text style={s.giphyText}>You smashed it, {selectedChild}! {'\u{1F525}'}</Text>
             <Text style={s.giphySub}>
+              {giphyData.jobName} done!
               {jobsDone + 1 >= jobsTotal
-                ? `All jobs done today \u2014 streak to ${child.streak + 1} tomorrow`
-                : `${jobsTotal - jobsDone - 1} jobs left today!`
+                ? ' All jobs complete today!'
+                : ` ${jobsTotal - jobsDone - 1} jobs left`
               }
             </Text>
             <View style={s.giphyDismiss}>
@@ -345,7 +495,7 @@ export default function KidsHubScreen() {
               <View style={s.confirmBalance}>
                 <View style={s.confirmBalRow}>
                   <Text style={s.confirmBalLabel}>Your balance</Text>
-                  <Text style={s.confirmBalValue}>{child.points} pts</Text>
+                  <Text style={s.confirmBalValue}>{childWithDb.points} pts</Text>
                 </View>
                 <View style={s.confirmBalRow}>
                   <Text style={s.confirmBalLabel}>Cost of this reward</Text>
@@ -357,12 +507,63 @@ export default function KidsHubScreen() {
                   <Text style={[s.confirmBalValue, { fontFamily: 'Poppins_800ExtraBold', color: HUB_DARK }]}>{child.points - (redeemItem?.cost ?? 0)} pts</Text>
                 </View>
               </View>
-              <TouchableOpacity style={s.confirmYes} onPress={() => setRedeemItem(null)} activeOpacity={0.7}>
+              <TouchableOpacity style={s.confirmYes} onPress={() => requestReward(redeemItem)} activeOpacity={0.7}>
                 <Text style={s.confirmYesTxt}>Yes, request this reward {redeemItem?.icon}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.confirmNo} onPress={() => setRedeemItem(null)} activeOpacity={0.7}>
                 <Text style={s.confirmNoTxt}>Not yet \u2014 keep saving</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Suggest a Job form modal */}
+        <Modal visible={suggestFormOpen} transparent animationType="slide">
+          <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.4)', justifyContent:'flex-end' }}>
+            <TouchableOpacity style={{ flex:1 }} onPress={() => setSuggestFormOpen(false)} activeOpacity={1}/>
+            <View style={{ backgroundColor:'#fff', borderTopLeftRadius:24, borderTopRightRadius:24, padding:20 }}>
+              <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginBottom:16 }}/>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:INK, marginBottom:4 }}>Suggest a job</Text>
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:INK4, marginBottom:16 }}>Mum or Dad will review and approve it.</Text>
+
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:INK4, textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>What's the job?</Text>
+              <TextInput
+                style={{ backgroundColor:'rgba(0,0,0,0.04)', borderRadius:12, paddingHorizontal:14, paddingVertical:12, fontFamily:'Poppins_400Regular', fontSize:15, color:INK, marginBottom:14 }}
+                placeholder="e.g. Washed the car"
+                placeholderTextColor="rgba(0,0,0,0.30)"
+                value={suggestTitle}
+                onChangeText={setSuggestTitle}
+                autoFocus
+              />
+
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:INK4, textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>How many points?</Text>
+              <View style={{ flexDirection:'row', gap:8, marginBottom:14 }}>
+                {[10, 20, 30, 50, 100].map(pts => (
+                  <TouchableOpacity
+                    key={pts}
+                    onPress={() => setSuggestPts(pts)}
+                    style={{ flex:1, borderWidth:1.5, borderColor: suggestPts === pts ? HUB_DARK : 'rgba(0,0,0,0.12)', borderRadius:12, paddingVertical:10, alignItems:'center', backgroundColor: suggestPts === pts ? 'rgba(10,64,48,0.07)' : 'transparent' }}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color: suggestPts === pts ? HUB_DARK : INK4 }}>{pts}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:INK4, textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Note to Mum or Dad (optional)</Text>
+              <TextInput
+                style={{ backgroundColor:'rgba(0,0,0,0.04)', borderRadius:12, paddingHorizontal:14, paddingVertical:12, fontFamily:'Poppins_400Regular', fontSize:14, color:INK, minHeight:60, textAlignVertical:'top', marginBottom:16 }}
+                placeholder="Optional details..."
+                placeholderTextColor="rgba(0,0,0,0.30)"
+                value={suggestNote}
+                onChangeText={setSuggestNote}
+                multiline
+              />
+
+              <TouchableOpacity onPress={submitJobSuggestion} style={{ backgroundColor:HUB_DARK, borderRadius:14, paddingVertical:14, alignItems:'center', marginBottom:8 }} activeOpacity={0.8}>
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#fff' }}>Send to Mum & Dad</Text>
+              </TouchableOpacity>
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:INK4, textAlign:'center' }}>They'll get a notification and can approve, change the points, or send a note back.</Text>
             </View>
           </View>
         </Modal>
@@ -382,7 +583,7 @@ export default function KidsHubScreen() {
             style={isOlder ? s.olderJob : s.jobCard}
             activeOpacity={0.7}
             onPress={() => {
-              if (!job.done) setShowGiphy(true);
+              if (!job.done) completeJob(job);
             }}
           >
             <Text style={isOlder ? s.olderJobIcon : s.jobIcon}>{job.icon}</Text>
@@ -405,7 +606,7 @@ export default function KidsHubScreen() {
         ))}
 
         {/* Suggest a job */}
-        <TouchableOpacity style={[child.tier === 'older' ? s.olderJob : s.jobCard, s.suggestJob]} activeOpacity={0.7}>
+        <TouchableOpacity style={[child.tier === 'older' ? s.olderJob : s.jobCard, s.suggestJob]} activeOpacity={0.7} onPress={() => setSuggestFormOpen(true)}>
           <Text style={{ fontSize: child.tier === 'older' ? 20 : 26, opacity: 0.3 }}>{'\u2795'}</Text>
           <View style={{ flex: 1 }}>
             <Text style={[child.tier === 'older' ? s.olderJobName : s.jobName, { color: INK4 }]}>
@@ -427,10 +628,10 @@ export default function KidsHubScreen() {
         {/* Balance hero */}
         <View style={s.balanceHero}>
           <View style={{ flex: 1 }}>
-            <Text style={s.balanceNum}>{child.points}</Text>
+            <Text style={s.balanceNum}>{childWithDb.points}</Text>
             <Text style={s.balanceLbl}>points to spend</Text>
             <View style={s.balanceStreak}>
-              <Text style={s.balanceStreakTxt}>{'\u{1F525}'} {child.streak} day streak</Text>
+              <Text style={s.balanceStreakTxt}>{'\u{1F525}'} {childWithDb.streak} day streak</Text>
             </View>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
@@ -484,7 +685,7 @@ export default function KidsHubScreen() {
               </View>
               <View style={s.rewardBarRow}>
                 <Text style={[s.rewardBarLabel, !canAfford && !isAlmost && { color: 'rgba(0,0,0,0.3)' }]}>
-                  {canAfford ? `You have ${child.points} pts` : `${child.points} of ${reward.cost} pts`}
+                  {canAfford ? `You have ${childWithDb.points} pts` : `${childWithDb.points} of ${reward.cost} pts`}
                 </Text>
                 <Text style={[
                   s.rewardBarLabel,
@@ -533,7 +734,7 @@ export default function KidsHubScreen() {
             <Text style={s.dailyBannerTxt}>Zaeli{"'"}s Wordle {'\u00B7'} Today{"'"}s word</Text>
             <Text style={s.dailyBannerWord}>_ _ _ _ _</Text>
           </View>
-          <TouchableOpacity style={s.dailyBannerPlay} activeOpacity={0.7}>
+          <TouchableOpacity style={s.dailyBannerPlay} activeOpacity={0.7} onPress={() => router.navigate('/(tabs)/swipe-world' as any)}>
             <Text style={s.dailyBannerPlayTxt}>Play now</Text>
           </TouchableOpacity>
         </View>
@@ -543,7 +744,7 @@ export default function KidsHubScreen() {
           {GAMES.map((game, i) => {
             if (game.featured) {
               return (
-                <TouchableOpacity key={i} style={s.gameFeatured} activeOpacity={0.7}>
+                <TouchableOpacity key={i} style={s.gameFeatured} activeOpacity={0.7} onPress={() => router.navigate('/(tabs)/swipe-world' as any)}>
                   <Text style={s.gameFeaturedIcon}>{game.icon}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={s.gameFeaturedName}>{game.name}</Text>
@@ -556,7 +757,7 @@ export default function KidsHubScreen() {
               );
             }
             return (
-              <TouchableOpacity key={i} style={s.gameCard} activeOpacity={0.7}>
+              <TouchableOpacity key={i} style={[s.gameCard, { opacity: 0.6 }]} activeOpacity={0.7}>
                 <Text style={s.gameIcon}>{game.icon}</Text>
                 <Text style={s.gameName}>{game.name}</Text>
                 <Text style={s.gameDesc}>{game.desc}</Text>
@@ -581,7 +782,7 @@ export default function KidsHubScreen() {
 
   // ── Leaderboard Tab ──────────────────────────────────────────────────────
   function LeaderboardTab() {
-    const sorted = [...CHILDREN].sort((a, b) => b.points - a.points);
+    const sorted = [...CHILDREN].map(c => ({ ...c, points: dbPoints[c.name] ?? c.points, streak: dbStreaks[c.name] ?? c.streak })).sort((a, b) => b.points - a.points);
 
     return (
       <View style={s.tabContent}>

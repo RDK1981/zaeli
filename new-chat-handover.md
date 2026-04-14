@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*14 April 2026 — Session 11 ✅ · Shopping complete · Meal Planner polished + locked · Recipe photos · Rolling 10-day*
+*14 April 2026 — Session 11 ✅ · Shopping complete · Meal Planner locked · Kids Hub wired to Supabase · Recipe photos*
 *Copy this entire message to start a new chat.*
 
 ---
