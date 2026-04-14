@@ -27,7 +27,6 @@ import {
   SCRAMBLE_LITTLE, SCRAMBLE_MIDDLE, SCRAMBLE_OLDER,
   TRIVIA_LITTLE, TRIVIA_MIDDLE, TRIVIA_OLDER,
   generateMathsQuestion, scrambleWord, getWeeklyCrossword,
-  type TriviaQuestion, type CrosswordPuzzle,
 } from './kids-games-data';
 import { KB_ROWS, getTileStates } from './wordle-data';
 
@@ -339,12 +338,12 @@ export default function KidsHubScreen() {
     } catch (e) { console.log('[kids] requestReward error:', e); }
   }
 
-  // Auto-dismiss celebration after 2.5s
+  // Auto-dismiss celebration after 2.5s — cleanup on unmount/game close
   React.useEffect(() => {
-    if (!celebration) return;
+    if (!celebration || !activeGame) return;
     const t = setTimeout(() => setCelebration(null), 2500);
     return () => clearTimeout(t);
-  }, [celebration]);
+  }, [celebration, activeGame]);
 
   // ── Game save/load ──
   const gameStorageKey = (game: string) => `kidshub_${selectedChild}_${game}_${localDateStr()}`;
@@ -443,6 +442,9 @@ export default function KidsHubScreen() {
   function goBack() {
     if (activeGame) {
       if (mathsTimer.current) { clearInterval(mathsTimer.current); mathsTimer.current = null; }
+      setCelebration(null);
+      setShowGameInfo(false);
+      setMathsActive(false);
       setActiveGame(null);
       return;
     }
@@ -592,10 +594,11 @@ export default function KidsHubScreen() {
           {activeTab === 'leaderboard' && <LeaderboardTab />}
         </ScrollView>
 
-        {/* ── GAME MODAL (92% sheet) ── */}
-        <Modal visible={activeGame !== null} transparent animationType="slide" onRequestClose={goBack}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.40)', justifyContent: 'flex-end' }}>
-            <View style={{ backgroundColor: childWithDb.bgLight || HUB_BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '92%', flexDirection: 'column' }}>
+        {/* ── GAME OVERLAY (absolute, not Modal — avoids re-render flicker) ── */}
+        {activeGame !== null && (
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.40)', justifyContent: 'flex-end' }}>
+              <View style={{ backgroundColor: childWithDb.bgLight || HUB_BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, height: '92%', flexDirection: 'column' }}>
               {/* Handle + close */}
               <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)', alignSelf: 'center', marginTop: 10 }}/>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 }}>
@@ -714,7 +717,7 @@ export default function KidsHubScreen() {
               const maxRounds = Math.min(10, list.length);
               const isDone = scrambleRound >= maxRounds;
               function handleScrambleKey(key: string) {
-                if (key === 'DEL') { setScrambleInput(prev => prev.slice(0, -1)); return; }
+                if (key === 'DEL') { setScrambleInput((prev: string) => prev.slice(0, -1)); return; }
                 if (key === 'ENTER') {
                   if (scrambleInput.toUpperCase() === scrambleAnswer) {
                     setScrambleScore(prev => prev + 1);
@@ -734,7 +737,7 @@ export default function KidsHubScreen() {
                 setScrambleInput(prev => prev + key);
               }
               return (
-                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', paddingTop: 10, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+                <View style={{ flex: 1, alignItems: 'center', paddingTop: 10, paddingHorizontal: 14 }}>
                   <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 4 }}>Word Scramble</Text>
                   <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginBottom: 12 }}>Score: {scrambleScore} | Round {Math.min(scrambleRound + 1, maxRounds)}/{maxRounds}</Text>
                   {!isDone ? (
@@ -774,6 +777,14 @@ export default function KidsHubScreen() {
                           </View>
                         ))}
                       </View>
+                      {/* Big Submit button below keyboard */}
+                      <TouchableOpacity
+                        onPress={() => handleScrambleKey('ENTER')}
+                        style={{ backgroundColor: scrambleInput.length >= scrambleAnswer.length ? child.colour : 'rgba(0,0,0,0.08)', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10, marginHorizontal: 6 }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: scrambleInput.length >= scrambleAnswer.length ? '#fff' : 'rgba(0,0,0,0.30)' }}>Submit</Text>
+                      </TouchableOpacity>
                     </>
                   ) : (
                     <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 24, alignItems: 'center', width: '100%' }}>
@@ -785,7 +796,7 @@ export default function KidsHubScreen() {
                       </TouchableOpacity>
                     </View>
                   )}
-                </ScrollView>
+                </View>
               );
             })()}
 
@@ -1072,7 +1083,8 @@ export default function KidsHubScreen() {
               </View>
             </View>
           </View>
-        </Modal>
+          </View>
+        )}
 
         {/* GIPHY celebration overlay */}
         {showGiphy && (

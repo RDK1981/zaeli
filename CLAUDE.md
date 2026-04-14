@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 14 April 2026 — Session 11 ✅ · Meal Planner locked · Kids Hub wired to Supabase · Recipe photos*
+*Last updated: 14 April 2026 — Session 11 ✅ · Meal Planner locked · Kids Hub built with 5 games · Shopping complete*
 
 ---
 
@@ -658,6 +658,60 @@ Stress testing and polish session. Meal Planner now locked.
 
 ---
 
+## ══════════════════════════════════
+## SESSION 11b — KIDS HUB COMPLETE (14 April 2026) ✅
+## ══════════════════════════════════
+
+Massive build — Kids Hub from dummy data to full Supabase-wired module with 5 games.
+
+### Core Kids Hub:
+- Child selector → unified hub layout for all kids (no more 3 tier variants)
+- Hey [Name]! header + 3 stat row (Streak / Jobs today / To next reward)
+- Child-themed backgrounds: Poppy lavender, Gab green, Duke yellow
+- Wordmark a+i tints to child's colour in hub
+- Points badge: child colour background, white text, 26px
+
+### Jobs:
+- Supabase-wired: kids_jobs, kids_points_log tables
+- Active jobs with checkbox to complete → GIPHY celebration → points awarded
+- Completed today: strikethrough + undo (tap checkbox reverts, removes points)
+- Tap card body → expand for Repeat/Undo options
+- Completed jobs history (previous days) expandable section with Repeat
+- Suggest a Job form → kids_pending_approvals table → parent approval in Our Family
+
+### Rewards:
+- Supabase-wired: kids_rewards table
+- Three affordability tiers (can afford / almost / saving)
+- Redeem confirmation with balance breakdown
+- Redemption → kids_pending_approvals → parent approval
+- Suggest a Reward card
+
+### Games (5 built, all with embedded keyboards):
+- **Wordle**: age-tiered (4-letter Little, 5-letter Middle/Older), embedded QWERTY, key states, save/resume via AsyncStorage, info button with colour guide
+- **Word Scramble**: embedded keyboard + input tiles, hint hidden (tap to reveal), celebration between rounds, Submit button below keyboard, save/resume
+- **Maths Sprint**: custom number pad, 2-minute timer bar, green/red flash feedback
+- **World Trivia**: 20 questions per tier (Aussie + World), celebration between questions
+- **Mini Crossword**: interactive grid with clue numbers, tap to select, embedded keyboard, Check Answers
+
+### Architecture:
+- Games render as absolute overlay (not Modal — avoids re-render flicker)
+- Celebration overlay: auto-dismiss 2.5s, tap to dismiss
+- AsyncStorage for game save/resume (daily key per child)
+- Our Family (family.tsx): pending approvals wired — approve/decline jobs + rewards
+
+### Supabase tables created:
+- kids_jobs, kids_rewards, kids_points_log, kids_pending_approvals
+- All seeded with test data
+- SQL in supabase-kids-hub-tables.sql
+
+### Known issues (next session):
+- Some game flicker still present in certain transitions
+- Maths Sprint keypad tapping could be more responsive
+- Crossword keyboard visibility when grid is selected
+- Wordle needs "not in word list" validation
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -684,7 +738,10 @@ Phase 10a: Shopping sheet      ✅ Full rebuild — List/Pantry/Spend all polish
 Phase 10b: Meal Planner sheet  ✅ 3 tabs, 7-day planner, recipes, favourites, cook picker, kids jobs
 Phase 11:  Meal Planner polish ✅ Recipe photos, rolling 10-day, Search Recipes day context, move in detail
 Phase 12:  Kids Hub wired      ✅ Supabase tables, job completion, GIPHY, rewards, suggest job, parent approvals
-Phase 9a: Dashboard redesign   🔨 ← Claude Code next (zaeli-dashboard-redesign.html)
+Phase 12b: Kids Hub games      ✅ 5 games rebuilt with embedded keyboards, age-tiered content, celebrations
+Phase 12c: Kids Hub polish     🔨 Game flicker fixes in progress, more polish needed
+Phase 9a: Dashboard redesign   🔨
+Phase 13:  Tutor rebuild       🔨
 Phase 9b: Meal Planner sheet   🔨 ← Claude Code next (zaeli-meals-mockup.html)
 Phase 9c: Camera/Upload        🔨 ← Claude Code next (zaeli-camera-upload.html)
 Phase 9d: AI Brief system      🔨 ← implement Sonnet briefs, GPT-5.4 mini routing
