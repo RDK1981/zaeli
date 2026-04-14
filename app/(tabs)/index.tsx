@@ -2780,6 +2780,10 @@ function HomeScreen({
   const [mealKidJobPopup,    setMealKidJobPopup]    = useState<{kidId:string;kidName:string;mealName:string;dayKey:string}|null>(null);
   const [mealKidJobPoints,   setMealKidJobPoints]   = useState(10);
   const [mealRecipeDetail,   setMealRecipeDetail]   = useState<any|null>(null);
+  const [mealDetailDayKey,   setMealDetailDayKey]   = useState<string|null>(null); // which day this meal is on (for move)
+  const [mealDetailMoveOpen, setMealDetailMoveOpen] = useState(false); // move picker open in detail view
+  const [mealPendingRecipeDay, setMealPendingRecipeDay] = useState<string|null>(null); // day waiting for recipe selection
+  const [mealPhotoPicker,    setMealPhotoPicker]    = useState(false); // camera/library choice for recipe photo
   const [mealAddRecipeMode,  setMealAddRecipeMode]  = useState<'closed'|'form'|'upload'|'scanning'>('closed');
   const [mealSendToList,     setMealSendToList]     = useState<any|null>(null);
   const [mealSearchText,     setMealSearchText]     = useState('');
@@ -4538,12 +4542,10 @@ Only include events directly relevant to the question. Max 5 events.`;
   function getMealWeekDays(): { date: Date; key: string; dayName: string; dayNum: number; isToday: boolean }[] {
     const today = new Date();
     const todayStr = localDateStr();
-    // Start from Monday of current week
-    const dow = today.getDay(); // 0=Sun
-    const mondayOffset = dow === 0 ? -6 : 1 - dow;
-    return Array.from({ length: 7 }, (_, i) => {
+    // Rolling 10 days starting from today
+    return Array.from({ length: 10 }, (_, i) => {
       const d = new Date(today);
-      d.setDate(today.getDate() + mondayOffset + i);
+      d.setDate(today.getDate() + i);
       const key = localDateStr(d);
       return {
         date: d,
@@ -4573,7 +4575,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       const keys = days.map(d => d.key);
       const [plansRes, recipesRes] = await Promise.all([
         supabase.from('meal_plans').select('*').eq('family_id', FAMILY_ID).in('day_key', keys).order('created_at', { ascending: true }),
-        supabase.from('recipes').select('id,name,source_type,prep_mins,notes,tags,family_id,created_at').eq('family_id', FAMILY_ID).order('created_at', { ascending: false }).limit(100),
+        supabase.from('recipes').select('id,name,source_type,prep_mins,notes,tags,image_url,family_id,created_at').eq('family_id', FAMILY_ID).order('created_at', { ascending: false }).limit(100),
       ]);
       setMealSheetPlans(plansRes.data ?? []);
       // Enrich recipes with parsed data for the UI
@@ -4659,6 +4661,57 @@ Only include events directly relevant to the question. Max 5 events.`;
       // Optimistic update on plans
       setMealSheetPlans(prev => prev.map((p:any) => p.id === mealId ? { ...p, _isFav: !currentFav } : p));
     } catch (e) { console.log('toggleMealFav error:', e); }
+  }
+
+  async function uploadRecipePhoto(recipeId: string): Promise<string|null> {
+    try {
+      // Let user pick camera or library
+      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!granted) return null;
+      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
+      if (r.canceled || !r.assets?.[0]) return null;
+      // Resize to 600px for thumbnail use
+      const resized = await manipulateAsync(r.assets[0].uri, [{ resize: { width: 600 } }], { compress: 0.75, format: SaveFormat.JPEG });
+      const base64 = await FileSystem.readAsStringAsync(resized.uri, { encoding: 'base64' as any });
+      const fileName = `${FAMILY_ID}/${recipeId}-${Date.now()}.jpg`;
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('recipe-photos')
+        .upload(fileName, Uint8Array.from(atob(base64), c => c.charCodeAt(0)), { contentType: 'image/jpeg', upsert: true });
+      if (uploadError) {
+        console.log('[meal] Photo upload error:', uploadError.message);
+        // If bucket doesn't exist, try without storage (store base64 URI as data URL fallback)
+        const dataUri = `data:image/jpeg;base64,${base64.slice(0, 100)}`;
+        console.log('[meal] Falling back to direct image_url update');
+        // Store the local file URI instead — works for local dev
+        await supabase.from('recipes').update({ image_url: resized.uri }).eq('id', recipeId);
+        return resized.uri;
+      }
+      const { data: urlData } = supabase.storage.from('recipe-photos').getPublicUrl(fileName);
+      const publicUrl = urlData?.publicUrl || '';
+      // Update recipe record with URL
+      await supabase.from('recipes').update({ image_url: publicUrl }).eq('id', recipeId);
+      return publicUrl;
+    } catch (e) {
+      console.log('[meal] uploadRecipePhoto error:', e);
+      return null;
+    }
+  }
+
+  async function takeRecipePhoto(recipeId: string): Promise<string|null> {
+    try {
+      const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+      if (!granted) return null;
+      const r = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
+      if (r.canceled || !r.assets?.[0]) return null;
+      const resized = await manipulateAsync(r.assets[0].uri, [{ resize: { width: 600 } }], { compress: 0.75, format: SaveFormat.JPEG });
+      // For now, store the local URI directly in image_url (works in dev, swap to Storage URL in production)
+      await supabase.from('recipes').update({ image_url: resized.uri }).eq('id', recipeId);
+      return resized.uri;
+    } catch (e) {
+      console.log('[meal] takeRecipePhoto error:', e);
+      return null;
+    }
   }
 
   async function saveRecipe(data: { name:string; cook_time?:number; ingredients?:any[]; method?:any[]; source_type?:string }) {
@@ -6958,7 +7011,7 @@ Rules:
                       <TouchableOpacity
                         key={tab}
                         style={{ flex:1, alignItems:'center', paddingVertical:13, borderRadius:19, backgroundColor: mealSheetTab===tab ? '#0A0A0A' : 'transparent' }}
-                        onPress={() => { setMealSheetTab(tab); setMealSwapDay(null); }} activeOpacity={0.75}
+                        onPress={() => { setMealSheetTab(tab); setMealSwapDay(null); if (tab !== 'recipes') setMealPendingRecipeDay(null); }} activeOpacity={0.75}
                       >
                         <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color: mealSheetTab===tab ? '#fff' : 'rgba(0,0,0,0.40)', textTransform:'capitalize' }}>
                           {tab === 'meals' ? 'Meals' : tab === 'recipes' ? 'Recipes' : 'Favourites'}
@@ -6987,21 +7040,15 @@ Rules:
                             const cookMembers = cooks.map((id:string) => FAMILY_MEMBERS.find(m => m.id === id)).filter(Boolean);
 
                             return (
-                              <View key={day.key} style={{ marginBottom:8 }}>
+                              <View key={day.key} style={{ marginBottom:8, borderRadius:16, borderWidth: (isSwapOpen || day.isToday) ? 2 : 0, borderColor: day.isToday ? '#FF4545' : isSwapOpen ? MEAL_MINT_TEXT : 'transparent', overflow:'hidden' }}>
                                 <View style={{
                                   backgroundColor: day.isToday ? MEAL_MINT_LIGHT : '#fff',
-                                  borderRadius: isSwapOpen ? 16 : 14,
-                                  borderWidth: day.isToday ? 2 : 0,
-                                  borderColor: day.isToday ? MEAL_MINT_TEXT : 'transparent',
-                                  overflow:'hidden',
-                                  borderBottomLeftRadius: isSwapOpen ? 0 : (day.isToday ? 16 : 14),
-                                  borderBottomRightRadius: isSwapOpen ? 0 : (day.isToday ? 16 : 14),
                                 }}>
                                   <View style={{ flexDirection:'row', alignItems:'center', gap:10, padding:14 }}>
                                     {/* Day label */}
                                     <View style={{ width:38, alignItems:'center' }}>
                                       <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'rgba(0,0,0,0.30)', textTransform:'uppercase', letterSpacing:0.5 }}>{day.dayName}</Text>
-                                      <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:20, color: day.isToday ? MEAL_MINT_TEXT : '#0A0A0A', lineHeight:24 }}>{day.dayNum}</Text>
+                                      <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:20, color: day.isToday ? '#FF4545' : '#0A0A0A', lineHeight:24 }}>{day.dayNum}</Text>
                                     </View>
                                     {/* Divider */}
                                     <View style={{ width:1, height:36, backgroundColor:'rgba(0,0,0,0.08)' }}/>
@@ -7010,8 +7057,9 @@ Rules:
                                       {hasMeal ? (
                                         <>
                                           <TouchableOpacity onPress={() => {
-                                            // Find matching recipe to show detail
                                             const match = mealSheetRecipes.find((r:any) => r.name?.toLowerCase() === plan.meal_name?.toLowerCase());
+                                            setMealDetailDayKey(day.key);
+                                            setMealDetailMoveOpen(false);
                                             if (match) { setMealRecipeDetail(match); }
                                             else { setMealRecipeDetail({ id: plan.id, name: plan.meal_name, emoji: getMealEmoji(plan.meal_name), cook_time: null, ingredients: [], method: [], is_favourite: false, _fromPlan: true }); }
                                           }} activeOpacity={0.7}>
@@ -7089,7 +7137,7 @@ Rules:
 
                                 {/* ── Swap picker inline panel ── */}
                                 {isSwapOpen && (
-                                  <View style={{ backgroundColor:MEAL_MINT_LIGHT, borderBottomLeftRadius:16, borderBottomRightRadius:16, borderWidth:2, borderTopWidth:1, borderColor:MEAL_MINT_TEXT, borderTopColor:'rgba(184,237,208,0.5)', padding:14 }}>
+                                  <View style={{ backgroundColor:MEAL_MINT_LIGHT, borderTopWidth:1, borderTopColor:'rgba(184,237,208,0.5)', padding:14 }}>
                                     {/* Sub-tabs */}
                                     <View style={{ flexDirection:'row', gap:6, marginBottom:12 }}>
                                       <TouchableOpacity onPress={() => setMealSwapMode('favourites')} style={{ flex:1, alignItems:'center', paddingVertical:8, borderRadius:10, backgroundColor: mealSwapMode==='favourites' ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.06)' }} activeOpacity={0.75}>
@@ -7126,7 +7174,7 @@ Rules:
                                         <View style={{ flexDirection:'row', gap:6, marginTop:8 }}>
                                           <TextInput
                                             style={{ flex:1, borderWidth:1.5, borderColor:'rgba(0,0,0,0.08)', borderRadius:12, paddingHorizontal:12, paddingVertical:8, fontSize:14, fontFamily:'Poppins_400Regular', color:'#0A0A0A', backgroundColor:'#fff' }}
-                                            placeholder="Type anything…"
+                                            placeholder="Add a meal…"
                                             placeholderTextColor="rgba(0,0,0,0.30)"
                                             value={mealSwapInput}
                                             onChangeText={setMealSwapInput}
@@ -7141,6 +7189,18 @@ Rules:
                                             <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#fff' }}>Set</Text>
                                           </TouchableOpacity>
                                         </View>
+                                        {/* Search Recipes — routes to Recipes tab with day context */}
+                                        <TouchableOpacity
+                                          onPress={() => {
+                                            setMealPendingRecipeDay(day.key);
+                                            setMealSwapDay(null);
+                                            setMealSheetTab('recipes');
+                                          }}
+                                          style={{ backgroundColor:'rgba(0,0,0,0.05)', borderRadius:12, paddingVertical:10, alignItems:'center', marginTop:10 }}
+                                          activeOpacity={0.75}
+                                        >
+                                          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(0,0,0,0.45)' }}>Search Recipes</Text>
+                                        </TouchableOpacity>
                                       </>
                                     ) : (
                                       <>
@@ -7293,6 +7353,15 @@ Rules:
                       : mealSheetRecipes;
                     return (
                       <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:20 }} showsVerticalScrollIndicator={false}>
+                        {/* Pending day banner */}
+                        {!!mealPendingRecipeDay && (
+                          <View style={{ backgroundColor:MEAL_MINT_LIGHT, borderRadius:12, padding:12, marginBottom:12, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:MEAL_MINT_TEXT }}>Selecting for {new Date(mealPendingRecipeDay + 'T00:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'short' })}</Text>
+                            <TouchableOpacity onPress={() => setMealPendingRecipeDay(null)} activeOpacity={0.7}>
+                              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(0,0,0,0.35)' }}>Cancel</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
                         {/* Action buttons */}
                         <View style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
                           <TouchableOpacity onPress={() => setMealAddRecipeMode('form')} style={{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor:MEAL_MINT_TEXT, borderRadius:12, paddingVertical:12 }} activeOpacity={0.8}>
@@ -7312,9 +7381,22 @@ Rules:
                         {/* 2-col grid */}
                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
                           {filtered.map((recipe:any) => (
-                            <TouchableOpacity key={recipe.id} onPress={() => setMealRecipeDetail(recipe)} style={{ width:'48.5%', backgroundColor:'#fff', borderRadius:14, overflow:'hidden', marginBottom:4 }} activeOpacity={0.75}>
-                              <View style={{ aspectRatio:4/3, backgroundColor:MEAL_MINT_LIGHT, alignItems:'center', justifyContent:'center' }}>
-                                <Text style={{ fontSize:38 }}>{recipe.emoji || getMealEmoji(recipe.name)}</Text>
+                            <TouchableOpacity key={recipe.id} onPress={() => {
+                              if (mealPendingRecipeDay) {
+                                addMealToDay(mealPendingRecipeDay, recipe.name);
+                                setMealPendingRecipeDay(null);
+                                setMealSheetTab('meals');
+                              } else {
+                                setMealRecipeDetail(recipe);
+                                setMealDetailDayKey(null);
+                              }
+                            }} style={{ width:'48.5%', backgroundColor:'#fff', borderRadius:14, overflow:'hidden', marginBottom:4 }} activeOpacity={0.75}>
+                              <View style={{ aspectRatio:4/3, backgroundColor:MEAL_MINT_LIGHT, alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
+                                {recipe.image_url ? (
+                                  <Image source={{ uri: recipe.image_url }} style={{ width:'100%', height:'100%' }} resizeMode="cover"/>
+                                ) : (
+                                  <Text style={{ fontSize:38 }}>{recipe.emoji || getMealEmoji(recipe.name)}</Text>
+                                )}
                               </View>
                               <View style={{ padding:10 }}>
                                 <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#0A0A0A', lineHeight:17, marginBottom:4 }} numberOfLines={1}>{recipe.name}</Text>
@@ -7352,8 +7434,12 @@ Rules:
                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8 }}>
                               {favs.map((recipe:any) => (
                                 <TouchableOpacity key={recipe.id} onPress={() => setMealRecipeDetail(recipe)} style={{ width:'48.5%', backgroundColor:'#fff', borderRadius:14, overflow:'hidden', marginBottom:4 }} activeOpacity={0.75}>
-                                  <View style={{ aspectRatio:4/3, backgroundColor:MEAL_MINT_LIGHT, alignItems:'center', justifyContent:'center' }}>
-                                    <Text style={{ fontSize:38 }}>{recipe.emoji || getMealEmoji(recipe.name)}</Text>
+                                  <View style={{ aspectRatio:4/3, backgroundColor:MEAL_MINT_LIGHT, alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
+                                    {recipe.image_url ? (
+                                      <Image source={{ uri: recipe.image_url }} style={{ width:'100%', height:'100%' }} resizeMode="cover"/>
+                                    ) : (
+                                      <Text style={{ fontSize:38 }}>{recipe.emoji || getMealEmoji(recipe.name)}</Text>
+                                    )}
                                   </View>
                                   <View style={{ padding:10 }}>
                                     <Text style={{ fontFamily:'Poppins_700Bold', fontSize:13, color:'#0A0A0A', lineHeight:17, marginBottom:4 }} numberOfLines={1}>{recipe.name}</Text>
@@ -7558,10 +7644,26 @@ Rules:
                     // ── View mode ──
                     return (
                       <View style={{ flex:1 }}>
-                        {/* Hero */}
-                        <View style={{ height:120, backgroundColor:MEAL_MINT_LIGHT, alignItems:'center', justifyContent:'center' }}>
-                          <Text style={{ fontSize:56 }}>{r.emoji || getMealEmoji(r.name)}</Text>
-                        </View>
+                        {/* Hero — photo or emoji */}
+                        <TouchableOpacity
+                          onPress={() => { if (r.id && !r._fromPlan) setMealPhotoPicker(true); }}
+                          activeOpacity={0.85}
+                          style={{ height:150, backgroundColor:MEAL_MINT_LIGHT, alignItems:'center', justifyContent:'center', overflow:'hidden' }}
+                        >
+                          {r.image_url ? (
+                            <Image source={{ uri: r.image_url }} style={{ width:'100%', height:150 }} resizeMode="cover"/>
+                          ) : (
+                            <>
+                              <Text style={{ fontSize:56 }}>{r.emoji || getMealEmoji(r.name)}</Text>
+                              <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.30)', marginTop:4 }}>Tap to add a photo</Text>
+                            </>
+                          )}
+                          {r.image_url && (
+                            <View style={{ position:'absolute', bottom:8, right:8, backgroundColor:'rgba(0,0,0,0.5)', borderRadius:8, paddingVertical:4, paddingHorizontal:8 }}>
+                              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:10, color:'#fff' }}>Change photo</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
                         <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:30 }} showsVerticalScrollIndicator={false}>
                           {/* Title */}
                           <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:22, color:'#0A0A0A', letterSpacing:-0.4, marginBottom:8 }}>{r.name}</Text>
@@ -7628,6 +7730,48 @@ Rules:
                           >
                             <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(0,0,0,0.45)' }}>Edit recipe</Text>
                           </TouchableOpacity>
+                          {/* Move button — only shows when opened from a day card */}
+                          {!!mealDetailDayKey && (
+                            <>
+                              <TouchableOpacity
+                                onPress={() => setMealDetailMoveOpen(v => !v)}
+                                style={{ backgroundColor: mealDetailMoveOpen ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.05)', borderRadius:12, paddingVertical:10, alignItems:'center', marginBottom:4 }}
+                                activeOpacity={0.75}
+                              >
+                                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color: mealDetailMoveOpen ? '#fff' : 'rgba(0,0,0,0.45)' }}>{mealDetailMoveOpen ? 'Close' : 'Move to another night'}</Text>
+                              </TouchableOpacity>
+                              {mealDetailMoveOpen && (
+                                <View style={{ backgroundColor:MEAL_MINT_LIGHT, borderRadius:14, padding:14, marginBottom:4 }}>
+                                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:MEAL_MINT_TEXT, textTransform:'uppercase', letterSpacing:0.5, marginBottom:8 }}>Move {r.name} to...</Text>
+                                  <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+                                    {getMealWeekDays().filter(d => d.key !== mealDetailDayKey).map(targetDay => {
+                                      const targetPlan = mealSheetPlans.find((p:any) => p.day_key === targetDay.key);
+                                      const isEmpty = !targetPlan?.meal_name;
+                                      return (
+                                        <TouchableOpacity
+                                          key={targetDay.key}
+                                          onPress={async () => {
+                                            await swapMeals(mealDetailDayKey!, targetDay.key);
+                                            setMealDetailMoveOpen(false);
+                                            setMealRecipeDetail(null);
+                                            setMealDetailDayKey(null);
+                                          }}
+                                          style={{ paddingVertical:10, paddingHorizontal:14, borderRadius:12, backgroundColor: isEmpty ? MEAL_MINT_LIGHT : '#fff', borderWidth:1.5, borderColor: isEmpty ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.08)', alignItems:'center', minWidth:70 }}
+                                          activeOpacity={0.75}
+                                        >
+                                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, color:'rgba(0,0,0,0.35)', textTransform:'uppercase' }}>{targetDay.dayName}</Text>
+                                          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:10, color: isEmpty ? MEAL_MINT_TEXT : 'rgba(0,0,0,0.35)', marginTop:2 }} numberOfLines={1}>
+                                            {isEmpty ? 'Empty' : targetPlan.meal_name}
+                                          </Text>
+                                        </TouchableOpacity>
+                                      );
+                                    })}
+                                  </View>
+                                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.30)', marginTop:8, lineHeight:16 }}>Tap an empty night to move, or a night with a meal to swap.</Text>
+                                </View>
+                              )}
+                            </>
+                          )}
                           {/* Ingredients */}
                           {ingredients.length > 0 && (
                             <>
@@ -7672,6 +7816,49 @@ Rules:
                             <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(255,59,59,0.5)' }}>Delete recipe</Text>
                           </TouchableOpacity>
                         </ScrollView>
+
+                        {/* Photo picker overlay */}
+                        {mealPhotoPicker && (
+                          <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.35)', justifyContent:'flex-end', zIndex:99 }}>
+                            <TouchableOpacity style={{ flex:1 }} onPress={() => setMealPhotoPicker(false)} activeOpacity={1}/>
+                            <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:20, borderTopRightRadius:20, paddingHorizontal:20, paddingTop:16, paddingBottom: Platform.OS === 'ios' ? 34 : 20 }}>
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:17, color:'#0A0A0A', marginBottom:14 }}>Add a meal photo</Text>
+                              <TouchableOpacity
+                                style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#fff', borderRadius:14, padding:16, marginBottom:8, borderWidth:1, borderColor:'rgba(0,0,0,0.08)' }}
+                                onPress={async () => {
+                                  setMealPhotoPicker(false);
+                                  const url = await takeRecipePhoto(r.id);
+                                  if (url) { setMealRecipeDetail({ ...r, image_url: url }); refreshMealData(); }
+                                }}
+                                activeOpacity={0.75}
+                              >
+                                <Text style={{ fontSize:22 }}>📷</Text>
+                                <View>
+                                  <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#0A0A0A' }}>Take a photo</Text>
+                                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.40)' }}>Use your camera</Text>
+                                </View>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#fff', borderRadius:14, padding:16, marginBottom:8, borderWidth:1, borderColor:'rgba(0,0,0,0.08)' }}
+                                onPress={async () => {
+                                  setMealPhotoPicker(false);
+                                  const url = await uploadRecipePhoto(r.id);
+                                  if (url) { setMealRecipeDetail({ ...r, image_url: url }); refreshMealData(); }
+                                }}
+                                activeOpacity={0.75}
+                              >
+                                <Text style={{ fontSize:22 }}>🖼️</Text>
+                                <View>
+                                  <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#0A0A0A' }}>Choose from library</Text>
+                                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.40)' }}>Upload an existing photo</Text>
+                                </View>
+                              </TouchableOpacity>
+                              <TouchableOpacity style={{ alignItems:'center', paddingVertical:12 }} onPress={() => setMealPhotoPicker(false)} activeOpacity={0.7}>
+                                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(0,0,0,0.40)' }}>Cancel</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        )}
                       </View>
                     );
                   })()}

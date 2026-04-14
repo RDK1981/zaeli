@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 13 April 2026 — Session 10 ✅ · Shopping complete · Meal Planner sheet built · Receipt/Pantry scan · Kids jobs*
+*Last updated: 14 April 2026 — Session 11 ✅ · Meal Planner polished + locked · Recipe photos · Shopping complete*
 
 ---
 
@@ -257,7 +257,7 @@ Our Family · Tutor · Our Budget (coming soon) · Settings · Upload options (T
 11. ✅ AI Brief system designed (Session 9)
 12. ✅ Zaeli persona + model routing locked (Session 9)
 13. ✅ Shopping sheet complete (Session 10) — List/Pantry/Spend, receipt scan, tick/undo
-14. ✅ Meal Planner sheet built (Session 10) — 3 tabs, recipes, cook picker, kids jobs, upload via Sonnet
+14. ✅ Meal Planner sheet built + polished (Sessions 10-11) — 3 tabs, recipes with photos, cook picker, kids jobs, rolling 10-day, search with day context
 15. 🔨 Dashboard redesign build (zaeli-dashboard-redesign.html)
 15. 🔨 Camera/Upload build (zaeli-camera-upload.html)
 16. 🔨 AI Brief system implementation (Sonnet briefs, GPT-5.4 mini routing)

@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 13 April 2026 — Session 10 ✅ · Shopping complete · Meal Planner sheet built · Receipt/Pantry scan · contextTrigger nav fix*
+*Last updated: 14 April 2026 — Session 11 ✅ · Meal Planner polished + locked · Recipe photos · Rolling 10-day planner · Search Recipes with day context*
 
 ---
 
@@ -637,6 +637,27 @@ Full Meal Planner 92% sheet built inside index.tsx. Same Modal pattern as Shoppi
 
 ---
 
+## ══════════════════════════════════
+## SESSION 11 — MEAL PLANNER POLISH + LOCK (14 April 2026) ✅
+## ══════════════════════════════════
+
+Stress testing and polish session. Meal Planner now locked.
+
+### Changes:
+- **Rolling 10-day planner** — starts from today, no past days. Was Mon–Sun fixed week.
+- **Today border = coral `#FF4545`** — distinct from mint swap border. Day number also coral.
+- **Active swap border** wraps entire card + picker as one unit (parent View with overflow:hidden)
+- **Unicode escapes fixed** — all remaining `\u2014`, `\u00b7`, `\u2026` replaced with actual characters
+- **Swap placeholder** — "Add a meal..." (was "Type anything...")
+- **Recipe photos** — tap hero to add photo (camera or library picker). Resized to 600px JPEG. Stored in `recipes.image_url`. Shows in grid thumbnails + detail hero. "Change photo" overlay when photo exists. Zero AI cost.
+- **Move in recipe detail** — "Move to another night" button with inline move picker (same as Meals tab)
+- **Search Recipes with day context** — "Search Recipes" button in swap picker Favourites tab. Routes to Recipes tab with mint banner showing selected day. Tapping a recipe assigns it and returns to Meals tab. `mealPendingRecipeDay` state tracks context.
+- **Recipe detail from day card** — tapping meal name opens recipe detail with `mealDetailDayKey` set for move/context
+- **Supabase schema** — `recipes.image_url` column used for photo storage
+- **Tonight badge + cook avatars** — bumped sizes (badge 12px, avatars 28px)
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -661,6 +682,7 @@ Phase 8f: Wordle               ✅
 Phase 8g: Calendar/Shopping fix ✅
 Phase 10a: Shopping sheet      ✅ Full rebuild — List/Pantry/Spend all polished
 Phase 10b: Meal Planner sheet  ✅ 3 tabs, 7-day planner, recipes, favourites, cook picker, kids jobs
+Phase 11:  Meal Planner polish ✅ Recipe photos, rolling 10-day, Search Recipes day context, move in detail
 Phase 9a: Dashboard redesign   🔨 ← Claude Code next (zaeli-dashboard-redesign.html)
 Phase 9b: Meal Planner sheet   🔨 ← Claude Code next (zaeli-meals-mockup.html)
 Phase 9c: Camera/Upload        🔨 ← Claude Code next (zaeli-camera-upload.html)

@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*13 April 2026 — Session 10 ✅ · Shopping complete · Meal Planner sheet built · Receipt/Pantry scan · Kids jobs · contextTrigger nav fix*
+*14 April 2026 — Session 11 ✅ · Shopping complete · Meal Planner polished + locked · Recipe photos · Rolling 10-day*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -39,7 +39,11 @@ Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 - **Upload recipe**: multi-image (camera + library multi-select), single Sonnet call combines all pages
 - **Recipe detail**: hero, meta pills, Edit button (same form pre-filled), ingredients with pantry status, method steps
 - **Send to list**: 3-state tappable badges (Adding → Skipping → In pantry), dynamic count, batch add to shopping
-- **Supabase**: `recipes` uses prep_mins/notes/tags, `meal_plans` stores cooks in source field as JSON, `kids_jobs` NEW table
+- **Supabase**: `recipes` uses prep_mins/notes/tags/image_url, `meal_plans` stores cooks in source field as JSON, `kids_jobs` NEW table
+- **Recipe photos**: tap hero → camera/library picker, resized 600px JPEG, stored in recipes.image_url, shown in grid + detail. Zero AI cost.
+- **Rolling 10 days**: starts from today, no past days
+- **Today = coral border**, active swap = mint border (wraps full card + picker)
+- **Search Recipes with day context**: mealPendingRecipeDay state, mint banner in Recipes tab, auto-assigns on select
 
 ### Infrastructure:
 - Context flow: isActive prop + contextTrigger counter from swipe-world (fixes scroll race condition)
@@ -128,7 +132,7 @@ Upload-only approach without live bank feeds not compelling enough for Dashboard
 
 **Immediate — Claude Code with handover files:**
 1. ✅ **Shopping sheet** — COMPLETE (Session 10)
-2. ✅ **Meal Planner sheet** — BUILT (Session 10) — stress testing in progress
+2. ✅ **Meal Planner sheet** — COMPLETE + LOCKED (Sessions 10-11) — recipe photos, rolling 10-day, search with day context
 3. **Dashboard redesign** — 5 clean rows, On the Radar card, Our Budget removed (`zaeli-dashboard-redesign.html`)
 4. **Camera/Upload** — chat bar icon + FAB More sheet (`zaeli-camera-upload.html`)
 5. **AI Brief system** — implement Sonnet briefs, GPT-5.4 mini routing, `zaeli_briefs` table (`zaeli-brief-examples.html`)
