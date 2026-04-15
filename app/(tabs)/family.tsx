@@ -9,7 +9,7 @@
  * Dummy data for now — Supabase integration later
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal,
   Dimensions, StatusBar as RNStatusBar, TextInput,
@@ -139,6 +139,7 @@ export default function OurFamilyScreen() {
   // Management forms
   const [showAddJob, setShowAddJob] = useState(false);
   const [showAddReward, setShowAddReward] = useState(false);
+  const jobsScrollRef = useRef<ScrollView>(null);
   const [addTitle, setAddTitle] = useState('');
   const [addEmoji, setAddEmoji] = useState('');
   const [addPoints, setAddPoints] = useState(10);
@@ -314,6 +315,7 @@ export default function OurFamilyScreen() {
     setAddType(job.type || 'oneoff');
     setAddSelectedKids([job.child_name]);
     setShowAddForm('job');
+    setTimeout(() => jobsScrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
   }
 
   function openEditReward(rw: any) {
@@ -323,6 +325,7 @@ export default function OurFamilyScreen() {
     setAddPoints(rw.cost);
     setAddSelectedKids([rw.child_name]);
     setShowAddForm('reward');
+    setTimeout(() => jobsScrollRef.current?.scrollTo({ y: 0, animated: true }), 100);
   }
 
   async function deleteJob(id: string) {
@@ -787,7 +790,7 @@ export default function OurFamilyScreen() {
     const completedJobs = dbJobs.filter((j: any) => j.is_complete && j.type !== 'daily');
 
     return (
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 14 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={jobsScrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 14 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Add buttons */}
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10, marginTop: 6 }}>
           <TouchableOpacity onPress={() => { setAddTitle(''); setAddEmoji(''); setAddPoints(10); setAddType('oneoff'); setAddSelectedKids([]); setShowAddForm(showAddForm === 'job' ? null : 'job'); }} style={{ flex: 1, backgroundColor: HUB_GREEN, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.8}>
