@@ -280,6 +280,51 @@ export default function OurFamilyScreen() {
   // Add form state
   const [showAddForm, setShowAddForm] = useState<'job' | 'reward' | null>(null);
 
+  const [editingJob, setEditingJob] = useState<any>(null); // when set, the add form becomes edit mode
+
+  async function saveEditedJob() {
+    if (!editingJob || !addTitle.trim()) return;
+    try {
+      await supabase.from('kids_jobs').update({
+        title: addTitle.trim(), emoji: addEmoji || '📋', points: addPoints, type: addType,
+      }).eq('id', editingJob.id);
+      setEditingJob(null); setShowAddForm(null);
+      setAddTitle(''); setAddEmoji(''); setAddPoints(10); setAddType('oneoff');
+      loadFamilyData();
+    } catch (e) { console.log('[family] saveEditedJob error:', e); }
+  }
+
+  async function saveEditedReward() {
+    if (!editingJob || !addTitle.trim()) return;
+    try {
+      await supabase.from('kids_rewards').update({
+        title: addTitle.trim(), emoji: addEmoji || '🎁', cost: addPoints,
+      }).eq('id', editingJob.id);
+      setEditingJob(null); setShowAddForm(null);
+      setAddTitle(''); setAddEmoji(''); setAddPoints(100);
+      loadFamilyData();
+    } catch (e) { console.log('[family] saveEditedReward error:', e); }
+  }
+
+  function openEditJob(job: any) {
+    setEditingJob(job);
+    setAddTitle(job.title);
+    setAddEmoji(job.emoji || '');
+    setAddPoints(job.points);
+    setAddType(job.type || 'oneoff');
+    setAddSelectedKids([job.child_name]);
+    setShowAddForm('job');
+  }
+
+  function openEditReward(rw: any) {
+    setEditingJob(rw);
+    setAddTitle(rw.title);
+    setAddEmoji(rw.emoji || '');
+    setAddPoints(rw.cost);
+    setAddSelectedKids([rw.child_name]);
+    setShowAddForm('reward');
+  }
+
   async function deleteJob(id: string) {
     try { await supabase.from('kids_jobs').delete().eq('id', id); loadFamilyData(); } catch {}
   }
@@ -379,16 +424,6 @@ export default function OurFamilyScreen() {
         )}
 
         {/* Our Kids — Supabase data */}
-        {/* Parent management — add job/reward for any kid */}
-        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginTop: 12, marginBottom: 6 }}>
-          <TouchableOpacity onPress={() => { setAddTitle(''); setAddEmoji(''); setAddPoints(10); setAddType('oneoff'); setAddSelectedKids([]); setShowAddJob(true); }} style={{ flex: 1, backgroundColor: HUB_GREEN, borderRadius: 14, paddingVertical: 13, alignItems: 'center' }} activeOpacity={0.8}>
-            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: HUB_DARK }}>+ Add a Job</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => { setAddTitle(''); setAddEmoji(''); setAddPoints(100); setAddSelectedKids([]); setShowAddReward(true); }} style={{ flex: 1, backgroundColor: 'rgba(161,24,48,0.10)', borderRadius: 14, paddingVertical: 13, alignItems: 'center' }} activeOpacity={0.8}>
-            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: RED_ACCENT }}>+ Add a Reward</Text>
-          </TouchableOpacity>
-        </View>
-
         <Text style={s.sectionLabel}>Our kids</Text>
         {KIDS.map(kid => {
           const member = FAMILY[kid.name];
@@ -405,7 +440,7 @@ export default function OurFamilyScreen() {
             <TouchableOpacity
               key={kid.name}
               style={s.kidCard}
-              onPress={() => router.navigate('/(tabs)/kids' as any)}
+              onPress={() => {}}
               activeOpacity={0.8}
             >
               <View style={s.kidTop}>
@@ -766,7 +801,7 @@ export default function OurFamilyScreen() {
         {/* Inline add form */}
         {showAddForm && (
           <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 10 }}>
-            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, marginBottom: 12 }}>{showAddForm === 'job' ? 'Add a job' : 'Add a reward'}</Text>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, marginBottom: 12 }}>{editingJob ? (showAddForm === 'job' ? 'Edit job' : 'Edit reward') : (showAddForm === 'job' ? 'Add a job' : 'Add a reward')}</Text>
 
             <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>For which kids?</Text>
             <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
@@ -830,7 +865,7 @@ export default function OurFamilyScreen() {
                   <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: addPoints === p ? '#fff' : INK4 }}>{p}</Text>
                 </TouchableOpacity>
               ))}
-              <TextInput style={{ flex: 1, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.10)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 7, fontFamily: 'Poppins_700Bold', fontSize: 13, color: INK, textAlign: 'center' }} placeholder="Custom" placeholderTextColor="rgba(0,0,0,0.20)" keyboardType="number-pad" onChangeText={v => { const n = parseInt(v); if (n > 0) setAddPoints(n); }}/>
+              <TextInput style={{ flex: 1, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.10)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 7, fontFamily: 'Poppins_700Bold', fontSize: 13, color: INK, textAlign: 'center' }} placeholder="Other" placeholderTextColor="rgba(0,0,0,0.20)" keyboardType="number-pad" onChangeText={v => { const n = parseInt(v); if (n > 0) setAddPoints(n); }}/>
             </View>
 
             {showAddForm === 'job' && (
@@ -846,9 +881,12 @@ export default function OurFamilyScreen() {
               </>
             )}
 
-            <TouchableOpacity onPress={() => showAddForm === 'job' ? addJobForChildren() : addRewardForChildren()} style={{ backgroundColor: addSelectedKids.length > 0 && addTitle.trim() ? (showAddForm === 'job' ? HUB_DARK : RED_ACCENT) : 'rgba(0,0,0,0.08)', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.8}>
-              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: addSelectedKids.length > 0 && addTitle.trim() ? '#fff' : 'rgba(0,0,0,0.30)' }}>
-                {showAddForm === 'job' ? 'Add Job' : 'Add Reward'}{addSelectedKids.length > 0 ? ` for ${addSelectedKids.join(' & ')}` : ''}
+            <TouchableOpacity onPress={() => {
+              if (editingJob) { showAddForm === 'job' ? saveEditedJob() : saveEditedReward(); }
+              else { showAddForm === 'job' ? addJobForChildren() : addRewardForChildren(); }
+            }} style={{ backgroundColor: addTitle.trim() ? (showAddForm === 'job' ? HUB_DARK : RED_ACCENT) : 'rgba(0,0,0,0.08)', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.8}>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: addTitle.trim() ? '#fff' : 'rgba(0,0,0,0.30)' }}>
+                {editingJob ? 'Save Changes' : (showAddForm === 'job' ? 'Add Job' : 'Add Reward')}{!editingJob && addSelectedKids.length > 0 ? ` for ${addSelectedKids.join(' & ')}` : ''}
               </Text>
             </TouchableOpacity>
           </View>
@@ -881,7 +919,10 @@ export default function OurFamilyScreen() {
               </TouchableOpacity>
               {isExp && (
                 <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 12, marginTop: -2, padding: 10, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-                  <TouchableOpacity onPress={() => deleteJob(job.id)} style={{ backgroundColor: 'rgba(255,59,59,0.08)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }} activeOpacity={0.75}>
+                  <TouchableOpacity onPress={() => { setExpandedJobId(null); openEditJob(job); }} style={{ backgroundColor: HUB_GREEN, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: HUB_DARK }}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setExpandedJobId(null); deleteJob(job.id); }} style={{ backgroundColor: 'rgba(255,59,59,0.08)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
                     <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#FF3B3B' }}>Delete</Text>
                   </TouchableOpacity>
                 </View>
@@ -896,17 +937,30 @@ export default function OurFamilyScreen() {
           <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, fontStyle: 'italic', marginBottom: 10 }}>No rewards set up yet.</Text>
         ) : dbRewards.map((rw: any) => {
           const mem = FAMILY[rw.child_name as keyof typeof FAMILY];
+          const isExp = expandedJobId === ('r-' + rw.id);
           return (
-            <View key={rw.id} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 12, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Text style={{ fontSize: 20 }}>{rw.emoji || '🎁'}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: INK }}>{rw.title}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1, alignSelf: 'flex-start', marginTop: 2 }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: mem?.colour || '#999' }}/>
-                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK4 }}>{rw.child_name}</Text>
+            <View key={rw.id} style={{ marginBottom: 6 }}>
+              <TouchableOpacity onPress={() => setExpandedJobId(isExp ? null : 'r-' + rw.id)} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
+                <Text style={{ fontSize: 24 }}>{rw.emoji || '🎁'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK }}>{rw.title}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: mem?.colour || '#999' }}/>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: INK4 }}>{rw.child_name}</Text>
+                  </View>
                 </View>
-              </View>
-              <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 13, color: RED_ACCENT }}>{rw.cost} pts</Text>
+                <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 15, color: RED_ACCENT }}>{rw.cost} pts</Text>
+              </TouchableOpacity>
+              {isExp && (
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 12, marginTop: -2, padding: 10, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+                  <TouchableOpacity onPress={() => { setExpandedJobId(null); openEditReward(rw); }} style={{ backgroundColor: 'rgba(161,24,48,0.08)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: RED_ACCENT }}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => { setExpandedJobId(null); deleteReward(rw.id); }} style={{ backgroundColor: 'rgba(255,59,59,0.08)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#FF3B3B' }}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           );
         })}
@@ -934,10 +988,13 @@ export default function OurFamilyScreen() {
                   </TouchableOpacity>
                   {isExp && (
                     <View style={{ backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 12, marginTop: -2, padding: 10, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
-                      <TouchableOpacity onPress={() => { reactivateJob(job); setExpandedJobId(null); }} style={{ backgroundColor: HUB_GREEN, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }} activeOpacity={0.75}>
+                      <TouchableOpacity onPress={() => { setExpandedJobId(null); openEditJob(job); }} style={{ backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
+                        <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK4 }}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => { reactivateJob(job); setExpandedJobId(null); }} style={{ backgroundColor: HUB_GREEN, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
                         <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: HUB_DARK }}>Reactivate</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => { deleteJob(job.id); setExpandedJobId(null); }} style={{ backgroundColor: 'rgba(255,59,59,0.08)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }} activeOpacity={0.75}>
+                      <TouchableOpacity onPress={() => { deleteJob(job.id); setExpandedJobId(null); }} style={{ backgroundColor: 'rgba(255,59,59,0.08)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
                         <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#FF3B3B' }}>Delete</Text>
                       </TouchableOpacity>
                     </View>
@@ -985,7 +1042,7 @@ export default function OurFamilyScreen() {
           const dob = (mem as any).dob;
           const login = (mem as any).loginStatus;
           return (
-            <View key={name} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity key={name} onPress={() => setEditingMember(editingMember === name ? null : name)} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
               <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: mem.colour, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#fff' }}>{mem.initial}</Text>
               </View>
@@ -1011,10 +1068,8 @@ export default function OurFamilyScreen() {
                   <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK4, marginTop: 3 }}>Uses parent's device</Text>
                 )}
               </View>
-              <TouchableOpacity onPress={() => setEditingMember(editingMember === name ? null : name)} style={{ backgroundColor: editingMember === name ? INK : 'rgba(0,0,0,0.06)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }} activeOpacity={0.7}>
-                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: editingMember === name ? '#fff' : INK4 }}>Edit</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={{ fontSize: 16, color: 'rgba(0,0,0,0.20)' }}>›</Text>
+            </TouchableOpacity>
           );
         })}
 
