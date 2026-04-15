@@ -279,6 +279,19 @@ export default function OurFamilyScreen() {
 
   // Add form state
   const [showAddForm, setShowAddForm] = useState<'job' | 'reward' | null>(null);
+
+  async function deleteJob(id: string) {
+    try { await supabase.from('kids_jobs').delete().eq('id', id); loadFamilyData(); } catch {}
+  }
+  async function deleteReward(id: string) {
+    try { await supabase.from('kids_rewards').delete().eq('id', id); loadFamilyData(); } catch {}
+  }
+  async function reactivateJob(job: any) {
+    try {
+      await supabase.from('kids_jobs').update({ is_complete: false, completed_at: null }).eq('id', job.id);
+      loadFamilyData();
+    } catch {}
+  }
   const [showCompletedJobs, setShowCompletedJobs] = useState(false);
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
 
@@ -289,16 +302,11 @@ export default function OurFamilyScreen() {
         <View style={s.banner}>
           <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
             <Text style={s.wordmark}>
-              z<Text style={{ color: FAM_ACCENT }}>a</Text>el
-              <Text style={{ color: FAM_ACCENT }}>i</Text>
+              z<Text style={{ color: '#A8D8F0' }}>a</Text>el
+              <Text style={{ color: '#A8D8F0' }}>i</Text>
             </Text>
           </TouchableOpacity>
-          <View style={s.bannerRight}>
-            <Text style={s.bannerLabel}>{title}</Text>
-            <View style={[s.avatar, { backgroundColor: FAMILY.Rich.colour, width: 32, height: 32 }]}>
-              <Text style={s.avatarTxt}>R</Text>
-            </View>
-          </View>
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 17, color: INK4 }}>{title}</Text>
         </View>
         <View style={s.divider} />
       </>
@@ -405,10 +413,13 @@ export default function OurFamilyScreen() {
                   <Text style={s.kidAvatarTxt}>{member.initial}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.kidName}>
-                    {kid.name} <Text style={s.kidNameMeta}>{'\u00B7'} Yr {(FAMILY[kid.name] as any).year} {'\u00B7'} {(FAMILY[kid.name] as any).age}</Text>
-                  </Text>
-                  <Text style={s.kidMeta}>{'\u{1F525}'} {realStreak} day streak</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={s.kidName}>{kid.name}</Text>
+                    <View style={{ backgroundColor: 'rgba(0,0,0,0.07)', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 2 }}>
+                      <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: INK }}>Yr {(FAMILY[kid.name] as any).year}</Text>
+                    </View>
+                  </View>
+                  <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 13, color: INK4, marginTop: 2 }}>Age {(FAMILY[kid.name] as any).age} {(FAMILY[kid.name] as any).dob ? `\u00B7 \u{1F382} ${(FAMILY[kid.name] as any).dob}` : ''}</Text>
                 </View>
                 <View style={s.kidPts}>
                   <Text style={s.kidPtsTxt}>{'\u2B50'} {realPoints}</Text>
@@ -434,43 +445,19 @@ export default function OurFamilyScreen() {
                 </View>
               </View>
 
-              <View style={s.kidActions}>
-                <TouchableOpacity
-                  style={[s.kidAction, hasTutor ? s.kidActionTutor : s.kidActionTutorLocked]}
-                  activeOpacity={0.7}
-                  onPress={(e) => { e.stopPropagation(); if (hasTutor) router.navigate('/(tabs)/tutor' as any); }}
-                >
-                  <Text style={[s.kidActionTxt, hasTutor ? s.kidActionTutorTxt : s.kidActionTutorLockedTxt]}>
-                    {'\u{1F4DA}'} {hasTutor ? 'Tutor progress' : 'Add Tutor'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.kidAction, s.kidActionHub]}
-                  activeOpacity={0.7}
-                  onPress={(e) => { e.stopPropagation(); router.navigate('/(tabs)/kids' as any); }}
-                >
-                  <Text style={[s.kidActionTxt, s.kidActionHubTxt]}>{'\u{1F3E0}'} Kids Hub</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={{ backgroundColor: hasTutor ? TUTOR_BG : 'rgba(0,0,0,0.05)', borderRadius: 12, paddingVertical: 11, alignItems: 'center', marginTop: 8 }}
+                activeOpacity={0.7}
+                onPress={(e) => { e.stopPropagation(); if (hasTutor) router.navigate('/(tabs)/tutor' as any); }}
+              >
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: hasTutor ? TUTOR_PURPLE : 'rgba(0,0,0,0.30)' }}>
+                  {'\u{1F4DA}'} {hasTutor ? 'Tutor progress' : 'Add Tutor'}
+                </Text>
+              </TouchableOpacity>
             </TouchableOpacity>
           );
         })}
 
-        {/* Quick links — prominent */}
-        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginTop: 12 }}>
-          <TouchableOpacity onPress={() => setActiveTab('family')} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, alignItems: 'center', gap: 4 }} activeOpacity={0.75}>
-            <Text style={{ fontSize: 24 }}>{'\u{1F464}'}</Text>
-            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: INK }}>Family Profiles</Text>
-            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: INK4 }}>Members, birthdays, colours</Text>
-          </TouchableOpacity>
-          {(dbPending.length > 0 || PENDING_ACTIONS.length > 0) && (
-            <TouchableOpacity onPress={() => setActiveTab('jobs')} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, alignItems: 'center', gap: 4, borderWidth: 2, borderColor: 'rgba(161,24,48,0.15)' }} activeOpacity={0.75}>
-              <Text style={{ fontSize: 24 }}>{'\u{1F4CB}'}</Text>
-              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: RED_ACCENT }}>Pending ({dbPending.length || PENDING_ACTIONS.length})</Text>
-              <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: INK4 }}>Jobs & rewards to review</Text>
-            </TouchableOpacity>
-          )}
-        </View>
       </ScrollView>
     );
   }
@@ -873,23 +860,33 @@ export default function OurFamilyScreen() {
           <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, fontStyle: 'italic', marginBottom: 10 }}>No active jobs. Add one above!</Text>
         ) : activeJobs.map((job: any) => {
           const mem = FAMILY[job.child_name as keyof typeof FAMILY];
+          const isExp = expandedJobId === job.id;
           return (
-            <TouchableOpacity key={job.id} onPress={() => setExpandedJobId(expandedJobId === job.id ? null : job.id)} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 12, marginBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 10 }} activeOpacity={0.75}>
-              <Text style={{ fontSize: 20 }}>{job.emoji || '📋'}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: INK }}>{job.title}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 }}>
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: mem?.colour || '#999' }}/>
-                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK4 }}>{job.child_name}</Text>
+            <View key={job.id} style={{ marginBottom: 6 }}>
+              <TouchableOpacity onPress={() => setExpandedJobId(isExp ? null : job.id)} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
+                <Text style={{ fontSize: 24 }}>{job.emoji || '📋'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK }}>{job.title}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: mem?.colour || '#999' }}/>
+                      <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: INK4 }}>{job.child_name}</Text>
+                    </View>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: HUB_DARK }}>{job.points} pts</Text>
                   </View>
-                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK4 }}>{job.points} pts</Text>
                 </View>
-              </View>
-              <View style={{ backgroundColor: job.type === 'daily' ? 'rgba(168,232,204,0.25)' : job.type === 'weekly' ? 'rgba(245,158,11,0.15)' : 'rgba(0,0,0,0.06)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2 }}>
-                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.04, color: job.type === 'daily' ? HUB_DARK : job.type === 'weekly' ? '#92400E' : INK4 }}>{job.type === 'oneoff' ? 'one-off' : job.type}</Text>
-              </View>
-            </TouchableOpacity>
+                <View style={{ backgroundColor: job.type === 'daily' ? 'rgba(168,232,204,0.25)' : job.type === 'weekly' ? 'rgba(245,158,11,0.15)' : 'rgba(0,0,0,0.06)', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4 }}>
+                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.04, color: job.type === 'daily' ? HUB_DARK : job.type === 'weekly' ? '#92400E' : INK4 }}>{job.type === 'oneoff' ? 'one-off' : job.type}</Text>
+                </View>
+              </TouchableOpacity>
+              {isExp && (
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 12, marginTop: -2, padding: 10, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+                  <TouchableOpacity onPress={() => deleteJob(job.id)} style={{ backgroundColor: 'rgba(255,59,59,0.08)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }} activeOpacity={0.75}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#FF3B3B' }}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           );
         })}
 
@@ -922,16 +919,29 @@ export default function OurFamilyScreen() {
             </TouchableOpacity>
             {showCompletedJobs && completedJobs.slice(0, 20).map((job: any) => {
               const mem = FAMILY[job.child_name as keyof typeof FAMILY];
+              const isExp = expandedJobId === ('c-' + job.id);
               return (
-                <View key={job.id} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 10, marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 8, opacity: 0.5 }}>
-                  <Text style={{ fontSize: 16 }}>{job.emoji || '📋'}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: INK, textDecorationLine: 'line-through' }}>{job.title}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 }}>
-                      <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: mem?.colour || '#999' }}/>
-                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK4 }}>{job.child_name} +{job.points} pts</Text>
+                <View key={job.id} style={{ marginTop: 6 }}>
+                  <TouchableOpacity onPress={() => setExpandedJobId(isExp ? null : 'c-' + job.id)} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, opacity: 0.6 }} activeOpacity={0.75}>
+                    <Text style={{ fontSize: 18 }}>{job.emoji || '📋'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK, textDecorationLine: 'line-through' }}>{job.title}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: mem?.colour || '#999' }}/>
+                        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: INK4 }}>{job.child_name} +{job.points} pts</Text>
+                      </View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
+                  {isExp && (
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 12, marginTop: -2, padding: 10, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+                      <TouchableOpacity onPress={() => { reactivateJob(job); setExpandedJobId(null); }} style={{ backgroundColor: HUB_GREEN, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }} activeOpacity={0.75}>
+                        <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: HUB_DARK }}>Reactivate</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => { deleteJob(job.id); setExpandedJobId(null); }} style={{ backgroundColor: 'rgba(255,59,59,0.08)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }} activeOpacity={0.75}>
+                        <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#FF3B3B' }}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               );
             })}
@@ -1001,8 +1011,8 @@ export default function OurFamilyScreen() {
                   <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK4, marginTop: 3 }}>Uses parent's device</Text>
                 )}
               </View>
-              <TouchableOpacity style={{ backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }} activeOpacity={0.7}>
-                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK4 }}>Edit</Text>
+              <TouchableOpacity onPress={() => setEditingMember(editingMember === name ? null : name)} style={{ backgroundColor: editingMember === name ? INK : 'rgba(0,0,0,0.06)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }} activeOpacity={0.7}>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: editingMember === name ? '#fff' : INK4 }}>Edit</Text>
               </TouchableOpacity>
             </View>
           );
@@ -1024,7 +1034,7 @@ export default function OurFamilyScreen() {
 
       {/* Dark pill tab switcher */}
       <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 22, padding: 4, marginHorizontal: 14, marginTop: 8, marginBottom: 8 }}>
-        {([['home','Home'],['jobs','Jobs & Rewards'],['family','Family']] as const).map(([key, label]) => (
+        {([['home','Home'],['jobs','Jobs'],['family','Family']] as const).map(([key, label]) => (
           <TouchableOpacity key={key} style={{ flex: 1, alignItems: 'center', paddingVertical: 13, borderRadius: 19, backgroundColor: activeTab === key ? '#0A0A0A' : 'transparent' }} onPress={() => setActiveTab(key as any)} activeOpacity={0.75}>
             <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: activeTab === key ? '#fff' : 'rgba(0,0,0,0.40)' }}>{label}</Text>
           </TouchableOpacity>
