@@ -11,7 +11,7 @@
 
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal,
   Dimensions, StatusBar as RNStatusBar, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -121,12 +121,30 @@ function IcoCheck({ color = HUB_DARK, size = 8 }: { color?: string; size?: numbe
 }
 
 // ── Main Component ───────────────────────────────────────────────────────────
+function localDateStr(d?: Date): string {
+  const dt = d || new Date();
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+}
+
 export default function OurFamilyScreen() {
   const router = useRouter();
   const [view, setView] = useState<'home' | 'child-detail' | 'pending' | 'profiles'>('home');
   const [selectedChild, setSelectedChild] = useState<ChildName>('Poppy');
   const [dbPending, setDbPending] = useState<any[]>([]);
   const [dbPoints, setDbPoints] = useState<Record<string, number>>({});
+  const [dbJobs, setDbJobs] = useState<any[]>([]);
+  const [dbRewards, setDbRewards] = useState<any[]>([]);
+  const [dbStreaks, setDbStreaks] = useState<Record<string, number>>({});
+  const [dbJobCounts, setDbJobCounts] = useState<Record<string, { done: number; total: number }>>({});
+  // Management forms
+  const [showAddJob, setShowAddJob] = useState(false);
+  const [showAddReward, setShowAddReward] = useState(false);
+  const [addTitle, setAddTitle] = useState('');
+  const [addEmoji, setAddEmoji] = useState('');
+  const [addPoints, setAddPoints] = useState(10);
+  const [addType, setAddType] = useState<'daily'|'weekly'|'oneoff'>('oneoff');
+  // Edit profile
+  const [editingMember, setEditingMember] = useState<string | null>(null);
 
   useFocusEffect(useCallback(() => {
     RNStatusBar.setBarStyle('dark-content', true);
@@ -135,6 +153,7 @@ export default function OurFamilyScreen() {
 
   async function loadFamilyData() {
     try {
+      const today = localDateStr();
       // Load pending approvals
       const { data: pending } = await supabase.from('kids_pending_approvals')
         .select('*').eq('family_id', FAMILY_ID).eq('status', 'pending')
@@ -146,7 +165,74 @@ export default function OurFamilyScreen() {
       const pts: Record<string, number> = {};
       (pointsData ?? []).forEach((p: any) => { pts[p.child_name] = (pts[p.child_name] || 0) + (p.points || 0); });
       setDbPoints(pts);
+      // Load all jobs
+      const { data: jobsData } = await supabase.from('kids_jobs')
+        .select('*').eq('family_id', FAMILY_ID).eq('approved', true);
+      setDbJobs(jobsData ?? []);
+      // Calculate per-child job counts for today
+      const counts: Record<string, { done: number; total: number }> = {};
+      const childNames: ChildName[] = ['Poppy', 'Gab', 'Duke'];
+      childNames.forEach(name => {
+        const childJobs = (jobsData ?? []).filter((j: any) => j.child_name === name);
+        const todayJobs = childJobs.filter((j: any) =>
+          j.type === 'daily' || (j.type === 'weekly') || (j.type === 'oneoff' && !j.is_complete)
+        );
+        const doneToday = childJobs.filter((j: any) => j.is_complete && j.completed_at?.startsWith(today)).length;
+        counts[name] = { done: doneToday, total: Math.max(todayJobs.length, doneToday) };
+      });
+      setDbJobCounts(counts);
+      // Calculate streaks
+      const streaks: Record<string, number> = {};
+      childNames.forEach(name => {
+        const childJobs = (jobsData ?? []).filter((j: any) => j.child_name === name && j.is_complete && j.completed_at);
+        const completeDates = [...new Set(childJobs.map((j: any) => j.completed_at?.split('T')[0]).filter(Boolean))].sort().reverse();
+        let streak = 0;
+        let checkDate = today;
+        for (const d of completeDates) {
+          if (d === checkDate) {
+            streak++;
+            const prev = new Date(checkDate + 'T00:00:00');
+            prev.setDate(prev.getDate() - 1);
+            checkDate = localDateStr(prev);
+          } else break;
+        }
+        streaks[name] = streak;
+      });
+      setDbStreaks(streaks);
+      // Load rewards
+      const { data: rewardsData } = await supabase.from('kids_rewards')
+        .select('*').eq('family_id', FAMILY_ID).eq('is_active', true);
+      setDbRewards(rewardsData ?? []);
     } catch (e) { console.log('[family] loadFamilyData error:', e); }
+  }
+
+  // Parent management — add job for a child
+  async function addJobForChild() {
+    if (!addTitle.trim()) return;
+    try {
+      await supabase.from('kids_jobs').insert({
+        family_id: FAMILY_ID, child_name: selectedChild, title: addTitle.trim(),
+        emoji: addEmoji || '📋', points: addPoints, type: addType,
+        source: 'parent', approved: true,
+      });
+      setShowAddJob(false);
+      setAddTitle(''); setAddEmoji(''); setAddPoints(10); setAddType('oneoff');
+      loadFamilyData();
+    } catch (e) { console.log('[family] addJobForChild error:', e); }
+  }
+
+  // Parent management — add reward for a child
+  async function addRewardForChild() {
+    if (!addTitle.trim()) return;
+    try {
+      await supabase.from('kids_rewards').insert({
+        family_id: FAMILY_ID, child_name: selectedChild, title: addTitle.trim(),
+        emoji: addEmoji || '🎁', cost: addPoints,
+      });
+      setShowAddReward(false);
+      setAddTitle(''); setAddEmoji(''); setAddPoints(100);
+      loadFamilyData();
+    } catch (e) { console.log('[family] addRewardForChild error:', e); }
   }
 
   async function approveItem(item: any) {
@@ -247,7 +333,7 @@ export default function OurFamilyScreen() {
               <Text style={s.briefEyeTxt}>Zaeli \u00B7 Family snapshot</Text>
             </View>
             <Text style={s.briefHero}>
-              <Text style={s.briefHeroEm}>{PENDING_ACTIONS.length} things</Text> need your attention today.
+              <Text style={s.briefHeroEm}>{dbPending.length || PENDING_ACTIONS.length} things</Text> need your attention today.
             </Text>
             <Text style={s.briefDetail}>
               {"Gab's proposed a job, Poppy's requested her sleepover reward, and Duke hasn't ticked off his jobs yet."}
@@ -312,12 +398,18 @@ export default function OurFamilyScreen() {
           </>
         )}
 
-        {/* Our Kids */}
+        {/* Our Kids — Supabase data */}
         <Text style={s.sectionLabel}>Our kids</Text>
         {KIDS.map(kid => {
           const member = FAMILY[kid.name];
-          const detail = CHILD_DETAIL[kid.name];
           const hasTutor = (FAMILY[kid.name] as any).tutorActive;
+          const realPoints = dbPoints[kid.name] ?? kid.points;
+          const realStreak = dbStreaks[kid.name] ?? kid.streak;
+          const jc = dbJobCounts[kid.name] ?? { done: kid.jobsDone, total: kid.jobsTotal };
+          // Next reward distance
+          const childRewards = dbRewards.filter((r: any) => r.child_name === kid.name);
+          const nextReward = childRewards.find((r: any) => r.cost > realPoints);
+          const toNextReward = nextReward ? nextReward.cost - realPoints : 0;
 
           return (
             <TouchableOpacity
@@ -334,16 +426,16 @@ export default function OurFamilyScreen() {
                   <Text style={s.kidName}>
                     {kid.name} <Text style={s.kidNameMeta}>{'\u00B7'} Yr {(FAMILY[kid.name] as any).year} {'\u00B7'} {(FAMILY[kid.name] as any).age}</Text>
                   </Text>
-                  <Text style={s.kidMeta}>{'\u{1F525}'} {kid.streak} day streak</Text>
+                  <Text style={s.kidMeta}>{'\u{1F525}'} {realStreak} day streak</Text>
                 </View>
                 <View style={s.kidPts}>
-                  <Text style={s.kidPtsTxt}>{'\u2B50'} {kid.points}</Text>
+                  <Text style={s.kidPtsTxt}>{'\u2B50'} {realPoints}</Text>
                 </View>
               </View>
 
               <View style={s.kidStats}>
                 <View style={s.kidStat}>
-                  <Text style={s.kidStatN}>{kid.jobsDone}/{kid.jobsTotal}</Text>
+                  <Text style={s.kidStatN}>{jc.done}/{jc.total}</Text>
                   <Text style={s.kidStatL}>Jobs today</Text>
                 </View>
                 <View style={s.kidStat}>
@@ -355,12 +447,8 @@ export default function OurFamilyScreen() {
                   <Text style={s.kidStatL}>{kid.sessions > 0 ? 'Sessions' : 'Not enrolled'}</Text>
                 </View>
                 <View style={s.kidStat}>
-                  {kid.mathsBand ? (
-                    <Text style={s.kidStatN}>{kid.mathsBand}</Text>
-                  ) : (
-                    <Text style={s.kidStatN}>{kid.points - 190 > 0 ? kid.points - 190 : 45}</Text>
-                  )}
-                  <Text style={s.kidStatL}>{kid.mathsBand ? (kid.name === 'Duke' ? 'Reading band' : 'Maths band') : 'To reward'}</Text>
+                  <Text style={s.kidStatN}>{toNextReward > 0 ? toNextReward : '\u2713'}</Text>
+                  <Text style={s.kidStatL}>{toNextReward > 0 ? 'To reward' : 'Reward ready'}</Text>
                 </View>
               </View>
 
@@ -407,6 +495,14 @@ export default function OurFamilyScreen() {
     const member = FAMILY[selectedChild];
     const detail = CHILD_DETAIL[selectedChild];
     const hasTutor = (member as any).tutorActive;
+    const realPoints = dbPoints[selectedChild] ?? kid.points;
+    const realStreak = dbStreaks[selectedChild] ?? kid.streak;
+    const jc = dbJobCounts[selectedChild] ?? { done: kid.jobsDone, total: kid.jobsTotal };
+    const childJobs = dbJobs.filter((j: any) => j.child_name === selectedChild);
+    const today = localDateStr();
+    const childRewards = dbRewards.filter((r: any) => r.child_name === selectedChild);
+    const nextReward = childRewards.find((r: any) => r.cost > realPoints);
+    const toNextReward = nextReward ? nextReward.cost - realPoints : 0;
 
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
@@ -421,7 +517,7 @@ export default function OurFamilyScreen() {
           <View style={{ flex: 1 }}>
             <Text style={s.detailName}>{selectedChild}</Text>
             <Text style={s.detailMeta}>
-              Year {(member as any).year} {'\u00B7'} Age {(member as any).age} {'\u00B7'} {'\u{1F382}'} {(member as any).dob} {'\u00B7'} {'\u{1F525}'} {kid.streak} day streak
+              Year {(member as any).year} {'\u00B7'} Age {(member as any).age} {'\u00B7'} {'\u{1F382}'} {(member as any).dob} {'\u00B7'} {'\u{1F525}'} {realStreak} day streak
             </Text>
           </View>
           <TouchableOpacity style={s.editBadge} activeOpacity={0.7}>
@@ -486,25 +582,37 @@ export default function OurFamilyScreen() {
           <View style={s.sectionCardHeader}>
             <Text style={{ fontSize: 20 }}>{'\u{1F3E0}'}</Text>
             <Text style={s.sectionCardTitle}>Kids Hub</Text>
-            <Text style={s.hubPtsBadge}>{'\u2B50'} {kid.points} pts</Text>
+            <Text style={s.hubPtsBadge}>{'\u2B50'} {realPoints} pts</Text>
           </View>
 
           <View style={s.hubStatRow}>
             <View style={s.hubStat}>
-              <Text style={s.hubStatN}>{kid.jobsDone}/{kid.jobsTotal}</Text>
+              <Text style={s.hubStatN}>{jc.done}/{jc.total}</Text>
               <Text style={s.hubStatL}>Jobs today</Text>
             </View>
             <View style={s.hubStat}>
-              <Text style={s.hubStatN}>{'\u{1F525}'} {kid.streak}</Text>
+              <Text style={s.hubStatN}>{'\u{1F525}'} {realStreak}</Text>
               <Text style={s.hubStatL}>Day streak</Text>
             </View>
             <View style={s.hubStat}>
-              <Text style={s.hubStatN}>{selectedChild === 'Poppy' ? 210 : selectedChild === 'Gab' ? 45 : 50}</Text>
-              <Text style={s.hubStatL}>{selectedChild === 'Poppy' ? 'To sleepover' : 'To reward'}</Text>
+              <Text style={s.hubStatN}>{toNextReward > 0 ? toNextReward : '\u2713'}</Text>
+              <Text style={s.hubStatL}>{toNextReward > 0 ? (nextReward ? `To ${nextReward.title}` : 'To reward') : 'Reward ready'}</Text>
             </View>
           </View>
 
-          {detail.jobs.map((job, i) => (
+          {/* Today's jobs from Supabase */}
+          {childJobs.length > 0 ? childJobs.slice(0, 6).map((job: any) => {
+            const isDone = job.is_complete && job.completed_at?.startsWith(today);
+            return (
+              <View key={job.id} style={s.jobMini}>
+                <Text style={s.jobMiniIcon}>{job.emoji || '\u{1F4CB}'}</Text>
+                <Text style={[s.jobMiniName, isDone && { textDecorationLine: 'line-through', color: 'rgba(0,0,0,0.35)' }]}>{job.title}</Text>
+                <View style={[s.jobMiniCheck, isDone && s.jobMiniCheckDone]}>
+                  {isDone && <IcoCheck />}
+                </View>
+              </View>
+            );
+          }) : detail.jobs.map((job, i) => (
             <View key={i} style={s.jobMini}>
               <Text style={s.jobMiniIcon}>{job.icon}</Text>
               <Text style={s.jobMiniName}>{job.name}</Text>
@@ -513,7 +621,73 @@ export default function OurFamilyScreen() {
               </View>
             </View>
           ))}
+
+          {/* Parent management buttons */}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+            <TouchableOpacity onPress={() => { setAddTitle(''); setAddEmoji(''); setAddPoints(10); setAddType('oneoff'); setShowAddJob(true); }} style={{ flex: 1, backgroundColor: HUB_GREEN, borderRadius: 12, paddingVertical: 10, alignItems: 'center' }} activeOpacity={0.8}>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: HUB_DARK }}>+ Add a Job</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setAddTitle(''); setAddEmoji(''); setAddPoints(100); setShowAddReward(true); }} style={{ flex: 1, backgroundColor: 'rgba(161,24,48,0.10)', borderRadius: 12, paddingVertical: 10, alignItems: 'center' }} activeOpacity={0.8}>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: RED_ACCENT }}>+ Add a Reward</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Add Job Modal */}
+        <Modal visible={showAddJob} transparent animationType="slide" onRequestClose={() => setShowAddJob(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowAddJob(false)} activeOpacity={1}/>
+            <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)', alignSelf: 'center', marginBottom: 16 }}/>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 18, color: INK, marginBottom: 14 }}>Add a job for {selectedChild}</Text>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Job title</Text>
+              <TextInput style={{ backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, marginBottom: 14 }} placeholder="e.g. Vacuum the lounge" placeholderTextColor="rgba(0,0,0,0.30)" value={addTitle} onChangeText={setAddTitle}/>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Points</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                {[5, 10, 15, 20, 30, 50].map(p => (
+                  <TouchableOpacity key={p} onPress={() => setAddPoints(p)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: addPoints === p ? HUB_DARK : 'rgba(0,0,0,0.04)', alignItems: 'center' }} activeOpacity={0.75}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: addPoints === p ? '#fff' : INK4 }}>{p}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Type</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                {(['daily', 'weekly', 'oneoff'] as const).map(t => (
+                  <TouchableOpacity key={t} onPress={() => setAddType(t)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: addType === t ? HUB_DARK : 'rgba(0,0,0,0.04)', alignItems: 'center' }} activeOpacity={0.75}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: addType === t ? '#fff' : INK4 }}>{t === 'oneoff' ? 'One-off' : t.charAt(0).toUpperCase() + t.slice(1)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity onPress={addJobForChild} style={{ backgroundColor: HUB_DARK, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.8}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Add Job</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Add Reward Modal */}
+        <Modal visible={showAddReward} transparent animationType="slide" onRequestClose={() => setShowAddReward(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowAddReward(false)} activeOpacity={1}/>
+            <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.12)', alignSelf: 'center', marginBottom: 16 }}/>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 18, color: INK, marginBottom: 14 }}>Add a reward for {selectedChild}</Text>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Reward name</Text>
+              <TextInput style={{ backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, marginBottom: 14 }} placeholder="e.g. Extra screen time" placeholderTextColor="rgba(0,0,0,0.30)" value={addTitle} onChangeText={setAddTitle}/>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Point cost</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                {[50, 100, 150, 250, 500].map(p => (
+                  <TouchableOpacity key={p} onPress={() => setAddPoints(p)} style={{ flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: addPoints === p ? RED_ACCENT : 'rgba(0,0,0,0.04)', alignItems: 'center' }} activeOpacity={0.75}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: addPoints === p ? '#fff' : INK4 }}>{p}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity onPress={addRewardForChild} style={{ backgroundColor: RED_ACCENT, borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.8}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Add Reward</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     );
   }
@@ -528,7 +702,7 @@ export default function OurFamilyScreen() {
           title="Needs attention"
           right={
             <View style={s.pendingCountBadge}>
-              <Text style={s.pendingCountTxt}>{PENDING_ACTIONS.length} items</Text>
+              <Text style={s.pendingCountTxt}>{dbPending.length || PENDING_ACTIONS.length} items</Text>
             </View>
           }
         />
@@ -683,7 +857,7 @@ const s = StyleSheet.create({
 
   // Banner
   banner: { paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: FAM_BG },
-  wordmark: { fontFamily: 'Poppins_800ExtraBold', fontSize: 32, letterSpacing: -1.5, color: INK, lineHeight: 38 },
+  wordmark: { fontFamily: 'Poppins_800ExtraBold', fontSize: 40, letterSpacing: -1.5, color: INK, lineHeight: 46 },
   bannerRight: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   bannerLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK4 },
   avatar: { borderRadius: 50, alignItems: 'center', justifyContent: 'center' },
