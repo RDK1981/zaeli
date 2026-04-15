@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli — Our Family v2 — Tab Layout</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:#E8E0D8;font-family:'Poppins',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 20px 80px;gap:32px;}
+.title{font-size:22px;font-weight:800;color:#0A0A0A;text-align:center;letter-spacing:-0.4px;}
+.sub{font-size:12px;color:rgba(0,0,0,0.45);text-align:center;max-width:500px;line-height:1.7;}
+.nav-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+.nb{border:none;background:rgba(0,0,0,0.08);border-radius:20px;padding:7px 14px;font-family:'Poppins',sans-serif;font-size:11px;font-weight:600;color:rgba(0,0,0,0.45);cursor:pointer;}
+.nb.on{background:#0A0A0A;color:#fff;}
+
+.sec{display:none;flex-direction:column;align-items:center;gap:20px;width:100%;}
+.sec.on{display:flex;}
+
+.phone{width:320px;height:700px;background:#FAF8F5;border-radius:44px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.18),0 0 0 10px #1A1A1A;position:relative;flex-shrink:0;}
+.phone.tall{height:780px;}
+.phone-row{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;}
+.phone-lbl{font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(0,0,0,0.30);text-align:center;max-width:280px;margin-bottom:-8px;}
+
+/* Status + Banner */
+.sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0;background:#F0C8C0;}
+.sb-t{font-size:14px;font-weight:600;color:#0A0A0A;}
+.ban{background:#F0C8C0;padding:4px 20px 8px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.wm{font-family:'Poppins',sans-serif;font-weight:800;font-size:40px;color:#0A0A0A;letter-spacing:-1.5px;line-height:46px;}
+.wm span{color:#D8CCFF;}
+.ban-right{font-size:17px;font-weight:600;color:rgba(0,0,0,0.40);}
+.hdiv{height:1px;background:rgba(0,0,0,0.08);flex-shrink:0;}
+
+/* Tabs */
+.tabs{display:flex;background:rgba(0,0,0,0.06);border-radius:22px;padding:4px;margin:12px 14px 8px;flex-shrink:0;}
+.tab{flex:1;text-align:center;padding:13px 0;border-radius:19px;font-size:15px;font-weight:700;color:rgba(0,0,0,0.40);cursor:pointer;}
+.tab.on{background:#0A0A0A;color:#fff;}
+
+/* Content */
+.fam-bg{background:#F0C8C0;flex:1;overflow-y:auto;scrollbar-width:none;}
+.fam-bg::-webkit-scrollbar{display:none;}
+.pad{padding:0 14px;}
+
+/* Section labels */
+.slbl{font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(0,0,0,0.30);margin:12px 0 6px;}
+
+/* ── HOME TAB ── */
+
+/* Needs Attention */
+.attn-card{background:#fff;border-radius:16px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+.attn-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px;flex-shrink:0;}
+.attn-info{flex:1;min-width:0;}
+.attn-tag{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;border-radius:5px;padding:2px 7px;display:inline-block;margin-bottom:3px;}
+.tag-job{background:rgba(168,232,204,0.25);color:#0A4030;}
+.tag-reward{background:rgba(161,24,48,0.1);color:#A01830;}
+.attn-title{font-size:14px;font-weight:700;color:#0A0A0A;margin-bottom:1px;}
+.attn-sub{font-size:11px;color:rgba(0,0,0,0.40);line-height:1.4;}
+.attn-btns{display:flex;flex-direction:column;gap:4px;flex-shrink:0;}
+.attn-yes{background:#0A4030;border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;color:#fff;cursor:pointer;text-align:center;}
+.attn-no{background:rgba(0,0,0,0.06);border-radius:8px;padding:6px 12px;font-size:11px;font-weight:600;color:rgba(0,0,0,0.38);cursor:pointer;text-align:center;}
+
+/* All clear */
+.all-clear{background:rgba(255,255,255,0.5);border-radius:14px;padding:14px;display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.all-clear-icon{font-size:22px;}
+.all-clear-txt{font-size:13px;color:rgba(0,0,0,0.50);line-height:1.5;}
+.all-clear-txt strong{color:#0A0A0A;}
+
+/* Kid summary card */
+.kid-card{background:#fff;border-radius:18px;padding:14px 16px;margin-bottom:8px;}
+.kid-top{display:flex;align-items:center;gap:12px;margin-bottom:10px;}
+.kid-av{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:15px;flex-shrink:0;}
+.kid-name{font-size:17px;font-weight:700;color:#0A0A0A;}
+.kid-year{font-size:14px;font-weight:700;color:#0A0A0A;background:rgba(0,0,0,0.06);border-radius:8px;padding:2px 10px;margin-left:6px;}
+.kid-age{font-size:12px;color:rgba(0,0,0,0.40);margin-top:2px;}
+.kid-pts{margin-left:auto;font-size:16px;font-weight:800;color:#0A4030;}
+
+/* Tutor progress — prominent */
+.tutor-box{background:rgba(216,204,255,0.20);border-radius:14px;padding:12px;margin-bottom:8px;border:1.5px solid rgba(80,32,192,0.12);}
+.tutor-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.tutor-title{font-size:13px;font-weight:700;color:#5020C0;flex:1;}
+.tutor-sessions{font-size:11px;font-weight:700;color:#5020C0;background:rgba(80,32,192,0.10);border-radius:6px;padding:2px 8px;}
+.subj-row{margin-bottom:6px;}
+.subj-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;}
+.subj-name{font-size:12px;font-weight:600;color:#0A0A0A;}
+.subj-band{font-size:9px;font-weight:700;border-radius:5px;padding:1px 6px;}
+.subj-bar{height:6px;background:rgba(0,0,0,0.07);border-radius:3px;overflow:hidden;margin-bottom:2px;}
+.subj-fill{height:100%;border-radius:3px;}
+.subj-note{font-size:10px;color:rgba(0,0,0,0.38);line-height:1.4;}
+.tutor-upsell{background:rgba(80,32,192,0.08);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.tutor-upsell-txt{font-size:12px;font-weight:600;color:#5020C0;flex:1;}
+.tutor-upsell-btn{background:#5020C0;border-radius:8px;padding:6px 12px;font-size:10px;font-weight:700;color:#fff;cursor:pointer;}
+
+/* Hub stats mini */
+.hub-mini{display:flex;gap:6px;margin-top:6px;}
+.hub-mini-stat{flex:1;background:rgba(168,232,204,0.15);border-radius:10px;padding:6px;text-align:center;}
+.hub-mini-n{font-size:14px;font-weight:800;color:#0A4030;line-height:1;}
+.hub-mini-l{font-size:7px;font-weight:600;color:rgba(10,64,48,0.5);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px;}
+
+/* Kid action buttons */
+.kid-actions{display:flex;gap:6px;margin-top:8px;}
+.kid-act{flex:1;border-radius:10px;padding:9px 0;text-align:center;font-size:12px;font-weight:700;cursor:pointer;}
+.act-tutor{background:#D8CCFF;color:#5020C0;}
+.act-hub{background:#A8E8CC;color:#0A4030;}
+.act-locked{background:rgba(0,0,0,0.05);color:rgba(0,0,0,0.30);}
+
+/* ── JOBS & REWARDS TAB ── */
+
+/* Add bar */
+.add-bar{display:flex;gap:8px;margin-bottom:10px;}
+.add-btn{flex:1;border-radius:14px;padding:14px 0;text-align:center;font-size:15px;font-weight:700;cursor:pointer;}
+.add-job{background:#A8E8CC;color:#0A4030;}
+.add-reward{background:rgba(161,24,48,0.10);color:#A01830;}
+
+/* Job/Reward row */
+.jr-card{background:#fff;border-radius:14px;padding:12px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;}
+.jr-emoji{font-size:20px;flex-shrink:0;}
+.jr-info{flex:1;min-width:0;}
+.jr-title{font-size:14px;font-weight:700;color:#0A0A0A;}
+.jr-meta{font-size:11px;color:rgba(0,0,0,0.40);display:flex;align-items:center;gap:4px;margin-top:2px;flex-wrap:wrap;}
+.jr-kid-tag{display:inline-flex;align-items:center;gap:3px;background:rgba(0,0,0,0.05);border-radius:6px;padding:1px 6px;font-size:9px;font-weight:600;}
+.jr-kid-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.jr-pts{font-size:13px;font-weight:800;color:#0A4030;flex-shrink:0;}
+.jr-type{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;border-radius:5px;padding:2px 6px;flex-shrink:0;}
+.type-daily{background:rgba(168,232,204,0.25);color:#0A4030;}
+.type-weekly{background:rgba(245,158,11,0.15);color:#92400E;}
+.type-oneoff{background:rgba(0,0,0,0.06);color:rgba(0,0,0,0.40);}
+
+/* Reward card variant */
+.jr-cost{font-size:13px;font-weight:800;color:#A01830;flex-shrink:0;}
+
+/* Inline add form */
+.add-form{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;display:flex;flex-direction:column;gap:10px;}
+.form-label{font-size:10px;font-weight:700;color:rgba(0,0,0,0.35);text-transform:uppercase;letter-spacing:0.08em;}
+.form-input{border:1.5px solid rgba(0,0,0,0.09);border-radius:12px;padding:10px 14px;font-size:15px;color:#0A0A0A;font-family:'Poppins',sans-serif;width:100%;}
+.form-input::placeholder{color:rgba(0,0,0,0.25);}
+.child-picker{display:flex;gap:10px;}
+.cp-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;opacity:0.35;}
+.cp-item.on{opacity:1;}
+.cp-av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:14px;}
+.cp-item.on .cp-av{box-shadow:0 0 0 3px #A8E8CC;}
+.cp-name{font-size:10px;font-weight:600;color:#0A0A0A;}
+.pts-row{display:flex;gap:6px;}
+.pts-chip{flex:1;text-align:center;padding:9px 0;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;border:1.5px solid rgba(0,0,0,0.08);color:rgba(0,0,0,0.40);}
+.pts-chip.on{background:#0A4030;color:#fff;border-color:#0A4030;}
+.pts-custom{flex:1;border:1.5px solid rgba(0,0,0,0.12);border-radius:10px;padding:9px;font-size:14px;font-weight:700;text-align:center;color:#0A0A0A;font-family:'Poppins',sans-serif;}
+.pts-custom::placeholder{color:rgba(0,0,0,0.20);font-weight:400;}
+.type-row{display:flex;gap:6px;}
+.type-chip{flex:1;text-align:center;padding:9px 0;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid rgba(0,0,0,0.08);color:rgba(0,0,0,0.40);}
+.type-chip.on{background:#0A4030;color:#fff;border-color:#0A4030;}
+.form-submit{width:100%;padding:14px;border-radius:14px;background:#0A4030;color:#fff;font-size:15px;font-weight:700;text-align:center;cursor:pointer;border:none;font-family:'Poppins',sans-serif;}
+
+/* Past jobs horizontal scroll */
+.past-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;}
+.past-scroll::-webkit-scrollbar{display:none;}
+.past-chip{white-space:nowrap;background:rgba(0,0,0,0.05);border-radius:10px;padding:8px 12px;font-size:12px;font-weight:600;color:rgba(0,0,0,0.50);cursor:pointer;flex-shrink:0;}
+.past-chip:hover{background:rgba(0,0,0,0.10);}
+
+/* Completed section */
+.completed-toggle{background:rgba(0,0,0,0.04);border-radius:12px;padding:10px;text-align:center;font-size:13px;font-weight:600;color:rgba(0,0,0,0.40);cursor:pointer;margin-top:6px;}
+
+/* ── FAMILY TAB ── */
+.profile-card{background:#fff;border-radius:16px;padding:14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;}
+.pf-av{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:17px;flex-shrink:0;}
+.pf-name{font-size:16px;font-weight:700;color:#0A0A0A;}
+.pf-detail{font-size:12px;color:rgba(0,0,0,0.40);line-height:1.5;margin-top:2px;}
+.pf-year{font-size:13px;font-weight:700;color:#0A0A0A;background:rgba(0,0,0,0.06);border-radius:7px;padding:2px 8px;}
+.pf-role{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;border-radius:5px;padding:3px 8px;flex-shrink:0;align-self:flex-start;}
+.role-parent{background:rgba(77,139,255,0.12);color:#1D4ED8;}
+.role-child{background:rgba(0,0,0,0.06);color:rgba(0,0,0,0.40);}
+.login-badge{font-size:9px;font-weight:700;background:rgba(34,197,94,0.12);color:#166534;border-radius:5px;padding:2px 7px;display:inline-block;margin-top:3px;}
+.invite-badge{font-size:9px;font-weight:700;background:rgba(99,102,241,0.1);color:#4338CA;border-radius:5px;padding:2px 7px;display:inline-block;margin-top:3px;cursor:pointer;}
+.colour-dots{display:flex;gap:5px;margin-top:5px;}
+.cdot{width:20px;height:20px;border-radius:50%;cursor:pointer;}
+.cdot.active{box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(0,0,0,0.3);}
+.add-member{border:1.5px dashed rgba(0,0,0,0.12);border-radius:16px;padding:14px;display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:8px;}
+.pf-edit{font-size:11px;font-weight:600;color:rgba(0,0,0,0.35);background:rgba(0,0,0,0.06);border-radius:8px;padding:5px 10px;cursor:pointer;margin-left:auto;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="title">Our Family v2 — Tab Layout</div>
+<div class="sub">Three tabs: Home (approvals + kid progress), Jobs & Rewards (manage all), Family (profiles). Tutor progress highlighted prominently on kid cards.</div>
+
+<div class="nav-row">
+  <button class="nb on" onclick="go('s1',this)">Home Tab — Active Day</button>
+  <button class="nb" onclick="go('s2',this)">Home Tab — Quiet Day</button>
+  <button class="nb" onclick="go('s3',this)">Jobs & Rewards Tab</button>
+  <button class="nb" onclick="go('s4',this)">Jobs — Add Form</button>
+  <button class="nb" onclick="go('s5',this)">Family Tab</button>
+</div>
+
+<!-- ═══════════════════════════════════
+  HOME TAB — Active Day (pending items)
+═══════════════════════════════════ -->
+<div class="sec on" id="s1">
+<div class="phone-lbl">Home tab — 2 pending approvals, kid progress visible</div>
+<div class="phone-row">
+<div class="phone tall">
+  <div class="sb"><span class="sb-t">9:41</span></div>
+  <div class="ban">
+    <div class="wm">z<span>a</span>el<span>i</span></div>
+    <div class="ban-right">Our Family</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="tabs">
+    <div class="tab on">Home</div>
+    <div class="tab">Jobs & Rewards</div>
+    <div class="tab">Family</div>
+  </div>
+  <div class="fam-bg">
+    <div class="pad">
+
+      <!-- Needs attention -->
+      <div class="slbl">Needs your attention</div>
+      <div class="attn-card">
+        <div class="attn-av" style="background:#22C55E;">G</div>
+        <div class="attn-info">
+          <div class="attn-tag tag-job">Job request</div>
+          <div class="attn-title">Washed the car 🚗</div>
+          <div class="attn-sub">Gab suggests 50 pts</div>
+        </div>
+        <div class="attn-btns">
+          <div class="attn-yes">✓ 50 pts</div>
+          <div class="attn-no">Edit</div>
+        </div>
+      </div>
+      <div class="attn-card">
+        <div class="attn-av" style="background:#A855F7;">P</div>
+        <div class="attn-info">
+          <div class="attn-tag tag-reward">Reward request</div>
+          <div class="attn-title">Sleepover party 🎉</div>
+          <div class="attn-sub">400 pts — Poppy has 400 pts</div>
+        </div>
+        <div class="attn-btns">
+          <div class="attn-yes">✓ Grant</div>
+          <div class="attn-no">Not yet</div>
+        </div>
+      </div>
+
+      <!-- Kid cards with tutor progress -->
+      <div class="slbl">Our kids</div>
+
+      <!-- Poppy — Tutor enrolled -->
+      <div class="kid-card">
+        <div class="kid-top">
+          <div class="kid-av" style="background:#A855F7;">P</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;">
+              <div class="kid-name">Poppy</div>
+              <div class="kid-year">Yr 6</div>
+            </div>
+            <div class="kid-age">Age 12 · 🎂 3 Apr</div>
+          </div>
+          <div class="kid-pts">⭐ 400</div>
+        </div>
+
+        <!-- Tutor progress — prominent purple card -->
+        <div class="tutor-box">
+          <div class="tutor-header">
+            <span style="font-size:16px;">📚</span>
+            <div class="tutor-title">Tutor Progress</div>
+            <div class="tutor-sessions">12 sessions</div>
+          </div>
+          <div class="subj-row">
+            <div class="subj-top">
+              <span class="subj-name">Maths</span>
+              <span class="subj-band" style="background:rgba(253,230,138,0.25);color:#92400E;">↑ Extension</span>
+            </div>
+            <div class="subj-bar"><div class="subj-fill" style="width:88%;background:#A855F7;"></div></div>
+            <div class="subj-note">Fractions at Year 7 level. 1 hint across last 6 questions.</div>
+          </div>
+          <div class="subj-row">
+            <div class="subj-top">
+              <span class="subj-name">English</span>
+              <span class="subj-band" style="background:rgba(168,232,204,0.2);color:#0A6040;">Core</span>
+            </div>
+            <div class="subj-bar"><div class="subj-fill" style="width:58%;background:#5020C0;"></div></div>
+            <div class="subj-note">Comprehension strong. Persuasive writing developing.</div>
+          </div>
+        </div>
+
+        <!-- Hub mini stats -->
+        <div class="hub-mini">
+          <div class="hub-mini-stat"><div class="hub-mini-n">4/4</div><div class="hub-mini-l">Jobs today</div></div>
+          <div class="hub-mini-stat"><div class="hub-mini-n">210</div><div class="hub-mini-l">To sleepover</div></div>
+        </div>
+        <div class="kid-actions">
+          <div class="kid-act act-tutor">📚 Full report</div>
+          <div class="kid-act act-hub">🏠 Kids Hub</div>
+        </div>
+      </div>
+
+      <!-- Gab — Tutor NOT enrolled -->
+      <div class="kid-card">
+        <div class="kid-top">
+          <div class="kid-av" style="background:#22C55E;">G</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;">
+              <div class="kid-name">Gab</div>
+              <div class="kid-year">Yr 4</div>
+            </div>
+            <div class="kid-age">Age 10 · 🎂 14 Jun</div>
+          </div>
+          <div class="kid-pts">⭐ 235</div>
+        </div>
+
+        <!-- Tutor upsell -->
+        <div class="tutor-upsell">
+          <span style="font-size:16px;">📚</span>
+          <div class="tutor-upsell-txt">Tutor not enrolled<br><span style="font-size:10px;color:rgba(0,0,0,0.35);">A$9.99/month · Yr 4 curriculum</span></div>
+          <div class="tutor-upsell-btn">Add →</div>
+        </div>
+
+        <div class="hub-mini">
+          <div class="hub-mini-stat"><div class="hub-mini-n">3/4</div><div class="hub-mini-l">Jobs today</div></div>
+          <div class="hub-mini-stat"><div class="hub-mini-n">45</div><div class="hub-mini-l">To reward</div></div>
+        </div>
+        <div class="kid-actions">
+          <div class="kid-act act-locked">📚 Add Tutor</div>
+          <div class="kid-act act-hub">🏠 Kids Hub</div>
+        </div>
+      </div>
+
+      <!-- Duke -->
+      <div class="kid-card">
+        <div class="kid-top">
+          <div class="kid-av" style="background:#F59E0B;">D</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;">
+              <div class="kid-name">Duke</div>
+              <div class="kid-year">Yr 1</div>
+            </div>
+            <div class="kid-age">Age 8 · 🎂 22 Sep</div>
+          </div>
+          <div class="kid-pts">⭐ 100</div>
+        </div>
+        <div class="tutor-box">
+          <div class="tutor-header">
+            <span style="font-size:16px;">📚</span>
+            <div class="tutor-title">Tutor Progress</div>
+            <div class="tutor-sessions">5 sessions</div>
+          </div>
+          <div class="subj-row" style="margin-bottom:0;">
+            <div class="subj-top">
+              <span class="subj-name">Reading</span>
+              <span class="subj-band" style="background:rgba(168,232,204,0.2);color:#0A6040;">Core</span>
+            </div>
+            <div class="subj-bar"><div class="subj-fill" style="width:55%;background:#F59E0B;"></div></div>
+            <div class="subj-note">Building confidence with sight words.</div>
+          </div>
+        </div>
+        <div class="hub-mini">
+          <div class="hub-mini-stat"><div class="hub-mini-n">3/3</div><div class="hub-mini-l">Jobs today</div></div>
+          <div class="hub-mini-stat"><div class="hub-mini-n">50</div><div class="hub-mini-l">To reward</div></div>
+        </div>
+        <div class="kid-actions">
+          <div class="kid-act act-tutor">📚 Full report</div>
+          <div class="kid-act act-hub">🏠 Kids Hub</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════
+  HOME TAB — Quiet Day
+═══════════════════════════════════ -->
+<div class="sec" id="s2">
+<div class="phone-lbl">Home tab — no pending, all good</div>
+<div class="phone-row">
+<div class="phone tall">
+  <div class="sb"><span class="sb-t">9:41</span></div>
+  <div class="ban">
+    <div class="wm">z<span>a</span>el<span>i</span></div>
+    <div class="ban-right">Our Family</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="tabs">
+    <div class="tab on">Home</div>
+    <div class="tab">Jobs & Rewards</div>
+    <div class="tab">Family</div>
+  </div>
+  <div class="fam-bg">
+    <div class="pad">
+      <div class="all-clear">
+        <div class="all-clear-icon">✅</div>
+        <div class="all-clear-txt"><strong>All good today.</strong> Everyone's on top of their jobs and nothing's waiting for you.</div>
+      </div>
+
+      <div class="slbl">Our kids</div>
+      <!-- Same kid cards as above, just no pending section -->
+      <div class="kid-card">
+        <div class="kid-top">
+          <div class="kid-av" style="background:#A855F7;">P</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;"><div class="kid-name">Poppy</div><div class="kid-year">Yr 6</div></div>
+            <div class="kid-age">Age 12 · 🎂 3 Apr</div>
+          </div>
+          <div class="kid-pts">⭐ 190</div>
+        </div>
+        <div class="tutor-box">
+          <div class="tutor-header"><span style="font-size:16px;">📚</span><div class="tutor-title">Tutor Progress</div><div class="tutor-sessions">14 sessions</div></div>
+          <div class="subj-row"><div class="subj-top"><span class="subj-name">Maths</span><span class="subj-band" style="background:rgba(253,230,138,0.25);color:#92400E;">↑ Extension</span></div><div class="subj-bar"><div class="subj-fill" style="width:88%;background:#A855F7;"></div></div></div>
+          <div class="subj-row" style="margin-bottom:0;"><div class="subj-top"><span class="subj-name">English</span><span class="subj-band" style="background:rgba(168,232,204,0.2);color:#0A6040;">Core</span></div><div class="subj-bar"><div class="subj-fill" style="width:58%;background:#5020C0;"></div></div></div>
+        </div>
+        <div class="hub-mini">
+          <div class="hub-mini-stat"><div class="hub-mini-n">4/4</div><div class="hub-mini-l">Jobs done</div></div>
+          <div class="hub-mini-stat"><div class="hub-mini-n">210</div><div class="hub-mini-l">To sleepover</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════
+  JOBS & REWARDS TAB
+═══════════════════════════════════ -->
+<div class="sec" id="s3">
+<div class="phone-lbl">Jobs & Rewards tab — all jobs across all kids, manage everything</div>
+<div class="phone-row">
+<div class="phone tall">
+  <div class="sb"><span class="sb-t">9:41</span></div>
+  <div class="ban">
+    <div class="wm">z<span>a</span>el<span>i</span></div>
+    <div class="ban-right">Our Family</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="tabs">
+    <div class="tab">Home</div>
+    <div class="tab on">Jobs & Rewards</div>
+    <div class="tab">Family</div>
+  </div>
+  <div class="fam-bg">
+    <div class="pad">
+
+      <!-- Add buttons -->
+      <div class="add-bar">
+        <div class="add-btn add-job">+ Add a Job</div>
+        <div class="add-btn add-reward">+ Add a Reward</div>
+      </div>
+
+      <!-- Active jobs — all kids -->
+      <div class="slbl">Active jobs</div>
+      <div class="jr-card">
+        <div class="jr-emoji">🐕</div>
+        <div class="jr-info">
+          <div class="jr-title">Walk the dog</div>
+          <div class="jr-meta">
+            <span class="jr-kid-tag"><span class="jr-kid-dot" style="background:#A855F7;"></span>Poppy</span>
+            <span>· 20 pts</span>
+          </div>
+        </div>
+        <div class="jr-type type-daily">daily</div>
+      </div>
+      <div class="jr-card">
+        <div class="jr-emoji">🍽️</div>
+        <div class="jr-info">
+          <div class="jr-title">Set the table</div>
+          <div class="jr-meta">
+            <span class="jr-kid-tag"><span class="jr-kid-dot" style="background:#22C55E;"></span>Gab</span>
+            <span class="jr-kid-tag"><span class="jr-kid-dot" style="background:#F59E0B;"></span>Duke</span>
+            <span>· 15 pts</span>
+          </div>
+        </div>
+        <div class="jr-type type-daily">daily</div>
+      </div>
+      <div class="jr-card">
+        <div class="jr-emoji">🧹</div>
+        <div class="jr-info">
+          <div class="jr-title">Vacuum lounge room</div>
+          <div class="jr-meta">
+            <span class="jr-kid-tag"><span class="jr-kid-dot" style="background:#A855F7;"></span>Poppy</span>
+            <span>· 30 pts</span>
+          </div>
+        </div>
+        <div class="jr-type type-oneoff">one-off</div>
+      </div>
+      <div class="jr-card">
+        <div class="jr-emoji">🛏️</div>
+        <div class="jr-info">
+          <div class="jr-title">Make my bed</div>
+          <div class="jr-meta">
+            <span class="jr-kid-tag"><span class="jr-kid-dot" style="background:#F59E0B;"></span>Duke</span>
+            <span>· 10 pts</span>
+          </div>
+        </div>
+        <div class="jr-type type-daily">daily</div>
+      </div>
+
+      <!-- Rewards section -->
+      <div class="slbl">Active rewards</div>
+      <div class="jr-card">
+        <div class="jr-emoji">🎮</div>
+        <div class="jr-info">
+          <div class="jr-title">Extra Nintendo hour</div>
+          <div class="jr-meta">
+            <span class="jr-kid-tag"><span class="jr-kid-dot" style="background:#A855F7;"></span>Poppy</span>
+            <span class="jr-kid-tag"><span class="jr-kid-dot" style="background:#22C55E;"></span>Gab</span>
+          </div>
+        </div>
+        <div class="jr-cost">150 pts</div>
+      </div>
+      <div class="jr-card">
+        <div class="jr-emoji">🎉</div>
+        <div class="jr-info">
+          <div class="jr-title">Sleepover party</div>
+          <div class="jr-meta">
+            <span class="jr-kid-tag"><span class="jr-kid-dot" style="background:#A855F7;"></span>Poppy</span>
+          </div>
+        </div>
+        <div class="jr-cost">400 pts</div>
+      </div>
+      <div class="jr-card">
+        <div class="jr-emoji">🍕</div>
+        <div class="jr-info">
+          <div class="jr-title">Choose dinner tonight</div>
+          <div class="jr-meta">
+            <span class="jr-kid-tag"><span class="jr-kid-dot" style="background:#22C55E;"></span>Gab</span>
+            <span class="jr-kid-tag"><span class="jr-kid-dot" style="background:#F59E0B;"></span>Duke</span>
+          </div>
+        </div>
+        <div class="jr-cost">50 pts</div>
+      </div>
+
+      <!-- Completed jobs history -->
+      <div class="completed-toggle">Show completed jobs ↓</div>
+
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════
+  JOBS — ADD FORM (inline, not modal)
+═══════════════════════════════════ -->
+<div class="sec" id="s4">
+<div class="phone-lbl">Add a Job — inline form with child picker + past jobs</div>
+<div class="phone-row">
+<div class="phone tall">
+  <div class="sb"><span class="sb-t">9:41</span></div>
+  <div class="ban">
+    <div class="wm">z<span>a</span>el<span>i</span></div>
+    <div class="ban-right">Our Family</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="tabs">
+    <div class="tab">Home</div>
+    <div class="tab on">Jobs & Rewards</div>
+    <div class="tab">Family</div>
+  </div>
+  <div class="fam-bg">
+    <div class="pad">
+
+      <div class="add-form">
+        <div style="font-size:17px;font-weight:700;color:#0A0A0A;">Add a job</div>
+
+        <div class="form-label">For which kids?</div>
+        <div class="child-picker">
+          <div class="cp-item on"><div class="cp-av" style="background:#A855F7;">P</div><div class="cp-name">Poppy</div></div>
+          <div class="cp-item on"><div class="cp-av" style="background:#22C55E;">G</div><div class="cp-name">Gab</div></div>
+          <div class="cp-item"><div class="cp-av" style="background:#F59E0B;">D</div><div class="cp-name">Duke</div></div>
+        </div>
+
+        <div class="form-label">Quick add from past jobs</div>
+        <div class="past-scroll">
+          <div class="past-chip">🐕 Walk the dog</div>
+          <div class="past-chip">🧹 Vacuum lounge</div>
+          <div class="past-chip">🍽️ Set the table</div>
+          <div class="past-chip">🛏️ Make my bed</div>
+          <div class="past-chip">👕 Iron shirts</div>
+        </div>
+
+        <div class="form-label">Job title</div>
+        <input class="form-input" placeholder="e.g. Vacuum the lounge" value="Put washing away"/>
+
+        <div class="form-label">Points</div>
+        <div class="pts-row">
+          <div class="pts-chip">5</div>
+          <div class="pts-chip on">10</div>
+          <div class="pts-chip">15</div>
+          <div class="pts-chip">20</div>
+          <div class="pts-chip">30</div>
+          <div class="pts-chip">50</div>
+          <input class="pts-custom" placeholder="Custom"/>
+        </div>
+
+        <div class="form-label">Type</div>
+        <div class="type-row">
+          <div class="type-chip on">Daily</div>
+          <div class="type-chip">Weekly</div>
+          <div class="type-chip">One-off</div>
+        </div>
+
+        <button class="form-submit">Add Job for Poppy & Gab</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════
+  FAMILY TAB — Profiles
+═══════════════════════════════════ -->
+<div class="sec" id="s5">
+<div class="phone-lbl">Family tab — all members, edit info, manage profiles</div>
+<div class="phone-row">
+<div class="phone tall">
+  <div class="sb"><span class="sb-t">9:41</span></div>
+  <div class="ban">
+    <div class="wm">z<span>a</span>el<span>i</span></div>
+    <div class="ban-right">Our Family</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="tabs">
+    <div class="tab">Home</div>
+    <div class="tab">Jobs & Rewards</div>
+    <div class="tab on">Family</div>
+  </div>
+  <div class="fam-bg">
+    <div class="pad">
+
+      <div class="slbl">Parents</div>
+      <div class="profile-card">
+        <div class="pf-av" style="background:#4D8BFF;">R</div>
+        <div style="flex:1;">
+          <div class="pf-name">Rich</div>
+          <div class="pf-detail">rich@email.com<br><div class="login-badge">✓ Full account</div></div>
+        </div>
+        <div class="pf-role role-parent">Parent</div>
+      </div>
+      <div class="profile-card">
+        <div class="pf-av" style="background:#FF7B6B;">A</div>
+        <div style="flex:1;">
+          <div class="pf-name">Anna</div>
+          <div class="pf-detail">anna@email.com<br><div class="login-badge">✓ Full account</div></div>
+        </div>
+        <div class="pf-role role-parent">Parent</div>
+      </div>
+
+      <div class="slbl">Kids</div>
+      <div class="profile-card">
+        <div class="pf-av" style="background:#A855F7;">P</div>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="pf-name">Poppy</div>
+            <div class="pf-year">Yr 6</div>
+          </div>
+          <div class="pf-detail">Age 12 · 🎂 3 Apr 2014<br><div class="login-badge">✓ Own Zaeli login</div></div>
+          <div class="colour-dots">
+            <div class="cdot active" style="background:#A855F7;"></div>
+            <div class="cdot" style="background:#EC4899;"></div>
+            <div class="cdot" style="background:#6366F1;"></div>
+            <div class="cdot" style="background:#F43F5E;"></div>
+          </div>
+        </div>
+        <div class="pf-edit">Edit</div>
+      </div>
+      <div class="profile-card">
+        <div class="pf-av" style="background:#22C55E;">G</div>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="pf-name">Gab</div>
+            <div class="pf-year">Yr 4</div>
+          </div>
+          <div class="pf-detail">Age 10 · 🎂 14 Jun 2015<br><div class="invite-badge">+ Invite to Zaeli</div></div>
+        </div>
+        <div class="pf-edit">Edit</div>
+      </div>
+      <div class="profile-card">
+        <div class="pf-av" style="background:#F59E0B;">D</div>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="pf-name">Duke</div>
+            <div class="pf-year">Yr 1</div>
+          </div>
+          <div class="pf-detail">Age 8 · 🎂 22 Sep 2016<br><span style="font-size:10px;color:rgba(0,0,0,0.35);">Uses parent's device</span></div>
+        </div>
+        <div class="pf-edit">Edit</div>
+      </div>
+
+      <div class="add-member">
+        <span style="font-size:18px;opacity:0.4;">➕</span>
+        <span style="font-size:13px;font-weight:600;color:rgba(0,0,0,0.38);">Add a family member</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+function go(id,btn){
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
+</body>
+</html>
