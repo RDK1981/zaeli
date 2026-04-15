@@ -631,15 +631,19 @@ export default function KidsHubScreen() {
                   const guess = wordleInput.toUpperCase();
                   const newGuesses = [...wordleGuesses, guess];
                   setWordleGuesses(newGuesses);
-                  // Update keyboard states
-                  if (wordLen === 5) {
-                    const states = getTileStates(guess, wordleAnswer);
+                  // Update keyboard states for all word lengths
+                  {
+                    // Compute tile states for this guess
+                    const gStates: string[] = Array(wordLen).fill('absent');
+                    const a = wordleAnswer.split(''); const g = guess.split(''); const u = Array(wordLen).fill(false);
+                    for (let i=0;i<wordLen;i++) { if (g[i]===a[i]) { gStates[i]='correct'; u[i]=true; } }
+                    for (let i=0;i<wordLen;i++) { if (gStates[i]==='correct') continue; const j=a.findIndex((c,k)=>c===g[i]&&!u[k]); if (j>=0) { gStates[i]='present'; u[j]=true; } }
                     const newKS = { ...wordleKeyStates };
                     guess.split('').forEach((l, i) => {
-                      const s = states[i];
-                      if (s === 'correct') newKS[l] = 'correct';
-                      else if (s === 'present' && newKS[l] !== 'correct') newKS[l] = 'present';
-                      else if (s === 'absent' && !newKS[l]) newKS[l] = 'absent';
+                      const st = gStates[i];
+                      if (st === 'correct') newKS[l] = 'correct';
+                      else if (st === 'present' && newKS[l] !== 'correct') newKS[l] = 'present';
+                      else if (st === 'absent' && !newKS[l]) newKS[l] = 'absent';
                     });
                     setWordleKeyStates(newKS);
                   }
@@ -657,12 +661,12 @@ export default function KidsHubScreen() {
               return (
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', paddingTop: 10, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
                   <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 10 }}>Zaeli's Wordle</Text>
-                  {/* Grid */}
+                  {/* Grid — active tile highlighted */}
                   {Array.from({ length: maxGuesses }).map((_, row) => {
-                    const guess = wordleGuesses[row] || (row === wordleGuesses.length ? wordleInput.padEnd(wordLen, ' ') : '');
+                    const isCurrentRow = row === wordleGuesses.length && !gameOver;
+                    const guess = wordleGuesses[row] || (isCurrentRow ? wordleInput.padEnd(wordLen, ' ') : '');
                     const isSubmitted = !!wordleGuesses[row];
                     const states = isSubmitted && wordLen === 5 ? getTileStates(wordleGuesses[row], wordleAnswer) : null;
-                    // For 4-letter words, compute inline
                     const states4 = isSubmitted && wordLen === 4 ? (() => {
                       const r: string[] = Array(4).fill('absent'); const a = wordleAnswer.split(''); const g = wordleGuesses[row].split(''); const u = [false,false,false,false];
                       for (let i=0;i<4;i++) { if (g[i]===a[i]) { r[i]='correct'; u[i]=true; } }
@@ -675,11 +679,12 @@ export default function KidsHubScreen() {
                         {Array.from({ length: wordLen }).map((_, col) => {
                           const letter = guess[col] || '';
                           const ts = tileStates?.[col];
+                          const isActiveTile = isCurrentRow && col === wordleInput.length;
                           const bg = ts === 'correct' ? accent : ts === 'present' ? '#F0DC80' : ts === 'absent' ? '#6B7280' : letter.trim() ? '#fff' : 'rgba(255,255,255,0.4)';
                           const textC = ts ? '#fff' : letter.trim() ? INK : 'transparent';
-                          const bdr = ts ? bg : letter.trim() ? `${accent}50` : 'rgba(0,0,0,0.10)';
+                          const bdr = ts ? bg : isActiveTile ? accent : letter.trim() ? `${accent}50` : 'rgba(0,0,0,0.10)';
                           return (
-                            <View key={col} style={{ width: wordLen === 4 ? 58 : 52, height: wordLen === 4 ? 58 : 52, borderRadius: 10, backgroundColor: bg, borderWidth: 2, borderColor: bdr, alignItems: 'center', justifyContent: 'center' }}>
+                            <View key={col} style={{ width: wordLen === 4 ? 58 : 52, height: wordLen === 4 ? 58 : 52, borderRadius: 10, backgroundColor: bg, borderWidth: isActiveTile ? 3 : 2, borderColor: bdr, alignItems: 'center', justifyContent: 'center' }}>
                               <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: wordLen === 4 ? 26 : 22, color: textC }}>{letter.trim()}</Text>
                             </View>
                           );
@@ -688,7 +693,7 @@ export default function KidsHubScreen() {
                     );
                   })}
                   {/* Embedded keyboard */}
-                  <View style={{ gap: 5, paddingHorizontal: 6, marginTop: 10, width: '100%' }}>
+                  <View style={{ gap: 5, paddingHorizontal: 6, marginTop: 8, width: '100%' }}>
                     {KB_ROWS.map((row, ri) => (
                       <View key={ri} style={{ flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
                         {row.map(key => {
@@ -699,13 +704,23 @@ export default function KidsHubScreen() {
                           return (
                             <TouchableOpacity key={key} onPress={() => handleWordleKey(key)} activeOpacity={0.7}
                               style={{ height: 48, flex: isWide ? 1.5 : 1, maxWidth: isWide ? 60 : 36, borderRadius: 8, backgroundColor: kbBg, alignItems: 'center', justifyContent: 'center' }}>
-                              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 16 : 17, color: kbC }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: key === 'DEL' ? 22 : isWide ? 13 : 17, color: kbC }}>{key === 'DEL' ? '\u232B' : key}</Text>
                             </TouchableOpacity>
                           );
                         })}
                       </View>
                     ))}
                   </View>
+                  {/* Submit button below keyboard */}
+                  {!gameOver && (
+                    <TouchableOpacity
+                      onPress={() => handleWordleKey('ENTER')}
+                      style={{ backgroundColor: wordleInput.length >= wordLen ? accent : 'rgba(0,0,0,0.08)', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10, marginHorizontal: 6, width: '100%' }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: wordleInput.length >= wordLen ? '#fff' : 'rgba(0,0,0,0.30)' }}>Submit</Text>
+                    </TouchableOpacity>
+                  )}
                 </ScrollView>
               );
             })()}
@@ -770,7 +785,7 @@ export default function KidsHubScreen() {
                               return (
                                 <TouchableOpacity key={key} onPress={() => handleScrambleKey(key)} activeOpacity={0.7}
                                   style={{ height: 48, flex: isWide ? 1.5 : 1, maxWidth: isWide ? 60 : 36, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
-                                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 16 : 17, color: INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: key === 'DEL' ? 22 : isWide ? 13 : 17, color: INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
                                 </TouchableOpacity>
                               );
                             })}
@@ -780,10 +795,10 @@ export default function KidsHubScreen() {
                       {/* Big Submit button below keyboard */}
                       <TouchableOpacity
                         onPress={() => handleScrambleKey('ENTER')}
-                        style={{ backgroundColor: scrambleInput.length >= scrambleAnswer.length ? child.colour : 'rgba(0,0,0,0.08)', borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10, marginHorizontal: 6 }}
+                        style={{ backgroundColor: scrambleInput.length >= scrambleAnswer.length ? child.colour : 'rgba(0,0,0,0.08)', borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginTop: 12, marginHorizontal: 6, width: '100%' }}
                         activeOpacity={0.8}
                       >
-                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: scrambleInput.length >= scrambleAnswer.length ? '#fff' : 'rgba(0,0,0,0.30)' }}>Submit</Text>
+                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 18, color: scrambleInput.length >= scrambleAnswer.length ? '#fff' : 'rgba(0,0,0,0.30)' }}>Submit</Text>
                       </TouchableOpacity>
                     </>
                   ) : (
@@ -820,13 +835,13 @@ export default function KidsHubScreen() {
               return (
                 <View style={{ flex: 1, alignItems: 'center', paddingTop: 10 }}>
                   <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 10 }}>Maths Sprint</Text>
-                  {/* Timer bar */}
-                  <View style={{ width: '90%', height: 8, backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 4, overflow: 'hidden', marginBottom: 12 }}>
-                    <View style={{ height: 8, borderRadius: 4, backgroundColor: mathsTimeLeft <= 10 ? '#FF4545' : child.colour, width: `${(mathsTimeLeft / 120) * 100}%` }}/>
+                  {/* Timer bar — always coral, flashes in last 10s */}
+                  <View style={{ width: '90%', height: 10, backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: 5, overflow: 'hidden', marginBottom: 12 }}>
+                    <View style={{ height: 10, borderRadius: 5, backgroundColor: '#FF4545', width: `${(mathsTimeLeft / 120) * 100}%`, opacity: mathsTimeLeft <= 10 ? (mathsTimeLeft % 2 === 0 ? 1 : 0.4) : 1 }}/>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 16, marginBottom: 14 }}>
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 8, alignItems: 'center' }}>
-                      <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 26, color: mathsTimeLeft <= 10 ? '#FF4545' : INK }}>{mathsTimeLeft}s</Text>
+                    <View style={{ backgroundColor: mathsTimeLeft <= 10 ? 'rgba(255,69,69,0.12)' : 'rgba(255,255,255,0.5)', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 8, alignItems: 'center' }}>
+                      <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 26, color: '#FF4545' }}>{mathsTimeLeft}s</Text>
                     </View>
                     <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 8, alignItems: 'center' }}>
                       <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 26, color: child.colour }}>{mathsScore}</Text>
@@ -835,21 +850,27 @@ export default function KidsHubScreen() {
                   </View>
                   {mathsActive ? (
                     <>
-                      <View style={{ backgroundColor: mathsFlash === 'correct' ? 'rgba(34,197,94,0.15)' : mathsFlash === 'wrong' ? 'rgba(255,69,69,0.10)' : 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 28, alignItems: 'center', width: '90%', marginBottom: 10 }}>
+                      {/* Question + flash feedback */}
+                      <View style={{ backgroundColor: mathsFlash === 'correct' ? 'rgba(34,197,94,0.20)' : mathsFlash === 'wrong' ? 'rgba(255,69,69,0.15)' : 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 28, alignItems: 'center', width: '90%', marginBottom: 6 }}>
                         <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 40, color: INK }}>{mathsQuestion}</Text>
+                        {mathsFlash && (
+                          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: mathsFlash === 'correct' ? '#22C55E' : '#FF4545', marginTop: 6 }}>
+                            {mathsFlash === 'correct' ? 'Correct! +1' : 'Wrong!'}
+                          </Text>
+                        )}
                       </View>
-                      {/* Answer display */}
-                      <View style={{ backgroundColor: '#fff', borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, minWidth: 120, alignItems: 'center', marginBottom: 10 }}>
-                        <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 28, color: INK }}>{mathsInput || '?'}</Text>
+                      {/* Answer display — distinct colour box */}
+                      <View style={{ backgroundColor: child.colour + '20', borderWidth: 2, borderColor: child.colour, borderRadius: 16, paddingHorizontal: 24, paddingVertical: 14, minWidth: 140, alignItems: 'center', marginBottom: 10 }}>
+                        <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 32, color: INK }}>{mathsInput || '?'}</Text>
                       </View>
                       {/* Number pad */}
                       <View style={{ gap: 6, width: '80%' }}>
                         {NUM_ROWS.map((row, ri) => (
-                          <View key={ri} style={{ flexDirection: 'row', gap: 6 }}>
+                          <View key={ri} style={{ flexDirection: 'row', gap: 8 }}>
                             {row.map(key => (
-                              <TouchableOpacity key={key} onPress={() => handleMathsKey(key)} activeOpacity={0.7}
-                                style={{ flex: 1, height: 62, borderRadius: 14, backgroundColor: key === 'GO' ? child.colour : key === 'DEL' ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
-                                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: key === 'GO' || key === 'DEL' ? 14 : 22, color: key === 'GO' ? '#fff' : INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                              <TouchableOpacity key={key} onPress={() => handleMathsKey(key)} activeOpacity={0.5} delayPressIn={0}
+                                style={{ flex: 1, height: 66, borderRadius: 16, backgroundColor: key === 'GO' ? child.colour : key === 'DEL' ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.8)', alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: key === 'DEL' ? 24 : key === 'GO' ? 17 : 26, color: key === 'GO' ? '#fff' : INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
                               </TouchableOpacity>
                             ))}
                           </View>
@@ -881,7 +902,7 @@ export default function KidsHubScreen() {
               const isDone = triviaIndex >= list.length;
               return (
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', padding: 14, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
-                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 4 }}>Aussie Trivia</Text>
+                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 4 }}>World Trivia</Text>
                   <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginBottom: 14 }}>Q{Math.min(triviaIndex + 1, list.length)}/{list.length} | Score: {triviaScore}</Text>
                   {!isDone && triviaQ ? (
                     <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 18, width: '100%' }}>
@@ -930,96 +951,99 @@ export default function KidsHubScreen() {
               );
             })()}
 
-            {/* ── MINI CROSSWORD ── */}
+            {/* ── MINI CROSSWORD — compact layout: grid+clues side by side, keyboard below ── */}
             {activeGame === 'crossword' && (() => {
               const puzzle = getWeeklyCrossword();
+              const cellNums: Record<string, number> = {};
+              [...puzzle.acrossClues, ...puzzle.downClues].forEach(cl => { cellNums[`${cl.row}-${cl.col}`] = cl.num; });
               return (
-                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', padding: 14, paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
-                  <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 4 }}>Mini Crossword</Text>
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, marginBottom: 12 }}>Weekly puzzle — tap cells to fill in</Text>
-                  {/* Grid — interactive with clue numbers */}
-                  {(() => {
-                    // Build a map of clue numbers per cell position
-                    const cellNums: Record<string, number> = {};
-                    [...puzzle.acrossClues, ...puzzle.downClues].forEach(cl => { cellNums[`${cl.row}-${cl.col}`] = cl.num; });
-                    return (
-                  <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 8, alignItems: 'center', marginBottom: 10 }}>
-                    {puzzle.grid.map((row, r) => (
-                      <View key={r} style={{ flexDirection: 'row' }}>
-                        {row.map((cell, c) => {
-                          const isBlack = cell === '#';
-                          const isSelected = crosswordSel?.r === r && crosswordSel?.c === c;
-                          const userVal = crosswordGrid[`${r}-${c}`] || '';
-                          const isChecked = crosswordChecked;
-                          const isCorrect = isChecked && userVal.toUpperCase() === cell.toUpperCase();
-                          const isWrong = isChecked && userVal && userVal.toUpperCase() !== cell.toUpperCase();
-                          const clueNum = cellNums[`${r}-${c}`];
-                          return (
-                            <TouchableOpacity key={c} activeOpacity={isBlack ? 1 : 0.7}
-                              onPress={() => { if (!isBlack) setCrosswordSel({ r, c }); }}
-                              style={{ width: 52, height: 52, borderWidth: 1.5, borderColor: isBlack ? 'transparent' : isSelected ? child.colour : 'rgba(0,0,0,0.15)', backgroundColor: isBlack ? '#1A1A1A' : isSelected ? `${child.colour}20` : isCorrect ? 'rgba(34,197,94,0.12)' : isWrong ? 'rgba(255,69,69,0.08)' : '#fff', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                              {!!clueNum && !isBlack && (
-                                <Text style={{ position: 'absolute', top: 2, left: 4, fontFamily: 'Poppins_700Bold', fontSize: 8, color: 'rgba(0,0,0,0.35)' }}>{clueNum}</Text>
-                              )}
-                              {!isBlack && <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 20, color: isCorrect ? '#22C55E' : isWrong ? '#FF4545' : INK }}>{userVal}</Text>}
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    ))}
-                  </View>
-                    );
-                  })()}
-                  {/* Clues */}
-                  <View style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 16, padding: 14, marginBottom: 10 }}>
-                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Across</Text>
-                    {puzzle.acrossClues.map(cl => (
-                      <Text key={cl.num} style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, marginBottom: 4 }}>{cl.num}. {cl.clue}</Text>
-                    ))}
-                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 10, marginBottom: 6 }}>Down</Text>
-                    {puzzle.downClues.map(cl => (
-                      <Text key={cl.num} style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, marginBottom: 4 }}>{cl.num}. {cl.clue}</Text>
-                    ))}
-                  </View>
-                  {/* Check button */}
-                  <TouchableOpacity onPress={() => setCrosswordChecked(true)} style={{ backgroundColor: child.colour, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 28, marginBottom: 8 }} activeOpacity={0.8}>
-                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Check answers</Text>
-                  </TouchableOpacity>
-                  {/* Keyboard for crossword */}
-                  {crosswordSel && (
-                    <View style={{ gap: 5, paddingHorizontal: 6, width: '100%', marginTop: 6 }}>
-                      {KB_ROWS.map((row, ri) => (
-                        <View key={ri} style={{ flexDirection: 'row', gap: 4, justifyContent: 'center' }}>
-                          {row.map(key => {
-                            const isWide = key === 'ENTER' || key === 'DEL';
+                <View style={{ flex: 1, padding: 10 }}>
+                  {/* Grid + Clues row */}
+                  <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                    {/* Grid */}
+                    <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 4 }}>
+                      {puzzle.grid.map((row, r) => (
+                        <View key={r} style={{ flexDirection: 'row' }}>
+                          {row.map((cell, c) => {
+                            const isBlack = cell === '#';
+                            const isSelected = crosswordSel?.r === r && crosswordSel?.c === c;
+                            const userVal = crosswordGrid[`${r}-${c}`] || '';
+                            const isChecked = crosswordChecked;
+                            const isCorrect = isChecked && userVal.toUpperCase() === cell.toUpperCase();
+                            const isWrong = isChecked && userVal && userVal.toUpperCase() !== cell.toUpperCase();
+                            const clueNum = cellNums[`${r}-${c}`];
                             return (
-                              <TouchableOpacity key={key} onPress={() => {
-                                if (!crosswordSel) return;
-                                const { r, c } = crosswordSel;
-                                if (key === 'DEL') {
-                                  setCrosswordGrid(prev => { const n = { ...prev }; delete n[`${r}-${c}`]; return n; });
-                                } else if (key === 'ENTER') {
-                                  setCrosswordSel(null);
-                                } else {
-                                  setCrosswordGrid(prev => ({ ...prev, [`${r}-${c}`]: key }));
-                                  // Auto advance to next cell in row
-                                  const puzzle = getWeeklyCrossword();
-                                  for (let nc = c + 1; nc < 5; nc++) {
-                                    if (puzzle.grid[r][nc] !== '#') { setCrosswordSel({ r, c: nc }); return; }
-                                  }
-                                  setCrosswordSel(null);
-                                }
-                              }} activeOpacity={0.7}
-                                style={{ height: 44, flex: isWide ? 1.5 : 1, maxWidth: isWide ? 56 : 34, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' }}>
-                                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: isWide ? 16 : 16, color: INK }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                              <TouchableOpacity key={c} activeOpacity={isBlack ? 1 : 0.7}
+                                onPress={() => { if (!isBlack) setCrosswordSel({ r, c }); }}
+                                style={{ width: 48, height: 48, borderWidth: 1.5, borderColor: isBlack ? 'transparent' : isSelected ? child.colour : 'rgba(0,0,0,0.15)', backgroundColor: isBlack ? '#1A1A1A' : isSelected ? `${child.colour}25` : isCorrect ? 'rgba(34,197,94,0.12)' : isWrong ? 'rgba(255,69,69,0.08)' : '#fff', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                                {!!clueNum && !isBlack && (
+                                  <Text style={{ position: 'absolute', top: 1, left: 3, fontFamily: 'Poppins_700Bold', fontSize: 7, color: 'rgba(0,0,0,0.35)' }}>{clueNum}</Text>
+                                )}
+                                {!isBlack && <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: isCorrect ? '#22C55E' : isWrong ? '#FF4545' : INK }}>{userVal}</Text>}
                               </TouchableOpacity>
                             );
                           })}
                         </View>
                       ))}
                     </View>
-                  )}
-                </ScrollView>
+                    {/* Clues — scrollable beside grid */}
+                    <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                      <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>Across</Text>
+                      {puzzle.acrossClues.map(cl => (
+                        <Text key={cl.num} style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK, marginBottom: 3, lineHeight: 16 }}>{cl.num}. {cl.clue}</Text>
+                      ))}
+                      <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 8, marginBottom: 4 }}>Down</Text>
+                      {puzzle.downClues.map(cl => (
+                        <Text key={cl.num} style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK, marginBottom: 3, lineHeight: 16 }}>{cl.num}. {cl.clue}</Text>
+                      ))}
+                    </ScrollView>
+                  </View>
+                  {/* Check button */}
+                  <TouchableOpacity onPress={() => setCrosswordChecked(true)} style={{ backgroundColor: child.colour, borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginBottom: 8 }} activeOpacity={0.8}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' }}>Check answers</Text>
+                  </TouchableOpacity>
+                  {/* Keyboard — always visible */}
+                  <View style={{ gap: 4, paddingHorizontal: 4 }}>
+                    {KB_ROWS.map((row, ri) => (
+                      <View key={ri} style={{ flexDirection: 'row', gap: 3, justifyContent: 'center' }}>
+                        {row.map(key => {
+                          const isWide = key === 'ENTER' || key === 'DEL';
+                          return (
+                            <TouchableOpacity key={key} onPress={() => {
+                              if (!crosswordSel) return;
+                              const { r, c } = crosswordSel;
+                              if (key === 'DEL') {
+                                setCrosswordGrid(prev => { const n = { ...prev }; delete n[`${r}-${c}`]; return n; });
+                              } else if (key === 'ENTER') {
+                                setCrosswordSel(null);
+                              } else {
+                                setCrosswordGrid(prev => ({ ...prev, [`${r}-${c}`]: key }));
+                                const pz = getWeeklyCrossword();
+                                for (let nc = c + 1; nc < 5; nc++) {
+                                  if (pz.grid[r][nc] !== '#') { setCrosswordSel({ r, c: nc }); return; }
+                                }
+                                setCrosswordSel(null);
+                              }
+                            }} activeOpacity={0.7}
+                                style={{ height: 46, flex: isWide ? 1.5 : 1, maxWidth: isWide ? 58 : 35, borderRadius: 8, backgroundColor: crosswordSel ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.06)', alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: key === 'DEL' ? 22 : isWide ? 13 : 16, color: crosswordSel ? INK : INK4 }}>{key === 'DEL' ? '\u232B' : key}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      ))}
+                    </View>
+                    {crosswordSel && (
+                      <TouchableOpacity
+                        onPress={() => setCrosswordSel(null)}
+                        style={{ backgroundColor: child.colour, borderRadius: 14, paddingVertical: 12, alignItems: 'center', marginTop: 6 }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#fff' }}>Done</Text>
+                      </TouchableOpacity>
+                    )}
+                    {!crosswordSel && <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK4, textAlign: 'center', marginTop: 4 }}>Tap a cell to start typing</Text>}
+                </View>
               );
             })()}
 
@@ -1562,7 +1586,7 @@ export default function KidsHubScreen() {
         ))}
 
         <View style={s.toggleNote}>
-          <Text style={s.toggleNoteTxt}>Leaderboard is on \u2014 Mum or Dad can turn this off in settings {'\u{1F527}'}</Text>
+          <Text style={s.toggleNoteTxt}>Leaderboard is on — Mum or Dad can turn this off in settings {'\u{1F527}'}</Text>
         </View>
       </View>
     );

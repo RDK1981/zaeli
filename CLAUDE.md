@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 14 April 2026 — Session 11 ✅ · Meal Planner locked · Kids Hub built with 5 games · Shopping complete*
+*Last updated: 15 April 2026 — Session 12 ✅ · Kids Hub locked · Meal Planner locked · Shopping complete*
 
 ---
 
@@ -704,11 +704,16 @@ Massive build — Kids Hub from dummy data to full Supabase-wired module with 5 
 - All seeded with test data
 - SQL in supabase-kids-hub-tables.sql
 
-### Known issues (next session):
-- Some game flicker still present in certain transitions
-- Maths Sprint keypad tapping could be more responsive
-- Crossword keyboard visibility when grid is selected
-- Wordle needs "not in word list" validation
+### Session 12 polish (all resolved):
+- Game overlay changed from Modal to absolute View (fixes flicker)
+- Wordle: active tile highlighted, Submit button below keyboard, key states for all word lengths
+- Word Scramble: bigger Submit, hint hidden by default
+- Maths Sprint: 2min timer, always coral, flashes last 10s, bigger responsive keypad, distinct answer box, Correct/Wrong text feedback
+- World Trivia: renamed from Aussie Trivia, 20 questions per tier
+- Crossword: grid+clues side by side, keyboard always visible, bigger cells (48px), Done button
+- All DEL icons bumped to 22-24px across all games
+- All unicode escapes fixed
+- Kids Hub LOCKED
 
 ---
 
@@ -739,8 +744,8 @@ Phase 10b: Meal Planner sheet  ✅ 3 tabs, 7-day planner, recipes, favourites, c
 Phase 11:  Meal Planner polish ✅ Recipe photos, rolling 10-day, Search Recipes day context, move in detail
 Phase 12:  Kids Hub wired      ✅ Supabase tables, job completion, GIPHY, rewards, suggest job, parent approvals
 Phase 12b: Kids Hub games      ✅ 5 games rebuilt with embedded keyboards, age-tiered content, celebrations
-Phase 12c: Kids Hub polish     🔨 Game flicker fixes in progress, more polish needed
-Phase 9a: Dashboard redesign   🔨
+Phase 12c: Kids Hub polish     ✅ Games polished, flicker fixed, crossword layout, all UX feedback addressed
+Phase 9a: Dashboard redesign   🔨 ← next
 Phase 13:  Tutor rebuild       🔨
 Phase 9b: Meal Planner sheet   🔨 ← Claude Code next (zaeli-meals-mockup.html)
 Phase 9c: Camera/Upload        🔨 ← Claude Code next (zaeli-camera-upload.html)
