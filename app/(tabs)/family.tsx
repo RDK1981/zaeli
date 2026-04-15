@@ -218,7 +218,7 @@ export default function OurFamilyScreen() {
           source: 'parent', approved: true,
         });
       }
-      setShowAddJob(false);
+      setShowAddForm(null);
       setAddTitle(''); setAddEmoji(''); setAddPoints(10); setAddType('oneoff'); setAddSelectedKids([]);
       loadFamilyData();
     } catch (e) { console.log('[family] addJobForChildren error:', e); }
@@ -234,7 +234,7 @@ export default function OurFamilyScreen() {
           emoji: addEmoji || '🎁', cost: addPoints,
         });
       }
-      setShowAddReward(false);
+      setShowAddForm(null);
       setAddTitle(''); setAddEmoji(''); setAddPoints(100); setAddSelectedKids([]);
       loadFamilyData();
     } catch (e) { console.log('[family] addRewardForChildren error:', e); }
@@ -322,7 +322,7 @@ export default function OurFamilyScreen() {
   // HOME VIEW
   // ══════════════════════════════════════════════════════════════════════════
   function HomeView() {
-    const hasPending = dbPending.length > 0 || PENDING_ACTIONS.length > 0;
+    const hasPending = dbPending.length > 0;
 
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
@@ -330,7 +330,7 @@ export default function OurFamilyScreen() {
         {hasPending && (
           <>
             <Text style={s.sectionLabel}>Needs your attention</Text>
-            {(dbPending.length > 0 ? dbPending : PENDING_ACTIONS).map((action: any) => {
+            {dbPending.map((action: any) => {
               const childName = action.child_name || action.child;
               const member = FAMILY[childName as keyof typeof FAMILY];
               const isJob = (action.type === 'job_suggestion' || action.type === 'job');
@@ -355,12 +355,12 @@ export default function OurFamilyScreen() {
                     <Text style={s.pendingSub}>{sub}</Text>
                   </View>
                   <View style={s.pendingBtns}>
-                    <TouchableOpacity style={s.pendingYes} activeOpacity={0.7} onPress={() => isReal && approveItem(action)}>
+                    <TouchableOpacity style={s.pendingYes} activeOpacity={0.7} onPress={() => approveItem(action)}>
                       <Text style={s.pendingYesTxt}>
                         {isJob ? `\u2713 ${pts} pts` : '\u2713 Grant'}
                       </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={s.pendingNo} activeOpacity={0.7} onPress={() => isReal && declineItem(action)}>
+                    <TouchableOpacity style={s.pendingNo} activeOpacity={0.7} onPress={() => declineItem(action)}>
                       <Text style={s.pendingNoTxt}>{action.type === 'job' ? 'Edit' : 'Not yet'}</Text>
                     </TouchableOpacity>
                   </View>
@@ -397,7 +397,7 @@ export default function OurFamilyScreen() {
             <TouchableOpacity
               key={kid.name}
               style={s.kidCard}
-              onPress={() => openChild(kid.name)}
+              onPress={() => router.navigate('/(tabs)/kids' as any)}
               activeOpacity={0.8}
             >
               <View style={s.kidTop}>
@@ -458,13 +458,13 @@ export default function OurFamilyScreen() {
 
         {/* Quick links — prominent */}
         <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 14, marginTop: 12 }}>
-          <TouchableOpacity onPress={() => setView('profiles')} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, alignItems: 'center', gap: 4 }} activeOpacity={0.75}>
+          <TouchableOpacity onPress={() => setActiveTab('family')} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, alignItems: 'center', gap: 4 }} activeOpacity={0.75}>
             <Text style={{ fontSize: 24 }}>{'\u{1F464}'}</Text>
             <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: INK }}>Family Profiles</Text>
             <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: INK4 }}>Members, birthdays, colours</Text>
           </TouchableOpacity>
           {(dbPending.length > 0 || PENDING_ACTIONS.length > 0) && (
-            <TouchableOpacity onPress={() => setView('pending')} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, alignItems: 'center', gap: 4, borderWidth: 2, borderColor: 'rgba(161,24,48,0.15)' }} activeOpacity={0.75}>
+            <TouchableOpacity onPress={() => setActiveTab('jobs')} style={{ flex: 1, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 16, alignItems: 'center', gap: 4, borderWidth: 2, borderColor: 'rgba(161,24,48,0.15)' }} activeOpacity={0.75}>
               <Text style={{ fontSize: 24 }}>{'\u{1F4CB}'}</Text>
               <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: RED_ACCENT }}>Pending ({dbPending.length || PENDING_ACTIONS.length})</Text>
               <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: INK4 }}>Jobs & rewards to review</Text>
