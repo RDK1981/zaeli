@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 15 April 2026 — Session 12 ✅ · Kids Hub locked · Meal Planner locked · Shopping complete*
+*Last updated: 15 April 2026 — Session 12 ✅ · Kids Hub locked · Our Family v2 built · Meal Planner locked · Shopping complete*
 
 ---
 
@@ -745,6 +745,7 @@ Phase 11:  Meal Planner polish ✅ Recipe photos, rolling 10-day, Search Recipes
 Phase 12:  Kids Hub wired      ✅ Supabase tables, job completion, GIPHY, rewards, suggest job, parent approvals
 Phase 12b: Kids Hub games      ✅ 5 games rebuilt with embedded keyboards, age-tiered content, celebrations
 Phase 12c: Kids Hub polish     ✅ Games polished, flicker fixed, crossword layout, all UX feedback addressed
+Phase 12d: Our Family v2       ✅ 3-tab layout, member profiles, add member, jobs/rewards management
 Phase 9a: Dashboard redesign   🔨 ← next
 Phase 13:  Tutor rebuild       🔨
 Phase 9b: Meal Planner sheet   🔨 ← Claude Code next (zaeli-meals-mockup.html)

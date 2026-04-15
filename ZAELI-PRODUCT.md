@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 15 April 2026 — Session 12 ✅ · Kids Hub locked · Meal Planner locked · Shopping complete*
+*Last updated: 15 April 2026 — Session 12 ✅ · Kids Hub locked · Our Family v2 · Meal Planner locked · Shopping complete*
 
 ---
 
