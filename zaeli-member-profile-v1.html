@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli — Member Profile v1</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:#E8E0D8;font-family:'Poppins',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 20px 80px;gap:28px;}
+.title{font-size:22px;font-weight:800;color:#0A0A0A;text-align:center;letter-spacing:-0.4px;}
+.sub{font-size:12px;color:rgba(0,0,0,0.45);text-align:center;max-width:540px;line-height:1.7;}
+.nav-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+.nb{border:none;background:rgba(0,0,0,0.08);border-radius:20px;padding:7px 14px;font-family:'Poppins',sans-serif;font-size:11px;font-weight:600;color:rgba(0,0,0,0.45);cursor:pointer;}
+.nb.on{background:#0A0A0A;color:#fff;}
+.sec{display:none;flex-direction:column;align-items:center;gap:20px;width:100%;}
+.sec.on{display:flex;}
+.phone{width:320px;height:700px;background:#FAF8F5;border-radius:44px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.18),0 0 0 10px #1A1A1A;position:relative;}
+.phone.tall{height:780px;}
+.phone-row{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;}
+.phone-lbl{font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(0,0,0,0.30);text-align:center;max-width:300px;margin-bottom:-8px;}
+
+/* Status + Banner */
+.sb{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0;background:#F0C8C0;}
+.ban{background:#F0C8C0;padding:4px 20px 10px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.back-btn{width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,0.08);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:rgba(0,0,0,0.5);flex-shrink:0;}
+.ban-title{font-size:17px;font-weight:700;color:#0A0A0A;flex:1;}
+.hdiv{height:1px;background:rgba(0,0,0,0.08);flex-shrink:0;}
+
+/* Profile BG */
+.prof-bg{background:#F0C8C0;flex:1;overflow-y:auto;scrollbar-width:none;}
+.prof-bg::-webkit-scrollbar{display:none;}
+.pad{padding:0 14px;}
+
+/* Avatar hero */
+.av-hero{display:flex;flex-direction:column;align-items:center;padding:20px 0 16px;}
+.av-big{width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:#fff;position:relative;}
+.av-edit{position:absolute;bottom:-2px;right:-2px;width:26px;height:26px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:12px;cursor:pointer;}
+.av-name{font-size:22px;font-weight:800;color:#0A0A0A;margin-top:10px;}
+.av-role{font-size:13px;color:rgba(0,0,0,0.40);margin-top:2px;}
+
+/* Section */
+.slbl{font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(0,0,0,0.30);margin:14px 0 6px;}
+
+/* Field card */
+.field-card{background:#fff;border-radius:16px;overflow:hidden;margin-bottom:8px;}
+.field-row{padding:13px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(0,0,0,0.05);}
+.field-row:last-child{border-bottom:none;}
+.field-icon{font-size:16px;width:24px;text-align:center;flex-shrink:0;}
+.field-label{font-size:13px;font-weight:600;color:#0A0A0A;flex:1;}
+.field-value{font-size:13px;color:rgba(0,0,0,0.40);max-width:160px;text-align:right;}
+.field-arrow{font-size:14px;color:rgba(0,0,0,0.18);margin-left:4px;}
+.field-badge{font-size:10px;font-weight:700;border-radius:6px;padding:2px 8px;}
+
+/* Colour swatches */
+.colour-row{display:flex;gap:8px;padding:4px 0;}
+.cswatch{width:28px;height:28px;border-radius:50%;cursor:pointer;transition:all 0.12s;}
+.cswatch.on{box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(0,0,0,0.3);transform:scale(1.1);}
+
+/* Toggle */
+.toggle{width:44px;height:26px;border-radius:13px;position:relative;flex-shrink:0;cursor:pointer;}
+.toggle-on{background:#0A4030;}
+.toggle-off{background:rgba(0,0,0,0.12);}
+.toggle-thumb{width:22px;height:22px;border-radius:50%;background:#fff;position:absolute;top:2px;box-shadow:0 1px 4px rgba(0,0,0,0.2);}
+.thumb-on{right:2px;}
+.thumb-off{left:2px;}
+
+/* Access card */
+.access-card{background:#fff;border-radius:16px;padding:14px 16px;margin-bottom:8px;}
+.access-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.access-icon{font-size:20px;}
+.access-title{font-size:14px;font-weight:700;color:#0A0A0A;}
+.access-sub{font-size:11px;color:rgba(0,0,0,0.40);line-height:1.5;}
+.access-options{display:flex;gap:6px;margin-top:10px;}
+.access-opt{flex:1;border:1.5px solid rgba(0,0,0,0.10);border-radius:12px;padding:10px 8px;text-align:center;cursor:pointer;}
+.access-opt.on{border-color:#0A4030;background:rgba(10,64,48,0.06);}
+.access-opt-label{font-size:11px;font-weight:700;color:#0A0A0A;}
+.access-opt-sub{font-size:9px;color:rgba(0,0,0,0.35);margin-top:2px;}
+.access-opt.on .access-opt-label{color:#0A4030;}
+
+/* Tutor enrollment */
+.tutor-card{background:linear-gradient(135deg,rgba(80,32,192,0.08),rgba(216,204,255,0.3));border:1.5px solid rgba(80,32,192,0.15);border-radius:16px;padding:14px 16px;margin-bottom:8px;}
+.tutor-header{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.tutor-title{font-size:14px;font-weight:700;color:#5020C0;flex:1;}
+.tutor-price{font-size:11px;color:rgba(80,32,192,0.6);}
+
+/* Danger zone */
+.danger-card{background:rgba(255,59,59,0.04);border:1px solid rgba(255,59,59,0.12);border-radius:16px;padding:14px 16px;margin-bottom:8px;}
+.danger-row{display:flex;align-items:center;gap:10px;cursor:pointer;}
+.danger-icon{font-size:16px;}
+.danger-label{font-size:13px;font-weight:600;color:#FF3B3B;flex:1;}
+.danger-arrow{font-size:14px;color:rgba(255,59,59,0.3);}
+
+/* Add member form */
+.form-card{background:#fff;border-radius:16px;padding:16px;margin-bottom:8px;}
+.form-title{font-size:16px;font-weight:700;color:#0A0A0A;margin-bottom:12px;}
+.form-label{font-size:10px;font-weight:700;color:rgba(0,0,0,0.35);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;margin-top:10px;}
+.form-label:first-of-type{margin-top:0;}
+.form-input{width:100%;border:1.5px solid rgba(0,0,0,0.09);border-radius:12px;padding:10px 14px;font-size:14px;font-family:'Poppins',sans-serif;color:#0A0A0A;}
+.form-input::placeholder{color:rgba(0,0,0,0.25);}
+.form-row{display:flex;gap:8px;}
+.form-half{flex:1;}
+.form-submit{width:100%;padding:14px;border-radius:14px;background:#0A4030;color:#fff;font-size:15px;font-weight:700;text-align:center;cursor:pointer;border:none;font-family:'Poppins',sans-serif;margin-top:14px;}
+
+/* Role chips */
+.role-row{display:flex;gap:6px;flex-wrap:wrap;}
+.role-chip{border:1.5px solid rgba(0,0,0,0.10);border-radius:10px;padding:8px 14px;font-size:12px;font-weight:600;color:rgba(0,0,0,0.45);cursor:pointer;}
+.role-chip.on{border-color:#0A4030;background:rgba(10,64,48,0.06);color:#0A4030;}
+</style>
+</head>
+<body>
+
+<div class="title">Member Profile & Add Member</div>
+<div class="sub">Tap any family member card in the Family tab to open their profile. Edit name, nickname, DOB, year level, colour, access level. Same form for adding new members. Cap: 8 members per family.</div>
+
+<div class="nav-row">
+  <button class="nb on" onclick="go('s1',this)">Parent Profile (Rich)</button>
+  <button class="nb" onclick="go('s2',this)">Kid Profile (Poppy)</button>
+  <button class="nb" onclick="go('s3',this)">Kid — Shared Access (Duke)</button>
+  <button class="nb" onclick="go('s4',this)">Extended Member (Nana)</button>
+  <button class="nb" onclick="go('s5',this)">Add New Member</button>
+</div>
+
+<!-- ═════════════════════════════
+  PARENT PROFILE — Rich
+═════════════════════════════ -->
+<div class="sec on" id="s1">
+<div class="phone-lbl">Parent profile — full admin, all fields editable</div>
+<div class="phone-row">
+<div class="phone tall">
+  <div class="sb"><span style="font-size:14px;font-weight:600;color:#0A0A0A;">9:41</span></div>
+  <div class="ban">
+    <div class="back-btn">‹</div>
+    <div class="ban-title">Profile</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="prof-bg">
+    <div class="av-hero">
+      <div class="av-big" style="background:#4D8BFF;">R
+        <div class="av-edit">📷</div>
+      </div>
+      <div class="av-name">Richard</div>
+      <div class="av-role">Dad · Parent</div>
+    </div>
+
+    <div class="pad">
+      <div class="slbl">Personal info</div>
+      <div class="field-card">
+        <div class="field-row">
+          <div class="field-icon">👤</div>
+          <div class="field-label">Full name</div>
+          <div class="field-value">Richard</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">💬</div>
+          <div class="field-label">Nickname</div>
+          <div class="field-value">Rich</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">📝</div>
+          <div class="field-label">Role title</div>
+          <div class="field-value">Dad</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">🎂</div>
+          <div class="field-label">Date of birth</div>
+          <div class="field-value">1981</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">📧</div>
+          <div class="field-label">Email</div>
+          <div class="field-value">rich@email.com</div>
+          <div class="field-arrow">›</div>
+        </div>
+      </div>
+
+      <div class="slbl">Colour</div>
+      <div class="field-card">
+        <div class="field-row">
+          <div class="colour-row">
+            <div class="cswatch on" style="background:#4D8BFF;"></div>
+            <div class="cswatch" style="background:#3B82F6;"></div>
+            <div class="cswatch" style="background:#1D4ED8;"></div>
+            <div class="cswatch" style="background:#6366F1;"></div>
+            <div class="cswatch" style="background:#059669;"></div>
+            <div class="cswatch" style="background:#0891B2;"></div>
+            <div class="cswatch" style="background:#7C3AED;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slbl">Access</div>
+      <div class="field-card">
+        <div class="field-row">
+          <div class="field-icon">🔐</div>
+          <div class="field-label">Access level</div>
+          <div class="field-badge" style="background:rgba(77,139,255,0.12);color:#1D4ED8;">Full Admin</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">✅</div>
+          <div class="field-label">Login status</div>
+          <div class="field-badge" style="background:rgba(34,197,94,0.12);color:#166534;">Full account</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ═════════════════════════════
+  KID PROFILE — Poppy (Dedicated access)
+═════════════════════════════ -->
+<div class="sec" id="s2">
+<div class="phone-lbl">Kid profile — dedicated access, Tutor enrolled, year level editable</div>
+<div class="phone-row">
+<div class="phone tall">
+  <div class="sb"><span style="font-size:14px;font-weight:600;color:#0A0A0A;">9:41</span></div>
+  <div class="ban">
+    <div class="back-btn">‹</div>
+    <div class="ban-title">Profile</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="prof-bg">
+    <div class="av-hero">
+      <div class="av-big" style="background:#A855F7;">P
+        <div class="av-edit">📷</div>
+      </div>
+      <div class="av-name">Poppy</div>
+      <div class="av-role">Daughter · Year 6 · Age 12</div>
+    </div>
+
+    <div class="pad">
+      <div class="slbl">Personal info</div>
+      <div class="field-card">
+        <div class="field-row">
+          <div class="field-icon">👤</div>
+          <div class="field-label">Full name</div>
+          <div class="field-value">Poppy</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">💬</div>
+          <div class="field-label">Nickname</div>
+          <div class="field-value">Poppy</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">📝</div>
+          <div class="field-label">Role title</div>
+          <div class="field-value">Daughter</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">🎂</div>
+          <div class="field-label">Date of birth</div>
+          <div class="field-value">3 Apr 2014</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">🎓</div>
+          <div class="field-label">Year level</div>
+          <div class="field-value" style="font-weight:700;color:#0A0A0A;">Year 6</div>
+          <div class="field-arrow">›</div>
+        </div>
+      </div>
+
+      <div class="slbl">Colour</div>
+      <div class="field-card">
+        <div class="field-row">
+          <div class="colour-row">
+            <div class="cswatch on" style="background:#A855F7;"></div>
+            <div class="cswatch" style="background:#EC4899;"></div>
+            <div class="cswatch" style="background:#6366F1;"></div>
+            <div class="cswatch" style="background:#F43F5E;"></div>
+            <div class="cswatch" style="background:#8B5CF6;"></div>
+            <div class="cswatch" style="background:#D946EF;"></div>
+            <div class="cswatch" style="background:#F59E0B;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slbl">Access</div>
+      <div class="access-card">
+        <div class="access-top">
+          <div class="access-icon">🔑</div>
+          <div>
+            <div class="access-title">How does Poppy use Zaeli?</div>
+            <div class="access-sub">Dedicated = own login. Shared = uses your device.</div>
+          </div>
+        </div>
+        <div class="access-options">
+          <div class="access-opt on">
+            <div class="access-opt-label">Dedicated</div>
+            <div class="access-opt-sub">Own login</div>
+          </div>
+          <div class="access-opt">
+            <div class="access-opt-label">Shared</div>
+            <div class="access-opt-sub">Parent device</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-card">
+        <div class="field-row">
+          <div class="field-icon">📧</div>
+          <div class="field-label">Poppy's email</div>
+          <div class="field-value">poppy@school.edu</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">✅</div>
+          <div class="field-label">Login status</div>
+          <div class="field-badge" style="background:rgba(34,197,94,0.12);color:#166534;">Own Zaeli login</div>
+        </div>
+      </div>
+
+      <!-- What Poppy can see -->
+      <div class="slbl">What Poppy sees</div>
+      <div class="field-card">
+        <div class="field-row">
+          <div class="field-icon">📱</div>
+          <div class="field-label">Dashboard, Chat, My Space</div>
+          <div class="toggle toggle-on"><div class="toggle-thumb thumb-on"></div></div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">🏠</div>
+          <div class="field-label">Kids Hub + Games</div>
+          <div class="toggle toggle-on"><div class="toggle-thumb thumb-on"></div></div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">📚</div>
+          <div class="field-label">Tutor</div>
+          <div class="toggle toggle-on"><div class="toggle-thumb thumb-on"></div></div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">📅</div>
+          <div class="field-label">Calendar, Shopping, Meals</div>
+          <div class="toggle toggle-on"><div class="toggle-thumb thumb-on"></div></div>
+        </div>
+        <div class="field-row" style="opacity:0.5;">
+          <div class="field-icon">👨‍👩‍👧‍👦</div>
+          <div class="field-label">Our Family (admin)</div>
+          <div class="toggle toggle-off"><div class="toggle-thumb thumb-off"></div></div>
+        </div>
+        <div class="field-row" style="opacity:0.5;">
+          <div class="field-icon">⚙️</div>
+          <div class="field-label">Settings & Billing</div>
+          <div class="toggle toggle-off"><div class="toggle-thumb thumb-off"></div></div>
+        </div>
+      </div>
+
+      <!-- Tutor enrollment -->
+      <div class="slbl">Tutor</div>
+      <div class="tutor-card">
+        <div class="tutor-header">
+          <span style="font-size:18px;">📚</span>
+          <div class="tutor-title">Tutor enrolled</div>
+          <div class="tutor-price">A$9.99/month</div>
+        </div>
+        <div style="font-size:11px;color:rgba(80,32,192,0.6);line-height:1.5;">Year 6 Australian curriculum. Active since Feb 2026. 14 sessions completed.</div>
+      </div>
+
+      <!-- Danger zone -->
+      <div class="slbl">Danger zone</div>
+      <div class="danger-card">
+        <div class="danger-row">
+          <div class="danger-icon">🗑</div>
+          <div class="danger-label">Remove Poppy from family</div>
+          <div class="danger-arrow">›</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ═════════════════════════════
+  KID — Shared access (Duke)
+═════════════════════════════ -->
+<div class="sec" id="s3">
+<div class="phone-lbl">Kid — shared access, uses parent's device, simpler view</div>
+<div class="phone-row">
+<div class="phone tall">
+  <div class="sb"><span style="font-size:14px;font-weight:600;color:#0A0A0A;">9:41</span></div>
+  <div class="ban">
+    <div class="back-btn">‹</div>
+    <div class="ban-title">Profile</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="prof-bg">
+    <div class="av-hero">
+      <div class="av-big" style="background:#F59E0B;">D
+        <div class="av-edit">📷</div>
+      </div>
+      <div class="av-name">Duke</div>
+      <div class="av-role">Son · Year 1 · Age 8</div>
+    </div>
+
+    <div class="pad">
+      <div class="slbl">Personal info</div>
+      <div class="field-card">
+        <div class="field-row">
+          <div class="field-icon">👤</div>
+          <div class="field-label">Full name</div>
+          <div class="field-value">Duke</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">💬</div>
+          <div class="field-label">Nickname</div>
+          <div class="field-value">Duke</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">📝</div>
+          <div class="field-label">Role title</div>
+          <div class="field-value">Son</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">🎂</div>
+          <div class="field-label">Date of birth</div>
+          <div class="field-value">22 Sep 2016</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">🎓</div>
+          <div class="field-label">Year level</div>
+          <div class="field-value" style="font-weight:700;color:#0A0A0A;">Year 1</div>
+          <div class="field-arrow">›</div>
+        </div>
+      </div>
+
+      <div class="slbl">Colour</div>
+      <div class="field-card">
+        <div class="field-row">
+          <div class="colour-row">
+            <div class="cswatch on" style="background:#F59E0B;"></div>
+            <div class="cswatch" style="background:#EAB308;"></div>
+            <div class="cswatch" style="background:#F97316;"></div>
+            <div class="cswatch" style="background:#22C55E;"></div>
+            <div class="cswatch" style="background:#06B6D4;"></div>
+            <div class="cswatch" style="background:#3B82F6;"></div>
+            <div class="cswatch" style="background:#EF4444;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="slbl">Access</div>
+      <div class="access-card">
+        <div class="access-top">
+          <div class="access-icon">🔑</div>
+          <div>
+            <div class="access-title">How does Duke use Zaeli?</div>
+            <div class="access-sub">Duke uses your device — no separate login needed.</div>
+          </div>
+        </div>
+        <div class="access-options">
+          <div class="access-opt">
+            <div class="access-opt-label">Dedicated</div>
+            <div class="access-opt-sub">Own login</div>
+          </div>
+          <div class="access-opt on">
+            <div class="access-opt-label">Shared</div>
+            <div class="access-opt-sub">Parent device</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No email field for shared access kids -->
+
+      <!-- Tutor enrollment -->
+      <div class="slbl">Tutor</div>
+      <div class="tutor-card">
+        <div class="tutor-header">
+          <span style="font-size:18px;">📚</span>
+          <div class="tutor-title">Tutor enrolled</div>
+          <div class="tutor-price">A$9.99/month</div>
+        </div>
+        <div style="font-size:11px;color:rgba(80,32,192,0.6);line-height:1.5;">Year 1 Australian curriculum. 5 sessions completed.</div>
+      </div>
+
+      <div class="slbl">Danger zone</div>
+      <div class="danger-card">
+        <div class="danger-row">
+          <div class="danger-icon">🗑</div>
+          <div class="danger-label">Remove Duke from family</div>
+          <div class="danger-arrow">›</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ═════════════════════════════
+  EXTENDED MEMBER — Nana
+═════════════════════════════ -->
+<div class="sec" id="s4">
+<div class="phone-lbl">Extended family — grandparent with view-only access</div>
+<div class="phone-row">
+<div class="phone">
+  <div class="sb"><span style="font-size:14px;font-weight:600;color:#0A0A0A;">9:41</span></div>
+  <div class="ban">
+    <div class="back-btn">‹</div>
+    <div class="ban-title">Profile</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="prof-bg">
+    <div class="av-hero">
+      <div class="av-big" style="background:#EC4899;">N</div>
+      <div class="av-name">Margaret</div>
+      <div class="av-role">Nana</div>
+    </div>
+
+    <div class="pad">
+      <div class="slbl">Personal info</div>
+      <div class="field-card">
+        <div class="field-row">
+          <div class="field-icon">👤</div>
+          <div class="field-label">Full name</div>
+          <div class="field-value">Margaret</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">💬</div>
+          <div class="field-label">Nickname</div>
+          <div class="field-value">Nana</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">📝</div>
+          <div class="field-label">Role title</div>
+          <div class="field-value">Nana</div>
+          <div class="field-arrow">›</div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">📧</div>
+          <div class="field-label">Email</div>
+          <div class="field-value">margaret@email.com</div>
+          <div class="field-arrow">›</div>
+        </div>
+      </div>
+
+      <div class="slbl">Access</div>
+      <div class="access-card">
+        <div class="access-top">
+          <div class="access-icon">👀</div>
+          <div>
+            <div class="access-title">View-only access</div>
+            <div class="access-sub">Can see family calendar, kids' progress, and daily updates. Cannot approve jobs or manage settings.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field-card">
+        <div class="field-row">
+          <div class="field-icon">📅</div>
+          <div class="field-label">Calendar (view only)</div>
+          <div class="toggle toggle-on"><div class="toggle-thumb thumb-on"></div></div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">📊</div>
+          <div class="field-label">Kids progress (view only)</div>
+          <div class="toggle toggle-on"><div class="toggle-thumb thumb-on"></div></div>
+        </div>
+        <div class="field-row">
+          <div class="field-icon">📱</div>
+          <div class="field-label">Daily family summary</div>
+          <div class="toggle toggle-on"><div class="toggle-thumb thumb-on"></div></div>
+        </div>
+      </div>
+
+      <div class="slbl">Danger zone</div>
+      <div class="danger-card">
+        <div class="danger-row">
+          <div class="danger-icon">🗑</div>
+          <div class="danger-label">Remove from family</div>
+          <div class="danger-arrow">›</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- ═════════════════════════════
+  ADD NEW MEMBER
+═════════════════════════════ -->
+<div class="sec" id="s5">
+<div class="phone-lbl">Add a new member — collects all fields, role picker, access level</div>
+<div class="phone-row">
+<div class="phone tall">
+  <div class="sb"><span style="font-size:14px;font-weight:600;color:#0A0A0A;">9:41</span></div>
+  <div class="ban">
+    <div class="back-btn">‹</div>
+    <div class="ban-title">Add member</div>
+  </div>
+  <div class="hdiv"></div>
+  <div class="prof-bg">
+    <div class="pad" style="padding-top:14px;">
+
+      <div class="form-card">
+        <div class="form-title">Add a family member</div>
+        <div style="font-size:11px;color:rgba(0,0,0,0.40);margin-bottom:14px;line-height:1.5;">5 of 8 members used. Add a child, partner, grandparent, carer, or anyone who's part of your family.</div>
+
+        <div class="form-label">Full name</div>
+        <input class="form-input" placeholder="e.g. Margaret"/>
+
+        <div class="form-label">Nickname (used in the app)</div>
+        <input class="form-input" placeholder="e.g. Nana"/>
+
+        <div class="form-label">Their role in your family</div>
+        <div class="role-row">
+          <div class="role-chip">Son</div>
+          <div class="role-chip">Daughter</div>
+          <div class="role-chip">Partner</div>
+          <div class="role-chip on">Nana</div>
+          <div class="role-chip">Pop</div>
+          <div class="role-chip">Carer</div>
+        </div>
+        <input class="form-input" placeholder="Or type a custom role..." style="margin-top:6px;font-size:12px;"/>
+
+        <div class="form-label">Date of birth</div>
+        <div class="form-row">
+          <input class="form-input form-half" placeholder="DD"/>
+          <input class="form-input form-half" placeholder="MM"/>
+          <input class="form-input form-half" placeholder="YYYY"/>
+        </div>
+
+        <div class="form-label">Year level (kids only)</div>
+        <div class="role-row">
+          <div class="role-chip">Prep</div>
+          <div class="role-chip">Yr 1</div>
+          <div class="role-chip">Yr 2</div>
+          <div class="role-chip">Yr 3</div>
+          <div class="role-chip">Yr 4</div>
+          <div class="role-chip">Yr 5</div>
+          <div class="role-chip">Yr 6</div>
+          <div class="role-chip">Yr 7+</div>
+        </div>
+
+        <div class="form-label">Colour</div>
+        <div class="colour-row" style="padding:4px 0;">
+          <div class="cswatch on" style="background:#EC4899;"></div>
+          <div class="cswatch" style="background:#8B5CF6;"></div>
+          <div class="cswatch" style="background:#06B6D4;"></div>
+          <div class="cswatch" style="background:#22C55E;"></div>
+          <div class="cswatch" style="background:#F97316;"></div>
+          <div class="cswatch" style="background:#EF4444;"></div>
+          <div class="cswatch" style="background:#6366F1;"></div>
+        </div>
+
+        <div class="form-label">Access level</div>
+        <div class="access-options" style="margin-top:0;">
+          <div class="access-opt">
+            <div class="access-opt-label">Full</div>
+            <div class="access-opt-sub">Admin access</div>
+          </div>
+          <div class="access-opt">
+            <div class="access-opt-label">Dedicated</div>
+            <div class="access-opt-sub">Own login</div>
+          </div>
+          <div class="access-opt">
+            <div class="access-opt-label">Shared</div>
+            <div class="access-opt-sub">Your device</div>
+          </div>
+          <div class="access-opt on">
+            <div class="access-opt-label">View</div>
+            <div class="access-opt-sub">Read only</div>
+          </div>
+        </div>
+
+        <div class="form-label">Email (optional — needed for own login)</div>
+        <input class="form-input" placeholder="margaret@email.com"/>
+
+        <button class="form-submit">Add to family</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+function go(id,btn){
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+</script>
+</body>
+</html>

@@ -145,8 +145,20 @@ export default function OurFamilyScreen() {
   const [addPoints, setAddPoints] = useState(10);
   const [addType, setAddType] = useState<'daily'|'weekly'|'oneoff'>('oneoff');
   const [addSelectedKids, setAddSelectedKids] = useState<ChildName[]>([]);
-  // Edit profile
+  // Profile view
   const [editingMember, setEditingMember] = useState<string | null>(null);
+  const [familyView, setFamilyView] = useState<'list' | 'profile' | 'add'>('list');
+  const [profileMember, setProfileMember] = useState<string | null>(null);
+  // Add member form
+  const [newName, setNewName] = useState('');
+  const [newNickname, setNewNickname] = useState('');
+  const [newRole, setNewRole] = useState('');
+  const [newDob, setNewDob] = useState('');
+  const [newYear, setNewYear] = useState('');
+  const [newColour, setNewColour] = useState('#EC4899');
+  const [newAccess, setNewAccess] = useState<'full' | 'dedicated' | 'shared' | 'view'>('shared');
+  const [newEmail, setNewEmail] = useState('');
+  const COLOUR_OPTIONS = ['#4D8BFF','#FF7B6B','#A855F7','#22C55E','#F59E0B','#EC4899','#6366F1','#06B6D4','#EF4444','#8B5CF6'];
 
   useFocusEffect(useCallback(() => {
     RNStatusBar.setBarStyle('dark-content', true);
@@ -1012,14 +1024,218 @@ export default function OurFamilyScreen() {
   }
 
   // ── Family Tab ──
+  // Helper to render a field row
+  function FieldRow({ icon, label, value, onPress }: { icon: string; label: string; value?: string; onPress?: () => void }) {
+    return (
+      <TouchableOpacity onPress={onPress} style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.04)' }} activeOpacity={onPress ? 0.7 : 1}>
+        <Text style={{ fontSize: 16, width: 24, textAlign: 'center' }}>{icon}</Text>
+        <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK, flex: 1 }}>{label}</Text>
+        {value && <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, maxWidth: 160, textAlign: 'right' }}>{value}</Text>}
+        {onPress && <Text style={{ fontSize: 14, color: 'rgba(0,0,0,0.18)', marginLeft: 4 }}>›</Text>}
+      </TouchableOpacity>
+    );
+  }
+
   function FamilyTab() {
+    // Profile detail view
+    if (familyView === 'profile' && profileMember) {
+      const mem = FAMILY[profileMember as keyof typeof FAMILY];
+      if (!mem) { setFamilyView('list'); return null; }
+      const isChild = (mem as any).role === 'child';
+      const year = (mem as any).year;
+      const age = (mem as any).age;
+      const dob = (mem as any).dob;
+      const login = (mem as any).loginStatus;
+      const roleTitle = isChild ? ((mem as any).year ? (profileMember === 'Poppy' ? 'Daughter' : 'Son') : 'Child') : 'Parent';
+
+      return (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {/* Back */}
+          <TouchableOpacity onPress={() => setFamilyView('list')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8 }} activeOpacity={0.7}>
+            <Text style={{ fontSize: 18, color: INK4 }}>‹</Text>
+            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back</Text>
+          </TouchableOpacity>
+
+          {/* Avatar hero */}
+          <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+            <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: mem.colour, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 28, color: '#fff' }}>{mem.initial}</Text>
+            </View>
+            <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, marginTop: 10 }}>{profileMember}</Text>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginTop: 2 }}>
+              {roleTitle}{isChild && year ? ` · Year ${year} · Age ${age}` : ''}
+            </Text>
+          </View>
+
+          <View style={{ paddingHorizontal: 14 }}>
+            {/* Personal info */}
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Personal info</Text>
+            <View style={{ backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', marginBottom: 10 }}>
+              <FieldRow icon="👤" label="Full name" value={profileMember} />
+              <FieldRow icon="💬" label="Nickname" value={profileMember === 'Richard' ? 'Rich' : profileMember} />
+              <FieldRow icon="📝" label="Role title" value={roleTitle} />
+              {dob && <FieldRow icon="🎂" label="Date of birth" value={dob} />}
+              {isChild && year && <FieldRow icon="🎓" label="Year level" value={`Year ${year}`} />}
+              {(mem as any).email && <FieldRow icon="📧" label="Email" value={(mem as any).email} />}
+            </View>
+
+            {/* Colour */}
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Colour</Text>
+            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {COLOUR_OPTIONS.map(c => (
+                  <View key={c} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c, ...(c === mem.colour ? { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, borderWidth: 2, borderColor: '#fff' } : {}) }}/>
+                ))}
+              </View>
+            </View>
+
+            {/* Access */}
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Access</Text>
+            {isChild ? (
+              <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <Text style={{ fontSize: 20 }}>🔑</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: INK }}>How does {profileMember} use Zaeli?</Text>
+                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: INK4, lineHeight: 16 }}>Dedicated = own login. Shared = uses your device.</Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <View style={{ flex: 1, borderWidth: 1.5, borderColor: login === 'own' ? HUB_DARK : 'rgba(0,0,0,0.10)', backgroundColor: login === 'own' ? 'rgba(10,64,48,0.06)' : 'transparent', borderRadius: 12, padding: 10, alignItems: 'center' }}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: login === 'own' ? HUB_DARK : INK4 }}>Dedicated</Text>
+                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK4 }}>Own login</Text>
+                  </View>
+                  <View style={{ flex: 1, borderWidth: 1.5, borderColor: login !== 'own' ? HUB_DARK : 'rgba(0,0,0,0.10)', backgroundColor: login !== 'own' ? 'rgba(10,64,48,0.06)' : 'transparent', borderRadius: 12, padding: 10, alignItems: 'center' }}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: login !== 'own' ? HUB_DARK : INK4 }}>Shared</Text>
+                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK4 }}>Parent device</Text>
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <View style={{ backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', marginBottom: 10 }}>
+                <FieldRow icon="🔐" label="Access level" value="Full Admin" />
+                <FieldRow icon="✅" label="Login status" value="Full account" />
+              </View>
+            )}
+
+            {/* Tutor (kids only) */}
+            {isChild && (
+              <>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Tutor</Text>
+                <View style={{ backgroundColor: 'rgba(80,32,192,0.06)', borderWidth: 1.5, borderColor: 'rgba(80,32,192,0.12)', borderRadius: 16, padding: 14, marginBottom: 10 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Text style={{ fontSize: 18 }}>📚</Text>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: TUTOR_PURPLE, flex: 1 }}>
+                      {(mem as any).tutorActive ? 'Tutor enrolled' : 'Tutor not enrolled'}
+                    </Text>
+                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(80,32,192,0.6)' }}>A$9.99/month</Text>
+                  </View>
+                  {(mem as any).tutorActive && (
+                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(80,32,192,0.5)', marginTop: 4, lineHeight: 16 }}>
+                      Year {year} Australian curriculum
+                    </Text>
+                  )}
+                </View>
+              </>
+            )}
+
+            {/* Danger zone */}
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginTop: 6, marginBottom: 6 }}>Danger zone</Text>
+            <View style={{ backgroundColor: 'rgba(255,59,59,0.04)', borderWidth: 1, borderColor: 'rgba(255,59,59,0.12)', borderRadius: 16, padding: 14, marginBottom: 10 }}>
+              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }} activeOpacity={0.7}>
+                <Text style={{ fontSize: 16 }}>🗑</Text>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#FF3B3B', flex: 1 }}>Remove {profileMember} from family</Text>
+                <Text style={{ fontSize: 14, color: 'rgba(255,59,59,0.3)' }}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      );
+    }
+
+    // Add member form
+    if (familyView === 'add') {
+      const ROLE_OPTS = ['Son', 'Daughter', 'Partner', 'Nana', 'Pop', 'Carer', 'Step-mum', 'Step-dad'];
+      const YEAR_OPTS = ['Prep', 'Yr 1', 'Yr 2', 'Yr 3', 'Yr 4', 'Yr 5', 'Yr 6', 'Yr 7', 'Yr 8+'];
+      return (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 14 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <TouchableOpacity onPress={() => setFamilyView('list')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8 }} activeOpacity={0.7}>
+            <Text style={{ fontSize: 18, color: INK4 }}>‹</Text>
+            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back</Text>
+          </TouchableOpacity>
+
+          <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 18, marginTop: 6 }}>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 18, color: INK, marginBottom: 4 }}>Add a family member</Text>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK4, marginBottom: 14, lineHeight: 18 }}>5 of 8 members used. Add anyone who's part of your family.</Text>
+
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.05, marginBottom: 4 }}>Full name</Text>
+            <TextInput style={{ backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, marginBottom: 10 }} placeholder="e.g. Margaret" placeholderTextColor="rgba(0,0,0,0.25)" value={newName} onChangeText={setNewName}/>
+
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.05, marginBottom: 4 }}>Nickname (used in the app)</Text>
+            <TextInput style={{ backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, marginBottom: 10 }} placeholder="e.g. Nana" placeholderTextColor="rgba(0,0,0,0.25)" value={newNickname} onChangeText={setNewNickname}/>
+
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.05, marginBottom: 4 }}>Role in your family</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+              {ROLE_OPTS.map(r => (
+                <TouchableOpacity key={r} onPress={() => setNewRole(r)} style={{ borderWidth: 1.5, borderColor: newRole === r ? HUB_DARK : 'rgba(0,0,0,0.10)', backgroundColor: newRole === r ? 'rgba(10,64,48,0.06)' : 'transparent', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14 }} activeOpacity={0.75}>
+                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: newRole === r ? HUB_DARK : INK4 }}>{r}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput style={{ backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK, marginBottom: 10 }} placeholder="Or type a custom role..." placeholderTextColor="rgba(0,0,0,0.25)" value={ROLE_OPTS.includes(newRole) ? '' : newRole} onChangeText={setNewRole}/>
+
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.05, marginBottom: 4 }}>Date of birth</Text>
+            <TextInput style={{ backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, marginBottom: 10 }} placeholder="DD/MM/YYYY" placeholderTextColor="rgba(0,0,0,0.25)" value={newDob} onChangeText={setNewDob}/>
+
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.05, marginBottom: 4 }}>Year level (kids only)</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+              {YEAR_OPTS.map(y => (
+                <TouchableOpacity key={y} onPress={() => setNewYear(y)} style={{ borderWidth: 1.5, borderColor: newYear === y ? HUB_DARK : 'rgba(0,0,0,0.10)', backgroundColor: newYear === y ? 'rgba(10,64,48,0.06)' : 'transparent', borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12 }} activeOpacity={0.75}>
+                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: newYear === y ? HUB_DARK : INK4 }}>{y}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.05, marginBottom: 4 }}>Colour</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+              {COLOUR_OPTIONS.map(c => (
+                <TouchableOpacity key={c} onPress={() => setNewColour(c)} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c, ...(c === newColour ? { borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } } : {}) }} activeOpacity={0.75}/>
+              ))}
+            </View>
+
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.05, marginBottom: 4 }}>Access level</Text>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+              {([['full','Full','Admin'],['dedicated','Dedicated','Own login'],['shared','Shared','Your device'],['view','View','Read only']] as const).map(([key, label, sub]) => (
+                <TouchableOpacity key={key} onPress={() => setNewAccess(key as any)} style={{ flex: 1, borderWidth: 1.5, borderColor: newAccess === key ? HUB_DARK : 'rgba(0,0,0,0.10)', backgroundColor: newAccess === key ? 'rgba(10,64,48,0.06)' : 'transparent', borderRadius: 12, padding: 8, alignItems: 'center' }} activeOpacity={0.75}>
+                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: newAccess === key ? HUB_DARK : INK4 }}>{label}</Text>
+                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 8, color: INK4 }}>{sub}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.05, marginBottom: 4 }}>Email (optional — needed for own login)</Text>
+            <TextInput style={{ backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, marginBottom: 14 }} placeholder="email@example.com" placeholderTextColor="rgba(0,0,0,0.25)" value={newEmail} onChangeText={setNewEmail} keyboardType="email-address"/>
+
+            <TouchableOpacity onPress={() => {
+              // TODO: Save to Supabase when real auth is built
+              setFamilyView('list');
+              setNewName(''); setNewNickname(''); setNewRole(''); setNewDob(''); setNewYear(''); setNewEmail('');
+            }} style={{ backgroundColor: newName.trim() ? HUB_DARK : 'rgba(0,0,0,0.08)', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.8}>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: newName.trim() ? '#fff' : 'rgba(0,0,0,0.30)' }}>Add to family</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      );
+    }
+
+    // List view (default)
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40, paddingHorizontal: 14 }} showsVerticalScrollIndicator={false}>
         <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginTop: 10, marginBottom: 6 }}>Parents</Text>
         {(['Rich', 'Anna'] as const).map(name => {
           const mem = FAMILY[name];
           return (
-            <View key={name} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity key={name} onPress={() => { setProfileMember(name); setFamilyView('profile'); }} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
               <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: mem.colour, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#fff' }}>{mem.initial}</Text>
               </View>
@@ -1030,10 +1246,8 @@ export default function OurFamilyScreen() {
                   <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, color: '#166534' }}>Full account</Text>
                 </View>
               </View>
-              <View style={{ backgroundColor: 'rgba(77,139,255,0.12)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.04, color: '#1D4ED8' }}>Parent</Text>
-              </View>
-            </View>
+              <Text style={{ fontSize: 16, color: 'rgba(0,0,0,0.20)' }}>›</Text>
+            </TouchableOpacity>
           );
         })}
 
@@ -1045,7 +1259,7 @@ export default function OurFamilyScreen() {
           const dob = (mem as any).dob;
           const login = (mem as any).loginStatus;
           return (
-            <TouchableOpacity key={name} onPress={() => setEditingMember(editingMember === name ? null : name)} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
+            <TouchableOpacity key={name} onPress={() => { setProfileMember(name); setFamilyView('profile'); }} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
               <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: mem.colour, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: '#fff' }}>{mem.initial}</Text>
               </View>
@@ -1057,26 +1271,16 @@ export default function OurFamilyScreen() {
                   </View>
                 </View>
                 <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK4 }}>Age {age} {dob ? `· 🎂 ${dob}` : ''}</Text>
-                {login === 'own' && (
-                  <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 }}>
-                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, color: '#166534' }}>Own Zaeli login</Text>
-                  </View>
-                )}
-                {login === 'invite' && (
-                  <TouchableOpacity style={{ backgroundColor: 'rgba(99,102,241,0.1)', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 }} activeOpacity={0.7}>
-                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, color: '#4338CA' }}>+ Invite to Zaeli</Text>
-                  </TouchableOpacity>
-                )}
-                {login === 'parent-device' && (
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK4, marginTop: 3 }}>Uses parent's device</Text>
-                )}
+                {login === 'own' && <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 }}><Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, color: '#166534' }}>Own Zaeli login</Text></View>}
+                {login === 'invite' && <View style={{ backgroundColor: 'rgba(99,102,241,0.1)', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 }}><Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, color: '#4338CA' }}>+ Invite to Zaeli</Text></View>}
+                {login === 'parent-device' && <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK4, marginTop: 3 }}>Uses parent's device</Text>}
               </View>
               <Text style={{ fontSize: 16, color: 'rgba(0,0,0,0.20)' }}>›</Text>
             </TouchableOpacity>
           );
         })}
 
-        <TouchableOpacity style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.12)', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => { setNewName(''); setNewNickname(''); setNewRole(''); setNewDob(''); setNewYear(''); setNewEmail(''); setNewColour('#EC4899'); setNewAccess('shared'); setFamilyView('add'); }} style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.12)', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }} activeOpacity={0.7}>
           <Text style={{ fontSize: 18, opacity: 0.4 }}>+</Text>
           <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: 'rgba(0,0,0,0.38)' }}>Add a family member</Text>
         </TouchableOpacity>
