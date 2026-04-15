@@ -250,7 +250,7 @@ export async function detectAndSavePatterns(
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model:      'claude-sonnet-4-20250514',
+        model:      'claude-sonnet-4-6',
         max_tokens: 500,
         system: `You are analysing a family's activity log to find meaningful patterns.
 Return a JSON array of insights. Each insight has:

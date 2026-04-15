@@ -576,7 +576,7 @@ function logWhisper(durationSeconds: number) {
 }
 function logVision(inputTokens: number, outputTokens: number) {
   const cost = (inputTokens / 1_000_000 * CLAUDE_IN_PER_M) + (outputTokens / 1_000_000 * CLAUDE_OUT_PER_M);
-  logApiCall({ family_id:FAMILY_ID, feature:'chat_vision', model:'claude-sonnet-4-20250514', input_tokens:inputTokens, output_tokens:outputTokens, cost_usd:cost });
+  logApiCall({ family_id:FAMILY_ID, feature:'chat_vision', model:'claude-sonnet-4-6', input_tokens:inputTokens, output_tokens:outputTokens, cost_usd:cost });
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -3984,7 +3984,7 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
             method:'POST',
             headers:{ 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
             body:JSON.stringify({
-              model:'claude-sonnet-4-20250514', max_tokens:600,
+              model:'claude-sonnet-4-6', max_tokens:600,
               messages:[{ role:'user', content:[
                 { type:'image', source:{ type:'base64', media_type:imageMimeType, data:imageBase64 } },
                 { type:'text', text:'Describe this image in 2-3 sentences. If it is a receipt, list the store name and all item names with prices. If it shows food/pantry items, list each item visible. Otherwise focus on any text, dates, times, or event names visible.' },
@@ -4088,14 +4088,14 @@ Only include events directly relevant to the question. Max 5 events.`;
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method:'POST',
           headers:{ 'Content-Type':'application/json', 'x-api-key':anthropicKey, 'anthropic-version':'2023-06-01' },
-          body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:800, system:toolSys, tools:TOOLS, messages:apiMessages }),
+          body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:800, system:toolSys, tools:TOOLS, messages:apiMessages }),
         });
         const data = await response.json();
         console.log('[send] Tool API response status:', response.status, 'error:', data?.error?.message || 'none', 'stop:', data?.stop_reason);
         const inTok = data?.usage?.input_tokens ?? 0;
         const outTok = data?.usage?.output_tokens ?? 0;
         const claudeCost = (inTok/1_000_000*CLAUDE_IN_PER_M) + (outTok/1_000_000*CLAUDE_OUT_PER_M);
-        logApiCall({ family_id:FAMILY_ID, feature:'home_chat', model:'claude-sonnet-4-20250514', input_tokens:inTok, output_tokens:outTok, cost_usd:claudeCost });
+        logApiCall({ family_id:FAMILY_ID, feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:claudeCost });
 
         const toolUses = (data.content||[]).filter((b:any) => b.type==='tool_use');
         if (toolUses.length > 0) {
@@ -4110,7 +4110,7 @@ Only include events directly relevant to the question. Max 5 events.`;
           const followUp = await fetch('https://api.anthropic.com/v1/messages', {
             method:'POST',
             headers:{ 'Content-Type':'application/json', 'x-api-key':anthropicKey, 'anthropic-version':'2023-06-01' },
-            body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:500, system:toolSys, tools:TOOLS, messages:[...apiMessages, { role:'assistant', content:data.content }, { role:'user', content:toolResultContent }] }),
+            body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:500, system:toolSys, tools:TOOLS, messages:[...apiMessages, { role:'assistant', content:data.content }, { role:'user', content:toolResultContent }] }),
           });
           const followData = await followUp.json();
           const followText = followData.content?.find((b:any) => b.type==='text')?.text ?? toolResults.join('\n');
@@ -4778,7 +4778,7 @@ Only include events directly relevant to the question. Max 5 events.`;
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514', max_tokens:1500,
+          model:'claude-sonnet-4-6', max_tokens:1500,
           messages:[{ role:'user', content:[
             ...imageContents,
             { type:'text', text:`Extract the recipe from ${uris.length > 1 ? 'these images (they may be different pages of the same recipe)' : 'this image'}. Combine all information into one recipe. Return ONLY valid JSON, no markdown:\n{"name":"","cook_time":"","ingredients":"ingredient1\\ningredient2\\n...","method":"step1. step2. ..."}` },
@@ -5077,7 +5077,7 @@ Rules:
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514', max_tokens:2000,
+          model:'claude-sonnet-4-6', max_tokens:2000,
           messages:[{ role:'user', content:[
             { type:'image', source:{ type:'base64', media_type:'image/jpeg', data:imageBase64 } },
             { type:'text', text:scanPrompt },
@@ -5087,7 +5087,7 @@ Rules:
       const scanJson = await scanRes.json();
       const inTok = scanJson?.usage?.input_tokens ?? 0;
       const outTok = scanJson?.usage?.output_tokens ?? 0;
-      logApiCall({ family_id:FAMILY_ID, feature: mode === 'receipt' ? 'receipt_scan' : 'pantry_scan', model:'claude-sonnet-4-20250514', input_tokens:inTok, output_tokens:outTok, cost_usd:(inTok/1_000_000*3)+(outTok/1_000_000*15) });
+      logApiCall({ family_id:FAMILY_ID, feature: mode === 'receipt' ? 'receipt_scan' : 'pantry_scan', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:(inTok/1_000_000*3)+(outTok/1_000_000*15) });
 
       console.log('[scan] API status:', scanRes.status, 'error:', scanJson?.error?.message || 'none');
       if (scanJson?.error) {

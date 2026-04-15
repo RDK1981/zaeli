@@ -503,7 +503,7 @@ function SaveRecipeModal({visible,onClose,onSaved,router}:{visible:boolean;onClo
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',
+          model:'claude-sonnet-4-6',
           max_tokens:4096,
           messages:[{role:'user',content:[
             {type:'image',source:{type:'base64',media_type:getMediaType(base64),data:base64}},
@@ -592,7 +592,7 @@ Rules:
           'anthropic-dangerous-direct-browser-access':'true',
         },
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',
+          model:'claude-sonnet-4-6',
           max_tokens:4096,
           messages:[{role:'user',content:[
             ...imageContent,

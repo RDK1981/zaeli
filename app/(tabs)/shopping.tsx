@@ -275,7 +275,7 @@ async function scanPantryImage(base64: string): Promise<ScannedPantryItem[]> {
       feature: 'pantry_scan',
       familyId: DUMMY_FAMILY_ID,
       body: {
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         messages: [{
           role: 'user',
@@ -299,7 +299,7 @@ async function scanAnyImage(base64: string): Promise<{ type: 'pantry'; items: Sc
       feature: 'receipt_scan',
       familyId: DUMMY_FAMILY_ID,
       body: {
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1500,
         messages: [{
           role: 'user',
@@ -1765,7 +1765,7 @@ QUICK REPLY CHIPS: End EVERY reply with [chips: chip1 | chip2 | chip3] — 2-4 s
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 1024,
           system: systemPrompt,
           tools: SHOP_TOOLS,
@@ -1792,7 +1792,7 @@ QUICK REPLY CHIPS: End EVERY reply with [chips: chip1 | chip2 | chip3] — 2-4 s
             'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514', max_tokens: 300,
+            model: 'claude-sonnet-4-6', max_tokens: 300,
             system: systemPrompt, tools: SHOP_TOOLS,
             messages: [
               ...apiMessages,
@@ -1816,7 +1816,7 @@ QUICK REPLY CHIPS: End EVERY reply with [chips: chip1 | chip2 | chip3] — 2-4 s
           const cost = (it / 1_000_000) * 3.0 + (ot / 1_000_000) * 15.0;
           await supabase.from('api_logs').insert({
             family_id: DUMMY_FAMILY_ID, feature: 'shopping_chat',
-            model: 'claude-sonnet-4-20250514', input_tokens: it, output_tokens: ot, cost_usd: cost,
+            model: 'claude-sonnet-4-6', input_tokens: it, output_tokens: ot, cost_usd: cost,
           });
         } catch {}
       } else {
@@ -1833,7 +1833,7 @@ QUICK REPLY CHIPS: End EVERY reply with [chips: chip1 | chip2 | chip3] — 2-4 s
           const cost = (it / 1_000_000) * 3.0 + (ot / 1_000_000) * 15.0;
           await supabase.from('api_logs').insert({
             family_id: DUMMY_FAMILY_ID, feature: 'shopping_chat',
-            model: 'claude-sonnet-4-20250514', input_tokens: it, output_tokens: ot, cost_usd: cost,
+            model: 'claude-sonnet-4-6', input_tokens: it, output_tokens: ot, cost_usd: cost,
           });
         } catch {}
       }

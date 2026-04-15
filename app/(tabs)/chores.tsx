@@ -461,7 +461,7 @@ function TutoringSessionScreen({ session, onBack }:
         method: 'POST',
         headers: API_HEADERS,
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 200,
           system: buildSystemPrompt(),
           messages: [{ role:'user', content: openingPrompt }],
@@ -526,7 +526,7 @@ ${session.mode === 'reading' ? '- After every 2-3 reading turns, ask ONE simple 
         method: 'POST',
         headers: API_HEADERS,
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 300,
           system: buildSystemPrompt(),
           messages: [
@@ -614,7 +614,7 @@ ${session.mode === 'reading' ? '- After every 2-3 reading turns, ask ONE simple 
           method: 'POST',
           headers: API_HEADERS,
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             max_tokens: 150,
             messages: [{
               role: 'user',

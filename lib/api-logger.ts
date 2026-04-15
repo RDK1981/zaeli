@@ -9,10 +9,10 @@ import { supabase } from './supabase';
 
 // ── Pricing per model ─────────────────────────────────────────
 const PRICING: Record<string, { input: number; output: number }> = {
-  'claude-sonnet-4-20250514':  { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
+  'claude-sonnet-4-6':  { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
   'claude-haiku-4-5-20251001': { input: 0.25 / 1_000_000, output:  1.25 / 1_000_000 },
 };
-const DEFAULT_PRICING = PRICING['claude-sonnet-4-20250514'];
+const DEFAULT_PRICING = PRICING['claude-sonnet-4-6'];
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
@@ -154,7 +154,7 @@ function logUsage({
     family_id:     familyId,
     account_id:    accountId ?? null,
     feature,
-    model:         model ?? 'claude-sonnet-4-20250514',
+    model:         model ?? 'claude-sonnet-4-6',
     input_tokens:  inputTokens,
     output_tokens: outputTokens,
     cost_usd:      parseFloat(costUsd.toFixed(6)),

@@ -160,7 +160,7 @@ When a held brief fires mid-existing thread, it appears below a subtle time divi
 
 ### Models in use
 ```
-SONNET   = 'claude-sonnet-4-20250514'    — $3.00/$15.00 per M tokens
+SONNET   = 'claude-sonnet-4-6'    — $3.00/$15.00 per M tokens
 MINI     = 'gpt-5.4-mini'               — $0.75/$4.50 per M tokens  ← UPDATE from gpt-4o-mini
 GPT_MINI = 'gpt-4o-mini'               — keep for Zaeli Noticed only (already working)
 WHISPER  = 'whisper-1'                  — voice transcription (unchanged)
@@ -207,7 +207,7 @@ GPT-5.4 mini must sound like Zaeli, not like a generic assistant. Apply these ru
 ## Stack
 - React Native + Expo (iOS-first), iPhone 11 Pro Max dev device
 - Supabase (Sydney ap-southeast-2, ID: rsvbzakyyrftezthlhtd)
-- Claude Sonnet (`claude-sonnet-4-20250514`) — briefs, tool-calling, vision
+- Claude Sonnet (`claude-sonnet-4-6`) — briefs, tool-calling, vision
 - OpenAI `gpt-5.4-mini` — general chat responses (NEW — replaces gpt-4o-mini for chat)
 - OpenAI `gpt-4o-mini` — Zaeli Noticed notices only (keep as-is, already working)
 - OpenAI Whisper-1 — voice transcription
@@ -221,7 +221,7 @@ GPT-5.4 mini must sound like Zaeli, not like a generic assistant. Apply these ru
 ## Key Constants (NEVER get these wrong)
 ```
 DUMMY_FAMILY_ID    = '00000000-0000-0000-0000-000000000001'
-SONNET             = 'claude-sonnet-4-20250514'
+SONNET             = 'claude-sonnet-4-6'
 CHAT_MODEL         = 'gpt-5.4-mini'                          ← NEW
 NOTICED_MODEL      = 'gpt-4o-mini'                           ← Zaeli Noticed only
 OPENAI env var     = EXPO_PUBLIC_OPENAI_API_KEY (exact, in both files)

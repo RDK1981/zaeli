@@ -25,7 +25,7 @@ import { useChatPersistence } from '../../lib/use-chat-persistence';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
-const SONNET      = 'claude-sonnet-4-20250514';
+const SONNET      = 'claude-sonnet-4-6';
 const ANTHROPIC_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
 
 const TRAVEL_BANNER = '#A8D8F0';

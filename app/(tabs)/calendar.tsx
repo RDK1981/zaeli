@@ -1629,7 +1629,7 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514', max_tokens: 1024,
+          model: 'claude-sonnet-4-6', max_tokens: 1024,
           system: systemPrompt, tools: TOOLS, messages: apiMessages,
         }),
       });
@@ -1649,7 +1649,7 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514', max_tokens: 300, system: systemPrompt, tools: TOOLS,
+            model: 'claude-sonnet-4-6', max_tokens: 300, system: systemPrompt, tools: TOOLS,
             messages: [...apiMessages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResultContent }],
           }),
         });
@@ -1669,7 +1669,7 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
         await supabase.from('api_logs').insert({
           family_id: DUMMY_FAMILY_ID,
           feature: 'calendar_chat',
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           input_tokens: it,
           output_tokens: ot,
           cost_usd: cost,

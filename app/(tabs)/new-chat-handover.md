@@ -31,7 +31,7 @@ Hi! I'm continuing development of **Zaeli** — an iOS-first AI family life plat
 DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'
 DUMMY_MEMBER_NAME = 'Anna'
 GPT5_MINI = 'gpt-5.4-mini'
-SONNET = 'claude-sonnet-4-20250514'
+SONNET = 'claude-sonnet-4-6'
 HAIKU  = 'claude-haiku-4-5-20251001'
 ```
 **CRITICAL:** OpenAI = `max_completion_tokens`. Claude = `max_tokens`. Never mix.

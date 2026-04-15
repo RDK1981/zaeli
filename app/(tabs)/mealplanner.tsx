@@ -619,7 +619,7 @@ function SaveRecipeModal({ visible, onClose, onSaved, router }: {
         setSaving(true);
         try {
           const data = await callClaude({ feature: 'recipe_scan', familyId: DUMMY_FAMILY_ID, body: {
-            model: 'claude-sonnet-4-20250514', max_tokens: 600,
+            model: 'claude-sonnet-4-6', max_tokens: 600,
             messages: [{ role: 'user', content: [
               { type: 'image', source: { type: 'base64', media_type: getMediaType(img.assets[0].base64!), data: img.assets[0].base64! } },
               { type: 'text', text: 'Extract the recipe name, ingredients and method from this image. Respond ONLY as JSON: {"name":"...","ingredients":"...","method":"...","prep_mins":null}' },
@@ -1084,7 +1084,7 @@ function ShoppingReviewModal({ visible, meal, onClose }: {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 400,
           messages: [{ role: 'user', content: `List the main ingredients needed to cook "${meal.meal_name}" for a family of 5. Respond ONLY as JSON array, no markdown: [{"name":"Chicken thighs","emoji":"🍗"},{"name":"Soy sauce","emoji":"🫙"},...]. Max 12 items.` }],
         }),
@@ -1903,7 +1903,7 @@ CHIPS: End every reply with [chips: chip1 | chip2 | chip3] — 2-3 short action 
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514', max_tokens: 1024,
+          model: 'claude-sonnet-4-6', max_tokens: 1024,
           system: systemPrompt, tools: MEAL_TOOLS, messages: apiMessages,
         }),
       });
@@ -1923,7 +1923,7 @@ CHIPS: End every reply with [chips: chip1 | chip2 | chip3] — 2-3 short action 
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514', max_tokens: 300,
+            model: 'claude-sonnet-4-6', max_tokens: 300,
             system: systemPrompt, tools: MEAL_TOOLS,
             messages: [...apiMessages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResultContent }],
           }),
@@ -1936,7 +1936,7 @@ CHIPS: End every reply with [chips: chip1 | chip2 | chip3] — 2-3 short action 
           const it = (data.usage?.input_tokens ?? 0) + (followData.usage?.input_tokens ?? 0);
           const ot = (data.usage?.output_tokens ?? 0) + (followData.usage?.output_tokens ?? 0);
           const cost = (it / 1_000_000) * 3.0 + (ot / 1_000_000) * 15.0;
-          await supabase.from('api_logs').insert({ family_id: DUMMY_FAMILY_ID, feature: 'meals_chat', model: 'claude-sonnet-4-20250514', input_tokens: it, output_tokens: ot, cost_usd: cost });
+          await supabase.from('api_logs').insert({ family_id: DUMMY_FAMILY_ID, feature: 'meals_chat', model: 'claude-sonnet-4-6', input_tokens: it, output_tokens: ot, cost_usd: cost });
         } catch {}
       } else {
         const rawReply = data.content?.find((b: any) => b.type === 'text')?.text ?? 'Something went wrong — try again?';
@@ -1946,7 +1946,7 @@ CHIPS: End every reply with [chips: chip1 | chip2 | chip3] — 2-3 short action 
           const it = data.usage?.input_tokens ?? 0;
           const ot = data.usage?.output_tokens ?? 0;
           const cost = (it / 1_000_000) * 3.0 + (ot / 1_000_000) * 15.0;
-          await supabase.from('api_logs').insert({ family_id: DUMMY_FAMILY_ID, feature: 'meals_chat', model: 'claude-sonnet-4-20250514', input_tokens: it, output_tokens: ot, cost_usd: cost });
+          await supabase.from('api_logs').insert({ family_id: DUMMY_FAMILY_ID, feature: 'meals_chat', model: 'claude-sonnet-4-6', input_tokens: it, output_tokens: ot, cost_usd: cost });
         } catch {}
       }
     } catch (e) {

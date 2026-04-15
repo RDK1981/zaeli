@@ -597,7 +597,7 @@ export default function ZaeliChatScreen() {
         method:'POST',
         headers:{ 'Content-Type':'application/json','x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514', max_tokens:200,
+          model:'claude-sonnet-4-6', max_tokens:200,
           system:`You are Zaeli — warm, brilliant, sparkling family assistant. Australian warmth. Get straight into it — friendly, warm, and ask what they'd like to tackle. Keep it to 1-2 sentences max. ${CAPABILITY_RULES} Context: ${ctx}`,
           messages:[{ role:'user', content:`Here is the brief I just showed her:\n\n${brief}\n\nShe tapped yes to get my help. Continue the conversation from here.` }],
         }),
@@ -631,7 +631,7 @@ export default function ZaeliChatScreen() {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json','x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:120,
+        body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:120,
           system:`${CHANNELS[channel].prompt} Write a warm greeting for ${DUMMY_MEMBER_NAME} in the ${channel} channel. It is currently ${tod} (${timeStr}), so open with "Good ${tod}" naturally woven in — not robotically. Mention 1-2 things from context if relevant. Max 30 words. One emoji at start only.`,
           messages:[{ role:'user', content:ctx }] }),
       });
@@ -708,7 +708,7 @@ CRITICAL: The user is in ${tzOffset}. Always generate start_time/end_time as LOC
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: { 'Content-Type':'application/json', 'x-api-key':process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY||'', 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-          body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, system:systemPrompt, tools:TOOL_DEFINITIONS, messages:loopMessages }),
+          body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:600, system:systemPrompt, tools:TOOL_DEFINITIONS, messages:loopMessages }),
         });
         const d = await res.json();
 

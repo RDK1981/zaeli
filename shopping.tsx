@@ -240,7 +240,7 @@ async function guessCategory(itemName: string): Promise<string> {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'x-api-key': ANTHROPIC_API_KEY },
-      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 20, messages: [{ role: 'user', content: `Which single category does "${itemName}" belong to? Reply with ONLY the category name. Categories: ${categories.join(', ')}` }] }),
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 20, messages: [{ role: 'user', content: `Which single category does "${itemName}" belong to? Reply with ONLY the category name. Categories: ${categories.join(', ')}` }] }),
     });
     const data = await res.json();
     const guess = data?.content?.[0]?.text?.trim();
@@ -255,7 +255,7 @@ async function scanPantryImage(base64: string): Promise<ScannedPantryItem[]> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'x-api-key': ANTHROPIC_API_KEY },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1000,
         messages: [{
           role: 'user',
@@ -280,7 +280,7 @@ async function scanAnyImage(base64: string): Promise<{ type: 'pantry'; items: Sc
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'x-api-key': ANTHROPIC_API_KEY },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1500,
         messages: [{
           role: 'user',
@@ -388,7 +388,7 @@ function ShoppingBriefCard({ itemCount, onDismiss }: { itemCount: number; onDism
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 120, messages: [{ role: 'user', content: prompt }] }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 120, messages: [{ role: 'user', content: prompt }] }),
       });
       const data = await res.json();
       const parsed = JSON.parse(data?.content?.[0]?.text?.replace(/```json|```/g, '').trim() || '{}');

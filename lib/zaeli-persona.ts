@@ -116,7 +116,7 @@ export async function generateBriefingInsight(
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model:      'claude-sonnet-4-20250514',
+        model:      'claude-sonnet-4-6',
         max_tokens: 100,
         system:     `${ZAELI_SYSTEM}${genderLayer}\n\n${SCREEN_FOCUS[screenName]}\n\nReturn ONLY what Zaeli says — no labels, no quotes, no preamble. Just her words.`,
         messages:   [{ role: 'user', content: context }],

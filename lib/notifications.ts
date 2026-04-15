@@ -271,7 +271,7 @@ export async function detectReminderIntent(
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model:      'claude-sonnet-4-20250514',
+        model:      'claude-sonnet-4-6',
         max_tokens: 100,
         system: `Extract reminder details from this user message. Return ONLY valid JSON, nothing else, no markdown:
 {"isReminder":true,"title":"short task title max 6 words","time":"time string e.g. 5pm, tomorrow 9am, in 2 hours, friday 3pm","repeat":"none"}

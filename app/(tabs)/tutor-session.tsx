@@ -249,7 +249,7 @@ export default function TutorSessionScreen() {
       try {
         const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
         const visionBody = {
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 800,
           messages: [{
             role: 'user',

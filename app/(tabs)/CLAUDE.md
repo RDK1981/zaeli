@@ -88,7 +88,7 @@ Reference: `zaeli-persona-v9.html` in Downloads
 ```ts
 DUMMY_FAMILY_ID   = '00000000-0000-0000-0000-000000000001'
 DUMMY_MEMBER_NAME = 'Anna'
-SONNET    = 'claude-sonnet-4-20250514'
+SONNET    = 'claude-sonnet-4-6'
 HAIKU     = 'claude-haiku-4-5-20251001'
 GPT5_MINI = 'gpt-5.4-mini'
 // CRITICAL: OpenAI uses max_completion_tokens (NOT max_tokens)

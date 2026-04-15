@@ -18,7 +18,7 @@ Zaeli is a family life platform — iOS-first React Native / Expo app. Think of 
 | Framework | React Native + Expo (iOS-first) |
 | Router | Expo Router (file-based, `app/(tabs)/`) |
 | Backend | Supabase (direct client calls, no server) |
-| AI | Anthropic API direct from client (`claude-sonnet-4-20250514`) |
+| AI | Anthropic API direct from client (`claude-sonnet-4-6`) |
 | Fonts | DMSerifDisplay_400Regular + Poppins (400/500/600/700/800) |
 
 **Key constants:**
@@ -343,7 +343,7 @@ The definitive Zaeli voice reference. Key examples to preserve:
 6. **Animation** — Use `Animated` from RN. Hero uses `opacity` + `translateY` on scroll
 7. **Bold parsing** — `**text**` → split on regex, render as `Poppins_700Bold` spans
 8. **SwipeToDelete** import: `../components/SwipeToDelete` (named export)
-9. **AI model**: always `claude-sonnet-4-20250514`
+9. **AI model**: always `claude-sonnet-4-6`
 10. **Max tokens**: 600 for chat, 200 for brief, 120 for greetings, 100 for extractions
 
 ---

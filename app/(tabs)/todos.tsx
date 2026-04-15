@@ -822,14 +822,14 @@ Banned: "queued up", "locked in", "sorted", "chaos".`;
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key':anthropicKey, 'anthropic-version':'2023-06-01' },
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:600, system, tools:TOOLS, messages:apiMessages }),
+        body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:600, system, tools:TOOLS, messages:apiMessages }),
       });
       const data = await response.json();
 
       const inTok = data?.usage?.input_tokens ?? 0;
       const outTok = data?.usage?.output_tokens ?? 0;
       const cost = (inTok/1_000_000*3.00) + (outTok/1_000_000*15.00);
-      logApiCall({ family_id:FAMILY_ID, feature:'todos_chat', model:'claude-sonnet-4-20250514', input_tokens:inTok, output_tokens:outTok, cost_usd:cost });
+      logApiCall({ family_id:FAMILY_ID, feature:'todos_chat', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:cost });
 
       const toolUses = (data.content||[]).filter((b:any) => b.type==='tool_use');
       if (toolUses.length > 0) {
@@ -845,7 +845,7 @@ Banned: "queued up", "locked in", "sorted", "chaos".`;
           method:'POST',
           headers:{ 'Content-Type':'application/json', 'x-api-key':anthropicKey, 'anthropic-version':'2023-06-01' },
           body:JSON.stringify({
-            model:'claude-sonnet-4-20250514', max_tokens:300, system, tools:TOOLS,
+            model:'claude-sonnet-4-6', max_tokens:300, system, tools:TOOLS,
             messages:[...apiMessages, { role:'assistant', content:data.content }, { role:'user', content:toolResultContent }],
           }),
         });
