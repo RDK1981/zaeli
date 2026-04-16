@@ -58,7 +58,7 @@ export const WORDLE_OLDER = [
   'ABYSS','ADEPT','AGILE','ALIBI','ALOOF','AMAZE','ANGST','ANTIC','APTLY','ARBOR',
   'AROMA','ASKEW','ATTIC','AVIAN','AXIOM','BADGE','BLISS','BLUFF','BLUNT','BOGUS',
   'BRASH','BRISK','BROAD','BUDGE','CABAL','CAMEL','CARGO','CEDAR','CHASM','CIVIC',
-  'CLAMP','CLASP','CLASH','CLEFT','CLING','CLONE','COARSE','COVET','CRAFT','CRANE',
+  'CLAMP','CLASP','CLASH','CLEFT','CLING','CLONE','COAST','COVET','CRAFT','CRANE',
   'CRAVE','CRISP','CRUDE','CUBIC','DEBUT','DECOY','DELVE','DEMUR','DEPOT','DETER',
   'DIARY','DIGIT','DODGE','DOUBT','DOUSE','DOWDY','DRAFT','DRAIN','DRAPE','DRAWL',
   'DREAD','DRIED','DROIT','DRONE','DROOL','DUNCE','DWARF','EAGER','EASEL','EDICT',
@@ -76,128 +76,6 @@ export const WORDLE_OLDER = [
   'MERGE','MIRTH','MOOSE','MORPH','MOTIF','MOTTO','MOURN','MUDDY','NAIVE','NERVE',
   'NICHE','NOBLE','NOTCH','NOVEL','NUDGE','OASIS','OCCUR','ONSET','OPTIC','ORBIT',
 ];
-
-// ── WORD SCRAMBLE DATA ──────────────────────────────────────────────────────
-
-export const SCRAMBLE_LITTLE = [
-  { word: 'CAT', hint: 'A furry pet that purrs' },
-  { word: 'DOG', hint: 'Best friend of humans' },
-  { word: 'SUN', hint: 'It shines in the sky' },
-  { word: 'HAT', hint: 'You wear it on your head' },
-  { word: 'BIG', hint: 'The opposite of small' },
-  { word: 'RED', hint: 'The colour of a fire truck' },
-  { word: 'RUN', hint: 'Faster than walking' },
-  { word: 'BED', hint: 'Where you sleep' },
-  { word: 'CUP', hint: 'You drink from this' },
-  { word: 'BUS', hint: 'A big vehicle for passengers' },
-  { word: 'FISH', hint: 'It swims in water' },
-  { word: 'TREE', hint: 'It has leaves and branches' },
-  { word: 'FROG', hint: 'A green animal that hops' },
-  { word: 'BIRD', hint: 'It can fly in the sky' },
-  { word: 'CAKE', hint: 'A sweet treat for birthdays' },
-  { word: 'MILK', hint: 'A white drink from cows' },
-  { word: 'RAIN', hint: 'Water falling from clouds' },
-  { word: 'STAR', hint: 'It twinkles at night' },
-  { word: 'BOAT', hint: 'It floats on water' },
-  { word: 'BOOK', hint: 'You read stories in this' },
-];
-
-export const SCRAMBLE_MIDDLE = [
-  { word: 'BEACH', hint: 'Sandy place by the ocean' },
-  { word: 'BRAVE', hint: 'Not afraid of anything' },
-  { word: 'CLOUD', hint: 'White and fluffy in the sky' },
-  { word: 'DREAM', hint: 'What happens when you sleep' },
-  { word: 'EAGLE', hint: 'A large bird of prey' },
-  { word: 'FLAME', hint: 'The bright part of a fire' },
-  { word: 'GIANT', hint: 'Very very big' },
-  { word: 'HOUSE', hint: 'Where a family lives' },
-  { word: 'JUICE', hint: 'A fruity drink' },
-  { word: 'KNIFE', hint: 'A sharp cutting tool' },
-  { word: 'LEMON', hint: 'A sour yellow fruit' },
-  { word: 'MAGIC', hint: 'Pulling rabbits from hats' },
-  { word: 'OCEAN', hint: 'A huge body of salt water' },
-  { word: 'PIANO', hint: 'A musical instrument with keys' },
-  { word: 'QUEEN', hint: 'A female ruler' },
-  { word: 'ROBOT', hint: 'A machine that can move' },
-  { word: 'STORM', hint: 'Thunder, lightning, and rain' },
-  { word: 'TIGER', hint: 'A big striped cat' },
-  { word: 'WORLD', hint: 'Our planet Earth' },
-  { word: 'ZEBRA', hint: 'A striped African horse' },
-];
-
-export const SCRAMBLE_OLDER = [
-  { word: 'ANCHOR', hint: 'Keeps a boat in place' },
-  { word: 'BRIDGE', hint: 'Crosses over a river' },
-  { word: 'CASTLE', hint: 'A medieval fortress' },
-  { word: 'DESERT', hint: 'A dry sandy landscape' },
-  { word: 'ENGINE', hint: 'Powers a car or plane' },
-  { word: 'FOSSIL', hint: 'Ancient preserved remains' },
-  { word: 'GALAXY', hint: 'A system of billions of stars' },
-  { word: 'HARBOR', hint: 'Where ships dock safely' },
-  { word: 'ISLAND', hint: 'Land surrounded by water' },
-  { word: 'JUNGLE', hint: 'A dense tropical forest' },
-  { word: 'KNIGHT', hint: 'A medieval warrior in armour' },
-  { word: 'LAUNCH', hint: 'To send a rocket up' },
-  { word: 'MIRROR', hint: 'You see your reflection in it' },
-  { word: 'NATURE', hint: 'The natural world around us' },
-  { word: 'OXYGEN', hint: 'The gas we breathe' },
-  { word: 'PIRATE', hint: 'A sea robber with an eyepatch' },
-  { word: 'RIDDLE', hint: 'A tricky puzzle with words' },
-  { word: 'SHADOW', hint: 'A dark shape cast by light' },
-  { word: 'THRONE', hint: 'Where a king sits' },
-  { word: 'VOYAGE', hint: 'A long journey by sea' },
-];
-
-// ── MATHS SPRINT DATA ───────────────────────────────────────────────────────
-
-export type MathsOp = '+' | '-' | 'x';
-
-export function generateMathsQuestion(tier: 'little' | 'middle' | 'older'): { question: string; answer: number } {
-  const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
-
-  if (tier === 'little') {
-    // Addition and subtraction up to 20
-    const op = Math.random() < 0.5 ? '+' : '-';
-    if (op === '+') {
-      const a = rand(1, 10); const b = rand(1, 10);
-      return { question: `${a} + ${b}`, answer: a + b };
-    } else {
-      const a = rand(5, 20); const b = rand(1, a);
-      return { question: `${a} - ${b}`, answer: a - b };
-    }
-  }
-
-  if (tier === 'middle') {
-    // Addition, subtraction, multiplication
-    const r = Math.random();
-    if (r < 0.33) {
-      const a = rand(10, 99); const b = rand(10, 99);
-      return { question: `${a} + ${b}`, answer: a + b };
-    } else if (r < 0.66) {
-      const a = rand(20, 99); const b = rand(10, a);
-      return { question: `${a} - ${b}`, answer: a - b };
-    } else {
-      const a = rand(2, 12); const b = rand(2, 12);
-      return { question: `${a} x ${b}`, answer: a * b };
-    }
-  }
-
-  // Older — harder multiplication, division, mixed
-  const r = Math.random();
-  if (r < 0.25) {
-    const a = rand(50, 999); const b = rand(10, 99);
-    return { question: `${a} + ${b}`, answer: a + b };
-  } else if (r < 0.5) {
-    const a = rand(100, 999); const b = rand(10, a);
-    return { question: `${a} - ${b}`, answer: a - b };
-  } else if (r < 0.75) {
-    const a = rand(5, 25); const b = rand(5, 25);
-    return { question: `${a} x ${b}`, answer: a * b };
-  } else {
-    const b = rand(2, 12); const answer = rand(2, 25); const a = b * answer;
-    return { question: `${a} \u00F7 ${b}`, answer };
-  }
-}
 
 // ── AUSSIE TRIVIA ───────────────────────────────────────────────────────────
 
@@ -288,42 +166,88 @@ export interface CrosswordPuzzle {
 }
 
 export const CROSSWORDS: CrosswordPuzzle[] = [
+  // Puzzle 1 — verified
+  // Across: BEACH, ADORE, EDGES | Down: BRAVE, ALONG, HEELS
   {
     grid: [
       ['B','E','A','C','H'],
-      ['R','#','N','#','O'],
-      ['A','U','T','O','P'],
-      ['V','#','S','#','E'],
+      ['R','#','L','#','E'],
+      ['A','D','O','R','E'],
+      ['V','#','N','#','L'],
       ['E','D','G','E','S'],
     ],
     acrossClues: [
       { num: 1, clue: 'Sandy shore', row: 0, col: 0, length: 5 },
-      { num: 3, clue: 'A car', row: 2, col: 0, length: 4 },
+      { num: 3, clue: 'Love or admire', row: 2, col: 0, length: 5 },
       { num: 5, clue: 'Borders or sides', row: 4, col: 0, length: 5 },
     ],
     downClues: [
       { num: 1, clue: 'Courageous', row: 0, col: 0, length: 5 },
-      { num: 2, clue: 'Insects', row: 0, col: 2, length: 5 },
-      { num: 4, clue: 'Desire or wish', row: 0, col: 4, length: 5 },
+      { num: 2, clue: 'Following the length of', row: 0, col: 2, length: 5 },
+      { num: 4, clue: 'Back of your shoes', row: 0, col: 4, length: 5 },
     ],
   },
+  // Puzzle 2 — verified
+  // Across: CLASP, ABIDE, TREES | Down: CRAFT, ARISE, PRESS
   {
     grid: [
-      ['S','T','A','R','T'],
-      ['H','#','I','#','R'],
-      ['A','L','L','O','W'],
-      ['R','#','E','#','E'],
-      ['K','N','D','L','E'],
+      ['C','L','A','S','P'],
+      ['R','#','R','#','R'],
+      ['A','B','I','D','E'],
+      ['F','#','S','#','S'],
+      ['T','R','E','E','S'],
     ],
     acrossClues: [
-      { num: 1, clue: 'Begin', row: 0, col: 0, length: 5 },
-      { num: 3, clue: 'Permit', row: 2, col: 0, length: 5 },
-      { num: 5, clue: 'Light a fire', row: 4, col: 0, length: 5 },
+      { num: 1, clue: 'Fasten or hold tightly', row: 0, col: 0, length: 5 },
+      { num: 3, clue: 'To stay or remain', row: 2, col: 0, length: 5 },
+      { num: 5, clue: 'Oaks, pines, and gums', row: 4, col: 0, length: 5 },
     ],
     downClues: [
-      { num: 1, clue: 'A type of fish', row: 0, col: 0, length: 5 },
-      { num: 2, clue: 'Ventilated', row: 0, col: 2, length: 5 },
-      { num: 4, clue: 'A large tree', row: 0, col: 4, length: 5 },
+      { num: 1, clue: 'A skilled trade or art', row: 0, col: 0, length: 5 },
+      { num: 2, clue: 'To get up or wake', row: 0, col: 2, length: 5 },
+      { num: 4, clue: 'Push or a newspaper', row: 0, col: 4, length: 5 },
+    ],
+  },
+  // Puzzle 3 — verified
+  // Across: FLAME, LINER, EASED | Down: FALSE, AUNTS, ERRED
+  {
+    grid: [
+      ['F','L','A','M','E'],
+      ['A','#','U','#','R'],
+      ['L','I','N','E','R'],
+      ['S','#','T','#','E'],
+      ['E','A','S','E','D'],
+    ],
+    acrossClues: [
+      { num: 1, clue: 'Fire or blaze', row: 0, col: 0, length: 5 },
+      { num: 3, clue: 'A ship or plane route', row: 2, col: 0, length: 5 },
+      { num: 5, clue: 'Made less tense', row: 4, col: 0, length: 5 },
+    ],
+    downClues: [
+      { num: 1, clue: 'Not true', row: 0, col: 0, length: 5 },
+      { num: 2, clue: 'Your parents\' sisters', row: 0, col: 2, length: 5 },
+      { num: 4, clue: 'Made a mistake', row: 0, col: 4, length: 5 },
+    ],
+  },
+  // Puzzle 4 — verified
+  // Across: GRASP, MOOSE, STERN | Down: GAMES, ABOVE, PREEN
+  {
+    grid: [
+      ['G','R','A','S','P'],
+      ['A','#','B','#','R'],
+      ['M','O','O','S','E'],
+      ['E','#','V','#','E'],
+      ['S','T','E','R','N'],
+    ],
+    acrossClues: [
+      { num: 1, clue: 'Grab or understand', row: 0, col: 0, length: 5 },
+      { num: 3, clue: 'A large animal with antlers', row: 2, col: 0, length: 5 },
+      { num: 5, clue: 'Serious or strict', row: 4, col: 0, length: 5 },
+    ],
+    downClues: [
+      { num: 1, clue: 'Fun activities to play', row: 0, col: 0, length: 5 },
+      { num: 2, clue: 'Higher than or on top of', row: 0, col: 2, length: 5 },
+      { num: 4, clue: 'To groom or tidy feathers', row: 0, col: 4, length: 5 },
     ],
   },
 ];
@@ -333,18 +257,4 @@ export function getWeeklyCrossword(): CrosswordPuzzle {
   const now = new Date();
   const weekNum = Math.floor((now.getTime() - new Date('2026-01-01').getTime()) / (7 * 86400000));
   return CROSSWORDS[weekNum % CROSSWORDS.length];
-}
-
-// Helper: scramble a word
-export function scrambleWord(word: string): string {
-  const arr = word.split('');
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  // Ensure it's actually different from the original
-  if (arr.join('') === word) {
-    [arr[0], arr[1]] = [arr[1], arr[0]];
-  }
-  return arr.join('');
 }

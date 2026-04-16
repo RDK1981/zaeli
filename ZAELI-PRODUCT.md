@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 15 April 2026 — Session 12 ✅ · Kids Hub locked · Our Family v2 · Meal Planner locked · Shopping complete*
+*Last updated: 16 April 2026 — Session 13 ✅ · Tutor module built · AI summaries · Kids Hub 3 games · Our Family tutor progress*
 
 ---
 
@@ -258,18 +258,19 @@ Our Family · Tutor · Our Budget (coming soon) · Settings · Upload options (T
 12. ✅ Zaeli persona + model routing locked (Session 9)
 13. ✅ Shopping sheet complete (Session 10) — List/Pantry/Spend, receipt scan, tick/undo
 14. ✅ Meal Planner sheet built + polished (Sessions 10-11) — 3 tabs, recipes with photos, cook picker, kids jobs, rolling 10-day, search with day context
-15. 🔨 Dashboard redesign build (zaeli-dashboard-redesign.html)
-15. 🔨 Camera/Upload build (zaeli-camera-upload.html)
-16. 🔨 AI Brief system implementation (Sonnet briefs, GPT-5.4 mini routing)
+15. ✅ Kids Hub — built (Session 12) + trimmed to 3 games (Session 13) — Wordle, Trivia, Crossword
+16. ✅ Our Family — v2 built (Session 12) + tutor progress wired (Session 13)
+17. ✅ Tutor module — built (Session 13) — 6 pillars, ACARA curriculum, AI summaries, parent views, camera, Whisper
+18. 🔨 Tutor stress testing — kids testing all 6 pillars
+19. 🔨 Dashboard redesign build (zaeli-dashboard-redesign.html)
+20. 🔨 Camera/Upload build (zaeli-camera-upload.html)
+21. 🔨 AI Brief system implementation (Sonnet briefs, GPT-5.4 mini routing)
 
 ### Phase B — Make it testable
-17. 🔨 Real authentication (replace DUMMY_FAMILY_ID)
-18. 🔨 EAS build + TestFlight
-19. 🔨 LANDING_TEST_MODE = false
-20. 🔨 Kids Hub — dedicated screen
-21. 🔨 Tutor rebuild — dedicated screen
-22. 🔨 Our Family module
-23. 🔨 Settings (account, family members, subscription)
+22. 🔨 Real authentication (replace DUMMY_FAMILY_ID)
+23. 🔨 EAS build + TestFlight
+24. 🔨 LANDING_TEST_MODE = false
+25. 🔨 Settings (account, family members, subscription)
 24. 🔨 Our Budget — if Basiq confirmed
 25. 🔨 Nav architecture review (with real usage data)
 
@@ -325,9 +326,9 @@ Our Family · Tutor · Our Budget (coming soon) · Settings · Upload options (T
 - [ ] Real authentication
 - [ ] EAS build · TestFlight
 - [ ] LANDING_TEST_MODE = false
-- [ ] Kids Hub
-- [ ] Tutor rebuild
-- [ ] Our Family
+- [x] Kids Hub ✅ (Session 12 — built, Session 13 — trimmed to 3 games, crossword fixed)
+- [x] Tutor module ✅ (Session 13 — 6 pillars, ACARA curriculum, AI summaries, parent views)
+- [x] Our Family ✅ (Session 12 — v2 tabs, Session 13 — live tutor progress + session review)
 - [ ] Settings
 - [ ] Our Budget (pending Basiq)
 - [ ] Zaeli Voice (ElevenLabs)

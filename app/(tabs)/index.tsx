@@ -456,7 +456,11 @@ const CALENDAR_KEYWORDS = [
 
 // Fix Whisper misspellings of "Zaeli"
 function fixZaeliSpelling(text: string): string {
-  return text.replace(/\b(zelie|zeli|zayli|zaylee|zaily|zalie|zellie|zailee|zaelie)\b/gi, 'Zaeli');
+  return text.replace(/\b(zelie|zeli|zayli|zaylee|zaily|zalie|zellie|zailee|zaelie|xaeli|xaily|xaylee|zayeli|zaeli's|zaeli)\b/gi, (match) => {
+    if (match.toLowerCase() === "zaeli's") return "Zaeli's";
+    if (match.toLowerCase() === 'zaeli') return 'Zaeli';
+    return 'Zaeli';
+  });
 }
 
 const ACTION_KEYWORDS = [

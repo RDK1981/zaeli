@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*15 April 2026 — Session 12 ✅ · Shopping complete · Meal Planner locked · Kids Hub locked · Our Family v2 built*
+*16 April 2026 — Session 13 ✅ · Tutor module built · AI summaries · Kids Hub 3 games · Our Family tutor progress*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -44,6 +44,29 @@ Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 - **Rolling 10 days**: starts from today, no past days
 - **Today = coral border**, active swap = mint border (wraps full card + picker)
 - **Search Recipes with day context**: mealPendingRecipeDay state, mint banner in Recipes tab, auto-assigns on select
+
+### Tutor module (Session 13 — BUILT, stress testing):
+- **Child Selector** (`tutor.tsx`): lavender background, Poppins 40px wordmark (matches Kids Hub), Premium badge, child cards with streaks, locked/upsell states
+- **Child Home** (`tutor-child.tsx`): compact 3x2 pillar grid (Homework, Practice, Read Aloud, Write, Comprehension, Money & Life), week stats strip, recent sessions with long-press rename
+- **Session Engine** (`tutor-session.tsx`): unified screen for all 6 pillars, Sonnet-powered conversation with ACARA v9.0 curriculum data
+- **6 Pillars**: Practice (MC + progress bar + hint/next pill), Homework (free conversation + photo upload), Read Aloud (mic-first + Whisper), Write & Review (before/after feedback), Comprehension (passage + layered questions), Money & Life (amber theme + progressive levels)
+- **Curriculum data** (`tutor-curriculum.ts`): Full Australian Curriculum v9.0 — Maths/English/Science/HASS Foundation-Year 12, 3 difficulty bands, dynamic topic chips per year level
+- **Session recording**: all messages saved to `tutor_messages`, session stats to `tutor_sessions`, duration tracking with timer
+- **AI summaries** (`lib/tutor-summaries.ts`): Sonnet generates session summaries on exit + subject progress reports on demand, cached 24hr in `tutor_subject_summaries`
+- **Camera + Whisper**: photo upload (HEIC→JPEG), iOS ActionSheet (Take Photo/Choose Library), Whisper transcription with Zaeli spelling fix
+- **Parent views in Our Family**: TutorProgressView (per-child stats, per-subject cards with expand-for-Zaeli-summary), SessionReviewView (stats, AI summary, full colour-coded transcript)
+- **Supabase tables**: `tutor_sessions` (with summary column), `tutor_messages`, `tutor_progress`, `tutor_money_levels`, `tutor_subject_summaries`
+
+### Kids Hub (Session 13 — updated):
+- **3 games only**: Zaeli's Wordle, World Trivia, Mini Crossword (Word Scramble + Maths Sprint removed)
+- **Crossword fixed**: 4 verified puzzles, all words valid, bigger cells (54px), larger fonts
+- **Maths Sprint moved**: concept belongs in Tutor Practice pillar, not casual games
+
+### Our Family (Session 13 — tutor wired):
+- **Live tutor progress**: replaces hardcoded CHILD_DETAIL data with Supabase-powered sessions/progress
+- **Progress View**: per-child overview (sessions/time/streak), per-subject cards with bands + progress bars, tap to expand with Zaeli AI summary
+- **Session Review**: Zaeli AI summary, stats (questions/hints/photos), topic tags, full transcript colour-coded by speaker
+- **Navigation**: kid card "Tutor progress" → Progress View → tap session → Session Review (all stays inside Our Family)
 
 ### Infrastructure:
 - Context flow: isActive prop + contextTrigger counter from swipe-world (fixes scroll race condition)
@@ -130,18 +153,23 @@ Upload-only approach without live bank feeds not compelling enough for Dashboard
 ## NEXT PRIORITIES (in order)
 ## ══════════════════════════════════
 
-**Immediate — Claude Code with handover files:**
+**Immediate — stress testing + polish:**
 1. ✅ **Shopping sheet** — COMPLETE (Session 10)
-2. ✅ **Meal Planner sheet** — COMPLETE + LOCKED (Sessions 10-11) — recipe photos, rolling 10-day, search with day context
-3. **Dashboard redesign** — 5 clean rows, On the Radar card, Our Budget removed (`zaeli-dashboard-redesign.html`)
-4. **Camera/Upload** — chat bar icon + FAB More sheet (`zaeli-camera-upload.html`)
-5. **AI Brief system** — implement Sonnet briefs, GPT-5.4 mini routing, `zaeli_briefs` table (`zaeli-brief-examples.html`)
+2. ✅ **Meal Planner sheet** — COMPLETE + LOCKED (Sessions 10-11)
+3. ✅ **Kids Hub** — BUILT (Session 12) + trimmed to 3 games (Session 13)
+4. ✅ **Tutor module** — BUILT (Session 13) — 6 pillars, curriculum, AI summaries, parent views
+5. ✅ **Our Family** — v2 BUILT (Session 12) + tutor progress wired (Session 13)
+6. 🔨 **Tutor stress testing** — kids need to test all 6 pillars, verify curriculum accuracy
+7. 🔨 **Session resume** — reload conversation from tutor_messages when resuming active session
+8. **Dashboard redesign** — 5 clean rows, On the Radar card (`zaeli-dashboard-redesign.html`)
+9. **Camera/Upload** — chat bar icon + FAB More sheet (`zaeli-camera-upload.html`)
+10. **AI Brief system** — Sonnet briefs, GPT-5.4 mini routing (`zaeli-brief-examples.html`)
 
 **Then:**
-5. **Dedicated pages** — Kids Hub, Tutor, Our Family, Settings
-6. **Our Budget** — when Basiq pricing confirmed (`zaeli-budget-final.html`)
-7. **EAS Build** — HealthKit, embedded YouTube, real auth, TestFlight
-8. **Nav architecture review** — Phase 2, with real usage data
+- **Settings** — account, family members, subscription, billing
+- **Our Budget** — when Basiq pricing confirmed (`zaeli-budget-final.html`)
+- **EAS Build** — HealthKit, embedded YouTube, real auth, TestFlight
+- **Nav architecture review** — Phase 2, with real usage data
 
 ---
 
@@ -150,6 +178,15 @@ Upload-only approach without live bank feeds not compelling enough for Dashboard
 - `app/(tabs)/swipe-world.tsx` — Container (FAB, dots, landing, isActive props, pendingMicText)
 - `app/(tabs)/dashboard.tsx` — Dashboard (cards + brief, isActive refresh)
 - `app/(tabs)/my-space.tsx` — My Space (brief + WotD + grid + Wordle + all sheets)
+- `app/(tabs)/tutor.tsx` — Tutor child selector (lavender, who's learning today)
+- `app/(tabs)/tutor-child.tsx` — Tutor child home (3x2 pillar grid, recent sessions)
+- `app/(tabs)/tutor-session.tsx` — Tutor session engine (all 6 pillars, Sonnet AI)
+- `app/(tabs)/tutor-curriculum.ts` — ACARA v9.0 curriculum data + topic chips
+- `app/(tabs)/kids.tsx` — Kids Hub (3 games: Wordle, Trivia, Crossword)
+- `app/(tabs)/kids-games-data.ts` — Game word lists, trivia, crossword puzzles
+- `app/(tabs)/family.tsx` — Our Family (3 tabs + tutor progress/review views)
+- `lib/tutor-summaries.ts` — AI summary generation (session + subject)
+- `lib/api-logger.ts` — Anthropic API wrapper + cost logging
 - `app/components/ZaeliFAB.tsx` — FAB with mic waveform, peach dashboard active
 - `lib/navigation-store.ts` — Context passing between dashboard↔chat
 
@@ -189,6 +226,10 @@ Supabase (personal)  →  personal_tasks    (member-scoped)
 Supabase (briefs)    →  zaeli_briefs      (family-scoped, NEW session 9)
 Supabase (recipes)   →  recipes           (family-scoped, NEW session 9)
 Supabase (meals)     →  meal_plan         (family-scoped, NEW session 9)
+Supabase (tutor)     →  tutor_sessions    (family-scoped, NEW session 13)
+Supabase (tutor)     →  tutor_messages    (per-session transcript, NEW session 13)
+Supabase (tutor)     →  tutor_progress    (per-child per-subject, NEW session 13)
+Supabase (tutor)     →  tutor_subject_summaries (AI cache, 24hr TTL, NEW session 13)
 ```
 
 ---
@@ -224,12 +265,22 @@ Supabase (meals)     →  meal_plan         (family-scoped, NEW session 9)
 - kids_jobs table = NEW (family_id, child_name, title, points, source, linked_date, is_complete)
 - Meal sheet entry = meals_sheet context type (same pattern as shopping_sheet/calendar_sheet)
 - Chat bar clear = setInput('') + inputRef.current?.clear() (native backup)
+- Tutor sessions: expo-router reuses component — must reset ALL state when params change (useEffect on [childId, pillar])
+- Tutor message keys: use incrementing counter (nextMsgId()) not Date.now() — prevents duplicate key errors
+- Unicode escapes (\u00B7 etc) in JSX text must be wrapped in {'·'} expressions — raw escapes show as text
+- Whisper spelling: fixZaeliSpelling() catches xaeli/zeli/zayli etc — add to both index.tsx AND tutor-session.tsx
+- Tutor session summary: generated by Sonnet on session exit (fire-and-forget), saved to tutor_sessions.summary
+- Subject summaries: generated on demand, cached 24hr in tutor_subject_summaries
+- tutor_sessions table has legacy `mode` column (NOT NULL) — must include `mode: pillar` in inserts
+- Kids Hub: 3 games only (Wordle, Trivia, Crossword) — Word Scramble + Maths Sprint removed session 13
+- Our Family parent views: TutorProgressView + SessionReviewView render inside family.tsx (not separate screens)
 
 ---
 
 **Read CLAUDE.md fully before starting any code work.**
+**For tutor mockup: read zaeli-tutor-final-mockup-v4_1.html + zaeli-tutor-curriculum-map-v1.html**
+**For tutor child home redesign: read zaeli-tutor-child-home-options.html (Option B chosen)**
 **For dashboard build: read zaeli-dashboard-redesign.html first.**
-**For meal planner build: read zaeli-meals-mockup.html first.**
 **For camera/upload build: read zaeli-camera-upload.html first.**
 **For brief system build: read zaeli-brief-examples.html first.**
 **For budget build (when ready): read zaeli-budget-final.html first.**

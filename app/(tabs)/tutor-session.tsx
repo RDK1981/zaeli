@@ -1,792 +1,1460 @@
 /**
- * Tutor Session Screen — Homework Help
+ * Tutor Session Screen — Unified Session Engine
  * app/(tabs)/tutor-session.tsx
+ *
+ * Screens 3-9 from zaeli-tutor-final-mockup-v4_1.html
+ * Handles all 6 pillars with pillar-specific UI:
+ *   Practice/Comprehension: progress bar + hint/next pill + MC
+ *   Homework: free conversation, no progress bar
+ *   Read Aloud: mic-highlighted, voice-first
+ *   Write & Review: text input focused, feedback cards
+ *   Money & Life: amber theme variant
+ *
+ * Core engine: Sonnet-powered conversation with curriculum-aware prompts.
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, KeyboardAvoidingView, Platform, StatusBar as RNStatusBar,
-  ActivityIndicator, Alert, Image, Animated, Clipboard, Share,
+  ActivityIndicator, Dimensions, Keyboard, ActionSheetIOS, Alert,
 } from 'react-native';
-import Svg, { Path, Rect, Polygon, Polyline, Line, Circle } from 'react-native-svg';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import Svg, { Polyline, Line, Rect, Path, Polygon } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../../lib/supabase';
 import { callClaude } from '../../lib/api-logger';
+import { getCurriculumPrompt, getMoneyLevelPrompt, getTopicChips, DIFFICULTY_RULES, HINT_RULES } from './tutor-curriculum';
+import { generateSessionSummary } from '../../lib/tutor-summaries';
 
 // ── Constants ─────────────────────────────────────────────────
-const FAMILY_ID  = '00000000-0000-0000-0000-000000000001';
-const T_DARK     = '#1A1A2E';
-const HW_INDIGO  = '#1A5F7A';   // Homework Help — deep teal
-const T_GOLD     = '#C9A84C';
-const T_GOLD2    = '#B8963E';
-const T_GOLDL    = 'rgba(201,168,76,0.08)';
-const BLUE       = '#0057FF';
-const MAG        = '#E0007C';
-const INK        = '#0A0A0A';
-const INK2       = 'rgba(10,10,10,0.45)';
-const INK3       = 'rgba(10,10,10,0.18)';
-const BORDER     = 'rgba(0,0,0,0.07)';
-const BG         = '#F4F6FA';
-const CARD       = '#FFFFFF';
-const GPT_MODEL  = 'gpt-5.4-mini';
+const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+const SONNET = 'claude-sonnet-4-6';
+const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
+const ANTHROPIC_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+const { width: W, height: H } = Dimensions.get('window');
 
-const ICON_SIZE   = 18;
-const ICON_STROKE = 1.8;
-const ICON_COLOR  = 'rgba(0,0,0,0.40)';
+// Palette
+const LAV       = '#D8CCFF';
+const PURPLE    = '#5020C0';
+const PURPLE_D  = '#3010A0';
+const PURPLE_L  = '#EDE8FF';
+const MINT      = '#A8E8CC';
+const MINT_BG   = 'rgba(168,232,204,0.15)';
+const MINT_BD   = 'rgba(168,232,204,0.3)';
+const INK       = '#0A0A0A';
+const INK2      = 'rgba(0,0,0,0.42)';
+const INK3      = 'rgba(0,0,0,0.35)';
+const CORAL     = '#FF4545';
+const GREEN     = '#22C55E';
+const RED       = '#EF4444';
+const AMBER     = '#F59E0B';
+const BODY_BG   = '#FFFFFF';
 
-// ── Detect real image format from base64 magic bytes ──────────
-// expo-image-picker mimeType can return 'image/jpg' (invalid for Claude)
-// or undefined. Reading the actual bytes is the only reliable approach.
-// HEIC files start with AAAAJGZ0eXBoZWlj — Claude cannot process these.
-function getMediaType(base64: string): 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp' {
-  if (!base64) return 'image/jpeg';
-  // Strip data URI prefix if present
-  const raw = base64.replace(/^data:image\/[^;]+;base64,/, '');
-  if (raw.startsWith('/9j/'))       return 'image/jpeg';
-  if (raw.startsWith('iVBORw0K'))  return 'image/png';
-  if (raw.startsWith('R0lGOD'))    return 'image/gif';
-  if (raw.startsWith('UklGR'))     return 'image/webp';
-  // HEIC/HEIF — Apple format, not supported by Claude
-  // Magic bytes decode to ftyp box: AAAAJGZ0eXBoZWlj = ftypheic
-  if (raw.startsWith('AAAAJ') || raw.startsWith('AAAAI')) return 'image/jpeg'; // will be caught by HEIC guard
-  return 'image/jpeg';
+// Pillar display names
+const PILLAR_NAMES: Record<string, string> = {
+  'homework': 'Homework',
+  'practice': 'Practice',
+  'read-aloud': 'Read Aloud',
+  'write-review': 'Write & Review',
+  'comprehension': 'Comprehension',
+  'money-life': 'Money & Life',
+};
+
+// Which pillars get progress bar + hint/next pill
+const STRUCTURED_PILLARS = ['practice', 'comprehension', 'money-life'];
+
+// Family colours
+const FAMILY_COLOURS: Record<string, string> = {
+  Rich: '#4D8BFF', Anna: '#FF7B6B', Poppy: '#A855F7', Gab: '#22C55E', Duke: '#F59E0B',
+};
+
+// ── Types ─────────────────────────────────────────────────────
+interface Message {
+  id: string;
+  role: 'zaeli' | 'child';
+  content: string;
+  chips?: string[];
+  mcOptions?: MCOption[];
+  techniqueCard?: { label: string; content: string; caption?: string };
+  imageUri?: string;
+  timestamp: Date;
 }
 
-function getOpenAIKey() { return process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''; }
-
-async function logGpt(feature: string, usage: any) {
-  const i = usage?.prompt_tokens ?? 0;
-  const o = usage?.completion_tokens ?? 0;
-  supabase.from('api_logs').insert({
-    family_id: FAMILY_ID, feature, model: GPT_MODEL,
-    input_tokens: i, output_tokens: o,
-    cost_usd: parseFloat(((i * 0.75 + o * 4.50) / 1_000_000).toFixed(6)),
-  }).then(({ error }) => { if (error) console.warn('log:', error.message); });
+interface MCOption {
+  label: string;
+  text: string;
+  correct?: boolean;
+  selected?: boolean;
 }
 
-function buildSystemPrompt(childName: string, yearLevel: number, subject: string) {
-  return `You are Zaeli, a warm encouraging AI tutor helping ${childName}, an Australian Year ${yearLevel} student.
-
-ABSOLUTE RULES — never break these:
-- NEVER state the answer to any calculation, question or problem. Not even as an example.
-- NEVER complete any step for the child. Ask them to do every step themselves.
-- If the child gives a CORRECT answer, confirm it warmly and move to the next step with a question.
-- If the child gives a WRONG answer, say gently "not quite — let's think again" and give a hint without revealing the answer.
-- Break every problem into the smallest possible steps. One step at a time.
-- Always end with a question or prompt that moves them forward.
-- Keep responses to 2-3 sentences maximum.
-- Never start with "I". Australian English. Warm and encouraging.
-- Do NOT use asterisks or markdown bold in your responses — plain text only.
-${subject ? `Subject context: ${subject}` : ''}`;
+// ── SVG Icons ────────────────────────────────────────────────
+function IcoBack({ color = INK, size = 12 }: { color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={2.5} strokeLinecap="round">
+      <Polyline points="15 18 9 12 15 6" />
+    </Svg>
+  );
 }
 
-interface Message { role: 'zaeli' | 'child'; content: string; imageUri?: string; }
+function IcoMic({ color = 'rgba(0,0,0,0.32)', size = 18 }: { color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={1.8} strokeLinecap="round">
+      <Rect x={9} y={2} width={6} height={11} rx={3} />
+      <Path d="M5 10a7 7 0 0014 0" />
+      <Line x1={12} y1={19} x2={12} y2={23} />
+      <Line x1={8} y1={23} x2={16} y2={23} />
+    </Svg>
+  );
+}
 
+function IcoSend({ color = '#fff', size = 13 }: { color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={2.5} strokeLinecap="round">
+      <Line x1={12} y1={19} x2={12} y2={5} />
+      <Polyline points="5 12 12 5 19 12" />
+    </Svg>
+  );
+}
+
+// ── Chat action icons (same as main Zaeli chat) ─────────────
+function IcoPlay({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Polygon points="5 3 19 12 5 21 5 3"/></Svg>;
+}
+function IcoCopy({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Rect x="9" y="9" width="13" height="13" rx="2"/><Path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></Svg>;
+}
+function IcoForward({ color = INK3 }: { color?: string }) {
+  return <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><Line x1="22" y1="2" x2="11" y2="13"/><Polygon points="22 2 15 22 11 13 2 9 22 2"/></Svg>;
+}
+
+// ── Whisper spelling fix ─────────────────────────────────────
+function fixZaeliSpelling(text: string): string {
+  return text.replace(/\b(zelie|zeli|zayli|zaylee|zaily|zalie|zellie|zailee|zaelie|xaeli|xaily|xaylee|zayeli)\b/gi, 'Zaeli');
+}
+
+// ── System prompt builder ────────────────────────────────────
+function buildSystemPrompt(childName: string, yearLevel: number, pillar: string, subject?: string, topic?: string) {
+  // Get real curriculum content for this year level + subject
+  const curriculumContent = subject ? getCurriculumPrompt(yearLevel, subject, topic ?? undefined) : '';
+
+  const base = `You are Zaeli, a warm, sharp, encouraging AI tutor for Australian children. You are helping ${childName}, a Year ${yearLevel} student.
+
+ABSOLUTE RULES:
+- Guide thinking. Build confidence. NEVER just give the answer.
+- Use Socratic questioning — break problems into small steps, one at a time.
+- If correct: confirm warmly, move to next step or question.
+- If wrong: say "not quite" gently, give a hint without revealing the answer.
+- Keep responses to 2-3 sentences max. Short, clear, age-appropriate.
+- Never start with "I". Australian English. Plain text only — no markdown, no asterisks, no bold.
+- Always end with a question or prompt that moves the child forward.
+- Use Australian contexts: AUD currency, Australian geography, Australian cultural references.
+
+${DIFFICULTY_RULES}
+
+${HINT_RULES}`;
+
+  if (pillar === 'practice') {
+    return base + `
+
+SESSION TYPE: Practice
+${curriculumContent}
+
+QUESTION FORMAT RULES:
+- Generate questions grounded in the curriculum content above.
+- Mix of multiple choice and working-out problems.
+- For MC questions, format options as: A) option text, B) option text, C) option text, D) option text — each on a new line.
+- After each question, WAIT for the child's answer before responding.
+- Aim for 6 questions per session. Track which question number you are on.
+- When you present a new question, start with "Question [N]." so the app can track progress.
+- For Maths above Year 3: after questions requiring working, prompt "show your working" and suggest photo upload.`;
+  }
+
+  if (pillar === 'homework') {
+    return base + `
+
+SESSION TYPE: Homework Help
+${curriculumContent}
+
+- The child will describe or upload a photo of their homework.
+- If they upload a photo, describe what you see and identify the specific question.
+- Guide them through step by step — never solve it for them.
+- Free-flowing conversation, no question count.
+- If the child shows working, check their METHOD, not just the answer.
+- Celebrate effort and progress, not just correct answers.`;
+  }
+
+  if (pillar === 'read-aloud') {
+    return base + `
+
+SESSION TYPE: Read Aloud
+- Voice-first session. The child will read aloud and you receive the Whisper transcription.
+- Analyse fluency, pacing, expression, and accuracy.
+- For younger children (Year 1-3): focus on word accuracy, encourage, break down tricky words syllable by syllable. Use a format like: "cat - er - pil - lar" for syllable practice.
+- For older children (Year 4+): provide feedback on pace, projection, expression, filler words ("um", "like").
+- For presentation practice: give feedback on structure, opening impact, and closing strength.
+- Be genuinely enthusiastic about their reading. Every attempt is progress.`;
+  }
+
+  if (pillar === 'write-review') {
+    return base + `
+
+SESSION TYPE: Write & Review
+${curriculumContent}
+
+- The child will type or upload their writing (essays, stories, creative writing).
+- Give structured feedback with SPECIFIC before/after examples (max 3 per round).
+- Never rewrite the whole piece — teach through targeted suggestions.
+- Format feedback as: "Instead of [original phrase], try [improved phrase]" with brief explanation of why.
+- Focus on: structure, vocabulary, argument strength, academic register appropriate for Year ${yearLevel}.
+- After feedback, ask them to rewrite the section and send it back.`;
+  }
+
+  if (pillar === 'comprehension') {
+    const isNaplan = [3, 5, 7, 9].includes(yearLevel);
+    return base + `
+
+SESSION TYPE: Comprehension
+${curriculumContent}
+
+- Present a short passage (150-250 words, appropriate for Year ${yearLevel}), then ask questions.
+- Use Australian content and contexts in passages.
+- Progress from literal (what does the text say?) to inferential (what can we infer?) to analytical (why did the author choose this?).
+${isNaplan ? '- THIS IS A NAPLAN YEAR: include NAPLAN-style question formats (MC with specific wording patterns).\n' : ''}- Include the full passage text clearly before asking the first question.
+- Mix of MC and short-answer questions. Aim for 5 questions per passage.
+- When you present a new question, start with "Question [N]." so the app can track progress.`;
+  }
+
+  if (pillar === 'money-life') {
+    // Determine appropriate money level based on year
+    const level = yearLevel <= 5 ? 1 : yearLevel <= 8 ? 2 : yearLevel <= 10 ? 3 : 4;
+    const moneyContent = getMoneyLevelPrompt(level);
+    return base + `
+
+SESSION TYPE: Money & Life (Financial Literacy)
+${moneyContent}
+
+QUESTION FORMAT:
+- Mix conversational explanations with questions.
+- Include "real numbers" examples — show actual calculations with AUD amounts.
+- For MC questions, format as A), B), C), D) on separate lines.
+- When you present a new topic/question, start with "Topic [N]." so the app can track progress.
+- Aim for 5 topics per session.
+- After explaining a concept, always ask a follow-up question to check understanding.`;
+  }
+
+  return base;
+}
+
+// ── Component ────────────────────────────────────────────────
 export default function TutorSessionScreen() {
-  const router    = useRouter();
-  const params    = useLocalSearchParams<{ childId: string; childName: string; yearLevel: string; resumeSessionId?: string }>();
-  const childName = params.childName ?? '';
-  const yearLevel = parseInt(params.yearLevel ?? '5', 10);
-  const childId   = params.childId ?? '';
-  const resumeId  = params.resumeSessionId ?? null;
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    childId: string; childName: string; yearLevel: string; pillar: string;
+  }>();
 
-  const [messages, setMessages]   = useState<Message[]>([]);
-  const [input, setInput]         = useState('');
-  const [sending, setSending]     = useState(false);
-  const [subject, setSubject]     = useState('');
-  const [topic, setTopic]         = useState('');
-  const [sessionId, setSessionId] = useState<string | null>(resumeId);
-  const [recording, setRecording] = useState(false);
-  const [audioRec, setAudioRec]   = useState<Audio.Recording | null>(null);
-  const [saved, setSaved]         = useState(false);
-  const [feedback, setFeedback]   = useState<Record<number, 'up'|'down'>>({});
-  const savedOpacity              = useRef(new Animated.Value(0)).current;
-  const startTimeRef = useRef(Date.now());
-  const scrollRef    = useRef<ScrollView>(null);
-  const micPulse     = useRef(new Animated.Value(1)).current;
+  const childName = params.childName ?? 'Poppy';
+  const yearLevel = parseInt(params.yearLevel ?? '6', 10);
+  const childId = params.childId ?? '';
+  const pillar = params.pillar ?? 'practice';
+  const colour = FAMILY_COLOURS[childName] ?? '#A855F7';
 
-  useFocusEffect(useCallback(() => {
-    RNStatusBar.setBarStyle('light-content', true);
-    // Reset state fresh on every focus so new sessions start clean
+  const isStructured = STRUCTURED_PILLARS.includes(pillar);
+  const isMoneyLife = pillar === 'money-life';
+  const isReadAloud = pillar === 'read-aloud';
+
+  // Unique key per session — forces full reset when child/pillar changes
+  const sessionKey = `${childId}-${pillar}-${Date.now()}`;
+  const sessionKeyRef = useRef(sessionKey);
+
+  // ── State ──
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [subject, setSubject] = useState<string | null>(null);
+  const [topic, setTopic] = useState<string | null>(null);
+  const [phase, setPhase] = useState<'select' | 'active'>('select');
+  const [questionNum, setQuestionNum] = useState(0);
+  const [totalQuestions, setTotalQuestions] = useState(6);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [hintLevel, setHintLevel] = useState(0);
+  const [timer, setTimer] = useState(0);
+  const [conversationHistory, setConversationHistory] = useState<{ role: string; content: string }[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [micTimer, setMicTimer] = useState(0);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const inputRef = useRef<TextInput>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const micTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const msgIdRef = useRef(0);
+  function nextMsgId() { msgIdRef.current += 1; return `msg-${childId}-${pillar}-${msgIdRef.current}`; }
+
+  // ── Full reset when params change (different child or pillar) ──
+  useEffect(() => {
+    // Clear previous timer
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+
+    // Reset all state
+    msgIdRef.current = 0;
     setMessages([]);
     setInput('');
-    setSubject('');
-    setTopic('');
-    setSessionId(resumeId);
-    setFeedback({});
-    startTimeRef.current = Date.now();
-    if (resumeId) {
-      loadSession(resumeId);
-    } else {
-      sendGreeting();
-    }
-  }, [resumeId]));
-  useEffect(() => { setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100); }, [messages]);
-
-  // ── GPT ──────────────────────────────────────────────────────
-  async function callGPT(msgs: { role: string; content: string }[]): Promise<string> {
-    try {
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getOpenAIKey()}` },
-        body: JSON.stringify({ model: GPT_MODEL, max_completion_tokens: 300, messages: msgs }),
-      });
-      const json = await res.json();
-      if (!res.ok) { console.error('[session] GPT error:', res.status, json?.error?.message); return ''; }
-      logGpt('tutor_session', json.usage);
-      return json.choices?.[0]?.message?.content ?? '';
-    } catch (e) { console.error('[session] GPT fetch:', e); return ''; }
-  }
-
-  async function sendGreeting() {
-    setSending(true);
-    const reply = await callGPT([
-      { role: 'system', content: buildSystemPrompt(childName, yearLevel, '') },
-      { role: 'user',   content: `Give a brief warm 1-sentence greeting to ${childName} to start a homework session. Ask what they're working on today. Never start with "I".` },
-    ]);
-    if (reply) setMessages([{ role: 'zaeli', content: reply }]);
     setSending(false);
-  }
+    setSessionId(null);
+    setSubject(null);
+    setTopic(null);
+    setPhase('select');
+    setQuestionNum(0);
+    setTotalQuestions(6);
+    setHintsUsed(0);
+    setHintLevel(0);
+    setTimer(0);
+    setConversationHistory([]);
 
-  async function loadSession(id: string) {
-    const { data } = await supabase
-      .from('tutor_sessions')
-      .select('messages, subject, topic')
-      .eq('id', id)
-      .single();
-    if (data?.messages && Array.isArray(data.messages) && data.messages.length > 0) {
-      setMessages(data.messages as Message[]);
-      if (data.subject) setSubject(data.subject);
-      if (data.topic)   setTopic(data.topic);
-    } else {
-      sendGreeting();
+    RNStatusBar.setBarStyle('dark-content', true);
+    sendInitialMessage();
+
+    return () => {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    };
+  }, [childId, pillar]);
+
+  // ── Timer — start/stop based on phase ──
+  useEffect(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (phase === 'active') {
+      timerRef.current = setInterval(() => setTimer(t => t + 1), 1000);
     }
-  }
+    return () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } };
+  }, [phase]);
 
-  // ── Send message ─────────────────────────────────────────────
-  async function sendMessage() {
-    const text = input.trim();
-    if (!text || sending) return;
-    setInput('');
-    const updated: Message[] = [...messages, { role: 'child', content: text }];
-    setMessages(updated);
-    if (!subject && messages.length <= 2) detectSubject(text);
-    setSending(true);
-    const history = [
-      { role: 'system', content: buildSystemPrompt(childName, yearLevel, subject) },
-      ...updated.map(m => ({ role: m.role === 'zaeli' ? 'assistant' : 'user', content: m.content })),
-    ];
-    const reply = await callGPT(history);
-    const final: Message[] = reply ? [...updated, { role: 'zaeli', content: reply }] : updated;
-    setMessages(final);
-    setSending(false);
-    await saveSession(final);
-  }
+  const timerStr = `${String(Math.floor(timer / 60)).padStart(2, '0')}:${String(timer % 60).padStart(2, '0')}`;
 
-  // ── Send photo ───────────────────────────────────────────────
-  async function sendPhoto() {
-    Alert.alert('Add a photo', 'How would you like to add your photo?', [
-      { text: 'Camera', onPress: () => doSendPhoto('camera') },
-      { text: 'Photo Library', onPress: () => doSendPhoto('library') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  }
-
-  async function doSendPhoto(source: 'camera' | 'library') {
+  async function sendInitialMessage() {
+    // Create session in Supabase
     try {
-      let result;
-      if (source === 'camera') {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Camera access in Settings.'); return; }
-        // allowsEditing forces transcoding to JPEG — prevents HEIC being sent to Claude
-        result = await ImagePicker.launchCameraAsync({
-          quality: 0.7,
-          base64: true,
-          exif: false,
-          allowsEditing: false,
-          mediaTypes: ['images'],
-        });
-      } else {
-        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('Permission needed', 'Please enable Photo Library access in Settings.'); return; }
-        // allowsEditing + mediaTypes forces Expo to transcode HEIC → JPEG
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          quality: 0.7,
-          base64: true,
-          exif: false,
-          allowsEditing: false,
-        });
+      const { data, error } = await supabase
+        .from('tutor_sessions')
+        .insert({
+          family_id: FAMILY_ID,
+          child_name: childName,
+          pillar,
+          mode: pillar,
+          status: 'active',
+          difficulty_band: 'core',
+        })
+        .select('id')
+        .single();
+      if (error) {
+        console.error('SESSION CREATE ERROR:', error.message, error.details, error.hint);
+      } else if (data) {
+        console.log('SESSION CREATED:', data.id);
+        setSessionId(data.id);
       }
-      if (result.canceled || !result.assets[0]) return;
-      const asset = result.assets[0];
+    } catch (e) {
+      console.error('SESSION CREATE EXCEPTION:', e);
+    }
 
-      // Resize + compress to guarantee under Claude's 5MB limit
-      // Max 1280px on longest side, quality 0.5 — plenty sharp for reading text
-      const compressed = await ImageManipulator.manipulateAsync(
-        asset.uri,
-        [{ resize: { width: 1280 } }],
-        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-      );
+    // First Zaeli message based on pillar
+    let firstMsg: Message;
 
-      // Use compressed base64 — always JPEG from manipulateAsync, no HEIC risk
-      const rawBase64 = (compressed.base64 ?? '').replace(/^data:image\/[^;]+;base64,/, '');
-      console.log('[tutor-vision] base64 length after compress:', rawBase64.length, '| type:', getMediaType(rawBase64));
+    if (pillar === 'practice') {
+      firstMsg = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: `Hey ${childName}! What subject do you want to practice today?`,
+        chips: ['Maths', 'English', 'Science', 'HASS'],
+        timestamp: new Date(),
+      };
+    } else if (pillar === 'homework') {
+      firstMsg = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: `Let's get your homework sorted. You can tell me what you're working on, take a photo of your worksheet, or just start talking through the problem.`,
+        chips: ['\u{1F4F7} Photo my worksheet', "I'll describe it", '\u{1F3A4} Tell Zaeli'],
+        timestamp: new Date(),
+      };
+      setPhase('active');
+    } else if (pillar === 'read-aloud') {
+      firstMsg = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: `Time to read! You can upload a photo of a book page, or just hit the mic and start reading whenever you're ready.`,
+        chips: ['\u{1F4F7} Photo of book', "I'm ready to read", 'Presentation practice'],
+        timestamp: new Date(),
+      };
+      setPhase('active');
+    } else if (pillar === 'write-review') {
+      firstMsg = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: `What kind of writing are we working on today? You can type it in the chat, or take a photo if it's on paper.`,
+        chips: ['Persuasive essay', 'Narrative / story', 'Report', 'Something else'],
+        timestamp: new Date(),
+      };
+      setPhase('active');
+    } else if (pillar === 'comprehension') {
+      firstMsg = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: `Hey ${childName}! What subject area do you want for comprehension today?`,
+        chips: ['English', 'Science', 'HASS', 'Zaeli picks'],
+        timestamp: new Date(),
+      };
+    } else if (pillar === 'money-life') {
+      firstMsg = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: `Welcome to Money & Life! Real Australian financial literacy \u2014 at your level. Ready to learn how money works?`,
+        chips: ['Let\'s go!', 'What will we cover?'],
+        timestamp: new Date(),
+      };
+      setPhase('active');
+    } else {
+      firstMsg = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: `Hey ${childName}! What would you like to work on today?`,
+        timestamp: new Date(),
+      };
+      setPhase('active');
+    }
 
-      const updated: Message[] = [...messages, { role: 'child', content: 'Here is a photo of my work.', imageUri: asset.uri }];
-      setMessages(updated);
+    setMessages([firstMsg]);
+  }
+
+  // ── Auto-scroll on new messages ──
+  useEffect(() => {
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+  }, [messages]);
+
+  // ── Send message ──
+  async function sendMessage(text: string) {
+    if (!text.trim() || sending) return;
+
+    const userMsg: Message = {
+      id: nextMsgId(),
+      role: 'child',
+      content: text.trim(),
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    if (inputRef.current) inputRef.current.clear();
+    Keyboard.dismiss();
+    setSending(true);
+
+    // Handle pillar select phase
+    if (phase === 'select') {
+      await handlePillarSelect(text.trim(), userMsg);
+    } else {
+      await handleSessionMessage(text.trim(), userMsg);
+    }
+
+    setSending(false);
+  }
+
+  async function handlePillarSelect(text: string, userMsg: Message) {
+    const subjects = ['Maths', 'English', 'Science', 'HASS'];
+    const isSubject = subjects.some(s => text.toLowerCase().includes(s.toLowerCase()));
+
+    if (!subject && isSubject) {
+      const selectedSubject = subjects.find(s => text.toLowerCase().includes(s.toLowerCase())) ?? text;
+      setSubject(selectedSubject);
+
+      // Update session with subject
+      if (sessionId) {
+        supabase.from('tutor_sessions').update({ subject: selectedSubject }).eq('id', sessionId).then(() => {});
+      }
+
+      // Ask for topic — dynamic based on year level + subject
+      const topicChips = getTopicChips(yearLevel, selectedSubject);
+
+      const topicMsg: Message = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: `Good choice. Is there a specific topic you want to focus on, or shall I pick one from your Year ${yearLevel} curriculum?`,
+        chips: topicChips,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, topicMsg]);
+      return;
+    }
+
+    if (subject && !topic) {
+      const selectedTopic = text === 'Zaeli picks' ? null : text;
+      setTopic(selectedTopic);
+
+      if (sessionId) {
+        supabase.from('tutor_sessions').update({ topic: selectedTopic ?? 'Zaeli picks' }).eq('id', sessionId).then(() => {});
+      }
+
+      // Start the session
+      setPhase('active');
+      setQuestionNum(1);
+
+      // Generate first question via Sonnet
+      await generateAIResponse(`The child has chosen ${subject}${selectedTopic ? ' — ' + selectedTopic : ''}. Start the session with a brief intro and the first question. For practice sessions, aim for 6 questions. Start with a Core difficulty question.`);
+      return;
+    }
+
+    // Fallback for comprehension pillar select
+    if (pillar === 'comprehension') {
+      setSubject(text === 'Zaeli picks' ? 'English' : text);
+      setPhase('active');
+      setQuestionNum(1);
+      await generateAIResponse(`The child wants comprehension practice in ${text}. Present a short passage appropriate for Year ${yearLevel}, then ask the first question about it. Start with a literal comprehension question.`);
+      return;
+    }
+  }
+
+  async function handleSessionMessage(text: string, userMsg: Message) {
+    await generateAIResponse(text);
+  }
+
+  async function generateAIResponse(userText: string) {
+    try {
+      const systemPrompt = buildSystemPrompt(childName, yearLevel, pillar, subject ?? undefined, topic ?? undefined);
+
+      // Build conversation history
+      const newHistory = [
+        ...conversationHistory,
+        { role: 'user', content: userText },
+      ];
+
+      const response = await callClaude({
+        feature: pillar === 'practice' ? 'tutor_practice' : pillar === 'comprehension' ? 'tutor_practice' : 'tutor_session',
+        familyId: FAMILY_ID,
+        body: {
+          model: SONNET,
+          max_tokens: 1200,
+          system: systemPrompt,
+          messages: newHistory,
+        },
+      });
+
+      const text = response?.content?.[0]?.text ?? 'Something went wrong — try again.';
+
+      // Parse response for MC options, question tracking, technique cards
+      const parsed = parseZaeliResponse(text);
+
+      // Track question number from Sonnet's response
+      if (parsed.detectedQuestion > 0 && isStructured) {
+        setQuestionNum(parsed.detectedQuestion);
+      }
+
+      const zaeliMsg: Message = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: parsed.text,
+        chips: parsed.chips.length > 0 ? parsed.chips : undefined,
+        mcOptions: parsed.mcOptions.length > 0 ? parsed.mcOptions : undefined,
+        techniqueCard: parsed.techniqueCard ?? undefined,
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, zaeliMsg]);
+      setConversationHistory([
+        ...newHistory,
+        { role: 'assistant', content: text },
+      ]);
+
+      // ── Record to Supabase ──
+      if (sessionId) {
+        // Save both messages
+        supabase.from('tutor_messages').insert([
+          { session_id: sessionId, role: 'child', content: userText, message_type: 'text' },
+          { session_id: sessionId, role: 'zaeli', content: text, message_type: parsed.mcOptions.length > 0 ? 'mc_question' : 'text' },
+        ]).then(({ error }) => { if (error) console.error('MSG SAVE ERROR:', error.message, error.details); else console.log('MSG SAVED OK'); });
+
+        // Update session stats
+        supabase.from('tutor_sessions').update({
+          subject: subject ?? undefined,
+          topic: topic ?? undefined,
+          question_count: parsed.detectedQuestion > 0 ? parsed.detectedQuestion : undefined,
+          hints_used: hintsUsed,
+          duration_seconds: timer,
+        }).eq('id', sessionId).then(({ error }) => { if (error) console.error('SESSION UPDATE ERROR:', error.message); });
+      } else {
+        console.warn('NO SESSION ID — messages not saved');
+      }
+
+    } catch (e) {
+      console.error('Tutor AI error:', e);
+      const errorMsg: Message = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: 'Hmm, something went wrong on my end. Give me another go?',
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    }
+  }
+
+  // ── Parse Zaeli's response ──
+  function parseZaeliResponse(text: string): {
+    text: string;
+    chips: string[];
+    mcOptions: MCOption[];
+    techniqueCard: { label: string; content: string; caption?: string } | null;
+    detectedQuestion: number;
+  } {
+    const mcOptions: MCOption[] = [];
+    const chips: string[] = [];
+    let cleanText = text;
+    let techniqueCard = null;
+    let detectedQuestion = 0;
+
+    // Detect question number: "Question 3." or "Q3." or "Topic 2."
+    const qMatch = text.match(/(?:Question|Q|Topic)\s*(\d+)/i);
+    if (qMatch) {
+      detectedQuestion = parseInt(qMatch[1], 10);
+    }
+
+    // Extract MC options: A) ... B) ... C) ... D) ...
+    const mcRegex = /^([A-D])\)\s*(.+)$/gm;
+    let match;
+    while ((match = mcRegex.exec(text)) !== null) {
+      mcOptions.push({ label: match[1], text: match[2].trim() });
+    }
+    if (mcOptions.length >= 2) {
+      // Remove the MC lines from the display text
+      cleanText = text.replace(/^[A-D]\)\s*.+$/gm, '').trim();
+      // Remove double blank lines
+      cleanText = cleanText.replace(/\n{3,}/g, '\n\n');
+    }
+
+    return { text: cleanText, chips, mcOptions, techniqueCard, detectedQuestion };
+  }
+
+  // ── Hint button ──
+  function handleHint() {
+    if (hintLevel >= 3) return;
+    const newLevel = hintLevel + 1;
+    setHintLevel(newLevel);
+    setHintsUsed(prev => prev + 1);
+
+    const hintPrompt = newLevel === 1
+      ? 'The child tapped Hint. Give Hint 1: show the technique on a DIFFERENT equation/example. Never touch the actual question numbers.'
+      : newLevel === 2
+      ? 'The child needs Hint 2: show the FIRST STEP of their actual question only. Stop there.'
+      : 'The child needs Hint 3: give the full worked example with explanation. Frame it as learning together.';
+
+    generateAIResponse(hintPrompt);
+  }
+
+  // ── Next question ──
+  function handleNext() {
+    // Don't allow skipping if no messages from child yet on this question
+    const childMsgCount = messages.filter(m => m.role === 'child').length;
+    if (childMsgCount === 0) return; // Can't skip before answering anything
+
+    setHintLevel(0);
+    const nextQ = questionNum + 1;
+    setQuestionNum(nextQ);
+    generateAIResponse(`The child is ready for the next question. This will be Question ${nextQ} of ${totalQuestions}. Generate the next question, adjusting difficulty based on their performance so far. Remember to start with "Question ${nextQ}."${nextQ >= totalQuestions ? ' This is the last question — after they answer, give a warm session summary.' : ''}`);
+  }
+
+  // ── Chip tap ──
+  function handleChipTap(chipText: string) {
+    // Intercept camera/photo/mic chips
+    const lower = chipText.toLowerCase();
+    if (lower.includes('photo') && (lower.includes('worksheet') || lower.includes('book'))) {
+      handleCamera();
+      return;
+    }
+    if (lower.includes('tell zaeli') || lower.includes('ready to read')) {
+      startRecording();
+      return;
+    }
+    sendMessage(chipText);
+  }
+
+  // ── MC option tap ──
+  function handleMCTap(msgId: string, optionLabel: string) {
+    sendMessage(optionLabel);
+  }
+
+  // ── Camera / Photo upload ──
+  async function handleCamera() {
+    try {
+      const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+      if (!granted) return;
+      const r = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
+      if (r.canceled || !r.assets?.[0]) return;
+      await processImage(r.assets[0].uri);
+    } catch (e) { console.error('Camera error:', e); }
+  }
+
+  async function handlePhotoLibrary() {
+    try {
+      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!granted) return;
+      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
+      if (r.canceled || !r.assets?.[0]) return;
+      await processImage(r.assets[0].uri);
+    } catch (e) { console.error('Photo library error:', e); }
+  }
+
+  async function processImage(uri: string) {
+    setSending(true);
+    try {
+      // HEIC → JPEG + resize to 1200px
+      const resized = await manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.7, format: SaveFormat.JPEG });
+      const base64 = await FileSystem.readAsStringAsync(resized.uri, { encoding: 'base64' as any });
+
+      // Show user message with photo indicator
+      const userMsg: Message = {
+        id: nextMsgId(),
+        role: 'child',
+        content: 'Uploaded a photo',
+        imageUri: resized.uri,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, userMsg]);
+
+      // Send to Claude Sonnet vision
+      const systemPrompt = buildSystemPrompt(childName, yearLevel, pillar, subject ?? undefined, topic ?? undefined);
+      const visionMessage = {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
+          { type: 'text', text: pillar === 'homework'
+            ? 'The child has uploaded a photo of their homework/worksheet. Describe what you see, identify the specific questions, and start guiding them through the first one.'
+            : pillar === 'read-aloud'
+            ? 'The child has uploaded a photo of a book page. Read the text visible and help them prepare to read it aloud.'
+            : pillar === 'write-review'
+            ? 'The child has uploaded a photo of their writing. Read it carefully and give structured feedback with specific before/after suggestions.'
+            : 'The child has uploaded a photo of their working. Check their method step by step — celebrate what is correct, identify where they went wrong.'
+          },
+        ],
+      };
+
+      const newHistory = [...conversationHistory, visionMessage];
+
+      const response = await callClaude({
+        feature: 'tutor_vision',
+        familyId: FAMILY_ID,
+        body: {
+          model: SONNET,
+          max_tokens: 1200,
+          system: systemPrompt,
+          messages: newHistory,
+        },
+      });
+
+      const text = response?.content?.[0]?.text ?? 'I had trouble reading that image. Could you try again?';
+      const parsed = parseZaeliResponse(text);
+
+      const zaeliMsg: Message = {
+        id: nextMsgId(),
+        role: 'zaeli',
+        content: parsed.text,
+        chips: parsed.chips.length > 0 ? parsed.chips : undefined,
+        mcOptions: parsed.mcOptions.length > 0 ? parsed.mcOptions : undefined,
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, zaeliMsg]);
+      setConversationHistory([...newHistory, { role: 'assistant', content: text }]);
+
+      // Record to Supabase
+      if (sessionId) {
+        supabase.from('tutor_messages').insert([
+          { session_id: sessionId, role: 'child', content: '[Photo uploaded]', message_type: 'photo' },
+          { session_id: sessionId, role: 'zaeli', content: text, message_type: 'text' },
+        ]).then(() => {});
+      }
+    } catch (e) {
+      console.error('Image processing error:', e);
+      setMessages(prev => [...prev, { id: nextMsgId(), role: 'zaeli', content: 'Had trouble with that photo. Could you try again?', timestamp: new Date() }]);
+    }
+    setSending(false);
+  }
+
+  // ── Mic / Whisper ──
+  async function startRecording() {
+    try {
+      Keyboard.dismiss();
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef.current = recording;
+      setIsRecording(true);
+      setMicTimer(0);
+      micTimerRef.current = setInterval(() => setMicTimer(t => t + 1), 1000);
+    } catch (e) { console.error('startRecording:', e); }
+  }
+
+  async function stopRecording(cancel = false) {
+    try {
+      setIsRecording(false);
+      if (micTimerRef.current) { clearInterval(micTimerRef.current); micTimerRef.current = null; }
+      if (!recordingRef.current) return;
+      const status = await recordingRef.current.getStatusAsync();
+      const durationSec = (status as any)?.durationMillis ? (status as any).durationMillis / 1000 : 10;
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      recordingRef.current = null;
+      if (!uri || cancel) return;
+
+      // Show thinking indicator
       setSending(true);
 
-      // Step 1 — Claude Vision extracts content
-      // Call fetch directly (not callClaude) — large base64 strings can be
-      // corrupted when passed through the callClaude JSON.stringify wrapper.
-      let desc = '';
-      try {
-        const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
-        const visionBody = {
-          model: 'claude-sonnet-4-6',
-          max_tokens: 800,
-          messages: [{
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: getMediaType(rawBase64),
-                  data: rawBase64,
-                },
-              },
-              {
-                type: 'text',
-                text: `You are reading a homework photo for a Year ${yearLevel} Australian student.
-
-CRITICAL EXTRACTION RULES:
-1. Extract ALL mathematical content EXACTLY as written — every number, operator (÷ × + − = ( ) [ ]), fraction, equation, and blank line
-2. Preserve the exact structure — if it's a numbered list of questions, list them all numbered
-3. Do NOT interpret or solve — just transcribe faithfully
-4. Note any handwritten working or answers the student has already written
-5. If the image is unclear in any part, say exactly which part is unclear
-
-Return your response in this format:
-SUBJECT: [subject type]
-QUESTIONS: [exact transcription of every question, numbered if applicable]
-STUDENT_WORK: [any answers or working the student has written, or "none visible"]
-CLARITY: [clear / partially unclear — describe what's hard to read]`,
-              },
-            ],
-          }],
-        };
-
-        const vRes = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': API_KEY,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify(visionBody),
-        });
-
-        const vData = await vRes.json();
-        console.log('[tutor-vision] status:', vRes.status, '| response:', JSON.stringify(vData).substring(0, 200));
-
-        if (!vRes.ok) {
-          throw new Error(`Anthropic API ${vRes.status}: ${vData?.error?.message ?? 'unknown'}`);
-        }
-
-        desc = vData.content?.[0]?.text ?? '';
-      } catch (vErr) {
-        console.error('[tutor-vision] Claude Vision failed:', vErr);
-        setMessages(prev => [...prev, { role: 'zaeli', content: `Hmm, I had trouble reading that photo — could you try uploading it again, or type out the question for me?` }]);
-        setSending(false);
-        return;
-      }
-
-      // Step 2 — GPT responds using the extraction
-      try {
-        const history = [
-          { role: 'system', content: buildSystemPrompt(childName, yearLevel, subject) },
-          ...updated.map(m => ({ role: m.role === 'zaeli' ? 'assistant' : 'user', content: m.content })),
-          { role: 'user', content: `${childName} uploaded a photo of their homework. Here is exactly what I extracted from it:\n\n${desc}\n\nIMPORTANT INSTRUCTIONS:\n- Do NOT show the SUBJECT/QUESTIONS/STUDENT_WORK/CLARITY labels to ${childName} — those were for your internal use only\n- Start by naturally restating the first question in plain conversational language so ${childName} knows you read it correctly (e.g. "Ok, I can see question 1 is: 5 × (2 + 3 × 5) − 34")\n- Then ask one guiding question to get them started — what do they think should be solved first?\n- Never give the answer. One step at a time.` },
-        ];
-        const reply = await callGPT(history);
-        console.log('[tutor-session] GPT reply:', reply);
-        const final: Message[] = reply ? [...updated, { role: 'zaeli', content: reply }] : updated;
-        setMessages(final);
-        await saveSession(final);
-      } catch (gErr) {
-        console.error('[tutor-session] GPT failed:', gErr);
-        // Show what we extracted at minimum so it's not lost
-        const fallback = desc
-          ? `Here's what I can see in your photo:\n\n${desc}\n\nWhat part would you like to start with?`
-          : `I had trouble responding — can you type out the question for me?`;
-        setMessages(prev => [...prev, { role: 'zaeli', content: fallback }]);
-      }
-      setSending(false);
-    } catch (e) { console.error('[tutor-session] doSendPhoto outer:', e); setSending(false); }
-  }
-
-  // ── Voice ────────────────────────────────────────────────────
-  async function toggleVoice() {
-    if (recording) {
-      setRecording(false);
-      micPulse.stopAnimation(); micPulse.setValue(1);
-      if (!audioRec) return;
-      await audioRec.stopAndUnloadAsync();
-      const uri = audioRec.getURI();
-      setAudioRec(null);
-      if (uri) await transcribeAudio(uri);
-    } else {
-      try {
-        await Audio.requestPermissionsAsync();
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-        const { recording: rec } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-        setAudioRec(rec); setRecording(true);
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(micPulse, { toValue: 1.3, duration: 600, useNativeDriver: true }),
-            Animated.timing(micPulse, { toValue: 1.0, duration: 600, useNativeDriver: true }),
-          ])
-        ).start();
-      } catch { Alert.alert('Microphone', 'Could not access microphone.'); }
-    }
-  }
-
-  async function transcribeAudio(uri: string) {
-    setSending(true);
-    try {
+      // Whisper transcription
+      if (!OPENAI_KEY) { setSending(false); return; }
       const form = new FormData();
       form.append('file', { uri, type: 'audio/m4a', name: 'audio.m4a' } as any);
       form.append('model', 'whisper-1');
-      const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST', headers: { Authorization: `Bearer ${getOpenAIKey()}` }, body: form,
-      });
-      const json = await res.json();
-      logGpt('whisper_transcription', { prompt_tokens: 0, completion_tokens: 0 });
-      if (json.text?.trim()) setInput(json.text.trim());
-    } catch (e) { console.error('Whisper:', e); }
-    setSending(false);
+      const resp = await fetch(WHISPER_URL, { method: 'POST', headers: { Authorization: `Bearer ${OPENAI_KEY}` }, body: form });
+      const data = await resp.json();
+      const rawTranscript = data?.text?.trim() ?? '';
+      const transcript = fixZaeliSpelling(rawTranscript);
+
+      setSending(false);
+
+      if (!transcript) return;
+
+      // Log Whisper cost
+      if (sessionId) {
+        supabase.from('tutor_messages').insert({
+          session_id: sessionId, role: 'child', content: transcript, message_type: 'voice',
+        }).then(() => {});
+      }
+
+      // Send transcript as a message
+      sendMessage(transcript);
+    } catch (e) {
+      console.error('stopRecording:', e);
+      setSending(false);
+    }
   }
 
-  // ── Subject detection ────────────────────────────────────────
-  async function detectSubject(text: string) {
-    const raw = await callGPT([{ role: 'user', content: `Detect subject and topic from: "${text}". Return JSON only: {"subject":"Maths|English|Science|HASS|Art|Technology|Other","topic":"specific topic"}` }]);
-    try {
-      const p = JSON.parse(raw.replace(/```json|```/g, '').trim());
-      if (p.subject) setSubject(p.subject);
-      if (p.topic)   setTopic(p.topic);
-    } catch {}
+  function handleMicPress() {
+    if (isRecording) stopRecording();
+    else startRecording();
   }
 
-  // ── Save session ─────────────────────────────────────────────
-  async function saveSession(msgs: Message[]) {
-    const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
-    const payload = {
-      family_id: FAMILY_ID, child_name: childName, year_level: yearLevel,
-      mode: 'homework', subject: subject || null, topic: topic || null,
-      messages: msgs, duration_seconds: duration,
-      questions_answered: 0, questions_correct: 0,
-      status: 'active', updated_at: new Date().toISOString(),
-    };
-    if (sessionId) {
-      await supabase.from('tutor_sessions').update(payload).eq('id', sessionId);
+  // ── Attachment button — action sheet ──
+  function handleAttachPress() {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Take Photo', 'Choose from Library', 'Cancel'], cancelButtonIndex: 2 },
+        (index) => {
+          if (index === 0) handleCamera();
+          else if (index === 1) handlePhotoLibrary();
+        },
+      );
     } else {
-      const { data } = await supabase.from('tutor_sessions').insert(payload).select('id').single();
-      if (data?.id) setSessionId(data.id);
+      Alert.alert('Upload', 'Choose an option', [
+        { text: 'Take Photo', onPress: handleCamera },
+        { text: 'Choose from Library', onPress: handlePhotoLibrary },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
     }
   }
 
-  // ── Save — silent, stay in session ──────────────────────────
-  async function handleSave() {
-    await saveSession(messages);
-    // Brief toast then dismiss
-    setSaved(true);
-    Animated.sequence([
-      Animated.timing(savedOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.delay(700),
-      Animated.timing(savedOpacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-    ]).start(() => setSaved(false));
-  }
+  // ── Render ──
+  const headerBg = isMoneyLife ? '#FEF3C7' : LAV;
+  const progressColour = isMoneyLife ? AMBER : PURPLE;
 
-  // ── Back — save + exit to child hub ─────────────────────────
-  async function handleBack() {
-    if (sessionId) {
-      await supabase.from('tutor_sessions').update({
-        status: 'complete',
-        duration_seconds: Math.floor((Date.now() - startTimeRef.current) / 1000),
-        updated_at: new Date().toISOString(),
-      }).eq('id', sessionId);
-    }
-    router.replace({ pathname: '/(tabs)/tutor-child', params: { childId, childName, yearLevel: String(yearLevel) } });
-  }
-
-
-  async function retryLast() {
-    const withoutLast = messages.slice(0, -1);
-    if (withoutLast.length === 0) return;
-    setMessages(withoutLast);
-    setSending(true);
-    const history = [
-      { role: 'system', content: buildSystemPrompt(childName, yearLevel, subject) },
-      ...withoutLast.map(m => ({ role: m.role === 'zaeli' ? 'assistant' : 'user', content: m.content })),
-    ];
-    const reply = await callGPT(history);
-    const final: Message[] = reply ? [...withoutLast, { role: 'zaeli', content: reply }] : withoutLast;
-    setMessages(final);
-    setSending(false);
-    await saveSession(final);
-  }
-
-  // ── Render ───────────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
-      <RNStatusBar barStyle="light-content" />
+    <View style={[st.safe, { paddingTop: insets.top }]}>
+      <RNStatusBar barStyle="dark-content" />
 
-      {/* ── Header ── */}
-      <View style={s.sessionHdr}>
-        <View style={s.sessionHdrOrb} />
-        <View style={s.sessionHdrInner}>
-          <View style={s.sessionHdrRow}>
-            <TouchableOpacity onPress={handleBack} activeOpacity={0.7}
-              hitSlop={{ top:12, bottom:12, left:12, right:12 }}>
-              <Text style={s.sessionBack}>‹ Back</Text>
-            </TouchableOpacity>
-            <Text style={s.sessionChild} numberOfLines={1}>{childName} · Homework Help</Text>
-            {subject !== '' && (
-              <View style={s.sessionPill}>
-                <Text style={s.sessionPillTxt}>{subject} ✦</Text>
-              </View>
-            )}
-          </View>
-          {topic !== '' && (
-            <Text style={s.sessionTopic}>{topic}</Text>
-          )}
+      {/* ── Session header ── */}
+      <View style={[st.sessionHeader, { backgroundColor: headerBg }]}>
+        <TouchableOpacity style={st.backBtn} onPress={() => {
+          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+          // Save session duration and generate AI summary on exit
+          if (sessionId) {
+            supabase.from('tutor_sessions').update({
+              duration_seconds: timer,
+              hints_used: hintsUsed,
+              question_count: questionNum,
+              subject: subject ?? undefined,
+              topic: topic ?? undefined,
+              status: 'completed',
+            }).eq('id', sessionId).then(({ error }) => {
+              if (error) console.error('SESSION EXIT SAVE ERROR:', error.message);
+              else {
+                console.log('SESSION SAVED ON EXIT, duration:', timer);
+                // Generate AI summary in background (fire-and-forget)
+                generateSessionSummary(sessionId).then(s => {
+                  if (s) console.log('SESSION SUMMARY GENERATED:', s.slice(0, 60));
+                });
+              }
+            });
+          }
+          router.navigate({ pathname: '/(tabs)/tutor-child', params: { childId, childName, yearLevel: String(yearLevel) } });
+        }}>
+          <IcoBack color={INK} size={12} />
+        </TouchableOpacity>
+        <View style={[st.childAv, { backgroundColor: colour }]}>
+          <Text style={st.childAvTxt}>{childName[0]}</Text>
         </View>
+        <View style={{ flex: 1 }}>
+          <Text style={st.headerTitle} numberOfLines={1}>
+            {PILLAR_NAMES[pillar] ?? 'Session'}{subject ? ' · ' + subject : ''}{topic ? ' · ' + topic : ''}
+          </Text>
+          <Text style={st.headerSub}>Year {yearLevel} {'·'} {childName}</Text>
+        </View>
+        {phase === 'active' && (
+          <View style={st.timerPill}>
+            <Text style={st.timerTxt}>{'\u23F1'} {timerStr}</Text>
+          </View>
+        )}
       </View>
 
+      {/* ── Question progress bar (structured pillars only) ── */}
+      {isStructured && phase === 'active' && (
+        <View style={[st.progressBar, { backgroundColor: headerBg }]}>
+          {Array.from({ length: totalQuestions }).map((_, i) => (
+            <View
+              key={i}
+              style={[
+                st.progressDot,
+                { backgroundColor: i < questionNum ? progressColour : 'rgba(0,0,0,0.12)' },
+              ]}
+            />
+          ))}
+          <Text style={st.progressLbl}>Q{questionNum} of {totalQuestions}</Text>
+        </View>
+      )}
+
+      <View style={[st.divider, { backgroundColor: headerBg === LAV ? 'rgba(0,0,0,0.08)' : 'rgba(0,0,0,0.07)' }]} />
+
+      {/* ── Chat area ── */}
       <KeyboardAvoidingView
-        style={{ flex: 1, backgroundColor: CARD }}
+        style={{ flex: 1, backgroundColor: isMoneyLife ? '#FFFBEB' : BODY_BG }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={-16}
       >
         <ScrollView
           ref={scrollRef}
-          style={s.chatArea}
-          contentContainerStyle={s.chatContent}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {messages.map((msg, i) => {
-            const isLast = i === messages.length - 1;
-            const ts = new Date().toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' });
-            const fb = feedback[i];
-            return (
-              <View key={i} style={s.msgWrap}>
-                {msg.role === 'zaeli' ? (
-                  /* ── Zaeli — full width, left accent ── */
-                  <View style={s.zRow}>
-                    <View style={s.zAccent} />
-                    <View style={s.zBody}>
-                      <Text style={s.bzName}>✦ Zaeli</Text>
-                      <Text style={s.bzText}>{msg.content}</Text>
-                      <View style={s.actRow}>
-                        <TouchableOpacity style={s.actBtn} activeOpacity={0.6}>
-                          <IcoPlay />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
-                          onPress={() => Clipboard.setString(msg.content)}>
-                          <IcoCopy />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
-                          onPress={() => Share.share({ message: msg.content })}>
-                          <IcoForward />
-                        </TouchableOpacity>
-                        <View style={s.actSep} />
-                        <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
-                          onPress={() => setFeedback(f => ({ ...f, [i]: 'up' }))}>
-                          <IcoThumbUp color={fb === 'up' ? HW_INDIGO : ICON_COLOR} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
-                          onPress={() => setFeedback(f => ({ ...f, [i]: 'down' }))}>
-                          <IcoThumbDown color={fb === 'down' ? MAG : ICON_COLOR} />
-                        </TouchableOpacity>
-                        {isLast && (
-                          <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
-                            onPress={retryLast}>
-                            <IcoRetry />
-                          </TouchableOpacity>
-                        )}
-                        <Text style={s.tsInline}>{ts}</Text>
-                      </View>
-                    </View>
+          {messages.map(msg => (
+            <View key={msg.id} style={{ marginBottom: 14 }}>
+              {msg.role === 'zaeli' ? (
+                <View>
+                  {/* Zaeli label */}
+                  <View style={st.zaeliLabel}>
+                    <View style={[st.zaeliDot, { backgroundColor: isMoneyLife ? AMBER : MINT }]} />
+                    <Text style={[st.zaeliLblTxt, isMoneyLife && { color: '#92400E' }]}>Zaeli</Text>
+                    <Text style={st.zaeliTime}>{msg.timestamp.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' })}</Text>
                   </View>
-                ) : (
-                  /* ── Child — full width, teal tint ── */
-                  <View style={s.cRow}>
-                    {msg.imageUri && (
-                      <Image source={{ uri: msg.imageUri }} style={s.photoImg} resizeMode="cover" />
-                    )}
-                    {msg.content !== 'Here is a photo of my work.' && (
-                      <Text style={s.bcText}>{msg.content}</Text>
-                    )}
-                    <View style={s.cActRow}>
-                      <Text style={s.tsInline}>{ts}</Text>
-                      <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
-                        onPress={() => Clipboard.setString(msg.content)}>
-                        <IcoCopy />
-                      </TouchableOpacity>
-                      <TouchableOpacity style={s.actBtn} activeOpacity={0.6}
-                        onPress={() => Share.share({ message: msg.content })}>
-                        <IcoForward />
-                      </TouchableOpacity>
+                  {/* Zaeli text */}
+                  <Text style={st.zaeliText}>{msg.content}</Text>
+
+                  {/* Technique card */}
+                  {msg.techniqueCard && (
+                    <View style={st.techniqueCard}>
+                      <Text style={st.tcLabel}>{msg.techniqueCard.label}</Text>
+                      <Text style={st.tcContent}>{msg.techniqueCard.content}</Text>
+                      {msg.techniqueCard.caption && <Text style={st.tcCaption}>{msg.techniqueCard.caption}</Text>}
                     </View>
+                  )}
+
+                  {/* MC options */}
+                  {msg.mcOptions && msg.mcOptions.length > 0 && (
+                    <View style={st.mcBox}>
+                      {msg.mcOptions.map((opt, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={[st.mcOption, opt.selected && (opt.correct ? st.mcCorrect : st.mcWrong)]}
+                          onPress={() => handleMCTap(msg.id, opt.label + ' — ' + opt.text)}
+                          activeOpacity={0.76}
+                        >
+                          <View style={[st.mcLabel, opt.selected && (opt.correct ? st.mcLabelOk : st.mcLabelNo)]}>
+                            <Text style={[st.mcLabelTxt, opt.selected && { color: '#fff' }]}>{opt.label}</Text>
+                          </View>
+                          <Text style={st.mcText}>{opt.text}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Chips */}
+                  {msg.chips && msg.chips.length > 0 && (
+                    <View style={st.chipRow}>
+                      {msg.chips.map((chip, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={st.chip}
+                          onPress={() => handleChipTap(chip)}
+                          activeOpacity={0.76}
+                        >
+                          <Text style={st.chipTxt}>{chip}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Zaeli action icons: Play · Copy · Forward · ThumbUp · ThumbDown */}
+                  <View style={st.zaeliIconRow}>
+                    <TouchableOpacity style={st.iconBtn} activeOpacity={0.6}><IcoPlay color={INK3}/></TouchableOpacity>
+                    <TouchableOpacity style={st.iconBtn} onPress={() => { try { require('react-native').Clipboard.setString(msg.content); } catch {} }} activeOpacity={0.6}><IcoCopy color={INK3}/></TouchableOpacity>
+                    <TouchableOpacity style={st.iconBtn} onPress={() => { try { require('react-native').Share.share({ message: msg.content }); } catch {} }} activeOpacity={0.6}><IcoForward color={INK3}/></TouchableOpacity>
                   </View>
-                )}
-              </View>
-            );
-          })}
-          {sending && (
-            <View style={s.msgWrap}>
-              <View style={s.zRow}>
-                <View style={s.zAccent} />
-                <View style={s.zBody}>
-                  <Text style={s.bzName}>✦ Zaeli</Text>
-                  <ActivityIndicator size="small" color={HW_INDIGO} style={{ alignSelf: 'flex-start', marginTop: 4 }} />
                 </View>
-              </View>
+              ) : (
+                /* ── Child message bubble ── */
+                <View>
+                  <View style={st.childRow}>
+                    <View style={st.childBubble}>
+                      <Text style={st.childBubbleTxt}>{msg.content}</Text>
+                    </View>
+                  </View>
+                  {/* User action icons: Copy · Forward (right-aligned) */}
+                  <View style={st.userIconRow}>
+                    <TouchableOpacity style={st.iconBtn} onPress={() => { try { require('react-native').Clipboard.setString(msg.content); } catch {} }} activeOpacity={0.6}><IcoCopy color={INK3}/></TouchableOpacity>
+                    <TouchableOpacity style={st.iconBtn} onPress={() => { try { require('react-native').Share.share({ message: msg.content }); } catch {} }} activeOpacity={0.6}><IcoForward color={INK3}/></TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+          ))}
+
+          {/* Sending indicator */}
+          {sending && (
+            <View style={st.zaeliLabel}>
+              <View style={[st.zaeliDot, { backgroundColor: MINT }]} />
+              <ActivityIndicator size="small" color={PURPLE} />
+              <Text style={[st.zaeliLblTxt, { marginLeft: 6 }]}>Zaeli is thinking{'…'}</Text>
             </View>
           )}
         </ScrollView>
 
-        {/* ── Input bar ── */}
-        <View style={s.inputArea}>
-          {recording && (
-            <View style={s.recBanner}>
-              <Animated.View style={[s.recDot, { transform: [{ scale: micPulse }] }]} />
-              <Text style={s.recBannerTxt}>Listening… tap Stop when done</Text>
-            </View>
-          )}
-          <View style={s.inputBox}>
-            <TextInput
-              style={s.inputField}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Chat with Zaeli…"
-              placeholderTextColor={INK3}
-              multiline
-              returnKeyType="default"
-            />
+        {/* ── Hint / Next pill (structured pillars only, after child has answered at least once) ── */}
+        {isStructured && phase === 'active' && questionNum >= 1 && messages.some(m => m.role === 'child') && (
+          <View style={[st.pillRow, { backgroundColor: isMoneyLife ? '#FFFBEB' : BODY_BG }]}>
             <TouchableOpacity
-              style={[s.micBtn, recording && s.micBtnActive]}
-              onPress={toggleVoice}
-              activeOpacity={0.7}
+              style={[
+                st.hintPill,
+                hintLevel >= 3 && st.hintPillUsed,
+                isMoneyLife && { backgroundColor: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.3)' },
+              ]}
+              onPress={handleHint}
+              activeOpacity={0.76}
+              disabled={hintLevel >= 3}
             >
-              <IcoMic color={recording ? '#fff' : 'rgba(0,0,0,0.35)'} />
+              <Text style={[
+                st.hintPillTxt,
+                hintLevel >= 3 && { color: 'rgba(0,0,0,0.25)' },
+                isMoneyLife && hintLevel < 3 && { color: '#92400E' },
+              ]}>
+                {hintLevel >= 3 ? 'Hint (used)' : `\u{1F4A1} Hint (${hintLevel}/3)`}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[s.sendBtn, (!input.trim() && !recording) && { opacity: 0.45 }]}
-              onPress={sendMessage}
-              activeOpacity={0.8}
+              style={[st.nextPill, isMoneyLife && { backgroundColor: AMBER }]}
+              onPress={handleNext}
+              activeOpacity={0.76}
             >
-              <IcoSend />
+              <Text style={st.nextPillTxt}>Next question {'→'}</Text>
             </TouchableOpacity>
           </View>
-          <View style={s.actionRow}>
-            <TouchableOpacity style={s.actionBtn} onPress={() => doSendPhoto('camera')} activeOpacity={0.75}>
-              <IcoCamera />
-              <Text style={s.actionBtnTxt}>Camera</Text>
+        )}
+
+        {/* ── Chat bar ── */}
+        <View style={[st.barWrap, { backgroundColor: isMoneyLife ? '#FFFBEB' : BODY_BG }]}>
+          <View style={st.barPill}>
+            <TouchableOpacity style={st.barBtn} activeOpacity={0.7} onPress={handleAttachPress}>
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none"
+                stroke="rgba(0,0,0,0.4)" strokeWidth={2} strokeLinecap="round">
+                <Line x1={12} y1={5} x2={12} y2={19} />
+                <Line x1={5} y1={12} x2={19} y2={12} />
+              </Svg>
             </TouchableOpacity>
-            <View style={s.actionDivider} />
-            <TouchableOpacity style={s.actionBtn} onPress={() => doSendPhoto('library')} activeOpacity={0.75}>
-              <IcoUpload />
-              <Text style={s.actionBtnTxt}>Upload</Text>
+            <View style={st.barSep} />
+            <TextInput
+              ref={inputRef}
+              style={st.barInput}
+              placeholder={isRecording ? `Recording... ${micTimer}s` : pillar === 'homework' ? 'Ask about this question...' : pillar === 'read-aloud' ? 'Read aloud or type...' : 'Type or speak...'}
+              placeholderTextColor={isRecording ? CORAL : 'rgba(0,0,0,0.3)'}
+              value={input}
+              onChangeText={setInput}
+              onSubmitEditing={() => sendMessage(input)}
+              returnKeyType="send"
+              multiline={false}
+              editable={!isRecording}
+            />
+            <TouchableOpacity
+              style={[st.barBtn, isReadAloud && !isRecording && st.micHighlight, isRecording && { backgroundColor: CORAL, borderRadius: 18 }]}
+              activeOpacity={0.7}
+              onPress={handleMicPress}
+            >
+              {isRecording ? (
+                <Svg width={14} height={14} viewBox="0 0 24 24" fill="#fff" stroke="none">
+                  <Rect x={4} y={4} width={16} height={16} rx={2} />
+                </Svg>
+              ) : (
+                <IcoMic color={isReadAloud ? INK : 'rgba(0,0,0,0.32)'} />
+              )}
             </TouchableOpacity>
-            <View style={s.actionDivider} />
-            <TouchableOpacity style={s.actionBtn} onPress={handleSave} activeOpacity={0.75}>
-              <IcoSaveSession />
-              <Text style={s.actionBtnTxt}>Save</Text>
-            </TouchableOpacity>
+            <View
+              style={st.sendBtn}
+              onTouchStart={() => {
+                const txt = input;
+                setInput('');
+                if (inputRef.current) inputRef.current.clear();
+                sendMessage(txt);
+              }}
+            >
+              <IcoSend />
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
-
-      {/* ── Saved toast ── */}
-      {saved && (
-        <Animated.View style={[s.savedToast, { opacity: savedOpacity }]}>
-          <IcoSaveSession color="#fff" />
-          <Text style={s.savedToastTxt}>Session saved!</Text>
-        </Animated.View>
-      )}
-    </SafeAreaView>
+    </View>
   );
 }
 
-// ── SVG Icons — identical to zaeli-chat ──────────────────────
+// ── STYLES ────────────────────────────────────────────────────
+const st = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: LAV },
 
-function IcoPlay({ color = ICON_COLOR }: { color?: string }) {
-  return (
-    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
-      <Polygon points="5 3 19 12 5 21 5 3" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-function IcoCopy({ color = ICON_COLOR }: { color?: string }) {
-  return (
-    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
-      <Rect x="9" y="9" width="13" height="13" rx="2" stroke={color} strokeWidth={ICON_STROKE} fill="none"/>
-      <Path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-function IcoForward({ color = ICON_COLOR }: { color?: string }) {
-  return (
-    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
-      <Path d="M22 2L15 22l-3-7-7-3 17-10z" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-function IcoThumbUp({ color = ICON_COLOR }: { color?: string }) {
-  return (
-    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
-      <Path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <Path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-function IcoThumbDown({ color = ICON_COLOR }: { color?: string }) {
-  return (
-    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
-      <Path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3H10z" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <Path d="M17 2h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-function IcoRetry({ color = ICON_COLOR }: { color?: string }) {
-  return (
-    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
-      <Polyline points="1 4 1 10 7 10" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <Path d="M3.51 15a9 9 0 102.13-9.36L1 10" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-function IcoMic({ color = ICON_COLOR }: { color?: string }) {
-  return (
-    <Svg width={18} height={18} viewBox="0 0 24 24">
-      <Rect x="9" y="2" width="6" height="11" rx="3" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <Path d="M5 10a7 7 0 0014 0" stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <Line x1="12" y1="19" x2="12" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
-      <Line x1="8" y1="23" x2="16" y2="23" stroke={color} strokeWidth={1.8} strokeLinecap="round"/>
-    </Svg>
-  );
-}
-function IcoSend() {
-  return (
-    <Svg width={16} height={16} viewBox="0 0 24 24">
-      <Line x1="12" y1="19" x2="12" y2="5" stroke="#fff" strokeWidth={2.5} strokeLinecap="round"/>
-      <Polyline points="5 12 12 5 19 12" stroke="#fff" strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
+  // ── Session header ──
+  sessionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  backBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(0,0,0,0.07)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  childAv: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  childAvTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 13,
+    color: '#fff',
+  },
+  headerTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 18,
+    color: INK,
+  },
+  headerSub: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: INK2,
+  },
+  timerPill: {
+    backgroundColor: 'rgba(80,32,192,0.1)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  timerTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: PURPLE,
+  },
 
-// Camera icon — lens + body outline
-function IcoCamera({ color = ICON_COLOR }: { color?: string }) {
-  return (
-    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
-      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <Circle cx="12" cy="13" r="4" stroke={color} strokeWidth={ICON_STROKE} fill="none"/>
-    </Svg>
-  );
-}
-// Upload icon — image with up arrow
-function IcoUpload({ color = ICON_COLOR }: { color?: string }) {
-  return (
-    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
-      <Rect x="3" y="3" width="18" height="18" rx="2" stroke={color} strokeWidth={ICON_STROKE} fill="none"/>
-      <Path d="M12 16V8" stroke={color} strokeWidth={ICON_STROKE} strokeLinecap="round"/>
-      <Polyline points="8 12 12 8 16 12" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
-// Save / checkmark icon — circle with tick
-function IcoSaveSession({ color = ICON_COLOR }: { color?: string }) {
-  return (
-    <Svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 24 24">
-      <Path d="M22 11.08V12a10 10 0 11-5.93-9.14" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <Polyline points="22 4 12 14.01 9 11.01" stroke={color} strokeWidth={ICON_STROKE} fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  );
-}
+  // ── Progress bar ──
+  progressBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 16,
+    paddingBottom: 7,
+  },
+  progressDot: {
+    height: 6,
+    borderRadius: 3,
+    flex: 1,
+  },
+  progressLbl: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: INK3,
+    marginLeft: 5,
+  },
+  divider: {
+    height: 1,
+  },
 
-// ── Styles ────────────────────────────────────────────────────
-const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: HW_INDIGO },
+  // ── Zaeli message ──
+  zaeliLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  zaeliDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  zaeliLblTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 12,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: PURPLE,
+  },
+  zaeliTime: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+    color: 'rgba(0,0,0,0.25)',
+  },
+  zaeliText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 17,
+    color: INK,
+    lineHeight: 27,
+    letterSpacing: -0.1,
+  },
 
-  // Header
-  sessionHdr:      { backgroundColor: HW_INDIGO, overflow: 'hidden' },
-  sessionHdrOrb:   { position: 'absolute', right: -30, top: -30, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)' },
-  sessionHdrInner: { paddingHorizontal: 22, paddingTop: 14, paddingBottom: 14 },
-  sessionHdrRow:   { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 2 },
-  sessionBack:     { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: 'rgba(255,255,255,0.7)' },
-  sessionChild:    { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#fff', flex: 1, textAlign: 'right' },
-  sessionPill:     { backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 4 },
-  sessionPillTxt:  { fontFamily: 'Poppins_700Bold', fontSize: 11, color: '#fff', textTransform: 'uppercase', letterSpacing: 0.5 },
-  sessionTopic:    { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.45)', marginTop: 4 },
+  // ── Message action icons (matches main Zaeli chat) ──
+  zaeliIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 7,
+    gap: 2,
+  },
+  userIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 2,
+    justifyContent: 'flex-end',
+  },
+  iconBtn: {
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 6,
+  },
 
-  // Chat area
-  chatArea:    { flex: 1, backgroundColor: BG },
-  chatContent: { paddingVertical: 12 },
+  // ── Technique card ──
+  techniqueCard: {
+    backgroundColor: PURPLE_L,
+    borderRadius: 13,
+    padding: 13,
+    marginTop: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: MINT,
+  },
+  tcLabel: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 12,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: PURPLE,
+    marginBottom: 6,
+  },
+  tcContent: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 15,
+    color: PURPLE_D,
+    lineHeight: 24,
+  },
+  tcCaption: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 13,
+    color: 'rgba(80,32,192,0.6)',
+    marginTop: 6,
+    lineHeight: 20,
+  },
 
-  // Message wrapper — full width with horizontal padding
-  msgWrap: { paddingHorizontal: 16, marginBottom: 2 },
+  // ── MC options ──
+  mcBox: { marginTop: 10, gap: 7 },
+  mcOption: {
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.11)',
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  mcCorrect: { borderColor: GREEN, backgroundColor: '#F0FDF4' },
+  mcWrong: { borderColor: RED, backgroundColor: '#FEF2F2' },
+  mcLabel: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(0,0,0,0.07)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mcLabelOk: { backgroundColor: GREEN },
+  mcLabelNo: { backgroundColor: RED },
+  mcLabelTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: INK,
+  },
+  mcText: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 16,
+    color: INK,
+    flex: 1,
+    lineHeight: 23,
+  },
 
-  // Zaeli message — full width with teal left accent bar
-  zRow:    { flexDirection: 'row', marginBottom: 12 },
-  zAccent: { width: 3, borderRadius: 2, backgroundColor: HW_INDIGO, marginRight: 12, marginTop: 2, flexShrink: 0 },
-  zBody:   { flex: 1 },
-  bzName:  { fontFamily: 'Poppins_700Bold', fontSize: 11, color: HW_INDIGO, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.8 },
-  bzText:  { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, lineHeight: 24 },
+  // ── Chips ──
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    marginTop: 10,
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.13)',
+    borderRadius: 22,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+  },
+  chipTxt: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 15,
+    color: 'rgba(0,0,0,0.55)',
+  },
 
-  // Child message — full width, teal tint background
-  cRow:    { backgroundColor: `${HW_INDIGO}12`, borderRadius: 12, padding: 12, marginBottom: 12 },
-  bcText:  { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, lineHeight: 22 },
-  cActRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 2 },
+  // ── Child message ──
+  childRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  childBubble: {
+    backgroundColor: PURPLE_L,
+    borderRadius: 16,
+    borderTopRightRadius: 3,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    maxWidth: '78%',
+  },
+  childBubbleTxt: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 17,
+    color: INK,
+    lineHeight: 27,
+  },
 
-  // Action rows
-  actRow:   { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 8 },
-  actBtn:   { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-  actSep:   { width: 1, height: 16, backgroundColor: 'rgba(0,0,0,0.10)', marginHorizontal: 4 },
-  tsInline: { fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK3, marginLeft: 'auto', paddingRight: 2 },
+  // ── Hint / Next pills ──
+  pillRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+  },
+  hintPill: {
+    flex: 1,
+    backgroundColor: MINT_BG,
+    borderWidth: 1,
+    borderColor: MINT_BD,
+    borderRadius: 22,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  hintPillUsed: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  hintPillTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: '#2A8060',
+  },
+  nextPill: {
+    flex: 3,
+    backgroundColor: PURPLE,
+    borderRadius: 22,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  nextPillTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 15,
+    color: '#fff',
+  },
 
-  // Photo — full width in conversation
-  photoImg:  { width: '100%', height: 220, borderRadius: 10, marginBottom: 8 },
-
-  // Input bar
-  inputArea:    { backgroundColor: CARD, borderTopWidth: 1, borderTopColor: BORDER, paddingHorizontal: 14, paddingTop: 10, paddingBottom: Platform.OS === 'ios' ? 28 : 12 },
-  inputBox:     { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F7F7F7', borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.10)', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
-  inputField:   { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, maxHeight: 100 },
-  micBtn:       { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 11 },
-  micBtnActive: { backgroundColor: MAG },
-  sendBtn:      { width: 36, height: 36, borderRadius: 11, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center', shadowColor: BLUE, shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-
-  // Three action buttons
-  actionRow:     { flexDirection: 'row', alignItems: 'center', marginTop: 8, backgroundColor: '#F7F7F7', borderRadius: 18, borderWidth: 1.5, borderColor: 'rgba(0,0,0,0.10)', overflow: 'hidden' },
-  actionBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 6 },
-  actionBtnTxt:  { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK2 },
-  actionDivider: { width: 1, height: 20, backgroundColor: 'rgba(0,0,0,0.08)' },
-
-  // Saved toast
-  savedToast:    { position: 'absolute', bottom: 120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: HW_INDIGO, borderRadius: 24, paddingHorizontal: 20, paddingVertical: 12, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
-  savedToastTxt: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' },
-
-  // Recording banner
-  recBanner:    { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(224,0,124,0.08)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: 'rgba(224,0,124,0.2)' },
-  recDot:       { width: 8, height: 8, borderRadius: 4, backgroundColor: MAG },
-  recBannerTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: MAG, flex: 1 },
+  // ── Chat bar ──
+  barWrap: {
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 24,
+  },
+  barPill: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: 'rgba(10,10,10,0.09)',
+    borderRadius: 30,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 3,
+  },
+  barBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  barSep: {
+    width: 1,
+    height: 20,
+    backgroundColor: 'rgba(10,10,10,0.1)',
+  },
+  barInput: {
+    flex: 1,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 16,
+    color: INK,
+    paddingVertical: 0,
+  },
+  micHighlight: {
+    backgroundColor: MINT,
+    borderRadius: 18,
+  },
+  sendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: CORAL,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

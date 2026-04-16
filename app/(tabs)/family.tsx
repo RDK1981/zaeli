@@ -10,14 +10,16 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal,
-  Dimensions, StatusBar as RNStatusBar, TextInput,
+  Dimensions, StatusBar as RNStatusBar, TextInput, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, { Polyline, Path } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
+import { generateSubjectSummary, generateSessionSummary } from '../../lib/tutor-summaries';
 
 const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -136,6 +138,17 @@ export default function OurFamilyScreen() {
   const [dbRewards, setDbRewards] = useState<any[]>([]);
   const [dbStreaks, setDbStreaks] = useState<Record<string, number>>({});
   const [dbJobCounts, setDbJobCounts] = useState<Record<string, { done: number; total: number }>>({});
+  // Tutor data — live from Supabase
+  const [dbTutorSessions, setDbTutorSessions] = useState<Record<string, any[]>>({});
+  const [dbTutorProgress, setDbTutorProgress] = useState<Record<string, any[]>>({});
+  const [dbTutorMessages, setDbTutorMessages] = useState<Record<string, any[]>>({});
+  // Parent tutor views inside child detail
+  const [childDetailView, setChildDetailView] = useState<'overview' | 'progress' | 'session-review'>('overview');
+  const [reviewSessionId, setReviewSessionId] = useState<string | null>(null);
+  const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
+  const [subjectSummaries, setSubjectSummaries] = useState<Record<string, string>>({});
+  const [loadingSummary, setLoadingSummary] = useState<string | null>(null);
+  const [sessionSummaries, setSessionSummaries] = useState<Record<string, string>>({});
   // Management forms
   const [showAddJob, setShowAddJob] = useState(false);
   const [showAddReward, setShowAddReward] = useState(false);
@@ -217,6 +230,52 @@ export default function OurFamilyScreen() {
       const { data: rewardsData } = await supabase.from('kids_rewards')
         .select('*').eq('family_id', FAMILY_ID).eq('is_active', true);
       setDbRewards(rewardsData ?? []);
+
+      // Load tutor sessions (last 30 days) per child
+      try {
+        const since = new Date();
+        since.setDate(since.getDate() - 30);
+        const { data: tutorSess, error: tutorErr } = await supabase.from('tutor_sessions')
+          .select('id, child_name, pillar, subject, topic, duration_seconds, difficulty_band, question_count, hints_used, status, summary, created_at')
+          .eq('family_id', FAMILY_ID)
+          .gte('created_at', since.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (tutorErr) console.error('TUTOR SESSIONS LOAD ERROR:', tutorErr.message, tutorErr.details);
+        else console.log('TUTOR SESSIONS LOADED:', (tutorSess ?? []).length, 'sessions', (tutorSess ?? []).map((s: any) => s.child_name));
+        const sessMap: Record<string, any[]> = {};
+        (tutorSess ?? []).forEach((s: any) => {
+          if (!sessMap[s.child_name]) sessMap[s.child_name] = [];
+          sessMap[s.child_name].push(s);
+        });
+        setDbTutorSessions(sessMap);
+
+        // Load tutor progress per child per subject
+        const { data: tutorProg } = await supabase.from('tutor_progress')
+          .select('child_name, subject, difficulty_band, total_sessions, total_minutes, status_label, notes')
+          .eq('family_id', FAMILY_ID);
+        const progMap: Record<string, any[]> = {};
+        (tutorProg ?? []).forEach((p: any) => {
+          if (!progMap[p.child_name]) progMap[p.child_name] = [];
+          progMap[p.child_name].push(p);
+        });
+        setDbTutorProgress(progMap);
+
+        // Load tutor messages for recent sessions (for parent review)
+        const recentIds = (tutorSess ?? []).slice(0, 20).map((s: any) => s.id).filter(Boolean);
+        if (recentIds.length > 0) {
+          const { data: msgs } = await supabase.from('tutor_messages')
+            .select('session_id, role, content, message_type, hint_level, created_at')
+            .in('session_id', recentIds)
+            .order('created_at', { ascending: true });
+          const msgMap: Record<string, any[]> = {};
+          (msgs ?? []).forEach((m: any) => {
+            if (!msgMap[m.session_id]) msgMap[m.session_id] = [];
+            msgMap[m.session_id].push(m);
+          });
+          setDbTutorMessages(msgMap);
+        }
+      } catch (e) { console.log('[family] tutor data load error:', e); }
     } catch (e) { console.log('[family] loadFamilyData error:', e); }
   }
 
@@ -498,7 +557,7 @@ export default function OurFamilyScreen() {
               <TouchableOpacity
                 style={{ backgroundColor: hasTutor ? TUTOR_BG : 'rgba(0,0,0,0.05)', borderRadius: 12, paddingVertical: 11, alignItems: 'center', marginTop: 8 }}
                 activeOpacity={0.7}
-                onPress={(e) => { e.stopPropagation(); if (hasTutor) router.navigate('/(tabs)/tutor' as any); }}
+                onPress={(e) => { e.stopPropagation(); if (hasTutor) { setSelectedChild(kid.name); setChildDetailView('progress'); } }}
               >
                 <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: hasTutor ? TUTOR_PURPLE : 'rgba(0,0,0,0.30)' }}>
                   {'\u{1F4DA}'} {hasTutor ? 'Tutor progress' : 'Add Tutor'}
@@ -529,6 +588,41 @@ export default function OurFamilyScreen() {
     const nextReward = childRewards.find((r: any) => r.cost > realPoints);
     const toNextReward = nextReward ? nextReward.cost - realPoints : 0;
 
+    // Tutor data — computed before render
+    const liveSessions = dbTutorSessions[selectedChild] ?? [];
+    const liveProgress = dbTutorProgress[selectedChild] ?? [];
+    const totalSessions = liveSessions.length;
+    const totalMins = Math.round(liveSessions.reduce((sum: number, se: any) => sum + (se.duration_seconds ?? 0), 0) / 60);
+
+    // Build subject summaries from live sessions if no tutor_progress rows yet
+    const subjectMap: Record<string, { sessions: number; mins: number; band: string; lastTopic: string }> = {};
+    liveSessions.forEach((se: any) => {
+      const subj = se.subject ?? 'General';
+      if (!subjectMap[subj]) subjectMap[subj] = { sessions: 0, mins: 0, band: 'core', lastTopic: '' };
+      subjectMap[subj].sessions++;
+      subjectMap[subj].mins += Math.round((se.duration_seconds ?? 0) / 60);
+      if (se.difficulty_band) subjectMap[subj].band = se.difficulty_band;
+      if (se.topic) subjectMap[subj].lastTopic = se.topic;
+    });
+
+    const tutorSubjects = liveProgress.length > 0 ? liveProgress : Object.entries(subjectMap).map(([name, d]) => ({
+      subject: name, difficulty_band: d.band, total_sessions: d.sessions, total_minutes: d.mins,
+      status_label: d.sessions >= 8 ? 'excelling' : d.sessions >= 3 ? 'tracking well' : 'getting started',
+      notes: d.lastTopic ? `Last topic: ${d.lastTopic}` : '',
+    }));
+
+    const BAND_STYLES: Record<string, { colour: string; bg: string; label: string }> = {
+      'foundation': { colour: '#1E40AF', bg: 'rgba(147,197,253,0.2)', label: 'Foundation' },
+      'core': { colour: '#0A6040', bg: 'rgba(168,232,204,0.2)', label: 'Core' },
+      'extension': { colour: '#92400E', bg: 'rgba(253,230,138,0.25)', label: '\u2191 Extension' },
+    };
+    const STATUS_COLOURS: Record<string, string> = {
+      'excelling': '#22C55E', 'tracking well': '#F59E0B', 'getting started': '#6366F1', 'needs work': '#EF4444',
+    };
+    const SUBJ_COLOURS: Record<string, string> = {
+      'Maths': member.colour, 'English': '#5020C0', 'Science': '#22C55E', 'HASS': '#F59E0B', 'General': '#6366F1',
+    };
+
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* Child header */}
@@ -550,57 +644,110 @@ export default function OurFamilyScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Tutor progress */}
-        {hasTutor && detail.subjects.length > 0 ? (
+        {/* Tutor progress — live from Supabase */}
+        {hasTutor && totalSessions > 0 && (
           <View style={s.sectionCard}>
             <View style={s.sectionCardHeader}>
               <Text style={{ fontSize: 20 }}>{'\u{1F4DA}'}</Text>
               <Text style={s.sectionCardTitle}>Tutor progress</Text>
               <View style={s.streakBadge}>
-                <Text style={s.streakBadgeTxt}>{'\u{1F525}'} {kid.sessions} sessions</Text>
+                <Text style={s.streakBadgeTxt}>{totalSessions} sessions {'·'} {totalMins}m</Text>
               </View>
             </View>
 
-            {detail.subjects.map((subj, i) => (
-              <View key={subj.name} style={[s.subjectRow, i === detail.subjects.length - 1 && { marginBottom: 0 }]}>
-                <View style={s.subjTop}>
-                  <Text style={s.subjName}>{subj.name}</Text>
-                  <View style={[s.subjBand, { backgroundColor: subj.bandBg }]}>
-                    <Text style={[s.subjBandTxt, { color: subj.bandColour }]}>{subj.band}</Text>
+            {tutorSubjects.map((subj: any, i: number) => {
+              const band = BAND_STYLES[subj.difficulty_band] ?? BAND_STYLES['core'];
+              const barColour = SUBJ_COLOURS[subj.subject] ?? member.colour;
+                const maxSessions = 20;
+                const pct = Math.min(100, Math.round(((subj.total_sessions ?? 0) / maxSessions) * 100));
+                const statusColour = STATUS_COLOURS[subj.status_label] ?? '#6366F1';
+                return (
+                  <View key={subj.subject} style={[s.subjectRow, i === tutorSubjects.length - 1 && { marginBottom: 0 }]}>
+                    <View style={s.subjTop}>
+                      <Text style={s.subjName}>{subj.subject}</Text>
+                      <View style={[s.subjBand, { backgroundColor: band.bg }]}>
+                        <Text style={[s.subjBandTxt, { color: band.colour }]}>{band.label}</Text>
+                      </View>
+                    </View>
+                    <View style={s.subjBarWrap}>
+                      <View style={[s.subjBar, { width: `${pct}%`, backgroundColor: barColour }]} />
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={s.subjNote}>{subj.total_sessions ?? 0} sessions {'·'} {subj.total_minutes ?? 0}m</Text>
+                      <Text style={[s.subjNote, { color: statusColour, fontFamily: 'Poppins_600SemiBold' }]}>{subj.status_label}</Text>
+                    </View>
+                    {subj.notes ? <Text style={[s.subjNote, { marginTop: 2 }]}>{subj.notes}</Text> : null}
                   </View>
-                </View>
-                <View style={s.subjBarWrap}>
-                  <View style={[s.subjBar, { width: `${subj.pct}%`, backgroundColor: subj.barColour }]} />
-                </View>
-                <Text style={s.subjNote}>{subj.note}</Text>
-              </View>
-            ))}
+                );
+              })}
 
-            {detail.recentSessions.map((sess, i) => (
-              <View key={i} style={s.recentSession}>
-                <View style={[s.rsDot, { backgroundColor: sess.dotColour }]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={s.rsTitle} numberOfLines={1}>{sess.title}</Text>
-                  <Text style={s.rsMeta}>{sess.meta}</Text>
-                </View>
-                <Text style={s.rsView}>View {'\u2192'}</Text>
-              </View>
-            ))}
-          </View>
-        ) : !hasTutor ? (
-          <View style={s.sectionCard}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 8 }}>
-              <Text style={{ fontSize: 26 }}>{'\u{1F4DA}'}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, marginBottom: 1 }}>Tutor not enrolled</Text>
-                <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>A$9.99/month {'\u00B7'} Australian curriculum Yr {(member as any).year}</Text>
-              </View>
+              {/* Recent sessions */}
+              {liveSessions.slice(0, 3).map((sess: any, i: number) => {
+                const when = (() => {
+                  const d = new Date(sess.created_at);
+                  const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+                  if (diff === 0) return 'Today';
+                  if (diff === 1) return 'Yesterday';
+                  return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+                })();
+                const dotColour = SUBJ_COLOURS[sess.subject] ?? member.colour;
+                const title = sess.topic && sess.topic !== 'Zaeli picks' ? sess.topic : sess.subject ? `${sess.pillar ?? 'Session'} — ${sess.subject}` : sess.pillar ?? 'Session';
+                const dur = sess.duration_seconds ? ` · ${Math.round(sess.duration_seconds / 60)}m` : '';
+                return (
+                  <View key={i} style={s.recentSession}>
+                    <View style={[s.rsDot, { backgroundColor: dotColour }]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.rsTitle} numberOfLines={1}>{title}</Text>
+                      <Text style={s.rsMeta}>{when} {'·'} {sess.subject ?? sess.pillar}{dur}</Text>
+                    </View>
+                    <Text style={s.rsView}>View {'→'}</Text>
+                  </View>
+                );
+              })}
+
+              <TouchableOpacity
+                style={{ marginTop: 10, paddingVertical: 10, backgroundColor: 'rgba(80,32,192,0.08)', borderRadius: 10, alignItems: 'center' }}
+                onPress={() => setChildDetailView('progress')}
+                activeOpacity={0.76}
+              >
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#5020C0' }}>Full Tutor report {'→'}</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={s.tutorCta} activeOpacity={0.7}>
-              <Text style={s.tutorCtaTxt}>Add {selectedChild} to Tutor {'\u2192'}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
+          )}
+
+          {/* Tutor enrolled but no sessions yet */}
+          {hasTutor && totalSessions === 0 && (
+            <View style={s.sectionCard}>
+              <View style={s.sectionCardHeader}>
+                <Text style={{ fontSize: 20 }}>{'\u{1F4DA}'}</Text>
+                <Text style={s.sectionCardTitle}>Tutor progress</Text>
+              </View>
+              <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginBottom: 10 }}>No sessions yet. Start a session in Tutor to see progress here.</Text>
+              <TouchableOpacity
+                style={{ paddingVertical: 10, backgroundColor: 'rgba(80,32,192,0.08)', borderRadius: 10, alignItems: 'center' }}
+                onPress={() => router.navigate({ pathname: '/(tabs)/tutor-child', params: { childId: '', childName: selectedChild, yearLevel: String((member as any).year) } })}
+                activeOpacity={0.76}
+              >
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#5020C0' }}>Open Tutor {'→'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Tutor not enrolled — upsell */}
+          {!hasTutor && (
+            <View style={s.sectionCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 8 }}>
+                <Text style={{ fontSize: 26 }}>{'\u{1F4DA}'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, marginBottom: 1 }}>Tutor not enrolled</Text>
+                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>A$9.99/month {'·'} Australian curriculum Yr {(member as any).year}</Text>
+                </View>
+              </View>
+              <TouchableOpacity style={s.tutorCta} activeOpacity={0.7}>
+                <Text style={s.tutorCtaTxt}>Add {selectedChild} to Tutor {'→'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
         {/* Kids Hub section */}
         <View style={s.sectionCard}>
@@ -795,6 +942,379 @@ export default function OurFamilyScreen() {
     );
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // TUTOR PROGRESS VIEW — Screen 11 from mockup
+  // Per-child: sessions/time/streak, per-subject cards with bands + bars
+  // ══════════════════════════════════════════════════════════════════════════
+  function TutorProgressView() {
+    const member = FAMILY[selectedChild];
+    const liveSessions = dbTutorSessions[selectedChild] ?? [];
+    const liveProgress = dbTutorProgress[selectedChild] ?? [];
+    const totalSessions = liveSessions.length;
+    const totalMins = Math.round(liveSessions.reduce((sum: number, se: any) => sum + (se.duration_seconds ?? 0), 0) / 60);
+    const totalHrs = Math.floor(totalMins / 60);
+    const remainMins = totalMins % 60;
+    const timeStr = totalHrs > 0 ? `${totalHrs}h ${remainMins}m` : `${totalMins}m`;
+
+    // Calculate streak
+    const dates = new Set(liveSessions.map((s: any) => {
+      const d = new Date(s.created_at);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }));
+    const sorted = Array.from(dates).sort().reverse();
+    const today = localDateStr();
+    let streak = 0;
+    if (sorted[0] === today || sorted[0] === localDateStr((() => { const d = new Date(); d.setDate(d.getDate() - 1); return d; })())) {
+      streak = 1;
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = new Date(sorted[i - 1]);
+        const curr = new Date(sorted[i]);
+        if (Math.round((prev.getTime() - curr.getTime()) / 86400000) === 1) streak++;
+        else break;
+      }
+    }
+
+    // Subject summaries
+    const subjectMap: Record<string, { sessions: number; mins: number; band: string; lastTopic: string }> = {};
+    liveSessions.forEach((se: any) => {
+      const subj = se.subject ?? 'General';
+      if (!subjectMap[subj]) subjectMap[subj] = { sessions: 0, mins: 0, band: 'core', lastTopic: '' };
+      subjectMap[subj].sessions++;
+      subjectMap[subj].mins += Math.round((se.duration_seconds ?? 0) / 60);
+      if (se.difficulty_band) subjectMap[subj].band = se.difficulty_band;
+      if (se.topic) subjectMap[subj].lastTopic = se.topic;
+    });
+
+    const subjects = liveProgress.length > 0 ? liveProgress : Object.entries(subjectMap).map(([name, d]) => ({
+      subject: name, difficulty_band: d.band, total_sessions: d.sessions, total_minutes: d.mins,
+      status_label: d.sessions >= 8 ? 'excelling' : d.sessions >= 3 ? 'tracking well' : 'getting started',
+      notes: d.lastTopic ? `Last topic: ${d.lastTopic}` : '',
+    }));
+
+    const BAND_STYLES: Record<string, { colour: string; bg: string; label: string }> = {
+      'foundation': { colour: '#1E40AF', bg: 'rgba(147,197,253,0.2)', label: 'Foundation' },
+      'core': { colour: '#0A6040', bg: 'rgba(168,232,204,0.2)', label: 'Core' },
+      'extension': { colour: '#92400E', bg: 'rgba(253,230,138,0.25)', label: '\u2191 Extension' },
+    };
+    const STATUS_COLOURS: Record<string, string> = {
+      'excelling': '#22C55E', 'tracking well': '#F59E0B', 'getting started': '#6366F1', 'needs work': '#EF4444',
+    };
+    const SUBJ_COLOURS: Record<string, string> = {
+      'Maths': member.colour, 'English': '#5020C0', 'Science': '#22C55E', 'HASS': '#F59E0B', 'General': '#6366F1',
+    };
+
+    function sessWhen(iso: string) {
+      const d = new Date(iso);
+      const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+      if (diff === 0) return 'Today';
+      if (diff === 1) return 'Yesterday';
+      return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+    }
+
+    return (
+      <ScrollView style={{ flex: 1, backgroundColor: '#F8F6FF' }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12 }}>
+          <TouchableOpacity style={s.backBtn} onPress={() => setChildDetailView('overview')} activeOpacity={0.7}>
+            <IcoBack />
+          </TouchableOpacity>
+          <View style={[s.avatar, { backgroundColor: member.colour, width: 34, height: 34 }]}>
+            <Text style={[s.avatarTxt, { fontSize: 16 }]}>{member.initial}</Text>
+          </View>
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 18, color: INK, flex: 1 }}>{selectedChild}'s progress</Text>
+          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4 }}>This month</Text>
+        </View>
+
+        {/* Stats strip */}
+        <View style={{ flexDirection: 'row', marginHorizontal: 14, marginBottom: 14, backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 14, paddingVertical: 12 }}>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 24, color: TUTOR_PURPLE }}>{totalSessions}</Text>
+            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Sessions</Text>
+          </View>
+          <View style={{ width: 1, height: 30, backgroundColor: 'rgba(0,0,0,0.08)' }} />
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 24, color: TUTOR_PURPLE }}>{timeStr}</Text>
+            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Total time</Text>
+          </View>
+          <View style={{ width: 1, height: 30, backgroundColor: 'rgba(0,0,0,0.08)' }} />
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 24, color: TUTOR_PURPLE }}>{streak > 0 ? `\u{1F525} ${streak}` : '0'}</Text>
+            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Day streak</Text>
+          </View>
+        </View>
+
+        {/* Subject cards — tap to expand */}
+        {subjects.map((subj: any) => {
+          const band = BAND_STYLES[subj.difficulty_band] ?? BAND_STYLES['core'];
+          const barColour = SUBJ_COLOURS[subj.subject] ?? member.colour;
+          const pct = Math.min(100, Math.round(((subj.total_sessions ?? 0) / 20) * 100));
+          const statusColour = STATUS_COLOURS[subj.status_label] ?? '#6366F1';
+          const isExpanded = expandedSubject === subj.subject;
+          const subjSessions = liveSessions.filter((se: any) => (se.subject ?? 'General') === subj.subject);
+          return (
+            <TouchableOpacity
+              key={subj.subject}
+              style={{ backgroundColor: '#fff', borderRadius: 16, marginHorizontal: 14, marginBottom: 10, padding: 14, borderWidth: isExpanded ? 1.5 : 0, borderColor: isExpanded ? 'rgba(80,32,192,0.2)' : 'transparent' }}
+              onPress={() => {
+                if (isExpanded) { setExpandedSubject(null); return; }
+                setExpandedSubject(subj.subject);
+                // Fetch AI summary if not cached
+                const cacheKey = `${selectedChild}-${subj.subject}`;
+                if (!subjectSummaries[cacheKey]) {
+                  setLoadingSummary(subj.subject);
+                  generateSubjectSummary(selectedChild, subj.subject).then(s => {
+                    if (s) setSubjectSummaries(prev => ({ ...prev, [cacheKey]: s }));
+                    setLoadingSummary(null);
+                  });
+                }
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 19, color: INK }}>{subj.subject}</Text>
+                <View style={[s.subjBand, { backgroundColor: band.bg }]}>
+                  <Text style={[s.subjBandTxt, { color: band.colour }]}>{band.label}</Text>
+                </View>
+              </View>
+              <View style={s.subjBarWrap}>
+                <View style={[s.subjBar, { width: `${pct}%`, backgroundColor: barColour }]} />
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: 4 }}>
+                <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4 }}>{subj.total_sessions ?? 0} sessions {'·'} {subj.total_minutes ?? 0}m</Text>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: statusColour }}>{subj.status_label}</Text>
+              </View>
+              {subj.notes ? <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK4, lineHeight: 22, marginTop: 2 }}>{subj.notes}</Text> : null}
+
+              {/* Expanded — Zaeli summary + recent sessions for this subject */}
+              {isExpanded && (
+                <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)', paddingTop: 10 }}>
+                  {/* Zaeli AI summary */}
+                  <View style={{ backgroundColor: '#F8F6FF', borderRadius: 10, padding: 10, borderLeftWidth: 3, borderLeftColor: '#A8E8CC', marginBottom: 10 }}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', color: TUTOR_PURPLE, marginBottom: 4 }}>{'\u2726'} Zaeli's take</Text>
+                    {loadingSummary === subj.subject ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+                        <ActivityIndicator size="small" color={TUTOR_PURPLE} />
+                        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK4 }}>Zaeli is reviewing sessions...</Text>
+                      </View>
+                    ) : (
+                      <View>
+                        {(subjectSummaries[`${selectedChild}-${subj.subject}`] ?? `${subjSessions.length} session${subjSessions.length === 1 ? '' : 's'} in ${subj.subject}. Tap to generate Zaeli's analysis.`).split('\n').filter((p: string) => p.trim()).map((para: string, pi: number) => (
+                          <Text key={pi} style={{ fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, lineHeight: 23, marginBottom: 8 }}>{para.trim()}</Text>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Recent sessions for this subject */}
+                  {subjSessions.slice(0, 3).map((sess: any, i: number) => {
+                    const title = sess.topic && sess.topic !== 'Zaeli picks' ? sess.topic : sess.pillar ?? 'Session';
+                    const dur = sess.duration_seconds ? `${Math.round(sess.duration_seconds / 60)}m` : '';
+                    return (
+                      <TouchableOpacity
+                        key={sess.id ?? i}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, borderBottomWidth: i < Math.min(subjSessions.length, 3) - 1 ? 1 : 0, borderBottomColor: 'rgba(0,0,0,0.05)' }}
+                        onPress={() => { setReviewSessionId(sess.id); setChildDetailView('session-review'); }}
+                        activeOpacity={0.76}
+                      >
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: barColour }} />
+                        <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 15, color: INK, flex: 1 }} numberOfLines={1}>{title}</Text>
+                        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>{sessWhen(sess.created_at)}{dur ? ` · ${dur}` : ''}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+
+        {/* All sessions list */}
+        {liveSessions.length > 0 && (
+          <>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, textTransform: 'uppercase', letterSpacing: 1, color: INK4, paddingHorizontal: 18, marginTop: 6, marginBottom: 8 }}>All sessions</Text>
+            {liveSessions.map((sess: any, i: number) => {
+              const dotColour = SUBJ_COLOURS[sess.subject] ?? member.colour;
+              const title = sess.topic && sess.topic !== 'Zaeli picks' ? sess.topic : sess.subject ? `${sess.pillar ?? 'Session'} — ${sess.subject}` : sess.pillar ?? 'Session';
+              const dur = sess.duration_seconds ? `${Math.round(sess.duration_seconds / 60)}m` : '';
+              return (
+                <TouchableOpacity
+                  key={sess.id ?? i}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#fff', borderRadius: 12, marginHorizontal: 14, marginBottom: 6, padding: 12 }}
+                  onPress={() => { setReviewSessionId(sess.id); setChildDetailView('session-review'); }}
+                  activeOpacity={0.76}
+                >
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dotColour }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: INK }} numberOfLines={1}>{title}</Text>
+                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>{sessWhen(sess.created_at)} {'·'} {sess.subject ?? sess.pillar}{dur ? ` · ${dur}` : ''}</Text>
+                  </View>
+                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: TUTOR_PURPLE }}>View {'→'}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </>
+        )}
+
+        {totalSessions === 0 && (
+          <View style={{ alignItems: 'center', paddingTop: 40 }}>
+            <Text style={{ fontSize: 32, marginBottom: 8 }}>{'\u{1F4DA}'}</Text>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4 }}>No sessions yet</Text>
+          </View>
+        )}
+      </ScrollView>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SESSION REVIEW VIEW — Screen 10 from mockup
+  // Parent sees: Zaeli summary, stats, topic tags, full transcript
+  // ══════════════════════════════════════════════════════════════════════════
+  function SessionReviewView() {
+    const member = FAMILY[selectedChild];
+    const allSessions = dbTutorSessions[selectedChild] ?? [];
+    const session = allSessions.find((s: any) => s.id === reviewSessionId);
+    const messages = dbTutorMessages[reviewSessionId ?? ''] ?? [];
+
+    if (!session) {
+      return (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8F6FF' }}>
+          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4 }}>Session not found</Text>
+          <TouchableOpacity onPress={() => setChildDetailView('progress')} style={{ marginTop: 16 }}>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: TUTOR_PURPLE }}>{'←'} Back to progress</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    const duration = session.duration_seconds ? `${Math.round(session.duration_seconds / 60)} min` : '';
+    const title = session.topic && session.topic !== 'Zaeli picks' ? session.topic : session.subject ? `${session.pillar ?? 'Session'} — ${session.subject}` : session.pillar ?? 'Session';
+    const msgCount = messages.length;
+    const hints = session.hints_used ?? 0;
+    const questions = session.question_count ?? 0;
+    const photos = messages.filter((m: any) => m.message_type === 'photo').length;
+
+    // Generate summary from transcript
+    const zaeliMsgs = messages.filter((m: any) => m.role === 'zaeli');
+    const childMsgs = messages.filter((m: any) => m.role === 'child');
+
+    function sessWhen(iso: string) {
+      const d = new Date(iso);
+      const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+      if (diff === 0) return 'Today';
+      if (diff === 1) return 'Yesterday';
+      return d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' });
+    }
+
+    return (
+      <ScrollView style={{ flex: 1, backgroundColor: '#F8F6FF' }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={{ backgroundColor: '#D8CCFF', paddingBottom: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10, marginBottom: 8 }}>
+            <TouchableOpacity style={s.backBtn} onPress={() => setChildDetailView('progress')} activeOpacity={0.7}>
+              <IcoBack />
+            </TouchableOpacity>
+            <View style={[s.avatar, { backgroundColor: member.colour, width: 26, height: 26 }]}>
+              <Text style={[s.avatarTxt, { fontSize: 12 }]}>{member.initial}</Text>
+            </View>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4 }}>{selectedChild} {'·'} {sessWhen(session.created_at)}</Text>
+          </View>
+
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 20, color: INK, paddingHorizontal: 16, marginBottom: 3, letterSpacing: -0.3 }}>{title}</Text>
+          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, paddingHorizontal: 16 }}>
+            {session.pillar ?? 'Practice'} {'·'} {session.subject ?? ''}{duration ? ` · ${duration}` : ''} {'·'} {msgCount} messages
+          </Text>
+
+          {/* Stats row */}
+          <View style={{ flexDirection: 'row', gap: 6, paddingHorizontal: 16, marginTop: 10 }}>
+            {questions > 0 && (
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.55)', borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10, flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: TUTOR_PURPLE }}>{questions}</Text>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.3 }}>Questions</Text>
+              </View>
+            )}
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.55)', borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10, flex: 1, alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: TUTOR_PURPLE }}>{hints}</Text>
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.3 }}>Hints used</Text>
+            </View>
+            {photos > 0 && (
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.55)', borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10, flex: 1, alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: TUTOR_PURPLE }}>{photos}</Text>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.3 }}>Photos</Text>
+              </View>
+            )}
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.55)', borderRadius: 10, paddingVertical: 7, paddingHorizontal: 10, flex: 1, alignItems: 'center' }}>
+              <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: '#22C55E' }}>{'\u2713'}</Text>
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK4, textTransform: 'uppercase', letterSpacing: 0.3 }}>Done</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Zaeli AI summary card */}
+        <View style={{ backgroundColor: '#fff', borderRadius: 14, marginHorizontal: 14, marginTop: 12, padding: 13, borderLeftWidth: 4, borderLeftColor: '#A8E8CC' }}>
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: TUTOR_PURPLE, marginBottom: 5 }}>{'\u2726'} Zaeli's summary</Text>
+          {loadingSummary === session.id ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 }}>
+              <ActivityIndicator size="small" color={TUTOR_PURPLE} />
+              <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4 }}>Zaeli is writing the summary...</Text>
+            </View>
+          ) : (session.summary || sessionSummaries[session.id]) ? (
+            <View>
+              {(session.summary ?? sessionSummaries[session.id] ?? '').split('\n').filter((p: string) => p.trim()).map((para: string, pi: number) => (
+                <Text key={pi} style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK, lineHeight: 25, marginBottom: 8 }}>{para.trim()}</Text>
+              ))}
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => {
+                setLoadingSummary(session.id);
+                generateSessionSummary(session.id).then(s => {
+                  if (s) setSessionSummaries(prev => ({ ...prev, [session.id]: s }));
+                  setLoadingSummary(null);
+                });
+              }}
+              style={{ backgroundColor: 'rgba(80,32,192,0.08)', borderRadius: 8, paddingVertical: 8, alignItems: 'center' }}
+              activeOpacity={0.76}
+            >
+              <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: TUTOR_PURPLE }}>Generate summary</Text>
+            </TouchableOpacity>
+          )}
+            {/* Topic tags */}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+              {session.subject && <View style={{ backgroundColor: '#EDE8FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: TUTOR_PURPLE }}>{session.subject}</Text></View>}
+              {session.topic && session.topic !== 'Zaeli picks' && <View style={{ backgroundColor: '#EDE8FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: TUTOR_PURPLE }}>{session.topic}</Text></View>}
+              {session.difficulty_band && <View style={{ backgroundColor: '#EDE8FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}><Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: TUTOR_PURPLE }}>{session.difficulty_band}</Text></View>}
+            </View>
+          </View>
+        )}
+
+        {/* Full transcript */}
+        {messages.length > 0 && (
+          <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: INK4, marginBottom: 8 }}>Full transcript</Text>
+            {messages.map((msg: any, i: number) => {
+              const isZaeli = msg.role === 'zaeli';
+              return (
+                <View key={i} style={{ flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'flex-start' }}>
+                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 0.5, textTransform: 'uppercase', width: 36, paddingTop: 4, color: isZaeli ? TUTOR_PURPLE : member.colour }}>{isZaeli ? 'Zaeli' : selectedChild.slice(0, 5)}</Text>
+                  <View style={{ flex: 1, backgroundColor: '#fff', borderRadius: 9, padding: 8, borderLeftWidth: 2, borderLeftColor: isZaeli ? '#A8E8CC' : member.colour }}>
+                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, lineHeight: 21 }}>{msg.content}</Text>
+                    {msg.hint_level ? <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: '#F59E0B', marginTop: 3 }}>{'\u{1F4A1}'} Hint {msg.hint_level} used</Text> : null}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {messages.length === 0 && (
+          <View style={{ alignItems: 'center', paddingTop: 30 }}>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4 }}>No transcript available for this session</Text>
+          </View>
+        )}
+      </ScrollView>
+    );
+  }
+
   // ── Jobs & Rewards Tab ──
   function JobsRewardsTab() {
     const today = localDateStr();
@@ -896,14 +1416,19 @@ export default function OurFamilyScreen() {
               </>
             )}
 
-            <TouchableOpacity onPress={() => {
-              if (editingJob) { showAddForm === 'job' ? saveEditedJob() : saveEditedReward(); }
-              else { showAddForm === 'job' ? addJobForChildren() : addRewardForChildren(); }
-            }} style={{ backgroundColor: addTitle.trim() ? (showAddForm === 'job' ? HUB_DARK : RED_ACCENT) : 'rgba(0,0,0,0.08)', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.8}>
-              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: addTitle.trim() ? '#fff' : 'rgba(0,0,0,0.30)' }}>
-                {editingJob ? 'Save Changes' : (showAddForm === 'job' ? 'Add Job' : 'Add Reward')}{!editingJob && addSelectedKids.length > 0 ? ` for ${addSelectedKids.join(' & ')}` : ''}
-              </Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity onPress={() => {
+                if (editingJob) { showAddForm === 'job' ? saveEditedJob() : saveEditedReward(); }
+                else { showAddForm === 'job' ? addJobForChildren() : addRewardForChildren(); }
+              }} style={{ flex: 1, backgroundColor: addTitle.trim() ? (showAddForm === 'job' ? HUB_DARK : RED_ACCENT) : 'rgba(0,0,0,0.08)', borderRadius: 14, paddingVertical: 14, alignItems: 'center' }} activeOpacity={0.8}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: addTitle.trim() ? '#fff' : 'rgba(0,0,0,0.30)' }}>
+                  {editingJob ? 'Save Changes' : (showAddForm === 'job' ? 'Add Job' : 'Add Reward')}{!editingJob && addSelectedKids.length > 0 ? ` for ${addSelectedKids.join(' & ')}` : ''}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setShowAddForm(null); setEditingJob(null); setAddTitle(''); setAddEmoji(''); setAddSelectedKids([]); }} style={{ paddingVertical: 14, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.7}>
+                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK4 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -915,8 +1440,8 @@ export default function OurFamilyScreen() {
           const mem = FAMILY[job.child_name as keyof typeof FAMILY];
           const isExp = expandedJobId === job.id;
           return (
-            <View key={job.id} style={{ marginBottom: 6 }}>
-              <TouchableOpacity onPress={() => setExpandedJobId(isExp ? null : job.id)} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
+            <View key={job.id} style={{ backgroundColor: '#fff', borderRadius: 16, marginBottom: 6, overflow: 'hidden' }}>
+              <TouchableOpacity onPress={() => setExpandedJobId(isExp ? null : job.id)} style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
                 <Text style={{ fontSize: 24 }}>{job.emoji || '📋'}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK }}>{job.title}</Text>
@@ -933,7 +1458,7 @@ export default function OurFamilyScreen() {
                 </View>
               </TouchableOpacity>
               {isExp && (
-                <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 12, marginTop: -2, padding: 10, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+                <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)', padding: 12, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
                   <TouchableOpacity onPress={() => { setExpandedJobId(null); openEditJob(job); }} style={{ backgroundColor: HUB_GREEN, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
                     <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: HUB_DARK }}>Edit</Text>
                   </TouchableOpacity>
@@ -954,8 +1479,8 @@ export default function OurFamilyScreen() {
           const mem = FAMILY[rw.child_name as keyof typeof FAMILY];
           const isExp = expandedJobId === ('r-' + rw.id);
           return (
-            <View key={rw.id} style={{ marginBottom: 6 }}>
-              <TouchableOpacity onPress={() => setExpandedJobId(isExp ? null : 'r-' + rw.id)} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
+            <View key={rw.id} style={{ backgroundColor: '#fff', borderRadius: 16, marginBottom: 6, overflow: 'hidden' }}>
+              <TouchableOpacity onPress={() => setExpandedJobId(isExp ? null : 'r-' + rw.id)} style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
                 <Text style={{ fontSize: 24 }}>{rw.emoji || '🎁'}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK }}>{rw.title}</Text>
@@ -967,7 +1492,7 @@ export default function OurFamilyScreen() {
                 <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 15, color: RED_ACCENT }}>{rw.cost} pts</Text>
               </TouchableOpacity>
               {isExp && (
-                <View style={{ backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 12, marginTop: -2, padding: 10, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+                <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)', padding: 12, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
                   <TouchableOpacity onPress={() => { setExpandedJobId(null); openEditReward(rw); }} style={{ backgroundColor: 'rgba(161,24,48,0.08)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
                     <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: RED_ACCENT }}>Edit</Text>
                   </TouchableOpacity>
@@ -990,8 +1515,8 @@ export default function OurFamilyScreen() {
               const mem = FAMILY[job.child_name as keyof typeof FAMILY];
               const isExp = expandedJobId === ('c-' + job.id);
               return (
-                <View key={job.id} style={{ marginTop: 6 }}>
-                  <TouchableOpacity onPress={() => setExpandedJobId(isExp ? null : 'c-' + job.id)} style={{ backgroundColor: '#fff', borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, opacity: 0.6 }} activeOpacity={0.75}>
+                <View key={job.id} style={{ backgroundColor: '#fff', borderRadius: 14, marginTop: 6, overflow: 'hidden', opacity: 0.6 }}>
+                  <TouchableOpacity onPress={() => setExpandedJobId(isExp ? null : 'c-' + job.id)} style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }} activeOpacity={0.75}>
                     <Text style={{ fontSize: 18 }}>{job.emoji || '📋'}</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK, textDecorationLine: 'line-through' }}>{job.title}</Text>
@@ -1002,7 +1527,7 @@ export default function OurFamilyScreen() {
                     </View>
                   </TouchableOpacity>
                   {isExp && (
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.4)', borderRadius: 12, marginTop: -2, padding: 10, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
+                    <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)', padding: 12, flexDirection: 'row', gap: 8, justifyContent: 'flex-end' }}>
                       <TouchableOpacity onPress={() => { setExpandedJobId(null); openEditJob(job); }} style={{ backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }} activeOpacity={0.75}>
                         <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK4 }}>Edit</Text>
                       </TouchableOpacity>
@@ -1025,13 +1550,41 @@ export default function OurFamilyScreen() {
 
   // ── Family Tab ──
   // Helper to render a field row
-  function FieldRow({ icon, label, value, onPress }: { icon: string; label: string; value?: string; onPress?: () => void }) {
+  // Editable field state
+  const [editFieldKey, setEditFieldKey] = useState<string | null>(null);
+  const [editFieldValue, setEditFieldValue] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [profileDate, setProfileDate] = useState(new Date());
+  const [profileColour, setProfileColour] = useState<string | null>(null);
+  const [profileAccess, setProfileAccess] = useState<'dedicated' | 'shared' | null>(null);
+
+  function FieldRow({ icon, label, value, fieldKey }: { icon: string; label: string; value?: string; fieldKey?: string }) {
+    const isEditing = editFieldKey === fieldKey;
     return (
-      <TouchableOpacity onPress={onPress} style={{ padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.04)' }} activeOpacity={onPress ? 0.7 : 1}>
-        <Text style={{ fontSize: 16, width: 24, textAlign: 'center' }}>{icon}</Text>
-        <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK, flex: 1 }}>{label}</Text>
-        {value && <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, maxWidth: 160, textAlign: 'right' }}>{value}</Text>}
-        {onPress && <Text style={{ fontSize: 14, color: 'rgba(0,0,0,0.18)', marginLeft: 4 }}>›</Text>}
+      <TouchableOpacity onPress={() => {
+        if (fieldKey) {
+          if (isEditing) { setEditFieldKey(null); }
+          else { setEditFieldKey(fieldKey); setEditFieldValue(value || ''); }
+        }
+      }} style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.04)' }} activeOpacity={fieldKey ? 0.7 : 1}>
+        <Text style={{ fontSize: 18, width: 26, textAlign: 'center' }}>{icon}</Text>
+        <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK, flex: 1 }}>{label}</Text>
+        {isEditing ? (
+          <TextInput
+            autoFocus
+            style={{ fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, minWidth: 120, textAlign: 'right' }}
+            value={editFieldValue}
+            onChangeText={setEditFieldValue}
+            onBlur={() => setEditFieldKey(null)}
+            returnKeyType="done"
+            onSubmitEditing={() => setEditFieldKey(null)}
+          />
+        ) : (
+          <>
+            {value && <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 14, color: INK4, maxWidth: 170, textAlign: 'right' }}>{value}</Text>}
+            {fieldKey && <Text style={{ fontSize: 15, color: 'rgba(0,0,0,0.18)', marginLeft: 4 }}>›</Text>}
+          </>
+        )}
       </TouchableOpacity>
     );
   }
@@ -1061,36 +1614,78 @@ export default function OurFamilyScreen() {
             <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: mem.colour, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 28, color: '#fff' }}>{mem.initial}</Text>
             </View>
-            <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, marginTop: 10 }}>{profileMember}</Text>
-            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginTop: 2 }}>
+            <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 24, color: INK, marginTop: 10 }}>{profileMember}</Text>
+            <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 15, color: INK4, marginTop: 3 }}>
               {roleTitle}{isChild && year ? ` · Year ${year} · Age ${age}` : ''}
             </Text>
           </View>
 
           <View style={{ paddingHorizontal: 14 }}>
             {/* Personal info */}
-            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Personal info</Text>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Personal info</Text>
             <View style={{ backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', marginBottom: 10 }}>
-              <FieldRow icon="👤" label="Full name" value={profileMember} />
-              <FieldRow icon="💬" label="Nickname" value={profileMember === 'Richard' ? 'Rich' : profileMember} />
-              <FieldRow icon="📝" label="Role title" value={roleTitle} />
-              {dob && <FieldRow icon="🎂" label="Date of birth" value={dob} />}
-              {isChild && year && <FieldRow icon="🎓" label="Year level" value={`Year ${year}`} />}
-              {(mem as any).email && <FieldRow icon="📧" label="Email" value={(mem as any).email} />}
+              {[
+                { icon: '👤', label: 'Full name', value: profileMember || '', key: 'name' },
+                { icon: '💬', label: 'Nickname', value: profileMember === 'Richard' ? 'Rich' : (profileMember || ''), key: 'nickname' },
+                { icon: '📝', label: 'Role title', value: roleTitle, key: 'role' },
+                ...(dob ? [{ icon: '🎂', label: 'Date of birth', value: dob, key: 'dob' }] : []),
+                ...(isChild && year ? [{ icon: '🎓', label: 'Year level', value: `Year ${year}`, key: 'year' }] : []),
+                ...((mem as any).email ? [{ icon: '📧', label: 'Email', value: (mem as any).email, key: 'email' }] : []),
+              ].map(field => (
+                <TouchableOpacity key={field.key} onPress={() => {
+                  if (field.key === 'dob') { setShowDatePicker(true); return; }
+                  if (editFieldKey === field.key) setEditFieldKey(null);
+                  else { setEditFieldKey(field.key); setEditFieldValue(field.value); }
+                }} style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.04)' }} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 18, width: 26, textAlign: 'center' }}>{field.icon}</Text>
+                  <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK, flex: 1 }}>{field.label}</Text>
+                  {editFieldKey === field.key && field.key !== 'dob' ? (
+                    <TextInput
+                      key={`input-${field.key}`}
+                      autoFocus
+                      style={{ fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6, minWidth: 120, textAlign: 'right' }}
+                      value={editFieldValue}
+                      onChangeText={setEditFieldValue}
+                      returnKeyType="done"
+                      onSubmitEditing={() => setEditFieldKey(null)}
+                    />
+                  ) : (
+                    <>
+                      <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 14, color: INK4, maxWidth: 170, textAlign: 'right' }}>{field.value}</Text>
+                      <Text style={{ fontSize: 15, color: 'rgba(0,0,0,0.18)', marginLeft: 4 }}>›</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              ))}
+              {/* Date picker */}
+              {showDatePicker && (
+                <DateTimePicker
+                  value={profileDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={(e: any, date?: Date) => {
+                    setShowDatePicker(false);
+                    if (date) setProfileDate(date);
+                  }}
+                />
+              )}
             </View>
 
             {/* Colour */}
-            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Colour</Text>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Colour</Text>
             <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10 }}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {COLOUR_OPTIONS.map(c => (
-                  <View key={c} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c, ...(c === mem.colour ? { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, borderWidth: 2, borderColor: '#fff' } : {}) }}/>
-                ))}
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                {COLOUR_OPTIONS.map(c => {
+                  const isSelected = (profileColour || mem.colour) === c;
+                  return (
+                    <TouchableOpacity key={c} onPress={() => setProfileColour(c)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c, ...(isSelected ? { borderWidth: 3, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } } : {}) }} activeOpacity={0.7}/>
+                  );
+                })}
               </View>
             </View>
 
             {/* Access */}
-            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Access</Text>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Access</Text>
             {isChild ? (
               <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 10 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -1101,14 +1696,16 @@ export default function OurFamilyScreen() {
                   </View>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <View style={{ flex: 1, borderWidth: 1.5, borderColor: login === 'own' ? HUB_DARK : 'rgba(0,0,0,0.10)', backgroundColor: login === 'own' ? 'rgba(10,64,48,0.06)' : 'transparent', borderRadius: 12, padding: 10, alignItems: 'center' }}>
-                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: login === 'own' ? HUB_DARK : INK4 }}>Dedicated</Text>
-                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK4 }}>Own login</Text>
-                  </View>
-                  <View style={{ flex: 1, borderWidth: 1.5, borderColor: login !== 'own' ? HUB_DARK : 'rgba(0,0,0,0.10)', backgroundColor: login !== 'own' ? 'rgba(10,64,48,0.06)' : 'transparent', borderRadius: 12, padding: 10, alignItems: 'center' }}>
-                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: login !== 'own' ? HUB_DARK : INK4 }}>Shared</Text>
-                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK4 }}>Parent device</Text>
-                  </View>
+                  {(['dedicated', 'shared'] as const).map(opt => {
+                    const currentAccess = profileAccess || (login === 'own' ? 'dedicated' : 'shared');
+                    const isOn = currentAccess === opt;
+                    return (
+                      <TouchableOpacity key={opt} onPress={() => setProfileAccess(opt)} style={{ flex: 1, borderWidth: 1.5, borderColor: isOn ? HUB_DARK : 'rgba(0,0,0,0.10)', backgroundColor: isOn ? 'rgba(10,64,48,0.06)' : 'transparent', borderRadius: 12, padding: 12, alignItems: 'center' }} activeOpacity={0.75}>
+                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: isOn ? HUB_DARK : INK4 }}>{opt === 'dedicated' ? 'Dedicated' : 'Shared'}</Text>
+                        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK4 }}>{opt === 'dedicated' ? 'Own login' : 'Parent device'}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
             ) : (
@@ -1121,7 +1718,7 @@ export default function OurFamilyScreen() {
             {/* Tutor (kids only) */}
             {isChild && (
               <>
-                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Tutor</Text>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Tutor</Text>
                 <View style={{ backgroundColor: 'rgba(80,32,192,0.06)', borderWidth: 1.5, borderColor: 'rgba(80,32,192,0.12)', borderRadius: 16, padding: 14, marginBottom: 10 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     <Text style={{ fontSize: 18 }}>📚</Text>
@@ -1139,8 +1736,16 @@ export default function OurFamilyScreen() {
               </>
             )}
 
+            {/* Save button */}
+            <TouchableOpacity onPress={() => {
+              // TODO: Save profile changes to Supabase when real data model is built
+              setFamilyView('list');
+            }} style={{ backgroundColor: HUB_DARK, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginBottom: 14, marginTop: 6 }} activeOpacity={0.8}>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#fff' }}>Save changes</Text>
+            </TouchableOpacity>
+
             {/* Danger zone */}
-            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginTop: 6, marginBottom: 6 }}>Danger zone</Text>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginBottom: 6 }}>Danger zone</Text>
             <View style={{ backgroundColor: 'rgba(255,59,59,0.04)', borderWidth: 1, borderColor: 'rgba(255,59,59,0.12)', borderRadius: 16, padding: 14, marginBottom: 10 }}>
               <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }} activeOpacity={0.7}>
                 <Text style={{ fontSize: 16 }}>🗑</Text>
@@ -1297,16 +1902,18 @@ export default function OurFamilyScreen() {
       {/* Dark pill tab switcher */}
       <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 22, padding: 4, marginHorizontal: 14, marginTop: 8, marginBottom: 8 }}>
         {([['home','Home'],['jobs','Jobs'],['family','Family']] as const).map(([key, label]) => (
-          <TouchableOpacity key={key} style={{ flex: 1, alignItems: 'center', paddingVertical: 13, borderRadius: 19, backgroundColor: activeTab === key ? '#0A0A0A' : 'transparent' }} onPress={() => setActiveTab(key as any)} activeOpacity={0.75}>
+          <TouchableOpacity key={key} style={{ flex: 1, alignItems: 'center', paddingVertical: 13, borderRadius: 19, backgroundColor: activeTab === key ? '#0A0A0A' : 'transparent' }} onPress={() => { setActiveTab(key as any); setChildDetailView('overview'); }} activeOpacity={0.75}>
             <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: activeTab === key ? '#fff' : 'rgba(0,0,0,0.40)' }}>{label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <View style={s.body}>
-        {activeTab === 'home' && <HomeView />}
-        {activeTab === 'jobs' && <JobsRewardsTab />}
-        {activeTab === 'family' && <FamilyTab />}
+        {activeTab === 'home' && childDetailView === 'overview' && HomeView()}
+        {activeTab === 'home' && childDetailView === 'progress' && TutorProgressView()}
+        {activeTab === 'home' && childDetailView === 'session-review' && SessionReviewView()}
+        {activeTab === 'jobs' && JobsRewardsTab()}
+        {activeTab === 'family' && FamilyTab()}
       </View>
 
     </SafeAreaView>

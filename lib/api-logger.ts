@@ -131,6 +131,12 @@ export async function logWhisper({
   });
 }
 
+// ── Legacy compatibility shim ──────────────────────────────────
+// Old tutor files call logApiCall — route to no-op until removed
+export async function logApiCall(args: any) {
+  console.warn('[api-logger] logApiCall is deprecated — use callClaude instead');
+}
+
 // ── Internal usage logger — fire-and-forget ────────────────────
 function logUsage({
   feature,

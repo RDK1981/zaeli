@@ -1,450 +1,511 @@
 /**
- * Tutor Screen
+ * Tutor Screen — Child Selector
  * app/(tabs)/tutor.tsx
  *
- * Hero section copied EXACTLY from calendar.tsx:
- *   - Same SafeAreaView(edges top), same hero padding (22 / 14 / 16)
- *   - Same three orb circles, same heroRow layout
- *   - Same logoMark, logoStarBox, logoWord
- *   - Same viewTog / vt / vtOn / vtTxt / vtTxtOn
- * Only differences from calendar:
- *   - backgroundColor: T_DARK (#1A1A2E) instead of C.mag
- *   - heroTitle centred (no date on the right)
- *   - Toggle labels: Your Kids / Activity / Settings
- *   - Orb colours use gold tint instead of white
+ * Screen 1 from zaeli-tutor-final-mockup-v4_1.html
+ * Lavender #D8CCFF background, child cards with streaks,
+ * locked/upsell states for non-enrolled children.
+ *
+ * Navigates to tutor-child.tsx on tap.
  */
 
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar as RNStatusBar, ActivityIndicator, Dimensions,
+  StatusBar as RNStatusBar, Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
+import Svg, { Polyline } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
-import { NavMenu, HamburgerButton } from '../components/NavMenu';
-
-// ── Tablet detection ──────────────────────────────────────────
-const { width: SCREEN_W } = Dimensions.get('window');
-const IS_TABLET = SCREEN_W >= 768;
-const CONTENT_MAX = IS_TABLET ? 600 : SCREEN_W;
 
 // ── Constants ─────────────────────────────────────────────────
 const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+const { width: W } = Dimensions.get('window');
 
-// Tutor palette
-const T_DARK  = '#1A1A2E';
-const T_GOLD  = '#C9A84C';
-const T_GOLD2 = '#B8963E';
-const T_GOLD3 = 'rgba(201,168,76,0.15)';
-const T_GOLDB = 'rgba(201,168,76,0.18)';
-const T_GOLDL = 'rgba(201,168,76,0.08)';
+// Tutor palette — lavender-based (v4 mockup)
+const LAV       = '#D8CCFF';
+const PURPLE    = '#5020C0';
+const PURPLE_D  = '#3010A0';
+const MINT      = '#A8E8CC';
+const INK       = '#0A0A0A';
+const INK2      = 'rgba(0,0,0,0.42)';
+const INK3      = 'rgba(0,0,0,0.38)';
+const BODY_BG   = '#FAF8F5';
 
-// Shared app palette (same as calendar C.*)
-const INK    = '#0A0A0A';
-const INK2   = 'rgba(0,0,0,0.50)';
-const INK3   = 'rgba(0,0,0,0.28)';
-const BORDER = 'rgba(0,0,0,0.07)';
-const BG     = '#F7F7F7';
-const CARD   = '#FFFFFF';
-const GREEN  = '#00C97A';
-const ORANGE = '#FF8C00';
-const YELLOW = '#FFE500';
+// Family constants
+const FAMILY_COLOURS: Record<string, string> = {
+  Rich: '#4D8BFF', Anna: '#FF7B6B', Poppy: '#A855F7', Gab: '#22C55E', Duke: '#F59E0B',
+};
+const FAMILY_EMOJI: Record<string, string> = {
+  Poppy: '\u{1F338}', Gab: '\u2B50', Duke: '\u{1F996}',
+};
+const CHILD_BG: Record<string, string> = {
+  Poppy: 'rgba(168,85,247,0.12)', Gab: 'rgba(34,197,94,0.12)', Duke: 'rgba(245,158,11,0.12)',
+};
 
-// ── Helpers ───────────────────────────────────────────────────
-function getTier(y: number) {
-  if (y <= 2) return 'Little Learner';
-  if (y <= 6) return 'Middle Years';
-  return 'Middle & Senior';
-}
-const EMOJI_MAP: Record<string,string> = { Poppy:'🌸', Gab:'⭐', Duke:'🦖' };
-const AVBG_MAP: Record<string,string>  = {
-  Poppy:'rgba(224,0,124,0.1)', Gab:'rgba(0,87,255,0.1)', Duke:'rgba(0,0,0,0.04)',
+// Subjects per child (hardcoded for now — will come from Supabase later)
+const CHILD_SUBJECTS: Record<string, string> = {
+  Poppy: 'Maths, English, Science',
+  Gab: 'Maths, HASS',
+  Duke: 'Reading, Maths',
 };
 
 // ── Types ─────────────────────────────────────────────────────
-interface Child  { id:string; name:string; year_level:number; tutor_active:boolean; role:string; }
-interface Session{ child_name:string; created_at:string; }
+interface Child {
+  id: string;
+  name: string;
+  year_level: number;
+  tutor_active: boolean;
+  role: string;
+  colour?: string;
+}
 
-// ── Component ─────────────────────────────────────────────────
+// ── SVG Icons ────────────────────────────────────────────────
+function IcoBack({ color = INK, size = 14 }: { color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth={2.5} strokeLinecap="round">
+      <Polyline points="15 18 9 12 15 6" />
+    </Svg>
+  );
+}
+
+// ── Component ────────────────────────────────────────────────
 export default function TutorScreen() {
   const router = useRouter();
-  const [menuOpen, setMenuOpen]   = useState(false);
-  const [children, setChildren]   = useState<Child[]>([]);
-  const [sessions, setSessions]   = useState<Session[]>([]);
-  const [noticed,  setNoticed]    = useState('');
-  const [loading,  setLoading]    = useState(true);
+  const insets = useSafeAreaInsets();
+  const [children, setChildren] = useState<Child[]>([]);
+  const [streaks, setStreaks] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
 
   useFocusEffect(useCallback(() => {
-    RNStatusBar.setBarStyle('light-content', true);
+    RNStatusBar.setBarStyle('dark-content', true);
     fetchData();
   }, []));
 
   async function fetchData() {
     setLoading(true);
     try {
+      // Fetch children
       const { data: members } = await supabase
         .from('family_members')
-        .select('id, name, year_level, tutor_active, role')
+        .select('id, name, year_level, tutor_active, role, colour')
         .eq('family_id', FAMILY_ID)
-        .in('role', ['child','kid'])
-        .order('year_level', { ascending:false });
+        .in('role', ['child', 'kid'])
+        .order('year_level', { ascending: false });
       const kids = members ?? [];
       setChildren(kids);
 
+      // Calculate streaks from tutor_sessions (last 30 days)
       const since = new Date();
-      since.setDate(since.getDate() - 7);
-      const { data: sess } = await supabase
-        .from('tutor_sessions')
-        .select('child_name, created_at')
-        .eq('family_id', FAMILY_ID)
-        .gte('created_at', since.toISOString())
-        .order('created_at', { ascending:false })
-        .limit(30);
-      const s = sess ?? [];
-      setSessions(s);
-      buildNoticed(kids, s);
-    } catch(e) { console.error('tutor fetch:', e); }
-    finally { setLoading(false); }
+      since.setDate(since.getDate() - 30);
+      try {
+        const { data: sess } = await supabase
+          .from('tutor_sessions')
+          .select('child_name, created_at')
+          .eq('family_id', FAMILY_ID)
+          .gte('created_at', since.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(200);
+
+        // Calculate streak per child (consecutive days with sessions)
+        const streakMap: Record<string, number> = {};
+        kids.forEach(k => {
+          const childSessions = (sess ?? []).filter(s => s.child_name === k.name);
+          streakMap[k.name] = calculateStreak(childSessions);
+        });
+        setStreaks(streakMap);
+      } catch {
+        // tutor_sessions table might not exist yet
+      }
+    } catch (e) {
+      console.error('tutor fetch:', e);
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function buildNoticed(kids: Child[], sess: Session[]) {
-    const counts: Record<string,number> = {};
-    sess.forEach(s => { counts[s.child_name] = (counts[s.child_name] ?? 0) + 1; });
-    const parts: string[] = [];
-    kids.filter(k => k.tutor_active).forEach(k => {
-      const n = counts[k.name] ?? 0;
-      if (n >= 4) parts.push(`${k.name} has had ${n} sessions this week — great consistency.`);
-      else if (n >= 2) parts.push(`${k.name} is building a good rhythm this week.`);
+  function calculateStreak(sessions: { created_at: string }[]): number {
+    if (!sessions.length) return 0;
+    const dates = new Set(
+      sessions.map(s => {
+        const d = new Date(s.created_at);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      })
+    );
+    const sorted = Array.from(dates).sort().reverse();
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    // Streak must include today or yesterday
+    if (sorted[0] !== todayStr) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+      if (sorted[0] !== yStr) return 0;
+    }
+
+    let streak = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = new Date(sorted[i - 1]);
+      const curr = new Date(sorted[i]);
+      const diffDays = Math.round((prev.getTime() - curr.getTime()) / 86400000);
+      if (diffDays === 1) streak++;
+      else break;
+    }
+    return streak;
+  }
+
+  function goChild(child: Child) {
+    router.navigate({
+      pathname: '/(tabs)/tutor-child',
+      params: { childId: child.id, childName: child.name, yearLevel: String(child.year_level) },
     });
-    setNoticed(parts.join(' '));
-  }
-
-  function lastSessionLabel(name: string) {
-    const s = sessions.find(x => x.child_name === name);
-    if (!s) return 'No sessions yet';
-    const diff = Math.floor((Date.now() - new Date(s.created_at).getTime()) / 86400000);
-    if (diff === 0) return `Today, ${new Date(s.created_at).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})}`;
-    if (diff === 1) return 'Yesterday';
-    return `${diff} days ago`;
-  }
-
-  function weekCount(name: string) { return sessions.filter(s => s.child_name === name).length; }
-
-  function goChild(c: Child) {
-    router.push({ pathname:'/(tabs)/tutor-child',
-      params:{ childId:c.id, childName:c.name, yearLevel:String(c.year_level) } });
   }
 
   const active = children.filter(c => c.tutor_active);
   const locked = children.filter(c => !c.tutor_active);
 
+  // ── Hardcoded fallback if Supabase has no children yet ──
+  const hasKids = children.length > 0;
+  const displayKids = hasKids ? children : [
+    { id: '1', name: 'Poppy', year_level: 6, tutor_active: true, role: 'child' },
+    { id: '2', name: 'Gab', year_level: 4, tutor_active: true, role: 'child' },
+    { id: '3', name: 'Duke', year_level: 1, tutor_active: true, role: 'child' },
+  ];
+  const displayActive = displayKids.filter(c => c.tutor_active);
+  const displayLocked = displayKids.filter(c => !c.tutor_active);
+
   return (
-    // ── Same as calendar: SafeAreaView edges top, bg = hero colour ──
-    <SafeAreaView style={s.safe} edges={['top']}>
-      <RNStatusBar barStyle="light-content" />
+    <View style={[s.safe, { paddingTop: insets.top }]}>
+      <RNStatusBar barStyle="dark-content" />
 
-      {/* ══════════════════════════════════════════
-          HERO — copied exactly from calendar hero
-          paddingHorizontal:22  paddingTop:14  paddingBottom:16
-      ══════════════════════════════════════════ */}
-      <View style={s.hero}>
-        {/* Three orbs — same sizes/positions as calendar, gold tint */}
-        <View style={s.heroOrbOuter}/>
-        <View style={s.heroOrbInner}/>
-        <View style={s.heroOrb2}/>
+      {/* ── Banner — matches Kids Hub exactly ── */}
+      <View style={s.banner}>
+        <TouchableOpacity onPress={() => router.navigate('/(tabs)/')} activeOpacity={0.7}>
+          <Text style={s.wordmark}>
+            {'z'}<Text style={{ color: MINT }}>{'a'}</Text>{'el'}<Text style={{ color: MINT }}>{'i'}</Text>
+          </Text>
+        </TouchableOpacity>
+        <Text style={s.bannerLabel}>Tutor</Text>
+      </View>
+      <View style={s.divider} />
 
-        {/* ── heroRow: logo left | Tutor centred | hamburger right ── */}
-        <View style={s.heroRow}>
-          {/* Logo — left */}
-          <TouchableOpacity
-            style={s.logoMark}
-            onPress={() => router.replace('/(tabs)/')}
-            activeOpacity={0.75}
-          >
-            <View style={s.logoStarBox}>
-              <Text style={s.logoStarTxt}>✦</Text>
-            </View>
-            <Text style={s.logoWord}>
-              {'z'}<Text style={{ color: YELLOW }}>{'a'}</Text>{'el'}<Text style={{ color: YELLOW }}>{'i'}</Text>
-            </Text>
-          </TouchableOpacity>
-
-          {/* Title — centred middle */}
-          <Text style={s.heroTitle}>Tutor</Text>
-
-          {/* Hamburger — right */}
-          <HamburgerButton onPress={() => setMenuOpen(true)} />
+      {/* ── Hero area ── */}
+      <View style={s.heroArea}>
+        {/* Premium badge */}
+        <View style={s.premBadge}>
+          <Text style={s.premBadgeTxt}>{'\u2726'} Premium {'·'} Tutor</Text>
         </View>
 
-        {/* ── Gold badge ── */}
-        <View style={s.goldBadge}>
-          <Text style={s.goldBadgeTxt}>✦ PREMIUM · TUTOR</Text>
-        </View>
-
-        {/* ── Subtitle ── */}
-        <Text style={s.heroSub}>
-          Guides thinking. Builds confidence.{'\n'}Never just gives the answer.
-        </Text>
-
-        <NavMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
+        <Text style={s.heroTitle}>Who's learning</Text>
+        <Text style={s.heroTitleItalic}>today?</Text>
       </View>
 
-      {/* ══════════════════════════════════════════
-          CONTENT — same bg as calendar content
-      ══════════════════════════════════════════ */}
-      <View style={s.content}>
-        {loading ? (
-          <View style={s.loader}>
-            <ActivityIndicator size="large" color={T_GOLD} />
+      {/* ── Child cards ── */}
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Active children */}
+        {displayActive.map(child => {
+          const streak = streaks[child.name] ?? 0;
+          const bg = CHILD_BG[child.name] ?? 'rgba(0,0,0,0.06)';
+          const colour = FAMILY_COLOURS[child.name] ?? '#999';
+          const emoji = FAMILY_EMOJI[child.name] ?? '\u{1F464}';
+          const subjects = CHILD_SUBJECTS[child.name] ?? '';
+
+          return (
+            <TouchableOpacity
+              key={child.id}
+              style={[s.childCard, { backgroundColor: bg }]}
+              onPress={() => goChild(child)}
+              activeOpacity={0.76}
+            >
+              <View style={s.childRow}>
+                <View style={[s.childAv, { backgroundColor: colour }]}>
+                  <Text style={s.childAvTxt}>{child.name[0]}</Text>
+                </View>
+                <View style={s.childInfo}>
+                  <Text style={s.childName}>{child.name}</Text>
+                  <Text style={s.childMeta}>Year {child.year_level} {subjects ? '\u00B7 ' + subjects : ''}</Text>
+                </View>
+                {streak > 0 && (
+                  <View style={s.streakBox}>
+                    <Text style={s.streakNum}>{'\u{1F525}'} {streak}</Text>
+                    <Text style={s.streakLbl}>day streak</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+
+        {/* Locked children — upsell */}
+        {displayLocked.map(child => {
+          const colour = FAMILY_COLOURS[child.name] ?? '#999';
+          return (
+            <View key={child.id} style={s.lockedCard}>
+              <View style={s.childRow}>
+                <View style={[s.childAv, { backgroundColor: colour + '4D' }]}>
+                  <Text style={s.childAvTxt}>{child.name[0]}</Text>
+                </View>
+                <View style={s.childInfo}>
+                  <Text style={[s.childName, { color: INK3 }]}>{child.name}</Text>
+                  <Text style={s.childMeta}>Year {child.year_level} {'·'} Not enrolled</Text>
+                </View>
+                <View style={s.lockedBadge}>
+                  <Text style={s.lockedBadgeTxt}>{'\u{1F512}'} Add</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })}
+
+        {/* Upsell banner for locked children */}
+        {displayLocked.length > 0 && (
+          <View style={s.upsellBanner}>
+            <Text style={{ fontSize: 22 }}>{'\u{1F393}'}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.upsellTitle}>Add {displayLocked[0].name} to Tutor</Text>
+              <Text style={s.upsellSub}>Year {displayLocked[0].year_level} reading & maths {'·'} A$9.99/mo</Text>
+            </View>
+            <TouchableOpacity style={s.upsellBtn} activeOpacity={0.75}>
+              <Text style={s.upsellBtnTxt}>Add</Text>
+            </TouchableOpacity>
           </View>
-        ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom:60, alignItems: IS_TABLET ? 'center' : undefined }}>
-            <View style={{ width: '100%', maxWidth: CONTENT_MAX, alignSelf: 'center' }}>
-
-            {/* Zaeli noticed — warm kid-directed brief card */}
-            {noticed !== '' && (
-              <View style={s.noticedCard}>
-                <View style={s.noticedRow}>
-                  <Text style={s.noticedStar}>✦</Text>
-                  <Text style={s.noticedTitle}>Zaeli noticed</Text>
-                </View>
-                <Text style={s.noticedBody}>{noticed}</Text>
-              </View>
-            )}
-
-            {/* Section label */}
-            {active.length > 0 && (
-              <Text style={s.slbl}>Who's learning today?</Text>
-            )}
-
-            {/* Active child cards */}
-            {active.map(child => {
-              const wc = weekCount(child.name);
-              return (
-                <TouchableOpacity
-                  key={child.id}
-                  style={s.childCard}
-                  onPress={() => goChild(child)}
-                  activeOpacity={0.76}
-                >
-                  <View style={s.childTop}>
-                    <View style={[s.cAvatar, { backgroundColor: AVBG_MAP[child.name] ?? 'rgba(0,0,0,0.06)' }]}>
-                      <Text style={s.cEmoji}>{EMOJI_MAP[child.name] ?? '👤'}</Text>
-                    </View>
-                    <View style={s.cInfo}>
-                      <Text style={s.cName}>{child.name}</Text>
-                      <Text style={s.cMeta}>Year {child.year_level} · {getTier(child.year_level)}</Text>
-                    </View>
-                    <View style={s.activeBadge}>
-                      <Text style={s.activeBadgeTxt}>Active ✓</Text>
-                    </View>
-                  </View>
-                  <View style={s.childFoot}>
-                    <Text style={s.cLast}>Last session: {lastSessionLabel(child.name)}</Text>
-                    {wc >= 2 && <Text style={s.cStreak}>🔥 {wc} day streak</Text>}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-
-            {/* Locked child cards */}
-            {locked.map(child => (
-              <View key={child.id} style={s.lockedCard}>
-                <View style={s.childTop}>
-                  <View style={[s.cAvatar, { backgroundColor: AVBG_MAP[child.name] ?? 'rgba(0,0,0,0.04)' }]}>
-                    <Text style={s.cEmoji}>{EMOJI_MAP[child.name] ?? '👤'}</Text>
-                  </View>
-                  <View style={s.cInfo}>
-                    <Text style={[s.cName, { color:'rgba(0,0,0,0.40)' }]}>{child.name}</Text>
-                    <Text style={s.cMeta}>Year {child.year_level} · {getTier(child.year_level)}</Text>
-                  </View>
-                  <Text style={s.lockedLbl}>Locked</Text>
-                </View>
-                <View style={s.unlockStrip}>
-                  <Text style={s.lockIcon}>🔒</Text>
-                  <Text style={s.unlockLabel}>Add Tutor for {child.name}</Text>
-                  <TouchableOpacity style={s.unlockCta} activeOpacity={0.75}>
-                    <Text style={s.unlockCtaTxt}>A$9.99/mo →</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-
-            {children.length === 0 && (
-              <View style={s.empty}>
-                <Text style={s.emptyIcon}>🎓</Text>
-                <Text style={s.emptyTitle}>No children added yet</Text>
-                <Text style={s.emptyBody}>Add your children in Our Family → Profiles first.</Text>
-              </View>
-            )}
-            </View>
-          </ScrollView>
         )}
-      </View>
-    </SafeAreaView>
+
+        {/* Empty state */}
+        {displayKids.length === 0 && (
+          <View style={s.empty}>
+            <Text style={{ fontSize: 48, marginBottom: 14 }}>{'\u{1F393}'}</Text>
+            <Text style={s.emptyTitle}>No children added yet</Text>
+            <Text style={s.emptySub}>Add your children in Our Family first.</Text>
+          </View>
+        )}
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </View>
   );
 }
 
 // ── STYLES ────────────────────────────────────────────────────
 const s = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: LAV,
+  },
 
-  // ── Copied verbatim from calendar, colour swapped to T_DARK ──
-  safe:    { flex:1, backgroundColor: T_DARK },           // calendar: C.mag
-  content: { flex:1, backgroundColor: BG },               // calendar: C.bg  (same)
+  // ── Banner — matches Kids Hub ──
+  banner: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: LAV,
+  },
+  wordmark: {
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 40,
+    color: INK,
+    letterSpacing: -1.5,
+    lineHeight: 46,
+  },
+  bannerLabel: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 17,
+    color: 'rgba(0,0,0,0.35)',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+  },
 
-  // calendar hero: backgroundColor:C.mag, paddingHorizontal:22, paddingTop:14, paddingBottom:16, flexShrink:0, position:'relative', overflow:'hidden'
-  hero: {
-    backgroundColor: T_DARK,
+  // ── Hero area ──
+  heroArea: {
     paddingHorizontal: 22,
     paddingTop: 14,
-    paddingBottom: 16,
-    flexShrink: 0,
-    position: 'relative',
-    overflow: 'hidden',
+    paddingBottom: 18,
+    backgroundColor: LAV,
   },
-
-  // calendar heroOrbOuter: width:260, height:260, borderRadius:130, top:-80, right:-60, rgba(255,255,255,0.06)
-  heroOrbOuter: {
-    position:'absolute', width:260, height:260, borderRadius:130,
-    top:-80, right:-60,
-    backgroundColor:'rgba(201,168,76,0.07)',   // gold tint instead of white
-  },
-  // calendar heroOrbInner: width:160, height:160, borderRadius:80, top:-20, right:20, rgba(255,255,255,0.08)
-  heroOrbInner: {
-    position:'absolute', width:160, height:160, borderRadius:80,
-    top:-20, right:20,
-    backgroundColor:'rgba(201,168,76,0.09)',
-  },
-  // calendar heroOrb2: width:100, height:100, borderRadius:50, bottom:10, left:-20, rgba(255,255,255,0.04)
-  heroOrb2: {
-    position:'absolute', width:100, height:100, borderRadius:50,
-    bottom:10, left:-20,
-    backgroundColor:'rgba(201,168,76,0.05)',
-  },
-
-  // calendar heroRow: flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12
-  heroRow: { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 },
-
-  // calendar logoMark: flexDirection:'row', alignItems:'center', gap:8
-  logoMark: { flexDirection:'row', alignItems:'center', gap:8 },
-
-  // calendar logoStarBox: width:32, height:32, backgroundColor:'rgba(255,255,255,0.2)', borderRadius:10, alignItems/justifyContent center
-  logoStarBox: { width:32, height:32, backgroundColor:'rgba(255,255,255,0.2)', borderRadius:10, alignItems:'center', justifyContent:'center' },
-
-  // calendar logoStarTxt: fontSize:17, color:'#fff'
-  logoStarTxt: { fontSize:17, color:'#fff' },
-
-  // calendar logoWord: DMSerifDisplay, fontSize:22, color:'#fff', letterSpacing:-0.5
-  logoWord: { fontFamily:'DMSerifDisplay_400Regular', fontSize:22, color:'#fff', letterSpacing:-0.5 },
-
-  // heroTitle — absolutely centred across the full heroRow width
   heroTitle: {
-    fontFamily:'DMSerifDisplay_400Regular',
-    fontSize:34, color:'#fff', letterSpacing:-1,
-    position:'absolute', left:0, right:0, textAlign:'center',
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 30,
+    color: INK,
+    letterSpacing: -0.5,
+    lineHeight: 36,
+  },
+  heroTitleItalic: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 30,
+    color: 'rgba(0,0,0,0.30)',
+    fontStyle: 'italic',
+    letterSpacing: -0.5,
+    lineHeight: 36,
+    marginBottom: 14,
+  },
+  premBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: PURPLE,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    marginBottom: 12,
+  },
+  premBadgeTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 11,
+    color: '#fff',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
 
-  // Gold badge — left-aligned, bigger font
-  goldBadge: {
-    alignSelf:'flex-start',
-    backgroundColor:'rgba(201,168,76,0.18)',
-    borderWidth:1, borderColor:'rgba(201,168,76,0.35)',
-    borderRadius:20, paddingHorizontal:10, paddingVertical:4,
-    marginBottom:14, marginTop:10,
+  // ── Scroll ──
+  scroll: {
+    flex: 1,
+    backgroundColor: LAV,
   },
-  goldBadgeTxt: {
-    fontFamily:'Poppins_700Bold',
-    fontSize:11, color:'#C9A84C', letterSpacing:1.2,
-    textTransform:'uppercase',
+  scrollContent: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
   },
 
-  // Subtitle — left-aligned, bigger font
-  heroSub: {
-    fontFamily:'Poppins_400Regular',
-    fontSize:15, color:'rgba(255,255,255,0.55)',
-    lineHeight:22,
-    marginBottom:16,
+  // ── Active child card ──
+  childCard: {
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 10,
+  },
+  childRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  childAv: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  childAvTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 20,
+    color: '#fff',
+  },
+  childInfo: {
+    flex: 1,
+  },
+  childName: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 19,
+    color: INK,
+    marginBottom: 2,
+  },
+  childMeta: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 14,
+    color: INK2,
+  },
+  streakBox: {
+    alignItems: 'flex-end',
+  },
+  streakNum: {
+    fontFamily: 'Poppins_800ExtraBold',
+    fontSize: 20,
+    color: INK,
+    lineHeight: 24,
+  },
+  streakLbl: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 10,
+    color: INK3,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 
-  // calendar viewTog: flexDirection:'row', backgroundColor:'rgba(255,255,255,0.15)', borderRadius:14, padding:4, gap:3, marginBottom:4
-  viewTog: { flexDirection:'row', backgroundColor:'rgba(255,255,255,0.15)', borderRadius:14, padding:4, gap:3, marginBottom:4, marginTop:0 },
-
-  // calendar vt: flex:1, paddingVertical:10, borderRadius:11, alignItems:'center'
-  vt:    { flex:1, paddingVertical:10, borderRadius:11, alignItems:'center' },
-  // calendar vtOn: backgroundColor:'#fff'
-  vtOn:  { backgroundColor:'#fff' },
-  // calendar vtTxt: Poppins_600SemiBold, fontSize:13, color:'rgba(255,255,255,0.6)'
-  vtTxt:   { fontFamily:'Poppins_600SemiBold', fontSize:13, color:'rgba(255,255,255,0.6)' },
-  // calendar vtTxtOn: color:C.ink
-  vtTxtOn: { color: INK },
-
-  loader: { flex:1, alignItems:'center', justifyContent:'center' },
-
-  // ── Zaeli noticed — briefCard structure, gold palette ──
-  noticedCard: {
-    marginHorizontal:18, marginTop:14, marginBottom:6,
-    backgroundColor:'#fff', borderRadius:20,
-    borderWidth:1.5, borderColor:'rgba(201,168,76,0.2)',
-    shadowColor:'#C9A84C', shadowOpacity:0.08, shadowRadius:16,
-    shadowOffset:{ width:0, height:4 }, elevation:3, overflow:'hidden',
+  // ── Locked card ──
+  lockedCard: {
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 10,
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.12)',
+    borderStyle: 'dashed',
+    opacity: 0.65,
   },
-  noticedRow: {
-    flexDirection:'row', alignItems:'center', gap:8,
-    paddingHorizontal:16, paddingTop:13, paddingBottom:11,
-    borderBottomWidth:1, borderBottomColor:'rgba(201,168,76,0.12)',
-    backgroundColor:'rgba(201,168,76,0.04)',
+  lockedBadge: {
+    backgroundColor: 'rgba(0,0,0,0.07)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  noticedStar:  { fontSize:14, color:'#C9A84C' },
-  noticedTitle: { fontFamily:'Poppins_700Bold', fontSize:13, color:'#C9A84C', flex:1 },
-  noticedBody:  { fontFamily:'Poppins_400Regular', fontSize:14, color:INK, lineHeight:22, padding:16, paddingTop:13 },
-
-  // ── Section label — same as calendar slbl ──
-  slbl: { fontFamily:'Poppins_700Bold', fontSize:10, textTransform:'uppercase', letterSpacing:1.5, color:INK3, paddingHorizontal:22, paddingTop:12, paddingBottom:8 },
-
-  // ── Child cards ──
-  childCard: { marginHorizontal:18, marginBottom:12, backgroundColor:CARD, borderRadius:18, borderWidth:1.5, borderColor:BORDER, overflow:'hidden' },
-  childTop:  { paddingHorizontal:16, paddingVertical:15, flexDirection:'row', alignItems:'center', gap:12 },
-  cAvatar:   { width:46, height:46, borderRadius:14, alignItems:'center', justifyContent:'center', flexShrink:0 },
-  cEmoji:    { fontSize:22 },
-  cInfo:     { flex:1 },
-  cName:     { fontFamily:'Poppins_700Bold', fontSize:17, color:INK, letterSpacing:-0.3 },
-  cMeta:     { fontFamily:'Poppins_400Regular', fontSize:13, color:INK2, marginTop:2 },
-
-  // Active badge — green border, clearly visible
-  activeBadge:    {
-    backgroundColor:'rgba(0,201,122,0.1)',
-    borderWidth:1.5, borderColor:'rgba(0,201,122,0.35)',
-    paddingHorizontal:11, paddingVertical:5, borderRadius:20,
+  lockedBadgeTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 12,
+    color: INK3,
+    textTransform: 'uppercase',
   },
-  activeBadgeTxt: { fontFamily:'Poppins_700Bold', fontSize:12, color:GREEN, textTransform:'uppercase', letterSpacing:0.5 },
 
-  // Footer — stronger divider, larger text
-  childFoot: { borderTopWidth:1.5, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:16, paddingVertical:11, flexDirection:'row', justifyContent:'space-between', alignItems:'center' },
-  cLast:     { fontFamily:'Poppins_400Regular', fontSize:13, color:INK2 },
-  cStreak:   { fontFamily:'Poppins_600SemiBold', fontSize:13, color:ORANGE },
-
-  // ── Locked cards ──
-  // Dashed border more visible — rgba(0,0,0,0.18)
-  lockedCard:  { marginHorizontal:18, marginBottom:12, backgroundColor:CARD, borderRadius:18, borderWidth:1.5, borderColor:'rgba(0,0,0,0.18)', borderStyle:'dashed', overflow:'hidden', opacity:0.85 },
-  // Locked name — medium grey, not fully faded
-  lockedLbl:   { fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.35)' },
-  // Unlock strip — warmer gold background
-  unlockStrip: { paddingHorizontal:16, paddingVertical:13, flexDirection:'row', alignItems:'center', gap:10, backgroundColor:'rgba(201,168,76,0.12)', borderTopWidth:1, borderTopColor:'rgba(201,168,76,0.25)' },
-  lockIcon:    { fontSize:16 },
-  // .unlock-label: 12px 600 T_DARK flex1
-  unlockLabel: { fontFamily:'Poppins_600SemiBold', fontSize:13, color:T_DARK, flex:1 },
-  // A$9.99 pill — larger, visible gold border
-  unlockCta:   {
-    backgroundColor:'rgba(201,168,76,0.15)',
-    borderWidth:1.5, borderColor:'rgba(201,168,76,0.4)',
-    borderRadius:20, paddingHorizontal:14, paddingVertical:7,
+  // ── Upsell ──
+  upsellBanner: {
+    marginTop: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(80,32,192,0.09)',
+    borderWidth: 1,
+    borderColor: 'rgba(80,32,192,0.17)',
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  unlockCtaTxt:{ fontFamily:'Poppins_700Bold', fontSize:12, color:T_GOLD2 },
+  upsellTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 16,
+    color: PURPLE,
+    marginBottom: 2,
+  },
+  upsellSub: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 13,
+    color: 'rgba(80,32,192,0.55)',
+    lineHeight: 18,
+  },
+  upsellBtn: {
+    backgroundColor: PURPLE,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  upsellBtnTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: '#fff',
+  },
 
-  // ── Empty state ──
-  empty:      { alignItems:'center', paddingTop:60, paddingHorizontal:40 },
-  emptyIcon:  { fontSize:48, marginBottom:14 },
-  emptyTitle: { fontFamily:'Poppins_700Bold', fontSize:17, color:INK, marginBottom:8 },
-  emptyBody:  { fontFamily:'Poppins_400Regular', fontSize:14, color:INK2, textAlign:'center', lineHeight:21 },
+  // ── Empty ──
+  empty: {
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 20,
+    color: INK,
+    marginBottom: 8,
+  },
+  emptySub: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 16,
+    color: INK2,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
 });

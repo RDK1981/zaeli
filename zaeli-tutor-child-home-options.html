@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli Tutor — Child Home Options</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0F0F0F;font-family:'Poppins',sans-serif;min-height:100vh;color:#fff;}
+
+/* ── NAV ── */
+nav{position:sticky;top:0;z-index:100;background:rgba(15,15,15,0.92);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,0.08);padding:0 40px;display:flex;align-items:center;height:56px;}
+.nav-brand{display:flex;align-items:center;gap:12px;padding-right:28px;border-right:1px solid rgba(255,255,255,0.1);margin-right:24px;flex-shrink:0;}
+.nav-logo{font-family:'Poppins',sans-serif;font-weight:800;font-size:22px;letter-spacing:-1px;color:#fff;}
+.nav-logo .hi{color:#D8CCFF;}
+.nav-sub{font-size:11px;font-weight:600;color:rgba(255,255,255,0.35);letter-spacing:0.02em;}
+.nav-tabs{display:flex;gap:2px;overflow-x:auto;}
+.nav-tabs::-webkit-scrollbar{display:none;}
+.nb{background:none;border:none;color:rgba(255,255,255,0.3);padding:7px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Poppins',sans-serif;transition:all 0.15s;white-space:nowrap;}
+.nb:hover{color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.06);}
+.nb.on{color:#fff;background:rgba(255,255,255,0.12);}
+
+/* ── SECTIONS ── */
+.sec{display:none;flex-direction:column;align-items:center;padding:48px 20px 80px;gap:24px;}
+.sec.on{display:flex;}
+.sec-head{text-align:center;max-width:600px;}
+.sec-eyebrow{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:#D8CCFF;margin-bottom:8px;}
+.sec-title{font-family:'DM Serif Display',serif;font-size:32px;color:#fff;letter-spacing:-0.5px;line-height:1.15;margin-bottom:6px;}
+.sec-desc{font-size:13px;color:rgba(255,255,255,0.4);line-height:1.7;}
+
+/* ── PHONE FRAMES ── */
+.phone-row{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;}
+.phone-col{display:flex;flex-direction:column;align-items:center;gap:8px;}
+.phone-lbl{font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(255,255,255,0.3);text-align:center;max-width:280px;}
+.phone{width:295px;height:638px;background:#D8CCFF;border-radius:40px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.5),0 0 0 8px #1A1A1A;position:relative;flex-shrink:0;}
+
+/* Status bar */
+.status-bar{height:44px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 24px 4px;flex-shrink:0;background:transparent;}
+.status-time{font-size:14px;font-weight:600;color:#0A0A0A;}
+.status-icons{display:flex;gap:4px;align-items:center;}
+.status-icons span{font-size:11px;color:#0A0A0A;font-weight:600;}
+
+/* ── SHARED COMPONENTS ── */
+
+/* Header strip */
+.hdr{display:flex;align-items:center;gap:10px;padding:6px 16px 10px;flex-shrink:0;}
+.hdr-back{font-size:18px;color:#5020C0;cursor:pointer;font-weight:600;margin-right:2px;}
+.hdr-av{width:34px;height:34px;border-radius:50%;background:#22C55E;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:14px;flex-shrink:0;}
+.hdr-info{flex:1;min-width:0;}
+.hdr-name{font-size:15px;font-weight:700;color:#0A0A0A;line-height:1.2;}
+.hdr-sub{font-size:11px;color:rgba(10,10,10,0.4);}
+.hdr-streak{display:flex;align-items:center;gap:3px;background:rgba(80,32,192,0.08);border-radius:10px;padding:4px 10px;font-size:13px;font-weight:700;color:#5020C0;flex-shrink:0;}
+
+/* Week stats strip */
+.stats-strip{display:flex;gap:6px;padding:0 16px 10px;flex-shrink:0;}
+.stat-chip{flex:1;background:rgba(255,255,255,0.65);border-radius:10px;padding:6px 4px;text-align:center;}
+.stat-n{font-size:14px;font-weight:800;color:#5020C0;line-height:1;}
+.stat-l{font-size:7px;font-weight:600;color:rgba(10,10,10,0.4);text-transform:uppercase;letter-spacing:0.05em;margin-top:2px;}
+
+/* Section labels */
+.slbl{font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:rgba(10,10,10,0.3);padding:0 16px;margin:10px 0 6px;}
+
+/* Scrollable content area */
+.scroll{flex:1;overflow-y:auto;scrollbar-width:none;}
+.scroll::-webkit-scrollbar{display:none;}
+
+/* Session row */
+.sess{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:11px 14px;margin:0 16px 6px;}
+.sess-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.sess-info{flex:1;min-width:0;}
+.sess-title{font-size:13px;font-weight:700;color:#0A0A0A;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sess-meta{font-size:10px;color:rgba(10,10,10,0.38);display:flex;gap:6px;align-items:center;}
+.sess-btn{font-size:10px;font-weight:700;border-radius:8px;padding:5px 10px;flex-shrink:0;cursor:pointer;}
+.sess-resume{background:#5020C0;color:#fff;}
+.sess-review{background:rgba(80,32,192,0.08);color:#5020C0;}
+
+/* Zaeli suggestion card */
+.zaeli-card{background:#fff;border:1.5px solid #A8E8CC;border-radius:16px;padding:12px 14px;margin:0 16px 8px;}
+.zaeli-card-sm{background:#fff;border:1.5px solid #A8E8CC;border-radius:14px;padding:10px 14px;margin:0 16px 8px;display:flex;align-items:center;gap:10px;}
+.zaeli-dot{font-size:11px;color:#5020C0;font-weight:800;margin-bottom:4px;}
+.zaeli-txt{font-size:12px;color:#0A0A0A;line-height:1.5;}
+.zaeli-txt-sm{font-size:12px;color:#0A0A0A;line-height:1.4;flex:1;}
+.zaeli-btn{display:inline-block;background:#5020C0;color:#fff;font-size:11px;font-weight:700;border-radius:10px;padding:8px 16px;margin-top:8px;cursor:pointer;}
+.zaeli-btn-sm{background:#5020C0;color:#fff;font-size:10px;font-weight:700;border-radius:8px;padding:6px 12px;cursor:pointer;flex-shrink:0;white-space:nowrap;}
+
+/* ── OPTION A: Horizontal pills ── */
+.pill-scroll{display:flex;gap:6px;padding:0 16px 8px;overflow-x:auto;flex-shrink:0;}
+.pill-scroll::-webkit-scrollbar{display:none;}
+.pill{background:#fff;border-radius:20px;padding:8px 14px;font-size:11px;font-weight:600;color:#0A0A0A;white-space:nowrap;display:flex;align-items:center;gap:5px;cursor:pointer;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
+.pill:hover{background:rgba(255,255,255,0.9);}
+
+/* ── OPTION B: Compact grid ── */
+.pillar-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 16px 8px;}
+.pillar-sq{background:#fff;border-radius:14px;padding:12px 8px;text-align:center;cursor:pointer;}
+.pillar-sq:hover{background:rgba(255,255,255,0.9);}
+.pillar-emoji{font-size:20px;margin-bottom:4px;}
+.pillar-name{font-size:9px;font-weight:700;color:#0A0A0A;line-height:1.2;}
+
+/* ── OPTION C: Time groups ── */
+.time-hdr{font-size:9px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(10,10,10,0.25);padding:8px 16px 4px;}
+
+/* Subject colour dots */
+.dot-maths{background:#5020C0;}
+.dot-english{background:#FF4545;}
+.dot-reading{background:#2055F0;}
+.dot-money{background:#059669;}
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">z<span class="hi">a</span>el<span class="hi">i</span></div>
+    <span class="nav-sub">Tutor — Child Home</span>
+  </div>
+  <div class="nav-tabs">
+    <button class="nb on" onclick="show('a')">Option A — Pills + Sessions</button>
+    <button class="nb" onclick="show('b')">Option B — Zaeli Card + Grid</button>
+    <button class="nb" onclick="show('c')">Option C — Hybrid</button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════ -->
+<!-- OPTION A — Horizontal pill row + sessions prominent -->
+<!-- ═══════════════════════════════════ -->
+<div class="sec on" id="sec-a">
+  <div class="sec-head">
+    <div class="sec-eyebrow">Option A</div>
+    <div class="sec-title">Pills + Sessions Prominent</div>
+    <div class="sec-desc">Pillars compressed to a single pill row. Sessions become the dominant content &mdash; what the child did and what they can resume is front and centre.</div>
+  </div>
+  <div class="phone-row">
+    <div class="phone-col">
+      <div class="phone-lbl">Default state</div>
+      <div class="phone">
+        <div class="status-bar"><span class="status-time">9:41</span><div class="status-icons"><span>&#9679;&#9679;&#9679;&#9679;</span></div></div>
+        <!-- Header -->
+        <div class="hdr">
+          <div class="hdr-back">&larr;</div>
+          <div class="hdr-av">G</div>
+          <div class="hdr-info">
+            <div class="hdr-name">Gab &middot; Year 4</div>
+          </div>
+          <div class="hdr-streak">&#128293; 5</div>
+        </div>
+        <!-- Week stats -->
+        <div class="stats-strip">
+          <div class="stat-chip"><div class="stat-n">4</div><div class="stat-l">Sessions</div></div>
+          <div class="stat-chip"><div class="stat-n">12</div><div class="stat-l">Minutes</div></div>
+          <div class="stat-chip"><div class="stat-n">Maths</div><div class="stat-l">Top Subject</div></div>
+        </div>
+        <div class="scroll">
+          <!-- Pill row -->
+          <div class="slbl">Start a session</div>
+          <div class="pill-scroll">
+            <div class="pill">&#128203; Homework</div>
+            <div class="pill">&#9999;&#65039; Practice</div>
+            <div class="pill">&#128214; Read Aloud</div>
+            <div class="pill">&#128394;&#65039; Write</div>
+            <div class="pill">&#128269; Comprehension</div>
+            <div class="pill">&#128176; Money &amp; Life</div>
+          </div>
+          <!-- Sessions -->
+          <div class="slbl" style="margin-top:6px;">Recent sessions</div>
+          <div class="sess">
+            <div class="sess-dot dot-maths"></div>
+            <div class="sess-info">
+              <div class="sess-title">Adding &amp; Subtracting</div>
+              <div class="sess-meta"><span>Today</span><span>&middot;</span><span>Maths</span><span>&middot;</span><span>12 min</span></div>
+            </div>
+            <div class="sess-btn sess-resume">Resume</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-english"></div>
+            <div class="sess-info">
+              <div class="sess-title">Homework &mdash; spelling</div>
+              <div class="sess-meta"><span>Yesterday</span><span>&middot;</span><span>English</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-reading"></div>
+            <div class="sess-info">
+              <div class="sess-title">Read Aloud &mdash; Diary of a Wimpy Kid</div>
+              <div class="sess-meta"><span>Mon</span><span>&middot;</span><span>8 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-money"></div>
+            <div class="sess-info">
+              <div class="sess-title">Earning &amp; Spending</div>
+              <div class="sess-meta"><span>Last week</span><span>&middot;</span><span>Money &amp; Life</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div style="height:16px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-lbl">Scrolled &mdash; pills offscreen</div>
+      <div class="phone">
+        <div class="status-bar"><span class="status-time">9:41</span><div class="status-icons"><span>&#9679;&#9679;&#9679;&#9679;</span></div></div>
+        <div class="hdr">
+          <div class="hdr-back">&larr;</div>
+          <div class="hdr-av">G</div>
+          <div class="hdr-info">
+            <div class="hdr-name">Gab &middot; Year 4</div>
+          </div>
+          <div class="hdr-streak">&#128293; 5</div>
+        </div>
+        <div class="scroll">
+          <!-- Sessions only (scrolled state) -->
+          <div class="slbl">Recent sessions</div>
+          <div class="sess">
+            <div class="sess-dot dot-maths"></div>
+            <div class="sess-info">
+              <div class="sess-title">Adding &amp; Subtracting</div>
+              <div class="sess-meta"><span>Today</span><span>&middot;</span><span>Maths</span><span>&middot;</span><span>12 min</span></div>
+            </div>
+            <div class="sess-btn sess-resume">Resume</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-english"></div>
+            <div class="sess-info">
+              <div class="sess-title">Homework &mdash; spelling</div>
+              <div class="sess-meta"><span>Yesterday</span><span>&middot;</span><span>English</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-reading"></div>
+            <div class="sess-info">
+              <div class="sess-title">Read Aloud &mdash; Diary of a Wimpy Kid</div>
+              <div class="sess-meta"><span>Mon</span><span>&middot;</span><span>8 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-money"></div>
+            <div class="sess-info">
+              <div class="sess-title">Earning &amp; Spending</div>
+              <div class="sess-meta"><span>Last week</span><span>&middot;</span><span>Money &amp; Life</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-maths"></div>
+            <div class="sess-info">
+              <div class="sess-title">Times Tables &mdash; 6, 7, 8</div>
+              <div class="sess-meta"><span>Last week</span><span>&middot;</span><span>Maths</span><span>&middot;</span><span>15 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-english"></div>
+            <div class="sess-info">
+              <div class="sess-title">Persuasive Writing</div>
+              <div class="sess-meta"><span>2 weeks ago</span><span>&middot;</span><span>English</span><span>&middot;</span><span>20 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div style="height:16px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ -->
+<!-- OPTION B — Zaeli suggestion + compact grid -->
+<!-- ═══════════════════════════════════ -->
+<div class="sec" id="sec-b">
+  <div class="sec-head">
+    <div class="sec-eyebrow">Option B</div>
+    <div class="sec-title">Zaeli Suggestion + Compact Grid</div>
+    <div class="sec-desc">Zaeli leads with a smart suggestion based on gaps. Pillars are a compact 3x2 grid &mdash; just emoji + name, no descriptions. Sessions still visible below.</div>
+  </div>
+  <div class="phone-row">
+    <div class="phone-col">
+      <div class="phone-lbl">Default &mdash; with Zaeli suggestion</div>
+      <div class="phone">
+        <div class="status-bar"><span class="status-time">9:41</span><div class="status-icons"><span>&#9679;&#9679;&#9679;&#9679;</span></div></div>
+        <div class="hdr">
+          <div class="hdr-back">&larr;</div>
+          <div class="hdr-av">G</div>
+          <div class="hdr-info">
+            <div class="hdr-name">Gab &middot; Year 4</div>
+          </div>
+          <div class="hdr-streak">&#128293; 5</div>
+        </div>
+        <div class="stats-strip">
+          <div class="stat-chip"><div class="stat-n">4</div><div class="stat-l">Sessions</div></div>
+          <div class="stat-chip"><div class="stat-n">12</div><div class="stat-l">Minutes</div></div>
+          <div class="stat-chip"><div class="stat-n">Maths</div><div class="stat-l">Top Subject</div></div>
+        </div>
+        <div class="scroll">
+          <!-- Zaeli suggestion -->
+          <div class="zaeli-card">
+            <div class="zaeli-dot">&#10022; Zaeli</div>
+            <div class="zaeli-txt">Gab hasn't done Maths in 3 days &mdash; ready for a quick practice? Fractions are next on the curriculum.</div>
+            <div class="zaeli-btn">Start Practice &rarr;</div>
+          </div>
+          <!-- Compact grid -->
+          <div class="slbl">All pillars</div>
+          <div class="pillar-grid">
+            <div class="pillar-sq"><div class="pillar-emoji">&#128203;</div><div class="pillar-name">Homework</div></div>
+            <div class="pillar-sq"><div class="pillar-emoji">&#9999;&#65039;</div><div class="pillar-name">Practice</div></div>
+            <div class="pillar-sq"><div class="pillar-emoji">&#128214;</div><div class="pillar-name">Read Aloud</div></div>
+            <div class="pillar-sq"><div class="pillar-emoji">&#128394;&#65039;</div><div class="pillar-name">Write</div></div>
+            <div class="pillar-sq"><div class="pillar-emoji">&#128269;</div><div class="pillar-name">Comprehension</div></div>
+            <div class="pillar-sq"><div class="pillar-emoji">&#128176;</div><div class="pillar-name">Money &amp; Life</div></div>
+          </div>
+          <!-- Sessions -->
+          <div class="slbl" style="margin-top:4px;">Recent sessions</div>
+          <div class="sess">
+            <div class="sess-dot dot-maths"></div>
+            <div class="sess-info">
+              <div class="sess-title">Adding &amp; Subtracting</div>
+              <div class="sess-meta"><span>Today</span><span>&middot;</span><span>Maths</span><span>&middot;</span><span>12 min</span></div>
+            </div>
+            <div class="sess-btn sess-resume">Resume</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-english"></div>
+            <div class="sess-info">
+              <div class="sess-title">Homework &mdash; spelling</div>
+              <div class="sess-meta"><span>Yesterday</span><span>&middot;</span><span>English</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-reading"></div>
+            <div class="sess-info">
+              <div class="sess-title">Read Aloud &mdash; Diary of a Wimpy Kid</div>
+              <div class="sess-meta"><span>Mon</span><span>&middot;</span><span>8 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div style="height:16px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-lbl">No suggestion &mdash; all caught up</div>
+      <div class="phone">
+        <div class="status-bar"><span class="status-time">9:41</span><div class="status-icons"><span>&#9679;&#9679;&#9679;&#9679;</span></div></div>
+        <div class="hdr">
+          <div class="hdr-back">&larr;</div>
+          <div class="hdr-av">G</div>
+          <div class="hdr-info">
+            <div class="hdr-name">Gab &middot; Year 4</div>
+          </div>
+          <div class="hdr-streak">&#128293; 5</div>
+        </div>
+        <div class="stats-strip">
+          <div class="stat-chip"><div class="stat-n">6</div><div class="stat-l">Sessions</div></div>
+          <div class="stat-chip"><div class="stat-n">28</div><div class="stat-l">Minutes</div></div>
+          <div class="stat-chip"><div class="stat-n">English</div><div class="stat-l">Top Subject</div></div>
+        </div>
+        <div class="scroll">
+          <!-- No suggestion — grid is first -->
+          <div class="slbl">All pillars</div>
+          <div class="pillar-grid">
+            <div class="pillar-sq"><div class="pillar-emoji">&#128203;</div><div class="pillar-name">Homework</div></div>
+            <div class="pillar-sq"><div class="pillar-emoji">&#9999;&#65039;</div><div class="pillar-name">Practice</div></div>
+            <div class="pillar-sq"><div class="pillar-emoji">&#128214;</div><div class="pillar-name">Read Aloud</div></div>
+            <div class="pillar-sq"><div class="pillar-emoji">&#128394;&#65039;</div><div class="pillar-name">Write</div></div>
+            <div class="pillar-sq"><div class="pillar-emoji">&#128269;</div><div class="pillar-name">Comprehension</div></div>
+            <div class="pillar-sq"><div class="pillar-emoji">&#128176;</div><div class="pillar-name">Money &amp; Life</div></div>
+          </div>
+          <div class="slbl" style="margin-top:4px;">Recent sessions</div>
+          <div class="sess">
+            <div class="sess-dot dot-maths"></div>
+            <div class="sess-info">
+              <div class="sess-title">Fractions &mdash; halves &amp; quarters</div>
+              <div class="sess-meta"><span>Today</span><span>&middot;</span><span>Maths</span><span>&middot;</span><span>10 min</span></div>
+            </div>
+            <div class="sess-btn sess-resume">Resume</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-english"></div>
+            <div class="sess-info">
+              <div class="sess-title">Homework &mdash; spelling</div>
+              <div class="sess-meta"><span>Today</span><span>&middot;</span><span>English</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-reading"></div>
+            <div class="sess-info">
+              <div class="sess-title">Read Aloud &mdash; Diary of a Wimpy Kid</div>
+              <div class="sess-meta"><span>Yesterday</span><span>&middot;</span><span>8 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-money"></div>
+            <div class="sess-info">
+              <div class="sess-title">Earning &amp; Spending</div>
+              <div class="sess-meta"><span>Yesterday</span><span>&middot;</span><span>Money &amp; Life</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-maths"></div>
+            <div class="sess-info">
+              <div class="sess-title">Adding &amp; Subtracting</div>
+              <div class="sess-meta"><span>Mon</span><span>&middot;</span><span>Maths</span><span>&middot;</span><span>12 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div style="height:16px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════ -->
+<!-- OPTION C — Hybrid (pills + Zaeli card) -->
+<!-- ═══════════════════════════════════ -->
+<div class="sec" id="sec-c">
+  <div class="sec-head">
+    <div class="sec-eyebrow">Option C</div>
+    <div class="sec-title">Hybrid &mdash; Pills + Zaeli Card</div>
+    <div class="sec-desc">Compact Zaeli nudge at top, pill row below it, sessions grouped by time period. Best of both worlds &mdash; smart suggestion without losing the pill navigation.</div>
+  </div>
+  <div class="phone-row">
+    <div class="phone-col">
+      <div class="phone-lbl">Default &mdash; with nudge</div>
+      <div class="phone">
+        <div class="status-bar"><span class="status-time">9:41</span><div class="status-icons"><span>&#9679;&#9679;&#9679;&#9679;</span></div></div>
+        <div class="hdr">
+          <div class="hdr-back">&larr;</div>
+          <div class="hdr-av">G</div>
+          <div class="hdr-info">
+            <div class="hdr-name">Gab &middot; Year 4</div>
+          </div>
+          <div class="hdr-streak">&#128293; 5</div>
+        </div>
+        <div class="stats-strip">
+          <div class="stat-chip"><div class="stat-n">4</div><div class="stat-l">Sessions</div></div>
+          <div class="stat-chip"><div class="stat-n">12</div><div class="stat-l">Minutes</div></div>
+          <div class="stat-chip"><div class="stat-n">Maths</div><div class="stat-l">Top Subject</div></div>
+        </div>
+        <div class="scroll">
+          <!-- Compact Zaeli nudge -->
+          <div class="zaeli-card-sm">
+            <div class="zaeli-txt-sm"><span style="color:#5020C0;font-weight:800;">&#10022;</span> Ready for Maths? Fractions are next.</div>
+            <div class="zaeli-btn-sm">Go &rarr;</div>
+          </div>
+          <!-- Pill row -->
+          <div class="slbl">Start a session</div>
+          <div class="pill-scroll">
+            <div class="pill">&#128203; Homework</div>
+            <div class="pill">&#9999;&#65039; Practice</div>
+            <div class="pill">&#128214; Read Aloud</div>
+            <div class="pill">&#128394;&#65039; Write</div>
+            <div class="pill">&#128269; Comprehension</div>
+            <div class="pill">&#128176; Money &amp; Life</div>
+          </div>
+          <!-- Time-grouped sessions -->
+          <div class="time-hdr">This week</div>
+          <div class="sess">
+            <div class="sess-dot dot-maths"></div>
+            <div class="sess-info">
+              <div class="sess-title">Adding &amp; Subtracting</div>
+              <div class="sess-meta"><span>Today</span><span>&middot;</span><span>Maths</span><span>&middot;</span><span>12 min</span></div>
+            </div>
+            <div class="sess-btn sess-resume">Resume</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-english"></div>
+            <div class="sess-info">
+              <div class="sess-title">Homework &mdash; spelling</div>
+              <div class="sess-meta"><span>Yesterday</span><span>&middot;</span><span>English</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="time-hdr">Last week</div>
+          <div class="sess">
+            <div class="sess-dot dot-reading"></div>
+            <div class="sess-info">
+              <div class="sess-title">Read Aloud &mdash; Diary of a Wimpy Kid</div>
+              <div class="sess-meta"><span>Mon</span><span>&middot;</span><span>8 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-money"></div>
+            <div class="sess-info">
+              <div class="sess-title">Earning &amp; Spending</div>
+              <div class="sess-meta"><span>Last Tue</span><span>&middot;</span><span>Money &amp; Life</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div style="height:16px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone-col">
+      <div class="phone-lbl">Different child &mdash; Poppy, Year 6</div>
+      <div class="phone">
+        <div class="status-bar"><span class="status-time">9:41</span><div class="status-icons"><span>&#9679;&#9679;&#9679;&#9679;</span></div></div>
+        <div class="hdr">
+          <div class="hdr-back">&larr;</div>
+          <div class="hdr-av" style="background:#A855F7;">P</div>
+          <div class="hdr-info">
+            <div class="hdr-name">Poppy &middot; Year 6</div>
+          </div>
+          <div class="hdr-streak">&#128293; 12</div>
+        </div>
+        <div class="stats-strip">
+          <div class="stat-chip"><div class="stat-n">7</div><div class="stat-l">Sessions</div></div>
+          <div class="stat-chip"><div class="stat-n">34</div><div class="stat-l">Minutes</div></div>
+          <div class="stat-chip"><div class="stat-n">English</div><div class="stat-l">Top Subject</div></div>
+        </div>
+        <div class="scroll">
+          <!-- Compact Zaeli nudge -->
+          <div class="zaeli-card-sm">
+            <div class="zaeli-txt-sm"><span style="color:#5020C0;font-weight:800;">&#10022;</span> Poppy's NAPLAN prep is on track. Try comprehension next.</div>
+            <div class="zaeli-btn-sm">Go &rarr;</div>
+          </div>
+          <!-- Pill row -->
+          <div class="slbl">Start a session</div>
+          <div class="pill-scroll">
+            <div class="pill">&#128203; Homework</div>
+            <div class="pill">&#9999;&#65039; Practice</div>
+            <div class="pill">&#128214; Read Aloud</div>
+            <div class="pill">&#128394;&#65039; Write</div>
+            <div class="pill">&#128269; Comprehension</div>
+            <div class="pill">&#128176; Money &amp; Life</div>
+          </div>
+          <!-- Time-grouped sessions -->
+          <div class="time-hdr">This week</div>
+          <div class="sess">
+            <div class="sess-dot dot-english"></div>
+            <div class="sess-info">
+              <div class="sess-title">Persuasive Writing &mdash; essay draft</div>
+              <div class="sess-meta"><span>Today</span><span>&middot;</span><span>English</span><span>&middot;</span><span>18 min</span></div>
+            </div>
+            <div class="sess-btn sess-resume">Resume</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-maths"></div>
+            <div class="sess-info">
+              <div class="sess-title">Fractions, Decimals &amp; %</div>
+              <div class="sess-meta"><span>Yesterday</span><span>&middot;</span><span>Maths</span><span>&middot;</span><span>14 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-reading"></div>
+            <div class="sess-info">
+              <div class="sess-title">Read Aloud &mdash; Wonder</div>
+              <div class="sess-meta"><span>Mon</span><span>&middot;</span><span>10 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="time-hdr">Last week</div>
+          <div class="sess">
+            <div class="sess-dot dot-maths"></div>
+            <div class="sess-info">
+              <div class="sess-title">NAPLAN Practice &mdash; numeracy</div>
+              <div class="sess-meta"><span>Last Thu</span><span>&middot;</span><span>Maths</span><span>&middot;</span><span>22 min</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div class="sess">
+            <div class="sess-dot dot-english"></div>
+            <div class="sess-info">
+              <div class="sess-title">Homework &mdash; comprehension passage</div>
+              <div class="sess-meta"><span>Last Wed</span><span>&middot;</span><span>English</span></div>
+            </div>
+            <div class="sess-btn sess-review">Review</div>
+          </div>
+          <div style="height:16px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.sec').forEach(s => s.classList.remove('on'));
+  document.querySelectorAll('.nb').forEach(b => b.classList.remove('on'));
+  document.getElementById('sec-' + id).classList.add('on');
+  event.target.classList.add('on');
+}
+</script>
+
+</body>
+</html>
