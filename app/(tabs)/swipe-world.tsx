@@ -1,11 +1,12 @@
 /**
  * swipe-world.tsx — Zaeli Swipe World Container
- * 7 April 2026 — v3 (Phase 3b: My Space wired)
+ * 17 April 2026 — v4 (Phase A: 2-page architecture, Chat-first)
  *
  * Pages:
- *   0 = Dashboard
- *   1 = Chat (HomeScreen named export from index.tsx)
- *   2 = My Space (MySpaceScreen)
+ *   0 = Chat (HomeScreen named export from index.tsx) — OPENS HERE
+ *   1 = Dashboard (DashboardScreen)
+ *
+ * My Space moved to standalone route (/(tabs)/my-space), accessed via More sheet.
  */
 
 import React, { useRef, useState, useEffect } from 'react';
@@ -16,54 +17,50 @@ import {
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { setPendingChatContext } from '../../lib/navigation-store';
 
-import ZaeliFAB, { ZaeliFABHandle } from '../components/ZaeliFAB';
 import DashboardScreen from './dashboard';
 import { HomeScreen as ChatScreen } from './index';
-import MySpaceScreen from './my-space';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const { width: W } = Dimensions.get('window');
 
-const PAGE_DASHBOARD = 0;
-const PAGE_CHAT      = 1;
-const PAGE_MYSPACE   = 2;
+const PAGE_CHAT      = 0;
+const PAGE_DASHBOARD = 1;
 
-const USER_INITIAL = 'R';
-const USER_COLOR   = '#A8D8F0';
-
-const DOT_COLORS  = ['#FAC8A8', '#D8CCFF', '#A8D8F0'];
-const PAGE_ACTIVE = ['dashboard', 'chat', 'myspace'] as const;
+// 2-dot indicator: lavender (Chat), peach (Dashboard)
+const DOT_COLORS  = ['#A890FF', '#FAC8A8']; // darker lavender for visibility
 
 const LANDING_TEST_MODE = true; // set false before launch
+
+// Module-level flag — only show splash once per app session, not on every swipe-world re-mount
+let _splashShownThisSession = false;
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function SwipeWorld() {
   const router    = useRouter();
   const scrollRef = useRef<ScrollView>(null);
-  const fabRef    = useRef<ZaeliFABHandle>(null);
 
-  const [activePage,  setActivePage]  = useState(PAGE_DASHBOARD);
-  const [fabActive,   setFabActive]   = useState<'dashboard' | 'chat' | 'keyboard' | 'myspace'>('dashboard');
+  const [activePage,  setActivePage]  = useState(PAGE_CHAT);
   const [showLanding, setShowLanding] = useState(false);
   const [pendingMicText, setPendingMicText] = useState<string|null>(null);
   const [contextTrigger, setContextTrigger] = useState(0);
 
-  // Open on Dashboard
+  // Open on Chat (page 0)
   useEffect(() => {
     const t = setTimeout(() => {
-      scrollRef.current?.scrollTo({ x: PAGE_DASHBOARD * W, animated: false });
+      scrollRef.current?.scrollTo({ x: PAGE_CHAT * W, animated: false });
     }, 80);
     return () => clearTimeout(t);
   }, []);
 
-  // Landing time-window check
+  // Landing time-window check — only once per app session
   useEffect(() => {
-    if (LANDING_TEST_MODE) { setShowLanding(true); return; }
+    if (_splashShownThisSession) return;
+    if (LANDING_TEST_MODE) { setShowLanding(true); _splashShownThisSession = true; return; }
     const h = new Date().getHours();
     if ((h >= 6 && h < 9) || (h >= 12 && h < 14) || (h >= 17 && h < 20)) {
       setShowLanding(true);
+      _splashShownThisSession = true;
     }
   }, []);
 
@@ -71,61 +68,11 @@ export default function SwipeWorld() {
   function scrollToPage(page: number) {
     scrollRef.current?.scrollTo({ x: page * W, animated: true });
     setActivePage(page);
-    setFabActive(PAGE_ACTIVE[page]);
   }
 
   function handleScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const page = Math.round(e.nativeEvent.contentOffset.x / W);
-    if (page !== activePage) {
-      setActivePage(page);
-      setFabActive(PAGE_ACTIVE[page]);
-    }
-  }
-
-  // ── FAB handlers ─────────────────────────────────────────────────────────
-  function onDashboard() { scrollToPage(PAGE_DASHBOARD); }
-
-  function onChat() {
-    if (activePage === PAGE_CHAT) {
-      setFabActive('keyboard');
-    } else {
-      scrollToPage(PAGE_CHAT);
-    }
-  }
-
-  function onMySpace() { scrollToPage(PAGE_MYSPACE); }
-
-  function onMoreItem(key: string) {
-    if (key === 'calendar') {
-      setPendingChatContext({ type:'calendar_sheet' as any, event:{ tab:'today' }, returnTo:'dashboard' } as any);
-      setContextTrigger(c => c + 1);
-      scrollToPage(PAGE_CHAT);
-      return;
-    }
-    if (key === 'shopping') {
-      setPendingChatContext({ type:'shopping_sheet' as any, returnTo:'dashboard' } as any);
-      setContextTrigger(c => c + 1);
-      scrollToPage(PAGE_CHAT);
-      return;
-    }
-    if (key === 'meals') {
-      setPendingChatContext({ type:'meals_sheet' as any, returnTo:'dashboard' } as any);
-      setContextTrigger(c => c + 1);
-      scrollToPage(PAGE_CHAT);
-      return;
-    }
-    const sheetKeys = ['todos', 'notes', 'travel'];
-    if (sheetKeys.includes(key)) {
-      scrollToPage(PAGE_CHAT);
-      return;
-    }
-    const screens: Record<string, string> = {
-      tutor:    '/(tabs)/tutor',
-      kids:     '/(tabs)/kids',
-      family:   '/(tabs)/family',
-      settings: '/(tabs)/settings',
-    };
-    if (screens[key]) router.navigate(screens[key] as any);
+    if (page !== activePage) setActivePage(page);
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -133,7 +80,7 @@ export default function SwipeWorld() {
     <View style={s.root}>
       <ExpoStatusBar style="dark" animated />
 
-      {/* ── Three-page horizontal scroll ── */}
+      {/* ── Two-page horizontal scroll ── */}
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -147,12 +94,7 @@ export default function SwipeWorld() {
         style={s.scroll}
         contentContainerStyle={{ flexGrow: 0 }}
       >
-        {/* Page 0 — Dashboard */}
-        <View style={s.page}>
-          <DashboardScreen onNavigateChat={() => scrollToPage(PAGE_CHAT)} isActive={activePage === PAGE_DASHBOARD} onContextTrigger={() => setContextTrigger(c => c + 1)} />
-        </View>
-
-        {/* Page 1 — Chat */}
+        {/* Page 0 — Chat (opens here) */}
         <View style={s.page}>
           <ChatScreen
             isEmbedded={true}
@@ -164,15 +106,20 @@ export default function SwipeWorld() {
           />
         </View>
 
-        {/* Page 2 — My Space */}
+        {/* Page 1 — Dashboard */}
         <View style={s.page}>
-          <MySpaceScreen onNavigateChat={() => scrollToPage(PAGE_CHAT)} />
+          <DashboardScreen
+            onNavigateChat={() => scrollToPage(PAGE_CHAT)}
+            onNavigateMySpace={() => router.navigate('/(tabs)/my-space' as any)}
+            isActive={activePage === PAGE_DASHBOARD}
+            onContextTrigger={() => setContextTrigger(c => c + 1)}
+          />
         </View>
       </ScrollView>
 
-      {/* ── 3-dot page indicator ── */}
+      {/* ── 2-dot page indicator ── */}
       <View style={s.dots} pointerEvents="none">
-        {[0, 1, 2].map(i => (
+        {[0, 1].map(i => (
           <View
             key={i}
             style={[
@@ -187,32 +134,31 @@ export default function SwipeWorld() {
         ))}
       </View>
 
-      {/* ── FAB — hidden on chat page so it doesn't block chat bar touches ── */}
-      {activePage !== PAGE_CHAT && <ZaeliFAB
-        ref={fabRef}
-        activeButton={fabActive}
-        userInitial={USER_INITIAL}
-        userColor={USER_COLOR}
-        onDashboard={onDashboard}
-        onChat={onChat}
-        onMySpace={onMySpace}
-        onChatKeyboard={() => setFabActive('keyboard')}
-        onMoreItem={onMoreItem}
-        onMicResult={(text: string) => { setPendingMicText(text); scrollToPage(PAGE_CHAT); }}
-      />}
+      {/* FAB removed — hamburger ☰ in each screen's header opens the new MoreSheet */}
 
-      {/* ── Landing overlay ── */}
+      {/* ── Landing splash — Option C (Deep Slate + Mint) ── */}
       {showLanding && (
         <TouchableOpacity
           style={s.landing}
           activeOpacity={1}
           onPress={() => setShowLanding(false)}
         >
-          <Text style={s.landingLogo}>
-            z<Text style={{ color: '#A8D8F0' }}>a</Text>el
-            <Text style={{ color: '#A8D8F0' }}>i</Text>
-          </Text>
-          <Text style={s.landingHint}>Tap anywhere to continue</Text>
+          {/* Mint glow ring behind wordmark */}
+          <View style={s.landingGlow} pointerEvents="none" />
+
+          <View style={s.landingCenter}>
+            <Text style={s.landingLogo}>
+              z<Text style={s.landingLogoAccent}>a</Text>el
+              <Text style={s.landingLogoAccent}>i</Text>
+            </Text>
+            <Text style={s.landingTagline}>
+              <Text style={s.landingTaglineBold}>Less Chaos.</Text>
+              <Text> More Family.</Text>
+            </Text>
+            <View style={s.landingDivider} />
+          </View>
+
+          <Text style={s.landingHint}>TAP TO CONTINUE</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -252,22 +198,63 @@ const s = StyleSheet.create({
   landing: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(10,10,10,0.60)',
+    backgroundColor: '#1C2330',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
+    overflow: 'hidden',
+  },
+  landingGlow: {
+    position: 'absolute',
+    width: 520,
+    height: 520,
+    borderRadius: 260,
+    backgroundColor: 'rgba(184,237,208,0.12)',
+    top: '50%',
+    left: '50%',
+    marginLeft: -260,
+    marginTop: -280,
+    // Soft mint glow — fills a generous area behind the wordmark
+  },
+  landingCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   landingLogo: {
     fontFamily: 'Poppins_800ExtraBold',
-    fontSize: 56,
-    color: '#fff',
-    letterSpacing: -2,
-    lineHeight: 64,
+    fontSize: 96,
+    color: '#FFFFFF',
+    letterSpacing: -4,
+    lineHeight: 104,
+  },
+  landingLogoAccent: {
+    color: '#B8EDD0', // mint — tie to meal planner identity
+  },
+  landingTagline: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 17,
+    color: 'rgba(255,255,255,0.60)',
+    marginTop: 24,
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
+  landingTaglineBold: {
+    fontFamily: 'Poppins_700Bold',
+    color: '#B8EDD0', // mint accent on "Less Chaos."
+  },
+  landingDivider: {
+    marginTop: 20,
+    width: 40,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(184,237,208,0.5)',
   },
   landingHint: {
+    position: 'absolute',
+    bottom: 48,
     fontFamily: 'Poppins_400Regular',
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.45)',
-    marginTop: 16,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.40)',
+    letterSpacing: 1.4,
   },
 });

@@ -20,7 +20,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Animated, Easing, TextInput, KeyboardAvoidingView,
   Platform, Modal, Pressable, Image, Share, Clipboard, Keyboard,
-  PanResponder, StatusBar,
+  PanResponder, StatusBar, Alert,
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,9 +32,9 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
-import ZaeliFAB, { ZaeliFABHandle } from '../components/ZaeliFAB';
+import MoreSheet from '../components/MoreSheet';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
-import { getPendingChatContext, clearPendingChatContext } from '../../lib/navigation-store';
+import { getPendingChatContext, clearPendingChatContext, setPendingChatContext } from '../../lib/navigation-store';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const FAMILY_ID        = '00000000-0000-0000-0000-000000000001';
@@ -2664,7 +2664,7 @@ function HomeScreen({
   onMicTextConsumed,
 }: {
   inputRef?: React.RefObject<any>;
-  fabRef?: React.RefObject<ZaeliFABHandle>;
+  fabRef?: React.RefObject<any>;
   fabActive?: 'dashboard'|'chat'|'keyboard'|'myspace'|null;
   setFabActive?: (v: any) => void;
   onNavigateDashboard?: () => void;
@@ -2678,7 +2678,7 @@ function HomeScreen({
   const params    = useLocalSearchParams<{ autoMic?: string; seedMessage?: string; calendarScan?: string }>();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef  = externalInputRef ?? useRef<TextInput>(null);
-  const fabRef    = externalFabRef   ?? useRef<ZaeliFABHandle>(null);
+  const fabRef    = externalFabRef   ?? useRef<any>(null);
   const now       = new Date();
   const h         = now.getHours();
   const dateLabel = now.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' });
@@ -2719,6 +2719,7 @@ function HomeScreen({
   const setFabActive = externalSetFabActive ?? internalSetFabActive;
   // v5: true when we arrived from Dashboard — shows back pill
   const [returnToDashboard, setReturnToDashboard] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [screen,          setScreen]          = useState<'splash'|'entry'|'chat'>('chat');
   const [entryRecording,  setEntryRecording]  = useState(false);
   const [entryProcessing, setEntryProcessing] = useState(false);
@@ -5797,7 +5798,16 @@ Rules:
                 z<Text style={{ color:'#C4B4FF' }}>a</Text>el<Text style={{ color:'#C4B4FF' }}>i</Text>
               </Text>
             </TouchableOpacity>
-            <Text style={s.topBarChannelName}>Chat</Text>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+              <Text style={s.topBarChannelName}>Home</Text>
+              <TouchableOpacity onPress={() => setMoreOpen(true)} activeOpacity={0.7} style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' }}>
+                <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth={2.2} strokeLinecap="round">
+                  <Line x1={4} y1={6} x2={20} y2={6}/>
+                  <Line x1={4} y1={12} x2={20} y2={12}/>
+                  <Line x1={4} y1={18} x2={20} y2={18}/>
+                </Svg>
+              </TouchableOpacity>
+            </View>
           </View>
           <View style={s.topBarDivider}/>
         </SafeAreaView>
@@ -5936,6 +5946,17 @@ Rules:
                   blurOnSubmit={false}
                   onSubmitEditing={() => { if (input.trim()) { const t = input; setInput(''); inputRef.current?.clear(); send(t); } }}
                 />
+                <TouchableOpacity
+                  style={s.barBtn}
+                  onPress={openSheet}
+                  activeOpacity={0.75}
+                >
+                  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none"
+                    stroke="#FF4545" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <Circle cx="12" cy="13" r="4"/>
+                  </Svg>
+                </TouchableOpacity>
                 <View
                   style={[s.barBtn, { backgroundColor:'#FF4545' }, !input.trim() && { opacity:0.3 }]}
                   onTouchStart={() => { if (input.trim()) { const t = input; setInput(''); inputRef.current?.clear(); send(t); } }}
@@ -5950,49 +5971,42 @@ Rules:
             </View>
           </View>
 
-            {/* ── v5 FAB — hidden when embedded in swipe-world (which renders its own FAB) ── */}
-            {!isEmbedded && (
-              <ZaeliFAB
-                ref={fabRef}
-                activeButton={fabActive}
-                userInitial="R"
-                userColor="#4D8BFF"
-                onDashboard={() => {
-                  setFabActive('dashboard');
-                  onNavigateDashboard?.();
-                }}
-                onChat={() => {
-                  if (screen === 'chat') {
-                    setFabActive('keyboard');
-                    setTimeout(() => inputRef.current?.focus(), 100);
-                  } else {
-                    setFabActive('chat');
-                  }
-                }}
-                onMySpace={() => {}}
-                onChatKeyboard={() => {
-                  setFabActive('keyboard');
-                  setTimeout(() => inputRef.current?.focus(), 100);
-                }}
-                onMoreItem={(key) => {
-                  const sheetKeys = ['calendar','shopping','meals','todos','notes','travel'];
-                  if (key === 'calendar') { setCalSheetOpen(true); return; }
-                  if (key === 'shopping') { setShopSheetOpen(true); return; }
-                  if (sheetKeys.includes(key)) { return; }
-                  const routes: Record<string, string> = {
-                    tutor:    '/(tabs)/tutor',
-                    kids:     '/(tabs)/kids',
-                    family:   '/(tabs)/family',
-                    settings: '/(tabs)/settings',
-                  };
-                  if (routes[key]) router.navigate(routes[key] as any);
-                }}
-                onMicResult={(text) => {
-                  if (text) send(text);
-                }}
-              />
-            )}
+            {/* FAB removed — hamburger ☰ in header opens MoreSheet */}
         </KeyboardAvoidingView>
+
+        {/* MORE SHEET */}
+        <MoreSheet
+          visible={moreOpen}
+          onClose={() => setMoreOpen(false)}
+          onAction={(key) => {
+            // Inside swipe-world on Chat — handle nav + open sheets directly
+            if (key === 'chat') return; // already here
+            if (key === 'dashboard') { onNavigateDashboard?.(); return; }
+            // Channels — open sheets directly (we're already on Chat)
+            if (key === 'calendar') { setCalSheetOpen(true); return; }
+            if (key === 'shopping') { setShopSheetOpen(true); return; }
+            if (key === 'meals')    { setMealSheetOpen(true); return; }
+            // Tasks / Notes → navigate to My Space with context for Notes & Tasks sheet
+            if (key === 'radar') {
+              setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'tasks' });
+              router.navigate('/(tabs)/my-space' as any);
+              return;
+            }
+            if (key === 'notes') {
+              setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'notes' });
+              router.navigate('/(tabs)/my-space' as any);
+              return;
+            }
+            if (key === 'travel')  { /* Travel sheet — not yet built */ return; }
+            // Dedicated routes
+            if (key === 'myspace') { router.navigate('/(tabs)/my-space' as any); return; }
+            if (key === 'tutor')   { router.navigate('/(tabs)/tutor' as any); return; }
+            if (key === 'kids')    { router.navigate('/(tabs)/kids' as any); return; }
+            if (key === 'family')  { router.navigate('/(tabs)/family' as any); return; }
+            if (key === 'settings'){ router.navigate('/(tabs)/settings' as any); return; }
+            if (key === 'budget')  { Alert.alert('Our Budget', 'Coming soon — bank feed integration on the way.'); return; }
+          }}
+        />
 
         {/* CALENDAR SHEET */}
         <Modal
@@ -8182,15 +8196,7 @@ Context: ${ctx.join(' ')}`;
         <View style={{ height: Platform.OS === 'ios' ? 96 : 82 }}/>
       </View>
 
-      {/* FAB — taps dismiss landing */}
-      <ZaeliFAB
-        activeButton={null}
-        onDashboard={dismiss}
-        onChat={dismiss}
-        onChatKeyboard={dismiss}
-        onMoreItem={dismiss}
-        onMicResult={dismiss}
-      />
+      {/* FAB removed — this legacy inner-landing is deprecated, swipe-world handles splash now */}
     </Animated.View>
   );
 }
@@ -8373,7 +8379,7 @@ const s = StyleSheet.create({
   topBarRow:         { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:20, paddingTop:4, paddingBottom:10 },
   topBarDivider:     { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
   topBarRight:       { flexDirection:'row', alignItems:'center', gap:10 },
-  topBarChannelName: { fontFamily:'Poppins_700Bold', fontSize:18, color:'rgba(10,10,10,0.35)' },
+  topBarChannelName: { fontFamily:'Poppins_700Bold', fontSize:18, color:'rgba(10,10,10,0.32)' },
   logoWord:          { fontFamily:'Poppins_800ExtraBold', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:46 },
   avatar:            { width:34, height:34, borderRadius:17, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' },
   avatarTxt:         { fontFamily:'Poppins_700Bold', fontSize:13, color:'#fff' },

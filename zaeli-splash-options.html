@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli — Splash Options</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #FAF8F5;
+    --page-bg: #E8E4DE;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.55);
+    --coral: #FF4545;
+    --sky: #A8D8F0;
+    --lav: #C4B4FF;
+    --lav-dark: #A890FF;
+    --peach: #FAC8A8;
+    --slate: #2D3748;
+    --mint: #B8EDD0;
+    --gold: #F0DC80;
+    --warm-coral: #FF8B74;
+  }
+
+  body {
+    background: var(--page-bg);
+    font-family: 'Poppins', sans-serif;
+    padding: 48px 32px 80px;
+    color: var(--ink);
+  }
+
+  .page-title { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px; }
+  .page-sub { font-size: 13px; color: var(--ink2); line-height: 1.7; max-width: 780px; margin-bottom: 48px; }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 48px 44px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .phone-col { display: flex; flex-direction: column; gap: 16px; align-items: center; }
+  .phone-tag {
+    font-size: 12px; font-weight: 800;
+    color: #fff;
+    border-radius: 20px;
+    padding: 6px 16px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .tag-a { background: #6B35D9; }
+  .tag-b { background: #2D7A52; }
+  .tag-c { background: #C53030; }
+
+  .phone-desc {
+    font-size: 12px;
+    color: rgba(10,10,10,0.4);
+    text-align: center;
+    max-width: 340px;
+    line-height: 1.6;
+    font-weight: 500;
+  }
+
+  .phone {
+    width: 340px;
+    height: 720px;
+    border-radius: 44px;
+    overflow: hidden;
+    box-shadow: 0 14px 48px rgba(0,0,0,0.2);
+    position: relative;
+  }
+
+  /* Status bar styling (common) */
+  .status-bar { padding: 14px 24px 0; display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; }
+
+  /* ═══════════════ OPTION A — FULL LAVENDER ═══════════════ */
+  .phone.a { background: linear-gradient(165deg, #C4B4FF 0%, #A890FF 60%, #8E76E6 100%); }
+  .a .status-bar { color: rgba(255,255,255,0.9); }
+  .a .content {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px;
+    text-align: center;
+  }
+  .a .wm-a {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 96px;
+    letter-spacing: -4px;
+    line-height: 1;
+    color: #FFFFFF;
+    margin-bottom: 36px;
+  }
+  .a .wm-a .accent { color: var(--peach); }
+  .a .tagline-a {
+    font-size: 20px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: -0.3px;
+    margin-bottom: 4px;
+  }
+  .a .tagline-a strong {
+    font-weight: 700;
+    color: #FFFFFF;
+  }
+  .a .tap-a {
+    position: absolute;
+    bottom: 48px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.55);
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    left: 50%; transform: translateX(-50%);
+  }
+  .a .sparkle {
+    position: absolute;
+    font-size: 20px;
+    color: rgba(255,255,255,0.4);
+  }
+  .a .s1 { top: 18%; left: 20%; }
+  .a .s2 { top: 26%; right: 18%; font-size: 14px; }
+  .a .s3 { bottom: 28%; left: 25%; font-size: 16px; }
+  .a .s4 { bottom: 20%; right: 22%; font-size: 18px; }
+
+  /* ═══════════════ OPTION B — WARM CREAM + CORAL ═══════════════ */
+  .phone.b { background: var(--bg); }
+  .b .status-bar { color: var(--ink); }
+  .b .content {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px;
+    text-align: center;
+  }
+  .b .orb {
+    position: absolute;
+    width: 260px; height: 260px;
+    background: radial-gradient(circle at 35% 30%, rgba(255,139,116,0.45), rgba(255,139,116,0) 70%);
+    top: 10%; right: -60px;
+    border-radius: 50%;
+    filter: blur(1px);
+  }
+  .b .orb-2 {
+    position: absolute;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle at 60% 50%, rgba(196,180,255,0.55), rgba(196,180,255,0) 70%);
+    bottom: 18%; left: -40px;
+    border-radius: 50%;
+    filter: blur(2px);
+  }
+  .b .wm-b {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 96px;
+    letter-spacing: -4px;
+    line-height: 1;
+    color: var(--ink);
+    z-index: 2;
+    margin-bottom: 28px;
+  }
+  .b .wm-b .accent { color: var(--coral); }
+  .b .tagline-b {
+    font-size: 18px;
+    font-weight: 600;
+    color: rgba(10,10,10,0.6);
+    letter-spacing: -0.3px;
+    z-index: 2;
+    margin-bottom: 6px;
+  }
+  .b .tagline-b .highlight { color: var(--coral); font-weight: 800; }
+  .b .tap-b {
+    position: absolute;
+    bottom: 48px;
+    font-size: 13px;
+    color: rgba(10,10,10,0.35);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    left: 50%; transform: translateX(-50%);
+    z-index: 2;
+  }
+  .b .dot-indicator {
+    position: absolute;
+    bottom: 92px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--coral);
+    left: 50%; transform: translateX(-50%);
+    z-index: 2;
+    opacity: 0.6;
+    animation: pulse 1.6s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.3; transform: translateX(-50%) scale(1); }
+    50%       { opacity: 0.9; transform: translateX(-50%) scale(1.3); }
+  }
+
+  /* ═══════════════ OPTION C — DEEP SLATE + MINT ═══════════════ */
+  .phone.c { background: #1C2330; }
+  .c .status-bar { color: rgba(255,255,255,0.85); }
+  .c .content {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px;
+    text-align: center;
+  }
+  .c .glow-ring {
+    position: absolute;
+    width: 420px; height: 420px;
+    border-radius: 50%;
+    top: 50%; left: 50%; transform: translate(-50%,-52%);
+    background: radial-gradient(circle at center, rgba(184,237,208,0.12) 0%, rgba(184,237,208,0) 60%);
+  }
+  .c .wm-c {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 96px;
+    letter-spacing: -4px;
+    line-height: 1;
+    color: #FFFFFF;
+    z-index: 2;
+    margin-bottom: 32px;
+  }
+  .c .wm-c .accent {
+    color: transparent;
+    background: linear-gradient(135deg, #D4F5E0 0%, #B8EDD0 50%, #8FDAB0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  .c .tagline-c {
+    font-size: 17px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 0px;
+    z-index: 2;
+    margin-bottom: 8px;
+  }
+  .c .tagline-c strong {
+    color: var(--mint);
+    font-weight: 700;
+  }
+  .c .divider-line {
+    position: absolute;
+    top: calc(50% + 30px);
+    left: 50%; transform: translateX(-50%);
+    width: 40px; height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(184,237,208,0.5), transparent);
+    z-index: 2;
+  }
+  .c .tap-c {
+    position: absolute;
+    bottom: 48px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.4);
+    font-weight: 400;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    left: 50%; transform: translateX(-50%);
+    z-index: 2;
+  }
+
+  /* Notes panel */
+  .note-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 18px 20px;
+    max-width: 340px;
+    border: 0.5px solid rgba(0,0,0,0.07);
+  }
+  .note-card h3 { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+  .note-card .note-sub { font-size: 10px; font-weight: 700; color: rgba(10,10,10,0.35); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 10px; }
+  .note-card p { font-size: 12px; color: var(--ink2); line-height: 1.7; margin-bottom: 8px; }
+  .note-card p:last-child { margin-bottom: 0; }
+
+  .colour-row { display: flex; gap: 6px; margin-top: 8px; }
+  .colour-swatch {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.9);
+  }
+
+  .rec-card {
+    background: #fff;
+    border-radius: 22px;
+    padding: 28px 32px;
+    max-width: 1100px;
+    margin: 48px auto 0;
+    border: 0.5px solid rgba(0,0,0,0.07);
+  }
+  .rec-card h2 { font-size: 22px; font-weight: 800; margin-bottom: 10px; }
+  .rec-card p { font-size: 13px; color: var(--ink2); line-height: 1.7; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="page-title">Zaeli — Splash Page Options</div>
+<div class="page-sub">Three brand-new splash directions. Each stands on its own — no Chat visible behind, no transparency. Wordmark centred, tagline, subtle tap-to-continue cue. Pick one, we'll refine and build.</div>
+
+
+<div class="grid-3">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- OPTION A — FULL LAVENDER (Chat identity)                                 -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="phone-col">
+    <div class="phone-tag tag-a">Option A · Full Lavender</div>
+    <div class="phone-desc">Lavender gradient wrapping the screen — the colour of Chat. Peach "a" and "i" as brand accent. Floating sparkles hint at Zaeli's spark.</div>
+    <div class="phone a">
+      <div class="status-bar"><span>12:49</span><span>•••</span></div>
+      <div class="content">
+        <div class="sparkle s1">✦</div>
+        <div class="sparkle s2">✦</div>
+        <div class="sparkle s3">✦</div>
+        <div class="sparkle s4">✦</div>
+
+        <div class="wm-a">z<span class="accent">a</span>el<span class="accent">i</span></div>
+
+        <div class="tagline-a"><strong>Less Chaos.</strong> More Family.</div>
+      </div>
+      <div class="tap-a">Tap anywhere to continue</div>
+    </div>
+
+    <div class="note-card">
+      <h3>Option A — Full Lavender</h3>
+      <div class="note-sub">Chat identity forward · premium feel</div>
+      <p><strong>Background:</strong> Gradient from <code>#C4B4FF</code> → <code>#A890FF</code> → <code>#8E76E6</code> — full-bleed lavender, the Chat identity. Sets the tone that Chat is home.</p>
+      <p><strong>Wordmark:</strong> 96px white Poppins ExtraBold, "a" and "i" in peach <code>#FAC8A8</code> for warmth.</p>
+      <p><strong>Sparkles:</strong> ✦ glyphs at 40% white, subtle magic touch — matches the sparkle in the app (brief headers, etc.).</p>
+      <p><strong>Tagline:</strong> White body with "Less Chaos." in bold, "More Family." lighter — gives emphasis to the promise.</p>
+      <div class="colour-row">
+        <div class="colour-swatch" style="background:#C4B4FF;color:#5020C0;">LAV</div>
+        <div class="colour-swatch" style="background:#A890FF;color:#fff;">LAV+</div>
+        <div class="colour-swatch" style="background:#FAC8A8;color:#8A3A00;">PCH</div>
+        <div class="colour-swatch" style="background:#FFFFFF;color:#0A0A0A;border:1px solid #ddd;">WHT</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- OPTION B — WARM CREAM + CORAL                                            -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="phone-col">
+    <div class="phone-tag tag-b">Option B · Warm Cream + Coral Orbs</div>
+    <div class="phone-desc">Zaeli's signature warm white with soft coral + lavender glow orbs. Black wordmark with coral "a" and "i". Feels like opening a warm letter.</div>
+    <div class="phone b">
+      <div class="orb"></div>
+      <div class="orb-2"></div>
+      <div class="status-bar"><span>12:49</span><span>•••</span></div>
+      <div class="content">
+        <div class="wm-b">z<span class="accent">a</span>el<span class="accent">i</span></div>
+        <div class="tagline-b"><span class="highlight">Less Chaos.</span> More Family.</div>
+      </div>
+      <div class="dot-indicator"></div>
+      <div class="tap-b">Tap anywhere to continue</div>
+    </div>
+
+    <div class="note-card">
+      <h3>Option B — Warm Cream + Coral Orbs</h3>
+      <div class="note-sub">In-app continuity · soft and human</div>
+      <p><strong>Background:</strong> Zaeli's standard warm white <code>#FAF8F5</code> — exact same as in-app. Feels like the app is already open.</p>
+      <p><strong>Glow orbs:</strong> Soft radial gradients — warm coral top-right, lavender bottom-left. Blurred edges, low opacity. Gives depth without clutter.</p>
+      <p><strong>Wordmark:</strong> Black 96px Poppins ExtraBold, "a" and "i" in coral <code>#FF4545</code> — the app's action colour. Feels brand-forward.</p>
+      <p><strong>Pulse dot:</strong> Small coral dot above the tap hint, gently pulsing. Subtle "the app is alive" signal.</p>
+      <div class="colour-row">
+        <div class="colour-swatch" style="background:#FAF8F5;color:#0A0A0A;border:1px solid #ddd;">BG</div>
+        <div class="colour-swatch" style="background:#FF4545;color:#fff;">COR</div>
+        <div class="colour-swatch" style="background:#FF8B74;color:#fff;">ORB</div>
+        <div class="colour-swatch" style="background:#C4B4FF;color:#5020C0;">LAV</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- OPTION C — DEEP SLATE + MINT                                             -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div class="phone-col">
+    <div class="phone-tag tag-c">Option C · Deep Slate + Mint Gradient</div>
+    <div class="phone-desc">Night-sky slate with a mint gradient on "a" and "i". Premium, calm, confident. Like Zaeli is watching over things quietly before you arrive.</div>
+    <div class="phone c">
+      <div class="glow-ring"></div>
+      <div class="status-bar"><span>12:49</span><span>•••</span></div>
+      <div class="content">
+        <div class="wm-c">z<span class="accent">a</span>el<span class="accent">i</span></div>
+        <div class="tagline-c"><strong>Less Chaos.</strong> More Family.</div>
+      </div>
+      <div class="divider-line"></div>
+      <div class="tap-c">Tap to continue</div>
+    </div>
+
+    <div class="note-card">
+      <h3>Option C — Deep Slate + Mint</h3>
+      <div class="note-sub">Premium · calm · cinematic</div>
+      <p><strong>Background:</strong> Deep slate <code>#1C2330</code> — darker than Calendar card but same family. Feels premium.</p>
+      <p><strong>Glow ring:</strong> Huge radial mint glow behind the wordmark, low opacity. Like Zaeli is a soft light in the dark.</p>
+      <p><strong>Wordmark:</strong> 96px white, "a" and "i" use a mint gradient <code>#D4F5E0</code> → <code>#B8EDD0</code> → <code>#8FDAB0</code>. Subtle but premium.</p>
+      <p><strong>Tagline:</strong> Soft white, "Less Chaos." in mint. Thin divider below. Tap cue in uppercase letterspaced caps.</p>
+      <div class="colour-row">
+        <div class="colour-swatch" style="background:#1C2330;color:#fff;">SLT</div>
+        <div class="colour-swatch" style="background:#B8EDD0;color:#2D7A52;">MNT</div>
+        <div class="colour-swatch" style="background:#D4F5E0;color:#0A8A5A;">MNT+</div>
+        <div class="colour-swatch" style="background:#FFFFFF;color:#0A0A0A;border:1px solid #ddd;">WHT</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<div class="rec-card">
+  <h2>My take</h2>
+  <p><strong>Option B (Warm Cream + Coral)</strong> is my pick. It matches the in-app warm white background perfectly, so the transition from splash → Chat is seamless (no colour flash, no weird tonal shift). The coral "a" and "i" tie directly to the Send button and app's primary action colour. The soft orbs add depth without feeling heavy. The pulse dot signals "I'm ready."</p>
+  <p><strong>Option A (Full Lavender)</strong> is strongest for brand boldness — the moment the app opens, lavender = Zaeli. Chat is home, lavender is Chat's colour. But the transition to the in-app warm white feels abrupt.</p>
+  <p><strong>Option C (Deep Slate + Mint)</strong> is the most cinematic. Feels like a meditation app. Premium, calming. But may feel at odds with Zaeli's daytime warm energy — the in-app is bright, this splash is dark.</p>
+  <p style="margin-top: 14px; padding-top: 14px; border-top: 0.5px solid rgba(0,0,0,0.08);"><strong>Quick verdict:</strong> B if you want continuity and warmth, A if you want bold brand identity, C if you want cinematic premium. Pick one (or a hybrid) and I'll build it.</p>
+</div>
+
+</body>
+</html>

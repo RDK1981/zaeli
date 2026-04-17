@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli — FAB + Chat Bar Options</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #FAF8F5;
+    --page-bg: #E8E4DE;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.5);
+    --ink3: rgba(10,10,10,0.3);
+    --ink4: rgba(10,10,10,0.15);
+    --border: rgba(10,10,10,0.08);
+    --coral: #FF4545;
+    --sky: #A8D8F0;
+    --lav: #C4B4FF;
+    --peach: #FAC8A8;
+    --slate: #2D3748;
+    --mint: #B8EDD0;
+    --gold: #F0DC80;
+  }
+
+  body {
+    background: var(--page-bg);
+    font-family: 'Poppins', sans-serif;
+    padding: 40px 24px 80px;
+    color: var(--ink);
+  }
+
+  .page-title { font-size: 28px; font-weight: 800; color: var(--ink); letter-spacing: -0.5px; margin-bottom: 6px; }
+  .page-sub { font-size: 13px; color: var(--ink2); line-height: 1.7; max-width: 720px; margin-bottom: 36px; }
+
+  .row { display: flex; gap: 36px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 48px; }
+
+  /* Phone column */
+  .phone-col { display: flex; flex-direction: column; gap: 14px; align-items: center; flex-shrink: 0; }
+  .phone-tag {
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+    border-radius: 20px;
+    padding: 6px 16px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .tag-1 { background: #6B7280; }
+  .tag-1b { background: #4B5563; }
+  .tag-2 { background: #9B1C1C; }
+  .tag-3 { background: #059669; }
+
+  .phone {
+    width: 340px;
+    background: var(--bg);
+    border-radius: 44px;
+    overflow: hidden;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.16);
+    position: relative;
+  }
+
+  /* Status bar */
+  .sb {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px 4px;
+  }
+  .sb-time { font-size: 15px; font-weight: 700; }
+
+  /* Wordmark header */
+  .wm-wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 20px 14px;
+  }
+  .wm { font-size: 30px; font-weight: 800; color: var(--ink); letter-spacing: -1px; }
+  .wm span { color: var(--lav); }
+  .wm-right { text-align: right; }
+  .wm-date { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .wm-page { font-size: 13px; font-weight: 700; color: var(--ink3); }
+  .hdiv { height: 1px; background: var(--border); margin: 0 0 4px; }
+
+  /* Chat feed */
+  .chat-feed { padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 12px; min-height: 420px; }
+
+  .zeyebrow { display: flex; align-items: center; gap: 6px; }
+  .z-dot { width: 16px; height: 16px; border-radius: 5px; background: var(--lav); display: flex; align-items: center; justify-content: center; }
+  .z-label { font-size: 10px; font-weight: 700; color: var(--ink3); letter-spacing: 0.08em; }
+
+  .brief-bubble { background: var(--slate); border-radius: 4px 18px 18px 18px; padding: 13px 15px; }
+  .brief-text { font-size: 13px; color: #CBD5E0; line-height: 1.65; }
+  .brief-text strong { color: #fff; font-weight: 700; }
+  .brief-text .hi { color: var(--sky); font-weight: 600; }
+  .brief-text .warn { color: #FBD38D; font-weight: 600; }
+  .brief-text .win { color: var(--mint); font-weight: 600; }
+
+  .chips-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 2px; }
+  .chip { font-size: 11px; font-weight: 600; color: var(--ink2); border: 1.5px solid rgba(10,10,10,0.14); border-radius: 20px; padding: 5px 12px; background: #fff; white-space: nowrap; }
+  .chip.p { background: var(--coral); color: #fff; border-color: var(--coral); }
+
+  .user-wrap { display: flex; justify-content: flex-end; }
+  .user-bubble { background: #F0EDE8; border-radius: 18px 4px 18px 18px; padding: 9px 13px; font-size: 12.5px; color: var(--ink); max-width: 78%; line-height: 1.5; }
+
+  .z-response { font-size: 12.5px; color: var(--ink); line-height: 1.6; padding: 0 2px; }
+
+  /* ── Bottom chrome variants ── */
+
+  /* SHARED — chat bar pill */
+  .bar-wrap { padding: 10px 14px 18px; background: var(--bg); }
+  .bar-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: #fff;
+    border: 1px solid rgba(220,220,220,0.7);
+    border-radius: 28px;
+    padding: 6px 6px 6px 14px;
+    min-height: 48px;
+  }
+  .bar-input {
+    flex: 1;
+    font-size: 13px;
+    color: var(--ink3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .bar-btn-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .bar-btn-icon-inset { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+  .bar-send { width: 36px; height: 36px; background: var(--coral); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  /* FAB bar */
+  .fab-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px 24px;
+    background: var(--bg);
+  }
+  .fab-btn { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .fab-btn.active { background: var(--lav); }
+  .fab-btn.dashboard-active { background: var(--peach); }
+  .fab-btn.myspace-active { background: var(--sky); }
+  .fab-main { width: 52px; height: 52px; background: #2D3748; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(45,55,72,0.3); }
+
+  /* ── OPTION 2: merged bar ── */
+  .merged-bar-wrap { padding: 10px 14px 24px; background: var(--bg); }
+  .merged-bar {
+    display: flex; align-items: center; gap: 4px;
+    background: #fff;
+    border: 1px solid rgba(220,220,220,0.7);
+    border-radius: 28px;
+    padding: 5px 4px 5px 4px;
+    min-height: 52px;
+  }
+  .merged-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; flex-shrink: 0; }
+  .merged-input {
+    flex: 1;
+    font-size: 12px;
+    color: var(--ink3);
+    padding: 0 4px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* ── OPTION 3: floating More button ── */
+  .floating-more {
+    position: absolute;
+    top: 68px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(220,220,220,0.6);
+    z-index: 10;
+  }
+
+  /* Keyboard visual */
+  .keyboard-viz {
+    background: #D1D5DB;
+    padding: 12px 12px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .kb-row {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+  }
+  .kb-key {
+    background: #F9FAFB;
+    border-radius: 4px;
+    padding: 6px 0;
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+  }
+  .kb-key-wide { flex: 1.5; background: #9CA3AF; color: #fff; font-size: 11px; }
+
+  /* Notes panel */
+  .notes {
+    flex: 1;
+    min-width: 280px;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .note-card {
+    background: #fff;
+    border-radius: 18px;
+    padding: 20px 22px;
+    border: 0.5px solid rgba(0,0,0,0.07);
+  }
+  .note-card h3 { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+  .note-card .note-sub { font-size: 10px; font-weight: 700; color: var(--ink3); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 14px; }
+  .note-card p { font-size: 13px; color: var(--ink2); line-height: 1.7; margin-bottom: 10px; }
+  .note-card p:last-child { margin-bottom: 0; }
+  .note-card ul { padding-left: 18px; margin-bottom: 10px; }
+  .note-card li { font-size: 12.5px; color: var(--ink2); line-height: 1.7; margin-bottom: 5px; }
+  .note-divider { height: 0.5px; background: rgba(0,0,0,0.08); margin: 14px 0; }
+
+  .pros, .cons { padding: 10px 14px; border-radius: 10px; margin-bottom: 8px; }
+  .pros { background: #EDFBF4; }
+  .cons { background: #FFF0F0; }
+  .pros-label, .cons-label { font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 6px; }
+  .pros-label { color: #0D5C32; }
+  .cons-label { color: #9B1C1C; }
+  .pros p, .cons p { font-size: 12px; line-height: 1.6; margin-bottom: 4px; }
+  .pros p:last-child, .cons p:last-child { margin-bottom: 0; }
+  .pros p { color: #0D5C32; }
+  .cons p { color: #9B1C1C; }
+
+  .verdict-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    border-radius: 20px;
+    padding: 5px 14px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  .badge-recommended { background: #EDFBF4; color: #059669; }
+  .badge-risky { background: #FFF0F0; color: #9B1C1C; }
+  .badge-safe { background: #EEF4FF; color: #1A3A8A; }
+
+  /* Recommendation card */
+  .rec-card {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: #fff;
+    border-radius: 22px;
+    padding: 28px 30px;
+    margin-top: 24px;
+    margin-bottom: 48px;
+    max-width: 1100px;
+  }
+  .rec-card h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.3px; }
+  .rec-card .rec-sub { font-size: 13px; opacity: 0.85; margin-bottom: 16px; }
+  .rec-card p { font-size: 14px; line-height: 1.7; opacity: 0.95; margin-bottom: 10px; }
+  .rec-card p:last-child { margin-bottom: 0; }
+
+  /* Arrow annotation */
+  .arrow-note {
+    position: absolute;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--coral);
+    border-radius: 10px;
+    padding: 5px 10px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  code { font-family: 'Courier New', monospace; font-size: 11px; background: #F7F7F4; border-radius: 4px; padding: 2px 6px; color: #C53030; }
+</style>
+</head>
+<body>
+
+<div class="page-title">Zaeli — FAB + Chat Bar Options</div>
+<div class="page-sub">Four approaches for handling navigation, chat input, camera, and FAB on the Chat screen. The chat bar must stay rock-solid — the existing pattern [Mic][TextInput+Camera][Send] is non-negotiable. Question is only what surrounds it.</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- OPTION 1 — Two-tier stacked (FAB always visible)                          -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="row">
+  <div class="phone-col">
+    <div class="phone-tag tag-1">Option 1 · Two-tier stacked</div>
+    <div class="phone">
+      <div class="sb">
+        <div class="sb-time">12:49</div>
+        <div style="display:flex;gap:4px;"><svg width="18" height="13" viewBox="0 0 26 13" fill="none"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="#1A1A1A" stroke-opacity="0.35"/><rect x="2" y="2" width="14" height="9" rx="2" fill="#1A1A1A"/></svg></div>
+      </div>
+
+      <div class="wm-wrap">
+        <div class="wm">z<span>a</span>el<span>i</span></div>
+        <div class="wm-right">
+          <div class="wm-date">Fri, 17 Apr</div>
+          <div class="wm-page">Chat</div>
+        </div>
+      </div>
+      <div class="hdiv"></div>
+
+      <div class="chat-feed">
+        <div class="zeyebrow">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli · 7:02am</div>
+        </div>
+        <div class="brief-bubble">
+          <div class="brief-text">
+            Morning Rich. You're in good shape today.<br><br>
+            <strong>I've already updated</strong> Gab's soccer to Sunday. Poppy's netball at <span class="hi">3pm</span> — leave by 2:40.
+          </div>
+        </div>
+        <div class="chips-row">
+          <div class="chip p">Set 2:40 reminder</div>
+          <div class="chip">All over it ✓</div>
+        </div>
+
+        <div class="user-wrap">
+          <div class="user-bubble">Cheers Z</div>
+        </div>
+      </div>
+
+      <!-- Chat bar -->
+      <div class="bar-wrap" style="padding-bottom:6px;">
+        <div class="bar-pill">
+          <div class="bar-input">
+            <span>Ask Zaeli anything...</span>
+            <div style="margin-left:auto; display:flex; gap:2px;">
+              <div class="bar-btn-icon-inset"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+            </div>
+          </div>
+          <div class="bar-btn-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.8" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></div>
+          <div class="bar-send"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></div>
+        </div>
+      </div>
+
+      <!-- FAB bar underneath -->
+      <div class="fab-bar">
+        <div class="fab-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+        <div class="fab-btn active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5020C0" stroke-width="1.7"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <div class="fab-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div>
+        <div class="fab-main"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2L13.8 8.2L20 10L13.8 11.8L12 18L10.2 11.8L4 10L10.2 8.2L12 2Z" fill="#fff"/></svg></div>
+        <div class="fab-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2"><circle cx="5" cy="12" r="1" fill="#9CA3AF"/><circle cx="12" cy="12" r="1" fill="#9CA3AF"/><circle cx="19" cy="12" r="1" fill="#9CA3AF"/></svg></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <div class="verdict-badge badge-safe">Safest · most chrome</div>
+      <h3>Option 1 — Two-tier stacked</h3>
+      <div class="note-sub">Chat bar on top · FAB underneath · always visible</div>
+      <p>Existing chat bar sits above a full FAB bar. Zero code changes to the chat bar — we just show the FAB on chat page (currently hidden via <code>activePage !== PAGE_CHAT</code>).</p>
+      <p>Camera lives inside the TextInput as designed in Session 9. Mic also lives inside the chat bar. The FAB mic becomes redundant but harmless.</p>
+
+      <div class="pros">
+        <div class="pros-label">Pros</div>
+        <p>→ Zero risk to chat bar — untouched</p>
+        <p>→ Full access to Dashboard / My Space / More without swipe</p>
+        <p>→ Consistent with Dashboard & My Space screens</p>
+        <p>→ Camera + upload clearly available</p>
+      </div>
+      <div class="cons">
+        <div class="cons-label">Cons</div>
+        <p>→ 110-120px of bottom chrome (two bars)</p>
+        <p>→ Two mics (FAB mic + chat bar mic) — duplicated</p>
+        <p>→ Feels heavy; less "conversation-like"</p>
+        <p>→ Keyboard open pushes BOTH bars up, lots of movement</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- OPTION 1B — Auto-hide FAB when keyboard open                              -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="row">
+  <div class="phone-col">
+    <div class="phone-tag tag-1b">Option 1B · Two-tier, FAB hides on focus</div>
+    <div class="phone">
+      <div class="sb">
+        <div class="sb-time">12:49</div>
+        <div style="display:flex;gap:4px;"><svg width="18" height="13" viewBox="0 0 26 13" fill="none"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="#1A1A1A" stroke-opacity="0.35"/><rect x="2" y="2" width="14" height="9" rx="2" fill="#1A1A1A"/></svg></div>
+      </div>
+
+      <div class="wm-wrap">
+        <div class="wm">z<span>a</span>el<span>i</span></div>
+        <div class="wm-right">
+          <div class="wm-date">Fri, 17 Apr</div>
+          <div class="wm-page">Chat</div>
+        </div>
+      </div>
+      <div class="hdiv"></div>
+
+      <div class="chat-feed" style="min-height:300px;">
+        <div class="zeyebrow">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli · 7:02am</div>
+        </div>
+        <div class="brief-bubble">
+          <div class="brief-text">
+            Morning Rich. <strong>I've already updated</strong> Gab's soccer. Poppy's netball at <span class="hi">3pm</span>.
+          </div>
+        </div>
+        <div class="chips-row">
+          <div class="chip p">Set 2:40 reminder</div>
+        </div>
+      </div>
+
+      <!-- Chat bar (focused — with cursor blink visual) -->
+      <div class="bar-wrap" style="padding-bottom:6px;">
+        <div class="bar-pill" style="border-color: var(--lav); box-shadow: 0 0 0 2px rgba(196,180,255,0.3);">
+          <div class="bar-input" style="color: var(--ink);">
+            <span>What's for dinner|</span>
+            <div style="margin-left:auto; display:flex; gap:2px;">
+              <div class="bar-btn-icon-inset"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+            </div>
+          </div>
+          <div class="bar-btn-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.8" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div>
+          <div class="bar-send"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></div>
+        </div>
+      </div>
+
+      <!-- Keyboard visualisation (replaces FAB when keyboard open) -->
+      <div class="keyboard-viz">
+        <div class="kb-row">
+          <div class="kb-key">q</div><div class="kb-key">w</div><div class="kb-key">e</div><div class="kb-key">r</div><div class="kb-key">t</div><div class="kb-key">y</div><div class="kb-key">u</div><div class="kb-key">i</div><div class="kb-key">o</div><div class="kb-key">p</div>
+        </div>
+        <div class="kb-row" style="padding: 0 16px;">
+          <div class="kb-key">a</div><div class="kb-key">s</div><div class="kb-key">d</div><div class="kb-key">f</div><div class="kb-key">g</div><div class="kb-key">h</div><div class="kb-key">j</div><div class="kb-key">k</div><div class="kb-key">l</div>
+        </div>
+        <div class="kb-row">
+          <div class="kb-key-wide kb-key">⇧</div><div class="kb-key">z</div><div class="kb-key">x</div><div class="kb-key">c</div><div class="kb-key">v</div><div class="kb-key">b</div><div class="kb-key">n</div><div class="kb-key">m</div><div class="kb-key-wide kb-key">⌫</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <div class="verdict-badge badge-safe">Best of both worlds</div>
+      <h3>Option 1B — Two-tier, FAB auto-hides</h3>
+      <div class="note-sub">Same as Option 1 but FAB collapses when chat input is focused</div>
+      <p>When Rich is reading the feed, the FAB is visible underneath the chat bar (full nav access). When he taps the chat input or starts recording, the FAB slides down out of view — only the chat bar stays. When keyboard dismisses, FAB slides back up.</p>
+      <p>Extra screen real estate when typing. Full navigation when not. Chat bar stays unchanged.</p>
+
+      <div class="pros">
+        <div class="pros-label">Pros</div>
+        <p>→ Clean chat experience when typing (no extra chrome)</p>
+        <p>→ Full nav when reading the feed</p>
+        <p>→ Chat bar stays untouched — safe</p>
+        <p>→ Animates in/out — feels polished</p>
+      </div>
+      <div class="cons">
+        <div class="cons-label">Cons</div>
+        <p>→ Needs <code>Keyboard.addListener</code> — <em>but CLAUDE.md says never setState from this</em></p>
+        <p>→ Workaround: use <code>onFocus</code>/<code>onBlur</code> on TextInput <em>but CLAUDE.md says no onBlur handler!</em></p>
+        <p>→ Can't easily drive FAB visibility from chat input state without breaking the rules</p>
+        <p>→ Risky — this is exactly the pattern that caused the 10-hour bug</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- OPTION 2 — Merged single bar                                              -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="row">
+  <div class="phone-col">
+    <div class="phone-tag tag-2">Option 2 · Merged single bar</div>
+    <div class="phone">
+      <div class="sb">
+        <div class="sb-time">12:49</div>
+        <div style="display:flex;gap:4px;"><svg width="18" height="13" viewBox="0 0 26 13" fill="none"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="#1A1A1A" stroke-opacity="0.35"/><rect x="2" y="2" width="14" height="9" rx="2" fill="#1A1A1A"/></svg></div>
+      </div>
+
+      <div class="wm-wrap">
+        <div class="wm">z<span>a</span>el<span>i</span></div>
+        <div class="wm-right">
+          <div class="wm-date">Fri, 17 Apr</div>
+          <div class="wm-page">Chat</div>
+        </div>
+      </div>
+      <div class="hdiv"></div>
+
+      <div class="chat-feed">
+        <div class="zeyebrow">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli · 7:02am</div>
+        </div>
+        <div class="brief-bubble">
+          <div class="brief-text">
+            Morning Rich. You're in good shape today.<br><br>
+            <strong>I've already updated</strong> Gab's soccer to Sunday. Poppy's netball at <span class="hi">3pm</span>.
+          </div>
+        </div>
+        <div class="chips-row">
+          <div class="chip p">Set 2:40 reminder</div>
+          <div class="chip">All over it ✓</div>
+        </div>
+
+        <div class="user-wrap">
+          <div class="user-bubble">Cheers Z</div>
+        </div>
+      </div>
+
+      <!-- Merged bar: everything on one line -->
+      <div class="merged-bar-wrap">
+        <div class="merged-bar">
+          <div class="merged-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+          <div class="merged-input">Ask Zaeli…</div>
+          <div class="merged-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.7"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+          <div class="merged-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.7"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg></div>
+          <div class="merged-icon" style="background: var(--coral);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></div>
+          <div class="merged-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2"><circle cx="5" cy="12" r="1" fill="#9CA3AF"/><circle cx="12" cy="12" r="1" fill="#9CA3AF"/><circle cx="19" cy="12" r="1" fill="#9CA3AF"/></svg></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <div class="verdict-badge badge-risky">Tempting but dangerous</div>
+      <h3>Option 2 — Merged single bar</h3>
+      <div class="note-sub">Nav + input + camera + mic + send + more all in one 48px bar</div>
+      <p>Every piece of functionality crammed into a single bottom bar: [▦ Dashboard] [Type a message…] [📷 Camera] [🎤 Mic] [➤ Send] [⋯ More]. Super compact — maximum one bar of chrome.</p>
+      <p>The chat input loses real estate — maybe 140px wide instead of the current ~260px. Placeholder text "Ask Zaeli…" gets truncated on small devices.</p>
+
+      <div class="pros">
+        <div class="pros-label">Pros</div>
+        <p>→ Absolute minimum chrome — one bar only</p>
+        <p>→ Everything accessible in one tap</p>
+        <p>→ Looks sleek at first glance</p>
+      </div>
+      <div class="cons">
+        <div class="cons-label">Cons</div>
+        <p>→ <strong>Breaks the untouched chat bar rule</strong> — this IS the chat bar with nav added</p>
+        <p>→ Text input becomes tiny — Rich has to scroll to see what he typed</p>
+        <p>→ Send button neighbours Mic and More — accidental taps highly likely</p>
+        <p>→ Five+ touch targets in a 340px wide bar = cramped, small hit areas</p>
+        <p>→ Hardest to fix if it breaks</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- OPTION 3 — Minimal chat bar + floating More (RECOMMENDED)                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="row">
+  <div class="phone-col">
+    <div class="phone-tag tag-3">Option 3 · Floating More (RECOMMENDED)</div>
+    <div class="phone">
+      <!-- Floating More button top-right -->
+      <div class="floating-more">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="2">
+          <circle cx="5" cy="12" r="1.5" fill="#1A1A1A"/>
+          <circle cx="12" cy="12" r="1.5" fill="#1A1A1A"/>
+          <circle cx="19" cy="12" r="1.5" fill="#1A1A1A"/>
+        </svg>
+      </div>
+
+      <div class="sb">
+        <div class="sb-time">12:49</div>
+        <div style="display:flex;gap:4px;"><svg width="18" height="13" viewBox="0 0 26 13" fill="none"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="#1A1A1A" stroke-opacity="0.35"/><rect x="2" y="2" width="14" height="9" rx="2" fill="#1A1A1A"/></svg></div>
+      </div>
+
+      <div class="wm-wrap">
+        <div class="wm">z<span>a</span>el<span>i</span></div>
+        <div class="wm-right">
+          <div class="wm-date">Fri, 17 Apr</div>
+          <div class="wm-page">Chat</div>
+        </div>
+      </div>
+      <div class="hdiv"></div>
+
+      <div class="chat-feed" style="min-height:460px;">
+        <div class="zeyebrow">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli · 7:02am</div>
+        </div>
+        <div class="brief-bubble">
+          <div class="brief-text">
+            Morning Rich. You're in good shape today.<br><br>
+            <strong>I've already updated</strong> Gab's soccer to Sunday. Poppy's netball at <span class="hi">3pm</span> — leave by 2:40. Calamari tonight.
+          </div>
+        </div>
+        <div class="chips-row">
+          <div class="chip p">Set 2:40 reminder</div>
+          <div class="chip">All over it ✓</div>
+        </div>
+
+        <div class="user-wrap">
+          <div class="user-bubble">Cheers Z — all good</div>
+        </div>
+
+        <div class="zeyebrow" style="margin-top: 4px;">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli</div>
+        </div>
+        <div class="z-response">Go have a good morning. You've got this one handled.</div>
+      </div>
+
+      <!-- Chat bar — UNCHANGED from current -->
+      <div class="bar-wrap">
+        <div class="bar-pill">
+          <div class="bar-btn-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.8" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
+          <div class="bar-input">
+            <span>Ask Zaeli anything...</span>
+            <div style="margin-left:auto;">
+              <div class="bar-btn-icon-inset"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+            </div>
+          </div>
+          <div class="bar-send"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <div class="verdict-badge badge-recommended">Recommended</div>
+      <h3>Option 3 — Minimal chat bar + floating More button</h3>
+      <div class="note-sub">Chat bar untouched · floating ⋯ top-right · swipe for Dashboard/My Space</div>
+      <p>The Chat screen is almost pure — just the feed and the existing chat bar. A single floating "⋯" circular button sits top-right (44px, soft shadow). Tapping it opens the full More sheet which already holds Dashboard, My Space, Tutor, Kids Hub, Our Family, Our Budget, Settings, <strong>plus now Camera/Upload</strong>.</p>
+      <p>Dashboard and My Space remain accessible via <strong>swipe gestures</strong> — that's the primary navigation. The More sheet is the "everything else" entry point.</p>
+
+      <div class="pros">
+        <div class="pros-label">Pros</div>
+        <p>→ <strong>Zero risk to chat bar</strong> — completely untouched</p>
+        <p>→ Cleanest chat experience — feels like a conversation, not an app</p>
+        <p>→ Everything still accessible (swipe + More sheet)</p>
+        <p>→ Brief bubble has maximum vertical space</p>
+        <p>→ Camera in both places — inside input (one-tap) AND in More sheet upload grid</p>
+        <p>→ Smallest code change</p>
+      </div>
+      <div class="cons">
+        <div class="cons-label">Cons</div>
+        <p>→ Floating button is a less-familiar pattern for navigation</p>
+        <p>→ No visible "Dashboard" / "My Space" labels — swipe is the only direct path</p>
+        <p>→ If Rich doesn't know swipe works, he's stuck in Chat</p>
+        <p>→ Loses the FAB's bottom-anchored muscle memory</p>
+      </div>
+    </div>
+
+    <div class="note-card">
+      <h3>What's in the More sheet</h3>
+      <div class="note-sub">Opened by tapping the ⋯ floating button</div>
+      <p>Top section — Upload grid (3 columns):</p>
+      <ul>
+        <li>📷 Take photo · 🖼️ Choose from library · 📄 Upload file</li>
+      </ul>
+      <p>Family channels (sheet overlays over Chat):</p>
+      <ul>
+        <li>Calendar · Shopping · Meals · To-dos · Notes · Travel</li>
+      </ul>
+      <p>Dedicated screens:</p>
+      <ul>
+        <li>Tutor · Kids Hub · Our Family · Our Budget</li>
+      </ul>
+      <p>At the bottom: Settings</p>
+      <div class="note-divider"></div>
+      <p>This is essentially the existing FAB More sheet — just extended with the upload grid at the top and opened from a floating button instead of the FAB bar.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- RECOMMENDATION                                                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="rec-card">
+  <h2>My recommendation</h2>
+  <div class="rec-sub">If you're unsure, here's where I'd land</div>
+  <p><strong>Option 3 for the Chat screen.</strong> Chat is Zaeli's home — the most precious screen in the product. Keeping it minimal (just the brief, the conversation, and the one chat bar we've spent so long perfecting) is the right move. The floating ⋯ button gives everything else, one tap away.</p>
+  <p><strong>For Dashboard and My Space,</strong> keep the existing FAB bar — those screens benefit from the 5-button bottom navigation because they're not conversations. They're reference layers where you need to jump around.</p>
+  <p><strong>If you want to explore Option 1 instead</strong> (two-tier stacked FAB), we can — but only in its "always visible" form. The 1B auto-hide variant is the pattern that caused the 10-hour chat-bar bug. I'd avoid it.</p>
+</div>
+
+</body>
+</html>

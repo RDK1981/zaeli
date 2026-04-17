@@ -25,7 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   WORDLE_LITTLE, WORDLE_MIDDLE, WORDLE_OLDER,
   TRIVIA_LITTLE, TRIVIA_MIDDLE, TRIVIA_OLDER,
-  getWeeklyCrossword, TriviaQuestion,
+  CROSSWORDS, CrosswordPuzzle, TriviaQuestion,
 } from './kids-games-data';
 import { KB_ROWS, getTileStates } from './wordle-data';
 
@@ -107,7 +107,7 @@ const REWARDS: Record<ChildName, { icon: string; name: string; cost: number; sta
 const GAMES = [
   { icon: '\u{1F7E9}', name: "Zaeli's Wordle", desc: 'Daily word challenge \u2014 guess the hidden word!', badge: 'daily', badgeText: "Today's word waiting!", featured: true },
   { icon: '\u{1F30D}', name: 'World Trivia', desc: 'Questions about Australia and the world', badge: 'anytime', badgeText: 'Anytime', featured: false },
-  { icon: '\u270F\uFE0F', name: 'Mini Crossword', desc: 'New puzzle every Monday \u2014 5\u00D75 grid', badge: 'weekly', badgeText: 'New Monday', featured: false },
+  { icon: '\u270F\uFE0F', name: 'Mini Crossword', desc: 'New puzzle every day \u2014 5\u00D75 grid', badge: 'daily', badgeText: 'New daily', featured: false },
 ];
 
 // ── SVG Icons ────────────────────────────────────────────────────────────────
@@ -165,6 +165,9 @@ export default function KidsHubScreen() {
   const [triviaScore, setTriviaScore] = useState(0);
   const [triviaSelected, setTriviaSelected] = useState<number | null>(null);
   const [triviaTotal, setTriviaTotal] = useState(0);
+  const [triviaQuestions, setTriviaQuestions] = useState<TriviaQuestion[]>([]);
+  const [triviaLoading, setTriviaLoading] = useState(false);
+  const [todayCrossword, setTodayCrossword] = useState<CrosswordPuzzle | null>(null);
   const [showCompletedJobs, setShowCompletedJobs] = useState(false);
   const [expandedJobId, setExpandedJobId] = useState<string|null>(null);
   // Suggest a job form
@@ -357,15 +360,180 @@ export default function KidsHubScreen() {
     setActiveGame('wordle');
   }
 
-  function startTrivia() {
+  // ── AI Trivia Generation ──
+  const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+  const GPT_IN_PER_M = 0.15;
+  const GPT_OUT_PER_M = 0.60;
+
+  async function generateTrivia(childName: string, tier: AgeTier): Promise<TriviaQuestion[]> {
+    const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+    if (!key) throw new Error('No OpenAI key');
+
+    // Fetch recent question history to avoid repeats
+    let recentTopics = '';
+    try {
+      const { data } = await supabase.from('kids_trivia_history')
+        .select('question, correct_answer')
+        .eq('family_id', FAMILY_ID)
+        .eq('child_name', childName)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (data && data.length > 0) {
+        const topics = data.map((d: any) => d.correct_answer).join(', ');
+        recentTopics = `\n\nIMPORTANT: This child has already been asked about these answers recently. NEVER repeat any of these topics or answers: ${topics}`;
+      }
+    } catch (e) {
+      console.log('[trivia] history fetch error:', e);
+    }
+
+    const tierDesc = tier === 'little' ? 'Year 1-3 (age 6-8), simple language, fun facts'
+      : tier === 'middle' ? 'Year 4-7 (age 9-12), intermediate knowledge, interesting facts'
+      : 'Year 8+ (age 13+), challenging facts, deeper knowledge';
+
+    const system = `You generate trivia questions for Australian children.
+Age tier: ${tierDesc}.
+Generate exactly 10 multiple-choice questions. Mix of: Australian facts, world geography, science, history, animals, nature, sport, space, food, culture.
+Each question has exactly 4 options with 1 correct answer.
+Make questions fun, surprising, and educational. Vary the difficulty within the tier.
+${recentTopics}
+
+Respond with ONLY a JSON array, no other text. Format:
+[{"question":"...","options":["A","B","C","D"],"correct":0}]
+where "correct" is the 0-based index of the right answer.`;
+
+    const res = await fetch(OPENAI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: 'gpt-5.4-mini',
+        max_completion_tokens: 1200,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: 'Generate 10 trivia questions now.' }],
+      }),
+    });
+    const json = await res.json();
+    const text = json?.choices?.[0]?.message?.content?.trim();
+    if (!text) throw new Error('Empty GPT response');
+
+    // Log API cost
+    const pt = json?.usage?.prompt_tokens ?? 0;
+    const ct = json?.usage?.completion_tokens ?? 0;
+    const cost = (pt / 1_000_000 * GPT_IN_PER_M) + (ct / 1_000_000 * GPT_OUT_PER_M);
+    try {
+      await supabase.from('api_logs').insert({
+        family_id: FAMILY_ID, feature: 'kids_trivia_generate', model: 'gpt-5.4-mini',
+        input_tokens: pt, output_tokens: ct, cost_usd: cost, created_at: new Date().toISOString(),
+      });
+    } catch {}
+
+    // Parse JSON — handle markdown code blocks
+    let cleaned = text;
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+    const parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Invalid trivia format');
+
+    // Validate structure
+    return parsed.filter((q: any) =>
+      q.question && Array.isArray(q.options) && q.options.length === 4 && typeof q.correct === 'number' && q.correct >= 0 && q.correct <= 3
+    ).map((q: any) => ({
+      question: q.question,
+      options: q.options,
+      correct: q.correct,
+    }));
+  }
+
+  async function saveTriviaAnswer(childName: string, tier: AgeTier, q: TriviaQuestion, wasCorrect: boolean) {
+    try {
+      await supabase.from('kids_trivia_history').insert({
+        family_id: FAMILY_ID,
+        child_name: childName,
+        question: q.question,
+        correct_answer: q.options[q.correct],
+        was_correct: wasCorrect,
+        tier,
+      });
+    } catch (e) {
+      console.log('[trivia] save answer error:', e);
+    }
+  }
+
+  async function startTrivia() {
     const tier = child.tier;
-    const list = tier === 'little' ? TRIVIA_LITTLE : tier === 'middle' ? TRIVIA_MIDDLE : TRIVIA_OLDER;
     setTriviaIndex(0);
     setTriviaScore(0);
     setTriviaSelected(null);
-    setTriviaTotal(list.length);
-    setTriviaQ(list[0]);
+    setTriviaLoading(true);
     setActiveGame('trivia');
+
+    try {
+      const questions = await generateTrivia(selectedChild, tier);
+      if (questions.length === 0) throw new Error('No valid questions');
+      setTriviaQuestions(questions);
+      setTriviaTotal(questions.length);
+      setTriviaQ(questions[0]);
+    } catch (e) {
+      console.log('[trivia] AI generation failed, using fallback:', e);
+      // Fallback to static arrays, shuffled
+      const list = tier === 'little' ? TRIVIA_LITTLE : tier === 'middle' ? TRIVIA_MIDDLE : TRIVIA_OLDER;
+      const shuffled = [...list].sort(() => Math.random() - 0.5);
+      setTriviaQuestions(shuffled);
+      setTriviaTotal(shuffled.length);
+      setTriviaQ(shuffled[0]);
+    }
+    setTriviaLoading(false);
+  }
+
+  // ── Crossword selection — per-child, daily, no repeats until pool exhausted ──
+  async function getCrosswordForChild(childName: string): Promise<CrosswordPuzzle> {
+    const seenKey = `crossword_seen_${childName}`;
+    let seen: number[] = [];
+    try {
+      const stored = await AsyncStorage.getItem(seenKey);
+      if (stored) seen = JSON.parse(stored);
+    } catch {}
+
+    // If all puzzles seen, reset
+    if (seen.length >= CROSSWORDS.length) {
+      seen = [];
+      await AsyncStorage.setItem(seenKey, '[]');
+    }
+
+    // Deterministic daily pick from unseen — seed by child name + date
+    const unseen = CROSSWORDS.map((_, i) => i).filter(i => !seen.includes(i));
+    const dateStr = localDateStr();
+    const seed = (childName + dateStr).split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    const pick = unseen[seed % unseen.length];
+
+    return CROSSWORDS[pick];
+  }
+
+  async function markCrosswordSeen(childName: string) {
+    const seenKey = `crossword_seen_${childName}`;
+    let seen: number[] = [];
+    try {
+      const stored = await AsyncStorage.getItem(seenKey);
+      if (stored) seen = JSON.parse(stored);
+    } catch {}
+
+    // Find which puzzle index this is
+    const puzzle = todayCrossword;
+    if (!puzzle) return;
+    const idx = CROSSWORDS.findIndex(p => p.grid[0].join('') === puzzle.grid[0].join(''));
+    if (idx >= 0 && !seen.includes(idx)) {
+      seen.push(idx);
+      await AsyncStorage.setItem(seenKey, JSON.stringify(seen));
+    }
+  }
+
+  async function startCrossword() {
+    const puzzle = await getCrosswordForChild(selectedChild);
+    setTodayCrossword(puzzle);
+    setCrosswordGrid({});
+    setCrosswordSel(null);
+    setCrosswordChecked(false);
+    setCelebration(null);
+    setActiveGame('crossword');
   }
 
   function goBack() {
@@ -418,12 +586,15 @@ export default function KidsHubScreen() {
     return (
       <>
         <View style={[s.banner, view === 'hub' && { backgroundColor: childWithDb.bgLight || HUB_BG }]}>
-          <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
+          <View style={s.bannerLeft}>
+            <TouchableOpacity onPress={goBack} activeOpacity={0.7} style={s.bannerBackBtn}>
+              <IcoBack size={18} color={INK} />
+            </TouchableOpacity>
             <Text style={s.wordmark}>
               z<Text style={{ color: view === 'hub' ? child.colour : HUB_PEACH }}>a</Text>el
               <Text style={{ color: view === 'hub' ? child.colour : HUB_PEACH }}>i</Text>
             </Text>
-          </TouchableOpacity>
+          </View>
           <Text style={s.bannerLabel}>Kids Hub</Text>
         </View>
         <View style={s.divider} />
@@ -654,63 +825,75 @@ export default function KidsHubScreen() {
 
             {/* ── WORLD TRIVIA ── */}
             {activeGame === 'trivia' && (() => {
-              const tier = child.tier;
-              const list = tier === 'little' ? TRIVIA_LITTLE : tier === 'middle' ? TRIVIA_MIDDLE : TRIVIA_OLDER;
-              const isDone = triviaIndex >= list.length;
+              const list = triviaQuestions;
+              const isDone = !triviaLoading && triviaIndex >= list.length;
               return (
                 <ScrollView style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', padding: 14, paddingBottom: 30 }} showsVerticalScrollIndicator={false}>
                   <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 20, color: INK, marginBottom: 4 }}>World Trivia</Text>
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginBottom: 14 }}>Q{Math.min(triviaIndex + 1, list.length)}/{list.length} | Score: {triviaScore}</Text>
-                  {!isDone && triviaQ ? (
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 18, width: '100%' }}>
-                      <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, lineHeight: 24, marginBottom: 16 }}>{triviaQ.question}</Text>
-                      {triviaQ.options.map((opt, i) => {
-                        const isSelected = triviaSelected === i;
-                        const isCorrect = i === triviaQ!.correct;
-                        const showResult = triviaSelected !== null;
-                        return (
-                          <TouchableOpacity
-                            key={i}
-                            onPress={() => {
-                              if (triviaSelected !== null) return;
-                              setTriviaSelected(i);
-                              if (i === triviaQ!.correct) {
-                                setTriviaScore(prev => prev + 1);
-                                setCelebration({ emoji: '✅', title: 'Correct!', sub: opt });
-                              } else {
-                                setCelebration({ emoji: '❌', title: `Nope — it was ${triviaQ!.options[triviaQ!.correct]}`, sub: '' });
-                              }
-                              setTimeout(() => {
-                                const next = triviaIndex + 1;
-                                setTriviaIndex(next);
-                                if (next < list.length) { setTriviaQ(list[next]); setTriviaSelected(null); }
-                              }, 2000);
-                            }}
-                            style={{ borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 2, backgroundColor: showResult && isCorrect ? 'rgba(34,197,94,0.10)' : showResult && isSelected && !isCorrect ? 'rgba(255,69,69,0.06)' : '#fff', borderColor: showResult ? (isCorrect ? '#22C55E' : isSelected ? '#FF4545' : 'rgba(0,0,0,0.06)') : 'rgba(0,0,0,0.06)' }}
-                            activeOpacity={0.75}
-                          >
-                            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: showResult && isCorrect ? '#22C55E' : showResult && isSelected && !isCorrect ? '#FF4545' : INK }}>{opt}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
+                  {triviaLoading ? (
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 32, alignItems: 'center', width: '100%', marginTop: 20 }}>
+                      <Text style={{ fontSize: 36, marginBottom: 12 }}>{'\u{1F30D}'}</Text>
+                      <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, marginBottom: 6 }}>Zaeli is writing your questions...</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4 }}>Fresh questions just for you!</Text>
                     </View>
                   ) : (
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 24, alignItems: 'center', width: '100%' }}>
-                      <Text style={{ fontSize: 44 }}>{triviaScore >= list.length * 0.8 ? '🏆' : triviaScore >= list.length * 0.5 ? '⭐' : '💪'}</Text>
-                      <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, marginTop: 8 }}>Quiz complete!</Text>
-                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4, marginTop: 4 }}>{triviaScore} out of {list.length} correct</Text>
-                      <TouchableOpacity onPress={startTrivia} style={{ backgroundColor: child.colour, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 28, marginTop: 16 }} activeOpacity={0.8}>
-                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Play again</Text>
-                      </TouchableOpacity>
-                    </View>
+                    <>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, marginBottom: 14 }}>Q{Math.min(triviaIndex + 1, list.length)}/{list.length} | Score: {triviaScore}</Text>
+                      {!isDone && triviaQ ? (
+                        <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 18, width: '100%' }}>
+                          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, lineHeight: 24, marginBottom: 16 }}>{triviaQ.question}</Text>
+                          {triviaQ.options.map((opt, i) => {
+                            const isSelected = triviaSelected === i;
+                            const isCorrect = i === triviaQ!.correct;
+                            const showResult = triviaSelected !== null;
+                            return (
+                              <TouchableOpacity
+                                key={i}
+                                onPress={() => {
+                                  if (triviaSelected !== null) return;
+                                  setTriviaSelected(i);
+                                  const correct = i === triviaQ!.correct;
+                                  if (correct) {
+                                    setTriviaScore(prev => prev + 1);
+                                    setCelebration({ emoji: '✅', title: 'Correct!', sub: opt });
+                                  } else {
+                                    setCelebration({ emoji: '❌', title: `Nope — it was ${triviaQ!.options[triviaQ!.correct]}`, sub: '' });
+                                  }
+                                  // Save answer to Supabase (fire and forget)
+                                  saveTriviaAnswer(selectedChild, child.tier, triviaQ!, correct);
+                                  setTimeout(() => {
+                                    const next = triviaIndex + 1;
+                                    setTriviaIndex(next);
+                                    if (next < list.length) { setTriviaQ(list[next]); setTriviaSelected(null); }
+                                  }, 2000);
+                                }}
+                                style={{ borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 2, backgroundColor: showResult && isCorrect ? 'rgba(34,197,94,0.10)' : showResult && isSelected && !isCorrect ? 'rgba(255,69,69,0.06)' : '#fff', borderColor: showResult ? (isCorrect ? '#22C55E' : isSelected ? '#FF4545' : 'rgba(0,0,0,0.06)') : 'rgba(0,0,0,0.06)' }}
+                                activeOpacity={0.75}
+                              >
+                                <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: showResult && isCorrect ? '#22C55E' : showResult && isSelected && !isCorrect ? '#FF4545' : INK }}>{opt}</Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      ) : (
+                        <View style={{ backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 18, padding: 24, alignItems: 'center', width: '100%' }}>
+                          <Text style={{ fontSize: 44 }}>{triviaScore >= list.length * 0.8 ? '🏆' : triviaScore >= list.length * 0.5 ? '⭐' : '💪'}</Text>
+                          <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, marginTop: 8 }}>Quiz complete!</Text>
+                          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 16, color: INK4, marginTop: 4 }}>{triviaScore} out of {list.length} correct</Text>
+                          <TouchableOpacity onPress={startTrivia} style={{ backgroundColor: child.colour, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 28, marginTop: 16 }} activeOpacity={0.8}>
+                            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff' }}>Play again</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </>
                   )}
                 </ScrollView>
               );
             })()}
 
             {/* ── MINI CROSSWORD — compact layout: grid+clues side by side, keyboard below ── */}
-            {activeGame === 'crossword' && (() => {
-              const puzzle = getWeeklyCrossword();
+            {activeGame === 'crossword' && todayCrossword && (() => {
+              const puzzle = todayCrossword;
               const cellNums: Record<string, number> = {};
               [...puzzle.acrossClues, ...puzzle.downClues].forEach(cl => { cellNums[`${cl.row}-${cl.col}`] = cl.num; });
               return (
@@ -756,7 +939,7 @@ export default function KidsHubScreen() {
                     </ScrollView>
                   </View>
                   {/* Check button */}
-                  <TouchableOpacity onPress={() => setCrosswordChecked(true)} style={{ backgroundColor: child.colour, borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginBottom: 8 }} activeOpacity={0.8}>
+                  <TouchableOpacity onPress={() => { setCrosswordChecked(true); markCrosswordSeen(selectedChild); }} style={{ backgroundColor: child.colour, borderRadius: 12, paddingVertical: 10, alignItems: 'center', marginBottom: 8 }} activeOpacity={0.8}>
                     <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' }}>Check answers</Text>
                   </TouchableOpacity>
                   {/* Keyboard — always visible */}
@@ -775,9 +958,8 @@ export default function KidsHubScreen() {
                                 setCrosswordSel(null);
                               } else {
                                 setCrosswordGrid(prev => ({ ...prev, [`${r}-${c}`]: key }));
-                                const pz = getWeeklyCrossword();
                                 for (let nc = c + 1; nc < 5; nc++) {
-                                  if (pz.grid[r][nc] !== '#') { setCrosswordSel({ r, c: nc }); return; }
+                                  if (puzzle.grid[r][nc] !== '#') { setCrosswordSel({ r, c: nc }); return; }
                                 }
                                 setCrosswordSel(null);
                               }
@@ -839,7 +1021,7 @@ export default function KidsHubScreen() {
                       <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, lineHeight: 21, marginBottom: 8 }}>Fill in the grid using the clues below.</Text>
                       <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, lineHeight: 21, marginBottom: 8 }}>Tap a white cell to select it, then use the keyboard to type a letter. The cursor moves to the next cell automatically.</Text>
                       <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, lineHeight: 21, marginBottom: 8 }}>When you're done, tap "Check answers" to see which letters are correct (green) or wrong (red).</Text>
-                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>New puzzle every week!</Text>
+                      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>New puzzle every day!</Text>
                     </>
                   )}
                   <TouchableOpacity onPress={() => setShowGameInfo(false)} style={{ backgroundColor: child.colour, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 14 }} activeOpacity={0.8}>
@@ -1255,7 +1437,7 @@ export default function KidsHubScreen() {
             }
             const gameActions: Record<string, () => void> = {
               'World Trivia': startTrivia,
-              'Mini Crossword': () => { setCrosswordGrid({}); setCrosswordSel(null); setCrosswordChecked(false); setCelebration(null); setActiveGame('crossword'); },
+              'Mini Crossword': startCrossword,
             };
             return (
               <TouchableOpacity key={i} style={s.gameCard} activeOpacity={0.7} onPress={gameActions[game.name] || (() => {})}>
@@ -1367,6 +1549,8 @@ const s = StyleSheet.create({
 
   // Banner
   banner: { paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: HUB_BG },
+  bannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bannerBackBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' },
   wordmark: { fontFamily: 'Poppins_800ExtraBold', fontSize: 40, letterSpacing: -1.5, color: INK, lineHeight: 46 },
   bannerLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 17, color: INK4 },
   divider: { height: 1, backgroundColor: 'rgba(0,0,0,0.08)' },

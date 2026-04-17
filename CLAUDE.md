@@ -1,40 +1,45 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 16 April 2026 — Session 13 ✅ · Tutor module built · AI summaries · Kids Hub 3 games · Our Family tutor progress*
+*Last updated: 17 April 2026 — Session 14 ✅ · Major architecture rebuild · Dashboard redesign · 2-page swipe · FAB killed · Hamburger + MoreSheet · Chat-first home · Option C splash · Kids Hub AI trivia · Tutor difficulty bands · Prompt caching*
 
 ---
 
 ## ══════════════════════════════════
-## SCREEN ARCHITECTURE — CRITICAL (LOCKED ✅)
+## SCREEN ARCHITECTURE — CRITICAL (REBUILT Session 14 ✅)
 ## ══════════════════════════════════
 
-**Three screens, swipe world:**
+**Two-page swipe world — Chat-first:**
 ```
-Dashboard (0)  →  Chat (1)  →  My Space (2)
+Chat (0) ← OPENS HERE          Dashboard (1)
+           ← swipe right →
 ```
-App opens on Dashboard (page 0). Swipe right for Chat, right again for My Space.
+App opens on Chat (page 0). Swipe right for Dashboard. **My Space moved to standalone route** (`/(tabs)/my-space`) accessed via MoreSheet.
 
-**PHILOSOPHY B — LOCKED (Session 9):**
+**PHILOSOPHY B — LOCKED (Session 9, reinforced Session 14):**
 Zaeli is an AI companion that also manages family life — NOT a family dashboard with AI bolted on. Chat is the product's beating heart. Dashboard is a reference layer. Everything flows from Zaeli's relationship with the family.
 
-**92% SHEETS over Chat — NEVER dedicated screens:**
-Calendar · Shopping · Meal Planner · Family Tasks · Notes & Tasks · Travel
+**92% SHEETS (opened via MoreSheet or in-app triggers):**
+Calendar · Shopping · Meal Planner · Notes & Tasks · Travel (not built)
 
-**Dedicated full screens only:**
-Tutor · Kids Hub · Our Family · Settings · Our Budget
+**Dedicated full screens (via MoreSheet or direct routes):**
+My Space · Tutor · Kids Hub · Our Family · Settings · Our Budget (coming soon)
 
-**More overlay routes:**
-- Family channels → 92% sheet over Chat
-- Tutor / Kids Hub / Our Family / Settings / Our Budget → router.navigate()
+**FAB — KILLED entirely (Session 14):**
+Replaced by hamburger ☰ button top-right of each screen's header. Opens the universal MoreSheet (92% bottom sheet).
+
+**Chat bar — ONLY on Chat screen:**
+Dashboard and My Space do NOT have chat bars. Each screen has a clear purpose. Chat = conversation, Dashboard = glance, My Space = personal zone. Chat bar lives in index.tsx only.
 
 **LOCKED architecture decisions:**
-- Pulse as swipe screen = SCRAPPED
-- My Space = page 2 (right swipe from Chat)
+- Pulse as swipe screen = SCRAPPED (pre-Session 9)
+- My Space = standalone route, not a swipe page (Session 14)
 - Zen = card inside My Space, NOT a screen
 - WotD = My Space only, NOT on Dashboard
-- swipe-world.tsx = container (owns FAB, dots, landing, all 3 pages)
-- index.tsx = re-exports SwipeWorld as default (expo-router entry point)
-- Landing overlay = stays (lives in swipe-world.tsx, user likes it)
-- Navigation architecture review = Phase 2 decision (after real usage data)
+- swipe-world.tsx = 2-page container (Chat + Dashboard + 2-dot indicator + landing splash)
+- index.tsx = re-exports SwipeWorld as default (expo-router entry point) + HomeScreen is Chat
+- Landing splash (Option C Deep Slate + Mint) = in swipe-world.tsx, shows ONCE per app session via module-level flag `_splashShownThisSession`
+- Hamburger ☰ universally accessed via `<MoreSheet />` component (app/components/MoreSheet.tsx)
+- Back arrows on standalone routes (Tutor, Kids Hub, Family, My Space) next to zaeli wordmark
+- Navigation architecture review = LOCKED, no longer deferred
 
 ---
 
@@ -237,11 +242,14 @@ Individual pages   = useSafeAreaInsets() for manual paddingTop
 DM Serif           = ghost numbers ONLY (never readable UI text)
 Wordmark font      = Poppins_800ExtraBold (NOT DM Serif)
 Wordmark a+i       = Dashboard:#FAC8A8 peach · Chat:#C4B4FF lavender · MySpace:#A8D8F0 sky · OurBudget:#059669 emerald
-ZaeliFAB           = forwardRef, exposes startMic() + openMore()
-FAB hides          = activeButton === 'keyboard' OR hideFabBar prop
-FAB on chat page   = HIDDEN via activePage !== PAGE_CHAT in swipe-world
-Chat bar           = fixed [Mic][TextInput][Send] — NEVER conditional render
-Chat bar camera    = SVG camera icon inside right of input field (coral #FF4545 stroke)
+ZaeliFAB           = KILLED Session 14 — component file exists but not rendered anywhere
+Hamburger ☰        = Session 14 replacement — 42px square button top-right of every header (Chat, Dashboard, My Space, Tutor, Kids Hub, Family). Opens MoreSheet.
+Hamburger SVG      = 22px icon, lines at y=6,12,18 (symmetric around y=12). strokeWidth 2.2
+MoreSheet          = app/components/MoreSheet.tsx — 92% bottom sheet, Option 1 tiles, no upload section
+MoreSheet sections = Family Channels (6 tiles) · Personal (My Space full-width) · Modules (2x2) · Navigation (Chat · Dashboard · Settings)
+MoreSheet onAction = parent passes callback from Chat/Dashboard to route in-swipe-world nav; My Space uses default
+Chat bar           = fixed [Mic][TextInput][Camera][Send] — NEVER conditional render. Only on Chat page (not Dashboard or My Space)
+Chat bar camera    = SVG icon between TextInput and Send, coral #FF4545 stroke, opens Add to Chat sheet (Camera/Photos/Live)
 Chat send          = onTouchStart on raw <View> — NEVER onPress/onPressIn (blur race)
 Chat send button   = clear input BEFORE calling send() — setInput('') then send(text)
 Chat bar position  = position:absolute inside flex View inside KAV
@@ -257,15 +265,21 @@ Keyboard dismiss   = Keyboard.dismiss() on mic start
 Mic waveform       = 7 bars [10,18,28,36,28,18,10] width:4 coral, Cancel+Send buttons
 swipe-world scroll = keyboardShouldPersistTaps="handled" (dismiss on feed tap, keep on buttons)
 LANDING_TEST_MODE  = true (in swipe-world.tsx) — set false before launch
-Swipe pages        = Dashboard(0) · Chat(1) · My Space(2) — LOCKED
-3-dot colours      = peach #FAC8A8(0) · lavender #D8CCFF(1) · sky #A8D8F0(2)
-✦ active colour    = #A8D8F0 sky blue (userColor)
+_splashShownThisSession = module-level flag (Session 14) — splash only fires ONCE per app session, not on every swipe-world re-mount
+Splash design      = Option C (Deep Slate + Mint). bg #1C2330, wordmark 96px white with mint #B8EDD0 "a+i", "Less Chaos." bold mint + "More Family." soft white, 40px mint divider, "TAP TO CONTINUE" uppercase bottom
+Native splash      = app.json backgroundColor #1C2330 (matches landing so transition is seamless). REQUIRES dev-client rebuild (npx expo prebuild --clean) to pick up
+Swipe pages        = Chat(0) · Dashboard(1) — LOCKED Session 14 (My Space moved to standalone route)
+2-dot colours      = lavender #A890FF(0=Chat) · peach #FAC8A8(1=Dashboard)
+✦ active colour    = #C4B4FF lavender (Chat identity — app's home)
 Delete             = optimistic UI first, Supabase background
 Todos fetch        = IN ['active','done'] — NEVER eq('status','active')
 Tick handler       = TOGGLE only — done↔active, never one-directional
 Modal stacking     = close → setTimeout 350ms → open
 Card buttons       = full-width, borderRadius:14, paddingVertical:14, Poppins_700Bold 15px
-Nav store types    = edit_event · add_event · shopping · shopping_sheet · actions · meals · noticed
+Nav store types    = edit_event · add_event · shopping · shopping_sheet · actions · meals · noticed · notes_tasks_sheet (NEW Session 14 — with tab:'notes'|'tasks' field)
+Nav returnTo       = ONLY set when coming from Dashboard card. MoreSheet items must NOT set returnTo (was causing "← Dashboard" pill to appear on every MORE-triggered nav)
+Chat header label  = 'Home' (Session 14 — was 'Chat')
+Dashboard header   = wordmark + back arrow (to Chat) on left · date + "Dashboard" label + hamburger on right (Session 14)
 Chip intercepts    = 'Open Meal Planner' · 'Open Shopping List' · 'Open To-dos'
 Family colours     = Rich:#4D8BFF · Anna:#FF7B6B · Poppy:#A855F7 · Gab:#22C55E · Duke:#F59E0B
 92% sheets         = height: H * 0.92 (NOT maxHeight) · borderTopLeftRadius:24 · borderTopRightRadius:24
@@ -717,6 +731,93 @@ Massive build — Kids Hub from dummy data to full Supabase-wired module with 5 
 
 ---
 
+## ══════════════════════════════════
+## SESSION 14 — ARCHITECTURAL REBUILD (17 April 2026) ✅
+## ══════════════════════════════════
+
+Massive session: Kids Hub AI trivia, Tutor difficulty bands, prompt caching, conversation summarisation, Dashboard redesign, Chat-first 2-page architecture, FAB killed, hamburger + MoreSheet, splash Option C, many polish fixes.
+
+### Kids Hub improvements:
+- **AI trivia via GPT-5.4 mini** — fresh questions every session, tracks history in `kids_trivia_history` Supabase table, prompt includes last 200 Q's to avoid repeats. Static arrays kept as offline fallback (shuffled).
+- **Crossword selection** — per-child seen-tracking via AsyncStorage, daily rotation, siblings get different puzzles. Pool expansion to 100 crosswords PARKED (content task).
+- **Supabase migration:** `supabase-kids-trivia-history.sql`
+
+### Tutor improvements:
+- **Topic chips reworked** — all 4 subjects (Maths/English/Science/HASS), Foundation–Year 12. Core-first (not Extension-first). E.g. Year 4 Maths now: Times tables · Multiplication · Division · Zaeli picks (was: Long multiplication · Decimals · Fractions).
+- **Difficulty band system wired up:**
+  - Loads prior band from `tutor_progress` when subject selected (new default = Foundation, not Core)
+  - Tracks `consecutiveCorrect` (no hints), `consecutiveWrong` state
+  - Injects structured state into Sonnet system prompt each call
+  - 3 correct in a row (no hints) → UPGRADE (foundation→core→extension)
+  - 3 wrong in a row → DOWNGRADE
+  - Band persists to both `tutor_sessions.difficulty_band` AND `tutor_progress.difficulty_band` on session exit
+- **Prompt caching** — `anthropic-beta: prompt-caching-2024-07-31` header auto-added when system prompt is array with `cache_control`. Static base + curriculum cached, dynamic state NOT cached. ~30-40% cost saving.
+- **Conversation summarisation** — after 8 exchanges, older turns collapsed into 1-line summaries. Keeps input tokens bounded at ~1,500 (was growing to 3,000+ by turn 14).
+- **Hint thinking indicator** — `handleHint` now calls `setSending(true)` immediately; also `setSending(false)` at end of `generateAIResponse` (was missing).
+- **Floating mic pill** — tutor now uses the same waveform pill overlay as chat (Cancel/Send buttons), replacing inline recording indicator.
+- **Cost analysis** — Poppy's Session 14 test: 18 turns, ~A$0.156. With caching + summarisation: estimated ~A$0.10-0.11 (~30% saving). Heavy use (30 sessions/month): A$3.00-3.30/child = 30% of A$9.99 revenue — comfortable.
+
+### Dashboard redesign (Session 14 build of Session 9 spec):
+- **New card order:** Calendar · Meal Planner (renamed from Dinner) · Weather+Zaeli Noticed (bento) · Shopping · On the Radar (renamed from Family Tasks)
+- **Our Budget tile REMOVED** from Dashboard → MoreSheet
+- **On the Radar** — new card using `personal_tasks` query for Rich + shared tasks due in 7 days. Inline + Add task input. View full list → navigates to My Space Notes & Tasks sheet (Tasks tab).
+- **Header** — matches My Space (wordmark + date + Dashboard label + hamburger). Back arrow added to Dashboard header Session 14 (tap = go to Chat).
+- **Card specs bumped to match My Space** — padding 22, borderRadius 22, cardLabel 13px letter 0.8, headline 24px, sub 13px.
+- **Supabase migration:** `supabase-personal-tasks-sharing.sql` — adds `is_shared` + `member_name` columns to `personal_tasks`.
+
+### Architecture rebuild (Session 14 radical):
+- **Two-page swipe world** — Chat is page 0 (opens here), Dashboard is page 1. My Space moved to standalone route `/(tabs)/my-space`.
+- **FAB KILLED** everywhere — `ZaeliFAB.tsx` component file still exists but not rendered.
+- **Hamburger ☰ button** top-right of every screen's header — opens `MoreSheet` (92% bottom sheet with Family Channels, Personal, Modules, Navigation sections).
+- **MoreSheet** (`app/components/MoreSheet.tsx`) — Option 1 refined tiles design. Uses `onAction` callback from parent (Chat/Dashboard) to handle in-swipe-world nav, or default router.navigate for standalone routes.
+- **Back arrows** added to Tutor, Kids Hub, Our Family, Dashboard headers (next to zaeli wordmark, matching My Space pattern).
+- **Chat bar camera** now opens Add-to-Chat sheet (Camera/Photos/Live) instead of camera-only.
+- **Chat header label** — 'Home' (was 'Chat').
+- **Legacy "← Dashboard" pill bug** — fixed by removing `returnTo: 'dashboard'` from all MoreSheet contexts (was appearing on every MORE-triggered nav).
+
+### Splash screen:
+- **Option C chosen — Deep Slate + Mint** — bg `#1C2330`, 96px wordmark white with mint `#B8EDD0` "a+i", "Less Chaos." bold mint + "More Family." soft white, 40px mint divider, "TAP TO CONTINUE" uppercase bottom.
+- **Mint glow ring** behind wordmark (520×520 radial at 12% opacity).
+- **Once per session** — module-level flag `_splashShownThisSession` prevents re-trigger when returning from standalone routes (My Space, Tutor, etc.).
+- **Native splash updated** — `app.json` backgroundColor set to `#1C2330` for seamless transition. REQUIRES `npx expo prebuild --clean` + dev-client rebuild.
+
+### Design mockup HTMLs produced this session (in repo root):
+- `zaeli-fab-options.html` — 4 FAB option explorations
+- `zaeli-chatbar-options.html` — 3 chat bar layouts (hamburger top-right chosen)
+- `zaeli-more-sheet-options.html` — 4 MoreSheet designs (Option 1 chosen)
+- `zaeli-splash-options.html` — 3 splash designs (Option C chosen)
+
+### Files changed:
+- `app/(tabs)/swipe-world.tsx` — rebuilt for 2-page, Chat-first, FAB removed, splash Option C, session flag
+- `app/(tabs)/index.tsx` — hamburger added, MoreSheet render, camera picker, 'Home' label, legacy FAB removed
+- `app/(tabs)/dashboard.tsx` — full redesign per Session 9 spec, hamburger + back arrow, MoreSheet, OnTheRadarCard
+- `app/(tabs)/my-space.tsx` — standalone route, back button, hamburger, MoreSheet, initialTab prop for notes/tasks
+- `app/(tabs)/tutor.tsx` — back arrow
+- `app/(tabs)/tutor-session.tsx` — difficulty band system, prompt caching, conversation summarisation, hint thinking, floating mic pill
+- `app/(tabs)/tutor-curriculum.ts` — all topic chips reworked Foundation–Year 12
+- `app/(tabs)/kids.tsx` — AI trivia, crossword selection, back arrow
+- `app/(tabs)/kids-games-data.ts` — no changes (fallback data preserved)
+- `app/(tabs)/family.tsx` — back arrow
+- `app/components/MoreSheet.tsx` — NEW component
+- `app/components/ChatBarFacade.tsx` — NEW component (currently unused after revert, kept for future)
+- `lib/api-logger.ts` — prompt caching support, cache metric logging, beta header auto-add
+- `lib/navigation-store.ts` — added `notes_tasks_sheet` context type with `tab` field
+- `app.json` — splash backgroundColor #1C2330, userInterfaceStyle 'light'
+
+### Supabase migrations produced:
+- `supabase-kids-trivia-history.sql` — kids_trivia_history table
+- `supabase-personal-tasks-sharing.sql` — personal_tasks ADD is_shared + member_name columns
+
+### Still TO DO from Session 14 feedback:
+- Test on device once `app.json` rebuilt
+- AI Brief system (4 time windows: morning/lunch/afternoon/evening, Sonnet, Supabase cache, time-relevant rule)
+- Settings screen
+- 100 crosswords (parked content task)
+- Tutor session resume (reload from tutor_messages)
+- Final splash polish if wordmark "i" dot cuts off on smaller devices
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -746,15 +847,25 @@ Phase 12:  Kids Hub wired      ✅ Supabase tables, job completion, GIPHY, rewar
 Phase 12b: Kids Hub games      ✅ 5 games rebuilt with embedded keyboards, age-tiered content, celebrations
 Phase 12c: Kids Hub polish     ✅ Games polished, flicker fixed, crossword layout, all UX feedback addressed
 Phase 12d: Our Family v2       ✅ 3-tab layout, member profiles, add member, jobs/rewards management
-Phase 9a: Dashboard redesign   🔨 ← next
-Phase 13:  Tutor rebuild       🔨
-Phase 9b: Meal Planner sheet   🔨 ← Claude Code next (zaeli-meals-mockup.html)
-Phase 9c: Camera/Upload        🔨 ← Claude Code next (zaeli-camera-upload.html)
-Phase 9d: AI Brief system      🔨 ← implement Sonnet briefs, GPT-5.4 mini routing
-Phase 10: Our Budget module    🔨 ← Phase 2 (after Basiq response)
-Phase 11: Dedicated pages      🔨 (Kids Hub, Tutor, Our Family, Settings)
-Phase 12: Travel sheet         🔨
-Phase 13: Nav architecture     🔨 ← Phase 2 (after real usage data)
+Phase 14a: Kids Hub AI Trivia  ✅ Session 14 — GPT-5.4 mini fresh questions, kids_trivia_history table, fallback to static
+Phase 14b: Kids crossword pool 🅿️ PARKED — content task (100 puzzles), pickup anytime
+Phase 14c: Tutor topic chips   ✅ Session 14 — reworked all 4 subjects Foundation–Year 12 (Core-first)
+Phase 14d: Tutor difficulty    ✅ Session 14 — bands load from tutor_progress, consecutive tracking, upgrade/downgrade, persist
+Phase 14e: Prompt caching      ✅ Session 14 — Anthropic cache_control on tutor system prompt, ~30-40% cost reduction
+Phase 14f: Conversation summ   ✅ Session 14 — after 8 turns, older exchanges compressed to keep input bounded
+Phase 14g: Dashboard redesign  ✅ Session 14 — 5-card layout, On the Radar, header match My Space, personal_tasks sharing
+Phase 14h: Swipe-world v4      ✅ Session 14 — 2-page (Chat+Dashboard), open on Chat, My Space standalone, 2-dot indicator
+Phase 14i: FAB killed          ✅ Session 14 — all FABs removed, hamburger ☰ top-right everywhere
+Phase 14j: MoreSheet           ✅ Session 14 — Option 1 refined tiles, 92% sheet, Family Channels + Personal + Modules + Nav sections
+Phase 14k: Splash Option C     ✅ Session 14 — Deep Slate #1C2330 + Mint accents, once-per-session fire
+Phase 14l: Back arrows         ✅ Session 14 — added to Tutor, Kids Hub, Family, My Space, Dashboard headers
+Phase 14m: Camera picker       ✅ Session 14 — chat bar camera opens Add-to-Chat sheet (Camera/Photos/Live)
+
+Phase 15: AI Brief system      🔨 ← BIGGEST remaining piece — 4 time windows, Sonnet, Supabase cache, time-relevant rule
+Phase 16: Our Budget module    🔨 ← Phase 2 (after Basiq response)
+Phase 17: Settings             🔨 ← standalone screen with account, family members, subscription
+Phase 18: Travel sheet         🔨
+Phase 19: Tutor session resume 🔨 ← reload conversation from tutor_messages when resuming active session
 ```
 
 ---

@@ -11,8 +11,9 @@
  */
 
 export type ChatEntryContext = {
-  type: 'edit_event' | 'add_event' | 'shopping' | 'actions' | 'meals' | null;
+  type: 'edit_event' | 'add_event' | 'shopping' | 'actions' | 'meals' | 'notes_tasks_sheet' | null;
   event?:    any;     // for edit_event — full event object
+  tab?:      'notes' | 'tasks';   // for notes_tasks_sheet — which tab to open
   returnTo?: 'dashboard';
 };
 

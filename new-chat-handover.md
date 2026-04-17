@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*16 April 2026 — Session 13 ✅ · Tutor module built · AI summaries · Kids Hub 3 games · Our Family tutor progress*
+*17 April 2026 — Session 14 ✅ · Major architectural rebuild · Chat-first 2-page · FAB killed · Hamburger + MoreSheet · Splash Option C · Kids Hub AI trivia · Tutor difficulty bands · Prompt caching*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,142 +10,189 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
+**Session 14 was a MAJOR rebuild.** The navigation architecture, chrome, splash screen, and Kids Hub/Tutor internals all changed significantly. Details below.
+
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅
+## CURRENT STATE — ALL WORKING ✅ (Session 14)
 ## ══════════════════════════════════
+
+### Architecture — 2-page swipe, Chat-first, no FAB
+
+```
+CHAT (page 0, opens here) ← → DASHBOARD (page 1)
+```
+
+- App **opens on Chat** (lavender wordmark identity). Swipe right for Dashboard (peach).
+- **My Space moved to standalone route** (`/(tabs)/my-space`), accessed via MoreSheet (has back arrow).
+- **FAB entirely killed** — `ZaeliFAB.tsx` component exists but isn't rendered anywhere.
+- **Universal hamburger ☰** top-right of every header opens `<MoreSheet />` (app/components/MoreSheet.tsx).
+- **2-dot indicator** — lavender `#A890FF` (Chat) + peach `#FAC8A8` (Dashboard).
+- **Splash** — Deep Slate `#1C2330` with mint `#B8EDD0` accents. Fires ONCE per app session (module-level `_splashShownThisSession` flag).
+
+### MoreSheet (universal menu)
+
+Opens from hamburger ☰ on every screen. 92% bottom sheet with Option 1 refined tiles:
+- **Family Channels** (6 tiles): Calendar · Shopping · Meals · Tasks · Notes · Travel
+- **Personal**: My Space (full-width tile)
+- **Modules** (2x2): Tutor · Kids Hub · Our Family · Our Budget (Alert "coming soon")
+- **Navigation** (3): Chat · Dashboard · Settings
+
+**Parent passes onAction callback** to handle nav from inside swipe-world (scrollToPage for Chat/Dashboard). My Space (standalone) uses default router.navigate.
 
 ### Pages:
-- **Dashboard** — peach-branded. 5 clean cards. Calendar · Meal Planner · Weather+Zaeli Noticed (bento) · Shopping · On the Radar. Brief lives in Chat (not Dashboard). Our Budget removed from Dashboard.
-- **Chat** — lavender-branded. Fixed [Mic][TextInput+Camera][Send] bar. Full CRUD tools. Context flow from dashboard. Mic with waveform. Camera icon inside input field (Session 9 design — not yet built).
-- **My Space** — sky-branded. Fixed header. WotD inline expand. Fitness full-width. 4-card grid (Goals, Notes & Tasks, Stretch, Zen) + Wordle. ALL sheets fully built with real content + Supabase persistence.
+- **Chat** — header: [zaeli wordmark] + "Home" label + hamburger ☰. Chat bar at bottom: [Mic][Input+placeholder][Camera][Send]. Camera opens Add-to-Chat picker (Camera/Photos/Live).
+- **Dashboard** — header: [back arrow + zaeli wordmark] + [date + "Dashboard" label + hamburger ☰]. 5 clean cards: Calendar · Meal Planner · Weather+Zaeli Noticed (bento) · Shopping · On the Radar.
+- **My Space** — header: [back arrow + zaeli wordmark] + ["My Space" label + hamburger ☰]. 6-card grid + Wordle. All sheets working with Supabase persistence.
 
-### Shopping sheet (Session 10 — COMPLETE):
-- **List tab**: structured add form (Item+Qty), tick/undo (5s timer, green checkbox, strikethrough, Undo link), tap-to-expand Edit/Delete, red border delete confirm, duplicate checking, Recently Bought in muted grey
-- **Pantry tab**: same add form, tap-to-expand Edit/Delete, "+ List" / "On list ✓" toggle, Scan/Upload buttons (receipt + pantry), pantry limit 500
-- **Spend tab**: Poppins total (not DM Serif), A$ currency, Scan/Upload receipt, expandable receipt cards with delete, spend totals recalculate on delete
-- **Receipt scan pipeline**: single Sonnet call, structured JSON extraction, pantry cross-check (update last_bought / add new), shopping list tick-off (only if item.created_at < receipt_date), receipt saved to Spend tab, ~A$0.02-0.04 per scan
-- **Pantry scan pipeline**: single Sonnet call, add/update pantry items
-- **HEIC fix**: expo-image-manipulator converts iOS HEIC → JPEG before API calls
-- **Share button**: header icon, formats list as text for SMS/copy
-
-### Meal Planner sheet (Session 10 — BUILT, stress testing):
-- **Meals tab**: 7-day planner, today mint highlight, cook avatars (28px), heart favourite, Swap/+Add, inline swap picker (Favourites + Move night)
-- **Cook picker**: family circles, kids job popup (5/10/15/custom points → `kids_jobs` table)
-- **Recipes tab**: Add + Upload buttons, search, 2-column grid, heart toggle
-- **Favourites tab**: filtered grid, empty state
-- **Add recipe form**: name, cook time, ingredients, method → saves to `recipes` (notes field)
-- **Upload recipe**: multi-image (camera + library multi-select), single Sonnet call combines all pages
-- **Recipe detail**: hero, meta pills, Edit button (same form pre-filled), ingredients with pantry status, method steps
-- **Send to list**: 3-state tappable badges (Adding → Skipping → In pantry), dynamic count, batch add to shopping
-- **Supabase**: `recipes` uses prep_mins/notes/tags/image_url, `meal_plans` stores cooks in source field as JSON, `kids_jobs` NEW table
-- **Recipe photos**: tap hero → camera/library picker, resized 600px JPEG, stored in recipes.image_url, shown in grid + detail. Zero AI cost.
-- **Rolling 10 days**: starts from today, no past days
-- **Today = coral border**, active swap = mint border (wraps full card + picker)
-- **Search Recipes with day context**: mealPendingRecipeDay state, mint banner in Recipes tab, auto-assigns on select
-
-### Tutor module (Session 13 — BUILT, stress testing):
-- **Child Selector** (`tutor.tsx`): lavender background, Poppins 40px wordmark (matches Kids Hub), Premium badge, child cards with streaks, locked/upsell states
-- **Child Home** (`tutor-child.tsx`): compact 3x2 pillar grid (Homework, Practice, Read Aloud, Write, Comprehension, Money & Life), week stats strip, recent sessions with long-press rename
-- **Session Engine** (`tutor-session.tsx`): unified screen for all 6 pillars, Sonnet-powered conversation with ACARA v9.0 curriculum data
-- **6 Pillars**: Practice (MC + progress bar + hint/next pill), Homework (free conversation + photo upload), Read Aloud (mic-first + Whisper), Write & Review (before/after feedback), Comprehension (passage + layered questions), Money & Life (amber theme + progressive levels)
-- **Curriculum data** (`tutor-curriculum.ts`): Full Australian Curriculum v9.0 — Maths/English/Science/HASS Foundation-Year 12, 3 difficulty bands, dynamic topic chips per year level
-- **Session recording**: all messages saved to `tutor_messages`, session stats to `tutor_sessions`, duration tracking with timer
-- **AI summaries** (`lib/tutor-summaries.ts`): Sonnet generates session summaries on exit + subject progress reports on demand, cached 24hr in `tutor_subject_summaries`
-- **Camera + Whisper**: photo upload (HEIC→JPEG), iOS ActionSheet (Take Photo/Choose Library), Whisper transcription with Zaeli spelling fix
-- **Parent views in Our Family**: TutorProgressView (per-child stats, per-subject cards with expand-for-Zaeli-summary), SessionReviewView (stats, AI summary, full colour-coded transcript)
-- **Supabase tables**: `tutor_sessions` (with summary column), `tutor_messages`, `tutor_progress`, `tutor_money_levels`, `tutor_subject_summaries`
-
-### Kids Hub (Session 13 — updated):
-- **3 games only**: Zaeli's Wordle, World Trivia, Mini Crossword (Word Scramble + Maths Sprint removed)
-- **Crossword fixed**: 4 verified puzzles, all words valid, bigger cells (54px), larger fonts
-- **Maths Sprint moved**: concept belongs in Tutor Practice pillar, not casual games
-
-### Our Family (Session 13 — tutor wired):
-- **Live tutor progress**: replaces hardcoded CHILD_DETAIL data with Supabase-powered sessions/progress
-- **Progress View**: per-child overview (sessions/time/streak), per-subject cards with bands + progress bars, tap to expand with Zaeli AI summary
-- **Session Review**: Zaeli AI summary, stats (questions/hints/photos), topic tags, full transcript colour-coded by speaker
-- **Navigation**: kid card "Tutor progress" → Progress View → tap session → Session Review (all stays inside Our Family)
-
-### Infrastructure:
-- Context flow: isActive prop + contextTrigger counter from swipe-world (fixes scroll race condition)
-- ← Dashboard pill: uses onNavigateDashboard() not router.navigate() (fixes FAB disappearing)
-- Dashboard refresh: isActive triggers loadData() on swipe back
-- Full CRUD tools: calendar, todos, shopping, meals (add/update/delete)
-- Shopping tools: duplicate check (list + pantry), SHOPPING RULES in system prompt, A$ currency rule
-- Meal clash detection: warns before swapping
-- Mic: direct startRecording/stopRecording in chat + FAB mic pipeline via pendingMicText
-- Mic from shopping: routes through AI (not regex) for smart multi-item parsing
-- Shopping context detection: checks for shopping chips on last Zaeli message
-- 3-dot indicators: peach(0) · lavender(1) · sky(2)
+### Back arrows added Session 14 to:
+Tutor · Kids Hub · Our Family · My Space · Dashboard (next to zaeli wordmark, matches My Space pattern)
 
 ---
 
 ## ══════════════════════════════════
-## SESSION 9 — WHAT WAS DESIGNED (no code written)
+## SESSION 14 — WHAT WAS BUILT
 ## ══════════════════════════════════
 
-Full design + strategy session. Five Claude handover HTML files produced.
+### Kids Hub AI Trivia (done)
+- GPT-5.4 mini generates 10 fresh questions per session based on child's age tier
+- Prompt includes last 200 asked questions to avoid repeats
+- Stored in new `kids_trivia_history` Supabase table (see `supabase-kids-trivia-history.sql`)
+- Static arrays kept as offline fallback (shuffled)
+- Cost: ~A$0.001 per game session
+- **100-puzzle crossword expansion PARKED** — content task, pickup anytime
 
-### Philosophy B — LOCKED
-Zaeli is AI-first. Chat is the product's beating heart. Dashboard is a reference layer. Zaeli speaks first. The conversation has already started before Rich types a word. Navigation architecture review deferred to Phase 2 with real usage data.
+### Tutor difficulty band system (done)
+- **Topic chips reworked** for ALL year levels (Foundation–Year 12) across ALL 4 subjects (Maths/English/Science/HASS)
+- **Principle:** Core-first (what kids are actually doing), not Extension-first (what advanced kids might do)
+- Example: Year 4 Maths now `Times tables · Multiplication · Division · Zaeli picks` (was `Long multiplication · Decimals · Fractions`)
+- **Difficulty band wired:**
+  - Loads prior band from `tutor_progress` on subject selection (new default = Foundation, not Core)
+  - React state tracks `consecutiveCorrect` (no hints), `consecutiveWrong`
+  - Injected into Sonnet system prompt each turn
+  - 3 correct in a row (no hints) → UPGRADE (foundation→core→extension)
+  - 3 wrong in a row → DOWNGRADE
+  - Band persists to `tutor_sessions.difficulty_band` AND `tutor_progress.difficulty_band` on exit
+- **Prompt caching**: Anthropic's `anthropic-beta: prompt-caching-2024-07-31` header auto-added via api-logger when system prompt array contains `cache_control`. Static system prompt cached, dynamic state NOT cached. ~30-40% cost saving.
+- **Conversation summarisation**: After 8 exchanges, older turns compressed to 1-line summaries. Keeps input tokens ~1,500 (was growing to 3,000+ by turn 14).
+- **Hint thinking indicator**: `handleHint` now calls `setSending(true)` immediately (was silent 3-4s delay). Added matching `setSending(false)` at end of `generateAIResponse`.
+- **Floating mic pill**: Tutor now uses the same waveform pill overlay as chat (Cancel/Send buttons).
 
-### Dashboard redesigned — 5 clean rows:
-1. Calendar (dark slate) — collapsible, today's events with family colour dots
-2. Meal Planner (mint) — tonight's dinner + week on expand, renamed from Dinner
-3. Weather + Zaeli Noticed (bento) — Zaeli Noticed PROMOTED from bottom row
-4. Shopping (lavender) — unchanged
-5. On the Radar (gold) — personal + shared tasks due in 7 days, RENAMED from Family Tasks
+### Dashboard redesign (done — Session 9 spec built)
+- 5 clean rows: Calendar (dark slate) · Meal Planner (mint) · Weather+Zaeli Noticed (bento, Zaeli Noticed promoted from bottom) · Shopping (lavender) · On the Radar (gold)
+- **On the Radar** — new card. Queries `personal_tasks` for Rich or shared, due in 7 days. Two sections (Today & overdue / Coming up). Inline + Add task, View full list → My Space Tasks tab.
+- **Supabase migration**: `supabase-personal-tasks-sharing.sql` adds `is_shared` + `member_name` columns.
+- **Our Budget** — removed from Dashboard, now in MoreSheet as "Coming soon" (Alert).
+- **Header** matches My Space exactly: wordmark + date + "Dashboard" label + hamburger. Also has back arrow left of wordmark (tap = return to Chat).
+- Card specs bumped to match My Space (padding 22, radius 22, label 13px, headline 24px).
 
-**Removed from Dashboard:** Our Budget tile (→ More sheet placeholder), Zaeli brief card (→ Chat)
+### Architectural rebuild (done)
+- **Swipe-world rebuilt** to 2-page (Chat=0, Dashboard=1). My Space extracted to standalone route.
+- **FAB killed** across all screens (swipe-world, chat, dashboard, legacy landing). Component file kept for potential future use.
+- **Hamburger ☰ button** (42×42) added top-right of Chat, Dashboard, My Space headers. Opens MoreSheet.
+- **Chat heading label changed** from "Chat" → "Home".
+- **Chat bar camera** now opens Add-to-Chat picker sheet (Camera/Photos/Live) — was camera-only.
+- **Legacy "← Dashboard" pill** bug fixed — removed `returnTo: 'dashboard'` from MoreSheet contexts (was triggering on every MORE nav).
+- **MORE Calendar/Shopping/Meals** now correctly open their sheets when pressed from Chat (was setting context but not triggering).
+- **MORE Tasks/Notes** navigate to My Space with Notes & Tasks sheet auto-open on the correct tab.
 
-### Meal Planner sheet — full design:
-- 3 tabs: Meals · Recipes · Favourites
-- Meals tab: 7-day planner, mint highlights, today badge, family cooking avatars, heart to favourite, Swap picker (Favourites + Move night tabs inline), Who's cooking picker
-- Recipes tab: + Add Recipe + Upload Recipe, search, 2-column grid, recipe detail with pantry-aware ingredient list
-- Favourites tab: hearted recipes only, empty state
-- Recipe upload: Sonnet vision reads recipe book photo, pre-fills form for review
-- Send to list: pantry cross-check, user can override "In pantry ✓" → "Adding →"
-- Reference: `zaeli-meals-mockup.html` (10 screens)
+### Splash Option C — Deep Slate + Mint (done)
+- Background `#1C2330` (deep slate)
+- 96px wordmark white, "a" and "i" in mint `#B8EDD0`
+- Tagline: "**Less Chaos.** More Family." (bold mint + soft white)
+- 40px mint divider below
+- "TAP TO CONTINUE" uppercase at bottom
+- Mint glow ring (520×520 radial, 12% opacity) behind wordmark
+- **Fires once per session** via module-level flag (was firing on every swipe-world mount)
+- `app.json` native splash backgroundColor set to `#1C2330` for seamless transition — **REQUIRES `npx expo prebuild --clean` + dev-client rebuild** to take effect
 
-### Camera & Upload — designed:
-- Chat bar: camera SVG icon (coral) inside right of text input field
-- Taps open 92% action sheet: Take photo · Choose from library · Upload file
-- Image → Sonnet vision → conversational response
-- FAB More sheet: 3-column upload grid at top, same 3 options, then navigate to Chat
-- Reference: `zaeli-camera-upload.html`
+### Design mockup HTMLs produced Session 14 (in repo root):
+- `zaeli-fab-options.html` — 4 FAB options (killed in favour of hamburger)
+- `zaeli-chatbar-options.html` — 3 chat bar layouts (hamburger top-right chosen)
+- `zaeli-more-sheet-options.html` — 4 MoreSheet designs (Option 1 chosen)
+- `zaeli-splash-options.html` — 3 splash designs (Option C chosen)
 
-### AI Brief system — designed and locked:
-- 3 briefs per day: morning (05:00–11:59) · midday (12:00–16:59) · evening (17:00–23:59)
-- Generated by Sonnet, cached family-wide in `zaeli_briefs` Supabase table
-- Fires on app open if time window changed AND natural break (app closed OR last msg >15min)
-- Held if actively mid-conversation, fires on next open
-- Morning: max 120 words · Midday: max 80 · Evening: max 90, never opens with task
-- Winning mantra: positive open where true, acknowledge progress before tasks, Zaeli takes active credit
-- Win banner (mint highlight): max once per brief, genuine moments only
-- Max 4 chips, primary chip coral, always one dismissal chip
-- Prompt caching on input tokens — ~90% cost reduction
-- Reference: `zaeli-brief-examples.html`
+---
 
-### Zaeli persona — locked and expanded:
-- **The winning mantra**: Make Rich feel capable, in control, winning at family life
-- **Active credit rule**: "I've already updated Gab's soccer" — first person, not passive
-- **Mini warmth rules**: GPT-5.4 mini must sound like Zaeli too. Never just confirms. One warm closing line after casual replies. Earned not manufactured.
-- Full spec in CLAUDE.md Zaeli Persona section
+## ══════════════════════════════════
+## KEY FILES (Session 14 state)
+## ══════════════════════════════════
 
-### Model routing — locked:
+### Core screens:
+- `app/(tabs)/swipe-world.tsx` — 2-page container, Chat-first, splash, 2-dot indicator
+- `app/(tabs)/index.tsx` — Chat (exports SwipeWorld default + HomeScreen named)
+- `app/(tabs)/dashboard.tsx` — Dashboard redesign with 5 rows, OnTheRadarCard, DashChatBar removed
+- `app/(tabs)/my-space.tsx` — standalone route with back button, hamburger, MoreSheet
+- `app/(tabs)/tutor.tsx` — back arrow added to banner
+- `app/(tabs)/tutor-session.tsx` — difficulty bands, prompt caching, conv summarisation, floating mic pill
+- `app/(tabs)/tutor-curriculum.ts` — all topic chips reworked Foundation–Year 12
+- `app/(tabs)/kids.tsx` — AI trivia, crossword selection, back arrow
+- `app/(tabs)/family.tsx` — back arrow
+
+### New components:
+- `app/components/MoreSheet.tsx` — universal menu sheet
+- `app/components/ChatBarFacade.tsx` — kept but currently unused (for future)
+
+### Infrastructure:
+- `lib/api-logger.ts` — prompt caching support, cache metric logging
+- `lib/navigation-store.ts` — added `notes_tasks_sheet` context type with `tab` field
+
+### Config:
+- `app.json` — splash backgroundColor `#1C2330`, userInterfaceStyle 'light'
+
+### Supabase migrations (run in SQL Editor):
+- `supabase-kids-trivia-history.sql` — kids_trivia_history table
+- `supabase-personal-tasks-sharing.sql` — personal_tasks ADD is_shared + member_name
+
+---
+
+## ══════════════════════════════════
+## KEY CONSTANTS
+## ══════════════════════════════════
+
 ```
-Sonnet 4.6    → briefs · vision · complex · personality-heavy
-GPT-5.4 mini  → general chat · CRUD · confirmations  (NEW — replaces gpt-4o-mini for chat)
-GPT-4o-mini   → Zaeli Noticed ONLY (keep as-is)
-Whisper-1     → voice transcription (unchanged)
+Dashboard logo a+i  = #FAC8A8 peach
+Chat logo a+i       = #C4B4FF lavender (Chat is home, primary identity)
+My Space logo a+i   = #A8D8F0 sky blue
+Our Budget logo a+i = #059669 emerald
+Splash bg           = #1C2330 (Deep Slate — Option C)
+Splash accent       = #B8EDD0 (mint)
+Meal card           = #B8EDD0 mint
+On the Radar card   = #F0DC80 gold (renamed from Family Tasks on Dashboard)
+Notes & Tasks card  = #FAC8A8 peach (My Space personal)
+2-dot colours       = lavender #A890FF(0=Chat) · peach #FAC8A8(1=Dashboard)
+All logos           = 40px Poppins_800ExtraBold
+Send button         = #FF4545 coral ALWAYS
+Body bg             = #FAF8F5 warm white
+SONNET              = claude-sonnet-4-6
+CHAT_MODEL          = gpt-5.4-mini
+NOTICED_MODEL       = gpt-4o-mini  (Zaeli Noticed only)
+DUMMY_FAMILY_ID     = 00000000-0000-0000-0000-000000000001
+92% sheets          = height: H * 0.92 (NEVER maxHeight)
+Date rule           = bare local YYYY-MM-DD, NEVER toISOString()
+Hamburger ☰         = 42×42 button, SVG 22px, lines y=6,12,18 (symmetric), strokeWidth 2.2
 ```
-Cost: ~$2.67/family/month with caching (18% of $14.99 revenue) at stress-test volume.
-GPT-5.4 mini: $0.75/$4.50 per M tokens. Significantly better quality than Haiku for Zaeli's voice.
 
-### Our Budget — deferred:
-Upload-only approach without live bank feeds not compelling enough for Dashboard real estate. Basiq enquiry sent. Deferred to Phase 2 after bank feed pricing confirmed. Currently a "Coming soon" placeholder in FAB More sheet.
+---
+
+## ══════════════════════════════════
+## NAMING CONVENTIONS
+## ══════════════════════════════════
+
+```
+Dashboard card       →  "On the Radar"    (Session 9 rename)
+MoreSheet tile       →  "Tasks"            (Session 14 — more natural label)
+My Space card/sheet  →  "Notes & Tasks"
+Full-screen module   →  "Our Budget"
+Chat header label    →  "Home"             (Session 14 — was "Chat")
+Supabase (personal)  →  personal_tasks     (now has is_shared + member_name cols)
+Supabase (briefs)    →  zaeli_briefs       (not yet built)
+Supabase (recipes)   →  recipes
+Supabase (meals)     →  meal_plans
+Supabase (tutor)     →  tutor_sessions · tutor_messages · tutor_progress · tutor_subject_summaries
+Supabase (kids)      →  kids_jobs · kids_rewards · kids_points_log · kids_pending_approvals · kids_trivia_history (NEW Session 14)
+```
 
 ---
 
@@ -153,97 +200,53 @@ Upload-only approach without live bank feeds not compelling enough for Dashboard
 ## NEXT PRIORITIES (in order)
 ## ══════════════════════════════════
 
-**Immediate — stress testing + polish:**
-1. ✅ **Shopping sheet** — COMPLETE (Session 10)
-2. ✅ **Meal Planner sheet** — COMPLETE + LOCKED (Sessions 10-11)
-3. ✅ **Kids Hub** — BUILT (Session 12) + trimmed to 3 games (Session 13)
-4. ✅ **Tutor module** — BUILT (Session 13) — 6 pillars, curriculum, AI summaries, parent views
-5. ✅ **Our Family** — v2 BUILT (Session 12) + tutor progress wired (Session 13)
-6. 🔨 **Tutor stress testing** — kids need to test all 6 pillars, verify curriculum accuracy
-7. 🔨 **Session resume** — reload conversation from tutor_messages when resuming active session
-8. **Dashboard redesign** — 5 clean rows, On the Radar card (`zaeli-dashboard-redesign.html`)
-9. **Camera/Upload** — chat bar icon + FAB More sheet (`zaeli-camera-upload.html`)
-10. **AI Brief system** — Sonnet briefs, GPT-5.4 mini routing (`zaeli-brief-examples.html`)
+**Immediate — outstanding Session 14 feedback:**
+1. **Dev-client rebuild** — `npx expo prebuild --clean && npx expo run:ios` to pick up app.json splash changes. Until then the native splash will still flash the old colour before landing overlay shows.
+2. **Test MoreSheet navigation thoroughly** on device — especially Tasks/Notes → My Space, Dashboard from standalone routes (goes via swipe-world `pendingChatContext`).
+3. **Splash final polish** — user mentioned the "i" dot might cut off on some devices, worth checking viewports.
 
-**Then:**
-- **Settings** — account, family members, subscription, billing
-- **Our Budget** — when Basiq pricing confirmed (`zaeli-budget-final.html`)
-- **EAS Build** — HealthKit, embedded YouTube, real auth, TestFlight
-- **Nav architecture review** — Phase 2, with real usage data
+**Phase 4 — The AI Brief System (BIGGEST remaining piece)**
 
----
+This is Philosophy B's centrepiece. Locked design from Session 9, 4 time windows updated Session 14:
 
-## Key files:
-- `app/(tabs)/index.tsx` — Chat (exports SwipeWorld default + HomeScreen named)
-- `app/(tabs)/swipe-world.tsx` — Container (FAB, dots, landing, isActive props, pendingMicText)
-- `app/(tabs)/dashboard.tsx` — Dashboard (cards + brief, isActive refresh)
-- `app/(tabs)/my-space.tsx` — My Space (brief + WotD + grid + Wordle + all sheets)
-- `app/(tabs)/tutor.tsx` — Tutor child selector (lavender, who's learning today)
-- `app/(tabs)/tutor-child.tsx` — Tutor child home (3x2 pillar grid, recent sessions)
-- `app/(tabs)/tutor-session.tsx` — Tutor session engine (all 6 pillars, Sonnet AI)
-- `app/(tabs)/tutor-curriculum.ts` — ACARA v9.0 curriculum data + topic chips
-- `app/(tabs)/kids.tsx` — Kids Hub (3 games: Wordle, Trivia, Crossword)
-- `app/(tabs)/kids-games-data.ts` — Game word lists, trivia, crossword puzzles
-- `app/(tabs)/family.tsx` — Our Family (3 tabs + tutor progress/review views)
-- `lib/tutor-summaries.ts` — AI summary generation (session + subject)
-- `lib/api-logger.ts` — Anthropic API wrapper + cost logging
-- `app/components/ZaeliFAB.tsx` — FAB with mic waveform, peach dashboard active
-- `lib/navigation-store.ts` — Context passing between dashboard↔chat
+- **4 time windows:**
+  - Morning 04:00–10:59
+  - Lunch 11:00–14:59
+  - Afternoon 15:00–19:59
+  - Evening 20:00–03:59
+- **Each brief** generated by Sonnet with prompt caching (cheap after first fire)
+- **Time-relevant rule** — system prompt includes current exact time; only mentions upcoming events (never recaps 9am if fired at 10:45am)
+- **Cached in Supabase** `zaeli_briefs` table (family_id + date + time_window unique)
+- **Firing rules:**
+  - On app open: check current window, if no brief for this window today → generate, display in Chat feed
+  - If brief exists for window → just scroll to it
+  - Background-to-foreground within 5 min: do nothing (user returns to where they were)
+  - Window transitions while app is open: don't auto-fire (next cold launch)
+- **Copy spec** from Session 9 (CLAUDE.md Zaeli Persona section) — winning mantra, active credit, win banner max once per brief, chip rules.
+
+**Other pending work:**
+- Tutor stress testing with real kids (difficulty bands, all 6 pillars)
+- Tutor session resume (reload conversation from `tutor_messages`)
+- 100 crossword pool (content task)
+- Settings screen
+- Our Budget (pending Basiq pricing)
+- EAS Build + TestFlight (for HealthKit, embedded YouTube, real auth)
 
 ---
 
-## Key constants
-```
-Dashboard logo a+i  = #FAC8A8 peach
-Chat logo a+i       = #C4B4FF lavender
-My Space logo a+i   = #A8D8F0 sky blue
-Our Budget logo a+i = #059669 emerald
-Dinner/Meal card    = #B8EDD0 mint
-On the Radar card   = #F0DC80 gold (renamed from Family Tasks on Dashboard)
-Notes & Tasks card  = #FAC8A8 peach (My Space personal)
-FAB dash active     = #FAC8A8 bg, #8A3A00 icon
-3-dot colours       = peach(0) · lavender(1) · sky(2)
-All logos           = 40px Poppins_800ExtraBold
-Send button         = #FF4545 coral ALWAYS
-Body bg             = #FAF8F5 warm white
-SONNET              = claude-sonnet-4-6
-CHAT_MODEL          = gpt-5.4-mini          ← NEW (replaces gpt-4o-mini for chat)
-NOTICED_MODEL       = gpt-4o-mini           ← Zaeli Noticed ONLY
-DUMMY_FAMILY_ID     = 00000000-0000-0000-0000-000000000001
-92% sheets          = height: H * 0.92 (NEVER maxHeight)
-Date rule           = bare local YYYY-MM-DD, NEVER toISOString()
-```
+## ══════════════════════════════════
+## CRITICAL RULES (learned from battle scars)
+## ══════════════════════════════════
 
----
-
-## Naming conventions (LOCKED)
-```
-Dashboard card       →  "On the Radar"    (NOT Family Tasks — session 9 rename)
-My Space card/sheet  →  "Notes & Tasks"   (NOT Notes)
-Dashboard card       →  "Meal Planner"    (NOT Dinner — session 9 rename)
-Full-screen module   →  "Our Budget"      (NOT Budget)
-Supabase (personal)  →  personal_tasks    (member-scoped)
-Supabase (briefs)    →  zaeli_briefs      (family-scoped, NEW session 9)
-Supabase (recipes)   →  recipes           (family-scoped, NEW session 9)
-Supabase (meals)     →  meal_plan         (family-scoped, NEW session 9)
-Supabase (tutor)     →  tutor_sessions    (family-scoped, NEW session 13)
-Supabase (tutor)     →  tutor_messages    (per-session transcript, NEW session 13)
-Supabase (tutor)     →  tutor_progress    (per-child per-subject, NEW session 13)
-Supabase (tutor)     →  tutor_subject_summaries (AI cache, 24hr TTL, NEW session 13)
-```
-
----
-
-## CRITICAL RULES (learned from 15+ hours debugging)
-- Chat bar = ALWAYS [Mic][TextInput][Send] — NEVER conditional render
+- Chat bar = ALWAYS [Mic][TextInput][Camera][Send] — NEVER conditional render
 - Send button = `<View onTouchStart>` — NEVER onPress/onPressIn/TouchableOpacity
-- Clear input BEFORE calling send()
+- Clear input BEFORE calling send() — `setInput('') + inputRef.current?.clear()` (both, as backup)
 - NO onBlur handler on TextInput
-- NO Keyboard.addListener setState
-- useFocusEffect does NOT fire on swipe in swipe-world — use isActive prop + useEffect
+- NO Keyboard.addListener setState (causes race conditions that killed 10+ hours once)
+- useFocusEffect does NOT fire on swipe in swipe-world — use isActive prop + useEffect instead
+- barPill must NOT have onTouchEnd focus handler
 - Chat mic = startRecording()/stopRecording() directly (FAB unmounted on chat page)
 - swipe-world keyboardShouldPersistTaps = "handled" (NOT "always")
-- barPill must NOT have onTouchEnd focus handler
 - All edits to C:\Users\richa\zaeli (NOT worktree) — Expo reads from main
 - personal_tasks = member-scoped (NOT family-scoped)
 - zaeli_briefs = family-scoped (one per family per time window per day)
@@ -251,10 +254,9 @@ Supabase (tutor)     →  tutor_subject_summaries (AI cache, 24hr TTL, NEW sessi
 - Budget raw statement data = never stored (privacy)
 - CHAT_MODEL = gpt-5.4-mini · NOTICED_MODEL = gpt-4o-mini · NEVER swap these
 - Brief model = SONNET always — never downgrade briefs to mini
-- Camera icon = inside right of TextInput wrapper, NOT outside the bar
+- Camera icon = inside right of TextInput wrapper, opens Add-to-Chat picker (NOT camera-only)
 - KAV doesn't work in Modals on iOS — use Keyboard listener + shopKbHeight marginBottom instead
 - contextTrigger counter for reliable sheet opening (not just isActive transitions)
-- ← Dashboard pill = onNavigateDashboard() not router.navigate() (fixes FAB + activePage)
 - Receipt scan = single Sonnet call, structured JSON, local cross-check (not general send() pipeline)
 - Receipt tick-off = only if item.created_at < receipt_date (protects re-added items)
 - HEIC → JPEG via expo-image-manipulator before any API call
@@ -262,25 +264,22 @@ Supabase (tutor)     →  tutor_subject_summaries (AI cache, 24hr TTL, NEW sessi
 - Pantry limit = 500 (not 100)
 - recipes table = prep_mins (NOT cook_time), notes (stores ingredients+method as text), tags (array)
 - meal_plans table = NO cook_ids or is_favourite columns. Cooks stored in source field as JSON.
-- kids_jobs table = NEW (family_id, child_name, title, points, source, linked_date, is_complete)
+- kids_jobs table = family_id, child_name, title, points, source, linked_date, is_complete
+- kids_trivia_history table = family_id, child_name, question, correct_answer, was_correct, tier
 - Meal sheet entry = meals_sheet context type (same pattern as shopping_sheet/calendar_sheet)
-- Chat bar clear = setInput('') + inputRef.current?.clear() (native backup)
 - Tutor sessions: expo-router reuses component — must reset ALL state when params change (useEffect on [childId, pillar])
 - Tutor message keys: use incrementing counter (nextMsgId()) not Date.now() — prevents duplicate key errors
 - Unicode escapes (\u00B7 etc) in JSX text must be wrapped in {'·'} expressions — raw escapes show as text
 - Whisper spelling: fixZaeliSpelling() catches xaeli/zeli/zayli etc — add to both index.tsx AND tutor-session.tsx
-- Tutor session summary: generated by Sonnet on session exit (fire-and-forget), saved to tutor_sessions.summary
-- Subject summaries: generated on demand, cached 24hr in tutor_subject_summaries
 - tutor_sessions table has legacy `mode` column (NOT NULL) — must include `mode: pillar` in inserts
-- Kids Hub: 3 games only (Wordle, Trivia, Crossword) — Word Scramble + Maths Sprint removed session 13
-- Our Family parent views: TutorProgressView + SessionReviewView render inside family.tsx (not separate screens)
+- Session 14: Prompt caching requires `anthropic-beta: prompt-caching-2024-07-31` header (auto-added by api-logger when cache_control present)
+- Session 14: MoreSheet onAction callback pattern — parent handles in-swipe-world nav; fallback default does router.navigate for standalone routes
+- Session 14: `_splashShownThisSession` module-level flag prevents splash re-trigger when returning to swipe-world from standalone routes
+- Session 14: MoreSheet contexts must NOT set `returnTo: 'dashboard'` — would trigger legacy "← Dashboard" pill in Chat
 
 ---
 
 **Read CLAUDE.md fully before starting any code work.**
-**For tutor mockup: read zaeli-tutor-final-mockup-v4_1.html + zaeli-tutor-curriculum-map-v1.html**
-**For tutor child home redesign: read zaeli-tutor-child-home-options.html (Option B chosen)**
-**For dashboard build: read zaeli-dashboard-redesign.html first.**
-**For camera/upload build: read zaeli-camera-upload.html first.**
-**For brief system build: read zaeli-brief-examples.html first.**
-**For budget build (when ready): read zaeli-budget-final.html first.**
+**For design HTMLs: `zaeli-splash-options.html` (C chosen), `zaeli-more-sheet-options.html` (1 chosen), `zaeli-chatbar-options.html` (C chosen), `zaeli-fab-options.html` (all killed).**
+**For brief system build: read `zaeli-brief-examples (1).html` first (in Downloads).**
+**For budget build (when ready): read `zaeli-budget-final.html` first.**

@@ -67,6 +67,7 @@ const MORE_SCREENS = [
   { key:'tutor',    label:'Tutor',      color:'#6B35D9', bg:'rgba(107,53,217,0.10)' },
   { key:'kids',     label:'Kids Hub',   color:'#0A8A5A', bg:'rgba(10,138,90,0.10)'  },
   { key:'family',   label:'Our Family', color:'#D4006A', bg:'rgba(212,0,106,0.10)'  },
+  { key:'budget',   label:'Our Budget', color:'#059669', bg:'rgba(5,150,105,0.10)'  },
 ];
 const MORE_SETTINGS = { key:'settings', label:'Settings', color:'#6B7280', bg:'rgba(107,114,128,0.10)' };
 
@@ -263,6 +264,17 @@ function IcoTodos({ color }: { color: string }) {
   );
 }
 
+function IcoBudget({ color }: { color: string }) {
+  return (
+    <Svg width="26" height="26" viewBox="0 0 24 24" fill="none"
+      stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <Circle cx="12" cy="12" r="10"/>
+      <Line x1="12" y1="6" x2="12" y2="18"/>
+      <Path d="M16 9H10.5a2.5 2.5 0 000 5H13a2.5 2.5 0 010 5H8"/>
+    </Svg>
+  );
+}
+
 function MoreIcon({ itemKey, color }: { itemKey: string; color: string }) {
   switch (itemKey) {
     case 'calendar': return <IcoCalendar color={color}/>;
@@ -274,6 +286,7 @@ function MoreIcon({ itemKey, color }: { itemKey: string; color: string }) {
     case 'tutor':    return <IcoTutor color={color}/>;
     case 'kids':     return <IcoKids color={color}/>;
     case 'family':   return <IcoFamily color={color}/>;
+    case 'budget':   return <IcoBudget color={color}/>;
     case 'settings': return <IcoSettings color={color}/>;
     default:         return <IcoNotes color={color}/>;
   }

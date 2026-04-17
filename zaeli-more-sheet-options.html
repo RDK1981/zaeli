@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli — More Sheet Options</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #FAF8F5;
+    --page-bg: #E8E4DE;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.55);
+    --ink3: rgba(10,10,10,0.32);
+    --ink4: rgba(10,10,10,0.15);
+    --border: rgba(10,10,10,0.08);
+    --coral: #FF4545;
+    --sky: #A8D8F0;
+    --lav: #C4B4FF;
+    --peach: #FAC8A8;
+    --slate: #2D3748;
+    --mint: #B8EDD0;
+    --gold: #F0DC80;
+  }
+
+  body {
+    background: var(--page-bg);
+    font-family: 'Poppins', sans-serif;
+    padding: 40px 24px 80px;
+    color: var(--ink);
+  }
+
+  .page-title { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px; }
+  .page-sub { font-size: 13px; color: var(--ink2); line-height: 1.7; max-width: 780px; margin-bottom: 40px; }
+
+  .grid-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 40px 60px; max-width: 1400px; margin: 0 auto; }
+
+  /* Phone column */
+  .phone-col { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+  .phone-tag {
+    font-size: 12px; font-weight: 800;
+    color: #fff;
+    border-radius: 20px;
+    padding: 6px 16px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .tag-1 { background: #1A3A8A; }
+  .tag-2 { background: #5A4200; }
+  .tag-3 { background: #0D5C32; }
+  .tag-4 { background: #6B35D9; }
+
+  .phone-desc {
+    font-size: 12px;
+    color: var(--ink3);
+    text-align: center;
+    max-width: 340px;
+    line-height: 1.6;
+  }
+
+  .phone {
+    width: 340px;
+    background: rgba(30,30,30,0.45);
+    border-radius: 44px;
+    overflow: hidden;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.18);
+    position: relative;
+    height: 700px;
+  }
+
+  /* Dimmed chat visible behind sheet */
+  .chat-behind {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg);
+    opacity: 0.35;
+  }
+  .chat-behind .sb { display: flex; justify-content: space-between; padding: 14px 24px 4px; font-size: 15px; font-weight: 700; color: var(--ink); }
+  .chat-behind .wm { padding: 6px 20px 14px; font-size: 30px; font-weight: 800; color: var(--ink); letter-spacing: -1px; }
+  .chat-behind .wm span { color: var(--lav); }
+
+  /* Sheet */
+  .sheet {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 86%;
+    background: var(--bg);
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .sheet-handle {
+    width: 40px; height: 4px; border-radius: 2px;
+    background: rgba(10,10,10,0.14);
+    margin: 10px auto 6px;
+  }
+  .sheet-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px 14px;
+  }
+  .sheet-title { font-size: 20px; font-weight: 800; color: var(--ink); letter-spacing: -0.3px; }
+  .sheet-close {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.06);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: var(--ink2);
+  }
+
+  .sheet-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 18px 20px;
+  }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--ink3);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin: 14px 0 10px;
+    padding-left: 4px;
+  }
+
+  /* ═════════════════ OPTION 1 — Refined coloured tiles ═════════════════ */
+  .tiles-1 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile-1 {
+    border-radius: 16px;
+    padding: 14px 10px;
+    min-height: 82px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+  }
+  .tile-1 .tile-icon {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 8px;
+  }
+  .tile-1 .tile-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.25;
+  }
+  .tile-1 .tile-caption {
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(0,0,0,0.35);
+    margin-top: 1px;
+  }
+
+  .tile-1.t-camera { background: #FFE8E8; }
+  .tile-1.t-library { background: #E8F4FD; }
+  .tile-1.t-calendar { background: #2D3748; }
+  .tile-1.t-calendar .tile-label { color: #fff; }
+  .tile-1.t-calendar .tile-caption { color: rgba(255,255,255,0.45); }
+  .tile-1.t-shopping { background: #D8CCFF; }
+  .tile-1.t-meals { background: #B8EDD0; }
+  .tile-1.t-todos { background: #F0DC80; }
+  .tile-1.t-notes { background: #FAC8A8; }
+  .tile-1.t-travel { background: #A8D8F0; }
+  .tile-1.t-myspace { background: #E0F3FC; }
+  .tile-1.t-tutor { background: #EDE3FF; }
+  .tile-1.t-kids { background: #D4F5E0; }
+  .tile-1.t-family { background: #FFE0ED; }
+  .tile-1.t-budget { background: #CFEEE1; }
+  .tile-1.t-dashboard { background: #FAC8A8; opacity: 0.7; }
+  .tile-1.t-settings { background: rgba(107,114,128,0.12); }
+
+  /* ═════════════════ OPTION 2 — List rows (iOS Settings-style) ═════════════════ */
+  .list-2 { display: flex; flex-direction: column; background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid rgba(0,0,0,0.05); }
+  .list-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 0.5px solid rgba(0,0,0,0.08);
+  }
+  .list-row:last-child { border-bottom: none; }
+  .list-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .list-label { font-size: 14px; font-weight: 600; color: var(--ink); flex: 1; }
+  .list-chev { color: rgba(0,0,0,0.22); font-size: 18px; }
+
+  /* ═════════════════ OPTION 3 — Minimal circles (Apple-style) ═════════════════ */
+  .circles-3 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 4px; padding: 4px 0; }
+  .circle-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .circle-3 {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  }
+  .circle-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink);
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  .circle-3.c-camera { background: #FFE8E8; }
+  .circle-3.c-library { background: #E8F4FD; }
+  .circle-3.c-calendar { background: #2D3748; }
+  .circle-3.c-shopping { background: #D8CCFF; }
+  .circle-3.c-meals { background: #B8EDD0; }
+  .circle-3.c-todos { background: #F0DC80; }
+  .circle-3.c-notes { background: #FAC8A8; }
+  .circle-3.c-travel { background: #A8D8F0; }
+  .circle-3.c-myspace { background: #E0F3FC; }
+  .circle-3.c-tutor { background: #EDE3FF; }
+  .circle-3.c-kids { background: #D4F5E0; }
+  .circle-3.c-family { background: #FFE0ED; }
+  .circle-3.c-budget { background: #CFEEE1; }
+  .circle-3.c-dashboard { background: #FAC8A8; }
+  .circle-3.c-settings { background: rgba(107,114,128,0.15); }
+
+  /* ═════════════════ OPTION 4 — Bento mix ═════════════════ */
+  .bento-4 { display: flex; flex-direction: column; gap: 8px; }
+
+  .bento-hero {
+    background: linear-gradient(135deg, #C4B4FF 0%, #A890FF 100%);
+    border-radius: 18px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .bento-hero-icon {
+    width: 40px; height: 40px;
+    background: rgba(255,255,255,0.35);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .bento-hero-text { flex: 1; }
+  .bento-hero-title { font-size: 14px; font-weight: 800; color: #fff; }
+  .bento-hero-sub { font-size: 11px; color: rgba(255,255,255,0.85); margin-top: 2px; }
+
+  .bento-upload-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .bento-upload {
+    background: #fff;
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  .bento-upload-icon {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .bento-upload-icon.cam { background: #FFE8E8; }
+  .bento-upload-icon.lib { background: #E8F4FD; }
+  .bento-upload-label { font-size: 12px; font-weight: 700; color: var(--ink); }
+
+  .bento-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .bento-tile {
+    border-radius: 14px;
+    padding: 12px 14px;
+    min-height: 70px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+  }
+  .bento-tile .tile-icon-row { display: flex; justify-content: space-between; align-items: flex-start; }
+  .bento-tile .tile-icon-b {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.5);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .bento-tile .tile-label-b { font-size: 13px; font-weight: 800; color: var(--ink); margin-top: 8px; }
+  .bento-tile .tile-caption-b { font-size: 10px; font-weight: 500; color: rgba(0,0,0,0.42); margin-top: 1px; }
+  .bento-tile.b-tutor { background: #EDE3FF; }
+  .bento-tile.b-kids { background: #D4F5E0; }
+  .bento-tile.b-family { background: #FFE0ED; }
+  .bento-tile.b-budget { background: #CFEEE1; }
+
+  .bento-small-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .bento-small {
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+  .bento-small-dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .bento-small-label { font-size: 10px; font-weight: 700; color: var(--ink); text-align: center; }
+
+  .bento-footer { display: flex; gap: 8px; margin-top: 6px; }
+  .bento-footer-btn {
+    flex: 1;
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+
+  /* Notes */
+  .notes {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 340px;
+  }
+  .note-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 16px 18px;
+    border: 0.5px solid rgba(0,0,0,0.07);
+  }
+  .note-card h3 { font-size: 14px; font-weight: 800; margin-bottom: 3px; }
+  .note-card .note-sub { font-size: 10px; font-weight: 700; color: var(--ink3); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 10px; }
+  .note-card p { font-size: 12px; color: var(--ink2); line-height: 1.65; margin-bottom: 8px; }
+  .note-card p:last-child { margin-bottom: 0; }
+
+  .pros, .cons { padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; }
+  .pros { background: #EDFBF4; }
+  .cons { background: #FFF0F0; }
+  .pros-label, .cons-label { font-size: 9px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 4px; }
+  .pros-label { color: #0D5C32; }
+  .cons-label { color: #9B1C1C; }
+  .pros p, .cons p { font-size: 11px; line-height: 1.5; margin-bottom: 3px; }
+  .pros p { color: #0D5C32; }
+  .cons p { color: #9B1C1C; }
+
+  .summary-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 28px 30px;
+    max-width: 1100px;
+    border: 0.5px solid rgba(0,0,0,0.07);
+    margin: 48px auto 24px;
+  }
+  .summary-card h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+  .summary-card p { font-size: 13px; color: var(--ink2); line-height: 1.7; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="page-title">Zaeli — More Sheet Options</div>
+<div class="page-sub">Four design directions for the More sheet that opens from the hamburger top-right. Each shows the full sheet at 86% height with dimmed chat behind. Same content in each — only the layout & visual language differs.</div>
+
+
+<div class="grid-4">
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- OPTION 1 — Refined coloured tiles                                         -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div>
+    <div class="phone-col">
+      <div class="phone-tag tag-1">Option 1 · Refined coloured tiles</div>
+      <div class="phone-desc">Soft coloured tiles in a tight 3-column grid. Every module wears its identity colour. Familiar from Dashboard cards.</div>
+      <div class="phone">
+        <div class="chat-behind">
+          <div class="sb"><span>12:49</span><span style="opacity:0.5;">••</span></div>
+          <div class="wm">z<span>a</span>el<span>i</span></div>
+        </div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-header">
+            <div class="sheet-title">More</div>
+            <div class="sheet-close">×</div>
+          </div>
+          <div class="sheet-scroll">
+            <div class="section-label">UPLOAD</div>
+            <div class="tiles-1" style="grid-template-columns: repeat(2,1fr);">
+              <div class="tile-1 t-camera">
+                <div class="tile-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </div>
+                <div><div class="tile-label">Take photo</div><div class="tile-caption">Share with Zaeli</div></div>
+              </div>
+              <div class="tile-1 t-library">
+                <div class="tile-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5BA4D4" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+                </div>
+                <div><div class="tile-label">Photo library</div><div class="tile-caption">Choose a photo</div></div>
+              </div>
+            </div>
+
+            <div class="section-label">FAMILY CHANNELS</div>
+            <div class="tiles-1">
+              <div class="tile-1 t-calendar">
+                <div class="tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#CBD5E0" stroke-width="1.7"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                <div class="tile-label">Calendar</div>
+              </div>
+              <div class="tile-1 t-shopping">
+                <div class="tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5020C0" stroke-width="1.7"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg></div>
+                <div class="tile-label">Shopping</div>
+              </div>
+              <div class="tile-1 t-meals">
+                <div class="tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2D7A52" stroke-width="1.7"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/></svg></div>
+                <div class="tile-label">Meals</div>
+              </div>
+              <div class="tile-1 t-todos">
+                <div class="tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8B6914" stroke-width="1.7"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+                <div class="tile-label">On the Radar</div>
+              </div>
+              <div class="tile-1 t-notes">
+                <div class="tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A3A00" stroke-width="1.7"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+                <div class="tile-label">Notes</div>
+              </div>
+              <div class="tile-1 t-travel">
+                <div class="tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0096C7" stroke-width="1.7"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+                <div class="tile-label">Travel</div>
+              </div>
+            </div>
+
+            <div class="section-label">PERSONAL</div>
+            <div class="tiles-1" style="grid-template-columns: 1fr;">
+              <div class="tile-1 t-myspace" style="min-height: 60px; flex-direction:row; align-items:center; gap:12px; padding: 14px 16px;">
+                <div class="tile-icon" style="margin:0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0A4A6A" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg></div>
+                <div><div class="tile-label">My Space</div><div class="tile-caption">Personal zone</div></div>
+              </div>
+            </div>
+
+            <div class="section-label">MODULES</div>
+            <div class="tiles-1" style="grid-template-columns: repeat(2,1fr);">
+              <div class="tile-1 t-tutor">
+                <div class="tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B35D9" stroke-width="1.7"><path d="M2 3h20v14H2z"/><path d="M8 21h8M12 17v4"/></svg></div>
+                <div class="tile-label">Tutor</div>
+              </div>
+              <div class="tile-1 t-kids">
+                <div class="tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0A8A5A" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg></div>
+                <div class="tile-label">Kids Hub</div>
+              </div>
+              <div class="tile-1 t-family">
+                <div class="tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D4006A" stroke-width="1.7"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
+                <div class="tile-label">Our Family</div>
+              </div>
+              <div class="tile-1 t-budget">
+                <div class="tile-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><path d="M16 9H10.5a2.5 2.5 0 000 5H13a2.5 2.5 0 010 5H8"/></svg></div>
+                <div class="tile-label">Our Budget</div>
+              </div>
+            </div>
+
+            <div class="section-label">NAVIGATION</div>
+            <div class="tiles-1" style="grid-template-columns: 1fr 1fr;">
+              <div class="tile-1 t-dashboard" style="min-height: 60px; flex-direction:row; align-items:center; gap:10px; padding:12px 14px;">
+                <div class="tile-icon" style="margin:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A3A00" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+                <div class="tile-label">Dashboard</div>
+              </div>
+              <div class="tile-1 t-settings" style="min-height: 60px; flex-direction:row; align-items:center; gap:10px; padding:12px 14px;">
+                <div class="tile-icon" style="margin:0;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>
+                <div class="tile-label">Settings</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <div class="note-card">
+          <h3>Option 1 — Refined coloured tiles</h3>
+          <div class="note-sub">Matches Dashboard card language</div>
+          <div class="pros">
+            <div class="pros-label">Pros</div>
+            <p>→ Each module wears its identity colour — strong visual recognition</p>
+            <p>→ Matches Dashboard card design exactly</p>
+            <p>→ Scannable, 3-col grid fits a lot in short space</p>
+          </div>
+          <div class="cons">
+            <div class="cons-label">Cons</div>
+            <p>→ Very colourful — can feel busy</p>
+            <p>→ Lots of sections/labels — dense</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- OPTION 2 — List rows (iOS Settings)                                       -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div>
+    <div class="phone-col">
+      <div class="phone-tag tag-2">Option 2 · Clean list rows</div>
+      <div class="phone-desc">Vertical list grouped by section. Small coloured icon squares, clear labels, subtle chevrons. iOS-Settings familiar.</div>
+      <div class="phone">
+        <div class="chat-behind">
+          <div class="sb"><span>12:49</span><span style="opacity:0.5;">••</span></div>
+          <div class="wm">z<span>a</span>el<span>i</span></div>
+        </div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-header">
+            <div class="sheet-title">More</div>
+            <div class="sheet-close">×</div>
+          </div>
+          <div class="sheet-scroll">
+            <div class="section-label">UPLOAD</div>
+            <div class="list-2">
+              <div class="list-row">
+                <div class="list-icon" style="background:#FFE8E8;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+                <div class="list-label">Take photo</div>
+                <div class="list-chev">›</div>
+              </div>
+              <div class="list-row">
+                <div class="list-icon" style="background:#E8F4FD;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5BA4D4" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></div>
+                <div class="list-label">Choose from library</div>
+                <div class="list-chev">›</div>
+              </div>
+            </div>
+
+            <div class="section-label">FAMILY CHANNELS</div>
+            <div class="list-2">
+              <div class="list-row">
+                <div class="list-icon" style="background:#2D3748;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CBD5E0" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                <div class="list-label">Calendar</div>
+                <div class="list-chev">›</div>
+              </div>
+              <div class="list-row">
+                <div class="list-icon" style="background:#D8CCFF;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5020C0" stroke-width="1.8"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/></svg></div>
+                <div class="list-label">Shopping</div>
+                <div class="list-chev">›</div>
+              </div>
+              <div class="list-row">
+                <div class="list-icon" style="background:#B8EDD0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2D7A52" stroke-width="1.8"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/></svg></div>
+                <div class="list-label">Meals</div>
+                <div class="list-chev">›</div>
+              </div>
+              <div class="list-row">
+                <div class="list-icon" style="background:#F0DC80;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B6914" stroke-width="1.8"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+                <div class="list-label">On the Radar</div>
+                <div class="list-chev">›</div>
+              </div>
+              <div class="list-row">
+                <div class="list-icon" style="background:#FAC8A8;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A3A00" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg></div>
+                <div class="list-label">Notes</div>
+                <div class="list-chev">›</div>
+              </div>
+              <div class="list-row">
+                <div class="list-icon" style="background:#A8D8F0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0096C7" stroke-width="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/></svg></div>
+                <div class="list-label">Travel</div>
+                <div class="list-chev">›</div>
+              </div>
+            </div>
+
+            <div class="section-label">PERSONAL</div>
+            <div class="list-2">
+              <div class="list-row">
+                <div class="list-icon" style="background:#E0F3FC;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A4A6A" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg></div>
+                <div class="list-label">My Space</div>
+                <div class="list-chev">›</div>
+              </div>
+            </div>
+
+            <div class="section-label">MODULES</div>
+            <div class="list-2">
+              <div class="list-row">
+                <div class="list-icon" style="background:#EDE3FF;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B35D9" stroke-width="1.8"><path d="M2 3h20v14H2z"/><path d="M8 21h8M12 17v4"/></svg></div>
+                <div class="list-label">Tutor</div>
+                <div class="list-chev">›</div>
+              </div>
+              <div class="list-row">
+                <div class="list-icon" style="background:#D4F5E0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A8A5A" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg></div>
+                <div class="list-label">Kids Hub</div>
+                <div class="list-chev">›</div>
+              </div>
+              <div class="list-row">
+                <div class="list-icon" style="background:#FFE0ED;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D4006A" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
+                <div class="list-label">Our Family</div>
+                <div class="list-chev">›</div>
+              </div>
+              <div class="list-row">
+                <div class="list-icon" style="background:#CFEEE1;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/></svg></div>
+                <div class="list-label">Our Budget</div>
+                <div class="list-chev">›</div>
+              </div>
+            </div>
+
+            <div class="section-label">NAVIGATION</div>
+            <div class="list-2">
+              <div class="list-row">
+                <div class="list-icon" style="background:#FAC8A8;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A3A00" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+                <div class="list-label">Dashboard</div>
+                <div class="list-chev">›</div>
+              </div>
+              <div class="list-row">
+                <div class="list-icon" style="background:rgba(107,114,128,0.15);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg></div>
+                <div class="list-label">Settings</div>
+                <div class="list-chev">›</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <div class="note-card">
+          <h3>Option 2 — Clean list rows</h3>
+          <div class="note-sub">iOS Settings pattern</div>
+          <div class="pros">
+            <div class="pros-label">Pros</div>
+            <p>→ Extremely familiar — zero learning curve</p>
+            <p>→ Big tap targets — good for larger text users</p>
+            <p>→ Easy to add new items without breaking the design</p>
+            <p>→ Colour squares still give identity without overwhelming</p>
+          </div>
+          <div class="cons">
+            <div class="cons-label">Cons</div>
+            <p>→ Feels "generic app" not "Zaeli" — least visually distinctive</p>
+            <p>→ Takes more vertical space — more scrolling</p>
+            <p>→ Doesn't feel like a warm family app</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- OPTION 3 — Minimal circles (Apple-style)                                  -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div>
+    <div class="phone-col">
+      <div class="phone-tag tag-3">Option 3 · Minimal circles</div>
+      <div class="phone-desc">Circular icons with labels below — iOS share sheet / home screen vibe. 4-column grid. Light, breathable, modern.</div>
+      <div class="phone">
+        <div class="chat-behind">
+          <div class="sb"><span>12:49</span><span style="opacity:0.5;">••</span></div>
+          <div class="wm">z<span>a</span>el<span>i</span></div>
+        </div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-header">
+            <div class="sheet-title">More</div>
+            <div class="sheet-close">×</div>
+          </div>
+          <div class="sheet-scroll">
+            <div class="section-label">SHARE WITH ZAELI</div>
+            <div class="circles-3" style="grid-template-columns: repeat(2, 1fr); gap: 8px;">
+              <div style="background: #fff; border-radius: 14px; padding: 14px; display: flex; align-items: center; gap: 12px; border: 1px solid rgba(0,0,0,0.06);">
+                <div class="circle-3 c-camera" style="width: 40px; height: 40px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+                <div style="font-size: 12px; font-weight: 700; color: var(--ink);">Take photo</div>
+              </div>
+              <div style="background: #fff; border-radius: 14px; padding: 14px; display: flex; align-items: center; gap: 12px; border: 1px solid rgba(0,0,0,0.06);">
+                <div class="circle-3 c-library" style="width: 40px; height: 40px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5BA4D4" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></div>
+                <div style="font-size: 12px; font-weight: 700; color: var(--ink);">Photo library</div>
+              </div>
+            </div>
+
+            <div class="section-label">FAMILY CHANNELS</div>
+            <div class="circles-3">
+              <div class="circle-item">
+                <div class="circle-3 c-calendar"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#CBD5E0" stroke-width="1.7"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                <div class="circle-label">Calendar</div>
+              </div>
+              <div class="circle-item">
+                <div class="circle-3 c-shopping"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5020C0" stroke-width="1.7"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg></div>
+                <div class="circle-label">Shopping</div>
+              </div>
+              <div class="circle-item">
+                <div class="circle-3 c-meals"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2D7A52" stroke-width="1.7"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/></svg></div>
+                <div class="circle-label">Meals</div>
+              </div>
+              <div class="circle-item">
+                <div class="circle-3 c-todos"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8B6914" stroke-width="1.7"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+                <div class="circle-label">On the Radar</div>
+              </div>
+              <div class="circle-item">
+                <div class="circle-3 c-notes"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8A3A00" stroke-width="1.7"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+                <div class="circle-label">Notes</div>
+              </div>
+              <div class="circle-item">
+                <div class="circle-3 c-travel"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0096C7" stroke-width="1.7"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+                <div class="circle-label">Travel</div>
+              </div>
+            </div>
+
+            <div class="section-label">MODULES</div>
+            <div class="circles-3">
+              <div class="circle-item">
+                <div class="circle-3 c-myspace"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0A4A6A" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg></div>
+                <div class="circle-label">My Space</div>
+              </div>
+              <div class="circle-item">
+                <div class="circle-3 c-tutor"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B35D9" stroke-width="1.7"><path d="M2 3h20v14H2z"/><path d="M8 21h8M12 17v4"/></svg></div>
+                <div class="circle-label">Tutor</div>
+              </div>
+              <div class="circle-item">
+                <div class="circle-3 c-kids"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0A8A5A" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg></div>
+                <div class="circle-label">Kids Hub</div>
+              </div>
+              <div class="circle-item">
+                <div class="circle-3 c-family"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D4006A" stroke-width="1.7"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
+                <div class="circle-label">Our Family</div>
+              </div>
+              <div class="circle-item">
+                <div class="circle-3 c-budget"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/></svg></div>
+                <div class="circle-label">Our Budget</div>
+              </div>
+              <div class="circle-item">
+                <div class="circle-3 c-dashboard"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8A3A00" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+                <div class="circle-label">Dashboard</div>
+              </div>
+            </div>
+
+            <div class="section-label">&nbsp;</div>
+            <div style="background: #fff; border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; border: 1px solid rgba(0,0,0,0.06);">
+              <div class="circle-3 c-settings" style="width: 36px; height: 36px; box-shadow: none;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg></div>
+              <div style="font-size: 13px; font-weight: 700; color: var(--ink);">Settings</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <div class="note-card">
+          <h3>Option 3 — Minimal circles</h3>
+          <div class="note-sub">iOS home screen / share sheet</div>
+          <div class="pros">
+            <div class="pros-label">Pros</div>
+            <p>→ Breathable, modern, feels premium</p>
+            <p>→ 4-column packs more into less scroll</p>
+            <p>→ Circular icons are soft & friendly</p>
+            <p>→ Excellent visual rhythm</p>
+          </div>
+          <div class="cons">
+            <div class="cons-label">Cons</div>
+            <p>→ Circles are smaller than tiles — harder to tap accurately</p>
+            <p>→ Labels below circles = more to read</p>
+            <p>→ Less bold identity per module than tile layout</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- OPTION 4 — Bento mix (Zaeli signature)                                    -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div>
+    <div class="phone-col">
+      <div class="phone-tag tag-4">Option 4 · Bento mix</div>
+      <div class="phone-desc">Featured "Ask Zaeli" hero at top, upload duo, 2×2 module tiles, smaller family channels, footer rows. Mixed sizing = Zaeli-native.</div>
+      <div class="phone">
+        <div class="chat-behind">
+          <div class="sb"><span>12:49</span><span style="opacity:0.5;">••</span></div>
+          <div class="wm">z<span>a</span>el<span>i</span></div>
+        </div>
+        <div class="sheet">
+          <div class="sheet-handle"></div>
+          <div class="sheet-header">
+            <div class="sheet-title">More</div>
+            <div class="sheet-close">×</div>
+          </div>
+          <div class="sheet-scroll">
+            <div class="bento-4">
+
+              <!-- Hero — Ask Zaeli about anything -->
+              <div class="bento-hero">
+                <div class="bento-hero-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2L13.8 8.2L20 10L13.8 11.8L12 18L10.2 11.8L4 10L10.2 8.2L12 2Z" fill="#fff"/></svg>
+                </div>
+                <div class="bento-hero-text">
+                  <div class="bento-hero-title">Go to Zaeli</div>
+                  <div class="bento-hero-sub">Ask anything, share a photo, get help</div>
+                </div>
+              </div>
+
+              <!-- Upload duo -->
+              <div class="bento-upload-row">
+                <div class="bento-upload">
+                  <div class="bento-upload-icon cam"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+                  <div class="bento-upload-label">Take photo</div>
+                </div>
+                <div class="bento-upload">
+                  <div class="bento-upload-icon lib"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5BA4D4" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg></div>
+                  <div class="bento-upload-label">Library</div>
+                </div>
+              </div>
+
+              <!-- Modules: 2x2 larger tiles -->
+              <div class="section-label" style="margin-top:8px;">MODULES</div>
+              <div class="bento-grid">
+                <div class="bento-tile b-tutor">
+                  <div class="tile-icon-row">
+                    <div class="tile-icon-b"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B35D9" stroke-width="1.7"><path d="M2 3h20v14H2z"/></svg></div>
+                  </div>
+                  <div>
+                    <div class="tile-label-b">Tutor</div>
+                    <div class="tile-caption-b">ACARA · Year 4-12</div>
+                  </div>
+                </div>
+                <div class="bento-tile b-kids">
+                  <div class="tile-icon-row">
+                    <div class="tile-icon-b"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A8A5A" stroke-width="1.7"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/></svg></div>
+                  </div>
+                  <div>
+                    <div class="tile-label-b">Kids Hub</div>
+                    <div class="tile-caption-b">Jobs · games · rewards</div>
+                  </div>
+                </div>
+                <div class="bento-tile b-family">
+                  <div class="tile-icon-row">
+                    <div class="tile-icon-b"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D4006A" stroke-width="1.7"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div>
+                  </div>
+                  <div>
+                    <div class="tile-label-b">Our Family</div>
+                    <div class="tile-caption-b">Members & approvals</div>
+                  </div>
+                </div>
+                <div class="bento-tile b-budget">
+                  <div class="tile-icon-row">
+                    <div class="tile-icon-b"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/></svg></div>
+                  </div>
+                  <div>
+                    <div class="tile-label-b">Our Budget</div>
+                    <div class="tile-caption-b">Coming soon</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Family channels: small 3-col -->
+              <div class="section-label" style="margin-top:8px;">FAMILY CHANNELS</div>
+              <div class="bento-small-grid">
+                <div class="bento-small">
+                  <div class="bento-small-dot" style="background:#2D3748;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#CBD5E0" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                  <div class="bento-small-label">Calendar</div>
+                </div>
+                <div class="bento-small">
+                  <div class="bento-small-dot" style="background:#D8CCFF;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5020C0" stroke-width="1.8"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/></svg></div>
+                  <div class="bento-small-label">Shopping</div>
+                </div>
+                <div class="bento-small">
+                  <div class="bento-small-dot" style="background:#B8EDD0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2D7A52" stroke-width="1.8"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/></svg></div>
+                  <div class="bento-small-label">Meals</div>
+                </div>
+                <div class="bento-small">
+                  <div class="bento-small-dot" style="background:#F0DC80;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8B6914" stroke-width="1.8"><polyline points="9 11 12 14 22 4"/></svg></div>
+                  <div class="bento-small-label">Radar</div>
+                </div>
+                <div class="bento-small">
+                  <div class="bento-small-dot" style="background:#FAC8A8;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A3A00" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg></div>
+                  <div class="bento-small-label">Notes</div>
+                </div>
+                <div class="bento-small">
+                  <div class="bento-small-dot" style="background:#A8D8F0;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0096C7" stroke-width="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/></svg></div>
+                  <div class="bento-small-label">Travel</div>
+                </div>
+              </div>
+
+              <!-- Footer: My Space + Dashboard + Settings -->
+              <div class="section-label" style="margin-top:8px;">QUICK LINKS</div>
+              <div class="bento-footer">
+                <div class="bento-footer-btn">
+                  <div class="bento-upload-icon" style="background:#E0F3FC;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0A4A6A" stroke-width="1.8"><circle cx="12" cy="12" r="10"/></svg></div>
+                  <div class="bento-upload-label" style="font-size:11px;">My Space</div>
+                </div>
+                <div class="bento-footer-btn">
+                  <div class="bento-upload-icon" style="background:#FAC8A8;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8A3A00" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+                  <div class="bento-upload-label" style="font-size:11px;">Dashboard</div>
+                </div>
+                <div class="bento-footer-btn">
+                  <div class="bento-upload-icon" style="background:rgba(107,114,128,0.15);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg></div>
+                  <div class="bento-upload-label" style="font-size:11px;">Settings</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="notes">
+        <div class="note-card">
+          <h3>Option 4 — Bento mix</h3>
+          <div class="note-sub">Zaeli-signature, premium feel</div>
+          <div class="pros">
+            <div class="pros-label">Pros</div>
+            <p>→ Visually rich — genuinely feels like Zaeli, not a generic menu</p>
+            <p>→ Hero "Go to Zaeli" gradient pulls Chat as the magnetic centre</p>
+            <p>→ Module tiles have captions — more informative</p>
+            <p>→ Mixed sizing creates hierarchy (modules > channels > links)</p>
+          </div>
+          <div class="cons">
+            <div class="cons-label">Cons</div>
+            <p>→ Most complex to build & maintain</p>
+            <p>→ More visual weight — less breathable</p>
+            <p>→ Hero tile uses lavender gradient, risks clash with chat identity</p>
+            <p>→ Longer scroll than Option 3</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+</div>
+
+
+<div class="summary-card">
+  <h2>My honest take</h2>
+  <p><strong>Option 3 (Minimal circles)</strong> is where I'd land. It has the most premium, breathable feel — and the 4-column grid lets everything fit without as much scrolling as rows. The soft pastel circles match Zaeli's warm family-app identity without being busy. The "Share with Zaeli" top section (two horizontal tiles with labels) also gives the upload options the weight they deserve.</p>
+  <p><strong>Option 4 (Bento mix)</strong> is a strong second if you want something more distinctive. The "Go to Zaeli" gradient hero is genuinely unique, and module captions add context. Trade-off: more complex, more visual weight.</p>
+  <p><strong>Option 1 (Refined tiles)</strong> works but risks feeling like a duplicate of the Dashboard. Option 2 is safe but generic — wouldn't recommend unless we really want an iOS-Settings vibe.</p>
+  <p style="margin-top:14px; padding-top:14px; border-top: 0.5px solid rgba(0,0,0,0.08);"><strong>Pick one and we'll refine further</strong> — I'd happily iterate on the winner (tighten spacing, tweak icons, finalise what goes into each section). We can also mix ideas across options if a specific element from one catches your eye.</p>
+</div>
+
+</body>
+</html>

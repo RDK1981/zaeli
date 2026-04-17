@@ -4,13 +4,15 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'expo-router';
+import MoreSheet from '../components/MoreSheet';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal, Share, Linking,
   StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Polygon, Rect, Line, Path, Circle } from 'react-native-svg';
-import { setPendingChatContext } from '../../lib/navigation-store';
+import Svg, { Polygon, Polyline, Rect, Line, Path, Circle } from 'react-native-svg';
+import { setPendingChatContext, getPendingChatContext, clearPendingChatContext } from '../../lib/navigation-store';
 import { supabase } from '../../lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import { ANSWER_WORDS, VALID_WORDS, getTodayWord, getTileStates, ZAELI_WIN_REACTIONS, ZAELI_LOSE_REACTIONS, KB_ROWS } from './wordle-data';
@@ -164,13 +166,21 @@ const ZEN_TRACKS = [
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () => void } = {}) {
+export default function MySpaceScreen({ onNavigateChat, isActive = true, contextTrigger = 0 }: { onNavigateChat?: () => void; isActive?: boolean; contextTrigger?: number } = {}) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [moreOpen, setMoreOpen] = useState(false);
+  function goBack() {
+    if (router.canGoBack()) router.back();
+    else router.navigate('/(tabs)/swipe-world' as any);
+  }
 
   // Inline expand
   const [expanded, setExpanded] = useState<string | null>(null);
   // Sheet open — null | 'goals' | 'goal-detail' | 'goal-new' | 'notes' | 'wordle'
   const [sheet, setSheet]       = useState<string | null>(null);
+  // Initial tab for Notes & Tasks sheet (when opened from On the Radar)
+  const [notesInitialTab, setNotesInitialTab] = useState<'notes' | 'tasks'>('notes');
   // Which goal is open in detail sheet
   const [activeGoal, setActiveGoal] = useState<string | null>(null);
   // Zen playing track
@@ -192,6 +202,18 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
     loadTasks();
     loadGoals();
   }, []);
+
+  // Check for pending navigation context when My Space becomes active
+  // Triggered by contextTrigger counter bumps from swipe-world
+  useEffect(() => {
+    if (!isActive) return;
+    const ctx = getPendingChatContext();
+    if (ctx.type === 'notes_tasks_sheet') {
+      setNotesInitialTab(ctx.tab === 'tasks' ? 'tasks' : 'notes');
+      setSheet('notes');
+      clearPendingChatContext();
+    }
+  }, [isActive, contextTrigger]);
 
   async function loadNotes() {
     try {
@@ -359,10 +381,26 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
     <View style={[s.root, { paddingTop: insets.top }]}>
       {/* ── Fixed Header ── */}
       <View style={s.hdr}>
-        <Text style={s.logo}>
-          z<Text style={s.logoAi}>a</Text>el<Text style={s.logoAi}>i</Text>
-        </Text>
-        <Text style={s.pageLabel}>My Space</Text>
+        <View style={s.hdrLeft}>
+          <TouchableOpacity onPress={goBack} activeOpacity={0.7} style={s.backBtn}>
+            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+              <Polyline points="15 18 9 12 15 6" />
+            </Svg>
+          </TouchableOpacity>
+          <Text style={s.logo}>
+            z<Text style={s.logoAi}>a</Text>el<Text style={s.logoAi}>i</Text>
+          </Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={s.pageLabel}>My Space</Text>
+          <TouchableOpacity onPress={() => setMoreOpen(true)} activeOpacity={0.7} style={s.hamburgerBtn}>
+            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth={2.2} strokeLinecap="round">
+              <Line x1={4} y1={6} x2={20} y2={6}/>
+              <Line x1={4} y1={12} x2={20} y2={12}/>
+              <Line x1={4} y1={18} x2={20} y2={18}/>
+            </Svg>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -427,6 +465,7 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
       {/* ── 92% Sheets ── */}
       <NotesSheet
         visible={sheet === 'notes'}
+        initialTab={notesInitialTab}
         onClose={closeSheet}
         notes={notes}
         tasks={tasks}
@@ -465,6 +504,9 @@ export default function MySpaceScreen({ onNavigateChat }: { onNavigateChat?: () 
       {/* Budget removed — lives on Dashboard now */}
       <StretchSheet visible={sheet === 'stretch'} onClose={closeSheet} />
       <ZenSheet visible={sheet === 'zen'} onClose={closeSheet} />
+
+      {/* MORE SHEET */}
+      <MoreSheet visible={moreOpen} onClose={() => setMoreOpen(false)} />
     </View>
   );
 }
@@ -1711,15 +1753,18 @@ function GoalDetailInline({ goal, onBack, onUpdate, onDelete }: {
 
 // ─── Notes Sheet ──────────────────────────────────────────────────────────────
 
-function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, onAddTask, onToggleTask, onDeleteTask, editingNote, onEditorClose, onEditorSave, onEditorDelete }: {
+function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, onAddTask, onToggleTask, onDeleteTask, editingNote, onEditorClose, onEditorSave, onEditorDelete, initialTab = 'notes' }: {
   visible: boolean; onClose: () => void;
   notes: NoteItem[]; tasks: { id:string; title:string; due_date:string|null; is_complete:boolean; linked_note_id:string|null; completed_at:string|null }[];
   onEdit: (n: NoteItem) => void; onNew: () => void; onDelete: (id: string) => void;
   onAddTask: (title:string, due?:string) => void; onToggleTask: (id:string) => void; onDeleteTask: (id:string) => void;
   editingNote: NoteItem | null; onEditorClose: () => void;
   onEditorSave: (n: NoteItem) => void; onEditorDelete: (id: string) => void;
+  initialTab?: 'notes' | 'tasks';
 }) {
-  const [activeTab, setActiveTab] = useState<'notes'|'tasks'>('notes');
+  const [activeTab, setActiveTab] = useState<'notes'|'tasks'>(initialTab);
+  // Sync to initialTab when the sheet opens (so Dashboard's "View full list" opens Tasks tab)
+  useEffect(() => { if (visible) setActiveTab(initialTab); }, [visible, initialTab]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string|null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDue, setNewTaskDue] = useState('');
@@ -2453,6 +2498,9 @@ const s = StyleSheet.create({
 
   // Header
   hdr:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 10, paddingTop: 4, borderBottomWidth: 1, borderBottomColor: 'rgba(10,10,10,0.08)' },
+  hdrLeft:   { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  backBtn:   { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' },
+  hamburgerBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' },
   logo:      { fontFamily: 'Poppins_800ExtraBold', fontSize: 40, color: '#0A0A0A', letterSpacing: -1.5, lineHeight: 46 },
   logoAi:    { color: '#A8D8F0' },
   pageLabel: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: 'rgba(10,10,10,0.32)' },

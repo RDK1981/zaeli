@@ -181,13 +181,16 @@ export default function TutorScreen() {
     <View style={[s.safe, { paddingTop: insets.top }]}>
       <RNStatusBar barStyle="dark-content" />
 
-      {/* ── Banner — matches Kids Hub exactly ── */}
+      {/* ── Banner — matches My Space: back arrow + wordmark ── */}
       <View style={s.banner}>
-        <TouchableOpacity onPress={() => router.navigate('/(tabs)/')} activeOpacity={0.7}>
+        <View style={s.bannerLeft}>
+          <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.navigate('/(tabs)/' as any); }} activeOpacity={0.7} style={s.backBtn}>
+            <IcoBack size={18} color={INK} />
+          </TouchableOpacity>
           <Text style={s.wordmark}>
             {'z'}<Text style={{ color: MINT }}>{'a'}</Text>{'el'}<Text style={{ color: MINT }}>{'i'}</Text>
           </Text>
-        </TouchableOpacity>
+        </View>
         <Text style={s.bannerLabel}>Tutor</Text>
       </View>
       <View style={s.divider} />
@@ -309,6 +312,8 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: LAV,
   },
+  bannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  backBtn:    { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' },
   wordmark: {
     fontFamily: 'Poppins_800ExtraBold',
     fontSize: 40,

@@ -18,6 +18,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, KeyboardAvoidingView, Platform, StatusBar as RNStatusBar,
   ActivityIndicator, Dimensions, Keyboard, ActionSheetIOS, Alert,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -288,6 +289,9 @@ export default function TutorSessionScreen() {
   const [totalQuestions, setTotalQuestions] = useState(6);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [hintLevel, setHintLevel] = useState(0);
+  const [difficultyBand, setDifficultyBand] = useState<'foundation' | 'core' | 'extension'>('foundation');
+  const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
+  const [consecutiveWrong, setConsecutiveWrong] = useState(0);
   const [timer, setTimer] = useState(0);
   const [conversationHistory, setConversationHistory] = useState<{ role: string; content: string }[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -298,6 +302,9 @@ export default function TutorSessionScreen() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const micTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const waveAnims = useRef(Array.from({ length: 7 }, () => new Animated.Value(0.3))).current;
+  const waveLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const micOverlayAnim = useRef(new Animated.Value(0)).current;
   const msgIdRef = useRef(0);
   function nextMsgId() { msgIdRef.current += 1; return `msg-${childId}-${pillar}-${msgIdRef.current}`; }
 
@@ -319,6 +326,9 @@ export default function TutorSessionScreen() {
     setTotalQuestions(6);
     setHintsUsed(0);
     setHintLevel(0);
+    setDifficultyBand('foundation');
+    setConsecutiveCorrect(0);
+    setConsecutiveWrong(0);
     setTimer(0);
     setConversationHistory([]);
 
@@ -342,6 +352,11 @@ export default function TutorSessionScreen() {
   const timerStr = `${String(Math.floor(timer / 60)).padStart(2, '0')}:${String(timer % 60).padStart(2, '0')}`;
 
   async function sendInitialMessage() {
+    // Load prior difficulty band from tutor_progress (if exists for this child+subject)
+    // Note: subject isn't selected yet at session start for Practice pillar,
+    // so we'll reload the band when subject is chosen (in sendMessage chip handler)
+    let startBand: 'foundation' | 'core' | 'extension' = 'foundation';
+
     // Create session in Supabase
     try {
       const { data, error } = await supabase
@@ -352,7 +367,7 @@ export default function TutorSessionScreen() {
           pillar,
           mode: pillar,
           status: 'active',
-          difficulty_band: 'core',
+          difficulty_band: startBand,
         })
         .select('id')
         .single();
@@ -474,6 +489,27 @@ export default function TutorSessionScreen() {
       const selectedSubject = subjects.find(s => text.toLowerCase().includes(s.toLowerCase())) ?? text;
       setSubject(selectedSubject);
 
+      // Load prior difficulty band for this child + subject
+      try {
+        const { data: progressData } = await supabase
+          .from('tutor_progress')
+          .select('difficulty_band')
+          .eq('family_id', FAMILY_ID)
+          .eq('child_name', childName)
+          .eq('subject', selectedSubject)
+          .single();
+        if (progressData?.difficulty_band) {
+          const band = progressData.difficulty_band as 'foundation' | 'core' | 'extension';
+          setDifficultyBand(band);
+          console.log(`[tutor] Loaded band for ${childName}/${selectedSubject}: ${band}`);
+        } else {
+          setDifficultyBand('foundation');
+          console.log(`[tutor] No prior band for ${childName}/${selectedSubject}, starting at foundation`);
+        }
+      } catch {
+        setDifficultyBand('foundation');
+      }
+
       // Update session with subject
       if (sessionId) {
         supabase.from('tutor_sessions').update({ subject: selectedSubject }).eq('id', sessionId).then(() => {});
@@ -505,8 +541,8 @@ export default function TutorSessionScreen() {
       setPhase('active');
       setQuestionNum(1);
 
-      // Generate first question via Sonnet
-      await generateAIResponse(`The child has chosen ${subject}${selectedTopic ? ' — ' + selectedTopic : ''}. Start the session with a brief intro and the first question. For practice sessions, aim for 6 questions. Start with a Core difficulty question.`);
+      // Generate first question via Sonnet — use loaded difficulty band
+      await generateAIResponse(`The child has chosen ${subject}${selectedTopic ? ' — ' + selectedTopic : ''}. Start the session with a brief intro and the first question. For practice sessions, aim for 6 questions. Start at the child's current difficulty band.`);
       return;
     }
 
@@ -524,15 +560,75 @@ export default function TutorSessionScreen() {
     await generateAIResponse(text);
   }
 
+  // ── Conversation summarisation — keep context bounded ──
+  const SUMMARISE_AFTER = 8; // Summarise older turns after this many exchanges
+
+  function buildCompactHistory(fullHistory: { role: string; content: string }[], newUserText: string): { role: string; content: string }[] {
+    const allMessages = [...fullHistory, { role: 'user', content: newUserText }];
+
+    // If conversation is short enough, return as-is
+    if (allMessages.length <= SUMMARISE_AFTER * 2) return allMessages;
+
+    // Split: summarise older messages, keep recent ones in full
+    const keepRecent = 8; // Keep last 8 messages (4 exchanges) in full
+    const olderMessages = allMessages.slice(0, allMessages.length - keepRecent);
+    const recentMessages = allMessages.slice(allMessages.length - keepRecent);
+
+    // Build a compact summary of older exchanges
+    const summaryLines: string[] = [];
+    for (let i = 0; i < olderMessages.length; i += 2) {
+      const child = olderMessages[i]?.content?.slice(0, 60) ?? '';
+      const zaeli = olderMessages[i + 1]?.content?.slice(0, 80) ?? '';
+      if (child || zaeli) summaryLines.push(`Child: ${child}${child.length >= 60 ? '...' : ''} | Zaeli: ${zaeli}${zaeli.length >= 80 ? '...' : ''}`);
+    }
+
+    // Inject summary as a system-style context message
+    const summaryMsg = {
+      role: 'user',
+      content: `[Session context — earlier exchanges summarised]\n${summaryLines.join('\n')}\n[End summary — recent conversation follows]`,
+    };
+
+    return [summaryMsg, ...recentMessages];
+  }
+
   async function generateAIResponse(userText: string) {
     try {
-      const systemPrompt = buildSystemPrompt(childName, yearLevel, pillar, subject ?? undefined, topic ?? undefined);
+      let systemPrompt = buildSystemPrompt(childName, yearLevel, pillar, subject ?? undefined, topic ?? undefined);
 
-      // Build conversation history
-      const newHistory = [
-        ...conversationHistory,
-        { role: 'user', content: userText },
+      // Dynamic difficulty state (appended fresh each call — not cached)
+      let difficultyState = '';
+      if (isStructured && subject) {
+        difficultyState = `
+
+CURRENT DIFFICULTY STATE:
+- Band: ${difficultyBand}
+- Consecutive correct (no hints): ${consecutiveCorrect}
+- Consecutive wrong on current question: ${consecutiveWrong}
+- Hints used this question: ${hintLevel}
+
+BAND RULES — apply these to question difficulty:
+- If band is "foundation": ask simpler questions within the year level curriculum. Focus on foundational skills and confidence building.
+- If band is "core": ask standard achievement-level questions matching the Year ${yearLevel} curriculum.
+- If band is "extension": ask challenging questions that stretch toward the next year level.
+- When you present a question, prefix with the band like: [Foundation] Question 3: ... or [Core] Question 3: ... or [Extension] Question 3: ...`;
+      }
+
+      // Build conversation history with summarisation for long sessions
+      const newHistory = buildCompactHistory(conversationHistory, userText);
+
+      // Use structured system prompt with cache_control for prompt caching
+      // The static base prompt + curriculum is cached (saves ~90% on repeated calls)
+      // The dynamic difficulty state is NOT cached (changes each turn)
+      const systemBlocks: any[] = [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' },
+        },
       ];
+      if (difficultyState) {
+        systemBlocks.push({ type: 'text', text: difficultyState });
+      }
 
       const response = await callClaude({
         feature: pillar === 'practice' ? 'tutor_practice' : pillar === 'comprehension' ? 'tutor_practice' : 'tutor_session',
@@ -540,7 +636,7 @@ export default function TutorSessionScreen() {
         body: {
           model: SONNET,
           max_tokens: 1200,
-          system: systemPrompt,
+          system: systemBlocks,
           messages: newHistory,
         },
       });
@@ -553,6 +649,51 @@ export default function TutorSessionScreen() {
       // Track question number from Sonnet's response
       if (parsed.detectedQuestion > 0 && isStructured) {
         setQuestionNum(parsed.detectedQuestion);
+      }
+
+      // ── Detect correct/wrong from Sonnet's response and update band ──
+      if (isStructured && phase === 'active') {
+        const lower = text.toLowerCase();
+        const correctPatterns = ['correct', 'well done', "that's right", 'nice work', 'great job', 'spot on', 'exactly', 'perfect', 'nailed it', 'brilliant', 'you got it'];
+        const wrongPatterns = ['not quite', 'try again', 'almost', 'let me help', 'not exactly', 'close but', 'have another go', 'think about', 'not the right'];
+
+        const isCorrectAnswer = correctPatterns.some(p => lower.includes(p));
+        const isWrongAnswer = wrongPatterns.some(p => lower.includes(p));
+
+        if (isCorrectAnswer && !isWrongAnswer) {
+          if (hintLevel === 0) {
+            // Clean correct — no hints used this question
+            const newCC = consecutiveCorrect + 1;
+            setConsecutiveCorrect(newCC);
+            setConsecutiveWrong(0);
+
+            // Check for upgrade: 3 correct in a row without hints
+            if (newCC >= 3 && difficultyBand !== 'extension') {
+              const newBand = difficultyBand === 'foundation' ? 'core' : 'extension';
+              setDifficultyBand(newBand);
+              setConsecutiveCorrect(0);
+              console.log(`[tutor] Band UPGRADE: ${difficultyBand} -> ${newBand} for ${childName}`);
+            }
+          } else {
+            // Correct but used hints — reset streak
+            setConsecutiveCorrect(0);
+            setConsecutiveWrong(0);
+          }
+          setHintLevel(0); // Reset for next question
+        } else if (isWrongAnswer && !isCorrectAnswer) {
+          const newCW = consecutiveWrong + 1;
+          setConsecutiveWrong(newCW);
+          setConsecutiveCorrect(0);
+
+          // Check for downgrade: 3 wrong in a row
+          if (newCW >= 3 && difficultyBand !== 'foundation') {
+            const newBand = difficultyBand === 'extension' ? 'core' : 'foundation';
+            setDifficultyBand(newBand);
+            setConsecutiveWrong(0);
+            console.log(`[tutor] Band DOWNGRADE: ${difficultyBand} -> ${newBand} for ${childName}`);
+          }
+        }
+        // If neither pattern detected (e.g. a follow-up question, explanation), don't change counters
       }
 
       const zaeliMsg: Message = {
@@ -585,12 +726,14 @@ export default function TutorSessionScreen() {
           topic: topic ?? undefined,
           question_count: parsed.detectedQuestion > 0 ? parsed.detectedQuestion : undefined,
           hints_used: hintsUsed,
+          difficulty_band: difficultyBand,
           duration_seconds: timer,
         }).eq('id', sessionId).then(({ error }) => { if (error) console.error('SESSION UPDATE ERROR:', error.message); });
       } else {
         console.warn('NO SESSION ID — messages not saved');
       }
 
+      setSending(false);
     } catch (e) {
       console.error('Tutor AI error:', e);
       const errorMsg: Message = {
@@ -600,6 +743,7 @@ export default function TutorSessionScreen() {
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, errorMsg]);
+      setSending(false);
     }
   }
 
@@ -641,10 +785,11 @@ export default function TutorSessionScreen() {
 
   // ── Hint button ──
   function handleHint() {
-    if (hintLevel >= 3) return;
+    if (hintLevel >= 3 || sending) return;
     const newLevel = hintLevel + 1;
     setHintLevel(newLevel);
     setHintsUsed(prev => prev + 1);
+    setSending(true); // Show "Zaeli is thinking..." immediately
 
     const hintPrompt = newLevel === 1
       ? 'The child tapped Hint. Give Hint 1: show the technique on a DIFFERENT equation/example. Never touch the actual question numbers.'
@@ -662,9 +807,10 @@ export default function TutorSessionScreen() {
     if (childMsgCount === 0) return; // Can't skip before answering anything
 
     setHintLevel(0);
+    setConsecutiveWrong(0); // Reset wrong counter for new question
     const nextQ = questionNum + 1;
     setQuestionNum(nextQ);
-    generateAIResponse(`The child is ready for the next question. This will be Question ${nextQ} of ${totalQuestions}. Generate the next question, adjusting difficulty based on their performance so far. Remember to start with "Question ${nextQ}."${nextQ >= totalQuestions ? ' This is the last question — after they answer, give a warm session summary.' : ''}`);
+    generateAIResponse(`The child is ready for the next question. This will be Question ${nextQ} of ${totalQuestions}. Generate the next question at the current difficulty band. Remember to start with "[${difficultyBand.charAt(0).toUpperCase() + difficultyBand.slice(1)}] Question ${nextQ}."${nextQ >= totalQuestions ? ' This is the last question — after they answer, give a warm session summary.' : ''}`);
   }
 
   // ── Chip tap ──
@@ -795,7 +941,18 @@ export default function TutorSessionScreen() {
       recordingRef.current = recording;
       setIsRecording(true);
       setMicTimer(0);
+      Animated.timing(micOverlayAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
       micTimerRef.current = setInterval(() => setMicTimer(t => t + 1), 1000);
+      // Start waveform animation
+      const loops = waveAnims.map((anim, i) =>
+        Animated.loop(Animated.sequence([
+          Animated.delay(i * 60),
+          Animated.timing(anim, { toValue: 1, duration: 400 + (i % 4) * 80, useNativeDriver: true }),
+          Animated.timing(anim, { toValue: 0.15, duration: 400 + (i % 3) * 80, useNativeDriver: true }),
+        ]))
+      );
+      waveLoopRef.current = Animated.parallel(loops);
+      waveLoopRef.current.start();
     } catch (e) { console.error('startRecording:', e); }
   }
 
@@ -803,6 +960,9 @@ export default function TutorSessionScreen() {
     try {
       setIsRecording(false);
       if (micTimerRef.current) { clearInterval(micTimerRef.current); micTimerRef.current = null; }
+      waveLoopRef.current?.stop();
+      waveAnims.forEach(a => a.setValue(0.3));
+      Animated.timing(micOverlayAnim, { toValue: 0, duration: 180, useNativeDriver: true }).start();
       if (!recordingRef.current) return;
       const status = await recordingRef.current.getStatusAsync();
       const durationSec = (status as any)?.durationMillis ? (status as any).durationMillis / 1000 : 10;
@@ -881,23 +1041,39 @@ export default function TutorSessionScreen() {
           if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
           // Save session duration and generate AI summary on exit
           if (sessionId) {
+            // Save session with final difficulty band
             supabase.from('tutor_sessions').update({
               duration_seconds: timer,
               hints_used: hintsUsed,
               question_count: questionNum,
               subject: subject ?? undefined,
               topic: topic ?? undefined,
+              difficulty_band: difficultyBand,
               status: 'completed',
             }).eq('id', sessionId).then(({ error }) => {
               if (error) console.error('SESSION EXIT SAVE ERROR:', error.message);
               else {
-                console.log('SESSION SAVED ON EXIT, duration:', timer);
+                console.log('SESSION SAVED ON EXIT, duration:', timer, 'band:', difficultyBand);
                 // Generate AI summary in background (fire-and-forget)
                 generateSessionSummary(sessionId).then(s => {
                   if (s) console.log('SESSION SUMMARY GENERATED:', s.slice(0, 60));
                 });
               }
             });
+
+            // Persist difficulty band to tutor_progress for next session
+            if (subject) {
+              supabase.from('tutor_progress').upsert({
+                family_id: FAMILY_ID,
+                child_name: childName,
+                subject,
+                difficulty_band: difficultyBand,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'family_id,child_name,subject' }).then(({ error }) => {
+                if (error) console.error('PROGRESS BAND SAVE ERROR:', error.message);
+                else console.log(`[tutor] Band saved: ${childName}/${subject} = ${difficultyBand}`);
+              });
+            }
           }
           router.navigate({ pathname: '/(tabs)/tutor-child', params: { childId, childName, yearLevel: String(yearLevel) } });
         }}>
@@ -1071,6 +1247,42 @@ export default function TutorSessionScreen() {
               <Text style={st.nextPillTxt}>Next question {'→'}</Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* ── Mic recording overlay — floating pill (matches chat/FAB design) ── */}
+        {isRecording && (
+          <Animated.View style={{
+            position: 'absolute',
+            bottom: Platform.OS === 'ios' ? 124 : 110,
+            left: 16, right: 16, zIndex: 60,
+            flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: 12,
+            backgroundColor: 'rgba(255,255,255,0.97)',
+            borderRadius: 28,
+            paddingVertical: 24, paddingHorizontal: 24,
+            shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 32, shadowOffset: { width: 0, height: 12 },
+            elevation: 16,
+            borderWidth: 1, borderColor: 'rgba(255,255,255,0.98)',
+            opacity: micOverlayAnim,
+          }}>
+            {/* Waveform bars — 7 bars, exact FAB heights */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              {[10, 18, 28, 36, 28, 18, 10].map((h, i) => (
+                <Animated.View key={i} style={{ width: 4, height: h, borderRadius: 2, backgroundColor: CORAL, transform: [{ scaleY: waveAnims[i] }] }} />
+              ))}
+            </View>
+            {/* Label */}
+            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: 'rgba(10,10,10,0.45)' }}>{`Listening\u2026`}</Text>
+            {/* Cancel / Send buttons */}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+              <TouchableOpacity onPress={() => stopRecording(true)} activeOpacity={0.75} style={{ flex: 1, backgroundColor: 'rgba(255,69,69,0.09)', borderRadius: 14, paddingVertical: 12, alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: CORAL }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => stopRecording()} activeOpacity={0.75} style={{ flex: 1, backgroundColor: CORAL, borderRadius: 14, paddingVertical: 12, alignItems: 'center' }}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' }}>{`Send \u2192`}</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
         )}
 
         {/* ── Chat bar ── */}

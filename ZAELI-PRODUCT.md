@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 16 April 2026 — Session 13 ✅ · Tutor module built · AI summaries · Kids Hub 3 games · Our Family tutor progress*
+*Last updated: 17 April 2026 — Session 14 ✅ · Architectural rebuild · Chat-first 2-page · FAB killed · Hamburger + MoreSheet · Splash Option C · Kids Hub AI trivia · Tutor difficulty bands · Prompt caching*
 
 ---
 
@@ -24,7 +24,7 @@ What this means in practice:
 - Zaeli Noticed is not a card — it's Zaeli being proactive
 - The brief is Zaeli's daily audition. Every morning she gets one chance to remind Rich why he pays $14.99/month.
 
-**The navigation architecture review** (Chat as home, Dashboard as left swipe) is deferred to Phase 2 — build with current working architecture and revisit with real usage data.
+**The navigation architecture review** — LOCKED in Session 14. Chat is now page 0 (opens here), Dashboard is page 1 (swipe right), My Space moved to standalone route accessed via MoreSheet. FAB completely removed; replaced by universal hamburger ☰ button top-right of every header. Was deferred to Phase 2 — executed Session 14.
 
 ---
 
@@ -55,16 +55,24 @@ Australian families with children. Priority: dual-income metro couples with prim
 ---
 
 ## ══════════════════════════════════
-## INTERFACE PHILOSOPHY (LOCKED ✅)
+## INTERFACE PHILOSOPHY (REBUILT Session 14 ✅)
 ## ══════════════════════════════════
 
-**Three screens. One FAB. No clutter.**
+**Two screens. No FAB. Hamburger menu. Chat-first.**
 
 ```
-Dashboard (0)  →  Chat (1)  →  My Space (2)
+CHAT (page 0, opens here)  ↔  DASHBOARD (page 1)
 ```
 
-**Core UX principle:** Dashboard = glance. Chat = relationship. My Space = personal. Zaeli lives in Chat.
+**Core UX principle:** Chat = relationship (home). Dashboard = glance. My Space = personal (standalone route, accessed via MoreSheet). Zaeli lives in Chat — Rich opens the app and Zaeli is already talking.
+
+**Universal hamburger ☰** top-right of every screen opens MoreSheet — a 92% bottom sheet with:
+- **Family Channels** (6 tiles): Calendar · Shopping · Meals · Tasks · Notes · Travel
+- **Personal**: My Space
+- **Modules**: Tutor · Kids Hub · Our Family · Our Budget (coming soon)
+- **Navigation**: Chat · Dashboard · Settings
+
+**Chat bar lives ONLY on Chat** — [Mic][Input+placeholder][Camera][Send]. Camera opens Add-to-Chat picker (Camera/Photos/Live). Other screens are purpose-built: Dashboard for cards, My Space for personal zone. No fake chat bars anywhere.
 
 ---
 
@@ -177,22 +185,30 @@ Deferred to Phase 2. Upload-only approach without live bank feeds not compelling
 ---
 
 ## ══════════════════════════════════
-## SCREEN ARCHITECTURE (LOCKED ✅)
+## SCREEN ARCHITECTURE (REBUILT Session 14 ✅)
 ## ══════════════════════════════════
 
-**Three navigable screens:**
+**Two navigable swipe screens — Chat-first:**
 ```
-Dashboard (0)  →  Chat (1)  →  My Space (2)
+CHAT (page 0) ← opens here    DASHBOARD (page 1)
+              ← swipe right →
 ```
 
-**92% SHEETS over Chat:**
-Calendar · Shopping · Meal Planner · Family Tasks · Notes & Tasks · Travel
+**Standalone routes (accessed via MoreSheet):**
+My Space (`/(tabs)/my-space`) · Tutor · Kids Hub · Our Family · Settings · Our Budget
 
-**Dedicated full screens:**
-Tutor · Kids Hub · Our Family · Settings · Our Budget (when built)
+**92% SHEETS (triggered from Chat or MoreSheet):**
+Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 
-**FAB More sheet contents:**
-Our Family · Tutor · Our Budget (coming soon) · Settings · Upload options (Take photo · Choose photo · Upload file)
+**Hamburger ☰ MoreSheet contents (app/components/MoreSheet.tsx):**
+- Family Channels (6): Calendar · Shopping · Meals · Tasks · Notes · Travel
+- Personal (1): My Space
+- Modules (4): Tutor · Kids Hub · Our Family · Our Budget
+- Navigation (3): Chat · Dashboard · Settings
+
+**Camera + Library** live inside the Chat bar (coral camera icon opens Add-to-Chat picker with Camera/Photos/Live options). NOT in MoreSheet (camera only makes sense in Chat context).
+
+**Back arrows** on all standalone routes (next to zaeli wordmark): Tutor · Kids Hub · Our Family · My Space · Dashboard (yes, Dashboard has one to jump back to Chat quickly).
 
 ---
 
@@ -261,18 +277,27 @@ Our Family · Tutor · Our Budget (coming soon) · Settings · Upload options (T
 15. ✅ Kids Hub — built (Session 12) + trimmed to 3 games (Session 13) — Wordle, Trivia, Crossword
 16. ✅ Our Family — v2 built (Session 12) + tutor progress wired (Session 13)
 17. ✅ Tutor module — built (Session 13) — 6 pillars, ACARA curriculum, AI summaries, parent views, camera, Whisper
-18. 🔨 Tutor stress testing — kids testing all 6 pillars
-19. 🔨 Dashboard redesign build (zaeli-dashboard-redesign.html)
-20. 🔨 Camera/Upload build (zaeli-camera-upload.html)
-21. 🔨 AI Brief system implementation (Sonnet briefs, GPT-5.4 mini routing)
+18. ✅ Kids Hub AI trivia (Session 14) — GPT-5.4 mini fresh questions, Supabase history tracking, fallback
+19. ✅ Tutor topic chips reworked (Session 14) — Foundation–Year 12, Core-first, all 4 subjects
+20. ✅ Tutor difficulty bands wired (Session 14) — load from tutor_progress, track consecutive correct/wrong, persist on exit
+21. ✅ Prompt caching for tutor (Session 14) — 30-40% cost saving
+22. ✅ Conversation summarisation (Session 14) — bounds input tokens after 8 turns
+23. ✅ Dashboard redesign built (Session 14) — 5 rows, On the Radar, header matches My Space, personal_tasks sharing migration
+24. ✅ Architecture rebuild (Session 14) — 2-page swipe (Chat+Dashboard), FAB killed, hamburger everywhere, MoreSheet
+25. ✅ Camera + Library in chat bar (Session 14) — Add-to-Chat picker sheet
+26. ✅ Splash Option C built (Session 14) — Deep Slate + Mint, once per session
+27. 🔨 AI Brief system implementation — BIGGEST remaining piece (4 windows, Sonnet, Supabase cache)
+28. 🔨 Tutor stress testing — kids testing all 6 pillars
+29. 🅿️ Tutor session resume — reload from tutor_messages (parked)
+30. 🅿️ 100 crossword pool expansion — content task, parked
 
 ### Phase B — Make it testable
-22. 🔨 Real authentication (replace DUMMY_FAMILY_ID)
-23. 🔨 EAS build + TestFlight
-24. 🔨 LANDING_TEST_MODE = false
-25. 🔨 Settings (account, family members, subscription)
-24. 🔨 Our Budget — if Basiq confirmed
-25. 🔨 Nav architecture review (with real usage data)
+31. 🔨 Real authentication (replace DUMMY_FAMILY_ID)
+32. 🔨 EAS build + TestFlight
+33. 🔨 LANDING_TEST_MODE = false
+34. 🔨 Settings (account, family members, subscription)
+35. 🔨 Our Budget — if Basiq confirmed
+36. ✅ Nav architecture review — EXECUTED Session 14 (Chat-first, FAB killed, hamburger)
 
 ### Phase C — Make it launchable
 26. 🔨 Zaeli Voice (ElevenLabs)
@@ -317,14 +342,17 @@ Our Family · Tutor · Our Budget (coming soon) · Settings · Upload options (T
 - [x] Zaeli persona + model routing — locked ✅
 - [x] Philosophy B — locked ✅
 - [x] Meal Planner sheet — built ✅ (Session 10)
-- [ ] Dashboard redesign — build
-- [ ] Camera/Upload — build
-- [ ] AI Brief system — implement
-- [ ] GPT-5.4 mini routing — implement
+- [x] Dashboard redesign — built ✅ (Session 14)
+- [x] Camera/Upload — built ✅ (Session 14, Add-to-Chat picker)
+- [x] Architecture rebuild — 2-page Chat-first, FAB killed, hamburger + MoreSheet ✅ (Session 14)
+- [x] Splash Option C — built ✅ (Session 14)
+- [x] Tutor difficulty bands + prompt caching + conversation summarisation ✅ (Session 14)
+- [x] Kids Hub AI trivia ✅ (Session 14)
+- [x] GPT-5.4 mini routing — already live
+- [ ] AI Brief system — implement (BIGGEST remaining)
 - [ ] zaeli_briefs Supabase table
-- [ ] recipes + meal_plan Supabase tables
 - [ ] Real authentication
-- [ ] EAS build · TestFlight
+- [ ] EAS build · TestFlight · native splash rebuild (for app.json changes)
 - [ ] LANDING_TEST_MODE = false
 - [x] Kids Hub ✅ (Session 12 — built, Session 13 — trimmed to 3 games, crossword fixed)
 - [x] Tutor module ✅ (Session 13 — 6 pillars, ACARA curriculum, AI summaries, parent views)

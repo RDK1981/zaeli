@@ -18,16 +18,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Easing,
+  Animated, Easing, TextInput, Keyboard, Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
-import ZaeliFAB from '../components/ZaeliFAB';
+import MoreSheet from '../components/MoreSheet';
 import { setPendingChatContext } from '../../lib/navigation-store';
-import Svg, { Polygon } from 'react-native-svg';
+import Svg, { Polygon, Line, Path, Circle, Polyline } from 'react-native-svg';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
@@ -504,13 +504,14 @@ function CalendarCard({ events, showTomorrow, expanded, onToggleExpand, onAdd, o
 
   return (
     <View style={[cS.card, cS.cardCal, { overflow:'hidden' }]}>
+      <Text style={[cS.cardLabel, { color:'#718096' }]}>CALENDAR</Text>
       <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
         <Text style={cS.headlineLt}>{headline}</Text>
         <TouchableOpacity style={cS.addBtnLt} onPress={(e) => { e.stopPropagation(); onAdd(); }} activeOpacity={0.75}>
           <Text style={cS.addBtnTxtLt}>+ Add</Text>
         </TouchableOpacity>
       </TouchableOpacity>
-      {!expanded && <Text style={cS.tapHintLt}>Tap to see →</Text>}
+      {!expanded && <Text style={[cS.cardSub, { color:'#718096' }]}>Tap to see →</Text>}
       {expanded && (
         <View style={{ marginTop:6 }}>
           {events.length === 0 ? (
@@ -566,14 +567,15 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
 
   return (
     <View style={[cS.card, cS.cardDin, { overflow:'hidden' }]}>
+      <Text style={[cS.cardLabel, { color:'#2D7A52' }]}>MEAL PLANNER</Text>
       <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
         <Text style={cS.headlineDk}>{headline}</Text>
       </TouchableOpacity>
       {!expanded && (
         tonightMeal
-          ? <Text style={cS.tapHintDk}>Tap to see the week →</Text>
-          : <TouchableOpacity onPress={(e) => { e.stopPropagation(); onPlanMeals(); }} activeOpacity={0.75} style={{ marginTop:10 }}>
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(180,60,10,0.65)' }}>Plan it →</Text>
+          ? <Text style={[cS.cardSub, { color:'#2D7A52' }]}>Tap to see the week →</Text>
+          : <TouchableOpacity onPress={(e) => { e.stopPropagation(); onPlanMeals(); }} activeOpacity={0.75} style={{ marginTop:4 }}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#2D7A52' }}>Plan it →</Text>
             </TouchableOpacity>
       )}
       {expanded && (
@@ -669,21 +671,19 @@ function WeatherCard({ weather, expanded, onToggleExpand }: {
   if (!weather) {
     return (
       <TouchableOpacity style={[cS.card, cS.cardWx, { justifyContent:'center', alignItems:'center' }]} onPress={onToggleExpand} activeOpacity={0.82}>
-        <Text style={cS.cardLabel}>Weather</Text>
+        <Text style={[cS.cardLabel, { color:'#5BA4D4', alignSelf:'flex-start' }]}>WEATHER</Text>
         <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.30)', fontStyle:'italic', marginTop:8 }}>–</Text>
       </TouchableOpacity>
     );
   }
   return (
     <TouchableOpacity style={[cS.card, cS.cardWx]} onPress={onToggleExpand} activeOpacity={0.82}>
-      <Text style={cS.cardLabel}>Weather</Text>
-      <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginTop:4 }}>
-        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:42, color:'#1A1A1A', letterSpacing:-1.5, lineHeight:48 }}>{Math.round(weather.temp)}°</Text>
-        <View style={{ marginTop:4 }}><WeatherIcon type={weatherType(weather.code)}/></View>
-      </View>
-      <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(0,0,0,0.50)', marginTop:4 }}>{weather.condition}</Text>
+      <Text style={[cS.cardLabel, { color:'#5BA4D4' }]}>WEATHER</Text>
+      <View style={{ marginTop:2 }}><WeatherIcon type={weatherType(weather.code)}/></View>
+      <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:36, color:'#1A1A1A', letterSpacing:-1, lineHeight:40, marginTop:4 }}>{Math.round(weather.temp)}°</Text>
+      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#5BA4D4', marginTop:4 }}>{weather.condition}</Text>
       {expanded && (
-        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.42)', lineHeight:20, marginTop:8, marginBottom:4 }}>{weatherExtra(weather.code, weather.windspeed)}</Text>
+        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.42)', lineHeight:18, marginTop:6 }}>{weatherExtra(weather.code, weather.windspeed)}</Text>
       )}
     </TouchableOpacity>
   );
@@ -697,28 +697,34 @@ function ZaeliNoticedCard({ notices, noticesLoading, expanded, onToggleExpand, o
   const count = notices.length;
   const countWord = noticesLoading ? 'looking…'
     : count === 0 ? 'all quiet.'
-    : count === 1 ? '1 change.'
-    : `${count} changes.`;
+    : count === 1 ? 'change.'
+    : 'changes.';
+  const displayCount = noticesLoading ? '…' : count === 0 ? '0' : `${count}`;
 
   return (
-    <TouchableOpacity style={[cS.card, cS.cardWotd, { flex:1 }]} onPress={onToggleExpand} activeOpacity={0.82}>
-      <Text style={[cS.cardLabel, { color:'rgba(107,53,217,0.55)', fontSize:13, letterSpacing:0.4 }]}>Zaeli{'\n'}noticed</Text>
+    <TouchableOpacity style={[cS.card, cS.cardWotd]} onPress={onToggleExpand} activeOpacity={0.82}>
+      <Text style={[cS.cardLabel, { color:'#9CA3AF' }]}>ZAELI NOTICED</Text>
       {!expanded && (
-        <View style={{ marginTop:4 }}>
-          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#6B35D9', letterSpacing:-0.5, lineHeight:28 }}>{countWord}</Text>
+        <View>
+          <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:30, color:'#FF4545', letterSpacing:-0.8, lineHeight:34 }}>{displayCount}</Text>
+          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color:'#1A1A1A', marginTop:2 }}>{countWord}</Text>
           {!noticesLoading && count > 0 && (
-            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(107,53,217,0.55)', marginTop:6, lineHeight:20 }}>
-              {notices.slice(0,3).map(n => n.tag).join(' · ')}
-            </Text>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:8 }}>
+              {notices.slice(0,3).map((n, i) => (
+                <View key={i} style={noticedS.tag}>
+                  <Text style={noticedS.tagTxt}>{n.tag}</Text>
+                </View>
+              ))}
+            </View>
           )}
         </View>
       )}
       {expanded && (
-        <View style={{ marginTop:8 }}>
+        <View style={{ marginTop:4 }}>
           {noticesLoading ? (
-            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(107,53,217,0.45)', fontStyle:'italic' }}>Zaeli is looking…</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.45)', fontStyle:'italic' }}>Zaeli is looking…</Text>
           ) : count === 0 ? (
-            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(107,53,217,0.45)', fontStyle:'italic' }}>Nothing unusual today.</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.45)', fontStyle:'italic' }}>Nothing unusual today.</Text>
           ) : (
             notices.map((n, i) => (
               <TouchableOpacity key={i} style={noticedS.row} onPress={(e) => { e.stopPropagation(); onChat(n.text); }} activeOpacity={0.75}>
@@ -734,9 +740,11 @@ function ZaeliNoticedCard({ notices, noticesLoading, expanded, onToggleExpand, o
 }
 
 const noticedS = StyleSheet.create({
-  row: { flexDirection:'row', alignItems:'flex-start', gap:10, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'rgba(107,53,217,0.10)' },
+  row: { flexDirection:'row', alignItems:'flex-start', gap:10, paddingVertical:8, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' },
   dot: { width:8, height:8, borderRadius:4, flexShrink:0, marginTop:7 },
-  txt: { fontFamily:'Poppins_500Medium', fontSize:16, color:'rgba(10,10,10,0.70)', lineHeight:22, flex:1 },
+  txt: { fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(10,10,10,0.70)', lineHeight:18, flex:1 },
+  tag: { backgroundColor:'rgba(0,0,0,0.06)', borderRadius:10, paddingVertical:2, paddingHorizontal:8 },
+  tagTxt: { fontFamily:'Poppins_600SemiBold', fontSize:10, color:'#718096' },
 });
 
 // ── 4. ShoppingCard ───────────────────────────────────────────────────────────
@@ -748,21 +756,22 @@ function ShoppingCard({ items, count, expanded, onToggleExpand, onAdd, onOpenShe
   const unchecked = items.filter((i:any) => i.checked !== true);
   return (
     <View style={[cS.card, cS.cardShop, { overflow:'hidden' }]}>
+      <Text style={[cS.cardLabel, { color:'#5020C0' }]}>SHOPPING</Text>
       <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
         <Text style={cS.headlineShop}>{headline}</Text>
-        <TouchableOpacity style={cS.addBtnLt} onPress={(e) => { e.stopPropagation(); onAdd(); }} activeOpacity={0.75}>
-          <Text style={cS.addBtnTxtLt}>+ Add</Text>
+        <TouchableOpacity style={shopS.addBtn} onPress={(e) => { e.stopPropagation(); onAdd(); }} activeOpacity={0.75}>
+          <Text style={shopS.addBtnTxt}>+ Add</Text>
         </TouchableOpacity>
       </TouchableOpacity>
-      {!expanded && <Text style={shopS.tapHint}>{count > 0 ? 'Tap to see →' : ''}</Text>}
+      {!expanded && <Text style={[cS.cardSub, { color:'#5020C0' }]}>{count > 0 ? 'Tap to see →' : ''}</Text>}
       {expanded && (
         <View style={{ marginTop:8 }}>
           {unchecked.length === 0
-            ? <Text style={cS.emptyShop}>List is clear</Text>
+            ? <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(80,32,192,0.55)', fontStyle:'italic' }}>List is clear</Text>
             : unchecked.slice(0,8).map((item:any, i:number) => (
-                <View key={item.id||i} style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:11 }}>
-                  <View style={{ width:7, height:7, borderRadius:4, backgroundColor:'rgba(255,255,255,0.40)', flexShrink:0 }}/>
-                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:17, color:'rgba(255,255,255,0.92)', flex:1 }} numberOfLines={1}>{item.name||item.item}</Text>
+                <View key={item.id||i} style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:9 }}>
+                  <View style={{ width:7, height:7, borderRadius:4, backgroundColor:'rgba(80,32,192,0.40)', flexShrink:0 }}/>
+                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'#1A1A1A', flex:1 }} numberOfLines={1}>{item.name||item.item}</Text>
                 </View>
               ))
           }
@@ -777,10 +786,11 @@ function ShoppingCard({ items, count, expanded, onToggleExpand, onAdd, onOpenShe
 }
 
 const shopS = StyleSheet.create({
-  tapHint:    { fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(255,255,255,0.70)', marginTop:10 },
-  moreCount:  { fontFamily:'Poppins_600SemiBold', fontSize:17, color:'rgba(255,255,255,0.70)', marginBottom:10 },
-  openBtn:    { marginTop:10, backgroundColor:'rgba(255,255,255,0.15)', borderRadius:14, paddingVertical:14, alignItems:'center' },
-  openBtnTxt: { fontFamily:'Poppins_700Bold', fontSize:15, color:'rgba(255,255,255,0.90)' },
+  addBtn:     { backgroundColor:'rgba(80,32,192,0.15)', borderRadius:10, paddingVertical:7, paddingHorizontal:14, flexShrink:0, marginLeft:8 },
+  addBtnTxt:  { fontFamily:'Poppins_700Bold', fontSize:13, color:'#5020C0' },
+  moreCount:  { fontFamily:'Poppins_600SemiBold', fontSize:14, color:'rgba(80,32,192,0.70)', marginBottom:8 },
+  openBtn:    { marginTop:10, backgroundColor:'rgba(80,32,192,0.12)', borderRadius:14, paddingVertical:12, alignItems:'center' },
+  openBtnTxt: { fontFamily:'Poppins_700Bold', fontSize:14, color:'#5020C0' },
 });
 const calBtnS = StyleSheet.create({
   openBtn:    { marginTop:14, backgroundColor:'rgba(255,255,255,0.12)', borderRadius:14, paddingVertical:14, alignItems:'center' },
@@ -866,15 +876,215 @@ function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onTogg
   );
 }
 
+// ── 6. OnTheRadarCard (renamed from Family Tasks — uses personal_tasks) ──
+interface RadarTask {
+  id: string;
+  title: string;
+  due_date: string | null;
+  is_shared: boolean;
+  member_name: string | null;
+}
+
+function OnTheRadarCard({ expanded, onToggleExpand, onViewFullList }: {
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onViewFullList: () => void;
+}) {
+  const [tasks, setTasks] = useState<RadarTask[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addText, setAddText] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function loadTasks() {
+    try {
+      const today = localDateStr();
+      const in7 = localDatePlusDays(7);
+      const { data, error } = await supabase
+        .from('personal_tasks')
+        .select('id, title, due_date, is_shared, member_name, is_complete')
+        .eq('family_id', FAMILY_ID)
+        .eq('is_complete', false)
+        .or('member_name.eq.Rich,is_shared.eq.true')
+        .or(`due_date.is.null,due_date.lte.${in7}`)
+        .order('due_date', { ascending: true, nullsFirst: false })
+        .limit(20);
+      if (error) { console.warn('[Radar] load error:', error.message); return; }
+      setTasks((data ?? []) as RadarTask[]);
+    } catch (e) { console.warn('[Radar] load exception:', e); }
+  }
+
+  useEffect(() => { loadTasks(); }, []);
+  useEffect(() => { if (expanded) loadTasks(); }, [expanded]);
+
+  async function addTask() {
+    const title = addText.trim();
+    if (!title || saving) return;
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.from('personal_tasks').insert({
+        family_id: FAMILY_ID,
+        title,
+        is_shared: false,
+        member_name: 'Rich',
+        is_complete: false,
+      }).select('id, title, due_date, is_shared, member_name').single();
+      if (error) {
+        console.warn('[Radar] add error:', error.message);
+      } else if (data) {
+        setTasks(prev => [{ ...data, due_date: data.due_date ?? null } as RadarTask, ...prev]);
+      }
+      setAddText('');
+      setAddOpen(false);
+      Keyboard.dismiss();
+    } catch (e) {
+      console.warn('[Radar] add exception:', e);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const today = localDateStr();
+  const todayOrOverdue = tasks.filter(t => !t.due_date || t.due_date <= today);
+  const comingUp = tasks.filter(t => t.due_date && t.due_date > today);
+  const totalCount = tasks.length;
+
+  const memberColour = (name: string | null): string => {
+    const m = FAMILY_MEMBERS.find(fm => fm.name === name);
+    return m?.color ?? '#8B6914';
+  };
+
+  return (
+    <View style={[cS.card, cS.cardAct, { overflow: 'hidden' }]}>
+      <Text style={[cS.cardLabel, { color: '#8B6914' }]}>ON THE RADAR</Text>
+      <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
+        <Text style={cS.headlineDk}>
+          {totalCount === 0 ? 'All clear.' : totalCount === 1 ? '1 thing coming up.' : `${totalCount} things coming up.`}
+        </Text>
+      </TouchableOpacity>
+      {!expanded && (
+        <Text style={[cS.cardSub, { color: '#8B6914' }]}>
+          Your tasks + shared {'\u00B7'} next 7 days
+        </Text>
+      )}
+      {expanded && (
+        <View style={{ marginTop: 10 }}>
+          {todayOrOverdue.length > 0 && (
+            <>
+              <Text style={radarS.sectionLabel}>TODAY & OVERDUE</Text>
+              {todayOrOverdue.map(t => (
+                <View key={t.id} style={radarS.row}>
+                  <View style={[radarS.dot, { backgroundColor: '#FF4545' }]} />
+                  <Text style={radarS.name} numberOfLines={1}>{t.title}</Text>
+                  {t.due_date && t.due_date < today ? (
+                    <Text style={radarS.overdue}>Overdue</Text>
+                  ) : t.is_shared && t.member_name && t.member_name !== 'Rich' ? (
+                    <Text style={[radarS.who, { color: memberColour(t.member_name) }]}>{t.member_name}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </>
+          )}
+          {comingUp.length > 0 && (
+            <>
+              <Text style={[radarS.sectionLabel, { marginTop: todayOrOverdue.length > 0 ? 10 : 0 }]}>COMING UP</Text>
+              {comingUp.map(t => {
+                const dueLabel = t.due_date ? new Date(t.due_date + 'T00:00:00').toLocaleDateString('en-AU', { weekday: 'short' }) : '';
+                return (
+                  <View key={t.id} style={radarS.row}>
+                    <View style={[radarS.dot, { backgroundColor: '#8B6914' }]} />
+                    <Text style={radarS.name} numberOfLines={1}>{t.title}</Text>
+                    {t.is_shared && t.member_name && t.member_name !== 'Rich' ? (
+                      <Text style={[radarS.who, { color: memberColour(t.member_name) }]}>{t.member_name}</Text>
+                    ) : dueLabel ? (
+                      <Text style={radarS.due}>{dueLabel}</Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+            </>
+          )}
+          {todayOrOverdue.length === 0 && comingUp.length === 0 && (
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(139,105,20,0.65)', fontStyle: 'italic', marginBottom: 4 }}>Nothing on your plate. Enjoy.</Text>
+          )}
+
+          {/* Inline add input — shown when + Add tapped */}
+          {addOpen && (
+            <View style={radarS.addRow}>
+              <TextInput
+                style={radarS.addInput}
+                value={addText}
+                onChangeText={setAddText}
+                placeholder="What needs doing?"
+                placeholderTextColor="rgba(139,105,20,0.4)"
+                autoFocus
+                onSubmitEditing={addTask}
+                returnKeyType="done"
+              />
+              <TouchableOpacity
+                style={[radarS.addSaveBtn, !addText.trim() && { opacity: 0.4 }]}
+                onPress={addTask}
+                disabled={!addText.trim() || saving}
+                activeOpacity={0.75}
+              >
+                <Text style={radarS.addSaveTxt}>{saving ? '…' : 'Save'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Action buttons */}
+          <View style={radarS.actions}>
+            <TouchableOpacity
+              style={radarS.btnAdd}
+              onPress={() => setAddOpen(v => !v)}
+              activeOpacity={0.8}
+            >
+              <Text style={radarS.btnAddTxt}>{addOpen ? 'Cancel' : '+ Add task'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={radarS.btnView}
+              onPress={onViewFullList}
+              activeOpacity={0.8}
+            >
+              <Text style={radarS.btnViewTxt}>View full list {'\u2192'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const radarS = StyleSheet.create({
+  sectionLabel: { fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 0.6, color: '#8B6914', marginBottom: 5, marginTop: 4 },
+  row:          { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  dot:          { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  name:         { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#1A1A1A', flex: 1 },
+  who:          { fontFamily: 'Poppins_700Bold', fontSize: 12 },
+  due:          { fontFamily: 'Poppins_500Medium', fontSize: 12, color: 'rgba(139,105,20,0.7)' },
+  overdue:      { fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#FF4545' },
+
+  addRow:       { flexDirection: 'row', gap: 8, marginTop: 14 },
+  addInput:     { flex: 1, fontFamily: 'Poppins_500Medium', fontSize: 15, color: '#1A1A1A', backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 12, paddingVertical: 11, paddingHorizontal: 14 },
+  addSaveBtn:   { backgroundColor: '#1A1A1A', borderRadius: 12, paddingVertical: 11, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  addSaveTxt:   { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#FFFFFF' },
+
+  actions:      { flexDirection: 'row', gap: 8, marginTop: 16 },
+  btnAdd:       { flex: 1, backgroundColor: '#1A1A1A', borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
+  btnAddTxt:    { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#FFFFFF' },
+  btnView:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.1)', borderRadius: 14, paddingVertical: 12, alignItems: 'center' },
+  btnViewTxt:   { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#5A4200' },
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // ── MAIN SCREEN ───────────────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
-export default function DashboardScreen({ onNavigateChat, isActive = false, onContextTrigger }: { onNavigateChat?: () => void; isActive?: boolean; onContextTrigger?: () => void }) {
+export default function DashboardScreen({ onNavigateChat, onNavigateMySpace, isActive = false, onContextTrigger }: { onNavigateChat?: () => void; onNavigateMySpace?: () => void; isActive?: boolean; onContextTrigger?: () => void }) {
   const insets     = useSafeAreaInsets();
   const router     = useRouter();
   const isAfter8pm = new Date().getHours() >= 20;
 
   const [expandedCard,   setExpandedCard]   = useState<CardKey>(null);
+  const [moreOpen,       setMoreOpen]       = useState(false);
   const [cardData,       setCardData]       = useState<CardData>({
     todayEvents:[], tomorrowEvents:[], shopItems:[], shopCount:0, todos:[], meals:[], weather:null,
   });
@@ -1038,12 +1248,31 @@ export default function DashboardScreen({ onNavigateChat, isActive = false, onCo
       <ExpoStatusBar style="dark" animated/>
       <View style={[s.topBar, { paddingTop: insets.top }]}>
         <View style={s.topBarRow}>
-          <TouchableOpacity onPress={() => onNavigateChat?.()} activeOpacity={0.8}>
-            <Text style={s.logoWord}>
-              z<Text style={{ color:'#FAC8A8' }}>a</Text>el<Text style={{ color:'#FAC8A8' }}>i</Text>
-            </Text>
-          </TouchableOpacity>
-          <Text style={s.dateLabel}>{topDateLabel}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <TouchableOpacity onPress={() => onNavigateChat?.()} activeOpacity={0.7} style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' }}>
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                <Polyline points="15 18 9 12 15 6" />
+              </Svg>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onNavigateChat?.()} activeOpacity={0.8}>
+              <Text style={s.logoWord}>
+                z<Text style={{ color:'#FAC8A8' }}>a</Text>el<Text style={{ color:'#FAC8A8' }}>i</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ alignItems: 'flex-end', gap: 2 }}>
+              <Text style={s.dateLabel}>{topDateLabel}</Text>
+              <Text style={s.pageLabel}>Dashboard</Text>
+            </View>
+            <TouchableOpacity onPress={() => setMoreOpen(true)} activeOpacity={0.7} style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' }}>
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth={2.2} strokeLinecap="round">
+                <Line x1={4} y1={6} x2={20} y2={6}/>
+                <Line x1={4} y1={12} x2={20} y2={12}/>
+                <Line x1={4} y1={18} x2={20} y2={18}/>
+              </Svg>
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={s.topBarDivider}/>
       </View>
@@ -1069,6 +1298,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false, onCo
           />
         </Animated.View>
 
+        {/* Row 2 — Meal Planner */}
         <Animated.View style={{ opacity:cardAnims[1].opacity, transform:[{translateY:cardAnims[1].translateY}] }}>
           <DinnerCard
             meals={cardData.meals}
@@ -1080,7 +1310,7 @@ export default function DashboardScreen({ onNavigateChat, isActive = false, onCo
           />
         </Animated.View>
 
-        {/* ROW: Weather + Our Budget */}
+        {/* Row 3 — Weather + Zaeli Noticed (bento) */}
         <Animated.View style={{ opacity:cardAnims[2].opacity, transform:[{translateY:cardAnims[2].translateY}] }}>
           <View style={{ flexDirection:'row', gap:10 }}>
             <WeatherCard
@@ -1088,18 +1318,20 @@ export default function DashboardScreen({ onNavigateChat, isActive = false, onCo
               expanded={expandedCard === 'weather'}
               onToggleExpand={() => toggleCard('weather')}
             />
-            <TouchableOpacity style={[cS.card, { backgroundColor:'#FAC8A8', flex:1 }]} activeOpacity={0.88} onPress={() => {}}>
-              <Text style={[cS.cardLabel, { color:'rgba(120,50,0,0.45)' }]}>Our Budget</Text>
-              <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:32, color:'#3A1800', letterSpacing:-1, lineHeight:36, marginTop:2 }}>$3,960</Text>
-              <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(58,24,0,0.5)', marginTop:3 }}>left this month</Text>
-              <View style={{ height:3, borderRadius:2, backgroundColor:'rgba(58,24,0,0.15)', overflow:'hidden', marginTop:8 }}>
-                <View style={{ height:3, borderRadius:2, backgroundColor:'#8A3A00', width:'42%' as any }} />
-              </View>
-            </TouchableOpacity>
+            <ZaeliNoticedCard
+              notices={notices}
+              noticesLoading={noticesLoading}
+              expanded={expandedCard === 'wotd'}
+              onToggleExpand={() => toggleCard('wotd')}
+              onChat={(notice) => {
+                setPendingChatContext({ type:'noticed' as any, event:{ title: notice }, returnTo:'dashboard' });
+                onNavigateChat?.();
+              }}
+            />
           </View>
         </Animated.View>
 
-        {/* Shopping — full width */}
+        {/* Row 4 — Shopping (full width) */}
         <Animated.View style={{ opacity:cardAnims[3].opacity, transform:[{translateY:cardAnims[3].translateY}] }}>
           <ShoppingCard
             items={cardData.shopItems}
@@ -1115,29 +1347,61 @@ export default function DashboardScreen({ onNavigateChat, isActive = false, onCo
           />
         </Animated.View>
 
-        {/* ROW: Zaeli Noticed + Family Tasks */}
+        {/* Row 5 — On the Radar (full width) */}
         <Animated.View style={{ opacity:cardAnims[4].opacity, transform:[{translateY:cardAnims[4].translateY}] }}>
-          <View style={{ flexDirection:'row', gap:10 }}>
-            <ZaeliNoticedCard
-              notices={notices}
-              noticesLoading={noticesLoading}
-              expanded={expandedCard === 'wotd'}
-              onToggleExpand={() => toggleCard('wotd')}
-              onChat={(notice) => {
-                setPendingChatContext({ type:'noticed' as any, event:{ title: notice }, returnTo:'dashboard' });
-                onNavigateChat?.();
-              }}
-            />
-            <TouchableOpacity style={[cS.card, { backgroundColor:'#F0DC80', flex:1 }]} activeOpacity={0.88}
-              onPress={() => toggleCard('actions')}>
-              <Text style={[cS.cardLabel, { color:'rgba(58,42,0,0.4)' }]}>Family Tasks</Text>
-              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#3A2A00', letterSpacing:-0.5, lineHeight:28, marginTop:4 }}>{cardData.todos.filter(t => t.status !== 'done').length} things on your plate.</Text>
-            </TouchableOpacity>
-          </View>
+          <OnTheRadarCard
+            expanded={expandedCard === 'actions'}
+            onToggleExpand={() => toggleCard('actions')}
+            onViewFullList={() => {
+              setPendingChatContext({ type:'notes_tasks_sheet', tab:'tasks', returnTo:'dashboard' });
+              onContextTrigger?.();
+              onNavigateMySpace?.();
+            }}
+          />
         </Animated.View>
 
         <View style={{ height:130 }}/>
       </ScrollView>
+
+      {/* MORE SHEET */}
+      <MoreSheet
+        visible={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        onAction={(key) => {
+          // Inside swipe-world — handle Chat/Dashboard nav via scroll
+          if (key === 'dashboard') return; // already here
+          if (key === 'chat')      { onNavigateChat?.(); return; }
+          if (key === 'myspace')   { onNavigateMySpace?.(); return; }
+          if (key === 'tutor')     { router.navigate('/(tabs)/tutor' as any); return; }
+          if (key === 'kids')      { router.navigate('/(tabs)/kids' as any); return; }
+          if (key === 'family')    { router.navigate('/(tabs)/family' as any); return; }
+          if (key === 'settings')  { router.navigate('/(tabs)/settings' as any); return; }
+          if (key === 'budget')    { Alert.alert('Our Budget', 'Coming soon — bank feed integration on the way.'); return; }
+          // Tasks / Notes → My Space with Notes & Tasks sheet
+          if (key === 'radar') {
+            setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'tasks' } as any);
+            onNavigateMySpace?.();
+            return;
+          }
+          if (key === 'notes') {
+            setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'notes' } as any);
+            onNavigateMySpace?.();
+            return;
+          }
+          // Calendar/Shopping/Meals — set chat context then go to Chat (it opens the sheet on activate via contextTrigger)
+          const channelContext: Record<string, any> = {
+            calendar:  { type: 'calendar_sheet', event: { tab: 'today' } },
+            shopping:  { type: 'shopping_sheet' },
+            meals:     { type: 'meals_sheet' },
+            travel:    { type: 'add_event' },
+          };
+          if (channelContext[key]) {
+            setPendingChatContext(channelContext[key]);
+            onContextTrigger?.();
+            onNavigateChat?.();
+          }
+        }}
+      />
     </View>
   );
 }
@@ -1149,7 +1413,8 @@ const s = StyleSheet.create({
   topBarRow:     { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:20, paddingTop:4, paddingBottom:10 },
   topBarDivider: { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
   logoWord:      { fontFamily:'Poppins_800ExtraBold', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:46 },
-  dateLabel:     { fontFamily:'Poppins_700Bold', fontSize:17, color:'rgba(10,10,10,0.35)' },
+  dateLabel:     { fontFamily:'Poppins_700Bold', fontSize:14, color:'#1A1A1A' },
+  pageLabel:     { fontFamily:'Poppins_700Bold', fontSize:14, color:'rgba(10,10,10,0.32)' },
   dashBrief:     { marginHorizontal:0, marginBottom:10, borderRadius:18, backgroundColor:'#FAC8A8', padding:16, paddingHorizontal:18 },
   dashBriefLabel:{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(120,50,0,0.45)', marginBottom:8 },
   dashBriefMsg:  { fontFamily:'Poppins_500Medium', fontSize:17, color:'#3A1800', lineHeight:26 },
@@ -1160,19 +1425,20 @@ const s = StyleSheet.create({
 // ── Card styles ───────────────────────────────────────────────────────────────
 const cS = StyleSheet.create({
   card:      { borderRadius:22, padding:22 },
-  cardCal:   { backgroundColor:'#3A3D4A' },
+  cardCal:   { backgroundColor:'#2D3748' },
   cardDin:   { backgroundColor:'#B8EDD0' },
-  cardWx:    { backgroundColor:'#A8D8F0', flex:1 },
-  cardWotd:  { backgroundColor:'#E8F4E8' },
+  cardWx:    { backgroundColor:'#E8F4FD', flex:1 },
+  cardWotd:  { backgroundColor:'#F0EDE8', flex:1 },
   cardShop:  { backgroundColor:'#D8CCFF' },
   cardAct:   { backgroundColor:'#F0DC80' },
 
   cardLabel:    { fontFamily:'Poppins_700Bold', fontSize:13, textTransform:'uppercase', letterSpacing:0.8, color:'rgba(0,0,0,0.35)', marginBottom:6 },
   cardHeader:   { flexDirection:'row', alignItems:'flex-start', justifyContent:'space-between' },
-  headlineLt:   { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#fff', flex:1 },
+  headlineLt:   { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#FFFFFF', flex:1 },
   headlineDk:   { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#1A1A1A', flex:1 },
-  headlineShop: { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#fff', flex:1 },
-  headlineWotd: { fontFamily:'Poppins_700Bold', fontSize:26, letterSpacing:-0.5, lineHeight:32, color:'#6B35D9', flex:1 },
+  headlineShop: { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#1A1A1A', flex:1 },
+  headlineWotd: { fontFamily:'Poppins_700Bold', fontSize:24, letterSpacing:-0.5, lineHeight:30, color:'#1A1A1A', flex:1 },
+  cardSub:      { fontFamily:'Poppins_500Medium', fontSize:13, marginTop:6 },
 
   ghostLt:      { fontFamily:'DMSerifDisplay_400Regular', fontSize:88, color:'rgba(255,255,255,0.07)', position:'absolute', right:-8, top:-18, lineHeight:96 },
   tapHintLt:    { fontFamily:'Poppins_500Medium', fontSize:15, color:'rgba(255,255,255,0.30)', marginTop:10 },

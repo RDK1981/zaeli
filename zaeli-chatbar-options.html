@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli — Chat Bar Options</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #FAF8F5;
+    --page-bg: #E8E4DE;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.5);
+    --ink3: rgba(10,10,10,0.3);
+    --ink4: rgba(10,10,10,0.15);
+    --border: rgba(10,10,10,0.08);
+    --coral: #FF4545;
+    --sky: #A8D8F0;
+    --lav: #C4B4FF;
+    --peach: #FAC8A8;
+    --slate: #2D3748;
+    --mint: #B8EDD0;
+    --gold: #F0DC80;
+  }
+
+  body {
+    background: var(--page-bg);
+    font-family: 'Poppins', sans-serif;
+    padding: 40px 24px 80px;
+    color: var(--ink);
+  }
+
+  .page-title { font-size: 28px; font-weight: 800; color: var(--ink); letter-spacing: -0.5px; margin-bottom: 6px; }
+  .page-sub { font-size: 13px; color: var(--ink2); line-height: 1.7; max-width: 720px; margin-bottom: 24px; }
+
+  .principles-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 40px; }
+  .principle { background: #FFFFFF; border-radius: 12px; padding: 10px 16px; font-size: 12px; color: var(--ink2); border: 0.5px solid rgba(0,0,0,0.07); }
+  .principle strong { color: var(--ink); display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+
+  .row { display: flex; gap: 36px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 48px; }
+
+  /* Phone column */
+  .phone-col { display: flex; flex-direction: column; gap: 14px; align-items: center; flex-shrink: 0; }
+  .phone-tag {
+    font-size: 12px; font-weight: 800;
+    color: #fff;
+    border-radius: 20px;
+    padding: 6px 16px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .tag-a { background: #1A3A8A; }
+  .tag-b { background: #9B1C1C; }
+  .tag-c { background: #059669; }
+
+  .phone {
+    width: 340px;
+    background: var(--bg);
+    border-radius: 44px;
+    overflow: hidden;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.16);
+    position: relative;
+  }
+
+  .sb { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px 4px; }
+  .sb-time { font-size: 15px; font-weight: 700; }
+
+  .wm-wrap { display: flex; align-items: center; justify-content: space-between; padding: 6px 20px 14px; }
+  .wm { font-size: 30px; font-weight: 800; color: var(--ink); letter-spacing: -1px; }
+  .wm span { color: var(--lav); }
+  .wm-right { display: flex; align-items: center; gap: 12px; }
+  .wm-date-group { text-align: right; }
+  .wm-date { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .wm-page { font-size: 13px; font-weight: 700; color: var(--ink3); }
+  .hdiv { height: 1px; background: var(--border); margin: 0 0 4px; }
+
+  /* Hamburger icon for Option 3 header */
+  .hamburger-top {
+    width: 36px;
+    height: 36px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(220,220,220,0.6);
+  }
+
+  /* Chat feed */
+  .chat-feed { padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 12px; min-height: 440px; }
+
+  .zeyebrow { display: flex; align-items: center; gap: 6px; }
+  .z-dot { width: 16px; height: 16px; border-radius: 5px; background: var(--lav); display: flex; align-items: center; justify-content: center; }
+  .z-label { font-size: 10px; font-weight: 700; color: var(--ink3); letter-spacing: 0.08em; }
+
+  .brief-bubble { background: var(--slate); border-radius: 4px 18px 18px 18px; padding: 13px 15px; }
+  .brief-text { font-size: 13px; color: #CBD5E0; line-height: 1.65; }
+  .brief-text strong { color: #fff; font-weight: 700; }
+  .brief-text .hi { color: var(--sky); font-weight: 600; }
+  .brief-text .warn { color: #FBD38D; font-weight: 600; }
+
+  .chips-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 2px; }
+  .chip { font-size: 11px; font-weight: 600; color: var(--ink2); border: 1.5px solid rgba(10,10,10,0.14); border-radius: 20px; padding: 5px 12px; background: #fff; white-space: nowrap; }
+  .chip.p { background: var(--coral); color: #fff; border-color: var(--coral); }
+
+  .user-wrap { display: flex; justify-content: flex-end; }
+  .user-bubble { background: #F0EDE8; border-radius: 18px 4px 18px 18px; padding: 9px 13px; font-size: 12.5px; color: var(--ink); max-width: 78%; line-height: 1.5; }
+
+  .z-response { font-size: 12.5px; color: var(--ink); line-height: 1.6; padding: 0 2px; }
+
+  /* ═══════════════ CHAT BAR STYLES ═══════════════ */
+  .bar-wrap { padding: 10px 14px 20px; background: var(--bg); }
+
+  /* Base chat bar — used across all options */
+  .bar-pill {
+    display: flex; align-items: center; gap: 6px;
+    min-height: 48px;
+  }
+
+  /* Individual chat bar elements */
+  .bar-more-pill {
+    width: 42px; height: 42px;
+    background: #fff;
+    border: 1px solid rgba(220,220,220,0.7);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .bar-input-pill {
+    flex: 1;
+    background: #fff;
+    border: 1px solid rgba(220,220,220,0.7);
+    border-radius: 24px;
+    padding: 0 12px 0 16px;
+    height: 44px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--ink3);
+    overflow: hidden;
+  }
+  .bar-input-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .bar-camera-inset {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .bar-mic-btn {
+    width: 42px; height: 42px;
+    background: #fff;
+    border: 1px solid rgba(220,220,220,0.7);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .bar-send-btn {
+    width: 42px; height: 42px;
+    background: var(--coral);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* Icons within the pills */
+  .icon-grid { width: 18px; height: 18px; }
+  .icon-dots { width: 18px; height: 18px; }
+  .icon-ham  { width: 18px; height: 18px; }
+
+  /* Notes */
+  .notes {
+    flex: 1;
+    min-width: 280px;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .note-card {
+    background: #fff;
+    border-radius: 18px;
+    padding: 20px 22px;
+    border: 0.5px solid rgba(0,0,0,0.07);
+  }
+  .note-card h3 { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+  .note-card .note-sub { font-size: 10px; font-weight: 700; color: var(--ink3); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 14px; }
+  .note-card p { font-size: 13px; color: var(--ink2); line-height: 1.7; margin-bottom: 10px; }
+  .note-card p:last-child { margin-bottom: 0; }
+  .note-card ul { padding-left: 18px; margin-bottom: 10px; }
+  .note-card li { font-size: 12.5px; color: var(--ink2); line-height: 1.7; margin-bottom: 5px; }
+  .note-divider { height: 0.5px; background: rgba(0,0,0,0.08); margin: 14px 0; }
+
+  .pros, .cons { padding: 10px 14px; border-radius: 10px; margin-bottom: 8px; }
+  .pros { background: #EDFBF4; }
+  .cons { background: #FFF0F0; }
+  .pros-label, .cons-label { font-size: 10px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 6px; }
+  .pros-label { color: #0D5C32; }
+  .cons-label { color: #9B1C1C; }
+  .pros p, .cons p { font-size: 12px; line-height: 1.6; margin-bottom: 4px; }
+  .pros p:last-child, .cons p:last-child { margin-bottom: 0; }
+  .pros p { color: #0D5C32; }
+  .cons p { color: #9B1C1C; }
+
+  .verdict-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    border-radius: 20px;
+    padding: 5px 14px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+  .badge-classic { background: #EEF4FF; color: #1A3A8A; }
+  .badge-novel { background: #FFF0F0; color: #9B1C1C; }
+  .badge-clean { background: #EDFBF4; color: #059669; }
+
+  code { font-family: 'Courier New', monospace; font-size: 11px; background: #F7F7F4; border-radius: 4px; padding: 2px 6px; color: #C53030; }
+
+  /* Summary card */
+  .summary-card {
+    background: #fff;
+    border-radius: 20px;
+    padding: 28px 30px;
+    max-width: 1100px;
+    border: 0.5px solid rgba(0,0,0,0.07);
+    margin-bottom: 24px;
+  }
+  .summary-card h2 { font-size: 20px; font-weight: 800; margin-bottom: 8px; }
+  .summary-card p { font-size: 13px; color: var(--ink2); line-height: 1.7; margin-bottom: 10px; }
+  .summary-card ul { padding-left: 20px; margin-bottom: 12px; }
+  .summary-card li { font-size: 13px; color: var(--ink2); line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<div class="page-title">Zaeli — Chat Bar Options</div>
+<div class="page-sub">Universal chat bar at the bottom of every screen (except 92% sheets and tutor sessions). Three variations of where the "More" entry point lives. Same content in each phone so you can compare placement only.</div>
+
+<div class="principles-row">
+  <div class="principle"><strong>Universal chat bar</strong>Lives on every screen except sheets</div>
+  <div class="principle"><strong>Chat bar sacred</strong>Always [Input+Camera][Mic][Send], never conditional</div>
+  <div class="principle"><strong>No FAB anywhere</strong>FAB retires; all nav via More sheet or swipe</div>
+  <div class="principle"><strong>More sheet</strong>Dashboard, My Space, modules, Settings, uploads</div>
+  <div class="principle"><strong>Swipe</strong>Primary Chat ↔ Dashboard navigation</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- OPTION A — More LEFT of chat bar                                           -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="row">
+  <div class="phone-col">
+    <div class="phone-tag tag-a">Option A · More LEFT</div>
+    <div class="phone">
+      <div class="sb">
+        <div class="sb-time">12:49</div>
+        <div style="display:flex;gap:4px;"><svg width="18" height="13" viewBox="0 0 26 13" fill="none"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="#1A1A1A" stroke-opacity="0.35"/><rect x="2" y="2" width="14" height="9" rx="2" fill="#1A1A1A"/></svg></div>
+      </div>
+
+      <div class="wm-wrap">
+        <div class="wm">z<span>a</span>el<span>i</span></div>
+        <div class="wm-right">
+          <div class="wm-date-group">
+            <div class="wm-date">Fri, 17 Apr</div>
+            <div class="wm-page">Chat</div>
+          </div>
+        </div>
+      </div>
+      <div class="hdiv"></div>
+
+      <div class="chat-feed">
+        <div class="zeyebrow">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli · 7:02am</div>
+        </div>
+        <div class="brief-bubble">
+          <div class="brief-text">
+            Morning Rich. You're in good shape today.<br><br>
+            <strong>I've already updated</strong> Gab's soccer to Sunday. Poppy's netball at <span class="hi">3pm</span> — leave by 2:40. Calamari tonight.<br><br>
+            <span class="warn">Olive oil isn't on the list yet.</span>
+          </div>
+        </div>
+        <div class="chips-row">
+          <div class="chip p">Add olive oil</div>
+          <div class="chip">Set 2:40 reminder</div>
+          <div class="chip">All over it ✓</div>
+        </div>
+
+        <div class="user-wrap">
+          <div class="user-bubble">Cheers Z — all good</div>
+        </div>
+
+        <div class="zeyebrow" style="margin-top: 4px;">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli</div>
+        </div>
+        <div class="z-response">Go have a good morning. You've got this one handled.</div>
+      </div>
+
+      <!-- Chat bar — MORE on LEFT -->
+      <div class="bar-wrap">
+        <div class="bar-pill">
+          <!-- More pill LEFT -->
+          <div class="bar-more-pill">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="1.8" stroke-linecap="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </div>
+          <!-- Input + camera inside -->
+          <div class="bar-input-pill">
+            <div class="bar-input-text">Ask Zaeli anything...</div>
+            <div class="bar-camera-inset">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.8">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="3.5"/>
+              </svg>
+            </div>
+          </div>
+          <!-- Mic -->
+          <div class="bar-mic-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="1.8" stroke-linecap="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </div>
+          <!-- Send -->
+          <div class="bar-send-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="19" x2="12" y2="5"/>
+              <polyline points="5 12 12 5 19 12"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <div class="verdict-badge badge-classic">Option A · Western-reading natural</div>
+      <h3>More on the LEFT</h3>
+      <div class="note-sub">[⧈][Input+📷][🎤][➤]</div>
+
+      <p>More lives on the far-left of the chat bar. Rich's eye lands on it first (left-to-right reading), so it's the most discoverable. Send sits on the far right where his thumb naturally finds it.</p>
+
+      <p>This is iMessage's pattern — the <code>+</code> attach icon lives on the left, send on the right. Familiar muscle memory.</p>
+
+      <div class="pros">
+        <div class="pros-label">Pros</div>
+        <p>→ Most discoverable — first thing eye scans to</p>
+        <p>→ Matches iMessage / WhatsApp convention</p>
+        <p>→ Send button isolated on the right — no accidental taps</p>
+        <p>→ Thumb-reachable on most phone sizes</p>
+      </div>
+      <div class="cons">
+        <div class="cons-label">Cons</div>
+        <p>→ Requires a separate pill to the left of the input, breaking the "one clean input field" look slightly</p>
+        <p>→ Bar width: 5 elements total — input gets ~55% of bar width</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- OPTION B — More RIGHT of chat bar                                          -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="row">
+  <div class="phone-col">
+    <div class="phone-tag tag-b">Option B · More RIGHT</div>
+    <div class="phone">
+      <div class="sb">
+        <div class="sb-time">12:49</div>
+        <div style="display:flex;gap:4px;"><svg width="18" height="13" viewBox="0 0 26 13" fill="none"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="#1A1A1A" stroke-opacity="0.35"/><rect x="2" y="2" width="14" height="9" rx="2" fill="#1A1A1A"/></svg></div>
+      </div>
+
+      <div class="wm-wrap">
+        <div class="wm">z<span>a</span>el<span>i</span></div>
+        <div class="wm-right">
+          <div class="wm-date-group">
+            <div class="wm-date">Fri, 17 Apr</div>
+            <div class="wm-page">Chat</div>
+          </div>
+        </div>
+      </div>
+      <div class="hdiv"></div>
+
+      <div class="chat-feed">
+        <div class="zeyebrow">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli · 7:02am</div>
+        </div>
+        <div class="brief-bubble">
+          <div class="brief-text">
+            Morning Rich. You're in good shape today.<br><br>
+            <strong>I've already updated</strong> Gab's soccer to Sunday. Poppy's netball at <span class="hi">3pm</span> — leave by 2:40. Calamari tonight.<br><br>
+            <span class="warn">Olive oil isn't on the list yet.</span>
+          </div>
+        </div>
+        <div class="chips-row">
+          <div class="chip p">Add olive oil</div>
+          <div class="chip">Set 2:40 reminder</div>
+          <div class="chip">All over it ✓</div>
+        </div>
+
+        <div class="user-wrap">
+          <div class="user-bubble">Cheers Z — all good</div>
+        </div>
+
+        <div class="zeyebrow" style="margin-top: 4px;">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli</div>
+        </div>
+        <div class="z-response">Go have a good morning. You've got this one handled.</div>
+      </div>
+
+      <!-- Chat bar — MORE on RIGHT (after send) -->
+      <div class="bar-wrap">
+        <div class="bar-pill">
+          <!-- Input + camera inside -->
+          <div class="bar-input-pill">
+            <div class="bar-input-text">Ask Zaeli anything...</div>
+            <div class="bar-camera-inset">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.8">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="3.5"/>
+              </svg>
+            </div>
+          </div>
+          <!-- Mic -->
+          <div class="bar-mic-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="1.8" stroke-linecap="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </div>
+          <!-- Send -->
+          <div class="bar-send-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="19" x2="12" y2="5"/>
+              <polyline points="5 12 12 5 19 12"/>
+            </svg>
+          </div>
+          <!-- More RIGHT -->
+          <div class="bar-more-pill">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="1.8" stroke-linecap="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <div class="verdict-badge badge-novel">Option B · Novel placement</div>
+      <h3>More on the RIGHT (after Send)</h3>
+      <div class="note-sub">[Input+📷][🎤][➤][⧈]</div>
+
+      <p>More sits to the far right of the chat bar, past the send button. Everything "output" is clustered together on the right side — mic, send, and access to the rest of the app.</p>
+
+      <p>Visually cleaner from the left — input takes up more of the prominent left-of-bar real estate. Focus is on composing, not navigation.</p>
+
+      <div class="pros">
+        <div class="pros-label">Pros</div>
+        <p>→ Input field starts immediately at the left edge — feels primary</p>
+        <p>→ All "action" elements clustered right (mic/send/more)</p>
+        <p>→ Send stays isolated from camera (no accidental taps)</p>
+      </div>
+      <div class="cons">
+        <div class="cons-label">Cons</div>
+        <p>→ More BEYOND send is unusual — users might miss it</p>
+        <p>→ Right edge of thumb zone is crowded (3 icons close together)</p>
+        <p>→ More + Send adjacent — risk of accidental tap when sending</p>
+        <p>→ Harder to discover — eye reads left-to-right, More is last thing seen</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- OPTION C — No More in bar, Hamburger top-right                             -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="row">
+  <div class="phone-col">
+    <div class="phone-tag tag-c">Option C · Hamburger top-right</div>
+    <div class="phone">
+      <div class="sb">
+        <div class="sb-time">12:49</div>
+        <div style="display:flex;gap:4px;"><svg width="18" height="13" viewBox="0 0 26 13" fill="none"><rect x="0.5" y="0.5" width="22" height="12" rx="3.5" stroke="#1A1A1A" stroke-opacity="0.35"/><rect x="2" y="2" width="14" height="9" rx="2" fill="#1A1A1A"/></svg></div>
+      </div>
+
+      <div class="wm-wrap">
+        <div class="wm">z<span>a</span>el<span>i</span></div>
+        <div class="wm-right">
+          <div class="wm-date-group">
+            <div class="wm-date">Fri, 17 Apr</div>
+            <div class="wm-page">Chat</div>
+          </div>
+          <!-- Hamburger top right -->
+          <div class="hamburger-top">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="2.2" stroke-linecap="round">
+              <line x1="4" y1="8" x2="20" y2="8"/>
+              <line x1="4" y1="14" x2="20" y2="14"/>
+              <line x1="4" y1="20" x2="20" y2="20"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div class="hdiv"></div>
+
+      <div class="chat-feed">
+        <div class="zeyebrow">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli · 7:02am</div>
+        </div>
+        <div class="brief-bubble">
+          <div class="brief-text">
+            Morning Rich. You're in good shape today.<br><br>
+            <strong>I've already updated</strong> Gab's soccer to Sunday. Poppy's netball at <span class="hi">3pm</span> — leave by 2:40. Calamari tonight.<br><br>
+            <span class="warn">Olive oil isn't on the list yet.</span>
+          </div>
+        </div>
+        <div class="chips-row">
+          <div class="chip p">Add olive oil</div>
+          <div class="chip">Set 2:40 reminder</div>
+          <div class="chip">All over it ✓</div>
+        </div>
+
+        <div class="user-wrap">
+          <div class="user-bubble">Cheers Z — all good</div>
+        </div>
+
+        <div class="zeyebrow" style="margin-top: 4px;">
+          <div class="z-dot"><svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M5 0L6.2 3.8L10 5L6.2 6.2L5 10L3.8 6.2L0 5L3.8 3.8L5 0Z" fill="#2D3748"/></svg></div>
+          <div class="z-label">Zaeli</div>
+        </div>
+        <div class="z-response">Go have a good morning. You've got this one handled.</div>
+      </div>
+
+      <!-- Chat bar — NO MORE in bar, cleaner 3-icon layout -->
+      <div class="bar-wrap">
+        <div class="bar-pill">
+          <!-- Input + camera inside -->
+          <div class="bar-input-pill">
+            <div class="bar-input-text">Ask Zaeli anything...</div>
+            <div class="bar-camera-inset">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FF4545" stroke-width="1.8">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="3.5"/>
+              </svg>
+            </div>
+          </div>
+          <!-- Mic -->
+          <div class="bar-mic-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A1A1A" stroke-width="1.8" stroke-linecap="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </div>
+          <!-- Send -->
+          <div class="bar-send-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round">
+              <line x1="12" y1="19" x2="12" y2="5"/>
+              <polyline points="5 12 12 5 19 12"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note-card">
+      <div class="verdict-badge badge-clean">Option C · Cleanest chat bar</div>
+      <h3>Hamburger top-right, chat bar untouched</h3>
+      <div class="note-sub">Header: [zaeli] [Date/Page] [☰]  ·  Bar: [Input+📷][🎤][➤]</div>
+
+      <p>The classic app pattern: hamburger menu top-right, chat bar stays minimal. Three elements: input with camera inside, mic, send. Maximum input real estate, universally-understood menu affordance.</p>
+
+      <p>No new patterns introduced — this is how 90% of apps handle navigation menus. Users don't need to learn anything new.</p>
+
+      <div class="pros">
+        <div class="pros-label">Pros</div>
+        <p>→ Chat bar is completely clean — input gets max space</p>
+        <p>→ Universal hamburger convention — zero learning curve</p>
+        <p>→ Hamburger is spatially separated from chat bar — no accidental taps</p>
+        <p>→ Most app-store-familiar pattern</p>
+        <p>→ Works identically on all screens (Dashboard, Chat, Kids Hub, etc.)</p>
+      </div>
+      <div class="cons">
+        <div class="cons-label">Cons</div>
+        <p>→ Top-right thumb reach is the worst zone on big phones</p>
+        <p>→ Hamburger is "generic" — some designers consider it uninspired</p>
+        <p>→ Header gets slightly more crowded</p>
+      </div>
+    </div>
+
+    <div class="note-card">
+      <h3>Why Option C might be best</h3>
+      <div class="note-sub">A genuinely minimal chat bar</div>
+      <p>Option A and B both add a 4th pill to the chat bar. Option C is the only one that keeps the chat bar at its bare essentials — input, mic, send. That's a big deal for a screen that lives on every page of the app.</p>
+      <p>Also: the hamburger never moves between screens. It's top-right on Chat, top-right on Dashboard, top-right everywhere. Predictable. The chat bar becomes purely about the conversation, not about navigation.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- SUMMARY                                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="summary-card">
+  <h2>TL;DR — which one?</h2>
+  <p><strong>Option A (More left)</strong> — feels natural, discoverable, matches iMessage. Chat bar gets one extra pill.</p>
+  <p><strong>Option B (More right)</strong> — looks slightly cleaner from the left but the placement past Send is unusual. Least intuitive.</p>
+  <p><strong>Option C (Hamburger top-right)</strong> — chat bar stays minimal, menu is universally understood. Best preservation of the chat bar's purity.</p>
+  <div class="note-divider"></div>
+  <p><strong>My honest take:</strong> Option C. The chat bar is the single most touched UI element in the app — keeping it minimal (3 elements: input, mic, send) is worth the small cost of putting the menu at the top-right. A and C are both valid; B has a real usability concern with More after Send.</p>
+</div>
+
+</body>
+</html>
+</parameter>

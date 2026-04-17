@@ -54,20 +54,28 @@ export async function callClaude({
   body: Record<string, any>;
   accountId?: number;
 }): Promise<any> {
+  // Check if body.system is an array (structured prompt with cache_control)
+  const usePromptCaching = Array.isArray(body.system) && body.system.some((b: any) => b.cache_control);
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-api-key': API_KEY,
+    'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true',
+  };
+  if (usePromptCaching) {
+    headers['anthropic-beta'] = 'prompt-caching-2024-07-31';
+  }
+
   const res = await fetch(ANTHROPIC_API_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
   const data = await res.json();
 
-  logUsage({ feature, familyId, accountId, data, model: body.model });
+  logUsage({ feature, familyId, accountId, data, model: body.model, cacheData: data?.usage });
 
   if (!res.ok) {
     throw new Error(`Anthropic API ${res.status}: ${data?.error?.message || 'unknown error'}`);
@@ -144,17 +152,35 @@ function logUsage({
   accountId,
   data,
   model,
+  cacheData,
 }: {
   feature: ZaeliFeature;
   familyId: string;
   accountId?: number;
   data: any;
   model?: string;
+  cacheData?: any;
 }) {
   const inputTokens  = data?.usage?.input_tokens  ?? 0;
   const outputTokens = data?.usage?.output_tokens ?? 0;
   const pricing = PRICING[model || ''] || DEFAULT_PRICING;
-  const costUsd = (inputTokens * pricing.input) + (outputTokens * pricing.output);
+
+  // Anthropic prompt caching: cache_read_input_tokens are 90% cheaper,
+  // cache_creation_input_tokens are 25% more expensive (one-time write)
+  const cacheRead = cacheData?.cache_read_input_tokens ?? 0;
+  const cacheWrite = cacheData?.cache_creation_input_tokens ?? 0;
+  const uncachedInput = inputTokens - cacheRead - cacheWrite;
+
+  const costUsd = cacheRead > 0 || cacheWrite > 0
+    ? (uncachedInput * pricing.input)
+      + (cacheRead * pricing.input * 0.1)      // 90% discount on cache reads
+      + (cacheWrite * pricing.input * 1.25)     // 25% surcharge on cache writes
+      + (outputTokens * pricing.output)
+    : (inputTokens * pricing.input) + (outputTokens * pricing.output);
+
+  if (cacheRead > 0) {
+    console.log(`[api-logger] Cache hit: ${cacheRead} tokens cached, ${uncachedInput} uncached, saved ~${((cacheRead * pricing.input * 0.9) * 100).toFixed(1)} cents`);
+  }
 
   supabase.from('api_logs').insert({
     family_id:     familyId,

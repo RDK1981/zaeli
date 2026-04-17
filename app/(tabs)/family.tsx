@@ -419,12 +419,15 @@ export default function OurFamilyScreen() {
     return (
       <>
         <View style={s.banner}>
-          <TouchableOpacity onPress={goBack} activeOpacity={0.7}>
+          <View style={s.bannerLeft}>
+            <TouchableOpacity onPress={goBack} activeOpacity={0.7} style={s.bannerBackBtn}>
+              <IcoBack size={18} color={INK} />
+            </TouchableOpacity>
             <Text style={s.wordmark}>
               z<Text style={{ color: '#A8D8F0' }}>a</Text>el
               <Text style={{ color: '#A8D8F0' }}>i</Text>
             </Text>
-          </TouchableOpacity>
+          </View>
           <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 17, color: INK4 }}>{title}</Text>
         </View>
         <View style={s.divider} />
@@ -1925,6 +1928,8 @@ const s = StyleSheet.create({
 
   // Banner
   banner: { paddingHorizontal: 20, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: FAM_BG },
+  bannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  bannerBackBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' },
   wordmark: { fontFamily: 'Poppins_800ExtraBold', fontSize: 40, letterSpacing: -1.5, color: INK, lineHeight: 46 },
   bannerRight: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   bannerLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK4 },
