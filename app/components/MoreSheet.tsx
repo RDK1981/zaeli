@@ -65,72 +65,72 @@ const TILES = {
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 function IcoCalendar({ color }: { color: string }) {
-  return <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Rect x={3} y={4} width={18} height={18} rx={2}/><Line x1={16} y1={2} x2={16} y2={6}/><Line x1={8} y1={2} x2={8} y2={6}/><Line x1={3} y1={10} x2={21} y2={10}/>
   </Svg>;
 }
 function IcoShopping({ color }: { color: string }) {
-  return <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><Line x1={3} y1={6} x2={21} y2={6}/><Path d="M16 10a4 4 0 01-8 0"/>
   </Svg>;
 }
 function IcoMeals({ color }: { color: string }) {
-  return <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M18 8h1a4 4 0 010 8h-1"/><Path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><Line x1={6} y1={1} x2={6} y2={4}/><Line x1={10} y1={1} x2={10} y2={4}/><Line x1={14} y1={1} x2={14} y2={4}/>
   </Svg>;
 }
 function IcoRadar({ color }: { color: string }) {
-  return <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Polyline points="9 11 12 14 22 4"/><Path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
   </Svg>;
 }
 function IcoNotes({ color }: { color: string }) {
-  return <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><Polyline points="14 2 14 8 20 8"/>
   </Svg>;
 }
 function IcoTravel({ color }: { color: string }) {
-  return <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><Circle cx={12} cy={10} r={3}/>
   </Svg>;
 }
 function IcoMySpace({ color }: { color: string }) {
-  return <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Circle cx={12} cy={12} r={10}/><Path d="M12 6v12M6 12h12"/>
   </Svg>;
 }
 function IcoTutor({ color }: { color: string }) {
-  return <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Rect x={2} y={3} width={20} height={14} rx={2}/><Line x1={8} y1={21} x2={16} y2={21}/><Line x1={12} y1={17} x2={12} y2={21}/>
   </Svg>;
 }
 function IcoKids({ color }: { color: string }) {
-  return <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Circle cx={12} cy={8} r={4}/><Path d="M6 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/>
   </Svg>;
 }
 function IcoFamily({ color }: { color: string }) {
-  return <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
   </Svg>;
 }
 function IcoBudget({ color }: { color: string }) {
-  return <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Circle cx={12} cy={12} r={10}/><Line x1={12} y1={6} x2={12} y2={18}/><Path d="M16 9H10.5a2.5 2.5 0 000 5H13a2.5 2.5 0 010 5H8"/>
   </Svg>;
 }
 function IcoDashboard({ color }: { color: string }) {
-  return <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Rect x={3} y={3} width={7} height={7} rx={1}/><Rect x={14} y={3} width={7} height={7} rx={1}/><Rect x={3} y={14} width={7} height={7} rx={1}/><Rect x={14} y={14} width={7} height={7} rx={1}/>
   </Svg>;
 }
 function IcoChat({ color }: { color: string }) {
-  return <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
   </Svg>;
 }
 function IcoSettings({ color }: { color: string }) {
-  return <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Circle cx={12} cy={12} r={3}/><Path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9z"/>
   </Svg>;
 }
@@ -159,15 +159,45 @@ function MoreIcon({ keyId, color }: { keyId: string; color: string }) {
 export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps) {
   const router = useRouter();
 
-  function handleItem(key: string) {
+  // Guard against phantom backdrop taps right after the sheet opens
+  const canCloseRef = React.useRef(false);
+  React.useEffect(() => {
+    if (visible) {
+      console.log('[more] sheet visible=true, guard active');
+      canCloseRef.current = false;
+      const t = setTimeout(() => {
+        canCloseRef.current = true;
+        console.log('[more] guard lifted (400ms elapsed)');
+      }, 400);
+      return () => clearTimeout(t);
+    }
+  }, [visible]);
+
+  function safeClose() {
+    console.log('[more] safeClose called, canClose:', canCloseRef.current);
+    if (!canCloseRef.current) { console.log('[more] safeClose → swallowed'); return; }
     onClose();
-    // Slight delay so close animation completes before nav
+  }
+
+  function wrappedOnClose() {
+    console.log('[more] onClose fired (X button or request)');
+    onClose();
+  }
+
+  function handleItem(key: string) {
+    console.log('[more] tile tapped:', key);
+    // CRITICAL ORDER — when parent passes onAction, we MUST call it SYNCHRONOUSLY first
+    // so the parent can clear any refs (like sheetBeforeMoreRef) before we call onClose.
+    // If we call onClose() first, the parent's close handler reads the stale ref and
+    // may try to restore the origin sheet, overriding the nav we're about to do.
+    if (onAction) {
+      onAction(key);
+      onClose();
+      return;
+    }
+    // No onAction provided — use default routing after close animation completes
+    onClose();
     setTimeout(() => {
-      // Parent can override handling (e.g. for chat/dashboard nav inside swipe-world)
-      if (onAction) {
-        onAction(key);
-        return;
-      }
       // Default handling — route directly where possible
       const screens: Record<string, string> = {
         myspace:   '/(tabs)/my-space',
@@ -241,11 +271,11 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => { console.log('[more] Modal.onRequestClose fired'); onClose(); }}>
       <TouchableOpacity
         style={st.backdrop}
         activeOpacity={1}
-        onPress={onClose}
+        onPress={safeClose}
       >
         <TouchableOpacity
           activeOpacity={1}
@@ -255,7 +285,7 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
           <View style={st.handle}/>
           <View style={st.header}>
             <Text style={st.title}>More</Text>
-            <TouchableOpacity onPress={onClose} style={st.closeBtn} activeOpacity={0.7}>
+            <TouchableOpacity onPress={wrappedOnClose} style={st.closeBtn} activeOpacity={0.7}>
               <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.55)" strokeWidth={2.5} strokeLinecap="round">
                 <Line x1={6} y1={6} x2={18} y2={18}/>
                 <Line x1={18} y1={6} x2={6} y2={18}/>
@@ -264,6 +294,12 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
           </View>
 
           <ScrollView style={st.scroll} contentContainerStyle={st.scrollContent} showsVerticalScrollIndicator={false}>
+            <Text style={st.sectionLabel}>NAVIGATE</Text>
+            <View style={st.grid2}>
+              <Tile keyId="chat"/>
+              <Tile keyId="dashboard"/>
+            </View>
+
             <Text style={st.sectionLabel}>FAMILY CHANNELS</Text>
             <View style={st.grid3}>
               <Tile keyId="calendar"/>
@@ -275,20 +311,20 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
             </View>
 
             <Text style={st.sectionLabel}>PERSONAL</Text>
-            <Tile keyId="myspace" size="wide"/>
+            <View style={st.grid2}>
+              <Tile keyId="myspace"/>
+              <Tile keyId="budget"/>
+            </View>
 
             <Text style={st.sectionLabel}>MODULES</Text>
             <View style={st.grid2}>
               <Tile keyId="tutor"/>
               <Tile keyId="kids"/>
-              <Tile keyId="family"/>
-              <Tile keyId="budget"/>
             </View>
 
-            <Text style={st.sectionLabel}>NAVIGATION</Text>
-            <View style={st.grid3}>
-              <Tile keyId="chat"/>
-              <Tile keyId="dashboard"/>
+            <Text style={st.sectionLabel}>ACCOUNT</Text>
+            <View style={st.grid2}>
+              <Tile keyId="family"/>
               <Tile keyId="settings"/>
             </View>
           </ScrollView>
@@ -344,7 +380,7 @@ const st = StyleSheet.create({
     gap: 12,
     padding: 14,
   },
-  tileIcon:      { width: 32, height: 32, alignItems: 'flex-start', justifyContent: 'flex-start', marginBottom: 6 },
-  tileRowIcon:   { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  tileLabel:     { fontFamily: 'Poppins_800ExtraBold', fontSize: 15, letterSpacing: -0.2, lineHeight: 19 },
+  tileIcon:      { width: 34, height: 34, alignItems: 'flex-start', justifyContent: 'flex-start', marginBottom: 6 },
+  tileRowIcon:   { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  tileLabel:     { fontFamily: 'Poppins_800ExtraBold', fontSize: 17, letterSpacing: -0.2, lineHeight: 21 },
 });

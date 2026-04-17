@@ -170,9 +170,40 @@ export default function MySpaceScreen({ onNavigateChat, isActive = true, context
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
+  const sheetBeforeMoreRef = React.useRef<string | null>(null);
+  const pendingOpenMoreRef = React.useRef(false);
+
   function goBack() {
     if (router.canGoBack()) router.back();
     else router.navigate('/(tabs)/swipe-world' as any);
+  }
+
+  function openMoreFromSheet(origin: string) {
+    sheetBeforeMoreRef.current = origin;
+    pendingOpenMoreRef.current = true;
+    setSheet(null);
+    setTimeout(() => {
+      if (pendingOpenMoreRef.current) {
+        pendingOpenMoreRef.current = false;
+        setMoreOpen(true);
+      }
+    }, 600);
+  }
+
+  function handleSheetDismissed() {
+    if (pendingOpenMoreRef.current) {
+      pendingOpenMoreRef.current = false;
+      setMoreOpen(true);
+    }
+  }
+
+  function closeMoreSheet() {
+    setMoreOpen(false);
+    const origin = sheetBeforeMoreRef.current;
+    sheetBeforeMoreRef.current = null;
+    if (origin) {
+      setTimeout(() => setSheet(origin), 500);
+    }
   }
 
   // Inline expand
@@ -466,6 +497,8 @@ export default function MySpaceScreen({ onNavigateChat, isActive = true, context
       <NotesSheet
         visible={sheet === 'notes'}
         initialTab={notesInitialTab}
+        onMenu={() => openMoreFromSheet('notes')}
+        onDismiss={handleSheetDismissed}
         onClose={closeSheet}
         notes={notes}
         tasks={tasks}
@@ -506,7 +539,36 @@ export default function MySpaceScreen({ onNavigateChat, isActive = true, context
       <ZenSheet visible={sheet === 'zen'} onClose={closeSheet} />
 
       {/* MORE SHEET */}
-      <MoreSheet visible={moreOpen} onClose={() => setMoreOpen(false)} />
+      <MoreSheet
+        visible={moreOpen}
+        onClose={closeMoreSheet}
+        onAction={(key) => {
+          // User picked a tile — clear ref synchronously so close doesn't restore
+          sheetBeforeMoreRef.current = null;
+          const closeAllSheets = () => { setSheet(null); };
+
+          if (key === 'myspace') { closeAllSheets(); return; }
+          // Notes/Tasks — stay on My Space, open notes sheet on the right tab after MoreSheet closes
+          if (key === 'notes' || key === 'radar') {
+            setNotesInitialTab(key === 'radar' ? 'tasks' : 'notes');
+            closeAllSheets();
+            setTimeout(() => setSheet('notes'), 350);
+            return;
+          }
+          // Everything else — close sheet, then route (let MoreSheet's default handle via pendingChatContext)
+          closeAllSheets();
+          // Fallback routing via pendingChatContext
+          if (key === 'chat') { setPendingChatContext({ type: null } as any); router.navigate('/(tabs)/swipe-world' as any); return; }
+          if (key === 'dashboard') { setPendingChatContext({ type: 'goto_dashboard' as any } as any); router.navigate('/(tabs)/swipe-world' as any); return; }
+          if (key === 'calendar') { setPendingChatContext({ type: 'calendar_sheet', event: { tab: 'today' } }); router.navigate('/(tabs)/swipe-world' as any); return; }
+          if (key === 'shopping') { setPendingChatContext({ type: 'shopping_sheet' }); router.navigate('/(tabs)/swipe-world' as any); return; }
+          if (key === 'meals')    { setPendingChatContext({ type: 'meals_sheet' }); router.navigate('/(tabs)/swipe-world' as any); return; }
+          if (key === 'tutor')    { router.navigate('/(tabs)/tutor' as any); return; }
+          if (key === 'kids')     { router.navigate('/(tabs)/kids' as any); return; }
+          if (key === 'family')   { router.navigate('/(tabs)/family' as any); return; }
+          if (key === 'settings') { router.navigate('/(tabs)/settings' as any); return; }
+        }}
+      />
     </View>
   );
 }
@@ -776,12 +838,14 @@ function WordleCard({ onOpen }: { onOpen: () => void }) {
 
 // ─── Sheet base component ─────────────────────────────────────────────────────
 
-function Sheet({ visible, onClose, title, subtitle, children }: {
+function Sheet({ visible, onClose, title, subtitle, children, onMenu, onDismiss }: {
   visible: boolean; onClose: () => void;
   title: string; subtitle?: string; children: React.ReactNode;
+  onMenu?: () => void;  // optional hamburger ☰ action
+  onDismiss?: () => void;  // iOS onDismiss after Modal finishes closing
 }) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} onDismiss={onDismiss}>
       <View style={s.backdrop}>
         <TouchableOpacity style={{ flex:1 }} activeOpacity={1} onPress={onClose} />
         <View style={s.sheetWrap}>
@@ -791,9 +855,20 @@ function Sheet({ visible, onClose, title, subtitle, children }: {
               <Text style={s.sheetTitle}>{title}</Text>
               {subtitle ? <Text style={s.sheetSubtitle}>{subtitle}</Text> : null}
             </View>
-            <TouchableOpacity style={s.sheetClose} onPress={onClose}>
-              <Text style={s.sheetCloseTxt}>✕</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+              {onMenu && (
+                <TouchableOpacity style={s.sheetClose} onPress={onMenu} activeOpacity={0.7}>
+                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth={2.2} strokeLinecap="round">
+                    <Line x1={4} y1={6} x2={20} y2={6}/>
+                    <Line x1={4} y1={12} x2={20} y2={12}/>
+                    <Line x1={4} y1={18} x2={20} y2={18}/>
+                  </Svg>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={s.sheetClose} onPress={onClose}>
+                <Text style={s.sheetCloseTxt}>✕</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           {children}
         </View>
@@ -1753,7 +1828,7 @@ function GoalDetailInline({ goal, onBack, onUpdate, onDelete }: {
 
 // ─── Notes Sheet ──────────────────────────────────────────────────────────────
 
-function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, onAddTask, onToggleTask, onDeleteTask, editingNote, onEditorClose, onEditorSave, onEditorDelete, initialTab = 'notes' }: {
+function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, onAddTask, onToggleTask, onDeleteTask, editingNote, onEditorClose, onEditorSave, onEditorDelete, initialTab = 'notes', onMenu, onDismiss }: {
   visible: boolean; onClose: () => void;
   notes: NoteItem[]; tasks: { id:string; title:string; due_date:string|null; is_complete:boolean; linked_note_id:string|null; completed_at:string|null }[];
   onEdit: (n: NoteItem) => void; onNew: () => void; onDelete: (id: string) => void;
@@ -1761,6 +1836,8 @@ function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, o
   editingNote: NoteItem | null; onEditorClose: () => void;
   onEditorSave: (n: NoteItem) => void; onEditorDelete: (id: string) => void;
   initialTab?: 'notes' | 'tasks';
+  onMenu?: () => void;
+  onDismiss?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<'notes'|'tasks'>(initialTab);
   // Sync to initialTab when the sheet opens (so Dashboard's "View full list" opens Tasks tab)
@@ -1793,7 +1870,7 @@ function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, o
   }
 
   return (
-    <Sheet visible={visible} onClose={() => { if (editingNote) onEditorClose(); else onClose(); }} title="Notes & Tasks">
+    <Sheet visible={visible} onClose={() => { if (editingNote) onEditorClose(); else onClose(); }} title="Notes & Tasks" onMenu={!editingNote ? onMenu : undefined} onDismiss={onDismiss}>
       {/* ── Editor view (replaces everything when editing a note) ── */}
       {editingNote && (
         <NoteEditorInline note={editingNote} onBack={onEditorClose} onSave={onEditorSave} onDelete={onEditorDelete} />

@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 17 April 2026 — Session 14 ✅ · Major architecture rebuild · Dashboard redesign · 2-page swipe · FAB killed · Hamburger + MoreSheet · Chat-first home · Option C splash · Kids Hub AI trivia · Tutor difficulty bands · Prompt caching*
+*Last updated: 18 April 2026 — Session 15 ✅ · MoreSheet restructure · Universal chat bar (Tutor style) · Hamburger cross-sheet nav · Splash polish · Dashboard card tappable · Modal stacking fixes · Many UX polish wins*
 
 ---
 
@@ -243,13 +243,21 @@ DM Serif           = ghost numbers ONLY (never readable UI text)
 Wordmark font      = Poppins_800ExtraBold (NOT DM Serif)
 Wordmark a+i       = Dashboard:#FAC8A8 peach · Chat:#C4B4FF lavender · MySpace:#A8D8F0 sky · OurBudget:#059669 emerald
 ZaeliFAB           = KILLED Session 14 — component file exists but not rendered anywhere
-Hamburger ☰        = Session 14 replacement — 42px square button top-right of every header (Chat, Dashboard, My Space, Tutor, Kids Hub, Family). Opens MoreSheet.
+Hamburger ☰        = Session 14+ — 42px square button top-right of every header (Chat, Dashboard, My Space, Tutor, Kids Hub, Family) AND in every 92% sheet header (Calendar, Shopping, Meals, Notes & Tasks — Session 15). Opens MoreSheet.
 Hamburger SVG      = 22px icon, lines at y=6,12,18 (symmetric around y=12). strokeWidth 2.2
-MoreSheet          = app/components/MoreSheet.tsx — 92% bottom sheet, Option 1 tiles, no upload section
-MoreSheet sections = Family Channels (6 tiles) · Personal (My Space full-width) · Modules (2x2) · Navigation (Chat · Dashboard · Settings)
+MoreSheet          = app/components/MoreSheet.tsx — 92% bottom sheet, Option 1 tiles (NO upload section)
+MoreSheet sections = Session 15 restructure: NAVIGATE top (Chat+Dashboard 50/50) · FAMILY CHANNELS (6 tiles, 3x2) · PERSONAL (My Space + Our Budget 50/50) · MODULES (Tutor+Kids Hub 50/50) · ACCOUNT (Our Family+Settings 50/50)
 MoreSheet onAction = parent passes callback from Chat/Dashboard to route in-swipe-world nav; My Space uses default
-Chat bar           = fixed [Mic][TextInput][Camera][Send] — NEVER conditional render. Only on Chat page (not Dashboard or My Space)
-Chat bar camera    = SVG icon between TextInput and Send, coral #FF4545 stroke, opens Add to Chat sheet (Camera/Photos/Live)
+Chat bar           = Session 15 = SINGLE PILL (Tutor-style unified): [Mic | sep | TextInput | Camera | Send] in one white pill. 60px min height. 44×44 buttons. Font 17px. Still ONLY on Chat page (Dashboard and My Space have NO chat bar). NEVER conditional render.
+Chat bar styles    = barPillV2 (borderRadius 32, paddingVertical 10), barBtnV2 (44×44), barSepV2 (24px vertical divider), barInputV2 (17px font), barSendV2 (44×44 coral circle)
+Tutor bar          = Session 15 matches Chat V2 spec exactly (minHeight 60, 44×44 buttons, font 17, etc.)
+Chat bar camera    = SVG camera icon between TextInput and Send, coral #FF4545 stroke. Opens Add-to-Chat picker (Camera/Photos — Live removed Session 15)
+Chat bar alignment = alignItems:'flex-end' in pill so mic + send anchor to bottom as input grows (iMessage pattern)
+MoreSheet → sheets = OPTION A hamburger cross-nav. Tap hamburger in Calendar/Shopping/Meals/Notes&Tasks → close current sheet → 600ms → open MoreSheet. X in MoreSheet → restore original sheet. Tap different tile → switch to that sheet.
+Modal stacking     = CRITICAL Session 15 learning: iOS can't stack Modals reliably. Pattern: use Modal onDismiss callback + 600ms fallback timeout + MoreSheet backdrop tap guard (400ms after open). Never present Modal while another is dismissing.
+MoreSheet handleItem = MUST call onAction SYNCHRONOUSLY BEFORE onClose (Session 15 fix). Prevents closeMoreSheet reading stale ref and restoring origin sheet over the nav target.
+sheetBeforeMoreRef = React ref (NOT state) so onAction can clear it synchronously before closeMoreSheet reads it
+Shopping/Cal/Meals open = use openShopSheet/openCalSheet/openMealSheet (NOT bare setters). Bare setters flip visibility but don't load data.
 Chat send          = onTouchStart on raw <View> — NEVER onPress/onPressIn (blur race)
 Chat send button   = clear input BEFORE calling send() — setInput('') then send(text)
 Chat bar position  = position:absolute inside flex View inside KAV
@@ -265,12 +273,17 @@ Keyboard dismiss   = Keyboard.dismiss() on mic start
 Mic waveform       = 7 bars [10,18,28,36,28,18,10] width:4 coral, Cancel+Send buttons
 swipe-world scroll = keyboardShouldPersistTaps="handled" (dismiss on feed tap, keep on buttons)
 LANDING_TEST_MODE  = true (in swipe-world.tsx) — set false before launch
-_splashShownThisSession = module-level flag (Session 14) — splash only fires ONCE per app session, not on every swipe-world re-mount
-Splash design      = Option C (Deep Slate + Mint). bg #1C2330, wordmark 96px white with mint #B8EDD0 "a+i", "Less Chaos." bold mint + "More Family." soft white, 40px mint divider, "TAP TO CONTINUE" uppercase bottom
-Native splash      = app.json backgroundColor #1C2330 (matches landing so transition is seamless). REQUIRES dev-client rebuild (npx expo prebuild --clean) to pick up
-Swipe pages        = Chat(0) · Dashboard(1) — LOCKED Session 14 (My Space moved to standalone route)
-2-dot colours      = lavender #A890FF(0=Chat) · peach #FAC8A8(1=Dashboard)
-✦ active colour    = #C4B4FF lavender (Chat identity — app's home)
+_splashShownThisSession = module-level flag — splash only fires ONCE per app session, not on every swipe-world re-mount
+Splash design      = Option C (Deep Slate + Mint + Lavender orbs — Session 15 polish). bg #1C2330, wordmark 96px white with SKY BLUE #A8D8F0 "a+i" (My Space identity — Session 15 change from mint), "Less Chaos." bold MINT #B8EDD0 + "More Family." soft white, 40px mint divider, "TAP TO CONTINUE" uppercase bottom
+Splash orbs        = Session 15 — lavender orbs at top-right + bottom-left using Shopping tile lavender #D8CCFF at 55-65% opacity (low opacity blended to grey on dark bg, needed high opacity to read as purple)
+Splash wordmark    = lineHeight 128 + paddingTop 12 to prevent "i" dot clipping at top
+Native splash      = app.json backgroundColor #1C2330 (matches landing). REQUIRES dev-client rebuild (npx expo prebuild --clean)
+Swipe pages        = Chat(0) · Dashboard(1) — My Space moved to standalone route
+2-dot indicator    = KILLED Session 15 (was floating mid-air on Dashboard without chat bar). Navigate via swipe or MoreSheet NAVIGATE section.
+Chat wordmark a+i  = #A8D8F0 sky blue (Session 15 change from #C4B4FF lavender) — ties to My Space identity
+Dashboard header   = wordmark + back arrow (left) · date + "Dashboard" label + hamburger (right) — Session 14
+Chat header        = wordmark (sky blue a+i) · "Home" label + hamburger (right) — Session 15 "Chat"→"Home" rename
+✦ active colour    = #A8D8F0 sky blue
 Delete             = optimistic UI first, Supabase background
 Todos fetch        = IN ['active','done'] — NEVER eq('status','active')
 Tick handler       = TOGGLE only — done↔active, never one-directional
@@ -814,7 +827,98 @@ Massive session: Kids Hub AI trivia, Tutor difficulty bands, prompt caching, con
 - Settings screen
 - 100 crosswords (parked content task)
 - Tutor session resume (reload from tutor_messages)
-- Final splash polish if wordmark "i" dot cuts off on smaller devices
+
+---
+
+## ══════════════════════════════════
+## SESSION 15 — POLISH + UX REFINEMENT (18 April 2026) ✅
+## ══════════════════════════════════
+
+Follow-up to Session 14's big rebuild. Focus: make everything feel right through many small but meaningful fixes.
+
+### MoreSheet restructure (Option B with ACCOUNT section):
+- **NAVIGATE section promoted to TOP** of the sheet (Chat + Dashboard, 50/50 tiles) — makes primary nav first thing user sees
+- **PERSONAL section** now has 2 tiles side-by-side: My Space + Our Budget (was My Space full-width)
+- **MODULES section** reduced to 2-tile row: Tutor + Kids Hub (their premium modules)
+- **ACCOUNT section** NEW — houses Our Family + Settings (50/50). Label "ACCOUNT" chosen (alternatives considered: MANAGE, HOUSEHOLD)
+- Tiles: bigger icons (18→26px) and labels (15→17px), cards same size
+- X close button: proper SVG (not × text char), bumped 14→18px
+- Layout: MORE section at bottom removed (Settings now inline in ACCOUNT)
+
+### Universal hamburger across 92% sheets (Option A stacked):
+- Hamburger ☰ button added to: **Calendar, Shopping, Meals, Notes & Tasks** sheet headers
+- Only shown in top-level view (not sub-views like recipe detail or event edit form)
+- Cross-sheet nav: tap hamburger in Meals → Meals closes → MoreSheet opens → tap Shopping → switches to Shopping (Shopping's opener `openShopSheet` called so data loads)
+- X on MoreSheet → restore origin sheet
+
+### Modal stacking bug fixes (critical learnings):
+1. **iOS Modal can't stack reliably** — presenting MoreSheet while Calendar's Modal is mid-dismiss silently fails
+2. **onDismiss + fallback timeout pattern** — use `<Modal onDismiss={handler}>` to get guaranteed post-dismiss signal. 600ms setTimeout as fallback for iOS edge cases.
+3. **Phantom backdrop tap** — when hamburger tapped, touch-up event falls through onto newly-opening MoreSheet's backdrop → closes it instantly. Fix: MoreSheet `canCloseRef` ignores backdrop taps for first 400ms after open.
+4. **Tile-tap race** — `handleItem` fires `onClose()` BEFORE `onAction()` (180ms later). Parent couldn't clear `sheetBeforeMoreRef` in time, so closeMoreSheet read stale ref and restored origin over the new nav. Fix: MoreSheet now calls `onAction` SYNCHRONOUSLY first, then `onClose` — parent clears ref before close reads it.
+5. **Ref instead of state** — `sheetBeforeMoreRef = useRef()` not useState, so synchronous updates.
+6. **Use real openers** — `openShopSheet()`, `openCalSheet()`, `openMealSheet()` (NOT bare `setShopSheetOpen(true)`). Bare setters flip visibility but don't load data → "list is clear" bug.
+
+### Chat bar unification (two rebuilds in one session):
+- Tried 3-piece floating design (mic circle + input pill + send circle) — user preferred Tutor's single-pill style
+- **Final: single pill (Tutor style, bumped taller)** — `[Mic | sep | TextInput | Camera | Send]`
+- Specs: minHeight 60, paddingVertical 10, buttons 44×44, font 17px, borderRadius 32
+- `alignItems: 'flex-end'` so mic + send anchor to bottom as input grows (iMessage pattern)
+- **Applied identically to Tutor** — both bars now look/feel the same
+- Tutor icon sizes bumped (IcoMic 18→24, IcoSend 13→20, attach +18→22)
+- All safety rules preserved (TextInput ref untouched, Send uses onTouchStart raw View, no onBlur, no Keyboard.addListener)
+
+### Splash screen polish:
+- **Wordmark "a+i"** changed from mint → **sky blue `#A8D8F0`** (My Space identity — better signals "home")
+- "Less Chaos." stays mint bold — mint is still the tagline accent
+- **Lavender orbs added** — top-right + bottom-left, using Shopping tile lavender `#D8CCFF` at 55-65% opacity (low opacity blended to grey on dark bg, needed HIGH opacity to read as purple)
+- **"i" dot cut-off fixed** — lineHeight 104→128 + paddingTop 12 so the i-dot doesn't clip
+- **Splash re-trigger fixed** — module-level `_splashShownThisSession` flag prevents splash re-mount when returning from My Space standalone route
+
+### Dashboard improvements:
+- **Tap-anywhere-on-card to expand** — Calendar, Meal Planner, Shopping, On the Radar cards all now use outer TouchableOpacity. Inner buttons (+Add, View Full Calendar, etc.) still work — React Native's responder system gives inner touchables priority.
+- **Weather/Zaeli Noticed bento split** — changed from 50/50 → 35/65 (flex: 35 vs 65). Weather gets compact column, Zaeli Noticed gets readable space for expanded content.
+- **Back arrow added to Dashboard header** — next to zaeli wordmark, quick return to Chat
+- **Chat bar facade attempted and removed** — decided Dashboard/MySpace don't need chat bars. Each screen has its own purpose (Dashboard=glance, Chat=conversation, MySpace=personal). ChatBarFacade.tsx component kept in `/components` for future use but not rendered.
+
+### Camera picker (Add-to-Chat sheet):
+- **Camera icon in chat bar** now opens existing Add-to-Chat sheet (not camera-only)
+- Sheet offers: Camera · Photos (Live option removed Session 15)
+- Proper picker UX: user chooses before OS permission prompt
+
+### 2-dot indicator killed:
+- Looked awkward floating on Dashboard without a chat bar
+- Removed entirely from swipe-world.tsx. Swipe + MoreSheet NAVIGATE section handle nav.
+
+### Legacy "← Dashboard" pill:
+- Completely removed from Chat header (was appearing whenever pendingChatContext had returnTo:'dashboard', which triggered on every MoreSheet nav)
+- Navigation now handled via swipe + hamburger
+
+### Chat header:
+- "Chat" label → **"Home"** (Session 15 rename — Chat is the home screen)
+- Heading size 18px (matches My Space page label)
+
+### Small but important fixes:
+- Chat bar camera → picker sheet (Camera / Photos). Live removed.
+- Hamburger icon: bigger (36→42 container, 18→22 icon), lines at y=6/12/18 (symmetric, was y=8/14/20)
+- Tutor, Kids Hub, Our Family headers — back arrows next to wordmark (matches My Space pattern)
+- Splash orbs properly lavender on dark slate bg (0.65/0.55 opacity)
+- Removed `returnTo:'dashboard'` from all MoreSheet contexts (was triggering legacy pill)
+
+### Files changed Session 15:
+- `app/(tabs)/index.tsx` — chat bar V2 rebuild, camera picker (Live removed), onAction order fix, modal stacking guards, Home label, sky blue a+i, legacy pill removed
+- `app/(tabs)/dashboard.tsx` — all 4 cards tap-anywhere, Weather/Noticed 35/65, back arrow, hamburger
+- `app/(tabs)/my-space.tsx` — onDismiss support in Sheet component, hamburger cross-nav via NotesSheet, ref-based sheetBeforeMore
+- `app/(tabs)/swipe-world.tsx` — 2-dot indicator killed, splash polish (sky blue a+i, lavender orbs, wordmark height)
+- `app/(tabs)/tutor-session.tsx` — chat bar bumped to match Chat V2
+- `app/components/MoreSheet.tsx` — section restructure (NAVIGATE top, ACCOUNT bottom), bigger icons/fonts, X as SVG, backdrop tap guard, onAction SYNC before onClose
+
+### Still TO DO from Session 15:
+- Calendar month-view event highlighting glitch (pre-existing, unrelated to this session's work)
+- AI Brief system (4 time windows) — still biggest remaining piece
+- Settings screen
+- Tutor session resume
+- 100 crosswords (parked)
 
 ---
 
@@ -859,13 +963,24 @@ Phase 14i: FAB killed          ✅ Session 14 — all FABs removed, hamburger �
 Phase 14j: MoreSheet           ✅ Session 14 — Option 1 refined tiles, 92% sheet, Family Channels + Personal + Modules + Nav sections
 Phase 14k: Splash Option C     ✅ Session 14 — Deep Slate #1C2330 + Mint accents, once-per-session fire
 Phase 14l: Back arrows         ✅ Session 14 — added to Tutor, Kids Hub, Family, My Space, Dashboard headers
-Phase 14m: Camera picker       ✅ Session 14 — chat bar camera opens Add-to-Chat sheet (Camera/Photos/Live)
+Phase 14m: Camera picker       ✅ Session 14 — chat bar camera opens Add-to-Chat sheet (Camera/Photos)
+Phase 15a: MoreSheet restructure ✅ Session 15 — NAVIGATE top, ACCOUNT section, bigger icons/fonts
+Phase 15b: Cross-sheet hamburger ✅ Session 15 — Calendar/Shopping/Meals/Notes&Tasks headers + Option A stacked
+Phase 15c: Modal stacking fixes ✅ Session 15 — onDismiss, fallback timeout, backdrop guard, sync onAction
+Phase 15d: Chat bar V2         ✅ Session 15 — single pill Tutor-style, 60px tall, 44×44 buttons. Tutor matched.
+Phase 15e: Splash polish       ✅ Session 15 — sky blue a+i, lavender orbs, i-dot fix, once-per-session flag
+Phase 15f: Dashboard cards     ✅ Session 15 — tap-anywhere-to-expand, 35/65 bento, back arrow
+Phase 15g: 2-dot indicator     ✅ Session 15 — killed entirely
+Phase 15h: Legacy pill         ✅ Session 15 — "← Dashboard" removed from Chat header
+Phase 15i: Chat "Home" label   ✅ Session 15 — renamed from "Chat"
+Phase 15j: Live picker option  ✅ Session 15 — removed, only Camera/Photos now
 
-Phase 15: AI Brief system      🔨 ← BIGGEST remaining piece — 4 time windows, Sonnet, Supabase cache, time-relevant rule
-Phase 16: Our Budget module    🔨 ← Phase 2 (after Basiq response)
-Phase 17: Settings             🔨 ← standalone screen with account, family members, subscription
-Phase 18: Travel sheet         🔨
-Phase 19: Tutor session resume 🔨 ← reload conversation from tutor_messages when resuming active session
+Phase 16: AI Brief system      🔨 ← BIGGEST remaining piece — 4 time windows, Sonnet, Supabase cache, time-relevant rule
+Phase 17: Our Budget module    🔨 ← Phase 2 (after Basiq response)
+Phase 18: Settings             🔨 ← standalone screen with account, family members, subscription
+Phase 19: Travel sheet         🔨
+Phase 20: Tutor session resume 🔨 ← reload conversation from tutor_messages when resuming active session
+Phase 21: Calendar month glitch 🔨 ← days red but event list empty (pre-existing bug, fix when revisiting Calendar)
 ```
 
 ---

@@ -2720,6 +2720,54 @@ function HomeScreen({
   // v5: true when we arrived from Dashboard — shows back pill
   const [returnToDashboard, setReturnToDashboard] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // When user taps hamburger from inside a channel sheet, remember which sheet
+  // was open so we can restore it if they X out of MoreSheet. Using a REF
+  // (not state) so onAction can clear it synchronously before closeMoreSheet reads it.
+  const sheetBeforeMoreRef = useRef<'calendar'|'shopping'|'meals'|null>(null);
+
+  // Flag consumed by the sheet's Modal onDismiss callback — guarantees MoreSheet
+  // opens AFTER iOS finishes dismissing the previous Modal. Safer than setTimeout.
+  const pendingOpenMoreRef = useRef(false);
+
+  function openMoreFromSheet(origin: 'calendar'|'shopping'|'meals') {
+    console.log('[more] openMoreFromSheet:', origin);
+    sheetBeforeMoreRef.current = origin;
+    pendingOpenMoreRef.current = true;
+    if (origin === 'calendar') setCalSheetOpen(false);
+    if (origin === 'shopping') setShopSheetOpen(false);
+    if (origin === 'meals')    setMealSheetOpen(false);
+    // Fallback timeout in case onDismiss doesn't fire (600ms is safe on iOS)
+    setTimeout(() => {
+      if (pendingOpenMoreRef.current) {
+        console.log('[more] fallback timeout → opening MoreSheet');
+        pendingOpenMoreRef.current = false;
+        setMoreOpen(true);
+      }
+    }, 600);
+  }
+
+  // Called from each sheet's Modal onDismiss
+  function handleSheetDismissed() {
+    if (pendingOpenMoreRef.current) {
+      console.log('[more] onDismiss → opening MoreSheet');
+      pendingOpenMoreRef.current = false;
+      setMoreOpen(true);
+    }
+  }
+
+  function closeMoreSheet() {
+    console.log('[more] closeMoreSheet, origin:', sheetBeforeMoreRef.current);
+    setMoreOpen(false);
+    const origin = sheetBeforeMoreRef.current;
+    sheetBeforeMoreRef.current = null;
+    if (origin) {
+      setTimeout(() => {
+        if (origin === 'calendar') openCalSheet('today');
+        if (origin === 'shopping') openShopSheet('list');
+        if (origin === 'meals')    openMealSheet('meals');
+      }, 500);
+    }
+  }
   const [screen,          setScreen]          = useState<'splash'|'entry'|'chat'>('chat');
   const [entryRecording,  setEntryRecording]  = useState(false);
   const [entryProcessing, setEntryProcessing] = useState(false);
@@ -5782,20 +5830,11 @@ Rules:
 
         {/* FIXED BANNER — wordmark + nav only, hero scrolls with content */}
         <SafeAreaView style={[s.topBar, { backgroundColor: T.bg }]} edges={['top']}>
-          {/* ← Dashboard back pill — shown when arrived from Dashboard card tap */}
-          {returnToDashboard && (
-            <TouchableOpacity
-              style={{ flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:20, paddingTop:6, paddingBottom:2 }}
-              onPress={() => { setReturnToDashboard(false); onNavigateDashboard?.(); }}
-              activeOpacity={0.75}
-            >
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(10,10,10,0.38)' }}>← Dashboard</Text>
-            </TouchableOpacity>
-          )}
+          {/* ← Dashboard pill removed — swipe + hamburger MoreSheet handle navigation */}
           <View style={s.topBarRow}>
             <TouchableOpacity onPress={() => router.navigate('/(tabs)/')} activeOpacity={0.8}>
               <Text style={s.logoWord}>
-                z<Text style={{ color:'#C4B4FF' }}>a</Text>el<Text style={{ color:'#C4B4FF' }}>i</Text>
+                z<Text style={{ color:'#A8D8F0' }}>a</Text>el<Text style={{ color:'#A8D8F0' }}>i</Text>
               </Text>
             </TouchableOpacity>
             <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
@@ -5917,51 +5956,56 @@ Rules:
               </TouchableOpacity>
             </View>
 
-            {/* ── BAR — absolute over scroll, KAV moves parent View above keyboard ── */}
+            {/* ── BAR — single pill (Tutor style), taller: [Mic | TextInput | Camera | Send] ── */}
             <View style={s.barFloat}>
-              <View style={s.barPill}>
+              <View style={s.barPillV2}>
+                {/* Mic */}
                 <TouchableOpacity
-                  style={s.barBtn}
+                  style={s.barBtnV2}
                   onPress={() => { isRecording ? stopRecording() : startRecording(); }}
-                  activeOpacity={0.75}
+                  activeOpacity={0.7}
                 >
-                  <Svg width={26} height={26} viewBox="0 0 24 24" fill="none"
-                    stroke={isRecording ? '#FF4545' : 'rgba(10,10,10,0.48)'} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+                  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none"
+                    stroke={isRecording ? '#FF4545' : 'rgba(10,10,10,0.55)'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                     <Path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
                     <Path d="M19 10v2a7 7 0 01-14 0v-2"/>
                     <Line x1="12" y1="19" x2="12" y2="23"/>
                     <Line x1="8" y1="23" x2="16" y2="23"/>
                   </Svg>
                 </TouchableOpacity>
+                <View style={s.barSepV2} />
+                {/* Text input */}
                 <TextInput
                   ref={inputRef}
-                  style={s.barInput}
+                  style={s.barInputV2}
                   value={input}
                   onChangeText={setInput}
                   placeholder="Ask Zaeli anything..."
-                  placeholderTextColor="rgba(10,10,10,0.48)"
+                  placeholderTextColor="rgba(10,10,10,0.45)"
                   multiline
                   keyboardAppearance="light"
                   selectionColor={HOME_AI}
                   blurOnSubmit={false}
                   onSubmitEditing={() => { if (input.trim()) { const t = input; setInput(''); inputRef.current?.clear(); send(t); } }}
                 />
+                {/* Camera */}
                 <TouchableOpacity
-                  style={s.barBtn}
+                  style={s.barBtnV2}
                   onPress={openSheet}
-                  activeOpacity={0.75}
+                  activeOpacity={0.7}
                 >
-                  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none"
+                  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none"
                     stroke="#FF4545" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                     <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                     <Circle cx="12" cy="13" r="4"/>
                   </Svg>
                 </TouchableOpacity>
+                {/* Send — onTouchStart preserved */}
                 <View
-                  style={[s.barBtn, { backgroundColor:'#FF4545' }, !input.trim() && { opacity:0.3 }]}
+                  style={[s.barSendV2, !input.trim() && { opacity:0.3 }]}
                   onTouchStart={() => { if (input.trim()) { const t = input; setInput(''); inputRef.current?.clear(); send(t); } }}
                 >
-                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none"
+                  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none"
                     stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
                     <Line x1="12" y1="19" x2="12" y2="5"/>
                     <Polyline points="5 12 12 5 19 12"/>
@@ -5977,33 +6021,45 @@ Rules:
         {/* MORE SHEET */}
         <MoreSheet
           visible={moreOpen}
-          onClose={() => setMoreOpen(false)}
+          onClose={closeMoreSheet}
           onAction={(key) => {
-            // Inside swipe-world on Chat — handle nav + open sheets directly
-            if (key === 'chat') return; // already here
-            if (key === 'dashboard') { onNavigateDashboard?.(); return; }
-            // Channels — open sheets directly (we're already on Chat)
-            if (key === 'calendar') { setCalSheetOpen(true); return; }
-            if (key === 'shopping') { setShopSheetOpen(true); return; }
-            if (key === 'meals')    { setMealSheetOpen(true); return; }
+            // User picked a tile — don't restore the origin sheet; clear ref immediately
+            sheetBeforeMoreRef.current = null;
+
+            // Close any currently-open sheet (shouldn't be any since we close before opening MoreSheet,
+            // but belt-and-braces for safety)
+            const closeAllSheets = () => {
+              setCalSheetOpen(false);
+              setShopSheetOpen(false);
+              setMealSheetOpen(false);
+            };
+
+            if (key === 'chat') { closeAllSheets(); return; }
+            if (key === 'dashboard') { closeAllSheets(); setTimeout(() => onNavigateDashboard?.(), 200); return; }
+            // Channels — MoreSheet is already closing via closeMoreSheet; open target after a short delay
+            if (key === 'calendar') { setTimeout(() => openCalSheet('today'), 350); return; }
+            if (key === 'shopping') { setTimeout(() => openShopSheet('list'), 350); return; }
+            if (key === 'meals')    { setTimeout(() => openMealSheet('meals'), 350); return; }
             // Tasks / Notes → navigate to My Space with context for Notes & Tasks sheet
             if (key === 'radar') {
+              closeAllSheets();
               setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'tasks' });
               router.navigate('/(tabs)/my-space' as any);
               return;
             }
             if (key === 'notes') {
+              closeAllSheets();
               setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'notes' });
               router.navigate('/(tabs)/my-space' as any);
               return;
             }
             if (key === 'travel')  { /* Travel sheet — not yet built */ return; }
             // Dedicated routes
-            if (key === 'myspace') { router.navigate('/(tabs)/my-space' as any); return; }
-            if (key === 'tutor')   { router.navigate('/(tabs)/tutor' as any); return; }
-            if (key === 'kids')    { router.navigate('/(tabs)/kids' as any); return; }
-            if (key === 'family')  { router.navigate('/(tabs)/family' as any); return; }
-            if (key === 'settings'){ router.navigate('/(tabs)/settings' as any); return; }
+            if (key === 'myspace') { closeAllSheets(); router.navigate('/(tabs)/my-space' as any); return; }
+            if (key === 'tutor')   { closeAllSheets(); router.navigate('/(tabs)/tutor' as any); return; }
+            if (key === 'kids')    { closeAllSheets(); router.navigate('/(tabs)/kids' as any); return; }
+            if (key === 'family')  { closeAllSheets(); router.navigate('/(tabs)/family' as any); return; }
+            if (key === 'settings'){ closeAllSheets(); router.navigate('/(tabs)/settings' as any); return; }
             if (key === 'budget')  { Alert.alert('Our Budget', 'Coming soon — bank feed integration on the way.'); return; }
           }}
         />
@@ -6014,6 +6070,7 @@ Rules:
           transparent
           animationType="slide"
           onRequestClose={() => setCalSheetOpen(false)}
+          onDismiss={handleSheetDismissed}
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setCalSheetOpen(false)} activeOpacity={1}/>
@@ -6033,13 +6090,28 @@ Rules:
                       <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A0A0A', letterSpacing:-0.3 }}>Calendar</Text>
                     </View>
                   )}
-                  <TouchableOpacity
-                    onPress={() => calSheetEditEv ? setCalSheetEditEv(null) : setCalSheetOpen(false)}
-                    style={{ width:36, height:36, borderRadius:10, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize:16, color:'rgba(0,0,0,0.5)' }}>{calSheetEditEv ? '‹' : '✕'}</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                    {!calSheetEditEv && (
+                      <TouchableOpacity
+                        onPress={() => openMoreFromSheet('calendar')}
+                        style={{ width:36, height:36, borderRadius:10, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
+                        activeOpacity={0.7}
+                      >
+                        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth={2.2} strokeLinecap="round">
+                          <Line x1={4} y1={6} x2={20} y2={6}/>
+                          <Line x1={4} y1={12} x2={20} y2={12}/>
+                          <Line x1={4} y1={18} x2={20} y2={18}/>
+                        </Svg>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      onPress={() => calSheetEditEv ? setCalSheetEditEv(null) : setCalSheetOpen(false)}
+                      style={{ width:36, height:36, borderRadius:10, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize:16, color:'rgba(0,0,0,0.5)' }}>{calSheetEditEv ? '‹' : '✕'}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {calSheetEditEv ? (
@@ -6157,6 +6229,7 @@ Rules:
           transparent
           animationType="slide"
           onRequestClose={() => setShopSheetOpen(false)}
+          onDismiss={handleSheetDismissed}
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setShopSheetOpen(false)} activeOpacity={1}/>
@@ -6191,6 +6264,18 @@ Rules:
                     >
                       <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <Path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><Polyline points="16 6 12 2 8 6"/><Line x1="12" y1="2" x2="12" y2="15"/>
+                      </Svg>
+                    </TouchableOpacity>
+                    {/* Hamburger — jump to another sheet */}
+                    <TouchableOpacity
+                      onPress={() => openMoreFromSheet('shopping')}
+                      style={{ width:36, height:36, borderRadius:10, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
+                      activeOpacity={0.7}
+                    >
+                      <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth={2.2} strokeLinecap="round">
+                        <Line x1={4} y1={6} x2={20} y2={6}/>
+                        <Line x1={4} y1={12} x2={20} y2={12}/>
+                        <Line x1={4} y1={18} x2={20} y2={18}/>
                       </Svg>
                     </TouchableOpacity>
                     {/* Close */}
@@ -6974,6 +7059,7 @@ Rules:
           transparent
           animationType="slide"
           onRequestClose={() => setMealSheetOpen(false)}
+          onDismiss={handleSheetDismissed}
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setMealSheetOpen(false)} activeOpacity={1}/>
@@ -7010,6 +7096,20 @@ Rules:
                     {!!mealRecipeDetail && !mealSendToList && (
                       <TouchableOpacity onPress={() => toggleRecipeFavourite(mealRecipeDetail.id, mealRecipeDetail.is_favourite)} hitSlop={{ top:8,bottom:8,left:8,right:8 }}>
                         <Text style={{ fontSize:18 }}>{mealRecipeDetail.is_favourite ? '❤️' : '🤍'}</Text>
+                      </TouchableOpacity>
+                    )}
+                    {/* Hamburger — only on top-level meal planner view */}
+                    {!mealRecipeDetail && !mealSendToList && !mealCookPicker && mealAddRecipeMode === 'closed' && (
+                      <TouchableOpacity
+                        onPress={() => openMoreFromSheet('meals')}
+                        style={{ width:36, height:36, borderRadius:10, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
+                        activeOpacity={0.7}
+                      >
+                        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth={2.2} strokeLinecap="round">
+                          <Line x1={4} y1={6} x2={20} y2={6}/>
+                          <Line x1={4} y1={12} x2={20} y2={12}/>
+                          <Line x1={4} y1={18} x2={20} y2={18}/>
+                        </Svg>
                       </TouchableOpacity>
                     )}
                     <TouchableOpacity
@@ -7979,13 +8079,6 @@ Rules:
                 <View style={s.sheetTiles}>
                   <TouchableOpacity style={s.sheetTile} onPress={openCamera} activeOpacity={0.75}><IcoCamera/><Text style={s.sheetTileLabel}>Camera</Text></TouchableOpacity>
                   <TouchableOpacity style={s.sheetTile} onPress={openPhotos} activeOpacity={0.75}><IcoPhotos/><Text style={s.sheetTileLabel}>Photos</Text></TouchableOpacity>
-                  <TouchableOpacity style={s.sheetTile} onPress={() => { closeSheet(() => setLiveCamera(true)); }} activeOpacity={0.75}>
-                    <Svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={INK} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <Circle cx="12" cy="12" r="3"/>
-                      <Path d="M2 12C2 12 5 5 12 5s10 7 10 7-3 7-10 7S2 12 2 12z"/>
-                    </Svg>
-                    <Text style={s.sheetTileLabel}>Live</Text>
-                  </TouchableOpacity>
                 </View>
                 <View style={{ height:Platform.OS==='ios'?32:20 }}/>
               </Pressable>
@@ -8534,7 +8627,122 @@ const s = StyleSheet.create({
     elevation:14,
   },
   barBtn:     { width:58, height:58, borderRadius:22, alignItems:'center', justifyContent:'center', flexShrink:0 },
-  barInput:   { flex:1, fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', maxHeight:100, paddingVertical:0 },
+  barInput:   { flex:1, fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', maxHeight:140, paddingVertical:6, lineHeight:22 },
+
+  // ── V2 chat bar: single pill (Tutor style, bumped taller) ──
+  barPillV2: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(220,220,220,0.6)',
+    borderRadius: 32,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-end',  // buttons stay at bottom as input grows
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.10,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+    minHeight: 60,
+  },
+  barBtnV2: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  barSepV2: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(10,10,10,0.10)',
+    alignSelf: 'center',
+  },
+  barInputV2: {
+    flex: 1,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 17,
+    color: '#0A0A0A',
+    maxHeight: 140,
+    paddingVertical: 10,
+    lineHeight: 22,
+  },
+  barSendV2: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FF4545',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+
+  // ── LEGACY 3-piece chat bar (kept to avoid breaking grep) ──
+  barRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    width: '100%',
+    gap: 8,
+  },
+  barCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(220,220,220,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  barInputPill: {
+    flex: 1,
+    minHeight: 58,
+    maxHeight: 160,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(220,220,220,0.6)',
+    borderRadius: 29,
+    paddingLeft: 20,
+    paddingRight: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-end',  // camera stays at bottom while text grows upward
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  barCameraInset: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  barSendCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: '#FF4545',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    shadowColor: '#FF4545',
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
   barWaveBtn: { width:40, height:40, borderRadius:20, alignItems:'center', justifyContent:'center' },
   waveRow:    { flexDirection:'row', alignItems:'center', gap:3 },
   waveBar:    { width:3.5, height:18, borderRadius:2, backgroundColor:'#fff' },

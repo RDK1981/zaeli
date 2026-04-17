@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 17 April 2026 — Session 14 ✅ · Architectural rebuild · Chat-first 2-page · FAB killed · Hamburger + MoreSheet · Splash Option C · Kids Hub AI trivia · Tutor difficulty bands · Prompt caching*
+*Last updated: 18 April 2026 — Session 15 ✅ · MoreSheet restructure · Universal chat bar · Cross-sheet hamburger · Splash polish · Dashboard tap-anywhere · Many UX polish wins*
 
 ---
 
@@ -66,13 +66,16 @@ CHAT (page 0, opens here)  ↔  DASHBOARD (page 1)
 
 **Core UX principle:** Chat = relationship (home). Dashboard = glance. My Space = personal (standalone route, accessed via MoreSheet). Zaeli lives in Chat — Rich opens the app and Zaeli is already talking.
 
-**Universal hamburger ☰** top-right of every screen opens MoreSheet — a 92% bottom sheet with:
-- **Family Channels** (6 tiles): Calendar · Shopping · Meals · Tasks · Notes · Travel
-- **Personal**: My Space
-- **Modules**: Tutor · Kids Hub · Our Family · Our Budget (coming soon)
-- **Navigation**: Chat · Dashboard · Settings
+**Universal hamburger ☰** top-right of every screen AND every 92% sheet (Session 15) opens MoreSheet — a 92% bottom sheet with:
+- **NAVIGATE** (2 tiles): Chat · Dashboard
+- **FAMILY CHANNELS** (6 tiles, 3×2): Calendar · Shopping · Meals · Tasks · Notes · Travel
+- **PERSONAL** (2 tiles): My Space · Our Budget
+- **MODULES** (2 tiles): Tutor · Kids Hub
+- **ACCOUNT** (2 tiles): Our Family · Settings
 
-**Chat bar lives ONLY on Chat** — [Mic][Input+placeholder][Camera][Send]. Camera opens Add-to-Chat picker (Camera/Photos/Live). Other screens are purpose-built: Dashboard for cards, My Space for personal zone. No fake chat bars anywhere.
+**Cross-sheet navigation (Session 15)** — user can jump from Meals sheet → hamburger → tap Shopping → go straight to Shopping. Option A stacked: close current sheet, open MoreSheet, tap tile = switch. X on MoreSheet restores origin sheet.
+
+**Chat bar lives ONLY on Chat (and Tutor sessions)** — single white pill, `[Mic | sep | TextInput | Camera | Send]`. Tutor bar matches identical specs. Camera opens Add-to-Chat picker (Camera/Photos). Dashboard and My Space have NO chat bar — each screen has its own purpose.
 
 ---
 
@@ -286,10 +289,20 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 24. ✅ Architecture rebuild (Session 14) — 2-page swipe (Chat+Dashboard), FAB killed, hamburger everywhere, MoreSheet
 25. ✅ Camera + Library in chat bar (Session 14) — Add-to-Chat picker sheet
 26. ✅ Splash Option C built (Session 14) — Deep Slate + Mint, once per session
-27. 🔨 AI Brief system implementation — BIGGEST remaining piece (4 windows, Sonnet, Supabase cache)
-28. 🔨 Tutor stress testing — kids testing all 6 pillars
-29. 🅿️ Tutor session resume — reload from tutor_messages (parked)
-30. 🅿️ 100 crossword pool expansion — content task, parked
+27. ✅ MoreSheet restructure (Session 15) — NAVIGATE top, ACCOUNT section, bigger icons/fonts
+28. ✅ Cross-sheet hamburger (Session 15) — Option A stacked, works Calendar/Shopping/Meals/Notes & Tasks
+29. ✅ Modal stacking bug fixes (Session 15) — onDismiss + fallback timeout, backdrop guard, sync onAction
+30. ✅ Chat bar V2 unified with Tutor (Session 15) — single pill style, taller, same on both screens
+31. ✅ Splash polish (Session 15) — sky blue a+i, lavender orbs, i-dot fix, once-per-session flag
+32. ✅ Dashboard tap-anywhere-to-expand (Session 15) — all 4 cards fully tappable
+33. ✅ 2-dot indicator killed (Session 15) — navigation via swipe + MoreSheet NAVIGATE
+34. ✅ "Chat" header → "Home" (Session 15)
+35. ✅ Legacy "← Dashboard" pill removed (Session 15)
+36. 🔨 AI Brief system implementation — BIGGEST remaining piece (4 windows, Sonnet, Supabase cache)
+37. 🔨 Tutor stress testing — kids testing all 6 pillars
+38. 🔨 Calendar month-view event highlighting glitch (pre-existing bug)
+39. 🅿️ Tutor session resume — reload from tutor_messages (parked)
+40. 🅿️ 100 crossword pool expansion — content task, parked
 
 ### Phase B — Make it testable
 31. 🔨 Real authentication (replace DUMMY_FAMILY_ID)

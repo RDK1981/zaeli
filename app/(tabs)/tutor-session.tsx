@@ -1289,8 +1289,8 @@ BAND RULES — apply these to question difficulty:
         <View style={[st.barWrap, { backgroundColor: isMoneyLife ? '#FFFBEB' : BODY_BG }]}>
           <View style={st.barPill}>
             <TouchableOpacity style={st.barBtn} activeOpacity={0.7} onPress={handleAttachPress}>
-              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none"
-                stroke="rgba(0,0,0,0.4)" strokeWidth={2} strokeLinecap="round">
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none"
+                stroke="rgba(0,0,0,0.55)" strokeWidth={2} strokeLinecap="round">
                 <Line x1={12} y1={5} x2={12} y2={19} />
                 <Line x1={5} y1={12} x2={19} y2={12} />
               </Svg>
@@ -1314,11 +1314,11 @@ BAND RULES — apply these to question difficulty:
               onPress={handleMicPress}
             >
               {isRecording ? (
-                <Svg width={14} height={14} viewBox="0 0 24 24" fill="#fff" stroke="none">
+                <Svg width={18} height={18} viewBox="0 0 24 24" fill="#fff" stroke="none">
                   <Rect x={4} y={4} width={16} height={16} rx={2} />
                 </Svg>
               ) : (
-                <IcoMic color={isReadAloud ? INK : 'rgba(0,0,0,0.32)'} />
+                <IcoMic color={isReadAloud ? INK : 'rgba(0,0,0,0.55)'} size={24} />
               )}
             </TouchableOpacity>
             <View
@@ -1330,7 +1330,7 @@ BAND RULES — apply these to question difficulty:
                 sendMessage(txt);
               }}
             >
-              <IcoSend />
+              <IcoSend size={20} />
             </View>
           </View>
         </View>
@@ -1617,7 +1617,7 @@ const st = StyleSheet.create({
     color: '#fff',
   },
 
-  // ── Chat bar ──
+  // ── Chat bar (bumped taller, matches Chat/Home V2) ──
   barWrap: {
     paddingHorizontal: 14,
     paddingTop: 6,
@@ -1626,45 +1626,49 @@ const st = StyleSheet.create({
   barPill: {
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: 'rgba(10,10,10,0.09)',
-    borderRadius: 30,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
+    borderColor: 'rgba(220,220,220,0.6)',
+    borderRadius: 32,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     gap: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: -2 },
-    elevation: 3,
+    shadowOpacity: 0.10,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+    minHeight: 60,
   },
   barBtn: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   barSep: {
     width: 1,
-    height: 20,
-    backgroundColor: 'rgba(10,10,10,0.1)',
+    height: 24,
+    backgroundColor: 'rgba(10,10,10,0.10)',
+    alignSelf: 'center',
   },
   barInput: {
     flex: 1,
     fontFamily: 'Poppins_400Regular',
-    fontSize: 16,
+    fontSize: 17,
     color: INK,
-    paddingVertical: 0,
+    paddingVertical: 10,
+    lineHeight: 22,
+    maxHeight: 140,
   },
   micHighlight: {
     backgroundColor: MINT,
-    borderRadius: 18,
+    borderRadius: 22,
   },
   sendBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: CORAL,
     alignItems: 'center',
     justifyContent: 'center',

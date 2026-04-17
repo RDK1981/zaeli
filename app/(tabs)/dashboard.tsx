@@ -503,14 +503,18 @@ function CalendarCard({ events, showTomorrow, expanded, onToggleExpand, onAdd, o
   }
 
   return (
-    <View style={[cS.card, cS.cardCal, { overflow:'hidden' }]}>
+    <TouchableOpacity
+      style={[cS.card, cS.cardCal, { overflow:'hidden' }]}
+      onPress={onToggleExpand}
+      activeOpacity={0.92}
+    >
       <Text style={[cS.cardLabel, { color:'#718096' }]}>CALENDAR</Text>
-      <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
+      <View style={cS.cardHeader}>
         <Text style={cS.headlineLt}>{headline}</Text>
-        <TouchableOpacity style={cS.addBtnLt} onPress={(e) => { e.stopPropagation(); onAdd(); }} activeOpacity={0.75}>
+        <TouchableOpacity style={cS.addBtnLt} onPress={onAdd} activeOpacity={0.75}>
           <Text style={cS.addBtnTxtLt}>+ Add</Text>
         </TouchableOpacity>
-      </TouchableOpacity>
+      </View>
       {!expanded && <Text style={[cS.cardSub, { color:'#718096' }]}>Tap to see →</Text>}
       {expanded && (
         <View style={{ marginTop:6 }}>
@@ -532,7 +536,7 @@ function CalendarCard({ events, showTomorrow, expanded, onToggleExpand, onAdd, o
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -566,15 +570,19 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
   }
 
   return (
-    <View style={[cS.card, cS.cardDin, { overflow:'hidden' }]}>
+    <TouchableOpacity
+      style={[cS.card, cS.cardDin, { overflow:'hidden' }]}
+      onPress={onToggleExpand}
+      activeOpacity={0.92}
+    >
       <Text style={[cS.cardLabel, { color:'#2D7A52' }]}>MEAL PLANNER</Text>
-      <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
+      <View style={cS.cardHeader}>
         <Text style={cS.headlineDk}>{headline}</Text>
-      </TouchableOpacity>
+      </View>
       {!expanded && (
         tonightMeal
           ? <Text style={[cS.cardSub, { color:'#2D7A52' }]}>Tap to see the week →</Text>
-          : <TouchableOpacity onPress={(e) => { e.stopPropagation(); onPlanMeals(); }} activeOpacity={0.75} style={{ marginTop:4 }}>
+          : <TouchableOpacity onPress={onPlanMeals} activeOpacity={0.75} style={{ marginTop:4 }}>
               <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#2D7A52' }}>Plan it →</Text>
             </TouchableOpacity>
       )}
@@ -643,7 +651,7 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -755,14 +763,18 @@ function ShoppingCard({ items, count, expanded, onToggleExpand, onAdd, onOpenShe
   const headline  = shopHeadline(count);
   const unchecked = items.filter((i:any) => i.checked !== true);
   return (
-    <View style={[cS.card, cS.cardShop, { overflow:'hidden' }]}>
+    <TouchableOpacity
+      style={[cS.card, cS.cardShop, { overflow:'hidden' }]}
+      onPress={onToggleExpand}
+      activeOpacity={0.92}
+    >
       <Text style={[cS.cardLabel, { color:'#5020C0' }]}>SHOPPING</Text>
-      <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
+      <View style={cS.cardHeader}>
         <Text style={cS.headlineShop}>{headline}</Text>
-        <TouchableOpacity style={shopS.addBtn} onPress={(e) => { e.stopPropagation(); onAdd(); }} activeOpacity={0.75}>
+        <TouchableOpacity style={shopS.addBtn} onPress={onAdd} activeOpacity={0.75}>
           <Text style={shopS.addBtnTxt}>+ Add</Text>
         </TouchableOpacity>
-      </TouchableOpacity>
+      </View>
       {!expanded && <Text style={[cS.cardSub, { color:'#5020C0' }]}>{count > 0 ? 'Tap to see →' : ''}</Text>}
       {expanded && (
         <View style={{ marginTop:8 }}>
@@ -781,7 +793,7 @@ function ShoppingCard({ items, count, expanded, onToggleExpand, onAdd, onOpenShe
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -954,13 +966,17 @@ function OnTheRadarCard({ expanded, onToggleExpand, onViewFullList }: {
   };
 
   return (
-    <View style={[cS.card, cS.cardAct, { overflow: 'hidden' }]}>
+    <TouchableOpacity
+      style={[cS.card, cS.cardAct, { overflow: 'hidden' }]}
+      onPress={onToggleExpand}
+      activeOpacity={0.92}
+    >
       <Text style={[cS.cardLabel, { color: '#8B6914' }]}>ON THE RADAR</Text>
-      <TouchableOpacity style={cS.cardHeader} onPress={onToggleExpand} activeOpacity={0.82}>
+      <View style={cS.cardHeader}>
         <Text style={cS.headlineDk}>
           {totalCount === 0 ? 'All clear.' : totalCount === 1 ? '1 thing coming up.' : `${totalCount} things coming up.`}
         </Text>
-      </TouchableOpacity>
+      </View>
       {!expanded && (
         <Text style={[cS.cardSub, { color: '#8B6914' }]}>
           Your tasks + shared {'\u00B7'} next 7 days
@@ -1050,7 +1066,7 @@ function OnTheRadarCard({ expanded, onToggleExpand, onViewFullList }: {
           </View>
         </View>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -1427,8 +1443,8 @@ const cS = StyleSheet.create({
   card:      { borderRadius:22, padding:22 },
   cardCal:   { backgroundColor:'#2D3748' },
   cardDin:   { backgroundColor:'#B8EDD0' },
-  cardWx:    { backgroundColor:'#E8F4FD', flex:1 },
-  cardWotd:  { backgroundColor:'#F0EDE8', flex:1 },
+  cardWx:    { backgroundColor:'#E8F4FD', flex:35 },  // bento row: 35% weather
+  cardWotd:  { backgroundColor:'#F0EDE8', flex:65 },  // bento row: 65% zaeli noticed
   cardShop:  { backgroundColor:'#D8CCFF' },
   cardAct:   { backgroundColor:'#F0DC80' },
 

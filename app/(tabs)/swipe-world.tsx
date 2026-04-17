@@ -27,9 +27,6 @@ const { width: W } = Dimensions.get('window');
 const PAGE_CHAT      = 0;
 const PAGE_DASHBOARD = 1;
 
-// 2-dot indicator: lavender (Chat), peach (Dashboard)
-const DOT_COLORS  = ['#A890FF', '#FAC8A8']; // darker lavender for visibility
-
 const LANDING_TEST_MODE = true; // set false before launch
 
 // Module-level flag — only show splash once per app session, not on every swipe-world re-mount
@@ -117,33 +114,21 @@ export default function SwipeWorld() {
         </View>
       </ScrollView>
 
-      {/* ── 2-dot page indicator ── */}
-      <View style={s.dots} pointerEvents="none">
-        {[0, 1].map(i => (
-          <View
-            key={i}
-            style={[
-              s.dot,
-              activePage === i && {
-                width: 16,
-                borderRadius: 3,
-                backgroundColor: DOT_COLORS[i],
-              },
-            ]}
-          />
-        ))}
-      </View>
-
+      {/* Dots removed — Navigate section in MoreSheet is the primary Chat↔Dashboard control */}
       {/* FAB removed — hamburger ☰ in each screen's header opens the new MoreSheet */}
 
-      {/* ── Landing splash — Option C (Deep Slate + Mint) ── */}
+      {/* ── Landing splash — Option C (Deep Slate + Sky + Mint + Lavender orbs) ── */}
       {showLanding && (
         <TouchableOpacity
           style={s.landing}
           activeOpacity={1}
           onPress={() => setShowLanding(false)}
         >
-          {/* Mint glow ring behind wordmark */}
+          {/* Lavender orb — top right */}
+          <View style={s.landingOrbLavTop} pointerEvents="none" />
+          {/* Lavender orb — bottom left */}
+          <View style={s.landingOrbLavBot} pointerEvents="none" />
+          {/* Sky glow — wrapping the wordmark */}
           <View style={s.landingGlow} pointerEvents="none" />
 
           <View style={s.landingCenter}>
@@ -178,23 +163,7 @@ const s = StyleSheet.create({
     width: W,
     flex: 1,
   },
-  dots: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 112 : 96,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 5,
-    zIndex: 998,
-  },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(10,10,10,0.14)',
-  },
+  // dots removed — navigation handled via MoreSheet Navigate section + swipe
   landing: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
@@ -204,17 +173,37 @@ const s = StyleSheet.create({
     zIndex: 1000,
     overflow: 'hidden',
   },
+  // Sky-blue soft glow behind wordmark
   landingGlow: {
     position: 'absolute',
     width: 520,
     height: 520,
     borderRadius: 260,
-    backgroundColor: 'rgba(184,237,208,0.12)',
+    backgroundColor: 'rgba(168,216,240,0.10)',
     top: '50%',
     left: '50%',
     marginLeft: -260,
     marginTop: -280,
-    // Soft mint glow — fills a generous area behind the wordmark
+  },
+  // Lavender orbs — Shopping-tile lavender #D8CCFF.
+  // On a dark slate bg we need high opacity for the purple to actually show (low opacity just blends to grey).
+  landingOrbLavTop: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'rgba(216,204,255,0.65)',
+    top: -80,
+    right: -90,
+  },
+  landingOrbLavBot: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(216,204,255,0.55)',
+    bottom: -110,
+    left: -120,
   },
   landingCenter: {
     alignItems: 'center',
@@ -225,22 +214,24 @@ const s = StyleSheet.create({
     fontSize: 96,
     color: '#FFFFFF',
     letterSpacing: -4,
-    lineHeight: 104,
+    lineHeight: 128, // extra room so the dot on "i" never clips
+    paddingTop: 12,  // breathing space above
+    textAlignVertical: 'center',
   },
   landingLogoAccent: {
-    color: '#B8EDD0', // mint — tie to meal planner identity
+    color: '#A8D8F0', // sky blue — My Space identity
   },
   landingTagline: {
     fontFamily: 'Poppins_400Regular',
     fontSize: 17,
     color: 'rgba(255,255,255,0.60)',
-    marginTop: 24,
+    marginTop: 16,
     letterSpacing: 0,
     textAlign: 'center',
   },
   landingTaglineBold: {
     fontFamily: 'Poppins_700Bold',
-    color: '#B8EDD0', // mint accent on "Less Chaos."
+    color: '#B8EDD0', // mint accent on "Less Chaos." (kept as-is)
   },
   landingDivider: {
     marginTop: 20,
