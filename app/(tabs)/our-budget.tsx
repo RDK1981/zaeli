@@ -846,23 +846,28 @@ function GoalCard(p: { goal: Goal; onPress: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════════
 function SheetShell(p: { visible: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
   if (!p.visible) return null;
+  // KAV inside the card so keyboard padding shrinks the body, not the whole card.
   return (
     <Modal visible transparent animationType="slide" onRequestClose={p.onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={s.sheetBackdrop}>
-          <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={p.onClose}/>
-          <View style={s.sheetCard}>
-            <View style={s.sheetHandle}/>
-            <View style={s.sheetHdr}>
-              <Text style={s.sheetTitle}>{p.title}</Text>
-              <TouchableOpacity onPress={p.onClose} activeOpacity={0.7} style={s.sheetX}>
-                <Text style={s.sheetXTxt}>Close</Text>
-              </TouchableOpacity>
-            </View>
-            {p.children}
+      <View style={s.sheetBackdrop}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={p.onClose}/>
+        <View style={s.sheetCard}>
+          <View style={s.sheetHandle}/>
+          <View style={s.sheetHdr}>
+            <Text style={s.sheetTitle}>{p.title}</Text>
+            <TouchableOpacity onPress={p.onClose} activeOpacity={0.7} style={s.sheetX}>
+              <Text style={s.sheetXTxt}>Close</Text>
+            </TouchableOpacity>
           </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={0}
+          >
+            {p.children}
+          </KeyboardAvoidingView>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }

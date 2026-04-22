@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 22 April 2026 — Session 17 ✅ · Brief polish (quiet-day persona, loading bubble) · Settings screen built · Kids Hub keyboard flash fix · Calendar keyword tightening · Our Budget v2 PURE PLANNER (mint palette, Option D chart, line items, AI helper) · Old brief code ripped · Standard header rule*
+*Last updated: 22 April 2026 — Session 18 ✅ · Travel module rebuilt (pure planner, 4 tabs, tap-to-edit, keyboard-fix) · Our Budget sheet keyboard fix backported · Session 17 still current for everything else*
 
 ---
 
@@ -1079,6 +1079,58 @@ Big session. Brief system polished and critical shadowing bug fixed. Settings sh
 - `lib/navigation-store.ts` — added `setFamilyFromSettings` / `consumeFamilyFrom`
 - `lib/brief-generator.ts` — quiet-day persona rewrite + per-window examples
 
+---
+
+## ══════════════════════════════════
+## SESSION 18 — TRAVEL MODULE · KEYBOARD FIX (22 April 2026) ✅
+## ══════════════════════════════════
+
+Follow-on to Session 17 same day. Travel module built from scratch against the new design system.
+
+### Travel module ([travel.tsx](app/(tabs)/travel.tsx))
+- Full rewrite — replaces the pre-Session-14 March 1382-line version
+- **Standalone route** (not 92% sheet — too much depth for a sheet: Trip Stack → Trip Detail → 4 tabs)
+- **Two views**: Trip Stack (Upcoming + Past sections + `Plan a trip` CTA + Zaeli insight) → Trip Detail
+- **Trip Detail 4 tabs**: Overview / Bookings / Packing / Notes (segmented switcher)
+- **Overview**: gradient hero card with destination (38px) + flag + dates + countdown pill, tap-to-edit Who's Going card, tap-to-edit Budget card, inline packing progress, Zaeli insight, Delete trip
+- **Bookings**: grouped by category (Flights / Accommodation / Transport / Activities), **tap row to edit** (was long-press-to-delete — changed Session 18)
+- **Packing**: sky progress pill, sections by person (Shared + each trip member), tap-to-tick with ocean-deep check, long-press to remove
+- **Notes**: tagged cards (Important/Idea/Info/Question — each with own colour), author attribution, long-press to remove
+- **Sheets**: unified BookingSheet (add+edit in one component), NewPackingSheet, NewNoteSheet, NewTripSheet (6 card-bg options, 14 icon emojis), EditTotalBudgetSheet, EditMembersSheet
+- **Routing**: MoreSheet travel tile wired in all 3 onAction handlers ([MoreSheet.tsx:217](app/components/MoreSheet.tsx:217), [dashboard.tsx:1396](app/(tabs)/dashboard.tsx:1396), [index.tsx:5995](app/(tabs)/index.tsx:5995))
+- **Design rules followed**: 40px wordmark, `a+i` sky `#A8D8F0` (Travel identity), 17/700Bold/0.72 page label, segmented tabs, big fonts (trip dest 30px stack / 38px detail, budget 34px, hero Zaeli text 17px), no in-module chat bar
+
+### Travel Budget = Pure Planner (applied Session 18 pivot)
+- **No manual "Spent so far"** — same reason we ripped it from Our Budget: without a bank feed, manual spend data is drift + lies
+- **Booked** auto-sums booking amounts (committed dollars)
+- **Still to plan** = Total − Booked (runway for food / activities / anything not booked yet)
+- Edit button on Budget card opens EditTotalBudgetSheet — one field (total only)
+
+### Keyboard glitch fix — root cause
+- **Symptom**: typing in Travel's Add Booking / Add Note forms, screen went out of whack, couldn't see the focused input
+- **Root cause**: `KeyboardAvoidingView` wrapping the entire Modal + `sheetCard: height: H * 0.92` fixed height. When keyboard opened, KAV pushed the whole fixed-height card up off the top of the screen.
+- **Fix**: move KAV *inside* the sheet card, wrapping only the body. Card stays pinned to bottom, body shrinks to accommodate keyboard. Applied to [travel.tsx SheetShell](app/(tabs)/travel.tsx) and backported to [our-budget.tsx SheetShell](app/(tabs)/our-budget.tsx).
+- **Also**: added `keyboardShouldPersistTaps="handled"` to all Travel + Our Budget sheet ScrollViews so tapping between fields while keyboard is up doesn't dismiss it.
+
+### Session 18 polish round
+- Who's Going card tappable → EditMembersSheet (family pill multi-select)
+- Bookings tap-to-edit via unified BookingSheet (`payload: 'new' | Booking`), Delete button inside sheet (replaces long-press-to-delete)
+- Budget card now shows Total / Booked auto-sum / Still to plan
+- Same keyboard fix backported to Our Budget sheets
+
+### Files touched this session
+- `app/(tabs)/travel.tsx` — full rewrite (~1500 lines)
+- `app/(tabs)/our-budget.tsx` — SheetShell KAV moved inside card
+- `app/components/MoreSheet.tsx` — travel tile routes to /travel
+- `app/(tabs)/dashboard.tsx` — same in onAction handler
+- `app/(tabs)/index.tsx` — same in onAction handler (closes sheets first)
+
+### Deferred to backend pass (Travel)
+- 6 Supabase tables: `trips`, `trip_members`, `trip_bookings`, `trip_packing_items`, `trip_notes`, `trip_budget`
+- AI brief per trip (Sonnet cached)
+- Vision for booking confirmations (auto-extract REF / dates / amount from screenshot)
+- Real family_members wiring (not seed data)
+
 ### Pending for backend pass (all together)
 - Our Budget: 4 Supabase tables (`income_streams`, `budget_categories`, `category_line_items`, `savings_goals`) + AI helper persists accepted suggestions
 - Settings: `user_preferences` table (migrate from AsyncStorage) + push notification scheduling tied to brief times / quiet hours
@@ -1158,6 +1210,8 @@ Phase 24:  Standard header     ✅ Session 17 — 17px/700Bold/0.72 page label r
 Phase 25:  Kids keyboard fix   ✅ Session 17 — component-as-JSX anti-pattern fixed (call as fn)
 Phase 26:  Calendar keywords   ✅ Session 17 — narrowed to intent-bearing phrases, no more bare time-refs hijacking chat
 Phase 27:  Backend pass        🔨 ← batched: Supabase migrations, push notifications, auth, Stripe, memory wiring, CSV document picker, share extension
+Phase 28:  Travel module       ✅ Session 18 — standalone route, Trip Stack + Trip Detail (4 tabs), BookingSheet unified add/edit, Pure Planner budget (auto-sum Booked), tap-to-edit Who's Going, keyboard fix (KAV inside card), mint/sky palette per new design rules
+Phase 29:  Keyboard fix        ✅ Session 18 — KAV moved inside SheetShell card + keyboardShouldPersistTaps='handled' on all sheet ScrollViews (travel + our-budget)
 ```
 
 ---
@@ -1212,3 +1266,7 @@ Phase 27:  Backend pass        🔨 ← batched: Supabase migrations, push notif
 - Module-level nav flags pattern (for tab→tab back-routing): use `lib/navigation-store.ts` setters/consumers. Router params unreliable across tab routes.
 - `@react-native-community/datetimepicker` used for time + date pickers (inline spinner on iOS, native dialog on Android).
 - Settings prefs stored in AsyncStorage under `zaeli_settings_prefs_v1` (pre-backend pass).
+- Travel = STANDALONE full-screen route (not 92% sheet — too much depth). Wordmark `a+i` = sky `#A8D8F0`, primary = ocean deep `#0060A0`. Segmented tabs (Overview/Bookings/Packing/Notes).
+- Travel Budget = PURE PLANNER (Session 18) — total budget set by user, Booked auto-sums booking amounts, no manual "spent". Same reason as Our Budget.
+- BookingSheet in Travel is unified — one component handles add (`payload: 'new'`) and edit (`payload: Booking`). Delete button lives inside edit mode.
+- **SheetShell pattern** (use this for any 92% bottom sheet with text inputs): `Modal > View backdrop > View card > KAV inside card wrapping only body`. Never wrap the whole Modal with KAV — fixed-height card gets shoved off screen. Also add `keyboardShouldPersistTaps="handled"` to the body ScrollView.

@@ -1,1382 +1,1632 @@
 /**
  * travel.tsx — Zaeli Travel Channel
- * Ocean Cyan #A8D8F0 banner · Soft Mint #B8EDD0 AI colour · #0060A0 accent
- * Built: 31 March 2026
+ *
+ * Standalone full-screen route. Two views: Trip Stack (upcoming + past)
+ * and Trip Detail (4 tabs — Overview · Bookings · Packing · Notes).
+ *
+ * Accent: Ocean Cyan · sky #A8D8F0 primary · #0060A0 deep
+ * Wordmark a+i = sky #A8D8F0
+ *
+ * v1 scope: full UI, local state only. Supabase wiring + AI brief + vision
+ * for booking confirmations live with the backend pass.
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Animated, Modal, ActivityIndicator,
-  SafeAreaView, StatusBar, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
+  Dimensions, Alert, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { router } from 'expo-router';
-import {
-  useFonts,
-  Poppins_400Regular,
-  Poppins_500Medium,
-  Poppins_600SemiBold,
-  Poppins_700Bold,
-} from '@expo-google-fonts/poppins';
-import { DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display';
-import { supabase } from '../../lib/supabase';
-import { useChatPersistence } from '../../lib/use-chat-persistence';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import Svg, { Path } from 'react-native-svg';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import MoreSheet from '../components/MoreSheet';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const { height: H } = Dimensions.get('window');
 
-const FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
-const SONNET      = 'claude-sonnet-4-6';
-const ANTHROPIC_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+// ── Colour tokens ──────────────────────────────────────────────────────────
+const BG        = '#FAF8F5';
+const CARD      = '#FFFFFF';
+const INK       = '#0A0A0A';
+const INK2      = 'rgba(10,10,10,0.72)';
+const INK3      = 'rgba(10,10,10,0.55)';
+const INK4      = 'rgba(10,10,10,0.42)';
+const INK5      = 'rgba(10,10,10,0.30)';
+const BORDER    = 'rgba(10,10,10,0.06)';
 
-const TRAVEL_BANNER = '#A8D8F0';
-const TRAVEL_AI     = '#B8EDD0';
-const TRAVEL_ACCENT = '#0060A0';
-const BODY_BG       = '#FAF8F5';
-const CORAL         = '#FF4545';
-const INK           = '#1A1A1A';
-const INK2          = 'rgba(26,26,26,0.6)';
-const INK3          = 'rgba(26,26,26,0.4)';
-const INK4          = 'rgba(26,26,26,0.12)';
+// Travel accent — sky (My Space palette) + ocean deep for primary actions
+const TRAVEL       = '#A8D8F0';
+const TRAVEL_DEEP  = '#0060A0';
+const TRAVEL_SOFT  = '#E4F4FF';
+const TRAVEL_MED   = '#C8E8FF';
+const TRAVEL_TXT   = '#0A4A6A';
 
-const FAMILY_COLOURS: Record<string, string> = {
-  Rich:  '#4D8BFF',
-  Anna:  '#FF7B6B',
-  Poppy: '#A855F7',
-  Gab:   '#22C55E',
-  Duke:  '#F59E0B',
-};
-const FAMILY_MEMBERS = ['Rich', 'Anna', 'Poppy', 'Gab', 'Duke'];
+// Status colours
+const STATUS_CONF_BG   = '#D1FAE5';
+const STATUS_CONF_TXT  = '#065F46';
+const STATUS_PLAN_BG   = '#FFEAD8';
+const STATUS_PLAN_TXT  = '#8A3A00';
+const STATUS_DONE_BG   = '#E8E8E8';
+const STATUS_DONE_TXT  = '#5A5D56';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// Note tag colours
+const TAG_IMP_BG  = '#FEE2E2';
+const TAG_IMP_TXT = '#B91C1C';
+const TAG_IDEA_BG = '#E6F7EF';
+const TAG_IDEA_TXT= '#2D7A52';
+const TAG_INFO_BG = '#E4F4FF';
+const TAG_INFO_TXT= '#0060A0';
+const TAG_Q_BG    = '#FEF3C7';
+const TAG_Q_TXT   = '#92400E';
+
+const DANGER = '#C53030';
+
+// ── Family members ─────────────────────────────────────────────────────────
+interface Member { id: string; name: string; colour: string; initial: string; }
+const FAMILY: Member[] = [
+  { id: 'rich',  name: 'Rich',  colour: '#4D8BFF', initial: 'R' },
+  { id: 'anna',  name: 'Anna',  colour: '#FF7B6B', initial: 'A' },
+  { id: 'poppy', name: 'Poppy', colour: '#A855F7', initial: 'P' },
+  { id: 'gab',   name: 'Gab',   colour: '#22C55E', initial: 'G' },
+  { id: 'duke',  name: 'Duke',  colour: '#F59E0B', initial: 'D' },
+];
+const memberById = (id: string) => FAMILY.find(m => m.id === id);
+
+// ── Types ──────────────────────────────────────────────────────────────────
+type TripStatus = 'planning' | 'confirmed' | 'done';
+type BookingCat = 'flights' | 'accommodation' | 'transport' | 'activities';
+type NoteTag    = 'important' | 'idea' | 'info' | 'question';
+type DetailTab  = 'overview' | 'bookings' | 'packing' | 'notes';
 
 interface Trip {
   id: string;
   destination: string;
-  country_emoji: string;
-  depart_date: string;
-  return_date: string;
-  status: 'planning' | 'confirmed' | 'travelling' | 'done';
-  members: string[];
-  budget_set: number | null;
-  budget_spent: number;
+  country: string;
+  flag: string;
+  bgFrom: string;
+  bgTo: string;
+  startDate: string | null;   // YYYY-MM-DD
+  endDate: string | null;
+  datesLabel: string;          // human label including nights
+  status: TripStatus;
+  organiserId: string;
+  memberIds: string[];
+  totalBudget?: number;
 }
 
 interface Booking {
   id: string;
-  trip_id: string;
-  category: 'flights' | 'accommodation' | 'transport' | 'activities' | 'other';
+  tripId: string;
+  category: BookingCat;
+  emoji: string;
   title: string;
-  booking_date: string | null;
-  confirmation_number: string | null;
-  provider: string | null;
-  amount: number | null;
-  notes: string | null;
+  detail: string;
+  confRef?: string;
+  amount?: number;
 }
 
 interface PackingItem {
   id: string;
-  trip_id: string;
-  section: string; // 'shared' or member name
+  tripId: string;
+  ownerId: string | 'shared';
   name: string;
-  quantity: number | null;
+  qty?: number;
   packed: boolean;
 }
 
 interface TripNote {
   id: string;
-  trip_id: string;
-  content: string;
-  tag: 'important' | 'idea' | 'question' | null;
-  created_by: string | null;
-  created_at: string;
-}
-
-interface Msg {
-  id: string;
-  role: 'user' | 'zaeli';
+  tripId: string;
+  tag: NoteTag;
   text: string;
-  ts?: string;
-  isLoading?: boolean;
-  quickReplies?: string[];
+  authorId: string;
+  createdAt: string;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ── Seed data ──────────────────────────────────────────────────────────────
+const SEED_TRIPS: Trip[] = [
+  {
+    id: 't-bali', destination: 'Bali', country: 'Indonesia', flag: '🌴',
+    bgFrom: '#E4F4FF', bgTo: '#C8E8FF',
+    startDate: '2026-04-18', endDate: '2026-04-28',
+    datesLabel: '18 Apr – 28 Apr 2026 · 10 nights',
+    status: 'confirmed', organiserId: 'rich',
+    memberIds: ['rich','anna','poppy','gab','duke'],
+    totalBudget: 8000,
+  },
+  {
+    id: 't-tokyo', destination: 'Tokyo', country: 'Japan', flag: '🗾',
+    bgFrom: '#FFF0EE', bgTo: '#FAD8D0',
+    startDate: null, endDate: null,
+    datesLabel: 'Dates TBC · ~14 nights',
+    status: 'planning', organiserId: 'rich',
+    memberIds: ['rich','anna','poppy','gab','duke'],
+  },
+  {
+    id: 't-qt', destination: 'Queenstown', country: 'New Zealand', flag: '🏔️',
+    bgFrom: '#F2F2F2', bgTo: '#E8E8E8',
+    startDate: '2026-01-05', endDate: '2026-01-15',
+    datesLabel: '5 Jan – 15 Jan 2026 · 10 nights',
+    status: 'done', organiserId: 'rich',
+    memberIds: ['rich','anna','poppy','gab','duke'],
+  },
+];
 
-function uid() { return Math.random().toString(36).slice(2); }
+const SEED_BOOKINGS: Booking[] = [
+  { id: 'b1', tripId: 't-bali', category: 'flights',       emoji: '✈️', title: 'JQ 516 · BNE → DPS',       detail: '18 Apr · Departs 10:40am · Jetstar', confRef: 'JQ-8841-RD', amount: 2140 },
+  { id: 'b2', tripId: 't-bali', category: 'flights',       emoji: '✈️', title: 'JQ 517 · DPS → BNE',       detail: '28 Apr · Departs 2:15pm · Jetstar',  confRef: 'JQ-8841-RD' },
+  { id: 'b3', tripId: 't-bali', category: 'accommodation', emoji: '🏨', title: 'Alaya Resort Seminyak',     detail: '18 Apr – 21 Apr · 3 nights',         confRef: 'ALY-20948', amount: 680 },
+  { id: 'b4', tripId: 't-bali', category: 'transport',     emoji: '🚗', title: 'Airport pickup · Ngurah Rai', detail: '18 Apr 1:30pm · Bali Driver Pro',  confRef: 'BDP-5512',  amount: 45 },
+];
 
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+const SEED_PACKING: PackingItem[] = [
+  // Shared
+  { id: 'p1', tripId: 't-bali', ownerId: 'shared', name: 'Passports',          qty: 5, packed: true  },
+  { id: 'p2', tripId: 't-bali', ownerId: 'shared', name: 'Travel insurance docs',       packed: true  },
+  { id: 'p3', tripId: 't-bali', ownerId: 'shared', name: 'Sunscreen SPF50+',   qty: 3, packed: true  },
+  { id: 'p4', tripId: 't-bali', ownerId: 'shared', name: 'Travel adapters',    qty: 2, packed: false },
+  { id: 'p5', tripId: 't-bali', ownerId: 'shared', name: 'First aid kit',              packed: false },
+  { id: 'p6', tripId: 't-bali', ownerId: 'shared', name: 'Snacks for flight',          packed: false },
+  // Anna
+  { id: 'p7', tripId: 't-bali', ownerId: 'anna',   name: 'Swimmers',           qty: 3, packed: true  },
+  { id: 'p8', tripId: 't-bali', ownerId: 'anna',   name: 'Sun hat',                    packed: true  },
+  { id: 'p9', tripId: 't-bali', ownerId: 'anna',   name: 'Sarong',                     packed: false },
+  { id: 'p10',tripId: 't-bali', ownerId: 'anna',   name: 'Sandals',                    packed: false },
+  // Rich
+  { id: 'p11',tripId: 't-bali', ownerId: 'rich',   name: 'Camera',                     packed: true  },
+  { id: 'p12',tripId: 't-bali', ownerId: 'rich',   name: 'Plug adapters',      qty: 2, packed: true  },
+  { id: 'p13',tripId: 't-bali', ownerId: 'rich',   name: 'Snorkelling gear',           packed: false },
+  { id: 'p14',tripId: 't-bali', ownerId: 'rich',   name: 'Swim shorts',        qty: 2, packed: false },
+  { id: 'p15',tripId: 't-bali', ownerId: 'rich',   name: 'Beach towel',                packed: false },
+  // Duke
+  { id: 'p16',tripId: 't-bali', ownerId: 'duke',   name: 'Goggles',                    packed: false },
+  { id: 'p17',tripId: 't-bali', ownerId: 'duke',   name: 'Rashie',             qty: 2, packed: false },
+  { id: 'p18',tripId: 't-bali', ownerId: 'duke',   name: 'Thongs',                     packed: false },
+  { id: 'p19',tripId: 't-bali', ownerId: 'duke',   name: 'Water toys',                 packed: false },
+  { id: 'p20',tripId: 't-bali', ownerId: 'duke',   name: 'Hat',                        packed: false },
+];
+
+const SEED_NOTES: TripNote[] = [
+  { id: 'n1', tripId: 't-bali', tag: 'important', text: 'Duke had a bad stomach last Bali trip — pack probiotics and electrolytes. Ask pharmacist about kids\' Imodium before we leave.', authorId: 'anna', createdAt: '2026-03-28' },
+  { id: 'n2', tripId: 't-bali', tag: 'idea',      text: 'Cooking class in Ubud — kids might love it. Saw a good one near the rice terraces. Check if they do family sessions.',           authorId: 'rich', createdAt: '2026-03-25' },
+  { id: 'n3', tripId: 't-bali', tag: 'info',      text: 'Visa on arrival for Australians — $35 USD per person. Bring USD cash. ATMs unreliable at Ngurah Rai.',                             authorId: 'rich', createdAt: '2026-03-22' },
+  { id: 'n4', tripId: 't-bali', tag: 'question',  text: 'Does Alaya have a pool? Poppy will ask on arrival. Email them before we go.',                                                       authorId: 'anna', createdAt: '2026-03-19' },
+  { id: 'n5', tripId: 't-bali', tag: 'idea',      text: 'Tegalalang Rice Terraces day 4 — early morning, 7am, before crowds. Bring the camera.',                                             authorId: 'rich', createdAt: '2026-03-15' },
+];
+
+// Manual "spent" was removed Session 18 — Booked total now auto-sums from bookings.
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmtAud(n: number): string { return `$${Math.round(n).toLocaleString('en-AU')}`; }
+function pct(a: number, b: number): number { return b === 0 ? 0 : Math.round((a / b) * 100); }
+function localDateStr(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmtDayMonth(iso: string): string {
+  try {
+    const [y, m, d] = iso.split('-').map(Number);
+    return `${d} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1]}`;
+  } catch { return iso; }
+}
+function daysBetween(aIso: string, bIso: string): number {
+  const a = new Date(aIso + 'T00:00:00');
+  const b = new Date(bIso + 'T00:00:00');
+  return Math.max(0, Math.round((b.getTime() - a.getTime()) / 86400000));
+}
+function daysTo(iso: string | null): number | null {
+  if (!iso) return null;
+  return daysBetween(localDateStr(), iso);
 }
 
-function daysUntil(dateStr: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(dateStr + 'T00:00:00');
-  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
+function statusMeta(s: TripStatus) {
+  if (s === 'confirmed') return { label: 'Confirmed', bg: STATUS_CONF_BG, fg: STATUS_CONF_TXT };
+  if (s === 'planning')  return { label: 'Planning',  bg: STATUS_PLAN_BG, fg: STATUS_PLAN_TXT };
+  return { label: 'Done', bg: STATUS_DONE_BG, fg: STATUS_DONE_TXT };
 }
 
-function parseChips(text: string): { clean: string; chips: string[] } {
-  const match = text.match(/\[chips:\s*([^\]]+)\]/i);
-  if (!match) return { clean: text.trim(), chips: [] };
-  const chips = match[1].split('|').map(c => c.trim()).filter(Boolean);
-  return { clean: text.replace(match[0], '').trim(), chips };
+function tagMeta(t: NoteTag) {
+  if (t === 'important') return { label: 'Important', bg: TAG_IMP_BG, fg: TAG_IMP_TXT };
+  if (t === 'idea')      return { label: 'Idea',      bg: TAG_IDEA_BG, fg: TAG_IDEA_TXT };
+  if (t === 'info')      return { label: 'Info',      bg: TAG_INFO_BG, fg: TAG_INFO_TXT };
+  return { label: 'Question', bg: TAG_Q_BG, fg: TAG_Q_TXT };
 }
 
-function nowTs() {
-  return new Date().toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+function bookingCatMeta(c: BookingCat) {
+  if (c === 'flights')       return { label: 'Flights',       emoji: '✈️', tint: '#E4F4FF' };
+  if (c === 'accommodation') return { label: 'Accommodation', emoji: '🏨', tint: '#FFF0E8' };
+  if (c === 'transport')     return { label: 'Transport',     emoji: '🚗', tint: '#EFFFEE' };
+  return { label: 'Activities', emoji: '🎢', tint: '#F3E8FF' };
 }
 
-function gradientForStatus(status: string): string[] {
-  switch (status) {
-    case 'confirmed':   return ['#A8D8F0', '#B8EDD0'];
-    case 'planning':    return ['#FAC8A8', '#F0DC80'];
-    case 'travelling':  return ['#A8E8CC', '#A8D8F0'];
-    default:            return ['#D8CCFF', '#F0C8C0'];
-  }
-}
-
-function statusLabel(status: string) {
-  switch (status) {
-    case 'planning':   return 'Planning';
-    case 'confirmed':  return 'Confirmed';
-    case 'travelling': return 'Travelling';
-    default:           return 'Done';
-  }
-}
-
-function statusBadgeStyle(status: string) {
-  switch (status) {
-    case 'confirmed':
-    case 'travelling': return { bg: '#A8E8CC', color: '#0A6040' };
-    case 'planning':   return { bg: '#F0DC80', color: '#806000' };
-    default:           return { bg: INK4,      color: INK3 };
-  }
-}
-
-// ─── Typing dots ──────────────────────────────────────────────────────────────
-
-function TypingDots() {
-  const anims = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
-  useEffect(() => {
-    const loop = Animated.loop(Animated.stagger(180, anims.map(a =>
-      Animated.sequence([
-        Animated.timing(a, { toValue: 1, duration: 300, useNativeDriver: true }),
-        Animated.timing(a, { toValue: 0, duration: 300, useNativeDriver: true }),
-      ])
-    )));
-    loop.start();
-    return () => loop.stop();
-  }, []);
+// ── SVG atoms ──────────────────────────────────────────────────────────────
+function BackArrow() {
   return (
-    <View style={{ flexDirection: 'row', gap: 4, paddingVertical: 4 }}>
-      {anims.map((a, i) => (
-        <Animated.View key={i} style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: TRAVEL_AI, opacity: a }} />
-      ))}
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path d="M15 18l-6-6 6-6" stroke={INK2} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+function Hamburger() {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M3 6h18M3 12h18M3 18h18" stroke={INK} strokeWidth={2.2} strokeLinecap="round"/>
+    </Svg>
+  );
+}
+function IcoPlus({ color = INK, size = 16 }: { color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 5v14M5 12h14" stroke={color} strokeWidth={2.4} strokeLinecap="round"/>
+    </Svg>
+  );
+}
+function IcoChevron() {
+  return (
+    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+      <Path d="M9 6l6 6-6 6" stroke={INK5} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+function IcoCheck({ color = '#fff' }: { color?: string }) {
+  return (
+    <Svg width={12} height={12} viewBox="0 0 24 24" fill="none">
+      <Path d="M5 12l5 5 9-11" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN
+// ═══════════════════════════════════════════════════════════════════════════
+export default function TravelScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  const [trips, setTrips]             = useState<Trip[]>(SEED_TRIPS);
+  const [bookings, setBookings]       = useState<Booking[]>(SEED_BOOKINGS);
+  const [packing, setPacking]         = useState<PackingItem[]>(SEED_PACKING);
+  const [notes, setNotes]             = useState<TripNote[]>(SEED_NOTES);
+
+  const [currentTripId, setCurrentTripId] = useState<string | null>(null);
+  const [activeTab, setActiveTab]     = useState<DetailTab>('overview');
+  const [moreOpen, setMoreOpen]       = useState(false);
+  const [newTripOpen, setNewTripOpen] = useState(false);
+  const [bookingEdit, setBookingEdit] = useState<Booking | 'new' | null>(null);
+  const [newPackingOpen, setNewPackingOpen] = useState(false);
+  const [newNoteOpen, setNewNoteOpen] = useState(false);
+  const [editBudgetOpen, setEditBudgetOpen] = useState(false);
+  const [editMembersOpen, setEditMembersOpen] = useState(false);
+
+  const currentTrip = trips.find(t => t.id === currentTripId) ?? null;
+
+  // ── Save helpers ────────────────────────────────────────────────────────
+  function addTrip(t: Trip) { setTrips(prev => [t, ...prev]); }
+  function removeTrip(id: string) {
+    setTrips(prev => prev.filter(t => t.id !== id));
+    setBookings(prev => prev.filter(b => b.tripId !== id));
+    setPacking(prev => prev.filter(p => p.tripId !== id));
+    setNotes(prev => prev.filter(n => n.tripId !== id));
+  }
+  function saveBooking(b: Booking) {
+    setBookings(prev => prev.some(x => x.id === b.id) ? prev.map(x => x.id === b.id ? b : x) : [b, ...prev]);
+  }
+  function removeBooking(id: string) { setBookings(prev => prev.filter(b => b.id !== id)); }
+  function addPacking(p: PackingItem) { setPacking(prev => [...prev, p]); }
+  function togglePacking(id: string) {
+    setPacking(prev => prev.map(p => p.id === id ? { ...p, packed: !p.packed } : p));
+  }
+  function removePacking(id: string) { setPacking(prev => prev.filter(p => p.id !== id)); }
+  function addNote(n: TripNote) { setNotes(prev => [n, ...prev]); }
+  function removeNote(id: string) { setNotes(prev => prev.filter(n => n.id !== id)); }
+  function updateTripMembers(tripId: string, memberIds: string[]) {
+    setTrips(prev => prev.map(t => t.id === tripId ? { ...t, memberIds } : t));
+  }
+  function updateTripBudget(tripId: string, totalBudget: number) {
+    setTrips(prev => prev.map(t => t.id === tripId ? { ...t, totalBudget: totalBudget > 0 ? totalBudget : undefined } : t));
+  }
+
+  // ── Back behaviour ──────────────────────────────────────────────────────
+  function handleBack() {
+    if (currentTripId) {
+      setCurrentTripId(null);
+      setActiveTab('overview');
+    } else {
+      router.back();
+    }
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: BG, paddingTop: insets.top }}>
+      <StatusBar style="dark"/>
+
+      {/* Header */}
+      <View style={s.header}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <TouchableOpacity onPress={handleBack} style={s.back} activeOpacity={0.7}><BackArrow/></TouchableOpacity>
+          <Text style={s.wordmark}>
+            z<Text style={{ color: TRAVEL }}>a</Text>el<Text style={{ color: TRAVEL }}>i</Text>
+          </Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={s.pageLabel}>Travel</Text>
+          <TouchableOpacity onPress={() => setMoreOpen(true)} style={s.hamburger} activeOpacity={0.7}>
+            <Hamburger/>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Trip stack vs Trip detail */}
+      {!currentTrip && (
+        <TripStackView
+          trips={trips}
+          bookings={bookings}
+          packing={packing}
+          onOpenTrip={id => { setCurrentTripId(id); setActiveTab('overview'); }}
+          onAddTrip={() => setNewTripOpen(true)}
+        />
+      )}
+
+      {currentTrip && (
+        <TripDetailView
+          trip={currentTrip}
+          bookings={bookings.filter(b => b.tripId === currentTrip.id)}
+          packing={packing.filter(p => p.tripId === currentTrip.id)}
+          notes={notes.filter(n => n.tripId === currentTrip.id)}
+          activeTab={activeTab}
+          onChangeTab={setActiveTab}
+          onTogglePacking={togglePacking}
+          onRemovePacking={removePacking}
+          onRemoveNote={removeNote}
+          onOpenBooking={b => setBookingEdit(b)}
+          onAddBooking={() => setBookingEdit('new')}
+          onAddPacking={() => setNewPackingOpen(true)}
+          onAddNote={() => setNewNoteOpen(true)}
+          onEditBudget={() => setEditBudgetOpen(true)}
+          onEditMembers={() => setEditMembersOpen(true)}
+          onDeleteTrip={() => {
+            Alert.alert('Delete trip', `Remove ${currentTrip.destination}?`, [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Delete', style: 'destructive', onPress: () => { removeTrip(currentTrip.id); setCurrentTripId(null); } },
+            ]);
+          }}
+        />
+      )}
+
+      <NewTripSheet
+        visible={newTripOpen}
+        onClose={() => setNewTripOpen(false)}
+        onSave={t => { addTrip(t); setNewTripOpen(false); setCurrentTripId(t.id); setActiveTab('overview'); }}
+      />
+      {currentTrip && (
+        <>
+          <BookingSheet
+            payload={bookingEdit}
+            tripId={currentTrip.id}
+            onClose={() => setBookingEdit(null)}
+            onSave={b => { saveBooking(b); setBookingEdit(null); }}
+            onRemove={id => { removeBooking(id); setBookingEdit(null); }}
+          />
+          <NewPackingSheet
+            visible={newPackingOpen}
+            tripId={currentTrip.id}
+            tripMembers={currentTrip.memberIds}
+            onClose={() => setNewPackingOpen(false)}
+            onSave={p => { addPacking(p); setNewPackingOpen(false); }}
+          />
+          <NewNoteSheet
+            visible={newNoteOpen}
+            tripId={currentTrip.id}
+            onClose={() => setNewNoteOpen(false)}
+            onSave={n => { addNote(n); setNewNoteOpen(false); }}
+          />
+          <EditTotalBudgetSheet
+            visible={editBudgetOpen}
+            trip={currentTrip}
+            onClose={() => setEditBudgetOpen(false)}
+            onSave={total => { updateTripBudget(currentTrip.id, total); setEditBudgetOpen(false); }}
+          />
+          <EditMembersSheet
+            visible={editMembersOpen}
+            trip={currentTrip}
+            onClose={() => setEditMembersOpen(false)}
+            onSave={memberIds => { updateTripMembers(currentTrip.id, memberIds); setEditMembersOpen(false); }}
+          />
+        </>
+      )}
+
+      <MoreSheet visible={moreOpen} onClose={() => setMoreOpen(false)}/>
     </View>
   );
 }
 
-// ─── Category config ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// TRIP STACK VIEW
+// ═══════════════════════════════════════════════════════════════════════════
+function TripStackView(p: {
+  trips: Trip[];
+  bookings: Booking[];
+  packing: PackingItem[];
+  onOpenTrip: (id: string) => void;
+  onAddTrip: () => void;
+}) {
+  const upcoming = p.trips.filter(t => t.status !== 'done');
+  const past     = p.trips.filter(t => t.status === 'done');
 
-const BOOKING_CATEGORIES = [
-  { key: 'flights',       emoji: '✈️', label: 'Flights' },
-  { key: 'accommodation', emoji: '🏨', label: 'Accommodation' },
-  { key: 'transport',     emoji: '🚗', label: 'Transport' },
-  { key: 'activities',    emoji: '🎯', label: 'Activities' },
-  { key: 'other',         emoji: '📄', label: 'Other' },
-];
+  // Zaeli insight — computed from the nearest upcoming trip
+  const nearest = upcoming.sort((a, b) => {
+    if (!a.startDate) return 1;
+    if (!b.startDate) return -1;
+    return a.startDate.localeCompare(b.startDate);
+  })[0];
 
-const NOTE_TAG_STYLES: Record<string, { bg: string; color: string; label: string }> = {
-  important: { bg: 'rgba(240,200,192,0.5)', color: '#A01830', label: 'Important' },
-  idea:      { bg: 'rgba(240,220,128,0.5)', color: '#806000', label: 'Idea' },
-  question:  { bg: 'rgba(216,204,255,0.5)', color: '#5020C0', label: 'Question' },
-};
-
-// ─── Claude tool-calling ─────────────────────────────────────────────────────
-
-const TRAVEL_TOOLS = [
-  {
-    name: 'add_packing_item',
-    description: 'Add an item to the packing list for the current trip',
-    input_schema: {
-      type: 'object',
-      properties: {
-        section:  { type: 'string', description: "Either 'shared' or a family member name (Rich/Anna/Poppy/Gab/Duke)" },
-        name:     { type: 'string', description: 'Item name' },
-        quantity: { type: 'number', description: 'Optional quantity' },
-      },
-      required: ['section', 'name'],
-    },
-  },
-  {
-    name: 'tick_packing_item',
-    description: 'Mark a packing item as packed or unpacked',
-    input_schema: {
-      type: 'object',
-      properties: {
-        item_id: { type: 'string', description: 'The UUID of the packing item' },
-        packed:  { type: 'boolean', description: 'true to mark packed, false to unpack' },
-      },
-      required: ['item_id', 'packed'],
-    },
-  },
-  {
-    name: 'clear_packed_items',
-    description: 'Remove all packed items from the packing list',
-    input_schema: {
-      type: 'object',
-      properties: {
-        trip_id: { type: 'string', description: 'The trip UUID' },
-      },
-      required: ['trip_id'],
-    },
-  },
-  {
-    name: 'add_trip_note',
-    description: 'Add a note to the current trip',
-    input_schema: {
-      type: 'object',
-      properties: {
-        content: { type: 'string', description: 'Note content' },
-        tag:     { type: 'string', enum: ['important', 'idea', 'question'], description: 'Optional tag' },
-      },
-      required: ['content'],
-    },
-  },
-];
-
-// ─── Main component ──────────────────────────────────────────────────────────
-
-export default function TravelScreen() {
-  const [fontsLoaded] = useFonts({
-    Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, Poppins_700Bold,
-    DMSerifDisplay_400Regular,
-  });
-
-  // Chat persistence
-  const { messages, setMessages, loaded: chatLoaded } = useChatPersistence('travel');
-
-  // Data
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
-  const [activeTripTab, setActiveTripTab] = useState<'overview' | 'bookings' | 'packing' | 'notes'>('overview');
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [packingItems, setPackingItems] = useState<PackingItem[]>([]);
-  const [tripNotes, setTripNotes] = useState<TripNote[]>([]);
-
-  // Chat
-  const [inputText, setInputText] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
-
-  // Scroll arrows
-  const arrowOpacity = useRef(new Animated.Value(0)).current;
-  const [showArrows, setShowArrows] = useState(false);
-
-  // New trip sheet
-  const [showNewTripSheet, setShowNewTripSheet] = useState(false);
-  const [newDest, setNewDest] = useState('');
-  const [newDepart, setNewDepart] = useState('');
-  const [newReturn, setNewReturn] = useState('');
-  const [newMembers, setNewMembers] = useState<string[]>(FAMILY_MEMBERS);
-  const [newBudget, setNewBudget] = useState('');
-  const [creatingTrip, setCreatingTrip] = useState(false);
-
-  // Note quick-add
-  const [noteInput, setNoteInput] = useState('');
-  const [noteTag, setNoteTag] = useState<'important' | 'idea' | 'question' | null>(null);
-
-  // Booking quick-add
-  const [showAddBooking, setShowAddBooking] = useState(false);
-  const [newBookingCat, setNewBookingCat] = useState<Booking['category']>('flights');
-  const [newBookingTitle, setNewBookingTitle] = useState('');
-  const [newBookingAmount, setNewBookingAmount] = useState('');
-  const [newBookingConf, setNewBookingConf] = useState('');
-
-  // ── Load trips ──────────────────────────────────────────────────────────────
-
-  const loadTrips = useCallback(async () => {
-    const { data } = await supabase
-      .from('trips')
-      .select('*')
-      .eq('family_id', FAMILY_ID)
-      .order('depart_date', { ascending: true });
-    if (data) setTrips(data as Trip[]);
-  }, []);
-
-  const loadTripData = useCallback(async (tripId: string) => {
-    const [bRes, pRes, nRes] = await Promise.all([
-      supabase.from('trip_bookings').select('*').eq('trip_id', tripId).order('created_at'),
-      supabase.from('trip_packing_items').select('*').eq('trip_id', tripId).order('created_at'),
-      supabase.from('trip_notes').select('*').eq('trip_id', tripId).order('created_at', { ascending: false }),
-    ]);
-    if (bRes.data) setBookings(bRes.data as Booking[]);
-    if (pRes.data) setPackingItems(pRes.data as PackingItem[]);
-    if (nRes.data) setTripNotes(nRes.data as TripNote[]);
-  }, []);
-
-  useEffect(() => { loadTrips(); }, []);
-  useEffect(() => { if (activeTrip) loadTripData(activeTrip.id); }, [activeTrip]);
-
-  // ── Greeting ────────────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!chatLoaded || messages.length > 0) return;
-    const upcoming = trips.filter(t => t.status !== 'done' && daysUntil(t.depart_date) > 0);
-    let text = "No trips planned yet. Say the word and I'll help you start one.";
-    if (upcoming.length > 0) {
-      const next = upcoming[0];
-      const days = daysUntil(next.depart_date);
-      text = `${next.destination} is ${days} day${days !== 1 ? 's' : ''} away. Say the word and I'll help you get everything ready.`;
-    }
-    setMessages([{ id: uid(), role: 'zaeli', text, ts: nowTs(), quickReplies: ['New trip', 'Add a booking', 'Packing list'] }]);
-  }, [chatLoaded, trips]);
-
-  // ── Scroll arrows ───────────────────────────────────────────────────────────
-
-  const showScrollArrows = useCallback(() => {
-    setShowArrows(true);
-    Animated.timing(arrowOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-  }, []);
-
-  const hideScrollArrows = useCallback(() => {
-    Animated.timing(arrowOpacity, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => setShowArrows(false));
-  }, []);
-
-  const handleScroll = useCallback((e: any) => {
-    const { contentSize, layoutMeasurement, contentOffset } = e.nativeEvent;
-    if (contentSize.height > layoutMeasurement.height + 50) showScrollArrows();
-    else hideScrollArrows();
-  }, []);
-
-  // ── Claude tool execution ────────────────────────────────────────────────────
-
-  async function executeTool(name: string, input: any): Promise<string> {
-    if (!activeTrip) return 'No active trip selected.';
-
-    if (name === 'add_packing_item') {
-      const item: Partial<PackingItem> = {
-        trip_id: activeTrip.id,
-        section: input.section,
-        name: input.name,
-        quantity: input.quantity ?? null,
-        packed: false,
-      };
-      const { data, error } = await supabase.from('trip_packing_items').insert({ ...item, family_id: FAMILY_ID }).select().single();
-      if (error) return `Error: ${error.message}`;
-      setPackingItems(prev => [...prev, data as PackingItem]);
-      return `Added "${input.name}" to ${input.section === 'shared' ? 'the shared list' : `${input.section}'s list`}.`;
-    }
-
-    if (name === 'tick_packing_item') {
-      const { error } = await supabase.from('trip_packing_items').update({ packed: input.packed }).eq('id', input.item_id);
-      if (error) return `Error: ${error.message}`;
-      setPackingItems(prev => prev.map(p => p.id === input.item_id ? { ...p, packed: input.packed } : p));
-      return input.packed ? 'Marked as packed.' : 'Unmarked.';
-    }
-
-    if (name === 'clear_packed_items') {
-      const { error } = await supabase.from('trip_packing_items').delete().eq('trip_id', activeTrip.id).eq('packed', true);
-      if (error) return `Error: ${error.message}`;
-      setPackingItems(prev => prev.filter(p => !p.packed));
-      return 'Cleared all packed items.';
-    }
-
-    if (name === 'add_trip_note') {
-      const note = { trip_id: activeTrip.id, family_id: FAMILY_ID, content: input.content, tag: input.tag ?? null, created_by: 'Rich' };
-      const { data, error } = await supabase.from('trip_notes').insert(note).select().single();
-      if (error) return `Error: ${error.message}`;
-      setTripNotes(prev => [data as TripNote, ...prev]);
-      return `Note added.`;
-    }
-
-    return 'Unknown tool.';
-  }
-
-  // ── Send message ─────────────────────────────────────────────────────────────
-
-  async function sendMessage(text: string) {
-    if (!text.trim() || isSending) return;
-    setInputText('');
-    setIsSending(true);
-
-    const userMsg: Msg = { id: uid(), role: 'user', text: text.trim(), ts: nowTs() };
-    const loadingMsg: Msg = { id: uid(), role: 'zaeli', text: '', isLoading: true };
-    setMessages(prev => [...prev, userMsg, loadingMsg]);
-
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-
-    try {
-      // Build context
-      let context = `You are Zaeli, a warm and sharp AI assistant for an Australian family (Rich, Anna, Poppy age 12, Gab age 10, Duke age 8).
-You are in the Travel channel. Never say "mate". Never start with "I". Plain text only. Always end on a confident offer.
-Banned words: queued up, locked in, tidy, sorted, chaos.
-
-Family member colours: Rich=#4D8BFF, Anna=#FF7B6B, Poppy=#A855F7, Gab=#22C55E, Duke=#F59E0B.
-
-After your response, optionally append [chips: action1 | action2 | action3] for 2-3 relevant action chips.
-Chips must be ACTIONS only — things you can DO. Never suggest displaying data already on screen.
-Good chips: "Add a booking", "Add to packing", "Add a note", "Set budget".`;
-
-      if (activeTrip) {
-        const days = daysUntil(activeTrip.depart_date);
-        context += `\n\nCurrent trip: ${activeTrip.destination}, departing ${formatDate(activeTrip.depart_date)}, returning ${formatDate(activeTrip.return_date)}. ${days > 0 ? `${days} days away.` : 'Currently travelling.'} Status: ${activeTrip.status}. Going: ${activeTrip.members.join(', ')}.`;
-        if (activeTrip.budget_set) context += ` Budget: $${activeTrip.budget_set} set, $${activeTrip.budget_spent} spent.`;
-        if (packingItems.length > 0) {
-          const packed = packingItems.filter(p => p.packed).length;
-          context += `\n\nPacking: ${packed}/${packingItems.length} items packed.`;
-          const unpacked = packingItems.filter(p => !p.packed).map(p => `${p.name} (${p.section})`).slice(0, 10);
-          if (unpacked.length) context += ` Still to pack: ${unpacked.join(', ')}.`;
-        }
-        if (bookings.length > 0) {
-          context += `\n\nBookings: ${bookings.map(b => `${b.title} (${b.category}${b.amount ? `, $${b.amount}` : ''})`).join('; ')}.`;
-        }
-      } else if (trips.length > 0) {
-        context += `\n\nTrips: ${trips.map(t => `${t.destination} (${t.status}, ${formatDate(t.depart_date)})`).join('; ')}.`;
-      }
-
-      const history = messages.filter(m => !m.isLoading).slice(-8).map(m => ({
-        role: m.role === 'zaeli' ? 'assistant' : 'user',
-        content: m.text,
-      }));
-
-      const body: any = {
-        model: SONNET,
-        max_tokens: 1024,
-        system: context,
-        messages: [...history, { role: 'user', content: text.trim() }],
-      };
-
-      if (activeTrip) body.tools = TRAVEL_TOOLS;
-
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-
-      // Log tokens
-      if (data.usage) {
-        await supabase.from('api_logs').insert({
-          family_id: FAMILY_ID,
-          feature: 'travel_chat',
-          model: SONNET,
-          input_tokens: data.usage.input_tokens,
-          output_tokens: data.usage.output_tokens,
-          cost_usd: (data.usage.input_tokens / 1_000_000) * 3 + (data.usage.output_tokens / 1_000_000) * 15,
-        });
-      }
-
-      // Handle tool calls
-      let toolResults: string[] = [];
-      let finalText = '';
-
-      for (const block of data.content ?? []) {
-        if (block.type === 'tool_use') {
-          const result = await executeTool(block.name, block.input);
-          toolResults.push(result);
-        }
-        if (block.type === 'text') {
-          finalText += block.text;
-        }
-      }
-
-      // If there were tool calls, do follow-up
-      if (toolResults.length > 0 && !finalText) {
-        const followUp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': ANTHROPIC_KEY,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: SONNET,
-            max_tokens: 512,
-            system: context,
-            messages: [
-              ...history,
-              { role: 'user', content: text.trim() },
-              { role: 'assistant', content: data.content },
-              { role: 'user', content: toolResults.map(r => ({ type: 'tool_result', content: r })) },
-            ],
-          }),
-        });
-        const followData = await followUp.json();
-        for (const block of followData.content ?? []) {
-          if (block.type === 'text') finalText += block.text;
-        }
-      }
-
-      if (!finalText) finalText = toolResults.join(' ') || "Done.";
-
-      const { clean, chips } = parseChips(finalText);
-
-      setMessages(prev => prev.map(m =>
-        m.isLoading ? { ...m, text: clean, isLoading: false, ts: nowTs(), quickReplies: chips.length ? chips : undefined } : m
-      ));
-
-    } catch (err) {
-      setMessages(prev => prev.map(m =>
-        m.isLoading ? { ...m, text: "Something went wrong. Try again.", isLoading: false, ts: nowTs() } : m
-      ));
-    } finally {
-      setIsSending(false);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+  let insight = 'All quiet on the travel front — want to start planning something?';
+  if (nearest) {
+    const d = daysTo(nearest.startDate);
+    const pack = p.packing.filter(i => i.tripId === nearest.id);
+    const packedPct = pct(pack.filter(i => i.packed).length, pack.length);
+    if (d !== null && d >= 0) {
+      insight = `${nearest.destination} in ${d} days — packing is ${packedPct}% done.`;
+    } else if (nearest.status === 'planning') {
+      insight = `${nearest.destination} is in planning mode. Want to lock in dates or start researching?`;
     }
   }
 
-  // ── Create trip ──────────────────────────────────────────────────────────────
+  return (
+    <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
 
-  async function createTrip() {
-    if (!newDest.trim() || !newDepart.trim() || !newReturn.trim()) {
-      Alert.alert('Missing info', 'Please fill in destination and dates.');
-      return;
-    }
-    setCreatingTrip(true);
-    try {
-      const { data, error } = await supabase.from('trips').insert({
-        family_id: FAMILY_ID,
-        destination: newDest.trim(),
-        country_emoji: '✈️',
-        depart_date: newDepart.trim(),
-        return_date: newReturn.trim(),
-        status: 'planning',
-        members: newMembers,
-        budget_set: newBudget ? parseFloat(newBudget) : null,
-        budget_spent: 0,
-      }).select().single();
+      {upcoming.length > 0 && <Text style={s.secLabel}>Upcoming · {upcoming.length}</Text>}
+      {upcoming.map(t => <TripCard key={t.id} trip={t} onPress={() => p.onOpenTrip(t.id)}/>)}
 
-      if (error) throw error;
-      setTrips(prev => [...prev, data as Trip]);
-      setActiveTrip(data as Trip);
-      setActiveTripTab('overview');
-      setShowNewTripSheet(false);
-      setNewDest(''); setNewDepart(''); setNewReturn(''); setNewBudget('');
-      setNewMembers(FAMILY_MEMBERS);
-
-      // Warm greeting for new trip
-      setMessages(prev => [...prev, {
-        id: uid(), role: 'zaeli',
-        text: `${data.destination} is on. ${newMembers.length > 1 ? `${newMembers.length} of you going` : 'Just you'} — ${daysUntil(data.depart_date)} days away. Let's build this out. Add bookings, start the packing list, or jot down any ideas. Say the word.`,
-        ts: nowTs(),
-        quickReplies: ['Add a booking', 'Start packing list', 'Add a note'],
-      }]);
-    } catch (err: any) {
-      Alert.alert('Error', err.message);
-    } finally {
-      setCreatingTrip(false);
-    }
-  }
-
-  // ── Add booking ──────────────────────────────────────────────────────────────
-
-  async function addBooking() {
-    if (!activeTrip || !newBookingTitle.trim()) return;
-    const { data, error } = await supabase.from('trip_bookings').insert({
-      trip_id: activeTrip.id,
-      family_id: FAMILY_ID,
-      category: newBookingCat,
-      title: newBookingTitle.trim(),
-      amount: newBookingAmount ? parseFloat(newBookingAmount) : null,
-      confirmation_number: newBookingConf.trim() || null,
-    }).select().single();
-    if (!error && data) {
-      setBookings(prev => [...prev, data as Booking]);
-      setNewBookingTitle(''); setNewBookingAmount(''); setNewBookingConf('');
-      setShowAddBooking(false);
-    }
-  }
-
-  // ── Add note (quick strip) ───────────────────────────────────────────────────
-
-  async function addNote() {
-    if (!activeTrip || !noteInput.trim()) return;
-    const { data, error } = await supabase.from('trip_notes').insert({
-      trip_id: activeTrip.id,
-      family_id: FAMILY_ID,
-      content: noteInput.trim(),
-      tag: noteTag,
-      created_by: 'Rich',
-    }).select().single();
-    if (!error && data) {
-      setTripNotes(prev => [data as TripNote, ...prev]);
-      setNoteInput(''); setNoteTag(null);
-    }
-  }
-
-  // ── Toggle packing item ──────────────────────────────────────────────────────
-
-  async function togglePacked(item: PackingItem) {
-    const { error } = await supabase.from('trip_packing_items').update({ packed: !item.packed }).eq('id', item.id);
-    if (!error) setPackingItems(prev => prev.map(p => p.id === item.id ? { ...p, packed: !p.packed } : p));
-  }
-
-  if (!fontsLoaded) return null;
-
-  // ─── Render helpers ──────────────────────────────────────────────────────────
-
-  function renderTripCard(trip: Trip) {
-    const days = daysUntil(trip.depart_date);
-    const badge = statusBadgeStyle(trip.status);
-    const [c1, c2] = gradientForStatus(trip.status);
-    const packedCount = trip.status !== 'done' ? packingItems.filter(p => p.trip_id === trip.id && p.packed).length : 0;
-    const totalCount  = trip.status !== 'done' ? packingItems.filter(p => p.trip_id === trip.id).length : 0;
-
-    return (
-      <TouchableOpacity key={trip.id} style={s.tripCard} onPress={() => { setActiveTrip(trip); setActiveTripTab('overview'); }}>
-        {/* Header gradient */}
-        <View style={[s.tripCardHeader, { backgroundColor: c1 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Text style={{ fontSize: 26 }}>{trip.country_emoji}</Text>
-            <View>
-              <Text style={s.tripDest}>{trip.destination}</Text>
-              <Text style={s.tripDestSub}>{trip.members.join(', ')}</Text>
-            </View>
-          </View>
-          <View style={[s.statusBadge, { backgroundColor: badge.bg }]}>
-            <Text style={[s.statusBadgeText, { color: badge.color }]}>{statusLabel(trip.status)}</Text>
-          </View>
-        </View>
-        {/* Footer */}
-        <View style={s.tripCardFooter}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={s.tripDates}>{formatDate(trip.depart_date)} – {formatDate(trip.return_date)}</Text>
-            <View style={{ flexDirection: 'row' }}>
-              {trip.members.slice(0, 5).map((m, i) => (
-                <View key={m} style={[s.miniAvatar, { backgroundColor: FAMILY_COLOURS[m] ?? '#888', marginLeft: i === 0 ? 0 : -5 }]}>
-                  <Text style={s.miniAvatarText}>{m[0]}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-          {trip.status !== 'done' && days > 0 && (
-            <Text style={s.tripCountdown}>🗓 {days} day{days !== 1 ? 's' : ''} to go</Text>
-          )}
-          {totalCount > 0 && (
-            <View style={s.progressRow}>
-              <View style={s.progressTrack}><View style={[s.progressFill, { width: `${Math.round((packedCount / totalCount) * 100)}%` as any }]} /></View>
-              <Text style={s.progressLabel}>Packing {Math.round((packedCount / totalCount) * 100)}%</Text>
-            </View>
-          )}
+      <TouchableOpacity style={s.addTripCard} activeOpacity={0.8} onPress={p.onAddTrip}>
+        <View style={s.addTripIco}><IcoPlus color={TRAVEL_DEEP}/></View>
+        <View style={{ flex: 1 }}>
+          <Text style={s.addTripTitle}>Plan a trip</Text>
+          <Text style={s.addTripSub}>Destination, dates, who's going</Text>
         </View>
       </TouchableOpacity>
-    );
-  }
 
-  function renderMsg(msg: Msg) {
-    if (msg.role === 'user') {
-      return (
-        <View key={msg.id} style={s.userMsgWrap}>
-          <View style={s.userBubble}><Text style={s.userText}>{msg.text}</Text></View>
-          <Text style={s.msgTime}>{msg.ts}</Text>
+      {past.length > 0 && <Text style={[s.secLabel, { marginTop: 10 }]}>Past · {past.length}</Text>}
+      {past.map(t => <TripCard key={t.id} trip={t} onPress={() => p.onOpenTrip(t.id)} past/>)}
+
+      {/* Zaeli insight */}
+      <View style={s.insightCard}>
+        <View style={s.insightEye}>
+          <View style={s.insightStar}>
+            <Svg width={10} height={10} viewBox="0 0 24 24" fill={INK}>
+              <Path d="M12 2L14.09 8.26L20 10L14.09 11.74L12 18L9.91 11.74L4 10L9.91 8.26L12 2Z"/>
+            </Svg>
+          </View>
+          <Text style={s.insightLbl}>Zaeli</Text>
         </View>
-      );
-    }
-    return (
-      <View key={msg.id} style={s.zaeliMsgWrap}>
-        <View style={s.zaeliEyebrow}>
-          <View style={s.zaeliStar}><Text style={{ fontSize: 9, color: INK }}>✦</Text></View>
-          <Text style={s.zaeliName}>Zaeli</Text>
-          {msg.ts && <Text style={s.zaeliTime}>{msg.ts}</Text>}
+        <Text style={s.insightTxt}>{insight}</Text>
+      </View>
+
+    </ScrollView>
+  );
+}
+
+function TripCard(p: { trip: Trip; onPress: () => void; past?: boolean }) {
+  const { trip } = p;
+  const meta = statusMeta(trip.status);
+  const d = daysTo(trip.startDate);
+  const members = trip.memberIds.map(memberById).filter(Boolean) as Member[];
+
+  return (
+    <TouchableOpacity
+      style={[s.tripCard, { backgroundColor: trip.bgTo }, p.past && { opacity: 0.75 }]}
+      activeOpacity={0.88}
+      onPress={p.onPress}
+    >
+      <View style={s.tripHead}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.tripDest}>{trip.destination}</Text>
+          <Text style={s.tripCountry}>{trip.country}</Text>
+          <View style={[s.tripBadge, { backgroundColor: meta.bg }]}>
+            <Text style={[s.tripBadgeTxt, { color: meta.fg }]}>{meta.label}</Text>
+          </View>
         </View>
-        {msg.isLoading ? <TypingDots /> : <Text style={s.zaeliBody}>{msg.text}</Text>}
-        {!msg.isLoading && msg.quickReplies && msg.quickReplies.length > 0 && (
-          <View style={s.chipsRow}>
-            {msg.quickReplies.map(c => (
-              <TouchableOpacity key={c} style={s.chip} onPress={() => sendMessage(c)}>
-                <Text style={s.chipText}>{c}</Text>
-              </TouchableOpacity>
+        <Text style={s.tripFlag}>{trip.flag}</Text>
+      </View>
+
+      {trip.status !== 'done' && (
+        <View style={s.tripStrip}>
+          <View style={[s.tripStripDot, { backgroundColor: TRAVEL_DEEP }]}/>
+          <Text style={s.tripStripTxt}>
+            {d !== null && d >= 0 ? `${d} days to go` : trip.status === 'planning' ? 'Planning · no dates' : 'Starts soon'}
+          </Text>
+          <View style={s.tripAvatars}>
+            {members.slice(0, 5).map((m, i) => (
+              <View key={m.id} style={[s.tripAv, { backgroundColor: m.colour, marginLeft: i === 0 ? 0 : -6 }]}>
+                <Text style={s.tripAvTxt}>{m.initial}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      <View style={s.tripFoot}>
+        <Text style={s.tripDates}>{trip.datesLabel}</Text>
+        {trip.status === 'done' && (
+          <View style={s.tripAvatars}>
+            {members.slice(0, 5).map((m, i) => (
+              <View key={m.id} style={[s.tripAv, { backgroundColor: m.colour, marginLeft: i === 0 ? 0 : -6 }]}>
+                <Text style={s.tripAvTxt}>{m.initial}</Text>
+              </View>
             ))}
           </View>
         )}
       </View>
-    );
-  }
-
-  function renderPackingSection(section: string) {
-    const items = packingItems.filter(p => p.section === section);
-    const packed = items.filter(i => i.packed).length;
-    const emoji = section === 'shared' ? '🌍' : undefined;
-    const color = section === 'shared' ? TRAVEL_AI : (FAMILY_COLOURS[section] ?? '#888');
-
-    return (
-      <View key={section}>
-        <View style={s.packingSectionHeader}>
-          {emoji ? (
-            <View style={[s.packingSectionIcon, { backgroundColor: 'rgba(168,216,240,0.3)' }]}>
-              <Text style={{ fontSize: 13 }}>{emoji}</Text>
-            </View>
-          ) : (
-            <View style={[s.packingMemberDot, { backgroundColor: color }]} />
-          )}
-          <Text style={s.packingSectionTitle}>{section === 'shared' ? 'Shared' : section}</Text>
-          <Text style={s.packingSectionCount}>{packed} / {items.length} packed</Text>
-        </View>
-        <View style={s.packingCard}>
-          {items.map((item, idx) => (
-            <TouchableOpacity key={item.id} style={[s.packItem, idx === items.length - 1 && { borderBottomWidth: 0 }]} onPress={() => togglePacked(item)}>
-              <View style={[s.packCircle, item.packed && s.packCircleTicked]}>
-                {item.packed && <Text style={{ fontSize: 10, color: '#0A6040' }}>✓</Text>}
-              </View>
-              <Text style={[s.packName, item.packed && s.packNameTicked]}>{item.name}</Text>
-              {item.quantity && <View style={s.packQtyBadge}><Text style={s.packQtyText}>×{item.quantity}</Text></View>}
-            </TouchableOpacity>
-          ))}
-          {items.length === 0 && (
-            <Text style={{ padding: 12, fontSize: 13, color: INK3, fontFamily: 'Poppins_400Regular' }}>Nothing added yet</Text>
-          )}
-        </View>
-      </View>
-    );
-  }
-
-  // ── Upcoming / past split ────────────────────────────────────────────────────
-
-  const upcomingTrips = trips.filter(t => t.status !== 'done' || daysUntil(t.return_date) >= 0);
-  const pastTrips     = trips.filter(t => t.status === 'done' && daysUntil(t.return_date) < 0);
-
-  // ─── Main render ──────────────────────────────────────────────────────────────
-
-  return (
-    <View style={{ flex: 1, backgroundColor: TRAVEL_BANNER }}>
-      <StatusBar barStyle="dark-content" backgroundColor={TRAVEL_BANNER} />
-      <SafeAreaView edges={['top']} style={{ backgroundColor: TRAVEL_BANNER }}>
-
-        {/* Banner */}
-        <View style={s.banner}>
-          <View style={s.bannerRow}>
-            <TouchableOpacity onPress={() => { if (activeTrip) { setActiveTrip(null); } else { router.navigate('/(tabs)/'); } }}>
-              <Text style={s.wordmark}>
-                Z<Text style={s.aiLetter}>a</Text>el<Text style={s.aiLetter}>i</Text>
-              </Text>
-            </TouchableOpacity>
-            <View style={s.avatarCircle}><Text style={s.avatarText}>R</Text></View>
-          </View>
-          {activeTrip ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <TouchableOpacity onPress={() => setActiveTrip(null)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Text style={{ fontSize: 16 }}>←</Text>
-                <Text style={[s.channelLabel, { color: TRAVEL_ACCENT }]}>Travel</Text>
-              </TouchableOpacity>
-              <Text style={{ fontSize: 22 }}>{activeTrip.country_emoji}</Text>
-              <Text style={s.wordmarkSmall}>{activeTrip.destination}</Text>
-            </View>
-          ) : (
-            <Text style={s.channelLabel}>Travel</Text>
-          )}
-        </View>
-
-      </SafeAreaView>
-
-      {/* Trip tabs (inside trip only) */}
-      {activeTrip && (
-        <View style={s.tripTabs}>
-          {(['overview', 'bookings', 'packing', 'notes'] as const).map(tab => (
-            <TouchableOpacity key={tab} style={s.tripTabBtn} onPress={() => setActiveTripTab(tab)}>
-              <Text style={[s.tripTabText, activeTripTab === tab && s.tripTabActive]}>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </Text>
-              {activeTripTab === tab && <View style={s.tripTabUnderline} />}
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-
-      {/* Body */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={0}>
-        <View style={{ flex: 1, position: 'relative' }}>
-
-          {/* ── Main channel / trip stack ── */}
-          {!activeTrip && (
-            <ScrollView
-              ref={scrollRef}
-              style={{ flex: 1, backgroundColor: BODY_BG }}
-              contentContainerStyle={{ paddingBottom: 120 }}
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-            >
-              {/* Zaeli chat messages */}
-              <View style={{ paddingTop: 4 }}>
-                {messages.map(renderMsg)}
-              </View>
-
-              {/* Upcoming trips */}
-              {upcomingTrips.length > 0 && (
-                <View style={s.stackSection}>
-                  <Text style={s.sectionEyebrow}>✈️  Upcoming</Text>
-                  {upcomingTrips.map(renderTripCard)}
-                </View>
-              )}
-
-              {/* New trip button */}
-              <TouchableOpacity style={s.newTripBtn} onPress={() => setShowNewTripSheet(true)}>
-                <Text style={s.newTripPlus}>+</Text>
-                <Text style={s.newTripLabel}>Plan a new trip</Text>
-              </TouchableOpacity>
-
-              {/* Past trips */}
-              {pastTrips.length > 0 && (
-                <View style={s.stackSection}>
-                  <Text style={s.sectionEyebrow}>📷  Past trips</Text>
-                  {pastTrips.map(renderTripCard)}
-                </View>
-              )}
-
-              {trips.length === 0 && (
-                <View style={{ padding: 32, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 40, marginBottom: 12 }}>✈️</Text>
-                  <Text style={{ fontFamily: 'DMSerifDisplay_400Regular', fontSize: 22, color: INK, marginBottom: 6 }}>No trips yet</Text>
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK3, textAlign: 'center' }}>Tap the button above to start planning your first trip.</Text>
-                </View>
-              )}
-            </ScrollView>
-          )}
-
-          {/* ── Inside trip ── */}
-          {activeTrip && (
-            <ScrollView
-              ref={scrollRef}
-              style={{ flex: 1, backgroundColor: BODY_BG }}
-              contentContainerStyle={{ paddingBottom: 120 }}
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-            >
-
-              {/* ── Overview tab ── */}
-              {activeTripTab === 'overview' && (
-                <View>
-                  {/* Who's going */}
-                  <View style={s.sectionCard}>
-                    <Text style={s.sectionCardTitle}>Who's going</Text>
-                    <View style={{ flexDirection: 'row', gap: 14 }}>
-                      {activeTrip.members.map(m => (
-                        <View key={m} style={{ alignItems: 'center', gap: 4 }}>
-                          <View style={[s.memberAvatar, { backgroundColor: FAMILY_COLOURS[m] ?? '#888' }]}>
-                            <Text style={s.memberAvatarText}>{m[0]}</Text>
-                          </View>
-                          <Text style={s.memberName}>{m}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-
-                  {/* Budget card */}
-                  {activeTrip.budget_set && (
-                    <View style={s.budgetCard}>
-                      <Text style={s.budgetTitle}>💰 Budget</Text>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                        <View>
-                          <Text style={s.budgetAmount}>${activeTrip.budget_set.toLocaleString()}</Text>
-                          <Text style={s.budgetLabel}>total budget</Text>
-                        </View>
-                        <View style={[s.statusBadge, { backgroundColor: '#A8E8CC', position: 'relative', top: 0, right: 0 }]}>
-                          <Text style={[s.statusBadgeText, { color: '#0A6040' }]}>On track</Text>
-                        </View>
-                      </View>
-                      <View style={{ flexDirection: 'row', gap: 24, marginTop: 10 }}>
-                        <View>
-                          <Text style={[s.budgetColVal]}>${activeTrip.budget_spent.toLocaleString()}</Text>
-                          <Text style={s.budgetColLbl}>Spent / booked</Text>
-                        </View>
-                        <View>
-                          <Text style={[s.budgetColVal, { color: '#0A6040' }]}>${(activeTrip.budget_set - activeTrip.budget_spent).toLocaleString()}</Text>
-                          <Text style={s.budgetColLbl}>Remaining</Text>
-                        </View>
-                      </View>
-                      <View style={s.budgetTrack}>
-                        <View style={[s.budgetFill, { width: `${Math.min(100, Math.round((activeTrip.budget_spent / activeTrip.budget_set) * 100))}%` as any }]} />
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Bookings quick view */}
-                  <View style={s.sectionCard}>
-                    <Text style={s.sectionCardTitle}>Bookings</Text>
-                    {BOOKING_CATEGORIES.map(cat => {
-                      const catBookings = bookings.filter(b => b.category === cat.key);
-                      return (
-                        <View key={cat.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                          <Text style={{ fontSize: 16 }}>{cat.emoji}</Text>
-                          <Text style={{ flex: 1, fontFamily: 'Poppins_500Medium', fontSize: 14, color: INK }}>{cat.label}</Text>
-                          {catBookings.length > 0
-                            ? <View style={[s.statusBadge, { backgroundColor: '#A8E8CC', position: 'relative', top: 0, right: 0 }]}><Text style={[s.statusBadgeText, { color: '#0A6040' }]}>✓ {catBookings.length}</Text></View>
-                            : <View style={[s.statusBadge, { backgroundColor: 'rgba(240,200,192,0.5)', position: 'relative', top: 0, right: 0 }]}><Text style={[s.statusBadgeText, { color: '#A01830' }]}>Needed</Text></View>
-                          }
-                        </View>
-                      );
-                    })}
-                  </View>
-
-                  {/* Zaeli insight */}
-                  {messages.length > 0 && (
-                    <View style={s.insightCard}>
-                      <View style={s.insightStar}><Text style={{ fontSize: 9 }}>✦</Text></View>
-                      <Text style={s.insightText}>
-                        {(() => {
-                          const unbooked = BOOKING_CATEGORIES.filter(c => bookings.filter(b => b.category === c.key).length === 0);
-                          if (unbooked.length === 0) return "All booking categories covered. Looking solid.";
-                          return `${unbooked.map(c => c.label).join(' and ')} ${unbooked.length === 1 ? 'is' : 'are'} still open — say the word and I'll help fill those in.`;
-                        })()}
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Chat thread */}
-                  <View style={{ paddingTop: 8 }}>
-                    {messages.map(renderMsg)}
-                  </View>
-                </View>
-              )}
-
-              {/* ── Bookings tab ── */}
-              {activeTripTab === 'bookings' && (
-                <View style={{ padding: 16 }}>
-                  {BOOKING_CATEGORIES.map(cat => {
-                    const catBookings = bookings.filter(b => b.category === cat.key);
-                    return (
-                      <View key={cat.key}>
-                        <View style={s.bookingCatHeader}>
-                          <Text style={{ fontSize: 16 }}>{cat.emoji}</Text>
-                          <Text style={s.bookingCatLabel}>{cat.label}</Text>
-                          {catBookings.length === 0
-                            ? <View style={[s.statusBadge, { backgroundColor: 'rgba(240,200,192,0.4)', position: 'relative', top: 0, right: 0, marginLeft: 'auto' }]}><Text style={[s.statusBadgeText, { color: '#A01830' }]}>Needed</Text></View>
-                            : <Text style={s.bookingCatCount}>{catBookings.length} booking{catBookings.length !== 1 ? 's' : ''}</Text>
-                          }
-                        </View>
-                        {catBookings.map(b => (
-                          <View key={b.id} style={s.bookingCard}>
-                            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                              <View style={{ flex: 1 }}>
-                                <Text style={s.bookingTitle}>{b.title}</Text>
-                                {b.booking_date && <Text style={s.bookingDetail}>{formatDate(b.booking_date)}</Text>}
-                                {b.notes && <Text style={s.bookingDetail}>{b.notes}</Text>}
-                                {b.confirmation_number && (
-                                  <View style={s.confBadge}><Text style={s.confBadgeText}>✓ {b.confirmation_number}</Text></View>
-                                )}
-                              </View>
-                              {b.amount && <Text style={s.bookingAmount}>${b.amount.toLocaleString()}</Text>}
-                            </View>
-                          </View>
-                        ))}
-                        <TouchableOpacity style={s.addBookingBtn} onPress={() => { setNewBookingCat(cat.key as Booking['category']); setShowAddBooking(true); }}>
-                          <Text style={{ fontSize: 16, color: INK3 }}>+</Text>
-                          <Text style={s.addBookingLabel}>Add {cat.label.toLowerCase()} booking</Text>
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-
-                  {/* Scan / paste strip */}
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                    <View style={s.scanBtn}>
-                      <Text style={{ fontSize: 14 }}>📷</Text>
-                      <Text style={[s.scanBtnText, { color: TRAVEL_ACCENT }]}>Scan confirmation</Text>
-                    </View>
-                    <View style={[s.scanBtn, { backgroundColor: 'rgba(184,237,208,0.3)' }]}>
-                      <Text style={{ fontSize: 14 }}>📋</Text>
-                      <Text style={[s.scanBtnText, { color: '#0A6040' }]}>Paste text</Text>
-                    </View>
-                  </View>
-
-                  {/* Chat */}
-                  <View style={{ paddingTop: 8 }}>
-                    {messages.map(renderMsg)}
-                  </View>
-                </View>
-              )}
-
-              {/* ── Packing tab ── */}
-              {activeTripTab === 'packing' && (
-                <View>
-                  <View style={s.packingHeader}>
-                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK }}>Packing list</Text>
-                    <View style={s.packingProgressPill}>
-                      <Text style={s.packingProgressText}>
-                        {packingItems.filter(p => p.packed).length} / {packingItems.length} packed
-                      </Text>
-                    </View>
-                  </View>
-
-                  {renderPackingSection('shared')}
-                  {activeTrip.members.map(m => renderPackingSection(m))}
-
-                  {/* Chat */}
-                  <View style={{ paddingTop: 8 }}>
-                    {messages.map(renderMsg)}
-                  </View>
-                </View>
-              )}
-
-              {/* ── Notes tab ── */}
-              {activeTripTab === 'notes' && (
-                <View>
-                  {/* Quick add strip */}
-                  <View style={s.noteAddStrip}>
-                    <TextInput
-                      style={s.noteAddInput}
-                      placeholder="Jot something down..."
-                      placeholderTextColor={INK3}
-                      value={noteInput}
-                      onChangeText={setNoteInput}
-                      multiline
-                    />
-                    <TouchableOpacity style={s.noteAddSend} onPress={addNote}>
-                      <Text style={{ fontSize: 12, color: 'white' }}>↑</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Tag selector */}
-                  <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12 }}>
-                    {(['important', 'idea', 'question'] as const).map(tag => {
-                      const ts = NOTE_TAG_STYLES[tag];
-                      return (
-                        <TouchableOpacity
-                          key={tag}
-                          style={[s.noteTagPill, { backgroundColor: ts.bg }, noteTag === tag && { borderWidth: 1.5, borderColor: ts.color }]}
-                          onPress={() => setNoteTag(noteTag === tag ? null : tag)}
-                        >
-                          <Text style={[s.noteTagText, { color: ts.color }]}>{ts.label}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-
-                  {/* Notes list */}
-                  {tripNotes.map(note => {
-                    const ts = note.tag ? NOTE_TAG_STYLES[note.tag] : null;
-                    const authorColor = note.created_by ? FAMILY_COLOURS[note.created_by] : INK3;
-                    return (
-                      <View key={note.id} style={s.noteCard}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-                          {ts && (
-                            <View style={[s.noteTag, { backgroundColor: ts.bg }]}>
-                              <Text style={[s.noteTagText, { color: ts.color }]}>{ts.label}</Text>
-                            </View>
-                          )}
-                          <Text style={[s.noteTime, { marginLeft: ts ? 'auto' : 0 }]}>
-                            {new Date(note.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
-                          </Text>
-                        </View>
-                        <Text style={s.noteBody}>{note.content}</Text>
-                        {note.created_by && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 7 }}>
-                            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: authorColor }} />
-                            <Text style={s.noteAuthor}>{note.created_by} added</Text>
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })}
-
-                  {tripNotes.length === 0 && (
-                    <Text style={{ padding: 24, textAlign: 'center', fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK3 }}>
-                      No notes yet. Jot down ideas, important details, or questions above.
-                    </Text>
-                  )}
-
-                  {/* Chat */}
-                  <View style={{ paddingTop: 8 }}>
-                    {messages.map(renderMsg)}
-                  </View>
-                </View>
-              )}
-
-            </ScrollView>
-          )}
-
-          {/* Scroll arrows */}
-          {showArrows && (
-            <Animated.View style={[s.scrollArrowPair, { opacity: arrowOpacity }]}>
-              <TouchableOpacity style={s.scrollArrowBtn} onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}>
-                <Text style={{ color: 'white', fontSize: 16 }}>↑</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.scrollArrowBtn} onPress={() => scrollRef.current?.scrollToEnd({ animated: true })}>
-                <Text style={{ color: 'white', fontSize: 16 }}>↓</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-
-          {/* Chat bar */}
-          <View style={s.inputArea}>
-            <View style={s.barPill}>
-              <TouchableOpacity style={s.barBtn} onPress={() => setShowNewTripSheet(true)}>
-                <Text style={{ fontSize: 20, color: 'rgba(0,0,0,0.4)' }}>+</Text>
-              </TouchableOpacity>
-              <View style={s.barSep} />
-              <TextInput
-                style={s.barInput}
-                placeholder={activeTrip ? "Ask about this trip..." : "Ask Zaeli about your trips..."}
-                placeholderTextColor={INK3}
-                value={inputText}
-                onChangeText={setInputText}
-                onSubmitEditing={() => sendMessage(inputText)}
-                multiline
-                maxHeight={100}
-              />
-              <TouchableOpacity style={s.barMic}>
-                <Text style={{ fontSize: 16 }}>🎤</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.barSend} onPress={() => sendMessage(inputText)} disabled={isSending}>
-                {isSending
-                  ? <ActivityIndicator size="small" color="white" />
-                  : <Text style={{ color: 'white', fontSize: 14 }}>↑</Text>
-                }
-              </TouchableOpacity>
-            </View>
-          </View>
-
-        </View>
-      </KeyboardAvoidingView>
-
-      {/* ── New trip sheet ── */}
-      <Modal visible={showNewTripSheet} transparent animationType="slide">
-        <View style={s.sheetOverlay}>
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowNewTripSheet(false)} />
-          <View style={s.sheet}>
-            <View style={s.sheetHandle} />
-            <Text style={s.sheetTitle}>Plan a new trip ✈️</Text>
-            <Text style={s.sheetSub}>Where are you heading?</Text>
-
-            <Text style={s.fieldLabel}>Destination</Text>
-            <TextInput style={s.fieldInput} placeholder="e.g. Bali, Indonesia" placeholderTextColor={INK3} value={newDest} onChangeText={setNewDest} />
-
-            <Text style={s.fieldLabel}>Dates</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.fieldLabel, { marginBottom: 3 }]}>Depart (YYYY-MM-DD)</Text>
-                <TextInput style={s.fieldInput} placeholder="2026-04-18" placeholderTextColor={INK3} value={newDepart} onChangeText={setNewDepart} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.fieldLabel, { marginBottom: 3 }]}>Return</Text>
-                <TextInput style={s.fieldInput} placeholder="2026-04-28" placeholderTextColor={INK3} value={newReturn} onChangeText={setNewReturn} />
-              </View>
-            </View>
-
-            <Text style={s.fieldLabel}>Budget (optional)</Text>
-            <TextInput style={[s.fieldInput, { marginBottom: 14 }]} placeholder="e.g. 8500" placeholderTextColor={INK3} value={newBudget} onChangeText={setNewBudget} keyboardType="numeric" />
-
-            <Text style={s.fieldLabel}>Who's going?</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-              {FAMILY_MEMBERS.map(m => {
-                const selected = newMembers.includes(m);
-                const color = FAMILY_COLOURS[m];
-                return (
-                  <TouchableOpacity
-                    key={m}
-                    style={[s.whoPill, selected && { borderColor: color, borderWidth: 2, backgroundColor: `${color}18` }]}
-                    onPress={() => setNewMembers(prev => selected ? prev.filter(x => x !== m) : [...prev, m])}
-                  >
-                    <View style={[s.whoPip, { backgroundColor: color }]} />
-                    <Text style={[s.whoName, { color: selected ? color : INK3 }]}>{m}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <TouchableOpacity style={s.sheetBtn} onPress={createTrip} disabled={creatingTrip}>
-              {creatingTrip
-                ? <ActivityIndicator color="white" />
-                : <Text style={s.sheetBtnText}>Create trip</Text>
-              }
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* ── Add booking modal ── */}
-      <Modal visible={showAddBooking} transparent animationType="slide">
-        <View style={s.sheetOverlay}>
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowAddBooking(false)} />
-          <View style={s.sheet}>
-            <View style={s.sheetHandle} />
-            <Text style={s.sheetTitle}>Add booking</Text>
-
-            <Text style={s.fieldLabel}>Category</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-              {BOOKING_CATEGORIES.map(cat => (
-                <TouchableOpacity
-                  key={cat.key}
-                  style={[s.whoPill, newBookingCat === cat.key && { borderWidth: 2, borderColor: TRAVEL_ACCENT, backgroundColor: 'rgba(0,96,160,0.08)' }]}
-                  onPress={() => setNewBookingCat(cat.key as Booking['category'])}
-                >
-                  <Text style={{ fontSize: 14 }}>{cat.emoji}</Text>
-                  <Text style={[s.whoName, { color: newBookingCat === cat.key ? TRAVEL_ACCENT : INK3 }]}>{cat.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={s.fieldLabel}>Title</Text>
-            <TextInput style={s.fieldInput} placeholder="e.g. Jetstar JQ107 BNE→DPS" placeholderTextColor={INK3} value={newBookingTitle} onChangeText={setNewBookingTitle} />
-
-            <Text style={s.fieldLabel}>Amount (optional)</Text>
-            <TextInput style={s.fieldInput} placeholder="e.g. 2140" placeholderTextColor={INK3} value={newBookingAmount} onChangeText={setNewBookingAmount} keyboardType="numeric" />
-
-            <Text style={s.fieldLabel}>Confirmation number (optional)</Text>
-            <TextInput style={[s.fieldInput, { marginBottom: 20 }]} placeholder="e.g. QF-JQ-884921" placeholderTextColor={INK3} value={newBookingConf} onChangeText={setNewBookingConf} />
-
-            <TouchableOpacity style={s.sheetBtn} onPress={addBooking}>
-              <Text style={s.sheetBtnText}>Add booking</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-    </View>
+    </TouchableOpacity>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// TRIP DETAIL VIEW
+// ═══════════════════════════════════════════════════════════════════════════
+function TripDetailView(p: {
+  trip: Trip;
+  bookings: Booking[];
+  packing: PackingItem[];
+  notes: TripNote[];
+  activeTab: DetailTab;
+  onChangeTab: (t: DetailTab) => void;
+  onTogglePacking: (id: string) => void;
+  onRemovePacking: (id: string) => void;
+  onRemoveNote: (id: string) => void;
+  onOpenBooking: (b: Booking) => void;
+  onAddBooking: () => void;
+  onAddPacking: () => void;
+  onAddNote: () => void;
+  onEditBudget: () => void;
+  onEditMembers: () => void;
+  onDeleteTrip: () => void;
+}) {
+  return (
+    <>
+      <View style={s.tabRow}>
+        {(['overview','bookings','packing','notes'] as DetailTab[]).map(t => (
+          <TouchableOpacity key={t} style={[s.tab, p.activeTab === t && s.tabOn]} onPress={() => p.onChangeTab(t)} activeOpacity={0.7}>
+            <Text style={[s.tabTxt, p.activeTab === t && s.tabTxtOn]}>
+              {t === 'overview' ? 'Overview' : t === 'bookings' ? 'Bookings' : t === 'packing' ? 'Packing' : 'Notes'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
+      {p.activeTab === 'overview' && (
+        <OverviewTab trip={p.trip} bookings={p.bookings} packing={p.packing}
+          onEditBudget={p.onEditBudget} onEditMembers={p.onEditMembers} onDeleteTrip={p.onDeleteTrip}/>
+      )}
+      {p.activeTab === 'bookings' && (
+        <BookingsTab bookings={p.bookings} onOpenBooking={p.onOpenBooking} onAddBooking={p.onAddBooking}/>
+      )}
+      {p.activeTab === 'packing' && (
+        <PackingTab trip={p.trip} packing={p.packing} onToggle={p.onTogglePacking} onRemove={p.onRemovePacking} onAdd={p.onAddPacking}/>
+      )}
+      {p.activeTab === 'notes' && (
+        <NotesTab notes={p.notes} onAdd={p.onAddNote} onRemove={p.onRemoveNote}/>
+      )}
+    </>
+  );
+}
+
+// ── Overview tab ──────────────────────────────────────────────────────────
+function OverviewTab(p: {
+  trip: Trip;
+  bookings: Booking[];
+  packing: PackingItem[];
+  onEditBudget: () => void;
+  onEditMembers: () => void;
+  onDeleteTrip: () => void;
+}) {
+  const { trip } = p;
+  const d = daysTo(trip.startDate);
+  const members = trip.memberIds.map(memberById).filter(Boolean) as Member[];
+  const totalBudget = trip.totalBudget ?? 0;
+  // Booked = auto-sum of booking amounts. Honest "committed" figure without
+  // pretending we know the actual spent (would need bank feed).
+  const booked = p.bookings.reduce((sum, b) => sum + (b.amount ?? 0), 0);
+  const unbooked = Math.max(0, totalBudget - booked);
+  const bookedPct = pct(booked, totalBudget);
+
+  const packedCount = p.packing.filter(i => i.packed).length;
+  const totalPacking = p.packing.length;
+  const packedPct = pct(packedCount, totalPacking);
+
+  // Quick Zaeli insight derived from state
+  const missingAcc = p.bookings.filter(b => b.category === 'accommodation').length === 0;
+  const insightText = missingAcc
+    ? 'Accommodation isn\'t booked yet — worth sorting soon if you want the good options.'
+    : packedPct < 50 && d !== null && d < 14
+      ? `Packing is ${packedPct}% done with ${d} days to go — might be worth a stocktake this weekend.`
+      : `Flights are confirmed and the trip is shaping up. Anything you want me to help with?`;
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+
+      {/* Hero */}
+      <View style={[s.heroCard, { backgroundColor: trip.bgTo }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.heroDest}>{trip.destination}</Text>
+          <Text style={s.heroCountry}>{trip.country} {trip.flag}</Text>
+          <Text style={s.heroDates}>{trip.datesLabel}</Text>
+          {d !== null && d >= 0 && (
+            <View style={s.heroCd}>
+              <Text style={s.heroCdTxt}>{d} days to go</Text>
+            </View>
+          )}
+        </View>
+        <Text style={s.heroFlag}>{trip.flag}</Text>
+      </View>
+
+      {/* Who's going — tap to edit members */}
+      <Text style={s.secLabel}>Who's going</Text>
+      <TouchableOpacity style={s.card} activeOpacity={0.85} onPress={p.onEditMembers}>
+        {members.map((m, i) => (
+          <View key={m.id} style={[s.memberRow, i === members.length - 1 && { borderBottomWidth: 0 }]}>
+            <View style={[s.memberDot, { backgroundColor: m.colour }]}>
+              <Text style={s.memberInitial}>{m.initial}</Text>
+            </View>
+            <Text style={s.memberName}>{m.name}</Text>
+            {m.id === trip.organiserId && <View style={s.organiserTag}><Text style={s.organiserTxt}>Organiser</Text></View>}
+          </View>
+        ))}
+        <Text style={s.budgetEdit}>Tap to edit</Text>
+      </TouchableOpacity>
+
+      {/* Budget — total set by user, Booked auto-sums booking amounts.
+          No manual "spent" — without a bank feed that number drifts. */}
+      <Text style={s.secLabel}>Budget</Text>
+      <TouchableOpacity style={s.budgetCard} activeOpacity={0.85} onPress={p.onEditBudget}>
+        <View>
+          <Text style={s.budgetLbl}>Total budget</Text>
+          <Text style={s.budgetBig}>{totalBudget > 0 ? fmtAud(totalBudget) : 'Not set'}</Text>
+        </View>
+        {totalBudget > 0 ? (
+          <>
+            <View style={[s.budgetBar, { marginTop: 12 }]}>
+              <View style={[s.budgetFill, { width: `${Math.min(100, bookedPct)}%` }]}/>
+            </View>
+            <View style={s.budgetSplit}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.budgetSplitLbl}>Booked</Text>
+                <Text style={s.budgetSplitVal}>{fmtAud(booked)}</Text>
+                <Text style={s.budgetSplitSub}>{bookedPct}% of budget</Text>
+              </View>
+              <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                <Text style={s.budgetSplitLbl}>Still to plan</Text>
+                <Text style={s.budgetSplitVal}>{fmtAud(unbooked)}</Text>
+                <Text style={s.budgetSplitSub}>food · activities · etc</Text>
+              </View>
+            </View>
+          </>
+        ) : (
+          <Text style={[s.budgetSub, { marginTop: 8 }]}>Set a total so Zaeli can track your commitments.</Text>
+        )}
+        <Text style={s.budgetEdit}>Tap to edit total</Text>
+      </TouchableOpacity>
+
+      {/* Packing quick progress */}
+      {totalPacking > 0 && (
+        <>
+          <Text style={s.secLabel}>Packing</Text>
+          <View style={s.card}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+              <Text style={s.packingInlineLbl}>{packedCount} of {totalPacking} packed</Text>
+              <Text style={s.packingInlinePct}>{packedPct}%</Text>
+            </View>
+            <View style={s.budgetBar}>
+              <View style={[s.budgetFill, { width: `${packedPct}%` }]}/>
+            </View>
+          </View>
+        </>
+      )}
+
+      {/* Zaeli insight */}
+      <View style={[s.insightCard, { marginTop: 14 }]}>
+        <View style={s.insightEye}>
+          <View style={s.insightStar}>
+            <Svg width={10} height={10} viewBox="0 0 24 24" fill={INK}>
+              <Path d="M12 2L14.09 8.26L20 10L14.09 11.74L12 18L9.91 11.74L4 10L9.91 8.26L12 2Z"/>
+            </Svg>
+          </View>
+          <Text style={s.insightLbl}>Zaeli</Text>
+        </View>
+        <Text style={s.insightTxt}>{insightText}</Text>
+      </View>
+
+      {/* Delete */}
+      {trip.status !== 'done' && (
+        <TouchableOpacity onPress={p.onDeleteTrip} activeOpacity={0.7} style={{ marginTop: 20, alignItems: 'center', paddingVertical: 14 }}>
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', color: DANGER, fontSize: 14 }}>Delete trip</Text>
+        </TouchableOpacity>
+      )}
+    </ScrollView>
+  );
+}
+
+// ── Bookings tab ──────────────────────────────────────────────────────────
+function BookingsTab(p: {
+  bookings: Booking[];
+  onOpenBooking: (b: Booking) => void;
+  onAddBooking: () => void;
+}) {
+  const cats: BookingCat[] = ['flights','accommodation','transport','activities'];
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+      {cats.map(cat => {
+        const items = p.bookings.filter(b => b.category === cat);
+        const meta = bookingCatMeta(cat);
+        if (items.length === 0) return null;
+        return (
+          <View key={cat} style={{ marginBottom: 14 }}>
+            <View style={s.bkCatHead}>
+              <Text style={s.bkCatEmoji}>{meta.emoji}</Text>
+              <Text style={s.bkCatName}>{meta.label}</Text>
+              <Text style={s.bkCatCount}>{items.length} {items.length === 1 ? 'booking' : 'bookings'}</Text>
+            </View>
+            {items.map(b => (
+              <TouchableOpacity
+                key={b.id}
+                style={s.bkItem}
+                activeOpacity={0.75}
+                onPress={() => p.onOpenBooking(b)}
+              >
+                <View style={[s.bkEmojiBox, { backgroundColor: meta.tint }]}><Text style={{ fontSize: 22 }}>{b.emoji}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.bkTitle}>{b.title}</Text>
+                  <Text style={s.bkDetail}>{b.detail}</Text>
+                  {b.confRef && <Text style={s.bkConf}>REF: {b.confRef}</Text>}
+                </View>
+                <Text style={s.bkAmt}>{b.amount ? fmtAud(b.amount) : '—'}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        );
+      })}
+
+      {p.bookings.length === 0 && (
+        <Text style={s.empty}>No bookings yet. Add flights, accommodation, transport or activities below.</Text>
+      )}
+
+      <TouchableOpacity style={s.addCard} activeOpacity={0.8} onPress={p.onAddBooking}>
+        <IcoPlus color={INK5}/>
+        <Text style={s.addCardTxt}>Add booking — type or paste</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+// ── Packing tab ───────────────────────────────────────────────────────────
+function PackingTab(p: {
+  trip: Trip;
+  packing: PackingItem[];
+  onToggle: (id: string) => void;
+  onRemove: (id: string) => void;
+  onAdd: () => void;
+}) {
+  const totalPacked = p.packing.filter(i => i.packed).length;
+  const total = p.packing.length;
+
+  // Build sections: shared first, then one per trip member
+  const sections: Array<{ id: string; label: string; ownerId: string | 'shared'; colour: string; items: PackingItem[] }> = [
+    {
+      id: 'shared', label: 'Shared', ownerId: 'shared', colour: '#888',
+      items: p.packing.filter(i => i.ownerId === 'shared'),
+    },
+    ...p.trip.memberIds.map(mid => {
+      const m = memberById(mid);
+      return {
+        id: mid, label: m?.name ?? mid, ownerId: mid, colour: m?.colour ?? '#888',
+        items: p.packing.filter(i => i.ownerId === mid),
+      };
+    }),
+  ];
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+
+      {/* Progress pill */}
+      <View style={s.packingPill}>
+        <Text style={s.packingPillLbl}>Packed</Text>
+        <View style={s.packingPillBar}>
+          <View style={[s.packingPillFill, { width: `${pct(totalPacked, total)}%` }]}/>
+        </View>
+        <Text style={s.packingPillFrac}>{totalPacked} / {total}</Text>
+      </View>
+
+      {sections.map(sec => (
+        sec.items.length === 0 && sec.ownerId === 'shared' ? null : sec.items.length === 0 ? null : (
+          <View key={sec.id} style={s.packSec}>
+            <View style={s.packSecHead}>
+              <View style={[s.packSecAv, { backgroundColor: sec.colour }]}>
+                {sec.ownerId === 'shared'
+                  ? <Text style={{ fontSize: 14 }}>🌐</Text>
+                  : <Text style={s.packSecAvTxt}>{memberById(sec.ownerId)?.initial ?? '?'}</Text>
+                }
+              </View>
+              <Text style={s.packSecName}>{sec.label}</Text>
+              <Text style={s.packSecCount}>{sec.items.filter(i => i.packed).length} / {sec.items.length}</Text>
+            </View>
+            {sec.items.map(it => (
+              <TouchableOpacity
+                key={it.id}
+                style={s.packItem}
+                activeOpacity={0.7}
+                onPress={() => p.onToggle(it.id)}
+                onLongPress={() => Alert.alert('Remove item', `Remove ${it.name}?`, [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Remove', style: 'destructive', onPress: () => p.onRemove(it.id) },
+                ])}
+              >
+                <View style={[s.packCircle, it.packed && s.packCircleOn]}>
+                  {it.packed && <IcoCheck/>}
+                </View>
+                <Text style={[s.packName, it.packed && s.packNameDone]}>{it.name}</Text>
+                {it.qty ? <Text style={s.packQty}>×{it.qty}</Text> : null}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )
+      ))}
+
+      <TouchableOpacity style={s.addCard} activeOpacity={0.8} onPress={p.onAdd}>
+        <IcoPlus color={INK5}/>
+        <Text style={s.addCardTxt}>Add packing item</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+// ── Notes tab ─────────────────────────────────────────────────────────────
+function NotesTab(p: { notes: TripNote[]; onAdd: () => void; onRemove: (id: string) => void }) {
+  return (
+    <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+      {p.notes.length === 0 && (
+        <Text style={s.empty}>No notes yet. Capture ideas, info and questions as you plan.</Text>
+      )}
+      {p.notes.map(n => {
+        const meta = tagMeta(n.tag);
+        const author = memberById(n.authorId);
+        return (
+          <TouchableOpacity
+            key={n.id}
+            style={s.noteCard}
+            activeOpacity={0.9}
+            onLongPress={() => Alert.alert('Remove note', 'Are you sure?', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Remove', style: 'destructive', onPress: () => p.onRemove(n.id) },
+            ])}
+          >
+            <View style={s.noteHead}>
+              <View style={[s.noteTag, { backgroundColor: meta.bg }]}>
+                <Text style={[s.noteTagTxt, { color: meta.fg }]}>{meta.label}</Text>
+              </View>
+              <Text style={s.noteTime}>{fmtDayMonth(n.createdAt)}</Text>
+            </View>
+            <Text style={s.noteTxt}>{n.text}</Text>
+            {author && (
+              <View style={s.noteAuthor}>
+                <View style={[s.noteAuthorDot, { backgroundColor: author.colour }]}/>
+                <Text style={s.noteAuthorName}>{author.name}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        );
+      })}
+
+      <TouchableOpacity style={s.addCard} activeOpacity={0.8} onPress={p.onAdd}>
+        <IcoPlus color={INK5}/>
+        <Text style={s.addCardTxt}>Add a note</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GENERIC SHEET SHELL
+// ═══════════════════════════════════════════════════════════════════════════
+function SheetShell(p: { visible: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
+  if (!p.visible) return null;
+  // KAV inside the card (not wrapping the modal) so keyboard padding shrinks
+  // the body instead of shoving the whole fixed-height card off-screen.
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={p.onClose}>
+      <View style={s.sheetBackdrop}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={p.onClose}/>
+        <View style={s.sheetCard}>
+          <View style={s.sheetHandle}/>
+          <View style={s.sheetHdr}>
+            <Text style={s.sheetTitle}>{p.title}</Text>
+            <TouchableOpacity onPress={p.onClose} activeOpacity={0.7} style={s.sheetX}>
+              <Text style={s.sheetXTxt}>Close</Text>
+            </TouchableOpacity>
+          </View>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ flex: 1 }}
+            keyboardVerticalOffset={0}
+          >
+            {p.children}
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW TRIP SHEET
+// ═══════════════════════════════════════════════════════════════════════════
+const FLAG_OPTIONS = ['🌴','🗾','🏔️','🏖️','🗽','🎡','🗼','🏛️','🏝️','🌋','🏕️','🎿','🏜️','🌉'];
+const BG_OPTIONS = [
+  { from: '#E4F4FF', to: '#C8E8FF', label: 'Sky' },
+  { from: '#FFF0EE', to: '#FAD8D0', label: 'Warm' },
+  { from: '#E6F7EF', to: '#C8F0DA', label: 'Mint' },
+  { from: '#F5EDE3', to: '#FAC8A8', label: 'Peach' },
+  { from: '#EDE8FF', to: '#D8CCFF', label: 'Lavender' },
+];
+
+function NewTripSheet(p: { visible: boolean; onClose: () => void; onSave: (t: Trip) => void }) {
+  const [destination, setDestination] = useState('');
+  const [country, setCountry] = useState('');
+  const [flag, setFlag] = useState('🌴');
+  const [bgIdx, setBgIdx] = useState(0);
+  const [status, setStatus] = useState<TripStatus>('planning');
+  const [memberIds, setMemberIds] = useState<string[]>(['rich','anna','poppy','gab','duke']);
+  const [datesKnown, setDatesKnown] = useState(false);
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date>(new Date(Date.now() + 7 * 86400000));
+  const [pickerTarget, setPickerTarget] = useState<null | 'start' | 'end'>(null);
+  const [budget, setBudget] = useState('');
+
+  React.useEffect(() => {
+    if (p.visible) {
+      setDestination(''); setCountry(''); setFlag('🌴'); setBgIdx(0);
+      setStatus('planning'); setMemberIds(['rich','anna','poppy','gab','duke']);
+      setDatesKnown(false);
+      setStartDate(new Date()); setEndDate(new Date(Date.now() + 7 * 86400000));
+      setBudget('');
+    }
+  }, [p.visible]);
+
+  function toggleMember(id: string) {
+    setMemberIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  function save() {
+    if (!destination.trim()) { Alert.alert('Missing destination', 'Where are you going?'); return; }
+    const bg = BG_OPTIONS[bgIdx];
+    const startIso = datesKnown ? localDateStr(startDate) : null;
+    const endIso   = datesKnown ? localDateStr(endDate)   : null;
+    let datesLabel = 'Dates TBC';
+    if (datesKnown && startIso && endIso) {
+      const nights = daysBetween(startIso, endIso);
+      datesLabel = `${fmtDayMonth(startIso)} – ${fmtDayMonth(endIso)} ${endDate.getFullYear()} · ${nights} ${nights === 1 ? 'night' : 'nights'}`;
+    }
+    const b = parseFloat(budget.replace(/[^0-9.]/g, ''));
+    p.onSave({
+      id: `t-${Date.now()}`,
+      destination: destination.trim(),
+      country: country.trim(),
+      flag, bgFrom: bg.from, bgTo: bg.to,
+      startDate: startIso, endDate: endIso,
+      datesLabel,
+      status,
+      organiserId: 'rich',
+      memberIds,
+      totalBudget: isNaN(b) || b <= 0 ? undefined : b,
+    });
+  }
+
+  return (
+    <SheetShell visible={p.visible} onClose={p.onClose} title="Plan a trip">
+      <ScrollView style={s.sheetBody} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+        <Text style={s.fieldLbl}>Destination</Text>
+        <TextInput style={s.input} value={destination} onChangeText={setDestination} placeholder="e.g. Bali" placeholderTextColor={INK4}/>
+
+        <Text style={s.fieldLbl}>Country</Text>
+        <TextInput style={s.input} value={country} onChangeText={setCountry} placeholder="e.g. Indonesia" placeholderTextColor={INK4}/>
+
+        <Text style={s.fieldLbl}>Icon</Text>
+        <View style={s.emojiGrid}>
+          {FLAG_OPTIONS.map(e => (
+            <TouchableOpacity key={e} style={[s.emojiOpt, flag === e && s.emojiOptOn]} onPress={() => setFlag(e)} activeOpacity={0.75}>
+              <Text style={{ fontSize: 22 }}>{e}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={s.fieldLbl}>Card colour</Text>
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          {BG_OPTIONS.map((bg, i) => (
+            <TouchableOpacity key={bg.label}
+              style={[s.bgOpt, { backgroundColor: bg.to }, bgIdx === i && s.bgOptOn]}
+              onPress={() => setBgIdx(i)} activeOpacity={0.75}>
+              <Text style={s.bgOptTxt}>{bg.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={s.fieldLbl}>Status</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {(['planning','confirmed'] as TripStatus[]).map(st => (
+            <TouchableOpacity key={st} style={[s.tog, status === st && s.togOn]} onPress={() => setStatus(st)} activeOpacity={0.75}>
+              <Text style={[s.togTxt, status === st && s.togTxtOn]}>{st === 'planning' ? 'Planning' : 'Confirmed'}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={s.fieldLbl}>Who's going</Text>
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          {FAMILY.map(m => {
+            const on = memberIds.includes(m.id);
+            return (
+              <TouchableOpacity key={m.id} style={[s.memberPill, on && { backgroundColor: m.colour, borderColor: m.colour }]} onPress={() => toggleMember(m.id)} activeOpacity={0.75}>
+                <View style={[s.memberPillDot, { backgroundColor: on ? '#FFFFFF' : m.colour }]}/>
+                <Text style={[s.memberPillTxt, on && { color: '#FFFFFF' }]}>{m.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={s.fieldLbl}>Dates</Text>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+          <TouchableOpacity style={[s.tog, datesKnown && s.togOn]} onPress={() => setDatesKnown(true)} activeOpacity={0.75}>
+            <Text style={[s.togTxt, datesKnown && s.togTxtOn]}>Pick dates</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.tog, !datesKnown && s.togOn]} onPress={() => setDatesKnown(false)} activeOpacity={0.75}>
+            <Text style={[s.togTxt, !datesKnown && s.togTxtOn]}>TBC</Text>
+          </TouchableOpacity>
+        </View>
+        {datesKnown && (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity style={[s.input, { flex: 1 }]} onPress={() => setPickerTarget('start')} activeOpacity={0.75}>
+              <Text style={s.inputTxt}>{fmtDayMonth(localDateStr(startDate))} {startDate.getFullYear()}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.input, { flex: 1 }]} onPress={() => setPickerTarget('end')} activeOpacity={0.75}>
+              <Text style={s.inputTxt}>{fmtDayMonth(localDateStr(endDate))} {endDate.getFullYear()}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {pickerTarget && (
+          <DateTimePicker
+            value={pickerTarget === 'start' ? startDate : endDate}
+            mode="date" display="spinner"
+            onChange={(_: any, d?: Date) => {
+              setPickerTarget(Platform.OS === 'ios' ? pickerTarget : null);
+              if (d) { if (pickerTarget === 'start') setStartDate(d); else setEndDate(d); }
+            }}
+          />
+        )}
+
+        <Text style={s.fieldLbl}>Total budget (optional, AUD)</Text>
+        <TextInput style={s.input} value={budget} onChangeText={setBudget} placeholder="e.g. 8000" placeholderTextColor={INK4} keyboardType="decimal-pad"/>
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <TouchableOpacity style={[s.btnGhost, { flex: 1 }]} onPress={p.onClose} activeOpacity={0.85}>
+            <Text style={s.btnGhostTxt}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.btnPrimary, { flex: 1 }]} onPress={save} activeOpacity={0.85}>
+            <Text style={s.btnPrimaryTxt}>Save trip</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SheetShell>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BOOKING SHEET — handles both add (payload='new') and edit (payload=Booking)
+// ═══════════════════════════════════════════════════════════════════════════
+function BookingSheet(p: {
+  payload: Booking | 'new' | null;
+  tripId: string;
+  onClose: () => void;
+  onSave: (b: Booking) => void;
+  onRemove: (id: string) => void;
+}) {
+  const isNew = p.payload === 'new';
+  const existing = isNew ? null : (p.payload as Booking | null);
+  const visible = p.payload !== null;
+
+  const [category, setCategory] = useState<BookingCat>('flights');
+  const [title, setTitle] = useState('');
+  const [detail, setDetail] = useState('');
+  const [confRef, setConfRef] = useState('');
+  const [amount, setAmount] = useState('');
+
+  React.useEffect(() => {
+    if (!visible) return;
+    if (existing) {
+      setCategory(existing.category);
+      setTitle(existing.title);
+      setDetail(existing.detail);
+      setConfRef(existing.confRef ?? '');
+      setAmount(existing.amount ? String(existing.amount) : '');
+    } else {
+      setCategory('flights'); setTitle(''); setDetail(''); setConfRef(''); setAmount('');
+    }
+  }, [visible, p.payload]);
+
+  function save() {
+    if (!title.trim()) { Alert.alert('Missing title', 'What is this booking?'); return; }
+    const meta = bookingCatMeta(category);
+    const n = parseFloat(amount.replace(/[^0-9.]/g, ''));
+    p.onSave({
+      id: existing?.id ?? `b-${Date.now()}`,
+      tripId: p.tripId,
+      category,
+      emoji: meta.emoji,
+      title: title.trim(),
+      detail: detail.trim(),
+      confRef: confRef.trim() || undefined,
+      amount: isNaN(n) || n <= 0 ? undefined : n,
+    });
+  }
+
+  if (!visible) return null;
+  return (
+    <SheetShell visible onClose={p.onClose} title={existing ? 'Edit booking' : 'Add booking'}>
+      <ScrollView style={s.sheetBody} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+        <Text style={s.fieldLbl}>Category</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+          {(['flights','accommodation','transport','activities'] as BookingCat[]).map(c => {
+            const meta = bookingCatMeta(c);
+            const on = category === c;
+            return (
+              <TouchableOpacity key={c} style={[s.chip, on && s.chipOn]} onPress={() => setCategory(c)} activeOpacity={0.75}>
+                <Text style={[s.chipTxt, on && s.chipTxtOn]}>{meta.emoji} {meta.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={s.fieldLbl}>Title</Text>
+        <TextInput style={s.input} value={title} onChangeText={setTitle} placeholder="e.g. Alaya Resort Seminyak" placeholderTextColor={INK4}/>
+
+        <Text style={s.fieldLbl}>Detail</Text>
+        <TextInput style={s.input} value={detail} onChangeText={setDetail} placeholder="e.g. 18 Apr – 21 Apr · 3 nights" placeholderTextColor={INK4}/>
+
+        <Text style={s.fieldLbl}>Confirmation reference (optional)</Text>
+        <TextInput style={s.input} value={confRef} onChangeText={setConfRef} placeholder="e.g. ALY-20948" placeholderTextColor={INK4} autoCapitalize="characters"/>
+
+        <Text style={s.fieldLbl}>Amount (AUD, optional)</Text>
+        <TextInput style={s.input} value={amount} onChangeText={setAmount} placeholder="0" placeholderTextColor={INK4} keyboardType="decimal-pad"/>
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <TouchableOpacity style={[s.btnGhost, { flex: 1 }]} onPress={p.onClose} activeOpacity={0.85}>
+            <Text style={s.btnGhostTxt}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.btnPrimary, { flex: 1 }]} onPress={save} activeOpacity={0.85}>
+            <Text style={s.btnPrimaryTxt}>{existing ? 'Save changes' : 'Save booking'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {existing && (
+          <TouchableOpacity
+            onPress={() => Alert.alert('Remove booking', `Remove ${existing.title}?`, [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Remove', style: 'destructive', onPress: () => p.onRemove(existing.id) },
+            ])}
+            activeOpacity={0.7}
+            style={{ marginTop: 14, alignItems: 'center' }}
+          >
+            <Text style={{ fontFamily: 'Poppins_600SemiBold', color: DANGER, fontSize: 14 }}>Remove booking</Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+    </SheetShell>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW PACKING SHEET
+// ═══════════════════════════════════════════════════════════════════════════
+function NewPackingSheet(p: { visible: boolean; tripId: string; tripMembers: string[]; onClose: () => void; onSave: (item: PackingItem) => void }) {
+  const [name, setName] = useState('');
+  const [qty, setQty] = useState('');
+  const [ownerId, setOwnerId] = useState<string | 'shared'>('shared');
+
+  React.useEffect(() => {
+    if (p.visible) { setName(''); setQty(''); setOwnerId('shared'); }
+  }, [p.visible]);
+
+  function save() {
+    if (!name.trim()) { Alert.alert('Missing item', 'What do you need to pack?'); return; }
+    const q = parseInt(qty.replace(/[^0-9]/g, ''), 10);
+    p.onSave({
+      id: `p-${Date.now()}`,
+      tripId: p.tripId,
+      ownerId,
+      name: name.trim(),
+      qty: isNaN(q) || q <= 1 ? undefined : q,
+      packed: false,
+    });
+  }
+
+  return (
+    <SheetShell visible={p.visible} onClose={p.onClose} title="Add packing item">
+      <ScrollView style={s.sheetBody} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+        <Text style={s.fieldLbl}>Item</Text>
+        <TextInput style={s.input} value={name} onChangeText={setName} placeholder="e.g. Swimmers" placeholderTextColor={INK4}/>
+
+        <Text style={s.fieldLbl}>Quantity (optional)</Text>
+        <TextInput style={s.input} value={qty} onChangeText={setQty} placeholder="e.g. 3" placeholderTextColor={INK4} keyboardType="number-pad"/>
+
+        <Text style={s.fieldLbl}>Who's it for</Text>
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          <TouchableOpacity style={[s.memberPill, ownerId === 'shared' && { backgroundColor: INK, borderColor: INK }]} onPress={() => setOwnerId('shared')} activeOpacity={0.75}>
+            <Text style={[s.memberPillTxt, ownerId === 'shared' && { color: '#FFFFFF' }]}>🌐 Shared</Text>
+          </TouchableOpacity>
+          {p.tripMembers.map(mid => {
+            const m = memberById(mid);
+            if (!m) return null;
+            const on = ownerId === mid;
+            return (
+              <TouchableOpacity key={m.id} style={[s.memberPill, on && { backgroundColor: m.colour, borderColor: m.colour }]} onPress={() => setOwnerId(m.id)} activeOpacity={0.75}>
+                <View style={[s.memberPillDot, { backgroundColor: on ? '#FFFFFF' : m.colour }]}/>
+                <Text style={[s.memberPillTxt, on && { color: '#FFFFFF' }]}>{m.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <TouchableOpacity style={[s.btnGhost, { flex: 1 }]} onPress={p.onClose} activeOpacity={0.85}>
+            <Text style={s.btnGhostTxt}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.btnPrimary, { flex: 1 }]} onPress={save} activeOpacity={0.85}>
+            <Text style={s.btnPrimaryTxt}>Add to list</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SheetShell>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW NOTE SHEET
+// ═══════════════════════════════════════════════════════════════════════════
+function NewNoteSheet(p: { visible: boolean; tripId: string; onClose: () => void; onSave: (n: TripNote) => void }) {
+  const [tag, setTag] = useState<NoteTag>('idea');
+  const [text, setText] = useState('');
+  const [authorId, setAuthorId] = useState<string>('rich');
+
+  React.useEffect(() => {
+    if (p.visible) { setTag('idea'); setText(''); setAuthorId('rich'); }
+  }, [p.visible]);
+
+  function save() {
+    if (!text.trim()) { Alert.alert('Empty note', 'Add a note first.'); return; }
+    p.onSave({
+      id: `n-${Date.now()}`,
+      tripId: p.tripId,
+      tag,
+      text: text.trim(),
+      authorId,
+      createdAt: localDateStr(),
+    });
+  }
+
+  return (
+    <SheetShell visible={p.visible} onClose={p.onClose} title="Add a note">
+      <ScrollView style={s.sheetBody} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
+        <Text style={s.fieldLbl}>Tag</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {(['important','idea','info','question'] as NoteTag[]).map(t => {
+            const meta = tagMeta(t);
+            const on = tag === t;
+            return (
+              <TouchableOpacity key={t} style={[s.chip, on && { backgroundColor: meta.fg, borderColor: meta.fg }]} onPress={() => setTag(t)} activeOpacity={0.75}>
+                <Text style={[s.chipTxt, on && { color: '#FFFFFF' }]}>{meta.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={s.fieldLbl}>Note</Text>
+        <TextInput
+          style={[s.input, { minHeight: 120, textAlignVertical: 'top' }]}
+          value={text} onChangeText={setText}
+          placeholder="Something to remember, an idea, info, a question..."
+          placeholderTextColor={INK4} multiline
+        />
+
+        <Text style={s.fieldLbl}>Author</Text>
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          {FAMILY.filter(m => m.id === 'rich' || m.id === 'anna').map(m => {
+            const on = authorId === m.id;
+            return (
+              <TouchableOpacity key={m.id} style={[s.memberPill, on && { backgroundColor: m.colour, borderColor: m.colour }]} onPress={() => setAuthorId(m.id)} activeOpacity={0.75}>
+                <View style={[s.memberPillDot, { backgroundColor: on ? '#FFFFFF' : m.colour }]}/>
+                <Text style={[s.memberPillTxt, on && { color: '#FFFFFF' }]}>{m.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <TouchableOpacity style={[s.btnGhost, { flex: 1 }]} onPress={p.onClose} activeOpacity={0.85}>
+            <Text style={s.btnGhostTxt}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.btnPrimary, { flex: 1 }]} onPress={save} activeOpacity={0.85}>
+            <Text style={s.btnPrimaryTxt}>Save note</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SheetShell>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EDIT TOTAL BUDGET SHEET — just a total. "Booked" auto-sums bookings.
+// ═══════════════════════════════════════════════════════════════════════════
+function EditTotalBudgetSheet(p: { visible: boolean; trip: Trip; onClose: () => void; onSave: (total: number) => void }) {
+  const [total, setTotal] = useState(String(p.trip.totalBudget ?? ''));
+
+  React.useEffect(() => {
+    if (p.visible) setTotal(String(p.trip.totalBudget ?? ''));
+  }, [p.visible, p.trip.id]);
+
+  function save() {
+    const t = parseFloat(total.replace(/[^0-9.]/g, '')) || 0;
+    p.onSave(t);
+  }
+
+  return (
+    <SheetShell visible={p.visible} onClose={p.onClose} title={`Budget · ${p.trip.destination}`}>
+      <ScrollView style={s.sheetBody} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <Text style={s.fieldLbl}>Total budget (AUD)</Text>
+        <TextInput style={s.input} value={total} onChangeText={setTotal} placeholder="0" placeholderTextColor={INK4} keyboardType="decimal-pad"/>
+
+        <Text style={s.tipTxt}>
+          <Text style={{ fontFamily: 'Poppins_700Bold', color: INK }}>How this works: </Text>
+          Your <Text style={{ fontFamily: 'Poppins_700Bold', color: INK }}>Booked</Text> total is auto-summed from bookings with amounts. <Text style={{ fontFamily: 'Poppins_700Bold', color: INK }}>Still to plan</Text> is what's left for food, activities and anything you haven't booked yet.
+        </Text>
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <TouchableOpacity style={[s.btnGhost, { flex: 1 }]} onPress={p.onClose} activeOpacity={0.85}>
+            <Text style={s.btnGhostTxt}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.btnPrimary, { flex: 1 }]} onPress={save} activeOpacity={0.85}>
+            <Text style={s.btnPrimaryTxt}>Save</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SheetShell>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EDIT MEMBERS SHEET — who's going
+// ═══════════════════════════════════════════════════════════════════════════
+function EditMembersSheet(p: { visible: boolean; trip: Trip; onClose: () => void; onSave: (memberIds: string[]) => void }) {
+  const [memberIds, setMemberIds] = useState<string[]>(p.trip.memberIds);
+
+  React.useEffect(() => {
+    if (p.visible) setMemberIds(p.trip.memberIds);
+  }, [p.visible, p.trip.id]);
+
+  function toggle(id: string) {
+    setMemberIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  function save() {
+    if (memberIds.length === 0) { Alert.alert('Pick at least one', 'Someone has to be going.'); return; }
+    p.onSave(memberIds);
+  }
+
+  return (
+    <SheetShell visible={p.visible} onClose={p.onClose} title={`Who's going · ${p.trip.destination}`}>
+      <ScrollView style={s.sheetBody} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <Text style={s.fieldLbl}>Tap to add or remove</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {FAMILY.map(m => {
+            const on = memberIds.includes(m.id);
+            return (
+              <TouchableOpacity key={m.id} style={[s.memberPill, on && { backgroundColor: m.colour, borderColor: m.colour }]} onPress={() => toggle(m.id)} activeOpacity={0.75}>
+                <View style={[s.memberPillDot, { backgroundColor: on ? '#FFFFFF' : m.colour }]}/>
+                <Text style={[s.memberPillTxt, on && { color: '#FFFFFF' }]}>{m.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={[s.tipTxt, { marginTop: 14 }]}>
+          Organiser can't be removed here — change them in trip settings (coming soon).
+        </Text>
+
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <TouchableOpacity style={[s.btnGhost, { flex: 1 }]} onPress={p.onClose} activeOpacity={0.85}>
+            <Text style={s.btnGhostTxt}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.btnPrimary, { flex: 1 }]} onPress={save} activeOpacity={0.85}>
+            <Text style={s.btnPrimaryTxt}>Save</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SheetShell>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Styles
+// ═══════════════════════════════════════════════════════════════════════════
 const s = StyleSheet.create({
-  // Banner
-  banner:        { paddingHorizontal: 16, paddingBottom: 14, paddingTop: 10 },
-  bannerRow:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  wordmark:      { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 40, letterSpacing: -1.5, lineHeight: 44, color: INK },
-  wordmarkSmall: { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 22, letterSpacing: -0.8, color: INK },
-  aiLetter:      { color: TRAVEL_AI },
-  channelLabel:  { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: 'rgba(0,0,0,0.45)' },
-  avatarCircle:  { width: 32, height: 32, borderRadius: 16, backgroundColor: '#4D8BFF', justifyContent: 'center', alignItems: 'center' },
-  avatarText:    { fontFamily: 'Poppins_700Bold', fontSize: 12, color: 'white' },
+  // Header
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER },
+  back: { width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(10,10,10,0.06)', alignItems: 'center', justifyContent: 'center' },
+  wordmark: { fontFamily: 'Poppins_800ExtraBold', fontSize: 40, letterSpacing: -1.5, lineHeight: 46, color: INK },
+  pageLabel: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK2 },
+  hamburger: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(10,10,10,0.06)', alignItems: 'center', justifyContent: 'center' },
 
-  // Trip tabs (inside trip)
-  tripTabs:       { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: INK4, backgroundColor: 'white' },
-  tripTabBtn:     { flex: 1, paddingVertical: 11, alignItems: 'center', position: 'relative' },
-  tripTabText:    { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: INK3 },
-  tripTabActive:  { color: TRAVEL_ACCENT },
-  tripTabUnderline: { position: 'absolute', bottom: 0, left: 8, right: 8, height: 2, backgroundColor: TRAVEL_ACCENT, borderRadius: 1 },
+  // Tab switcher
+  tabRow: { flexDirection: 'row', backgroundColor: 'rgba(10,10,10,0.05)', borderRadius: 14, marginHorizontal: 14, marginTop: 14, padding: 4 },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 11 },
+  tabOn: { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  tabTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 },
+  tabTxtOn: { color: TRAVEL_DEEP, fontFamily: 'Poppins_700Bold' },
 
-  // Chat
-  zaeliMsgWrap:  { padding: 12, paddingHorizontal: 16 },
-  zaeliEyebrow:  { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 5 },
-  zaeliStar:     { width: 16, height: 16, borderRadius: 5, backgroundColor: TRAVEL_AI, justifyContent: 'center', alignItems: 'center' },
-  zaeliName:     { fontFamily: 'Poppins_700Bold', fontSize: 10, color: '#3AA870' },
-  zaeliTime:     { fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK3, marginLeft: 'auto' },
-  zaeliBody:     { fontFamily: 'Poppins_400Regular', fontSize: 17, lineHeight: 27, letterSpacing: -0.1, color: INK },
-  chipsRow:      { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  chip:          { borderWidth: 1.5, borderColor: INK4, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, backgroundColor: 'white' },
-  chipText:      { fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK2 },
-  userMsgWrap:   { paddingHorizontal: 16, paddingVertical: 8, alignItems: 'flex-end' },
-  userBubble:    { backgroundColor: '#F2F2F2', borderRadius: 18, borderBottomRightRadius: 2, paddingHorizontal: 14, paddingVertical: 10, maxWidth: '80%' },
-  userText:      { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK },
-  msgTime:       { fontFamily: 'Poppins_400Regular', fontSize: 9, color: INK3, marginTop: 3 },
+  // Section label
+  secLabel: { fontFamily: 'Poppins_700Bold', fontSize: 12, letterSpacing: 1.2, color: INK4, textTransform: 'uppercase', paddingHorizontal: 22, paddingTop: 14, paddingBottom: 10 },
+  empty: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK4, textAlign: 'center', paddingVertical: 18 },
 
-  // Trip stack
-  stackSection:  { paddingHorizontal: 16, paddingTop: 16 },
-  sectionEyebrow:{ fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 1.2, textTransform: 'uppercase', color: INK3, marginBottom: 10 },
-  tripCard:      { borderRadius: 18, overflow: 'hidden', marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
-  tripCardHeader:{ padding: 14, position: 'relative' },
-  tripDest:      { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 24, color: INK, lineHeight: 28 },
-  tripDestSub:   { fontFamily: 'Poppins_500Medium', fontSize: 11, color: INK2, marginTop: 1 },
-  statusBadge:   { position: 'absolute', top: 14, right: 14, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
-  statusBadgeText:{ fontFamily: 'Poppins_700Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  tripCardFooter:{ backgroundColor: 'white', padding: 12, paddingHorizontal: 14 },
-  tripDates:     { fontFamily: 'Poppins_500Medium', fontSize: 12, color: INK2 },
-  miniAvatar:    { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: 'white', justifyContent: 'center', alignItems: 'center' },
-  miniAvatarText:{ fontFamily: 'Poppins_700Bold', fontSize: 9, color: 'white' },
-  tripCountdown: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: TRAVEL_ACCENT, marginTop: 4 },
-  progressRow:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  progressTrack: { flex: 1, height: 4, backgroundColor: INK4, borderRadius: 2, overflow: 'hidden' },
-  progressFill:  { height: '100%', borderRadius: 2, backgroundColor: TRAVEL_AI },
-  progressLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK3 },
-  newTripBtn:    { margin: 16, marginTop: 4, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,96,160,0.3)', borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: 'rgba(168,216,240,0.12)' },
-  newTripPlus:   { fontSize: 18, color: TRAVEL_ACCENT },
-  newTripLabel:  { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: TRAVEL_ACCENT },
+  // Trip cards (stack)
+  tripCard: { marginHorizontal: 14, marginBottom: 10, borderRadius: 22, overflow: 'hidden' },
+  tripHead: { padding: 18, paddingBottom: 10, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  tripDest: { fontFamily: 'Poppins_800ExtraBold', fontSize: 30, color: INK, letterSpacing: -1, lineHeight: 34 },
+  tripCountry: { fontFamily: 'Poppins_500Medium', fontSize: 14, color: INK2, marginTop: 2 },
+  tripBadge: { alignSelf: 'flex-start', marginTop: 10, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  tripBadgeTxt: { fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 0.5 },
+  tripFlag: { fontSize: 44, lineHeight: 44 },
+  tripStrip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 10, borderTopWidth: 1, borderTopColor: 'rgba(10,10,10,0.06)' },
+  tripStripDot: { width: 8, height: 8, borderRadius: 4 },
+  tripStripTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: TRAVEL_DEEP },
+  tripFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingTop: 8, paddingBottom: 16, borderTopWidth: 1, borderTopColor: 'rgba(10,10,10,0.04)' },
+  tripDates: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: INK2 },
+  tripAvatars: { flexDirection: 'row', alignItems: 'center' },
+  tripAv: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)' },
+  tripAvTxt: { fontFamily: 'Poppins_700Bold', fontSize: 10, color: '#FFFFFF' },
 
-  // Overview
-  sectionCard:   { margin: 12, marginHorizontal: 16, backgroundColor: 'white', borderRadius: 16, padding: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 1 },
-  sectionCardTitle:{ fontFamily: 'Poppins_700Bold', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: INK3, marginBottom: 10 },
-  memberAvatar:  { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  memberAvatarText:{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: 'white' },
-  memberName:    { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK2 },
-  budgetCard:    { margin: 12, marginHorizontal: 16, backgroundColor: TRAVEL_BANNER, borderRadius: 16, padding: 14 },
-  budgetTitle:   { fontFamily: 'Poppins_700Bold', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'rgba(0,0,0,0.45)', marginBottom: 8 },
-  budgetAmount:  { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 30, color: INK, lineHeight: 32 },
-  budgetLabel:   { fontFamily: 'Poppins_500Medium', fontSize: 11, color: INK2 },
-  budgetColVal:  { fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK },
-  budgetColLbl:  { fontFamily: 'Poppins_500Medium', fontSize: 10, color: INK2 },
-  budgetTrack:   { marginTop: 10, height: 6, backgroundColor: 'rgba(0,0,0,0.12)', borderRadius: 3, overflow: 'hidden' },
-  budgetFill:    { height: '100%', borderRadius: 3, backgroundColor: TRAVEL_ACCENT },
-  insightCard:   { margin: 12, marginHorizontal: 16, backgroundColor: 'rgba(184,237,208,0.3)', borderRadius: 12, padding: 10, flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  insightStar:   { width: 20, height: 20, borderRadius: 6, backgroundColor: TRAVEL_AI, justifyContent: 'center', alignItems: 'center', flexShrink: 0, marginTop: 1 },
-  insightText:   { fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 19, color: INK2, flex: 1 },
+  // Add trip
+  addTripCard: { marginHorizontal: 14, marginTop: 2, marginBottom: 14, borderRadius: 18, borderWidth: 1.5, borderStyle: 'dashed', borderColor: TRAVEL_DEEP, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: TRAVEL_SOFT },
+  addTripIco: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  addTripTitle: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: TRAVEL_DEEP },
+  addTripSub: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: TRAVEL_TXT, marginTop: 2 },
+
+  // Zaeli insight
+  insightCard: { marginHorizontal: 14, marginBottom: 10, borderRadius: 18, backgroundColor: '#FAC8A8', padding: 18 },
+  insightEye: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  insightStar: { width: 16, height: 16, borderRadius: 5, backgroundColor: TRAVEL, alignItems: 'center', justifyContent: 'center' },
+  insightLbl: { fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 0.8, color: 'rgba(10,10,10,0.42)', textTransform: 'uppercase' },
+  insightTxt: { fontFamily: 'Poppins_400Regular', fontSize: 17, color: INK, lineHeight: 26 },
+
+  // Overview hero
+  heroCard: { marginHorizontal: 14, marginBottom: 14, borderRadius: 22, padding: 22, flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  heroDest: { fontFamily: 'Poppins_800ExtraBold', fontSize: 38, color: INK, letterSpacing: -1.2, lineHeight: 44 },
+  heroCountry: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: INK2, marginTop: 2 },
+  heroDates: { fontFamily: 'Poppins_500Medium', fontSize: 14, color: INK3, marginTop: 12 },
+  heroCd: { backgroundColor: TRAVEL_DEEP, alignSelf: 'flex-start', marginTop: 12, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  heroCdTxt: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#FFFFFF', letterSpacing: 0.3 },
+  heroFlag: { fontSize: 56, lineHeight: 60 },
+
+  // Generic card
+  card: { marginHorizontal: 14, marginBottom: 10, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 16, padding: 4 },
+
+  // Members list
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: BORDER },
+  memberDot: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  memberInitial: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#FFFFFF' },
+  memberName: { fontFamily: 'Poppins_600SemiBold', fontSize: 16, color: INK, flex: 1 },
+  organiserTag: { backgroundColor: TRAVEL_SOFT, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  organiserTxt: { fontFamily: 'Poppins_700Bold', fontSize: 11, color: TRAVEL_DEEP, letterSpacing: 0.3 },
+
+  // Budget card
+  budgetCard: { marginHorizontal: 14, marginBottom: 10, backgroundColor: TRAVEL_SOFT, borderRadius: 18, padding: 18 },
+  budgetLbl: { fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 1.1, color: TRAVEL_DEEP, textTransform: 'uppercase', marginBottom: 4, opacity: 0.7 },
+  budgetBig: { fontFamily: 'Poppins_800ExtraBold', fontSize: 34, color: TRAVEL_DEEP, letterSpacing: -1, lineHeight: 40, paddingTop: 2 },
+  budgetMid: { fontFamily: 'Poppins_800ExtraBold', fontSize: 24, color: TRAVEL_DEEP, letterSpacing: -0.6, lineHeight: 30, paddingTop: 2 },
+  budgetBar: { height: 8, borderRadius: 4, backgroundColor: 'rgba(0,96,160,0.15)', overflow: 'hidden' },
+  budgetFill: { height: '100%', borderRadius: 4, backgroundColor: TRAVEL_DEEP },
+  budgetSub: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: TRAVEL_DEEP, opacity: 0.8 },
+  budgetEdit: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: TRAVEL_DEEP, opacity: 0.65, marginTop: 10, textAlign: 'right' },
+  budgetSplit: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+  budgetSplitLbl: { fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 0.8, color: TRAVEL_DEEP, textTransform: 'uppercase', opacity: 0.7 },
+  budgetSplitVal: { fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: TRAVEL_DEEP, letterSpacing: -0.5, lineHeight: 28, paddingTop: 2 },
+  budgetSplitSub: { fontFamily: 'Poppins_500Medium', fontSize: 11, color: TRAVEL_DEEP, opacity: 0.65, marginTop: 2 },
+  packingInlineLbl: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: INK },
+  packingInlinePct: { fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: TRAVEL_DEEP },
 
   // Bookings
-  bookingCatHeader:{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, marginTop: 12 },
-  bookingCatLabel: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: INK2, textTransform: 'uppercase', letterSpacing: 0.8 },
-  bookingCatCount: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK3, marginLeft: 'auto' },
-  bookingCard:   { backgroundColor: 'white', borderRadius: 14, padding: 12, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4 },
-  bookingTitle:  { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK, lineHeight: 20 },
-  bookingDetail: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK3, marginTop: 2 },
-  bookingAmount: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: TRAVEL_ACCENT, marginLeft: 8 },
-  confBadge:     { backgroundColor: 'rgba(168,232,204,0.3)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 6 },
-  confBadgeText: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: '#0A6040' },
-  addBookingBtn: { borderWidth: 1.5, borderStyle: 'dashed', borderColor: INK4, borderRadius: 14, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8, backgroundColor: 'rgba(0,0,0,0.02)' },
-  addBookingLabel:{ fontFamily: 'Poppins_500Medium', fontSize: 13, color: INK3 },
-  scanBtn:       { flex: 1, backgroundColor: 'rgba(168,216,240,0.25)', borderRadius: 12, padding: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  scanBtnText:   { fontFamily: 'Poppins_600SemiBold', fontSize: 12 },
+  bkCatHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 22, paddingTop: 6, paddingBottom: 10 },
+  bkCatEmoji: { fontSize: 20 },
+  bkCatName: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, flex: 1 },
+  bkCatCount: { fontFamily: 'Poppins_500Medium', fontSize: 12, color: INK4 },
+  bkItem: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 14, marginBottom: 6, padding: 12, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 14 },
+  bkEmojiBox: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  bkTitle: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: INK },
+  bkDetail: { fontFamily: 'Poppins_500Medium', fontSize: 12, color: INK3, marginTop: 2 },
+  bkConf: { fontFamily: 'Poppins_500Medium', fontSize: 11, color: INK5, marginTop: 2 },
+  bkAmt: { fontFamily: 'Poppins_800ExtraBold', fontSize: 16, color: INK, marginLeft: 6 },
 
   // Packing
-  packingHeader:       { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  packingProgressPill: { backgroundColor: TRAVEL_AI, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
-  packingProgressText: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#0A6040' },
-  packingSectionHeader:{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  packingSectionIcon:  { width: 26, height: 26, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  packingMemberDot:    { width: 10, height: 10, borderRadius: 5 },
-  packingSectionTitle: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: INK },
-  packingSectionCount: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK3, marginLeft: 'auto' },
-  packingCard:   { marginHorizontal: 16, backgroundColor: 'white', borderRadius: 14, overflow: 'hidden', marginBottom: 8 },
-  packItem:      { paddingVertical: 9, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.04)' },
-  packCircle:    { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: 'rgba(0,0,0,0.18)', justifyContent: 'center', alignItems: 'center' },
-  packCircleTicked:{ backgroundColor: TRAVEL_AI, borderColor: TRAVEL_AI },
-  packName:      { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, flex: 1 },
-  packNameTicked:{ textDecorationLine: 'line-through', color: INK3 },
-  packQtyBadge:  { backgroundColor: INK4, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
-  packQtyText:   { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: INK3 },
+  packingPill: { marginHorizontal: 14, marginBottom: 14, backgroundColor: TRAVEL_SOFT, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  packingPillLbl: { fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: TRAVEL_DEEP },
+  packingPillBar: { flex: 1, height: 8, borderRadius: 4, backgroundColor: 'rgba(0,96,160,0.15)', overflow: 'hidden' },
+  packingPillFill: { height: '100%', borderRadius: 4, backgroundColor: TRAVEL_DEEP },
+  packingPillFrac: { fontFamily: 'Poppins_800ExtraBold', fontSize: 14, color: TRAVEL_DEEP },
+  packSec: { marginBottom: 14 },
+  packSecHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 22, paddingBottom: 8 },
+  packSecAv: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  packSecAvTxt: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#FFFFFF' },
+  packSecName: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: INK, flex: 1 },
+  packSecCount: { fontFamily: 'Poppins_500Medium', fontSize: 12, color: INK4 },
+  packItem: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 14, marginBottom: 6, padding: 14, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 14 },
+  packCircle: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: 'rgba(10,10,10,0.2)', alignItems: 'center', justifyContent: 'center' },
+  packCircleOn: { backgroundColor: TRAVEL_DEEP, borderColor: TRAVEL_DEEP },
+  packName: { flex: 1, fontFamily: 'Poppins_500Medium', fontSize: 15, color: INK },
+  packNameDone: { color: INK4, textDecorationLine: 'line-through' },
+  packQty: { fontFamily: 'Poppins_700Bold', fontSize: 13, color: INK3 },
 
   // Notes
-  noteAddStrip:  { margin: 14, marginHorizontal: 16, marginBottom: 8, backgroundColor: 'white', borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4 },
-  noteAddInput:  { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, maxHeight: 80 },
-  noteAddSend:   { width: 28, height: 28, borderRadius: 14, backgroundColor: CORAL, justifyContent: 'center', alignItems: 'center' },
-  noteTagPill:   { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  noteTagText:   { fontFamily: 'Poppins_700Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.8 },
-  noteCard:      { marginHorizontal: 16, marginBottom: 10, backgroundColor: 'white', borderRadius: 14, padding: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4 },
-  noteTag:       { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
-  noteTime:      { fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK3 },
-  noteBody:      { fontFamily: 'Poppins_400Regular', fontSize: 14, lineHeight: 21, color: INK },
-  noteAuthor:    { fontFamily: 'Poppins_600SemiBold', fontSize: 10, color: INK3 },
+  noteCard: { marginHorizontal: 14, marginBottom: 8, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 16, padding: 16 },
+  noteHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  noteTag: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  noteTagTxt: { fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 0.3 },
+  noteTime: { fontFamily: 'Poppins_500Medium', fontSize: 12, color: INK4 },
+  noteTxt: { fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, lineHeight: 22 },
+  noteAuthor: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  noteAuthorDot: { width: 8, height: 8, borderRadius: 4 },
+  noteAuthorName: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: INK3 },
 
-  // Scroll arrows
-  scrollArrowPair:{ position: 'absolute', bottom: 110, right: 16, flexDirection: 'row', gap: 8, zIndex: 50 },
-  scrollArrowBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(10,10,10,0.40)', justifyContent: 'center', alignItems: 'center' },
+  // Add card
+  addCard: { marginHorizontal: 14, marginTop: 2, marginBottom: 6, borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(10,10,10,0.15)', borderStyle: 'dashed', padding: 14, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  addCardTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 },
 
-  // Chat bar
-  inputArea:     { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 14, paddingBottom: Platform.OS === 'ios' ? 30 : 18, paddingTop: 10, backgroundColor: 'white' },
-  barPill:       { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'white', borderWidth: 1, borderColor: 'rgba(10,10,10,0.09)', borderRadius: 30, paddingHorizontal: 14, paddingVertical: 10 },
-  barBtn:        { width: 34, height: 34, justifyContent: 'center', alignItems: 'center' },
-  barSep:        { width: 1, height: 18, backgroundColor: 'rgba(10,10,10,0.1)' },
-  barInput:      { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK },
-  barMic:        { width: 32, height: 32, justifyContent: 'center', alignItems: 'center' },
-  barSend:       { width: 32, height: 32, borderRadius: 16, backgroundColor: CORAL, justifyContent: 'center', alignItems: 'center' },
+  // Sheet shell
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  sheetCard: { height: H * 0.92, backgroundColor: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
+  sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(10,10,10,0.14)', alignSelf: 'center', marginTop: 12 },
+  sheetHdr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: BORDER },
+  sheetTitle: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK },
+  sheetX: { paddingHorizontal: 10, paddingVertical: 5, backgroundColor: 'rgba(10,10,10,0.06)', borderRadius: 8 },
+  sheetXTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: INK3 },
+  sheetBody: { flex: 1, paddingHorizontal: 14, paddingTop: 14 },
 
-  // New trip sheet
-  sheetOverlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  sheet:         { backgroundColor: 'white', borderRadius: 24, paddingHorizontal: 20, paddingBottom: 34 },
-  sheetHandle:   { width: 36, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.15)', alignSelf: 'center', marginTop: 12, marginBottom: 16 },
-  sheetTitle:    { fontFamily: 'DMSerifDisplay_400Regular', fontSize: 22, color: INK, marginBottom: 4 },
-  sheetSub:      { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK3, marginBottom: 20 },
-  fieldLabel:    { fontFamily: 'Poppins_700Bold', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.8, color: INK3, marginBottom: 6 },
-  fieldInput:    { backgroundColor: BODY_BG, borderRadius: 12, padding: 12, fontFamily: 'Poppins_400Regular', fontSize: 15, color: INK, marginBottom: 14 },
-  whoPill:       { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(0,0,0,0.04)' },
-  whoPip:        { width: 10, height: 10, borderRadius: 5 },
-  whoName:       { fontFamily: 'Poppins_600SemiBold', fontSize: 13 },
-  sheetBtn:      { backgroundColor: TRAVEL_ACCENT, borderRadius: 16, padding: 15, alignItems: 'center' },
-  sheetBtnText:  { fontFamily: 'Poppins_700Bold', fontSize: 16, color: 'white' },
+  // Form fields
+  fieldLbl: { fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: INK4, marginTop: 12, marginBottom: 6 },
+  input: { backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, paddingVertical: 12, fontFamily: 'Poppins_500Medium', fontSize: 15, color: INK },
+  inputTxt: { fontFamily: 'Poppins_500Medium', fontSize: 15, color: INK },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(10,10,10,0.1)' },
+  chipOn: { backgroundColor: TRAVEL_DEEP, borderColor: TRAVEL_DEEP },
+  chipTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: INK3 },
+  chipTxtOn: { color: '#FFFFFF' },
+  emojiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  emojiOpt: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' },
+  emojiOptOn: { borderColor: TRAVEL_DEEP, backgroundColor: TRAVEL_SOFT, borderWidth: 2 },
+  bgOpt: { minWidth: 72, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: BORDER },
+  bgOptOn: { borderWidth: 2, borderColor: TRAVEL_DEEP },
+  bgOptTxt: { fontFamily: 'Poppins_700Bold', fontSize: 12, color: INK2 },
+  tog: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1.5, borderColor: BORDER, backgroundColor: '#FFFFFF' },
+  togOn: { borderColor: TRAVEL_DEEP, backgroundColor: TRAVEL_SOFT },
+  togTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 },
+  togTxtOn: { color: TRAVEL_DEEP, fontFamily: 'Poppins_700Bold' },
+
+  memberPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: 'rgba(10,10,10,0.12)', backgroundColor: '#FFFFFF' },
+  memberPillDot: { width: 10, height: 10, borderRadius: 5 },
+  memberPillTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: INK2 },
+
+  tipTxt: { fontFamily: 'Poppins_500Medium', fontSize: 13, color: INK3, lineHeight: 19, padding: 12, paddingHorizontal: 14, backgroundColor: CARD, borderRadius: 10, borderWidth: 1, borderColor: BORDER, marginTop: 14 },
+
+  btnPrimary: { backgroundColor: TRAVEL_DEEP, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  btnPrimaryTxt: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#FFFFFF' },
+  btnGhost: { backgroundColor: '#FFFFFF', borderRadius: 12, paddingVertical: 13, alignItems: 'center', borderWidth: 1, borderColor: BORDER },
+  btnGhostTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK2 },
 });

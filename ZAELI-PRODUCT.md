@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 22 April 2026 — Session 17 ✅ · Our Budget v2 PURE PLANNER pivot · Settings shipped · Brief polish · Kids Hub keyboard fix · Standard header rule · Calendar keyword tightening*
+*Last updated: 22 April 2026 — Session 18 ✅ · Travel module rebuilt (standalone, 4 tabs, pure-planner budget) · Keyboard fix backported to Our Budget*
 
 ---
 
@@ -424,6 +424,7 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 - [x] Our Family ✅ (Session 12 — v2 tabs, Session 13 — live tutor progress + session review)
 - [x] Settings ✅ (Session 17 — main/notifications/memory, DateTimePicker for brief times, AsyncStorage)
 - [x] Our Budget ✅ (Session 17 — v2 Pure Planner, mint palette, Option D chart, AI helper with paste + photo)
+- [x] Travel ✅ (Session 18 — standalone route, Trip Stack + Trip Detail 4 tabs, pure-planner budget auto-summing bookings, unified add/edit sheets, keyboard fix)
 - [ ] Zaeli Voice (ElevenLabs)
 - [ ] Push notifications
 - [ ] Gmail + Outlook Calendar integration

@@ -1393,6 +1393,7 @@ export default function DashboardScreen({ onNavigateChat, onNavigateMySpace, isA
           if (key === 'family')    { router.navigate('/(tabs)/family' as any); return; }
           if (key === 'settings')  { router.navigate('/(tabs)/settings' as any); return; }
           if (key === 'budget')    { router.navigate('/(tabs)/our-budget' as any); return; }
+          if (key === 'travel')    { router.navigate('/(tabs)/travel' as any); return; }
           // Tasks / Notes → My Space with Notes & Tasks sheet
           if (key === 'radar') {
             setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'tasks' } as any);

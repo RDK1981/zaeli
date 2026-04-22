@@ -214,6 +214,10 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
         router.navigate('/(tabs)/our-budget' as any);
         return;
       }
+      if (key === 'travel') {
+        router.navigate('/(tabs)/travel' as any);
+        return;
+      }
       if (key === 'chat') {
         // From a standalone route → return to swipe-world (opens on Chat)
         router.navigate('/(tabs)/swipe-world' as any);

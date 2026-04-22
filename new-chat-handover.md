@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*22 April 2026 — Session 17 ✅ · Our Budget v2 PURE PLANNER · Settings shipped · Brief polish · Kids Hub keyboard fix · Standard header rule · Old brief code ripped*
+*22 April 2026 — Session 18 ✅ · Travel module rebuilt (standalone, 4 tabs, pure-planner budget) · Keyboard glitch fixed (KAV inside card) · Session 17 items still current*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,7 +10,7 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 17 was a **big build + strategic pivot** session. Highlights: Settings screen shipped (main/notifications/memory with brief-time pickers), Kids Hub keyboard flash finally fixed, calendar keywords tightened, Our Budget built as v1 then pivoted to v2 **Pure Planner** (no live tracking, mint palette, Option D allocation chart), brief system polished with quiet-day persona + loading placeholder, and a major old-brief cleanup (~380 lines removed after a critical shadowing bug was fixed).
+Session 18 wrapped the **Travel module** (the last 92% channel placeholder), after Session 17 shipped Settings + Our Budget v2 Pure Planner + brief polish + the brief-system cleanup. Keyboard glitch on 92% sheets fixed and backported.
 
 ---
 
@@ -18,7 +18,13 @@ Session 17 was a **big build + strategic pivot** session. Highlights: Settings s
 ## CURRENT STATE — ALL WORKING ✅ (Session 17)
 ## ══════════════════════════════════
 
-### NEW THIS SESSION (Session 17 summary)
+### NEW THIS SESSION (Session 18 summary)
+
+**Travel module shipped** — standalone route at `/(tabs)/travel` (not 92% sheet — too much depth for a sheet). Trip Stack view (Upcoming + Past + `Plan a trip`) → Trip Detail with 4 tabs (Overview / Bookings / Packing / Notes). Pure-planner budget: Total set by user, **Booked** auto-sums booking amounts, **Still to plan** = Total − Booked. No manual "Spent" (same reason as Our Budget). Who's Going tappable → edit members sheet. Bookings tap-to-edit via unified `BookingSheet`. All sheets use mint/sky/peach/ocean-deep palette and the standard header rule. MoreSheet Travel tile wired in all 3 onAction handlers.
+
+**Keyboard glitch fix** — 92% sheets with TextInputs (Add Booking, Add Note, Edit Budget etc) had a bug: typing pushed the fixed-height card off the top of the screen. Root cause: KeyboardAvoidingView was wrapping the entire Modal. Fix: KAV moved **inside** the sheet card wrapping only the body. Backported to Our Budget sheets too. `keyboardShouldPersistTaps="handled"` added to all sheet ScrollViews.
+
+### Session 17 summary (still current)
 
 **Our Budget v2 — Pure Planner (the big one)**
 - Positioned as a budget PLANNER, not a tracker. Without a bank feed, live tracking lies to users the moment data is stale (confirmed with real test — Nov ATM withdrawals imported as "this month").
@@ -321,6 +327,12 @@ Philosophy B's centrepiece. Locked design from Session 9, updated Session 14 to 
 - `_splashShownThisSession` module-level flag prevents splash re-trigger
 - MoreSheet contexts must NOT set `returnTo: 'dashboard'` (was triggering legacy pill)
 
+### New rules Session 18
+- **Travel = STANDALONE route.** Not a 92% sheet. Wordmark `a+i` = sky `#A8D8F0`, primary = ocean deep `#0060A0`.
+- **Travel Budget = PURE PLANNER.** No manual "Spent" — Booked auto-sums booking amounts. Still to plan = Total − Booked.
+- **Unified add/edit pattern** (Travel BookingSheet): single component, `payload: 'new' | T` prop toggles mode. Delete button inside edit mode, title changes. Reuse this pattern for other CRUD sheets.
+- **SheetShell KAV rule**: KAV goes **inside** the sheet card wrapping only the body. NEVER wrap the whole Modal with KAV — fixed-height sheet gets pushed off screen. Always add `keyboardShouldPersistTaps="handled"` to sheet body ScrollView.
+
 ### New rules Session 17
 - **Our Budget = PURE PLANNER.** Never live tracking. No "spent this month" surfaces. No transaction ledger. Uploads are ephemeral suggestion fuel — only accepted amounts persist.
 - **Our Budget accent = mint** (Meals palette): `#2D7A52` / `#B8EDD0` / `#E6F7EF` / `#C8F0DA`. Savings = sky `#A8D8F0`. Over = peach `#FAC8A8` + `#8A3A00` brown. Never red/alarm.
@@ -344,7 +356,6 @@ Philosophy B's centrepiece. Locked design from Session 9, updated Session 14 to 
 **Brief system spec**: `zaeli-brief-examples (1).html` in Downloads.
 
 ### Open for next session
-- **Backend pass** — batched: Supabase migrations for budget + settings, push notification scheduling, auth, Stripe, Memory wiring, CSV document picker install, share extension
-- Travel sheet (Phase 19)
+- **Backend pass** — batched: Supabase migrations for budget + settings + travel (6 tables), push notification scheduling, auth, Stripe, memory wiring, CSV document picker install, share extension, Travel vision-for-bookings
 - Tutor session resume (Phase 20)
 - 100 crosswords (parked content task)

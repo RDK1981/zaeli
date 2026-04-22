@@ -5992,7 +5992,7 @@ Rules:
               router.navigate('/(tabs)/my-space' as any);
               return;
             }
-            if (key === 'travel')  { /* Travel sheet — not yet built */ return; }
+            if (key === 'travel')  { closeAllSheets(); router.navigate('/(tabs)/travel' as any); return; }
             // Dedicated routes
             if (key === 'myspace') { closeAllSheets(); router.navigate('/(tabs)/my-space' as any); return; }
             if (key === 'tutor')   { closeAllSheets(); router.navigate('/(tabs)/tutor' as any); return; }
