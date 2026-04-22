@@ -686,10 +686,10 @@ where "correct" is the 0-based index of the right answer.`;
 
         {/* Tab content — always visible */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-          {activeTab === 'jobs' && <JobsTab />}
-          {activeTab === 'rewards' && <RewardsTab />}
-          {activeTab === 'games' && <GamesTab />}
-          {activeTab === 'leaderboard' && <LeaderboardTab />}
+          {activeTab === 'jobs' && JobsTab()}
+          {activeTab === 'rewards' && RewardsTab()}
+          {activeTab === 'games' && GamesTab()}
+          {activeTab === 'leaderboard' && LeaderboardTab()}
         </ScrollView>
 
         {/* ── GAME OVERLAY (absolute, not Modal — avoids re-render flicker) ── */}
@@ -1533,10 +1533,10 @@ where "correct" is the 0-based index of the right answer.`;
   return (
     <SafeAreaView style={[s.safe, view === 'hub' && { backgroundColor: childWithDb.bgLight || HUB_BG }]} edges={['top']}>
       <RNStatusBar barStyle="dark-content" />
-      <Banner />
+      {Banner()}
       <View style={[s.body, view === 'hub' && { backgroundColor: childWithDb.bgLight || HUB_BG }]}>
-        {view === 'select' && <ChildSelectView />}
-        {view === 'hub' && <HubHomeView />}
+        {view === 'select' && ChildSelectView()}
+        {view === 'hub' && HubHomeView()}
       </View>
     </SafeAreaView>
   );
@@ -1552,7 +1552,7 @@ const s = StyleSheet.create({
   bannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   bannerBackBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' },
   wordmark: { fontFamily: 'Poppins_800ExtraBold', fontSize: 40, letterSpacing: -1.5, color: INK, lineHeight: 46 },
-  bannerLabel: { fontFamily: 'Poppins_600SemiBold', fontSize: 17, color: INK4 },
+  bannerLabel: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: 'rgba(10,10,10,0.72)' },
   divider: { height: 1, backgroundColor: 'rgba(0,0,0,0.08)' },
 
   // Child Select

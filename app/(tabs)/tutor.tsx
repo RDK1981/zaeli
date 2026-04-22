@@ -322,9 +322,9 @@ const s = StyleSheet.create({
     lineHeight: 46,
   },
   bannerLabel: {
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'Poppins_700Bold',
     fontSize: 17,
-    color: 'rgba(0,0,0,0.35)',
+    color: 'rgba(10,10,10,0.72)',
   },
   divider: {
     height: 1,

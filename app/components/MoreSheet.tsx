@@ -211,7 +211,7 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
         return;
       }
       if (key === 'budget') {
-        Alert.alert('Our Budget', 'Coming soon — bank feed integration on the way.');
+        router.navigate('/(tabs)/our-budget' as any);
         return;
       }
       if (key === 'chat') {

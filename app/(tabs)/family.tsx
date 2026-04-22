@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { consumeFamilyFrom } from '../../lib/navigation-store';
 import Svg, { Polyline, Path } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { generateSubjectSummary, generateSessionSummary } from '../../lib/tutor-summaries';
@@ -130,6 +131,8 @@ function localDateStr(d?: Date): string {
 
 export default function OurFamilyScreen() {
   const router = useRouter();
+  // Capture nav origin once on mount — if opened from Settings, back returns there
+  const [fromOrigin] = useState<'settings' | null>(() => consumeFamilyFrom());
   const [activeTab, setActiveTab] = useState<'home' | 'jobs' | 'family'>('home');
   const [selectedChild, setSelectedChild] = useState<ChildName>('Poppy');
   const [dbPending, setDbPending] = useState<any[]>([]);
@@ -346,6 +349,7 @@ export default function OurFamilyScreen() {
   }
 
   function goBack() {
+    if (fromOrigin === 'settings') { router.navigate('/(tabs)/settings' as any); return; }
     router.navigate('/(tabs)/swipe-world' as any);
   }
 

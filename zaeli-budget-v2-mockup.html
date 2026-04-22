@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Zaeli · Our Budget v2 — Pure Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Poppins', -apple-system, sans-serif; background: #EFEBE4; color: #0A0A0A; padding: 40px 20px 80px; }
+  .top { max-width: 1400px; margin: 0 auto 40px; }
+  .top h1 { font-family: 'Poppins'; font-weight: 800; font-size: 32px; letter-spacing: -0.5px; }
+  .top h1 span { color: #059669; }
+  .top p { font-weight: 400; font-size: 15px; color: rgba(10,10,10,0.55); margin-top: 8px; max-width: 780px; line-height: 22px; }
+  .pill-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .pill-tag { background: rgba(5,150,105,0.1); color: #047857; font-weight: 700; font-size: 11px; padding: 5px 10px; border-radius: 10px; letter-spacing: 0.3px; }
+  .pill-tag.neg { background: rgba(197,48,48,0.1); color: #991B1B; text-decoration: line-through; opacity: 0.7; }
+  .frames { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
+
+  /* Phone */
+  .phone { width: 390px; height: 844px; border-radius: 44px; background: #FAF8F5; box-shadow: 0 40px 80px rgba(0,0,0,0.15), 0 0 0 12px #1a1a1a, 0 0 0 14px #333; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .phone-label { position: absolute; bottom: -34px; width: 100%; text-align: center; font-weight: 700; font-size: 12px; color: rgba(10,10,10,0.5); letter-spacing: 1px; text-transform: uppercase; }
+  .frame-wrap { position: relative; }
+
+  .status { display: flex; justify-content: space-between; padding: 14px 28px 4px; font-weight: 600; font-size: 14px; }
+  .status .right { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+
+  .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px 14px; border-bottom: 1px solid rgba(10,10,10,0.07); }
+  .wordmark-row { display: flex; align-items: center; gap: 10px; }
+  .back { width: 32px; height: 32px; border-radius: 10px; background: rgba(10,10,10,0.06); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: rgba(10,10,10,0.6); }
+  .wordmark { font-family: 'Poppins'; font-weight: 800; font-size: 40px; letter-spacing: -1.5px; line-height: 46px; }
+  .wordmark em { color: #059669; font-style: normal; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .page-label { font-weight: 700; font-size: 17px; color: rgba(10,10,10,0.72); }
+  .hamburger { width: 42px; height: 42px; border-radius: 12px; background: rgba(10,10,10,0.06); display: flex; align-items: center; justify-content: center; gap: 4px; flex-direction: column; }
+  .hamburger span { width: 20px; height: 2.2px; background: #0A0A0A; border-radius: 2px; }
+
+  .scroll { flex: 1; overflow-y: auto; padding: 14px 0 60px; }
+
+  /* Tab switcher */
+  .tabrow { display: flex; background: rgba(10,10,10,0.05); border-radius: 14px; margin: 0 14px 14px; padding: 4px; }
+  .tab { flex: 1; padding: 10px; text-align: center; border-radius: 11px; font-weight: 600; font-size: 14px; color: rgba(10,10,10,0.42); }
+  .tab.on { background: #FFFFFF; color: #047857; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  /* Income hero */
+  .income { margin: 0 14px 14px; border-radius: 22px; padding: 22px; background: #2D3748; }
+  .income-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .income-lbl { font-weight: 700; font-size: 11px; letter-spacing: 1.1px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 8px; }
+  .income-huge { font-weight: 800; font-size: 48px; color: #FFFFFF; letter-spacing: -1.4px; line-height: 56px; padding-top: 4px; }
+  .income-edit { display: flex; align-items: center; gap: 6px; background: rgba(52,211,153,0.18); padding: 7px 12px; border-radius: 10px; margin-top: 22px; color: #34D399; font-weight: 700; font-size: 13px; }
+  .income-div { height: 1px; background: rgba(255,255,255,0.12); margin: 18px 0 16px; }
+  .income-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .income-cell .income-big { font-weight: 800; font-size: 22px; color: #FFFFFF; letter-spacing: -0.5px; line-height: 28px; padding-top: 2px; }
+  .income-cell .income-sub { font-weight: 700; font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase; color: rgba(255,255,255,0.45); margin-bottom: 6px; }
+
+  /* Budget health tiles */
+  .health-row { display: flex; gap: 8px; margin: 0 14px 10px; }
+  .health { flex: 1; border-radius: 16px; padding: 16px 12px; text-align: center; }
+  .health-n { font-weight: 800; font-size: 26px; letter-spacing: -0.5px; line-height: 30px; }
+  .health-l { font-weight: 700; font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase; margin-top: 6px; opacity: 0.78; }
+
+  /* Nav row */
+  .nav-row { margin: 0 14px 8px; background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 16px; padding: 16px 18px; display: flex; align-items: center; gap: 14px; }
+  .nav-ico { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .nav-ico.bud { background: #ECFDF5; }
+  .nav-ico.var { background: #FEF3C7; }
+  .nav-ico.goal { background: #E0F2FE; }
+  .nav-body { flex: 1; }
+  .nav-title { font-weight: 700; font-size: 15px; color: #0A0A0A; }
+  .nav-sub { font-weight: 500; font-size: 13px; color: rgba(10,10,10,0.55); margin-top: 2px; }
+  .nav-val { font-weight: 800; font-size: 17px; color: #0A0A0A; }
+  .nav-val-sub { font-weight: 500; font-size: 11px; color: rgba(10,10,10,0.42); margin-top: 1px; text-align: right; }
+  .nav-chev { font-size: 18px; color: rgba(10,10,10,0.3); margin-left: 4px; }
+
+  /* AI helper */
+  .ai-btn { margin: 18px 14px 0; background: #ECFDF5; border: 1.5px dashed #059669; border-radius: 18px; padding: 16px; display: flex; align-items: center; gap: 12px; }
+  .ai-ico { width: 44px; height: 44px; border-radius: 14px; background: #059669; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; }
+  .ai-body { flex: 1; }
+  .ai-title { font-weight: 700; font-size: 15px; color: #047857; }
+  .ai-sub { font-weight: 400; font-size: 12px; color: rgba(5,150,105,0.7); margin-top: 2px; }
+
+  /* Section label */
+  .sec { font-weight: 700; font-size: 12px; letter-spacing: 1.2px; color: rgba(10,10,10,0.42); text-transform: uppercase; padding: 18px 22px 10px; }
+
+  /* Category card */
+  .cat { margin: 0 14px 8px; background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+  .cat-ico { font-size: 22px; }
+  .cat-body { flex: 1; }
+  .cat-name { font-weight: 700; font-size: 16px; color: #0A0A0A; }
+  .cat-sub { font-weight: 500; font-size: 12px; color: rgba(10,10,10,0.55); margin-top: 3px; }
+  .cat-val { font-weight: 800; font-size: 19px; color: #0A0A0A; letter-spacing: -0.3px; }
+  .cat-val-sub { font-weight: 500; font-size: 11px; color: rgba(10,10,10,0.42); margin-top: 1px; text-align: right; }
+
+  /* Add card (dashed) */
+  .add-card { margin: 2px 14px 0; border: 1.5px dashed rgba(10,10,10,0.15); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 10px; color: rgba(10,10,10,0.42); font-weight: 600; font-size: 14px; }
+
+  /* Goal row */
+  .goal { margin: 0 14px 10px; background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 18px; padding: 16px; }
+  .goal-hdr { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .goal-name { font-weight: 700; font-size: 16px; color: #0A0A0A; }
+  .goal-bar { height: 7px; border-radius: 4px; background: rgba(10,10,10,0.07); overflow: hidden; margin-bottom: 10px; }
+  .goal-fill { height: 100%; background: #059669; border-radius: 4px; }
+  .goal-meta { display: flex; justify-content: space-between; font-weight: 500; font-size: 12px; color: rgba(10,10,10,0.55); }
+  .goal-update { margin-top: 12px; background: #ECFDF5; border: 1px solid #D1FAE5; border-radius: 10px; padding: 10px; text-align: center; color: #047857; font-weight: 700; font-size: 13px; }
+
+  /* SHEET */
+  .sheet { position: absolute; bottom: 0; left: 0; right: 0; height: 92%; background: #FAF8F5; border-radius: 24px 24px 0 0; z-index: 300; overflow: hidden; display: flex; flex-direction: column; }
+  .sh-handle { width: 36px; height: 4px; border-radius: 2px; background: rgba(10,10,10,0.14); margin: 12px auto 0; }
+  .sh-hdr { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid rgba(10,10,10,0.06); }
+  .sh-title { font-weight: 700; font-size: 17px; color: #0A0A0A; }
+  .sh-x { font-weight: 600; font-size: 12px; color: rgba(10,10,10,0.55); padding: 5px 10px; background: rgba(10,10,10,0.06); border-radius: 8px; }
+  .sh-body { flex: 1; overflow-y: auto; padding: 14px; }
+
+  /* Line items */
+  .li-total { background: #ECFDF5; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .li-total-lbl { font-weight: 700; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: rgba(5,150,105,0.65); margin-bottom: 4px; }
+  .li-total-val { font-weight: 800; font-size: 34px; color: #047857; letter-spacing: -1px; line-height: 40px; padding-top: 2px; }
+  .li-total-sub { font-weight: 500; font-size: 12px; color: #047857; margin-top: 4px; }
+  .li { background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 12px; padding: 12px 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; }
+  .li-name { flex: 1; font-weight: 600; font-size: 15px; color: #0A0A0A; }
+  .li-amt { font-weight: 700; font-size: 15px; color: #0A0A0A; }
+  .li-x { font-size: 18px; color: rgba(10,10,10,0.3); margin-left: 8px; }
+
+  /* Variable target input mock */
+  .var-target { background: #fff; border: 1.5px solid #D1FAE5; border-radius: 14px; padding: 18px; margin-bottom: 12px; }
+  .var-lbl { font-weight: 700; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: rgba(10,10,10,0.42); margin-bottom: 6px; }
+  .var-val { font-weight: 800; font-size: 42px; color: #0A0A0A; letter-spacing: -1.2px; line-height: 46px; padding-top: 4px; }
+  .var-hint { font-weight: 500; font-size: 12px; color: rgba(10,10,10,0.55); margin-top: 6px; }
+  .var-tip { background: #ECFDF5; border-radius: 10px; padding: 12px 14px; font-weight: 500; font-size: 13px; color: #047857; line-height: 20px; margin-bottom: 12px; }
+
+  /* AI suggestions flow */
+  .ai-banner { background: #2D3748; border-radius: 16px; padding: 16px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
+  .ai-banner-ico { width: 42px; height: 42px; border-radius: 12px; background: #059669; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .ai-banner-txt { flex: 1; }
+  .ai-banner-t { font-weight: 700; font-size: 14px; color: #fff; }
+  .ai-banner-s { font-weight: 400; font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 2px; line-height: 17px; }
+  .sugg { background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 12px; padding: 12px 14px; margin-bottom: 6px; }
+  .sugg-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .sugg-name { font-weight: 700; font-size: 14px; color: #0A0A0A; }
+  .sugg-old { font-weight: 400; font-size: 11px; color: rgba(10,10,10,0.42); text-decoration: line-through; margin-right: 6px; }
+  .sugg-new { font-weight: 800; font-size: 17px; color: #047857; }
+  .sugg-why { font-weight: 500; font-size: 11px; color: rgba(10,10,10,0.55); line-height: 16px; }
+  .sugg-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .sugg-btn { flex: 1; border-radius: 8px; padding: 7px; text-align: center; font-weight: 700; font-size: 11px; }
+  .sugg-accept { background: #059669; color: #fff; }
+  .sugg-edit { background: #fff; color: rgba(10,10,10,0.55); border: 1px solid rgba(10,10,10,0.1); }
+  .sugg-skip { background: #fff; color: rgba(10,10,10,0.42); border: 1px solid rgba(10,10,10,0.1); }
+  .sh-cta { background: #059669; border-radius: 14px; padding: 14px; text-align: center; color: #fff; font-weight: 700; font-size: 14px; margin-top: 12px; }
+
+  /* NOTES */
+  .notes { max-width: 1400px; margin: 80px auto 0; background: #FFFFFF; border-radius: 18px; padding: 32px 36px; border: 1px solid rgba(10,10,10,0.06); }
+  .notes h2 { font-weight: 800; font-size: 22px; margin-bottom: 18px; letter-spacing: -0.3px; }
+  .notes h3 { font-weight: 700; font-size: 13px; margin-top: 20px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+  .notes p, .notes li { font-weight: 400; font-size: 14px; color: rgba(10,10,10,0.72); line-height: 22px; }
+  .notes ul { padding-left: 20px; margin-top: 6px; }
+  .notes li { margin-bottom: 4px; }
+  .notes code { background: rgba(10,10,10,0.06); padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono', monospace; font-size: 12px; }
+  .note-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .note-block { padding: 20px; background: #FAF8F5; border-radius: 14px; border-left: 3px solid #059669; }
+  .note-block.gone { border-left-color: #C53030; }
+  .note-block h3 { margin-top: 0; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>Zaeli · Our Budget <span>— v2 Pure Planner</span></h1>
+  <p>Zero live tracking. Budgets, line items, savings goals, a one-off AI helper for realistic amounts. No spent-vs-budget surfaces, no transaction history, no "this month" claims. The app is a plan you edit + goals you work toward.</p>
+  <div class="pill-row">
+    <span class="pill-tag">Plan your budget</span>
+    <span class="pill-tag">Set savings goals</span>
+    <span class="pill-tag">Line items on fixed</span>
+    <span class="pill-tag">AI suggests amounts (one-off)</span>
+    <span class="pill-tag neg">Live "this month" spend</span>
+    <span class="pill-tag neg">Transaction ledger</span>
+    <span class="pill-tag neg">Status tiles (on track/watch/over)</span>
+    <span class="pill-tag neg">Monthly review rows</span>
+  </div>
+</div>
+
+<div class="frames">
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- FRAME 1 — Overview                                              -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row">
+          <div class="back">‹</div>
+          <div class="wordmark">z<em>a</em>el<em>i</em></div>
+        </div>
+        <div class="header-right">
+          <div class="page-label">Our Budget</div>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="scroll">
+        <div class="tabrow">
+          <div class="tab on">Overview</div>
+          <div class="tab">Categories</div>
+          <div class="tab">Goals</div>
+        </div>
+
+        <!-- Income hero -->
+        <div class="income">
+          <div class="income-top">
+            <div>
+              <div class="income-lbl">Monthly income</div>
+              <div class="income-huge">$9,200</div>
+            </div>
+            <div class="income-edit">✎ Edit</div>
+          </div>
+          <div class="income-div"></div>
+          <div class="income-grid">
+            <div class="income-cell"><div class="income-sub">Budgeted</div><div class="income-big">$6,800</div></div>
+            <div class="income-cell"><div class="income-sub">Savings</div><div class="income-big">$1,400</div></div>
+            <div class="income-cell"><div class="income-sub">Spare</div><div class="income-big">$1,000</div></div>
+          </div>
+        </div>
+
+        <!-- Budget health -->
+        <div class="health-row">
+          <div class="health" style="background:#D1FAE5;">
+            <div class="health-n" style="color:#065F46;">74%</div>
+            <div class="health-l" style="color:#065F46;">Budgeted</div>
+          </div>
+          <div class="health" style="background:#DBEAFE;">
+            <div class="health-n" style="color:#1E40AF;">15%</div>
+            <div class="health-l" style="color:#1E40AF;">Savings rate</div>
+          </div>
+          <div class="health" style="background:#F3F4F6;">
+            <div class="health-n" style="color:#374151;">11%</div>
+            <div class="health-l" style="color:#374151;">Spare</div>
+          </div>
+        </div>
+
+        <!-- Nav rows — summary of each section -->
+        <div class="sec" style="padding-top:12px;">Your plan</div>
+
+        <div class="nav-row">
+          <div class="nav-ico bud">🏠</div>
+          <div class="nav-body">
+            <div class="nav-title">Fixed expenses</div>
+            <div class="nav-sub">Mortgage, insurance, subscriptions · 7 categories</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="nav-val">$3,447</div>
+            <div class="nav-val-sub">per month</div>
+          </div>
+          <div class="nav-chev">›</div>
+        </div>
+
+        <div class="nav-row">
+          <div class="nav-ico var">🛒</div>
+          <div class="nav-body">
+            <div class="nav-title">Variable expenses</div>
+            <div class="nav-sub">Groceries, dining, fuel · 5 categories</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="nav-val">$1,953</div>
+            <div class="nav-val-sub">per month</div>
+          </div>
+          <div class="nav-chev">›</div>
+        </div>
+
+        <div class="nav-row">
+          <div class="nav-ico goal">🎯</div>
+          <div class="nav-body">
+            <div class="nav-title">Savings goals</div>
+            <div class="nav-sub">Noosa, school fees, home reno · 3 goals</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="nav-val">$1,400</div>
+            <div class="nav-val-sub">contrib/mo</div>
+          </div>
+          <div class="nav-chev">›</div>
+        </div>
+
+        <!-- AI helper -->
+        <div class="ai-btn">
+          <div class="ai-ico">✦</div>
+          <div class="ai-body">
+            <div class="ai-title">Help me set realistic budgets</div>
+            <div class="ai-sub">Upload a recent statement · Zaeli suggests amounts based on your spending</div>
+          </div>
+          <div style="color:#059669;font-size:20px;">›</div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Overview — summary only</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- FRAME 2 — Categories                                            -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row">
+          <div class="back">‹</div>
+          <div class="wordmark">z<em>a</em>el<em>i</em></div>
+        </div>
+        <div class="header-right">
+          <div class="page-label">Our Budget</div>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="scroll">
+        <div class="tabrow">
+          <div class="tab">Overview</div>
+          <div class="tab on">Categories</div>
+          <div class="tab">Goals</div>
+        </div>
+
+        <div class="sec" style="padding-top:2px;">Fixed · 7 categories</div>
+
+        <div class="cat">
+          <div class="cat-ico">🏠</div>
+          <div class="cat-body"><div class="cat-name">Mortgage</div><div class="cat-sub">1 item</div></div>
+          <div><div class="cat-val">$2,800</div><div class="cat-val-sub">per month</div></div>
+          <div class="nav-chev">›</div>
+        </div>
+        <div class="cat">
+          <div class="cat-ico">📺</div>
+          <div class="cat-body"><div class="cat-name">Subscriptions</div><div class="cat-sub">4 items · Netflix, Spotify, iCloud, Apple One</div></div>
+          <div><div class="cat-val">$49</div><div class="cat-val-sub">per month</div></div>
+          <div class="nav-chev">›</div>
+        </div>
+        <div class="cat">
+          <div class="cat-ico">🏥</div>
+          <div class="cat-body"><div class="cat-name">Insurance</div><div class="cat-sub">3 items · Health, car, contents</div></div>
+          <div><div class="cat-val">$418</div><div class="cat-val-sub">per month</div></div>
+          <div class="nav-chev">›</div>
+        </div>
+        <div class="cat">
+          <div class="cat-ico">📱</div>
+          <div class="cat-body"><div class="cat-name">Mobile & Internet</div><div class="cat-sub">2 items · 2× phones</div></div>
+          <div><div class="cat-val">$180</div><div class="cat-val-sub">per month</div></div>
+          <div class="nav-chev">›</div>
+        </div>
+
+        <div class="add-card"><span style="font-size:14px;">+</span> Add fixed category</div>
+
+        <div class="sec" style="padding-top:14px;">Variable · 5 categories</div>
+
+        <div class="cat">
+          <div class="cat-ico">🛒</div>
+          <div class="cat-body"><div class="cat-name">Groceries</div><div class="cat-sub">Monthly target</div></div>
+          <div><div class="cat-val">$450</div><div class="cat-val-sub">per month</div></div>
+          <div class="nav-chev">›</div>
+        </div>
+        <div class="cat">
+          <div class="cat-ico">🍽️</div>
+          <div class="cat-body"><div class="cat-name">Dining out</div><div class="cat-sub">Monthly target</div></div>
+          <div><div class="cat-val">$250</div><div class="cat-val-sub">per month</div></div>
+          <div class="nav-chev">›</div>
+        </div>
+        <div class="cat">
+          <div class="cat-ico">🎽</div>
+          <div class="cat-body"><div class="cat-name">Kids activities</div><div class="cat-sub">Monthly target</div></div>
+          <div><div class="cat-val">$300</div><div class="cat-val-sub">per month</div></div>
+          <div class="nav-chev">›</div>
+        </div>
+
+        <div class="add-card"><span style="font-size:14px;">+</span> Add variable category</div>
+      </div>
+    </div>
+    <div class="phone-label">Categories — list view</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- FRAME 3 — Fixed detail (line items)                             -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row">
+          <div class="back">‹</div>
+          <div class="wordmark">z<em>a</em>el<em>i</em></div>
+        </div>
+        <div class="header-right">
+          <div class="page-label">Our Budget</div>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-bottom:0; opacity:0.3;"></div>
+
+      <div class="sheet">
+        <div class="sh-handle"></div>
+        <div class="sh-hdr">
+          <div class="sh-title">📺  Subscriptions</div>
+          <div class="sh-x">Close</div>
+        </div>
+        <div class="sh-body">
+          <div class="li-total">
+            <div class="li-total-lbl">Monthly budget · auto-calculated</div>
+            <div class="li-total-val">$49</div>
+            <div class="li-total-sub">Sum of 4 line items · edit any to update</div>
+          </div>
+
+          <div style="font-weight:700;font-size:11px;letter-spacing:1px;color:rgba(10,10,10,0.42);text-transform:uppercase;margin-bottom:8px;">Line items</div>
+
+          <div class="li"><span style="font-size:18px;">📹</span><div class="li-name">Netflix</div><div class="li-amt">$22</div><span class="li-x">×</span></div>
+          <div class="li"><span style="font-size:18px;">🎵</span><div class="li-name">Spotify Family</div><div class="li-amt">$12</div><span class="li-x">×</span></div>
+          <div class="li"><span style="font-size:18px;">☁️</span><div class="li-name">iCloud 200GB</div><div class="li-amt">$5</div><span class="li-x">×</span></div>
+          <div class="li"><span style="font-size:18px;">🍎</span><div class="li-name">Apple One</div><div class="li-amt">$10</div><span class="li-x">×</span></div>
+
+          <div class="add-card" style="margin-left:0;margin-right:0;"><span style="font-size:14px;">+</span> Add line item</div>
+
+          <div style="margin-top:12px;background:#fff;border:1px solid rgba(10,10,10,0.06);border-radius:10px;padding:12px 14px;font-weight:500;font-size:13px;color:rgba(10,10,10,0.55);line-height:19px;">
+            <strong style="font-weight:700;color:#0A0A0A;">Fixed category:</strong> line items represent actual commitments. Budget is their sum, so it updates automatically when life changes.
+          </div>
+
+          <div style="margin-top:12px;display:flex;gap:10px;">
+            <div style="flex:1;background:#fff;border:1px solid rgba(10,10,10,0.1);border-radius:10px;padding:12px;text-align:center;font-weight:600;font-size:13px;color:rgba(10,10,10,0.55);">Edit category</div>
+            <div style="flex:1;background:rgba(197,48,48,0.08);border:1px solid rgba(197,48,48,0.2);border-radius:10px;padding:12px;text-align:center;font-weight:700;font-size:13px;color:#C53030;">Delete</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Fixed detail — line items</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- FRAME 4 — Variable detail                                       -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row">
+          <div class="back">‹</div>
+          <div class="wordmark">z<em>a</em>el<em>i</em></div>
+        </div>
+        <div class="header-right">
+          <div class="page-label">Our Budget</div>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-bottom:0; opacity:0.3;"></div>
+
+      <div class="sheet">
+        <div class="sh-handle"></div>
+        <div class="sh-hdr">
+          <div class="sh-title">🛒  Groceries</div>
+          <div class="sh-x">Close</div>
+        </div>
+        <div class="sh-body">
+          <div class="var-target">
+            <div class="var-lbl">Monthly target · tap to edit</div>
+            <div class="var-val">$450</div>
+            <div class="var-hint">~$113 per week · for a family of 5</div>
+          </div>
+
+          <div class="var-tip">
+            <strong>✦ Zaeli:</strong> Based on similar Australian families, $450 is on the lower end for a family of 5. $520–$580 is more typical. Want me to suggest based on your actual spending?
+          </div>
+
+          <div class="ai-btn" style="margin:0 0 12px;">
+            <div class="ai-ico">✦</div>
+            <div class="ai-body">
+              <div class="ai-title">Suggest from recent statement</div>
+              <div class="ai-sub">One-off upload · Zaeli reads and suggests · not saved</div>
+            </div>
+          </div>
+
+          <div style="margin-top:6px;display:flex;gap:10px;">
+            <div style="flex:1;background:#fff;border:1px solid rgba(10,10,10,0.1);border-radius:10px;padding:12px;text-align:center;font-weight:600;font-size:13px;color:rgba(10,10,10,0.55);">Edit category</div>
+            <div style="flex:1;background:rgba(197,48,48,0.08);border:1px solid rgba(197,48,48,0.2);border-radius:10px;padding:12px;text-align:center;font-weight:700;font-size:13px;color:#C53030;">Delete</div>
+          </div>
+
+          <div style="margin-top:14px;font-weight:500;font-size:13px;color:rgba(10,10,10,0.55);line-height:19px;padding:12px 14px;background:#fff;border:1px solid rgba(10,10,10,0.06);border-radius:10px;">
+            <strong style="font-weight:700;color:#0A0A0A;">Variable category:</strong> you set a target. Zaeli won't show "$X spent this month" here — without a bank feed we can't tell you that honestly.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Variable detail — target only</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- FRAME 5 — AI helper flow                                        -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row">
+          <div class="back">‹</div>
+          <div class="wordmark">z<em>a</em>el<em>i</em></div>
+        </div>
+        <div class="header-right">
+          <div class="page-label">Our Budget</div>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-bottom:0; opacity:0.3;"></div>
+
+      <div class="sheet">
+        <div class="sh-handle"></div>
+        <div class="sh-hdr">
+          <div class="sh-title">✦  Suggested budgets</div>
+          <div class="sh-x">Close</div>
+        </div>
+        <div class="sh-body">
+          <div class="ai-banner">
+            <div class="ai-banner-ico">✦</div>
+            <div class="ai-banner-txt">
+              <div class="ai-banner-t">Based on 3 months of statements</div>
+              <div class="ai-banner-s">Your spending · averaged · not saved. Review each and accept what feels right.</div>
+            </div>
+          </div>
+
+          <div style="font-weight:700;font-size:11px;letter-spacing:1px;color:rgba(10,10,10,0.42);text-transform:uppercase;margin-bottom:8px;">Variable categories</div>
+
+          <div class="sugg">
+            <div class="sugg-hdr">
+              <div class="sugg-name">🛒 Groceries</div>
+              <div><span class="sugg-old">$450</span><span class="sugg-new">$520</span></div>
+            </div>
+            <div class="sugg-why">Averaged $518 over 3 months · Your current target is $68 low.</div>
+            <div class="sugg-actions">
+              <div class="sugg-btn sugg-accept">Accept $520</div>
+              <div class="sugg-btn sugg-edit">Edit</div>
+              <div class="sugg-btn sugg-skip">Keep $450</div>
+            </div>
+          </div>
+
+          <div class="sugg">
+            <div class="sugg-hdr">
+              <div class="sugg-name">🍽️ Dining out</div>
+              <div><span class="sugg-old">$250</span><span class="sugg-new">$310</span></div>
+            </div>
+            <div class="sugg-why">Averaged $312 · Dining ran over by ~$60/mo · raise or tighten?</div>
+            <div class="sugg-actions">
+              <div class="sugg-btn sugg-accept">Accept $310</div>
+              <div class="sugg-btn sugg-edit">Edit</div>
+              <div class="sugg-btn sugg-skip">Keep $250</div>
+            </div>
+          </div>
+
+          <div class="sugg">
+            <div class="sugg-hdr">
+              <div class="sugg-name">⛽ Fuel</div>
+              <div><span class="sugg-new">$220</span></div>
+            </div>
+            <div class="sugg-why">New category detected · seen at BP, Shell, Ampol · averaged $218.</div>
+            <div class="sugg-actions">
+              <div class="sugg-btn sugg-accept">Add & budget $220</div>
+              <div class="sugg-btn sugg-skip">Skip</div>
+            </div>
+          </div>
+
+          <div style="font-weight:700;font-size:11px;letter-spacing:1px;color:rgba(10,10,10,0.42);text-transform:uppercase;margin:14px 0 8px;">Fixed subscriptions detected</div>
+
+          <div class="sugg">
+            <div class="sugg-hdr">
+              <div class="sugg-name">📺 Netflix</div>
+              <div class="sugg-new">$22/mo</div>
+            </div>
+            <div class="sugg-why">Recurring debit · Seen 3 months in a row.</div>
+            <div class="sugg-actions">
+              <div class="sugg-btn sugg-accept">Add to Subscriptions</div>
+              <div class="sugg-btn sugg-skip">Skip</div>
+            </div>
+          </div>
+
+          <div class="sugg">
+            <div class="sugg-hdr">
+              <div class="sugg-name">🎵 Spotify Family</div>
+              <div class="sugg-new">$12/mo</div>
+            </div>
+            <div class="sugg-why">Recurring debit · Seen 3 months in a row.</div>
+            <div class="sugg-actions">
+              <div class="sugg-btn sugg-accept">Add to Subscriptions</div>
+              <div class="sugg-btn sugg-skip">Skip</div>
+            </div>
+          </div>
+
+          <div class="sh-cta">Save accepted suggestions · 5 selected</div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">AI helper — one-off suggestions</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- Notes                                                           -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="notes">
+  <h2>Build notes — v2 pure planner</h2>
+
+  <div class="note-grid">
+    <div class="note-block">
+      <h3>What's in</h3>
+      <ul>
+        <li><strong>Income streams</strong> — same as before, per earner</li>
+        <li><strong>Fixed categories with line items</strong> — user enumerates actual commitments (Netflix, Spotify, iCloud). Category total = <code>SUM(line_items.monthly_amount)</code>, auto.</li>
+        <li><strong>Variable categories</strong> — single editable <code>monthly_target</code>. No line items.</li>
+        <li><strong>Savings goals</strong> — forward-looking, manual. User updates "saved so far" periodically.</li>
+        <li><strong>Budget health</strong> — Budgeted % / Savings rate / Spare. Describes the plan, not performance.</li>
+        <li><strong>One-off AI helper</strong> — "Help me set realistic budgets". Upload statements → Claude Sonnet vision → suggestions per category (accept/edit/skip). Uploads are <strong>not stored</strong>.</li>
+      </ul>
+    </div>
+
+    <div class="note-block gone">
+      <h3>What's out</h3>
+      <ul>
+        <li><strong>Live "spent this month"</strong> numbers — removed everywhere</li>
+        <li><strong>Status tiles</strong> (on track / watch / over) — replaced by budget health tiles</li>
+        <li><strong>Transaction ledger</strong> — no per-category "This month" list</li>
+        <li><strong>Monthly reviews</strong> — no persisted spent-by-month rows</li>
+        <li><strong>Date-stamped reality check banner</strong></li>
+        <li><strong>Category detail "Add transaction"</strong> button — no live ledger to add to</li>
+      </ul>
+    </div>
+
+    <div class="note-block">
+      <h3>Data model</h3>
+      <ul>
+        <li><code>income_streams(id, family_id, member_id, label, type, monthly_amount)</code></li>
+        <li><code>budget_categories(id, family_id, name, emoji, type, monthly_target_variable, sort_order)</code> — <code>monthly_target_variable</code> nullable for fixed</li>
+        <li><code>category_line_items(id, category_id, label, monthly_amount, sort_order)</code> — only for fixed categories</li>
+        <li><code>savings_goals(id, family_id, name, emoji, target, saved_amount, monthly_contribution, target_date)</code></li>
+        <li><strong>Effective category budget</strong> = variable? <code>monthly_target_variable</code> : <code>SUM(line_items)</code></li>
+      </ul>
+    </div>
+
+    <div class="note-block">
+      <h3>AI helper flow</h3>
+      <ul>
+        <li>Entry: Overview "Help me set realistic budgets" button · or per-category from detail sheet</li>
+        <li>Multi-image picker (up to 6 statement screenshots)</li>
+        <li>Claude Sonnet vision → averages spend by category across months, detects recurring subscriptions</li>
+        <li>Review sheet: one card per suggestion with Accept / Edit / Skip</li>
+        <li>On Save: write accepted amounts to <code>budget_categories</code> / <code>category_line_items</code>. Raw upload data discarded.</li>
+        <li>No transaction ledger created. No month persistence.</li>
+      </ul>
+    </div>
+
+    <div class="note-block">
+      <h3>Zaeli's voice in-module</h3>
+      <ul>
+        <li><strong>Setup nudges</strong> — "Want help setting realistic budgets?" when categories are empty</li>
+        <li><strong>Plan quality commentary</strong> — "74% budgeted, 15% savings rate — strong plan"</li>
+        <li><strong>Comparative nudges</strong> — "Groceries at $450 is low for 5 people. Typical range is $520-580."</li>
+        <li><strong>Goal nudges</strong> — "$50 more per month finishes Noosa by July."</li>
+        <li><strong>What-if</strong> (later) — pay rise, part time, remove car loan — pure math, no tracking</li>
+      </ul>
+    </div>
+
+    <div class="note-block">
+      <h3>Open for feedback</h3>
+      <ul>
+        <li><strong>"Savings" in income hero grid</strong> — is "Savings $1,400" derived from sum of goal contributions, or a manual target? I've shown sum-of-contributions.</li>
+        <li><strong>Variable category tip about "spent this month"</strong> — worth including, or too much dev-speak surfaced to user?</li>
+        <li><strong>What-if mode</strong> — still in scope for v1 or defer? Pure math, fits the planner vision.</li>
+        <li><strong>Onboarding flow</strong> — first-time setup using the AI helper by default, or manual-first with AI as optional shortcut?</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

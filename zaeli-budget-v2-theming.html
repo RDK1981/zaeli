@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Zaeli · Budget v2 — theming + chart options</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Poppins', -apple-system, sans-serif; background: #EFEBE4; color: #0A0A0A; padding: 40px 20px 80px; }
+  .top { max-width: 1500px; margin: 0 auto 40px; }
+  .top h1 { font-family: 'Poppins'; font-weight: 800; font-size: 32px; letter-spacing: -0.5px; }
+  .top h1 span { color: #2D7A52; }
+  .top p { font-weight: 400; font-size: 15px; color: rgba(10,10,10,0.55); margin-top: 8px; max-width: 780px; line-height: 22px; }
+
+  /* Palette swatches */
+  .pal-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .pal-swatch { border-radius: 10px; padding: 10px 14px; min-width: 140px; }
+  .pal-swatch .h { font-weight: 700; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; opacity: 0.6; }
+  .pal-swatch .n { font-weight: 800; font-size: 15px; margin-top: 2px; }
+  .pal-swatch .c { font-family: monospace; font-size: 11px; opacity: 0.7; margin-top: 2px; }
+
+  .section-title { font-weight: 800; font-size: 22px; margin: 48px 0 4px; letter-spacing: -0.3px; }
+  .section-sub { font-weight: 400; font-size: 14px; color: rgba(10,10,10,0.55); margin-bottom: 24px; }
+
+  .frames { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+
+  /* Phone */
+  .phone { width: 380px; height: 720px; border-radius: 44px; background: #FAF8F5; box-shadow: 0 32px 70px rgba(0,0,0,0.12), 0 0 0 12px #1a1a1a, 0 0 0 14px #333; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .phone-label { position: absolute; bottom: -36px; width: 100%; text-align: center; font-weight: 700; font-size: 12px; color: rgba(10,10,10,0.5); letter-spacing: 1px; text-transform: uppercase; }
+  .frame-wrap { position: relative; }
+  .frame-name { position: absolute; top: -28px; width: 100%; text-align: center; font-weight: 800; font-size: 14px; color: #0A0A0A; }
+
+  .status { display: flex; justify-content: space-between; padding: 14px 28px 4px; font-weight: 600; font-size: 14px; }
+  .status .right { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+
+  .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px 14px; border-bottom: 1px solid rgba(10,10,10,0.07); }
+  .wordmark-row { display: flex; align-items: center; gap: 10px; }
+  .back { width: 32px; height: 32px; border-radius: 10px; background: rgba(10,10,10,0.06); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: rgba(10,10,10,0.6); }
+  .wordmark { font-family: 'Poppins'; font-weight: 800; font-size: 38px; letter-spacing: -1.4px; line-height: 44px; }
+  .wordmark em { color: #B8EDD0; font-style: normal; } /* NEW mint from Meals palette */
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .page-label { font-weight: 700; font-size: 17px; color: rgba(10,10,10,0.72); }
+  .hamburger { width: 42px; height: 42px; border-radius: 12px; background: rgba(10,10,10,0.06); display: flex; align-items: center; justify-content: center; gap: 4px; flex-direction: column; }
+  .hamburger span { width: 20px; height: 2.2px; background: #0A0A0A; border-radius: 2px; }
+
+  .scroll { flex: 1; overflow-y: auto; padding: 14px 0 40px; }
+
+  .tabrow { display: flex; background: rgba(10,10,10,0.05); border-radius: 14px; margin: 0 14px 14px; padding: 4px; }
+  .tab { flex: 1; padding: 10px; text-align: center; border-radius: 11px; font-weight: 600; font-size: 14px; color: rgba(10,10,10,0.42); }
+  .tab.on { background: #FFFFFF; color: #2D7A52; font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  /* SLATE income card */
+  .income { margin: 0 14px 14px; border-radius: 22px; padding: 20px; background: #2D3748; }
+  .income-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .income-lbl { font-weight: 700; font-size: 11px; letter-spacing: 1.1px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 8px; }
+  .income-huge { font-weight: 800; font-size: 44px; color: #FFFFFF; letter-spacing: -1.4px; line-height: 52px; padding-top: 4px; }
+  .income-edit { display: flex; align-items: center; gap: 6px; background: rgba(184,237,208,0.25); padding: 7px 12px; border-radius: 10px; margin-top: 20px; color: #B8EDD0; font-weight: 700; font-size: 13px; }
+  .income-div { height: 1px; background: rgba(255,255,255,0.12); margin: 16px 0 14px; }
+  .income-grid { display: flex; gap: 14px; }
+  .income-cell { flex: 1; }
+  .income-sub { font-weight: 700; font-size: 10px; letter-spacing: 0.6px; text-transform: uppercase; color: rgba(255,255,255,0.45); margin-bottom: 5px; }
+  .income-big { font-weight: 800; font-size: 21px; color: #FFFFFF; letter-spacing: -0.5px; line-height: 26px; padding-top: 2px; }
+
+  /* ─── CHART OPTION A: Stacked horizontal bar (current, re-themed) ─── */
+  .alloc-card { margin: 0 14px 10px; background: #fff; border-radius: 18px; border: 1px solid rgba(10,10,10,0.06); padding: 18px; }
+  .alloc-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .alloc-lbl { font-weight: 700; font-size: 11px; letter-spacing: 1.2px; color: rgba(10,10,10,0.42); text-transform: uppercase; }
+  .alloc-bar { display: flex; height: 16px; border-radius: 8px; overflow: hidden; background: #F3F4F6; margin-bottom: 14px; }
+  .alloc-labels { display: flex; gap: 8px; }
+  .alloc-col { flex: 1; }
+  .alloc-dot-row { display: flex; align-items: center; gap: 6px; }
+  .alloc-dot { width: 8px; height: 8px; border-radius: 4px; }
+  .alloc-col-lbl { font-weight: 600; font-size: 12px; color: rgba(10,10,10,0.55); letter-spacing: 0.3px; }
+  .alloc-col-val { font-weight: 800; font-size: 17px; color: #0A0A0A; margin-top: 4px; letter-spacing: -0.3px; }
+
+  /* ─── CHART OPTION B: Donut chart ─── */
+  .donut-card { margin: 0 14px 10px; background: #fff; border-radius: 18px; border: 1px solid rgba(10,10,10,0.06); padding: 18px; display: flex; align-items: center; gap: 20px; }
+  .donut-wrap { width: 120px; height: 120px; position: relative; flex-shrink: 0; }
+  .donut-centre { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .donut-pct { font-weight: 800; font-size: 26px; color: #0A0A0A; letter-spacing: -0.8px; line-height: 28px; }
+  .donut-sub { font-weight: 700; font-size: 9px; letter-spacing: 0.8px; color: rgba(10,10,10,0.4); text-transform: uppercase; margin-top: 2px; }
+  .donut-legend { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .donut-leg-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .donut-leg-left { display: flex; align-items: center; gap: 8px; }
+  .donut-leg-lbl { font-weight: 600; font-size: 13px; color: rgba(10,10,10,0.65); }
+  .donut-leg-val { font-weight: 700; font-size: 14px; color: #0A0A0A; }
+
+  /* ─── CHART OPTION C: Segmented tiles with mini bars ─── */
+  .tiles-row { display: flex; gap: 8px; margin: 0 14px 10px; }
+  .tile-c { flex: 1; background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 16px; padding: 14px 12px; }
+  .tile-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .tile-lbl { font-weight: 600; font-size: 11px; letter-spacing: 0.4px; color: rgba(10,10,10,0.55); text-transform: uppercase; }
+  .tile-pct { font-weight: 800; font-size: 15px; color: #0A0A0A; }
+  .tile-bar { height: 6px; border-radius: 3px; background: #F3F4F6; overflow: hidden; margin-bottom: 8px; }
+  .tile-fill { height: 100%; border-radius: 3px; }
+  .tile-val { font-weight: 800; font-size: 17px; color: #0A0A0A; letter-spacing: -0.3px; }
+
+  /* ─── CHART OPTION D: Thermometer (single bar, scale) ─── */
+  .therm-card { margin: 0 14px 10px; background: #fff; border-radius: 18px; border: 1px solid rgba(10,10,10,0.06); padding: 18px; }
+  .therm-hdr { display: flex; justify-content: space-between; margin-bottom: 12px; align-items: baseline; }
+  .therm-title { font-weight: 700; font-size: 11px; letter-spacing: 1.2px; color: rgba(10,10,10,0.42); text-transform: uppercase; }
+  .therm-total { font-weight: 800; font-size: 13px; color: rgba(10,10,10,0.55); }
+  .therm-bar { display: flex; height: 22px; border-radius: 11px; overflow: hidden; background: #F3F4F6; margin-bottom: 10px; }
+  .therm-seg { display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: #fff; letter-spacing: 0.3px; }
+  .therm-breakdown { display: flex; gap: 6px; margin-top: 10px; }
+  .therm-b { flex: 1; border-radius: 10px; padding: 8px 10px; }
+  .therm-b-lbl { font-weight: 600; font-size: 10px; letter-spacing: 0.3px; opacity: 0.75; text-transform: uppercase; }
+  .therm-b-val { font-weight: 800; font-size: 15px; margin-top: 2px; }
+
+  /* ─── Helpers ─── */
+  .sec { font-weight: 700; font-size: 12px; letter-spacing: 1.2px; color: rgba(10,10,10,0.42); text-transform: uppercase; padding: 16px 22px 10px; }
+  .nav-row { margin: 0 14px 8px; background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 16px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+  .nav-ico { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .nav-title { font-weight: 700; font-size: 15px; color: #0A0A0A; }
+  .nav-sub { font-weight: 500; font-size: 12px; color: rgba(10,10,10,0.55); margin-top: 2px; }
+  .nav-val { font-weight: 800; font-size: 16px; color: #0A0A0A; text-align: right; }
+  .nav-val-sub { font-weight: 500; font-size: 10px; color: rgba(10,10,10,0.42); margin-top: 1px; text-align: right; }
+  .nav-chev { font-size: 16px; color: rgba(10,10,10,0.3); margin-left: 4px; }
+
+  /* NOTES */
+  .notes { max-width: 1500px; margin: 80px auto 0; background: #FFFFFF; border-radius: 18px; padding: 32px 36px; border: 1px solid rgba(10,10,10,0.06); }
+  .notes h2 { font-weight: 800; font-size: 22px; margin-bottom: 10px; letter-spacing: -0.3px; }
+  .notes p, .notes li { font-weight: 400; font-size: 14px; color: rgba(10,10,10,0.72); line-height: 22px; }
+  .notes ul { padding-left: 20px; margin-top: 6px; }
+  .notes li { margin-bottom: 4px; }
+  .notes code { background: rgba(10,10,10,0.06); padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono', monospace; font-size: 12px; }
+  .pros-cons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 24px; }
+  .pc-block { padding: 18px; background: #FAF8F5; border-radius: 12px; border-left: 3px solid #2D7A52; }
+  .pc-block h3 { font-weight: 800; font-size: 14px; margin-bottom: 8px; letter-spacing: 0.1px; }
+  .pc-block .good { color: #2D7A52; margin-top: 4px; }
+  .pc-block .bad { color: #B83333; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>Our Budget · <span>mint palette + chart options</span></h1>
+  <p>Goal: bring Our Budget into the Zaeli colour language (Meals mint green), soften secondary colours, and pick a chart style that reads well at a glance. Four chart options below — same data, different visual vocabulary.</p>
+
+  <h2 style="font-weight:800;font-size:15px;margin-top:24px;">Palette</h2>
+  <div class="pal-row">
+    <div class="pal-swatch" style="background:#B8EDD0;"><div class="h">Primary mint</div><div class="n">Mint</div><div class="c">#B8EDD0</div></div>
+    <div class="pal-swatch" style="background:#2D7A52;color:#fff;"><div class="h" style="opacity:0.7;color:#fff;">Mint dark</div><div class="n">Deep green</div><div class="c" style="opacity:0.85;">#2D7A52</div></div>
+    <div class="pal-swatch" style="background:#E6F7EF;"><div class="h">Mint tint card</div><div class="n">Soft</div><div class="c">#E6F7EF</div></div>
+    <div class="pal-swatch" style="background:#A8D8F0;"><div class="h">Sky blue (My Space)</div><div class="n">Savings accent</div><div class="c">#A8D8F0</div></div>
+    <div class="pal-swatch" style="background:#FAC8A8;"><div class="h">Peach (Notes)</div><div class="n">Over accent</div><div class="c">#FAC8A8</div></div>
+    <div class="pal-swatch" style="background:#F0EDE8;"><div class="h">Neutral</div><div class="n">Surplus</div><div class="c">#F0EDE8</div></div>
+  </div>
+  <p style="margin-top:12px;font-size:13px;">
+    <strong>a+i wordmark</strong> goes mint (#B8EDD0). Primary actions / progress: deep green (#2D7A52). Savings segment: sky blue from My Space palette (softer than #3B82F6). Over/warning: peach (#FAC8A8) from Notes, not hard red — keeps the visual language warm.
+  </p>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════════════ -->
+<div class="section-title">Four chart variations — same numbers</div>
+<div class="section-sub">All at income $9,200 · expenses $6,800 · savings $1,400 · surplus $1,000 (10.9%). Tap any to pick.</div>
+
+<div class="frames">
+
+  <!-- A: Stacked horizontal bar (re-themed) -->
+  <div class="frame-wrap">
+    <div class="frame-name">A · Stacked bar (current, re-themed)</div>
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row"><div class="back">‹</div><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+        <div class="header-right"><div class="page-label">Our Budget</div><div class="hamburger"><span></span><span></span><span></span></div></div>
+      </div>
+      <div class="scroll">
+        <div class="tabrow"><div class="tab on">Overview</div><div class="tab">Categories</div><div class="tab">Savings</div></div>
+        <div class="income">
+          <div class="income-top">
+            <div><div class="income-lbl">Monthly income</div><div class="income-huge">$9,200</div></div>
+            <div class="income-edit">✎ Edit</div>
+          </div>
+          <div class="income-div"></div>
+          <div class="income-grid">
+            <div class="income-cell"><div class="income-sub">Expenses</div><div class="income-big">$6,800</div></div>
+            <div class="income-cell"><div class="income-sub">Savings</div><div class="income-big">$1,400</div></div>
+            <div class="income-cell"><div class="income-sub">Surplus</div><div class="income-big" style="color:#B8EDD0;">$1,000</div></div>
+          </div>
+        </div>
+        <div class="alloc-card">
+          <div class="alloc-hdr"><div class="alloc-lbl">Allocation</div></div>
+          <div class="alloc-bar">
+            <div style="width:74%;background:#2D7A52;"></div>
+            <div style="width:15%;background:#A8D8F0;"></div>
+            <div style="width:11%;background:#F0EDE8;"></div>
+          </div>
+          <div class="alloc-labels">
+            <div class="alloc-col"><div class="alloc-dot-row"><div class="alloc-dot" style="background:#2D7A52;"></div><div class="alloc-col-lbl">Expenses</div></div><div class="alloc-col-val">$6,800</div></div>
+            <div class="alloc-col"><div class="alloc-dot-row"><div class="alloc-dot" style="background:#A8D8F0;"></div><div class="alloc-col-lbl">Savings</div></div><div class="alloc-col-val">$1,400</div></div>
+            <div class="alloc-col"><div class="alloc-dot-row"><div class="alloc-dot" style="background:#9AA0A8;"></div><div class="alloc-col-lbl">Surplus</div></div><div class="alloc-col-val">$1,000</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Option A · Stacked bar</div>
+  </div>
+
+  <!-- B: Donut chart -->
+  <div class="frame-wrap">
+    <div class="frame-name">B · Donut + legend</div>
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row"><div class="back">‹</div><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+        <div class="header-right"><div class="page-label">Our Budget</div><div class="hamburger"><span></span><span></span><span></span></div></div>
+      </div>
+      <div class="scroll">
+        <div class="tabrow"><div class="tab on">Overview</div><div class="tab">Categories</div><div class="tab">Savings</div></div>
+        <div class="income">
+          <div class="income-top">
+            <div><div class="income-lbl">Monthly income</div><div class="income-huge">$9,200</div></div>
+            <div class="income-edit">✎ Edit</div>
+          </div>
+          <div class="income-div"></div>
+          <div class="income-grid">
+            <div class="income-cell"><div class="income-sub">Expenses</div><div class="income-big">$6,800</div></div>
+            <div class="income-cell"><div class="income-sub">Savings</div><div class="income-big">$1,400</div></div>
+            <div class="income-cell"><div class="income-sub">Surplus</div><div class="income-big" style="color:#B8EDD0;">$1,000</div></div>
+          </div>
+        </div>
+        <div class="donut-card">
+          <div class="donut-wrap">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#F3F4F6" stroke-width="16"/>
+              <!-- Expenses 74% -->
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#2D7A52" stroke-width="16"
+                stroke-dasharray="232.36 314.16" stroke-dashoffset="0" transform="rotate(-90 60 60)" stroke-linecap="butt"/>
+              <!-- Savings 15% -->
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#A8D8F0" stroke-width="16"
+                stroke-dasharray="47.12 314.16" stroke-dashoffset="-232.36" transform="rotate(-90 60 60)" stroke-linecap="butt"/>
+              <!-- Surplus 11% -->
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#B8EDD0" stroke-width="16"
+                stroke-dasharray="34.68 314.16" stroke-dashoffset="-279.48" transform="rotate(-90 60 60)" stroke-linecap="butt"/>
+            </svg>
+            <div class="donut-centre">
+              <div class="donut-pct">$9.2k</div>
+              <div class="donut-sub">Income</div>
+            </div>
+          </div>
+          <div class="donut-legend">
+            <div class="donut-leg-row">
+              <div class="donut-leg-left"><div class="alloc-dot" style="background:#2D7A52;"></div><div class="donut-leg-lbl">Expenses · 74%</div></div>
+              <div class="donut-leg-val">$6,800</div>
+            </div>
+            <div class="donut-leg-row">
+              <div class="donut-leg-left"><div class="alloc-dot" style="background:#A8D8F0;"></div><div class="donut-leg-lbl">Savings · 15%</div></div>
+              <div class="donut-leg-val">$1,400</div>
+            </div>
+            <div class="donut-leg-row">
+              <div class="donut-leg-left"><div class="alloc-dot" style="background:#B8EDD0;"></div><div class="donut-leg-lbl">Surplus · 11%</div></div>
+              <div class="donut-leg-val">$1,000</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Option B · Donut</div>
+  </div>
+
+  <!-- C: Tiles with mini bars -->
+  <div class="frame-wrap">
+    <div class="frame-name">C · Tiles with mini bars</div>
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row"><div class="back">‹</div><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+        <div class="header-right"><div class="page-label">Our Budget</div><div class="hamburger"><span></span><span></span><span></span></div></div>
+      </div>
+      <div class="scroll">
+        <div class="tabrow"><div class="tab on">Overview</div><div class="tab">Categories</div><div class="tab">Savings</div></div>
+        <div class="income">
+          <div class="income-top">
+            <div><div class="income-lbl">Monthly income</div><div class="income-huge">$9,200</div></div>
+            <div class="income-edit">✎ Edit</div>
+          </div>
+          <div class="income-div"></div>
+          <div class="income-grid">
+            <div class="income-cell"><div class="income-sub">Expenses</div><div class="income-big">$6,800</div></div>
+            <div class="income-cell"><div class="income-sub">Savings</div><div class="income-big">$1,400</div></div>
+            <div class="income-cell"><div class="income-sub">Surplus</div><div class="income-big" style="color:#B8EDD0;">$1,000</div></div>
+          </div>
+        </div>
+        <div class="tiles-row">
+          <div class="tile-c" style="background:#E6F7EF;border-color:rgba(45,122,82,0.12);">
+            <div class="tile-top"><div class="tile-lbl" style="color:#2D7A52;">Expenses</div><div class="tile-pct" style="color:#2D7A52;">74%</div></div>
+            <div class="tile-bar" style="background:rgba(45,122,82,0.12);"><div class="tile-fill" style="width:74%;background:#2D7A52;"></div></div>
+            <div class="tile-val" style="color:#2D7A52;">$6,800</div>
+          </div>
+          <div class="tile-c" style="background:#E8F4FD;border-color:rgba(168,216,240,0.5);">
+            <div class="tile-top"><div class="tile-lbl" style="color:#0A4A6A;">Savings</div><div class="tile-pct" style="color:#0A4A6A;">15%</div></div>
+            <div class="tile-bar" style="background:rgba(168,216,240,0.3);"><div class="tile-fill" style="width:15%;background:#0A4A6A;"></div></div>
+            <div class="tile-val" style="color:#0A4A6A;">$1,400</div>
+          </div>
+          <div class="tile-c" style="background:#F5EDE3;border-color:rgba(250,200,168,0.5);">
+            <div class="tile-top"><div class="tile-lbl" style="color:#8A3A00;">Surplus</div><div class="tile-pct" style="color:#8A3A00;">11%</div></div>
+            <div class="tile-bar" style="background:rgba(250,200,168,0.35);"><div class="tile-fill" style="width:11%;background:#8A3A00;"></div></div>
+            <div class="tile-val" style="color:#8A3A00;">$1,000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Option C · Tinted tiles</div>
+  </div>
+
+  <!-- D: Single bar "thermometer" w/ in-bar labels -->
+  <div class="frame-wrap">
+    <div class="frame-name">D · Labelled bar + breakdown</div>
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row"><div class="back">‹</div><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+        <div class="header-right"><div class="page-label">Our Budget</div><div class="hamburger"><span></span><span></span><span></span></div></div>
+      </div>
+      <div class="scroll">
+        <div class="tabrow"><div class="tab on">Overview</div><div class="tab">Categories</div><div class="tab">Savings</div></div>
+        <div class="income">
+          <div class="income-top">
+            <div><div class="income-lbl">Monthly income</div><div class="income-huge">$9,200</div></div>
+            <div class="income-edit">✎ Edit</div>
+          </div>
+          <div class="income-div"></div>
+          <div class="income-grid">
+            <div class="income-cell"><div class="income-sub">Expenses</div><div class="income-big">$6,800</div></div>
+            <div class="income-cell"><div class="income-sub">Savings</div><div class="income-big">$1,400</div></div>
+            <div class="income-cell"><div class="income-sub">Surplus</div><div class="income-big" style="color:#B8EDD0;">$1,000</div></div>
+          </div>
+        </div>
+        <div class="therm-card">
+          <div class="therm-hdr"><div class="therm-title">Where your $9,200 goes</div></div>
+          <div class="therm-bar">
+            <div class="therm-seg" style="width:74%;background:#2D7A52;">74%</div>
+            <div class="therm-seg" style="width:15%;background:#A8D8F0;color:#0A4A6A;">15%</div>
+            <div class="therm-seg" style="width:11%;background:#B8EDD0;color:#2D7A52;">11%</div>
+          </div>
+          <div class="therm-breakdown">
+            <div class="therm-b" style="background:rgba(45,122,82,0.08);color:#2D7A52;">
+              <div class="therm-b-lbl">Expenses</div><div class="therm-b-val">$6,800</div>
+            </div>
+            <div class="therm-b" style="background:rgba(168,216,240,0.2);color:#0A4A6A;">
+              <div class="therm-b-lbl">Savings</div><div class="therm-b-val">$1,400</div>
+            </div>
+            <div class="therm-b" style="background:rgba(184,237,208,0.35);color:#2D7A52;">
+              <div class="therm-b-lbl">Surplus</div><div class="therm-b-val">$1,000</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Option D · Labelled bar</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="notes">
+  <h2>Pros / cons at a glance</h2>
+  <div class="pros-cons">
+    <div class="pc-block">
+      <h3>A · Stacked bar</h3>
+      <p class="good">+ Simple, minimal</p>
+      <p class="good">+ Clean over-budget state (red bar)</p>
+      <p class="bad">− Percentages not explicit</p>
+      <p class="bad">− Can feel generic</p>
+    </div>
+    <div class="pc-block">
+      <h3>B · Donut</h3>
+      <p class="good">+ Reads as "finance" immediately</p>
+      <p class="good">+ Centre shows hero number</p>
+      <p class="bad">− More chrome / less mobile-native</p>
+      <p class="bad">− Over-budget state trickier (slice overflow)</p>
+    </div>
+    <div class="pc-block">
+      <h3>C · Tinted tiles</h3>
+      <p class="good">+ Each line is self-contained</p>
+      <p class="good">+ Tinted tiles match app language (Zaeli Noticed, Dashboard)</p>
+      <p class="good">+ Mini bar shows proportion at a glance</p>
+      <p class="bad">− Doesn't show "total = 100%" as naturally</p>
+    </div>
+    <div class="pc-block">
+      <h3>D · Labelled bar</h3>
+      <p class="good">+ % labels inside bar = fastest read</p>
+      <p class="good">+ Amount chips below anchor dollars</p>
+      <p class="good">+ Natural "Where your money goes" title</p>
+      <p class="bad">− Slightly busier than A</p>
+    </div>
+  </div>
+
+  <h2 style="margin-top:32px;">My pick</h2>
+  <p><strong>D (labelled bar + breakdown chips).</strong> Strongest one-glance read: the % inside each segment + dollar in the chip beneath means the user doesn't decode a legend or a donut. Feels warm (mint/sky/peach) and native to the Zaeli colour language. C is a strong runner-up if you want the visual to match other tinted tiles across the app.</p>
+
+  <h2 style="margin-top:32px;">Palette change summary</h2>
+  <ul>
+    <li><code>#059669</code> emerald → <code>#2D7A52</code> deep green (primary action, progress fills)</li>
+    <li><code>#ECFDF5</code> emerald tint → <code>#E6F7EF</code> mint tint (light cards)</li>
+    <li><code>#34D399</code> mint mid → <code>#B8EDD0</code> mint (accents, surplus)</li>
+    <li><code>#D1FAE5</code> → <code>#C8F0DA</code> (light borders)</li>
+    <li><code>#3B82F6</code> blue → <code>#A8D8F0</code> sky (savings accent — matches My Space)</li>
+    <li><code>#EF4444</code> red → <code>#FAC8A8</code> peach (over state — warm warning, not alarm)</li>
+    <li>Wordmark a+i → mint <code>#B8EDD0</code></li>
+    <li>Over state: peach fill + <code>#8A3A00</code> text (readable, warm)</li>
+  </ul>
+</div>
+
+</body>
+</html>

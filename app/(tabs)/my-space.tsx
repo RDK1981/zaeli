@@ -2580,7 +2580,7 @@ const s = StyleSheet.create({
   hamburgerBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' },
   logo:      { fontFamily: 'Poppins_800ExtraBold', fontSize: 40, color: '#0A0A0A', letterSpacing: -1.5, lineHeight: 46 },
   logoAi:    { color: '#A8D8F0' },
-  pageLabel: { fontFamily: 'Poppins_700Bold', fontSize: 18, color: 'rgba(10,10,10,0.32)' },
+  pageLabel: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: 'rgba(10,10,10,0.72)' },
 
   // Brief card (dark slate)
   briefCard:    { borderRadius:20, backgroundColor:'#A8D8F0', padding:16, paddingHorizontal:18, marginBottom:2 },

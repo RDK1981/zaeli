@@ -33,6 +33,8 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import MoreSheet from '../components/MoreSheet';
+import { currentWindow as getCurrentWindow, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
+import { generateBrief, FamilyContext } from '../../lib/brief-generator';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
 import { getPendingChatContext, clearPendingChatContext, setPendingChatContext } from '../../lib/navigation-store';
 
@@ -193,6 +195,12 @@ interface Msg {
   isVoice?: boolean;
   quickReplies?: string[];
   inlineData?: InlineData;
+  // ── Brief-specific fields ──
+  briefWindow?: 'morning' | 'midday' | 'evening';
+  briefChips?: { label: string; primary?: boolean; dismiss?: boolean }[];
+  briefWinBanner?: string | null;
+  briefDividerLabel?: string;
+  briefDismissed?: boolean;
 }
 
 interface CardData {
@@ -441,17 +449,22 @@ function fmtDayLabel(dateStr: string): string {
 }
 
 // ── Calendar keyword detection ─────────────────────────────────────────────
+// Calendar intent phrases — must express a REQUEST about the calendar, not
+// just a time reference. Bare words like "today" or "next week" are too
+// ambient (e.g. "we're going next week to the Gold Coast" is not a calendar
+// query). An intent verb/phrase must be present.
 const CALENDAR_KEYWORDS = [
-  "what's on", "whats on", "what is on", "calendar", "schedule",
-  "this week", "next week", "this weekend", "today", "tomorrow", "tonight",
-  "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-  "mon", "tue", "wed", "thu", "fri", "sat", "sun",
-  "january", "february", "march", "april", "may", "june",
-  "july", "august", "september", "october", "november", "december",
-  "next month", "this month", "coming up", "upcoming", "what do we have",
-  "any events", "anything on", "game", "training", "practice", "appointment",
-  "pickup", "drop off", "school", "when is", "when does", "remind me",
-  "week ahead", "what have we got", "busy", "free",
+  "what's on", "whats on", "what is on",
+  "calendar", "schedule",
+  "anything on", "any events", "anything scheduled", "anything coming up",
+  "what have we got", "what do we have", "what's happening",
+  "when is", "when does", "when's",
+  "coming up", "upcoming",
+  "remind me",
+  "week ahead", "day ahead",
+  "full calendar", "whole calendar", "all events", "all my events",
+  "show me the calendar", "show the calendar", "view calendar", "open calendar",
+  "am i busy", "are we busy", "am i free", "are we free",
 ];
 
 // Fix Whisper misspellings of "Zaeli"
@@ -1857,7 +1870,7 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
 }
 
 // ── CalSheetMonthView ─────────────────────────────────────────────────────
-function CalSheetMonthView({ monthYear, onMonthChange, selectedDay, dayEvents, onDaySelect, onEditWithZaeli, onManualEdit, allEvents, onAddWithZaeli, onManualAdd, onDeleted }: {
+function CalSheetMonthView({ monthYear, onMonthChange, selectedDay, dayEvents, onDaySelect, onEditWithZaeli, onManualEdit, allEvents, onAddWithZaeli, onManualAdd, onDeleted, userTapped }: {
   monthYear: { month:number; year:number };
   onMonthChange: (v:{ month:number; year:number })=>void;
   selectedDay: string|null;
@@ -1869,6 +1882,7 @@ function CalSheetMonthView({ monthYear, onMonthChange, selectedDay, dayEvents, o
   onAddWithZaeli: ()=>void;
   onManualAdd: (dateStr:string)=>void;
   onDeleted: ()=>void;
+  userTapped?: boolean;
 }) {
   const { month, year } = monthYear;
   const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1913,14 +1927,28 @@ function CalSheetMonthView({ monthYear, onMonthChange, selectedDay, dayEvents, o
 
   return (
     <>
-      {/* Month nav */}
-      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-        <TouchableOpacity onPress={prevMonth} activeOpacity={0.7} style={{ padding:8 }}>
-          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:22, color:'rgba(0,0,0,0.45)' }}>‹</Text>
+      {/* Month nav — bigger, rounded, clearer tap target */}
+      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14, paddingHorizontal:4 }}>
+        <TouchableOpacity
+          onPress={prevMonth}
+          activeOpacity={0.7}
+          hitSlop={{ top:12, bottom:12, left:12, right:12 }}
+          style={{ width:40, height:40, borderRadius:20, backgroundColor:'rgba(0,0,0,0.05)', alignItems:'center', justifyContent:'center' }}
+        >
+          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.65)" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+            <Polyline points="15 18 9 12 15 6" />
+          </Svg>
         </TouchableOpacity>
         <Text style={{ fontFamily:'Poppins_700Bold', fontSize:18, color:'#0A0A0A' }}>{MONTHS_FULL[month]} {year}</Text>
-        <TouchableOpacity onPress={nextMonth} activeOpacity={0.7} style={{ padding:8 }}>
-          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:22, color:'rgba(0,0,0,0.45)' }}>›</Text>
+        <TouchableOpacity
+          onPress={nextMonth}
+          activeOpacity={0.7}
+          hitSlop={{ top:12, bottom:12, left:12, right:12 }}
+          style={{ width:40, height:40, borderRadius:20, backgroundColor:'rgba(0,0,0,0.05)', alignItems:'center', justifyContent:'center' }}
+        >
+          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.65)" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+            <Polyline points="9 6 15 12 9 18" />
+          </Svg>
         </TouchableOpacity>
       </View>
 
@@ -1936,8 +1964,11 @@ function CalSheetMonthView({ monthYear, onMonthChange, selectedDay, dayEvents, o
       {/* Calendar grid */}
       <View style={{ flexDirection:'row', flexWrap:'wrap', marginBottom:16 }}>
         {cells.map((cell, i) => {
-          const isToday = cell.dateStr === today;
-          const isSelected = cell.dateStr === selectedDay;
+          // Guard against null matching null (spillover cells have dateStr=null)
+          const isToday = !!cell.dateStr && cell.dateStr === today;
+          // Only show red "selected" highlight if user has genuinely tapped a day.
+          // Today is a permanent slate anchor — NEVER overridden to red (Option A).
+          const isSelected = !!cell.dateStr && !!selectedDay && userTapped === true && cell.dateStr === selectedDay && !isToday;
           const dots = cell.dateStr ? (dotMap[cell.dateStr] || []) : [];
           return (
             <TouchableOpacity
@@ -2271,11 +2302,6 @@ function ReceiptCard({ receipt, onDelete }: { receipt: any; onDelete?: (id: stri
     </View>
   );
 }
-
-// ── Brief cache (module-level) ─────────────────────────────────────────────
-let lastBriefTime: number | null = null;
-let cachedBriefText: string | null = null;
-let cachedBriefSeed: string | null = null;
 
 // ══════════════════════════════════════════════════════════════════════════
 // ── CARD COMPONENTS ────────────────────────────────────────────────────────
@@ -2698,14 +2724,12 @@ function HomeScreen({
   const micTimerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
   const micOverlayAnim    = useRef(new Animated.Value(0)).current;
   const [showScrollBtn,   setShowScrollBtn]   = useState(false);
-  const [briefReplies,    setBriefReplies]    = useState<string[]>([]);
-  const [chatBriefText,   setChatBriefText]   = useState('');
-  const [chatBriefChips,  setChatBriefChips]  = useState<string[]>([]);
-  const [briefHero,       setBriefHero]       = useState<string>('');
-  const [briefChips,      setBriefChips]      = useState<string[]>([]);
-  const [activePill,      setActivePill]      = useState<string>('');
-  const [overviewOpen,    setOverviewOpen]    = useState(false);
-  const [briefSeed,       setBriefSeed]       = useState('');
+  // ── Brief v2 state ──
+  const lastBriefWindowRef = useRef<BriefWindow | null>(null);
+  const lastBriefDateRef   = useRef<string | null>(null);
+  const lastMessageAtRef   = useRef<number | null>(null);
+  const briefFireInFlightRef = useRef(false);
+  const heldBriefCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showAddSheet,    setShowAddSheet]    = useState(false);
   const [pendingImage,    setPendingImage]    = useState<string | null>(null);
   const [thumbs,          setThumbs]          = useState<Record<string, 'up'|'down'|null>>({});
@@ -2778,6 +2802,9 @@ function HomeScreen({
   const [calSheetEditEv,  setCalSheetEditEv]  = useState<any>(null); // null = list view, event = edit form
   const [calSheetMonthYear, setCalSheetMonthYear] = useState(() => { const n = new Date(); return { month: n.getMonth(), year: n.getFullYear() }; });
   const [calSheetSelDay,  setCalSheetSelDay]  = useState<string|null>(null);
+  // Track whether the user has actively tapped a day. Auto-selected days (on sheet open
+  // or month change) shouldn't show the red highlight — only genuine taps do.
+  const [calSheetUserTapped, setCalSheetUserTapped] = useState(false);
   const [calSheetDayEvs,  setCalSheetDayEvs]  = useState<any[]>([]);
   const [calSheetMonthEvs, setCalSheetMonthEvs] = useState<any[]>([]); // all events in current month for dots
 
@@ -2872,24 +2899,6 @@ function HomeScreen({
   const waveAnims        = useRef(Array.from({ length:13 }, () => new Animated.Value(0.3))).current;
 
   // Card stagger animations — fade + slide in sequentially
-  const cardAnims = useRef([0,1,2,3].map(() => ({
-    opacity: new Animated.Value(0),
-    translateY: new Animated.Value(16),
-  }))).current;
-
-  // Trigger stagger + open overview when brief loads
-  useEffect(() => {
-    if (!briefHero) return;
-    // Open the card stack with a small delay so hero text renders first
-    setTimeout(() => setOverviewOpen(true), 200);
-    // Stagger: 0ms, 150ms, 300ms, 450ms
-    cardAnims.forEach((anim, i) => {
-      Animated.parallel([
-        Animated.timing(anim.opacity,     { toValue:1, duration:380, delay:i*150 + 200, useNativeDriver:true }),
-        Animated.timing(anim.translateY,  { toValue:0, duration:380, delay:i*150 + 200, easing:Easing.out(Easing.cubic), useNativeDriver:true }),
-      ]).start();
-    });
-  }, [briefHero]);
   const waveLoopRef      = useRef<Animated.CompositeAnimation | null>(null);
   const scrollBtnAnim    = useRef(new Animated.Value(0)).current;
   const pillsAnim        = useRef(new Animated.Value(1)).current;
@@ -3038,10 +3047,24 @@ function HomeScreen({
     if (chatLoaded && !persistenceHasLoaded.current) {
       persistenceHasLoaded.current = true;
       if (persistedMessages.length > 0) {
-        // Only restore the brief — strip all inline cards and conversation.
-        // Cards are always freshly generated on pill tap.
-        const briefOnly = persistedMessages.filter(m => m.isBrief);
+        // Restore brief messages — but ONLY if from today AND same window as current
+        // (otherwise they're stale and we should fire a fresh brief)
+        const today = localDateStr();
+        const currentWin = getCurrentWindow();
+        const briefOnly = persistedMessages.filter(m => {
+          if (!m.isBrief) return false;
+          const dateMatch = m.id.match(/brief-[a-z]+-(\d{4}-\d{2}-\d{2})/);
+          if (!dateMatch || dateMatch[1] !== today) return false;  // drop old-day briefs
+          if (m.briefWindow !== currentWin) return false;           // drop other-window briefs
+          return true;
+        });
         setMessages(briefOnly);
+        // Sync refs from restored briefs (if any) so we don't double-fire
+        if (briefOnly.length > 0) {
+          const last = briefOnly[briefOnly.length - 1];
+          lastBriefWindowRef.current = last.briefWindow ?? null;
+          lastBriefDateRef.current = today;
+        }
       }
     }
   }, [chatLoaded, persistedMessages]);
@@ -3053,17 +3076,38 @@ function HomeScreen({
     }
   }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Mount → load brief + card data immediately ─────────────────────────────
+  // ── Mount → load cards (brief fires AFTER persistence restore, see below) ─
   useEffect(() => {
-    generateBrief(true);
     loadCardData();
+    // Background 5-min timer — checks if a held brief is now due after inactivity.
+    // (60s was too aggressive; 5 min is plenty for held-brief recovery.)
+    heldBriefCheckTimerRef.current = setInterval(() => {
+      tryFireBrief({ appJustOpened: false });
+    }, 5 * 60 * 1000);
+    return () => {
+      if (heldBriefCheckTimerRef.current) clearInterval(heldBriefCheckTimerRef.current);
+    };
   }, []);
+
+  // Brief fires AFTER persistence has restored. This prevents double-fire on
+  // hot reload or remount — we read the restored lastBriefDate/Window refs first.
+  const briefMountFiredRef = useRef(false);
+  useEffect(() => {
+    if (!chatLoaded || !persistenceHasLoaded.current || briefMountFiredRef.current) return;
+    briefMountFiredRef.current = true;
+    tryFireBrief({ appJustOpened: true });
+  }, [chatLoaded]);
 
   function enterChat(topic?: string) {
     Animated.parallel([
       Animated.timing(entryOpacity, { toValue:0, duration:300, useNativeDriver:true }),
       Animated.timing(chatOpacity,  { toValue:1, duration:400, useNativeDriver:true }),
-    ]).start(() => { setScreen('chat'); generateBrief(true, topic); });
+    ]).start(() => {
+      setScreen('chat');
+      // Brief fires from mount useEffect — no need to trigger here
+      // If user typed/tapped something on entry, route it through send() after transition
+      if (topic) setTimeout(() => send(topic), 400);
+    });
   }
 
   // ── Keyboard listeners removed in v5 — FAB handles keyboard state ────────
@@ -3342,210 +3386,143 @@ CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
     }
   }
 
-  // ── Generate brief ────────────────────────────────────────────────────────
-  async function generateBrief(force = false, focusHint?: string) {
-    // Never generate if persistence has already loaded messages
-    if (chatLoaded && persistedMessages.length > 0 && !focusHint) return;
-    if (!force && messages.length > 0) return;
+  // ── Brief v2 — tryFireBrief (Philosophy B centrepiece) ───────────────────
+  async function tryFireBrief(args: { appJustOpened: boolean }) {
+    if (briefFireInFlightRef.current) return;
 
-    const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
-    if (!force && elapsed < 30*60*1000 && cachedBriefText) {
-      const cached = JSON.parse(cachedBriefText);
-      setBriefHero(cached.hero ?? '');
-      setBriefChips(cached.chips ?? []);
+    const now = new Date();
+    const todayDate = localDateStr(now);
+    const win = getCurrentWindow(now);
+
+    // Extra safety: scan existing messages for a brief in the same window today.
+    // Prevents double-fire even if refs somehow desync.
+    const existingBriefToday = messages.find(m =>
+      m.isBrief && m.briefWindow === win && m.id.includes(todayDate)
+    );
+    if (existingBriefToday) {
+      // Sync refs to what's on screen and bail
+      lastBriefWindowRef.current = win;
+      lastBriefDateRef.current = todayDate;
       return;
     }
-    lastBriefTime = Date.now();
-    setBriefHero(''); // show loading dots while generating
+
+    const decision = shouldFireBrief({
+      currentWindow: win,
+      lastBriefWindow: lastBriefWindowRef.current,
+      lastBriefDate: lastBriefDateRef.current,
+      todayDate,
+      lastMessageAt: lastMessageAtRef.current,
+      appJustOpened: args.appJustOpened,
+    });
+
+    console.log('[brief] tryFire', { win, appJustOpened: args.appJustOpened, decision, lastBriefWindow: lastBriefWindowRef.current, lastBriefDate: lastBriefDateRef.current });
+    if (!decision.fire) return;
+
+    briefFireInFlightRef.current = true;
+
+    // 1. Push loading placeholder IMMEDIATELY so there's no blank screen
+    const placeholderId = `brief-${win}-${todayDate}-${Date.now()}`;
+    const tsLabel = now.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const showDivider = messages.length > 0;
+    const placeholder: Msg = {
+      id: placeholderId,
+      role: 'zaeli',
+      text: '',
+      ts: tsLabel,
+      isBrief: true,
+      isLoading: true,
+      briefWindow: win,
+      briefChips: [],
+      briefWinBanner: null,
+      briefDividerLabel: showDivider ? windowLabel(win, now) : undefined,
+    };
+    setMessages(prev => [...prev, placeholder]);
+    setTimeout(() => scrollToEnd(true), 80);
 
     try {
-      // Fetch live data INSIDE brief — never rely on component state
-      const today = localDateStr();
-      const tomorrow = localDatePlusDays(1);
-      const isLate = h >= 21 || h < 6;
-      const isEvening = h >= 20;
-      const isMorning = h >= 5 && h < 12;
-      const frame = isLate ? 'late night' : isMorning ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+      // Build family context from live Supabase data
+      const ctx = await buildBriefContext();
 
-      const [eventsRes, todosRes, remindersRes, mealsRes, shopRes] = await Promise.all([
-        supabase.from('events')
-          .select('title,date,start_time,assignees')
-          .eq('family_id', FAMILY_ID)
-          .eq('date', today)
-          .order('start_time').limit(10),
-        supabase.from('todos')
-          .select('title,priority,status,due_date')
-          .eq('family_id', FAMILY_ID)
-          .eq('status', 'active')
-          .limit(8),
-        supabase.from('reminders')
-          .select('title,remind_at,member_id')
-          .eq('family_id', FAMILY_ID)
-          .eq('status', 'active')
-          .lte('remind_at', new Date(Date.now() + 24*60*60*1000).toISOString())
-          .limit(5),
-        supabase.from('meal_plans')
-          .select('meal_name,day_key')
-          .eq('family_id', FAMILY_ID)
-          .gte('day_key', today)
-          .lte('day_key', tomorrow)
-          .limit(2),
-        supabase.from('shopping_items')
-          .select('name,item')
-          .eq('family_id', FAMILY_ID)
-          .neq('checked', true)
-          .limit(3),
-      ]);
-
-      const todayEvents = (eventsRes.data ?? []).map((e:any) => {
-        const time = fmtTime(e.start_time);
-        const assignees = (e.assignees || []).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)?.name).filter(Boolean);
-        return `${e.title}${time ? ' at ' + time : ''}${assignees.length ? ' (' + assignees.join(', ') + ')' : ''}`;
+      const payload = await generateBrief({
+        familyId: FAMILY_ID,
+        window: win,
+        dateKey: todayDate,
+        context: ctx,
       });
-      const todos = (todosRes.data ?? []).map((t:any) => `${t.title}${t.due_date && t.due_date <= today ? ' [OVERDUE]' : t.due_date === today ? ' [DUE TODAY]' : ''}`);
-      const reminders = (remindersRes.data ?? []).map((r:any) => {
-        const member = FAMILY_MEMBERS.find(m => m.id === r.member_id);
-        return `${r.title}${member ? ' (re: ' + member.name + ')' : ''}`;
-      });
-      const meals = (mealsRes.data ?? []);
-      const tonightMeal = meals.find((m:any) => m.day_key === today)?.meal_name ?? null;
 
-      const contextStr = [
-        todayEvents.length ? `TODAY'S EVENTS: ${todayEvents.join(' · ')}` : 'No events today.',
-        todos.length ? `OPEN TODOS: ${todos.join(' · ')}` : 'No open todos.',
-        reminders.length ? `REMINDERS DUE SOON: ${reminders.join(' · ')}` : '',
-        tonightMeal ? `DINNER TONIGHT: ${tonightMeal} — sorted.` : (isMorning || h < 19 ? 'DINNER TONIGHT: not planned.' : ''),
-      ].filter(Boolean).join('\n');
+      // 2. Swap placeholder for real brief in place
+      setMessages(prev => prev.map(m => m.id === placeholderId ? {
+        ...m,
+        text: payload.text,
+        isLoading: false,
+        briefChips: payload.chips,
+        briefWinBanner: payload.winBanner ?? null,
+      } : m));
+      lastBriefWindowRef.current = win;
+      lastBriefDateRef.current = todayDate;
 
-      const briefSys = `You are Zaeli — sharp, warm AI for Rich's Australian family (Anna, Poppy Yr6, Gab Yr4 boy, Duke Yr1 boy).
-
-CURRENT TIME: ${frame}, ${new Date().toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit' })}
-
-LIVE DATA:
-${contextStr}
-
-WRITE THE HOME SCREEN BRIEF. This is the FIRST thing Rich sees when he opens the app. It must feel like Zaeli genuinely knows his family — not a generic summary.
-
-THE BRIEF FORMULA (non-negotiable — STRICT):
-1. EXACTLY 2 SHORT sentences. Not 3. Not 4. TWO.
-2. Sentence 1: Name the most time-sensitive thing. Use the PERSON'S NAME (Gab, Poppy, Duke). One specific fact only.
-3. Sentence 2: One confirmation (what's sorted/fine) OR one forward-looking note. Never repeat sentence 1.
-4. Wrap 1-2 key phrases in [square brackets] for italic emphasis — these render in DM Serif italic.
-5. NEVER start with "I", "Good morning", "Hey", any greeting, or any weather/general observation.
-6. NEVER write more than 20 words per sentence.
-7. NEVER use phrases like "breathing room", "sorted out", "taken care of", "good to go", "on the radar".
-
-TONE — match the time exactly:
-- Morning (5–12): Sharp, energised, direct. "Gab needs a gold coin today."
-- Afternoon (12–20): Practical. Mention what's left, confirm what's done.
-- Evening (20–5): Calm. One gentle note. Never alarming. Short.
-- All done: "[Enjoy the evening] — nothing left to do."
-
-CHIPS — exactly 3 short phrases (3–5 words max each):
-- CHIP 1 (accent, most important): The single most pressing action right now.
-- CHIP 2 & 3: Other relevant actions from the data.
-- Sound like things Rich would tap naturally. No punctuation. No emoji.
-- NEVER use "View", "See", "Check" as the first word — use action verbs.
-
-BANNED WORDS: "breathing room", "queued up", "locked in", "tidy", "sorted", "lined up", "all set", "stacked", "ambush", "sprint", "chaos", "chaotic", "mate", "guys", "great".
-
-Return ONLY valid JSON (no markdown, no backticks):
-{"hero":"2 sentences max with [italic key phrases]","chips":["most urgent action","second chip","third chip"]}
-
-EXAMPLES OF GOOD BRIEFS:
-- Morning with todos: "Gab needs a gold coin today — and [car insurance is due tomorrow]. Dinner sorted, soccer at 4."
-- Evening with reminder: "Poppy's library books are due back [tomorrow morning]. Insurance still open — worth 5 minutes tonight."
-- All done: "Everything sorted. [Enjoy the evening] — you've earned it."
-- Afternoon calm: "[Pasta Carbonara] is on for tonight. Two things still open — the plumber call and Duke's eye test."`;
-
-      const raw = await callGPT(briefSys, [{ role:'user', content:'Generate the brief now. Remember: EXACTLY 2 short sentences.' }], 160, 'home_brief');
-      const parsed = JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,'').trim());
-      const hero  = parsed.hero  ?? `${dateLabel}.`;
-      const chips = parsed.chips ?? ["What's on today", "Check the list", "Anything urgent"];
-
-      cachedBriefText = JSON.stringify({ hero, chips });
-      setBriefHero(hero);
-      setBriefChips(chips);
-      // Store for lavender brief card
-      setChatBriefText(hero);
-      setChatBriefChips(chips);
-
-      // Also push a brief detail message into the chat thread
-      // This is the secondary line + chips that appear below the card stack
-      // Keep it short — the hero says the important thing, this offers to help
-      const detailSys = `You are Zaeli. Rich just saw this brief: "${hero}"
-Write ONE warm follow-up sentence (max 10 words) offering to help with the most urgent thing.
-Never start with "I". Never say "mate". Not hollow — be specific to the brief.
-Then 3 chips (3-5 words each, action-oriented).
-Return ONLY JSON: {"detail":"...","replies":["chip1","chip2","chip3"]}`;
-      try {
-        const detailRaw = await callGPT(detailSys, [{role:'user', content:'Generate.'}], 120, 'home_brief_detail');
-        const detailParsed = JSON.parse(detailRaw.replace(/\`\`\`json|\`\`\`/g,'').trim());
-        addMsg({
-          role: 'zaeli',
-          text: detailParsed.detail ?? '',
-          isBrief: true,
-          isLoading: false,
-          quickReplies: detailParsed.replies ?? chips,
-        });
-      } catch {
-        // Fallback — use chips from brief as quick replies, no detail text
-        addMsg({ role:'zaeli', text:'', isBrief:true, isLoading:false, quickReplies:chips });
-      }
-
-      // After cards stagger in, drop the post-card prompt
-      setTimeout(() => {
-        generatePostCardPrompt();
-      }, 900);
-
+      setTimeout(() => scrollToEnd(true), 200);
     } catch (e) {
-      console.error('Brief error:', e);
-      setBriefHero(`${dateLabel}.`);
-      setBriefChips(["What's on today", "Check the list", "Anything urgent"]);
+      console.warn('[brief] generate failed:', e);
+      // Drop the placeholder on error — don't leave a stuck empty bubble
+      setMessages(prev => prev.filter(m => m.id !== placeholderId));
+    } finally {
+      briefFireInFlightRef.current = false;
     }
   }
 
-  // ── Post-card Zaeli prompt — drops after cards stagger in ─────────────────
-  async function generatePostCardPrompt() {
-    if (messages.length > 0) return; // only on cold open
-    try {
-      // Quick contextual GPT-mini call — targeted 1-line follow-up
-      const today = localDateStr();
-      const [todosRes, remindersRes] = await Promise.all([
-        supabase.from('todos').select('title,priority,due_date').eq('family_id',FAMILY_ID).eq('status','active').limit(3),
-        supabase.from('reminders').select('title').eq('family_id',FAMILY_ID).eq('status','active').lte('remind_at', new Date(Date.now()+24*60*60*1000).toISOString()).limit(2),
-      ]);
-      const urgent = (todosRes.data??[]).filter((t:any) => t.due_date && t.due_date <= today);
-      const reminders = remindersRes.data ?? [];
-      const hasUrgent = urgent.length > 0 || reminders.length > 0;
+  // Gather family context for Sonnet brief generation
+  async function buildBriefContext(): Promise<FamilyContext> {
+    const today = localDateStr();
+    const tomorrow = localDatePlusDays(1);
+    const in7 = localDatePlusDays(7);
 
-      const promptSys = `You are Zaeli — sharp, warm AI for Rich's Australian family.
-After showing Rich his morning cards, you ask one short follow-up.
-${hasUrgent ? `There are ${urgent.length} overdue/due-today items and ${reminders.length} active reminders.` : 'Everything looks calm.'}
+    const [evTodayRes, evTomorrowRes, shopRes, mealRes, tasksRes, membersRes] = await Promise.all([
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', FAMILY_ID).eq('date', today).order('start_time').limit(20),
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', FAMILY_ID).eq('date', tomorrow).order('start_time').limit(20),
+      supabase.from('shopping_items').select('id,name,item').eq('family_id', FAMILY_ID).neq('checked', true).limit(100),
+      supabase.from('meal_plans').select('id,meal_name,planned_date,day_key').eq('family_id', FAMILY_ID).or(`planned_date.eq.${today},day_key.eq.${today}`).limit(1),
+      supabase.from('personal_tasks').select('id,title,due_date,is_shared,member_name').eq('family_id', FAMILY_ID).eq('is_complete', false).lte('due_date', in7).order('due_date').limit(20),
+      supabase.from('family_members').select('name').eq('family_id', FAMILY_ID).limit(10),
+    ]);
 
-Write ONE short conversational line (max 12 words). Warm but not hollow. Then return 3 chips.
-${hasUrgent ? 'Offer to help with the most pressing thing.' : 'Offer to help plan, add, or check something.'}
-Never start with "I". Never say "mate". No hollow phrases like "How can I help today?"
+    const tonightMeal = (mealRes.data ?? [])[0];
+    const memberNames = (membersRes.data ?? []).map((m: any) => m.name).filter(Boolean);
 
-Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
+    const ctx: FamilyContext = {
+      todayEvents: evTodayRes.data ?? [],
+      tomorrowEvents: evTomorrowRes.data ?? [],
+      tonightMeal: tonightMeal ? { name: tonightMeal.meal_name } : null,
+      shopCount: (shopRes.data ?? []).length,
+      shopFlagged: [],
+      openTasks: tasksRes.data ?? [],
+      weather: null,
+      memberNames: memberNames.length > 0 ? memberNames : ['Rich'],
+      primaryUser: 'Rich',
+    };
 
-      const raw = await callGPT(promptSys, [{role:'user', content:'Generate.'}], 150, 'home_post_card');
-      const parsed = JSON.parse(raw.replace(/\`\`\`json|\`\`\`/g,'').trim());
-      addMsg({
-        role: 'zaeli',
-        text: parsed.line ?? 'What would you like to tackle first?',
-        isLoading: false,
-        quickReplies: parsed.chips ?? ["What's most urgent", "Check the calendar", "What's for dinner"],
-      });
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
-    } catch {
-      addMsg({
-        role: 'zaeli',
-        text: 'What would you like to tackle first?',
-        isLoading: false,
-        quickReplies: ["What's most urgent", "Check the calendar", "What's for dinner"],
-      });
+    // DEBUG — log what we're sending to Sonnet
+    console.log('[brief] context:', JSON.stringify({
+      todayEvents: ctx.todayEvents.length,
+      tomorrowEvents: ctx.tomorrowEvents.length,
+      tonightMeal: ctx.tonightMeal?.name ?? null,
+      shopCount: ctx.shopCount,
+      openTasks: ctx.openTasks.length,
+      members: ctx.memberNames,
+    }));
+
+    return ctx;
+  }
+
+  // Handle tap on a brief chip — primary sends as user msg, dismissal hides chips
+  function handleBriefChipTap(chip: { label: string; primary?: boolean; dismiss?: boolean }, msgId: string) {
+    if (chip.dismiss) {
+      // Mark brief as dismissed — chip row hides, brief text stays as reference
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, briefDismissed: true } : m));
+      return;
     }
+    // Treat as user message — routes through existing send() so Zaeli tools fire
+    send(chip.label);
   }
 
   // ── Refresh calendar events ────────────────────────────────────────────────
@@ -3767,22 +3744,7 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
       return () => clearTimeout(t);
     }
     if (screen !== 'chat') return;
-    const elapsed = lastBriefTime ? Date.now() - lastBriefTime : Infinity;
-    if (elapsed > 30*60*1000 && messages.length > 0) {
-      setMessages([]);
-      lastImageDesc.current = '';
-      splashOpacity.setValue(1); entryOpacity.setValue(0); chatOpacity.setValue(0);
-      starScale.setValue(0.4); wordmarkOpacity.setValue(0);
-      setScreen('splash');
-      Animated.spring(starScale, { toValue:1, useNativeDriver:true, tension:60, friction:8 }).start();
-      setTimeout(() => Animated.timing(wordmarkOpacity, { toValue:1, duration:500, useNativeDriver:true }).start(), 250);
-      setTimeout(() => {
-        Animated.timing(splashOpacity, { toValue:0, duration:400, useNativeDriver:true })
-          .start(() => { setScreen('chat'); chatOpacity.setValue(1); generateBrief(true); });
-      }, 3000);
-    } else {
-      refreshCalendarEvents();
-    }
+    refreshCalendarEvents();
   }, [params.autoMic, params.seedMessage]));
 
   // ── isActive context check (fires when swipe-world scrolls to chat page) ──
@@ -3792,6 +3754,9 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
     prevIsActive.current = isActive;
     console.log('CHAT: isActive =', isActive, 'justBecameActive =', justBecameActive);
     if (!justBecameActive) return;
+    // Brief check on isActive — only fires if window has changed since last brief.
+    // The duplicate guard + shouldFireBrief() will no-op if same window already fired.
+    if (briefMountFiredRef.current) tryFireBrief({ appJustOpened: false });
     const ctx = getPendingChatContext();
     console.log('CHAT: pending context =', ctx.type);
     if (!ctx.type) return;
@@ -3994,6 +3959,7 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
     const uMsg: Msg = { id:uid(), role:'user', text:text||'', imageUri, ts:nowTs() };
     const history = [...messages, uMsg];
     setMessages(history); setInput(''); setPendingImage(null);
+    lastMessageAtRef.current = Date.now(); // track for brief-firing inactivity check
     if (returnToDashboard) setReturnToDashboard(false);
     isAtBottom.current = true; // force scroll-to-bottom tracking
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 50);
@@ -4318,6 +4284,7 @@ Only include events directly relevant to the question. Max 5 events.`;
     // Reset state and open sheet IMMEDIATELY — don't wait for data
     setCalSheetMonthYear({ month: now.getMonth(), year: now.getFullYear() });
     setCalSheetSelDay(today);
+    setCalSheetUserTapped(false);  // auto-selected, don't show red highlight yet
     setCalSheetTab(tab);
     setCalSheetEditEv(null);
     setCalSheetOpen(true);
@@ -4338,8 +4305,9 @@ Only include events directly relevant to the question. Max 5 events.`;
       .then(({ data }) => setCalSheetMonthEvs(data ?? []));
   }
 
-  async function fetchMonthDayEvents(dateStr: string) {
+  async function fetchMonthDayEvents(dateStr: string, userTapped = true) {
     setCalSheetSelDay(dateStr);
+    setCalSheetUserTapped(userTapped);  // only light up red if user genuinely tapped
     const { data } = await supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', FAMILY_ID).eq('date', dateStr).order('start_time').limit(20);
     setCalSheetDayEvs(data ?? []);
   }
@@ -5413,7 +5381,7 @@ Rules:
               .finally(() => setLoading(false));
           });
         }, 100);
-      } else { generateBrief(true); }
+      } else { tryFireBrief({ appJustOpened: true }); }
     });
   }
 
@@ -5427,6 +5395,54 @@ Rules:
       return true;
     });
     return uniqueMessages.map((msg, i) => {
+      // ── Brief message (dark slate bubble + win banner + chips) ──
+      if (msg.isBrief) {
+        return (
+          <View key={msg.id}>
+            {msg.briefDividerLabel && (
+              <View style={s.briefTimeDivider}>
+                <View style={s.briefDividerLine}/>
+                <Text style={s.briefDividerTxt}>{msg.briefDividerLabel}</Text>
+                <View style={s.briefDividerLine}/>
+              </View>
+            )}
+            <View style={s.briefEyebrow}>
+              <View style={s.briefZaeliStar}>
+                <Svg width={10} height={10} viewBox="0 0 24 24" fill="#0A0A0A" stroke="none">
+                  <Path d="M12 2L14.09 8.26L20 10L14.09 11.74L12 18L9.91 11.74L4 10L9.91 8.26L12 2Z"/>
+                </Svg>
+              </View>
+              <Text style={s.briefZaeliLabel}>Zaeli {'\u00B7'} {msg.ts}</Text>
+            </View>
+            <View style={s.briefBubble}>
+              {msg.isLoading ? (
+                <TypingDots color="rgba(10,10,10,0.5)"/>
+              ) : (
+                <Text style={s.briefText}>{msg.text}</Text>
+              )}
+              {msg.briefWinBanner && !msg.isLoading && (
+                <View style={s.briefWinBanner}>
+                  <Text style={s.briefWinText}>{msg.briefWinBanner}</Text>
+                </View>
+              )}
+            </View>
+            {msg.briefChips && msg.briefChips.length > 0 && !msg.briefDismissed && (
+              <View style={s.briefChipsRow}>
+                {msg.briefChips.map((c, ci) => (
+                  <TouchableOpacity
+                    key={ci}
+                    style={[s.briefChip, c.primary && s.briefChipPrimary]}
+                    onPress={() => handleBriefChipTap(c, msg.id)}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[s.briefChipTxt, c.primary && s.briefChipTxtPrimary]}>{c.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        );
+      }
       if (msg.role === 'user') {
         return (
           <View key={msg.id} style={[s.userMsgWrap, { marginTop:18 }]}>
@@ -5646,67 +5662,6 @@ Rules:
     return hr < 10;
   });
 
-  // ── Render card stack — with stagger animations ──────────────────────────
-  function renderCardStack() {
-    const wrapCard = (node: React.ReactNode, idx: number) => (
-      <Animated.View
-        key={idx}
-        style={{
-          opacity: cardAnims[idx].opacity,
-          transform: [{ translateY: cardAnims[idx].translateY }],
-        }}
-      >
-        {node}
-      </Animated.View>
-    );
-
-    const calCard = (
-      <CalendarCard
-        events={calEvents}
-        isEvening={isEvening}
-        onAdd={() => handleCardAdd('calendar')}
-        onFullCalendar={() => openCalSheet('month')}
-        onEventPress={ev => setSelectedEvent(ev)}
-      />
-    );
-    const wxShopRow = (
-      <View style={{ flexDirection:'row', gap:10 }}>
-        <WeatherCard weather={cardData.weather} isEvening={isEvening}/>
-        <ShoppingCard
-          items={cardData.shopItems}
-          count={cardData.shopCount}
-          onAdd={() => handleCardAdd('shopping')}
-          onFull={() => openShopSheet('list')}
-        />
-      </View>
-    );
-    const actCard = (
-      <ActionsCard
-        todos={cardData.todos}
-        timeState={timeState}
-        tomorrowMorningEvents={tomorrowMorningEvents}
-        onAdd={() => handleCardAdd('actions')}
-        onFull={() => { /* TODO: open Family Tasks sheet */ }}
-        onTick={handleTodoTick}
-      />
-    );
-    const dinCard = (
-      <DinnerCard
-        meals={cardData.meals}
-        timeState={timeState}
-        onPlanMeals={() => openMealSheet('meals')}
-      />
-    );
-
-    // Order by time state, wrap each in stagger anim
-    let cards: React.ReactNode[];
-    if (timeState === 'am')      cards = [calCard, wxShopRow, actCard, dinCard];
-    else if (timeState === 'pm') cards = [dinCard, calCard, actCard, wxShopRow];
-    else                         cards = [calCard, actCard, wxShopRow, dinCard];
-
-    return cards.map((card, idx) => wrapCard(card, idx));
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <View style={[s.root, { backgroundColor: T.bannerBg }]}>
@@ -5882,22 +5837,6 @@ Rules:
                 <View style={[s.dateLine2, { backgroundColor:T.dateLine }]}/>
               </View>
 
-              {/* ── LAVENDER BRIEF CARD ── */}
-              {chatBriefText ? (
-                <View style={{ marginHorizontal:12, marginBottom:12, borderRadius:18, backgroundColor:'#D8CCFF', padding:16, paddingHorizontal:18 }}>
-                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(60,20,140,0.4)', marginBottom:8 }}>{'\u2726'} ZAELI</Text>
-                  <Text style={{ fontFamily:'Poppins_500Medium', fontSize:17, color:'#1A0A40', lineHeight:26, marginBottom:12 }}>{chatBriefText.replace(/\[([^\]]+)\]/g, '$1')}</Text>
-                  <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
-                    {chatBriefChips.map((chip, i) => (
-                      <TouchableOpacity key={i} onPress={() => handleQuickReply(chip)} activeOpacity={0.7}
-                        style={{ backgroundColor:'#fff', borderWidth:1, borderColor:'rgba(10,10,10,0.1)', borderRadius:20, paddingVertical:6, paddingHorizontal:13 }}>
-                        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(10,10,10,0.65)' }}>{chip}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              ) : null}
-
               {/* ── CHAT THREAD ── */}
               {renderMessages()}
             </ScrollView>
@@ -6060,7 +5999,7 @@ Rules:
             if (key === 'kids')    { closeAllSheets(); router.navigate('/(tabs)/kids' as any); return; }
             if (key === 'family')  { closeAllSheets(); router.navigate('/(tabs)/family' as any); return; }
             if (key === 'settings'){ closeAllSheets(); router.navigate('/(tabs)/settings' as any); return; }
-            if (key === 'budget')  { Alert.alert('Our Budget', 'Coming soon — bank feed integration on the way.'); return; }
+            if (key === 'budget')  { closeAllSheets(); router.navigate('/(tabs)/our-budget' as any); return; }
           }}
         />
 
@@ -6196,11 +6135,17 @@ Rules:
                       {/* MONTH TAB */}
                       {calSheetTab === 'month' && (
                         <CalSheetMonthView
+                          userTapped={calSheetUserTapped}
                           monthYear={calSheetMonthYear}
                           onMonthChange={(v) => {
                             setCalSheetMonthYear(v);
-                            setCalSheetSelDay(null);
-                            setCalSheetDayEvs([]);
+                            // Auto-select (invisible — no red highlight): today if current month, else day 1
+                            const now = new Date();
+                            const isCurrentMonth = v.month === now.getMonth() && v.year === now.getFullYear();
+                            const newSelDay = isCurrentMonth
+                              ? localDateStr()
+                              : `${v.year}-${String(v.month+1).padStart(2,'0')}-01`;
+                            fetchMonthDayEvents(newSelDay, false); // userTapped=false → no red highlight
                             fetchMonthDots(v.month, v.year);
                           }}
                           selectedDay={calSheetSelDay}
@@ -8472,26 +8417,12 @@ const s = StyleSheet.create({
   topBarRow:         { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingHorizontal:20, paddingTop:4, paddingBottom:10 },
   topBarDivider:     { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
   topBarRight:       { flexDirection:'row', alignItems:'center', gap:10 },
-  topBarChannelName: { fontFamily:'Poppins_700Bold', fontSize:18, color:'rgba(10,10,10,0.32)' },
+  topBarChannelName: { fontFamily:'Poppins_700Bold', fontSize:17, color:'rgba(10,10,10,0.72)' },
   logoWord:          { fontFamily:'Poppins_800ExtraBold', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:46 },
   avatar:            { width:34, height:34, borderRadius:17, backgroundColor:'#4D8BFF', alignItems:'center', justifyContent:'center' },
   avatarTxt:         { fontFamily:'Poppins_700Bold', fontSize:13, color:'#fff' },
   heroLine:          { fontFamily:'DMSerifDisplay_400Regular', fontSize:26, color:'#0A0A0A', lineHeight:36, letterSpacing:-0.4 },
 
-  // Hero (scrollable) + card stack
-  heroSection:    { backgroundColor:'#FAF8F5', paddingHorizontal:18, paddingTop:16, paddingBottom:14 },
-  overviewToggle: { flexDirection:'row', alignItems:'center', gap:10, paddingHorizontal:18, paddingVertical:8, marginTop:4 },
-  overviewLine:   { flex:1, height:1, backgroundColor:'rgba(0,0,0,0.10)' },
-  overviewBtn:    { flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'rgba(0,0,0,0.055)', borderRadius:20, paddingVertical:5, paddingHorizontal:12 },
-  overviewBtnTxt: { fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.45)' },
-  overviewChevron:{ fontFamily:'Poppins_700Bold', fontSize:10, color:'rgba(0,0,0,0.38)' },
-  // Brief chips — exact match to zaeli-home-cold-open-v1.html spec
-  briefChipsRow:     { flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:14 },
-  briefChip:         { borderWidth:1.5, borderColor:'rgba(0,0,0,0.12)', borderRadius:20, paddingVertical:5, paddingHorizontal:12, backgroundColor:'#fff' },
-  briefChipAccent:   { backgroundColor:'#A8D8F0', borderColor:'transparent' },
-  briefChipTxt:      { fontFamily:'Poppins_600SemiBold', fontSize:11, color:'rgba(0,0,0,0.55)' },
-  briefChipAccentTxt:{ color:'rgba(0,0,0,0.70)' },
-  cardStack:      { paddingHorizontal:14, paddingTop:4, paddingBottom:4, gap:10 },
   cardChatDivider:{ flexDirection:'row', alignItems:'center', marginHorizontal:18, marginTop:4, marginBottom:14, gap:10 },
   dateLine2:      { flex:1, height:1 },
   dateLabel2:     { fontFamily:'Poppins_600SemiBold', fontSize:9, letterSpacing:1.2, textTransform:'uppercase' as const },
@@ -8534,6 +8465,23 @@ const s = StyleSheet.create({
   userMsgWrap: { alignItems:'flex-end', marginBottom:6, paddingHorizontal:18 },
   userBubble:  { borderRadius:16, borderBottomRightRadius:3, paddingHorizontal:13, paddingVertical:9, maxWidth:'82%' as any },
   userMsgText: { fontFamily:'Poppins_400Regular', fontSize:17, lineHeight:27 },
+
+  // ── Brief bubble (dark slate — matches HTML mockup) ──
+  briefTimeDivider:   { flexDirection:'row', alignItems:'center', gap:8, marginHorizontal:20, marginVertical:16 },
+  briefDividerLine:   { flex:1, height:1, backgroundColor:'rgba(10,10,10,0.10)' },
+  briefDividerTxt:    { fontFamily:'Poppins_700Bold', fontSize:11, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(10,10,10,0.42)' },
+  briefEyebrow:       { flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:18, marginBottom:6, marginTop:8 },
+  briefZaeliStar:     { width:16, height:16, borderRadius:5, backgroundColor:'#A8D8F0', alignItems:'center', justifyContent:'center' },
+  briefZaeliLabel:    { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.8, color:'rgba(10,10,10,0.42)' },
+  briefBubble:        { backgroundColor:'#FAC8A8', borderTopLeftRadius:4, borderTopRightRadius:18, borderBottomRightRadius:18, borderBottomLeftRadius:18, paddingVertical:15, paddingHorizontal:17, marginHorizontal:14, marginBottom:10, borderWidth:1, borderColor:'rgba(10,10,10,0.06)' },
+  briefText:          { fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', lineHeight:27 },
+  briefWinBanner:     { backgroundColor:'rgba(184,237,208,0.55)', borderLeftWidth:3, borderLeftColor:'#2D7A52', borderRadius:8, paddingVertical:10, paddingHorizontal:12, marginTop:12 },
+  briefWinText:       { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#2D7A52', lineHeight:22 },
+  briefChipsRow:      { flexDirection:'row', flexWrap:'wrap', gap:7, marginHorizontal:14, marginBottom:14 },
+  briefChip:          { borderWidth:1.5, borderColor:'rgba(10,10,10,0.14)', borderRadius:20, paddingVertical:6, paddingHorizontal:13, backgroundColor:'#fff' },
+  briefChipPrimary:   { backgroundColor:'#FFE4E0', borderColor:'#F5C2BA' },
+  briefChipTxt:       { fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(10,10,10,0.55)' },
+  briefChipTxtPrimary:{ color:'#B83333' },
   msgImage:    { width:'100%' as any, height:180, borderRadius:12, marginBottom:6 },
   msgTime:     { fontFamily:'Poppins_400Regular', fontSize:10 },
   userIconRow: { flexDirection:'row', alignItems:'center', marginTop:4, gap:2, justifyContent:'flex-end' },

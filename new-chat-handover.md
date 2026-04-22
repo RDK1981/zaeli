@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*18 April 2026 — Session 15 ✅ · MoreSheet restructure · Universal chat bar (Tutor style) · Cross-sheet hamburger · Splash polish · Dashboard tap-anywhere · Many modal stacking fixes*
+*22 April 2026 — Session 17 ✅ · Our Budget v2 PURE PLANNER · Settings shipped · Brief polish · Kids Hub keyboard fix · Standard header rule · Old brief code ripped*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,13 +10,36 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 15 was a **polish + UX refinement** session on top of Session 14's architectural rebuild. Many small-but-meaningful fixes. All locked in and tested on device.
+Session 17 was a **big build + strategic pivot** session. Highlights: Settings screen shipped (main/notifications/memory with brief-time pickers), Kids Hub keyboard flash finally fixed, calendar keywords tightened, Our Budget built as v1 then pivoted to v2 **Pure Planner** (no live tracking, mint palette, Option D allocation chart), brief system polished with quiet-day persona + loading placeholder, and a major old-brief cleanup (~380 lines removed after a critical shadowing bug was fixed).
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅ (Session 15)
+## CURRENT STATE — ALL WORKING ✅ (Session 17)
 ## ══════════════════════════════════
+
+### NEW THIS SESSION (Session 17 summary)
+
+**Our Budget v2 — Pure Planner (the big one)**
+- Positioned as a budget PLANNER, not a tracker. Without a bank feed, live tracking lies to users the moment data is stale (confirmed with real test — Nov ATM withdrawals imported as "this month").
+- Fixed categories hold line items (auto-sum). Variable categories have single target. Savings goals forward-looking, manual.
+- AI helper: one-off statement upload (photo or paste) → Zaeli suggests variable averages + detects new categories + detects recurring subscriptions. Accept/Edit/Skip per suggestion. Raw data never stored.
+- Mint palette (Meals-aligned). Option D allocation chart (labelled bar + chips). "Surplus" with peach over-state. Target date picker with Flexible toggle.
+- Supabase wiring → backend pass.
+
+**Settings screen shipped** — 3 views (main/notifications/memory). DateTimePicker modal for brief times. Persistence in AsyncStorage (`zaeli_settings_prefs_v1`). Our Family → back returns to Settings via module-level nav flag.
+
+**AI Brief polish** — quiet-day persona rewrite, black star on sky-blue eyebrow, peach bubble, 17px text, softer coral primary chip, dismiss chip now hides chips.
+
+**CRITICAL brief bug fixed** — a local `generateBrief` function in index.tsx was shadowing the imported one, so `tryFireBrief` was silently calling the OLD GPT brief. Explained the 10s blank screens, ghost calendar cards, and weird two-message briefs. Fixed + all old brief code ripped (~380 lines).
+
+**Kids Hub keyboard flash** — fixed the classic React anti-pattern: JobsTab/etc declared inside KidsHubScreen but rendered as `<JobsTab />`. Every keystroke re-rendered parent → new function identity → subtree remount → keyboard dismisses. Fixed by calling as function expression `{JobsTab()}`.
+
+**Standard header rule** — all pages now use `Poppins_700Bold · 17px · rgba(10,10,10,0.72)` page label and `Poppins_800ExtraBold · 40px` wordmark.
+
+**Calendar keyword tightening** — was matching bare "next week", "today", day names → hijacked unrelated chat responses. Now only intent-bearing phrases ("what's on", "anything on", "when is", etc.) trigger calendar routing.
+
+**Budget access unblocked** — "Coming soon" alert was in 3 places (MoreSheet, Dashboard onAction, Chat onAction). All now route to `/our-budget`.
 
 ### Architecture — 2-page swipe, Chat-first, unified chat bar
 
@@ -298,8 +321,30 @@ Philosophy B's centrepiece. Locked design from Session 9, updated Session 14 to 
 - `_splashShownThisSession` module-level flag prevents splash re-trigger
 - MoreSheet contexts must NOT set `returnTo: 'dashboard'` (was triggering legacy pill)
 
+### New rules Session 17
+- **Our Budget = PURE PLANNER.** Never live tracking. No "spent this month" surfaces. No transaction ledger. Uploads are ephemeral suggestion fuel — only accepted amounts persist.
+- **Our Budget accent = mint** (Meals palette): `#2D7A52` / `#B8EDD0` / `#E6F7EF` / `#C8F0DA`. Savings = sky `#A8D8F0`. Over = peach `#FAC8A8` + `#8A3A00` brown. Never red/alarm.
+- **Our Budget tab label = "Savings"** (not Goals). Individual items still called "goals".
+- **Standard page label**: `Poppins_700Bold · 17px · rgba(10,10,10,0.72)`. Standard wordmark: `Poppins_800ExtraBold · 40px · letterSpacing -1.5 · lineHeight 46`. Applied across Chat / Dashboard / My Space / Tutor / Kids / Family / Settings / Our Budget.
+- **Brief system** — ONLY one `generateBrief` (imported from `lib/brief-generator`). NEVER declare a local function by that name in index.tsx — would shadow silently.
+- **tryFireBrief** pushes a loading placeholder bubble IMMEDIATELY on fire decision, updates in place on Sonnet return. Never blank screen during generation.
+- **Dismiss brief chip** now sets `msg.briefDismissed = true`, chip row hides, text stays in thread.
+- **Component-as-JSX anti-pattern** — NEVER declare sub-components inside a parent function and render as `<X />`. Either hoist out or call as function `{X()}`. Killed keyboards in Kids Hub.
+- **Calendar keywords** — intent-bearing phrases only. Bare time refs (today, next week, Monday) do NOT trigger. Narrative mentions must pass through normal chat.
+- **Settings back-to-settings from Family** — use module-level flag `setFamilyFromSettings()` / `consumeFamilyFrom()` in `lib/navigation-store.ts`. Router params flaky across tab routes.
+- **Settings prefs** — AsyncStorage under `zaeli_settings_prefs_v1` (pre-backend pass).
+- **DateTimePicker** (from `@react-native-community/datetimepicker`) used for both time (Settings brief times, quiet hours) and date (Our Budget goal target date). iOS = spinner in modal; Android = native dialog.
+- **Fixed category budget** = `SUM(line_items.monthlyAmount)` auto-calculated. Variable budget = `monthlyTarget` field. Never mix.
+- **Option D allocation chart** — stacked bar with % labels inside segments + 3 tinted chips below. When over-budget, bar scales to fit 100%, 3rd chip shows `−$X` in peach.
+
 ---
 
 **Read CLAUDE.md fully before starting any code work.**
-**For design HTMLs (in repo root): `zaeli-splash-options.html`, `zaeli-more-sheet-options.html`, `zaeli-chatbar-options.html`, `zaeli-fab-options.html`, `zaeli-dashboard-redesign.html`.**
-**For brief system build: read `zaeli-brief-examples (1).html` in Downloads.**
+**Design HTMLs (in repo root)**: `zaeli-splash-options.html`, `zaeli-more-sheet-options.html`, `zaeli-chatbar-options.html`, `zaeli-fab-options.html`, `zaeli-dashboard-redesign.html`, `zaeli-settings-mockup.html`, `zaeli-budget-v2-mockup.html`, `zaeli-budget-v2-theming.html`.
+**Brief system spec**: `zaeli-brief-examples (1).html` in Downloads.
+
+### Open for next session
+- **Backend pass** — batched: Supabase migrations for budget + settings, push notification scheduling, auth, Stripe, Memory wiring, CSV document picker install, share extension
+- Travel sheet (Phase 19)
+- Tutor session resume (Phase 20)
+- 100 crosswords (parked content task)

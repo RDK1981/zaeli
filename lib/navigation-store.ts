@@ -34,3 +34,14 @@ export function clearPendingChatContext(): void {
 export function hasPendingChatContext(): boolean {
   return _pending.type !== null;
 }
+
+// ── Family screen origin flag ────────────────────────────────────────────
+// When Settings opens Our Family, it sets this so family's back button
+// returns to Settings instead of the default (swipe-world).
+let _familyFrom: 'settings' | null = null;
+export function setFamilyFromSettings(): void { _familyFrom = 'settings'; }
+export function consumeFamilyFrom(): 'settings' | null {
+  const v = _familyFrom;
+  _familyFrom = null;
+  return v;
+}

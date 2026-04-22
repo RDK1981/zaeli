@@ -1392,7 +1392,7 @@ export default function DashboardScreen({ onNavigateChat, onNavigateMySpace, isA
           if (key === 'kids')      { router.navigate('/(tabs)/kids' as any); return; }
           if (key === 'family')    { router.navigate('/(tabs)/family' as any); return; }
           if (key === 'settings')  { router.navigate('/(tabs)/settings' as any); return; }
-          if (key === 'budget')    { Alert.alert('Our Budget', 'Coming soon — bank feed integration on the way.'); return; }
+          if (key === 'budget')    { router.navigate('/(tabs)/our-budget' as any); return; }
           // Tasks / Notes → My Space with Notes & Tasks sheet
           if (key === 'radar') {
             setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'tasks' } as any);
@@ -1430,7 +1430,7 @@ const s = StyleSheet.create({
   topBarDivider: { height:1, backgroundColor:'rgba(10,10,10,0.08)' },
   logoWord:      { fontFamily:'Poppins_800ExtraBold', fontSize:40, color:'#0A0A0A', letterSpacing:-1.5, lineHeight:46 },
   dateLabel:     { fontFamily:'Poppins_700Bold', fontSize:14, color:'#1A1A1A' },
-  pageLabel:     { fontFamily:'Poppins_700Bold', fontSize:14, color:'rgba(10,10,10,0.32)' },
+  pageLabel:     { fontFamily:'Poppins_700Bold', fontSize:17, color:'rgba(10,10,10,0.72)' },
   dashBrief:     { marginHorizontal:0, marginBottom:10, borderRadius:18, backgroundColor:'#FAC8A8', padding:16, paddingHorizontal:18 },
   dashBriefLabel:{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:1, textTransform:'uppercase' as any, color:'rgba(120,50,0,0.45)', marginBottom:8 },
   dashBriefMsg:  { fontFamily:'Poppins_500Medium', fontSize:17, color:'#3A1800', lineHeight:26 },

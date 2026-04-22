@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 18 April 2026 — Session 15 ✅ · MoreSheet restructure · Universal chat bar (Tutor style) · Hamburger cross-sheet nav · Splash polish · Dashboard card tappable · Modal stacking fixes · Many UX polish wins*
+*Last updated: 22 April 2026 — Session 17 ✅ · Brief polish (quiet-day persona, loading bubble) · Settings screen built · Kids Hub keyboard flash fix · Calendar keyword tightening · Our Budget v2 PURE PLANNER (mint palette, Option D chart, line items, AI helper) · Old brief code ripped · Standard header rule*
 
 ---
 
@@ -317,7 +317,7 @@ Family Tasks       = Zaeli Gold #F0DC80 (renamed from Todos)
 Travel             = Ocean Cyan #0096C7 / #A8D8F0
 Notes & Tasks      = Peach #FAC8A8 (My Space — personal)
 Our Family         = Magenta Pink #D4006A
-Our Budget         = Emerald #059669
+Our Budget         = Mint #2D7A52 deep / #B8EDD0 mint / #E6F7EF tint (Session 17 — swapped from Emerald to match Meals palette)
 Settings           = Slate Grey #6B7280
 ```
 
@@ -914,11 +914,181 @@ Follow-up to Session 14's big rebuild. Focus: make everything feel right through
 - `app/components/MoreSheet.tsx` — section restructure (NAVIGATE top, ACCOUNT bottom), bigger icons/fonts, X as SVG, backdrop tap guard, onAction SYNC before onClose
 
 ### Still TO DO from Session 15:
-- Calendar month-view event highlighting glitch (pre-existing, unrelated to this session's work)
-- AI Brief system (4 time windows) — still biggest remaining piece
 - Settings screen
 - Tutor session resume
 - 100 crosswords (parked)
+
+---
+
+## ══════════════════════════════════
+## SESSION 16 — AI BRIEF SYSTEM v2 + CALENDAR FIX (19 April 2026) ✅
+## ══════════════════════════════════
+
+### AI Brief System (Phase 16 — Philosophy B centrepiece)
+
+**Architecture:**
+- **3 time windows** (per CLAUDE.md Session 9): Morning 05:00–11:59 · Midday 12:00–16:59 · Evening 17:00–04:59
+- **Firing logic** — `lib/brief-firing.ts` pure functions:
+  - New day → always fire
+  - Window changed → fire (unless mid-conversation, then HELD)
+  - Same window already fired → skip
+  - Held brief fires on next app open OR 15 min inactivity
+- **Generation** — `lib/brief-generator.ts`:
+  - Check `zaeli_briefs` cache first (family_id + date_key + time_window)
+  - `data_signature` = hash of today/tomorrow events + meal + shop count + tasks. If changed → regen.
+  - Sonnet with prompt caching on system prompt (`cache_control: ephemeral`)
+  - Returns strict JSON: `{ text, chips, winBanner? }`
+  - Persona + format rules baked into system prompt (winning mantra, active credit, banned words)
+- **Chat integration** — briefs render INSIDE the chat feed as Zaeli messages (isBrief: true)
+  - Dark slate bubble `#2D3748` with mint left-border win banner
+  - Coral primary chip + outlined secondary chips + dismissal chip
+  - Time divider ("Midday · 12:31pm") shown above brief ONLY when firing into existing thread
+  - Auto-scroll to bottom on fire
+- **Cost** — ~A$0.01-0.02 per brief with prompt caching. 3 briefs/day stress-tested = ~A$2.50-3.00/family/month
+
+**New files:**
+- `supabase-zaeli-briefs.sql` — migration for zaeli_briefs table (with data_signature + cost tracking)
+- `lib/brief-firing.ts` — shouldFireBrief, currentWindow, windowLabel, hashString
+- `lib/brief-generator.ts` — generateBrief (cache-first), FamilyContext, buildSystemPrompt per window
+
+**Files modified (index.tsx):**
+- Msg type extended with `briefWindow`, `briefChips`, `briefWinBanner`, `briefDividerLabel`
+- `tryFireBrief()` function — unified entry point (called on mount, isActive, 60s timer)
+- `buildBriefContext()` — live Supabase data aggregation
+- `handleBriefChipTap()` — primary chip → send() as user message, dismissal silent
+- Mount effect: 400ms delay then `tryFireBrief({ appJustOpened: true })` + 60s interval for held briefs
+- isActive effect: `tryFireBrief({ appJustOpened: false })`
+- `lastMessageAtRef` tracks user sends for inactivity check
+- Old lavender brief card DISABLED (`false &&` gate) — new brief in feed only
+- Brief bubble styles in StyleSheet (briefBubble, briefWinBanner, briefChip, briefTimeDivider, briefEyebrow, etc.)
+
+**Old brief system:**
+- LandingBrief overlay kept for now (tied to splash landing — separate concern)
+- Old `generateBrief()` still exists but old lavender render gate removed
+- Can fully clean up old brief code once new system proven stable
+
+### Calendar month-view fix (Session 15 carryover)
+- Bug: `null === null` matched spillover cells making every prev/next month day red
+- Fix: explicit null guards on `isToday` + `isSelected`
+- Bug: "Nothing on" section disappeared on month change (selectedDay set to null)
+- Fix: auto-select today (current month) or day 1 (other months), with `userTapped` flag
+- Red circle only shows on genuine user-tap, never on auto-select
+- Today is permanent slate anchor (Option A) — never overridden to red even if tapped
+- Arrow buttons: bigger circular containers (40×40), SVG chevrons, hitSlop 12px
+
+---
+
+## ══════════════════════════════════
+## SESSION 17 — BRIEF POLISH · SETTINGS · KIDS HUB FIX · OUR BUDGET v2 PURE PLANNER (22 April 2026) ✅
+## ══════════════════════════════════
+
+Big session. Brief system polished and critical shadowing bug fixed. Settings shipped. Kids Hub keyboard flash resolved. Our Budget built v1 then pivoted to v2 Pure Planner (no live tracking). Mint palette + Option D allocation chart.
+
+### AI Brief system polish
+- **Quiet-day persona rewrite** ([brief-generator.ts:59](lib/brief-generator.ts:59)) — replaced rules-heavy "BE PROACTIVE" block with "QUIET DAYS — WHERE YOUR PERSONALITY LIVES". Zaeli leads with observation/character before offers. Per-window examples added to morning/midday/evening suffixes.
+- **Eyebrow star** — was sky blue SVG on sky blue tile = invisible. Fill now `#0A0A0A` black.
+- **Bubble colour** — `#F0EDE8` → Dashboard peach `#FAC8A8`.
+- **Font sizing** — briefText 15/24 → 17/27. briefWinText 13/20 → 15/22. Win banner tint bumped to 0.55 alpha so mint stays readable on peach.
+- **Primary chip softer** — `#FF4545` coral fill → `#FFE4E0` soft coral with `#B83333` deep coral text, border `#F5C2BA`.
+- **Dismiss chip works** — was silent. Now sets `msg.briefDismissed = true`, chips hide, brief text stays as reference.
+
+### Brief system CRITICAL bug (fixed Session 17)
+- Root cause: local `async function generateBrief(force, focusHint)` in index.tsx was **shadowing the imported** `generateBrief` from `lib/brief-generator`. `tryFireBrief` was calling the old GPT brief the whole time.
+- Symptoms: 10s blank screen on reload, "Nothing on today" cards appearing after unrelated responses, weird two-message briefs.
+- Fix during investigation: imported as `generateBriefV2`. After deleting the old function entirely, renamed back to `generateBrief`.
+- Also fixed: one orphan caller at `_finishEntry` (line 5379) that would crash with the renamed imported signature.
+
+### Instant brief feedback
+- `tryFireBrief` now pushes a **loading placeholder bubble** (peach bubble + `TypingDots`) immediately, updates in place when Sonnet returns.
+- Dropped the 200ms mount delay — fires the moment chat is ready.
+- On error, placeholder is removed (no stuck empty bubble).
+
+### Old brief system FULL CLEANUP
+- Removed ~380 lines: module-level cache vars · 8 dead state vars (`briefReplies`, `chatBriefText/Chips`, `briefHero`, `briefChips`, `activePill`, `overviewOpen`, `briefSeed`) · `cardAnims` ref + `briefHero` effect · old `generateBrief` function · `generatePostCardPrompt` · `renderCardStack` (never called) · dead lavender brief card JSX · stale-session 30-min splash-replay reset · dead style block (heroSection, overviewToggle, cardStack, shadowed brief chip duplicates).
+- Renamed `generateBriefV2` import back to clean `generateBrief`.
+- Patched orphan call at `_finishEntry` to use `tryFireBrief({ appJustOpened: true })` instead.
+
+### Calendar keyword tightening (bug from chat hijacking bike-hire question)
+- `CALENDAR_KEYWORDS` list narrowed from ~50 entries (including bare "next week", "today", day names, "school", "pickup") to ~20 intent-bearing phrases only.
+- Now triggers only on: "what's on", "anything on", "when is", "coming up", "remind me", "am I busy", etc. Time refs only trigger when paired with intent.
+- Narrative mentions of time no longer hijack chat responses with calendar cards.
+
+### Settings screen built (Phase 18)
+- New file [settings.tsx](app/(tabs)/settings.tsx) — replaces the 16-line stub with full implementation.
+- 3 internal views: `main` / `notifications` / `memory` (no separate routes, state-driven).
+- **Main**: account hero (slate gradient + peach avatar + plan tag), Subscription card (mint), Family row → `/family`, Preferences rows, Data & Privacy, About, Danger (Sign out / Delete).
+- **Notifications**: brief times (Morning/Midday/Evening) — tappable rows open `DateTimePicker` modal. Display as exact time ("6 am", "7:15 am") — never "around". Toggles for reminders, kids activity, quiet hours (expands Start/End pickers when on), sound & vibration.
+- **Memory**: dummy routines / preferences / milestones (Supabase wiring deferred), `×` delete per row, "Let Zaeli learn from chats" toggle, Clear all.
+- Persistence: all toggles/times saved to AsyncStorage under `zaeli_settings_prefs_v1`. Supabase migration in backend pass.
+- MoreSheet → Settings tile already wired in MoreSheet default handler.
+
+### Settings → Our Family back navigation
+- Problem: router params don't reliably survive tab-route navigation in expo-router.
+- Fix: added `setFamilyFromSettings()` + `consumeFamilyFrom()` to [navigation-store.ts](lib/navigation-store.ts). Bulletproof module-level flag (same pattern as `pendingChatContext`).
+- Settings calls `setFamilyFromSettings()` before `router.navigate('/family')`. family.tsx consumes on mount via `useState(() => consumeFamilyFrom())`. `goBack()` checks origin — Settings → `router.navigate('/settings')`, else default `swipe-world`.
+
+### Kids Hub keyboard flash (classic React anti-pattern)
+- Root cause: `JobsTab`, `RewardsTab`, `GamesTab`, `LeaderboardTab`, `Banner`, `ChildSelectView`, `HubHomeView` were functions declared inside `KidsHubScreen` but rendered as JSX elements `<JobsTab />`. Every parent re-render → new function identity → React unmounts/remounts the whole subtree → TextInput unmount → keyboard dismisses → mount → keyboard reopens. Cycle per keystroke.
+- Fix: convert all 7 call sites to function expressions `{JobsTab()}`. JSX becomes plain render result, no remount on parent re-render.
+- Applies any time you declare sub-components inside a parent — either hoist out, or call as function.
+
+### Standard header rule (Session 17 — now locked)
+- **Page label standard**: `Poppins_700Bold · fontSize 17 · color rgba(10,10,10,0.72)` — replaces the mixed 14/18/17 and varying alpha across screens.
+- **Wordmark standard**: `Poppins_800ExtraBold · fontSize 40 · letterSpacing -1.5 · lineHeight 46` — confirmed across family/kids/my-space, now applied to settings (was 26).
+- Applied to: [dashboard.tsx:1433](app/(tabs)/dashboard.tsx:1433), [my-space.tsx:2583](app/(tabs)/my-space.tsx:2583), [index.tsx:8415](app/(tabs)/index.tsx:8415) (`topBarChannelName`), [tutor.tsx:324](app/(tabs)/tutor.tsx:324), [kids.tsx:1555](app/(tabs)/kids.tsx:1555).
+
+### Our Budget v1 built then v2 PIVOT ✅
+
+**v1 build (then superseded)**:
+- Built full 3-tab UI shell (Overview / Categories / Goals) with static seed data, then wired CRUD sheets for income editor, add transaction, add/edit category, add/edit goal.
+- Screenshot upload with Claude Sonnet vision → statement review sheet with confidence thresholds, accept/edit/skip per transaction.
+
+**Strategic pivot — Option B Pure Planner (LOCKED Session 17)**:
+- Richard observed: uploaded November ATM withdrawals got imported as "this month" spend — structural failure of the live-tracking premise without a bank feed (Basiq).
+- Discussed and agreed: without a bank feed, "live spend tracking" lies to users the moment data is stale. Shifted positioning: **Zaeli Our Budget = a family budget PLANNER, not a tracker.**
+- **What's IN**: monthly income streams, fixed categories with line items (auto-sum), variable categories with single target, savings goals (manual, forward-looking), one-off AI helper for budget suggestions (data not persisted).
+- **What's OUT**: live "spent this month" numbers, transaction ledger, status tiles (on track/watch/over), persisted monthly review rows, reality-check banner, add-transaction UI.
+
+**v2 implementation**:
+- Fixed categories hold line items — budget = `SUM(line_items.monthlyAmount)`, auto-calculated. Variable categories have a single `monthlyTarget` field.
+- AI helper produces 3 kinds of suggestions: variable averages (map to existing cats), new variable categories (if pattern doesn't fit), recurring subscription detections (auto-added as line items to Subscriptions category).
+- Paste statement works via Clipboard API. Photo works via ImagePicker + Claude Sonnet vision. CSV/PDF shows install instructions (needs `expo-document-picker` + EAS rebuild).
+- Tab rename: **Goals → Savings**. (Internal items still called "goals".)
+- Hero label: **Spare → Surplus**. Over-budget: shows `−$X`, label becomes "Over", peach coloring.
+- **Target date picker** in EditGoalSheet — Pick-a-month / Flexible toggle. `DateTimePicker` in date mode, stored as "Oct 2025".
+- Mint palette swap (match Meals): `#2D7A52` deep / `#B8EDD0` mint / `#E6F7EF` tint / `#C8F0DA` border. Savings = `#A8D8F0` sky. Over = `#FAC8A8` peach with `#8A3A00` warm brown text.
+- **Allocation chart Option D** — single labelled stacked bar with `%` inside each segment + 3 tinted chips below with dollar amounts. Over state: scales to fit 100%, 3rd chip turns peach with `−$X`. Warm warning note below.
+
+**Budget access fix**: "Coming soon" alert lived in 3 places — [MoreSheet.tsx:213](app/components/MoreSheet.tsx:213), [dashboard.tsx:1395](app/(tabs)/dashboard.tsx:1395), [index.tsx:5997](app/(tabs)/index.tsx:5997). All now route to `/our-budget`.
+
+### HTML mockups produced this session
+- `zaeli-settings-mockup.html` — Settings main + Notifications + Memory detail
+- `zaeli-budget-v2-mockup.html` — Pure Planner redesign (5 frames)
+- `zaeli-budget-v2-theming.html` — mint palette + 4 chart options (Option D picked)
+
+### Files touched this session
+- `app/(tabs)/index.tsx` — brief polish, old brief cleanup, standard page label, calendar keyword tightening, budget access, brief loading placeholder
+- `app/(tabs)/settings.tsx` — full rewrite (~740 lines)
+- `app/(tabs)/family.tsx` — back-to-settings origin detection
+- `app/(tabs)/our-budget.tsx` — NEW (~1700 lines, v2)
+- `app/(tabs)/dashboard.tsx` — standard page label + budget route
+- `app/(tabs)/my-space.tsx` — standard page label
+- `app/(tabs)/tutor.tsx` — standard page label
+- `app/(tabs)/kids.tsx` — standard page label + keyboard flash fix (call-as-function pattern)
+- `app/components/MoreSheet.tsx` — budget tile routes to `/our-budget`
+- `lib/navigation-store.ts` — added `setFamilyFromSettings` / `consumeFamilyFrom`
+- `lib/brief-generator.ts` — quiet-day persona rewrite + per-window examples
+
+### Pending for backend pass (all together)
+- Our Budget: 4 Supabase tables (`income_streams`, `budget_categories`, `category_line_items`, `savings_goals`) + AI helper persists accepted suggestions
+- Settings: `user_preferences` table (migrate from AsyncStorage) + push notification scheduling tied to brief times / quiet hours
+- Account / Auth: Supabase auth user, real name / email / family_members hookup
+- Subscription: Stripe metadata + customer portal WebView
+- Memory: wire Settings → Memory to real `family_insights` / `family_milestones` / `conversation_memory` data
+- Push notification registration for brief times
+- Export data, Clear chat history, Privacy/Terms WebViews
+- Our Budget CSV/PDF: `expo-document-picker` install + dev client rebuild
+- Our Budget share extension: native module, EAS build step
 
 ---
 
@@ -975,12 +1145,19 @@ Phase 15h: Legacy pill         ✅ Session 15 — "← Dashboard" removed from C
 Phase 15i: Chat "Home" label   ✅ Session 15 — renamed from "Chat"
 Phase 15j: Live picker option  ✅ Session 15 — removed, only Camera/Photos now
 
-Phase 16: AI Brief system      🔨 ← BIGGEST remaining piece — 4 time windows, Sonnet, Supabase cache, time-relevant rule
-Phase 17: Our Budget module    🔨 ← Phase 2 (after Basiq response)
-Phase 18: Settings             🔨 ← standalone screen with account, family members, subscription
-Phase 19: Travel sheet         🔨
-Phase 20: Tutor session resume 🔨 ← reload conversation from tutor_messages when resuming active session
-Phase 21: Calendar month glitch 🔨 ← days red but event list empty (pre-existing bug, fix when revisiting Calendar)
+Phase 16: AI Brief system      ✅ Session 16 — 3 windows, Sonnet + prompt caching, zaeli_briefs cache, dark slate bubble in chat feed, data_signature detects drift, held-brief during active chat
+Phase 17a: Our Budget v1       ✅ Session 17 — full UI shell built (3 tabs, CRUD, screenshot vision)
+Phase 17b: Our Budget v2 PIVOT ✅ Session 17 — PURE PLANNER (no live tracking), line items on fixed, single target on variable, AI helper for suggestions only, mint palette, Option D chart, Savings tab
+Phase 18:  Settings            ✅ Session 17 — main/notifications/memory views, DateTimePicker for brief times, AsyncStorage persistence
+Phase 19:  Travel sheet        🔨
+Phase 20:  Tutor session resume 🔨 ← reload conversation from tutor_messages when resuming active session
+Phase 21:  Calendar month glitch ✅ Session 16 — null guard + userTapped flag + today anchor + bigger arrows
+Phase 22:  Brief polish        ✅ Session 17 — quiet-day persona, loading placeholder, black star, peach bubble, softer chip, dismiss works
+Phase 23:  Old brief cleanup   ✅ Session 17 — ~380 lines removed (dead state, old fn, generatePostCardPrompt, renderCardStack, lavender card, stale-session reset)
+Phase 24:  Standard header     ✅ Session 17 — 17px/700Bold/0.72 page label rule · 40px wordmark rule · applied across 5 screens
+Phase 25:  Kids keyboard fix   ✅ Session 17 — component-as-JSX anti-pattern fixed (call as fn)
+Phase 26:  Calendar keywords   ✅ Session 17 — narrowed to intent-bearing phrases, no more bare time-refs hijacking chat
+Phase 27:  Backend pass        🔨 ← batched: Supabase migrations, push notifications, auth, Stripe, memory wiring, CSV document picker, share extension
 ```
 
 ---
@@ -1022,3 +1199,16 @@ Phase 21: Calendar month glitch 🔨 ← days red but event list empty (pre-exis
 - What If mode = zero Supabase writes, nothing persisted, amber banner always visible
 - Our Budget upload: privacy rule — raw statement content never stored
 - Brief model = SONNET always · Chat model = gpt-5.4-mini · Noticed model = gpt-4o-mini
+- Our Budget = PURE PLANNER (Session 17) — NEVER live tracking. No "spent this month" numbers. No transaction ledger. Uploads produce suggestions (ephemeral) or line items (accepted), never a running spend total.
+- Our Budget Fixed categories = line items (auto-sum). Variable categories = single `monthlyTarget`. Never mix.
+- Our Budget tab = "Savings" NOT "Goals" (Session 17 rename). Individual items still called "goals".
+- Our Budget accent = Mint (Meals palette): `#2D7A52` deep / `#B8EDD0` mint / `#E6F7EF` tint / `#C8F0DA` border. Savings cells = sky `#A8D8F0`. Over state = peach `#FAC8A8` + `#8A3A00` brown text. Never red/alarm.
+- Standard page label rule: `Poppins_700Bold · 17px · rgba(10,10,10,0.72)`. Never 14/18 or 0.32/0.35.
+- Wordmark rule: `Poppins_800ExtraBold · 40px · letterSpacing -1.5 · lineHeight 46`. Always.
+- NEVER declare sub-components (JobsTab, etc) inside a parent and render as `<X />` — kills keyboards. Either hoist out OR call as function `{X()}`.
+- Brief system has ONE generator now: `generateBrief` from `lib/brief-generator.ts`. NO local function by that name inside index.tsx — would shadow the import silently.
+- `tryFireBrief` pushes a loading placeholder message IMMEDIATELY (peach bubble + TypingDots), updates in place on Sonnet return. Never a blank screen during brief generation.
+- Calendar keyword trigger list = intent-bearing phrases only. Bare time refs ("next week", "today", day names) DO NOT trigger calendar routing on their own — narrative usage must pass through chat.
+- Module-level nav flags pattern (for tab→tab back-routing): use `lib/navigation-store.ts` setters/consumers. Router params unreliable across tab routes.
+- `@react-native-community/datetimepicker` used for time + date pickers (inline spinner on iOS, native dialog on Android).
+- Settings prefs stored in AsyncStorage under `zaeli_settings_prefs_v1` (pre-backend pass).

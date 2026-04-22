@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 18 April 2026 — Session 15 ✅ · MoreSheet restructure · Universal chat bar · Cross-sheet hamburger · Splash polish · Dashboard tap-anywhere · Many UX polish wins*
+*Last updated: 22 April 2026 — Session 17 ✅ · Our Budget v2 PURE PLANNER pivot · Settings shipped · Brief polish · Kids Hub keyboard fix · Standard header rule · Calendar keyword tightening*
 
 ---
 
@@ -172,18 +172,70 @@ Three tabs: **Meals · Recipes · Favourites**
 ---
 
 ## ══════════════════════════════════
-## OUR BUDGET (Deferred — Session 9)
+## OUR BUDGET — PURE PLANNER (LOCKED Session 17 ✅)
 ## ══════════════════════════════════
 
-Deferred to Phase 2. Upload-only approach without live bank feeds not compelling enough for Dashboard real estate. Basiq enquiry sent — awaiting pricing response.
+### Strategic positioning (Session 17 pivot)
 
-**Current state:** "Coming soon" placeholder in FAB More sheet. Emerald identity `#059669` preserved.
+**What we tried (v1):** Classic live-tracking budget app. Upload statement → parse transactions → show "spent this month vs budget" → status tiles (on track / watch / over) → transaction ledger.
 
-**When to build:** After Basiq (or alternative) pricing confirmed. Direct bank feeds are what make this feature genuinely magical. Upload-only is a half-feature.
+**Why it broke:** Without a bank feed (Basiq / Open Banking), live tracking is a lie. Real families don't upload every week. The moment data is stale, the app misleads them. Richard confirmed this with real data — November ATM withdrawals got imported as "this month" spend, breaking user trust immediately.
 
-**Backup providers researched:** Frollo (enterprise-focused, likely expensive), Adatree, Moneytree. All require CDR accreditation. Basiq remains best fit for consumer fintech.
+**The pivot:** **Our Budget is a PLANNER, not a tracker.** Zaeli helps families *plan* a realistic monthly budget. They *see* it. They *adjust* it. They *work toward* savings goals. She never pretends to know what they spent this month without a real feed.
 
-**Reference:** `zaeli-budget-final.html` — full design + Claude Code spec ready when it's time.
+This is honest positioning. Trades off "daily accountability" (which users drift from anyway) for "planning clarity" (which stays relevant forever).
+
+### What's in (Session 17 build)
+- **Monthly income streams** — per earner, edit any, combined total
+- **Fixed categories with line items** — families enumerate actual commitments (Netflix $22, Spotify $12, iCloud $5...). Budget = sum, auto-calculated. Different families have wildly different lists, so itemisation matters.
+- **Variable categories with a single target** — Groceries $450, Dining $250. Estimates, not enumerations.
+- **Savings goals** — forward-looking, manual progress. User updates "saved so far" when they move money.
+- **One-off AI helper** — "Help me set realistic budgets". Upload a statement → Zaeli produces 3 kinds of suggestions: (1) variable category averages to accept/edit/skip, (2) new categories detected (e.g. "Fuel"), (3) recurring subscriptions detected → added as line items. **Raw statement content never stored** — only accepted amounts persist.
+
+### What's out (deliberately removed)
+- Live "spent this month" numbers
+- Transaction ledger / per-category history
+- Status tiles (on track / watch / over)
+- Monthly review rows / spent-vs-budget surfaces
+- Add transaction UI
+- Reality-check banner
+
+### Zaeli's value in the planner model
+- Setup nudges when categories are empty — "Want help setting realistic budgets?"
+- Plan quality commentary — "74% budgeted, 15% savings rate — strong plan"
+- Comparative nudges — "Groceries at $450 is low for 5 people. Typical is $520-580."
+- Goal nudges — "$50 more per month finishes Noosa by July."
+- Future: What-If mode (pay rise / part time / remove car loan) — pure math, no tracking
+
+### UI spec (Session 17 v2)
+- **3 tabs**: Overview · Categories · Savings (renamed from Goals)
+- **Overview hero**: monthly income ($48px) + Expenses / Savings / Surplus grid
+- **Allocation chart (Option D)**: labelled stacked bar with `%` inside each segment + 3 tinted chips below with dollar amounts. Over state: peach chip + warm warning.
+- **Your Expenses** section: Fixed row + Variable row (tap to go to Categories tab)
+- **Your Savings** section: Goals row (tap to go to Savings tab)
+- **AI helper** CTA at bottom: dashed mint border
+- **Fixed category detail**: line items list, auto-sum budget, + Add line item
+- **Variable category detail**: single editable monthly target
+- **Savings tab**: goal cards with saved/target/contribution/date stats, tap to edit
+
+### Palette (Meals-aligned, Session 17)
+- Primary: `#2D7A52` deep green (Meals palette) — replaces emerald `#059669`
+- Accent: `#B8EDD0` mint (wordmark `a+i`, surplus, AI helper icon)
+- Card tint: `#E6F7EF`
+- Border tint: `#C8F0DA`
+- Savings: `#A8D8F0` sky (My Space palette)
+- Over/warning: `#FAC8A8` peach (Notes palette) + `#8A3A00` brown text — warm, not alarm red
+- Destructive (delete): `#C53030` kept for Delete Category / Delete Goal
+
+### Basiq status (unchanged)
+Bank feed integration still on the roadmap for Phase 2+. A feed would unlock:
+- Optional retrospective "reality check" feature ("last 3 months you averaged $520 on groceries — raise to $520?")
+- Accurate What-If sandbox
+- Possibly automatic line-item refresh for fixed categories (detects subscription price changes)
+
+But the pure planner is now the baseline product — Basiq becomes an enhancement, not a requirement.
+
+**Reference HTML**: `zaeli-budget-v2-mockup.html` (planner design) + `zaeli-budget-v2-theming.html` (mint palette + 4 chart options → D picked).
 
 ---
 
@@ -236,7 +288,7 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 - Dashboard: 'a' + 'i' = peach `#FAC8A8`
 - Chat: 'a' + 'i' = lavender `#C4B4FF`
 - My Space: 'a' + 'i' = sky blue `#A8D8F0`
-- Our Budget: 'a' + 'i' = emerald `#059669`
+- Our Budget: 'a' + 'i' = mint `#B8EDD0` (Session 17 — swapped from emerald to Meals palette)
 
 ---
 
@@ -309,7 +361,7 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 32. 🔨 EAS build + TestFlight
 33. 🔨 LANDING_TEST_MODE = false
 34. 🔨 Settings (account, family members, subscription)
-35. 🔨 Our Budget — if Basiq confirmed
+35. ✅ Our Budget v2 Pure Planner built (Session 17 — no live tracking, line items + targets, AI helper for suggestions)
 36. ✅ Nav architecture review — EXECUTED Session 14 (Chat-first, FAB killed, hamburger)
 
 ### Phase C — Make it launchable
@@ -370,8 +422,8 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 - [x] Kids Hub ✅ (Session 12 — built, Session 13 — trimmed to 3 games, crossword fixed)
 - [x] Tutor module ✅ (Session 13 — 6 pillars, ACARA curriculum, AI summaries, parent views)
 - [x] Our Family ✅ (Session 12 — v2 tabs, Session 13 — live tutor progress + session review)
-- [ ] Settings
-- [ ] Our Budget (pending Basiq)
+- [x] Settings ✅ (Session 17 — main/notifications/memory, DateTimePicker for brief times, AsyncStorage)
+- [x] Our Budget ✅ (Session 17 — v2 Pure Planner, mint palette, Option D chart, AI helper with paste + photo)
 - [ ] Zaeli Voice (ElevenLabs)
 - [ ] Push notifications
 - [ ] Gmail + Outlook Calendar integration

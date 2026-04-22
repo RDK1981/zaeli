@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Zaeli · Settings — Design Mockup v1</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Poppins', -apple-system, sans-serif; background: #EFEBE4; color: #0A0A0A; padding: 40px 20px 80px; }
+  .top { max-width: 1400px; margin: 0 auto 40px; }
+  .top h1 { font-family: 'Poppins'; font-weight: 800; font-size: 32px; letter-spacing: -0.5px; }
+  .top h1 span { color: #6B7280; }
+  .top p { font-weight: 400; font-size: 15px; color: rgba(10,10,10,0.55); margin-top: 8px; max-width: 720px; line-height: 22px; }
+  .frames { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; }
+
+  /* Phone frame */
+  .phone { width: 390px; height: 844px; border-radius: 44px; background: #FAF8F5; box-shadow: 0 40px 80px rgba(0,0,0,0.15), 0 0 0 12px #1a1a1a, 0 0 0 14px #333; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .phone-label { position: absolute; bottom: -34px; width: 100%; text-align: center; font-weight: 700; font-size: 12px; color: rgba(10,10,10,0.5); letter-spacing: 1px; text-transform: uppercase; }
+  .frame-wrap { position: relative; }
+
+  /* Status bar */
+  .status { display: flex; justify-content: space-between; padding: 14px 28px 4px; font-weight: 600; font-size: 14px; }
+  .status .right { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px 14px; border-bottom: 1px solid rgba(10,10,10,0.07); }
+  .wordmark-row { display: flex; align-items: center; gap: 10px; }
+  .back { width: 32px; height: 32px; border-radius: 10px; background: rgba(10,10,10,0.06); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: rgba(10,10,10,0.6); }
+  .wordmark { font-family: 'Poppins'; font-weight: 800; font-size: 26px; letter-spacing: -0.5px; }
+  .wordmark em { color: #A8D8F0; font-style: normal; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .page-label { font-weight: 700; font-size: 17px; color: rgba(10,10,10,0.7); }
+  .hamburger { width: 42px; height: 42px; border-radius: 12px; background: rgba(10,10,10,0.06); display: flex; align-items: center; justify-content: center; gap: 4px; flex-direction: column; }
+  .hamburger span { width: 20px; height: 2.2px; background: #0A0A0A; border-radius: 2px; }
+
+  /* Scroll body */
+  .scroll { flex: 1; overflow-y: auto; padding: 18px 0 60px; }
+
+  /* Section */
+  .sec-label { font-weight: 700; font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; color: rgba(10,10,10,0.42); padding: 18px 22px 8px; }
+  .group { background: #FFFFFF; border-radius: 16px; margin: 0 14px 18px; overflow: hidden; border: 1px solid rgba(10,10,10,0.05); }
+
+  /* Row */
+  .row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid rgba(10,10,10,0.06); cursor: pointer; }
+  .row:last-child { border-bottom: none; }
+  .row-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .row-body { flex: 1; }
+  .row-title { font-weight: 600; font-size: 15px; color: #0A0A0A; }
+  .row-sub { font-weight: 400; font-size: 13px; color: rgba(10,10,10,0.5); margin-top: 2px; }
+  .row-val { font-weight: 500; font-size: 13px; color: rgba(10,10,10,0.5); margin-right: 4px; }
+  .row-chev { font-size: 18px; color: rgba(10,10,10,0.3); font-weight: 400; }
+
+  /* Toggle */
+  .toggle { width: 44px; height: 26px; border-radius: 14px; background: rgba(10,10,10,0.15); position: relative; transition: all 0.2s; }
+  .toggle.on { background: #34C759; }
+  .toggle::after { content: ''; position: absolute; width: 22px; height: 22px; border-radius: 50%; background: #FFFFFF; top: 2px; left: 2px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.18); }
+  .toggle.on::after { left: 20px; }
+
+  /* Account row special (top highlight) */
+  .account-hero { background: linear-gradient(135deg, #2D3748 0%, #4A5568 100%); margin: 0 14px 22px; border-radius: 20px; padding: 18px 20px; color: #FFFFFF; display: flex; align-items: center; gap: 14px; }
+  .account-avatar { width: 54px; height: 54px; border-radius: 16px; background: #FAC8A8; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 22px; color: #0A0A0A; }
+  .account-info { flex: 1; }
+  .account-name { font-weight: 700; font-size: 17px; }
+  .account-email { font-weight: 400; font-size: 13px; color: rgba(255,255,255,0.7); margin-top: 2px; }
+  .account-plan-tag { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 10px; background: rgba(184,237,208,0.25); color: #B8EDD0; font-weight: 700; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; }
+
+  /* Plan card (subscription) */
+  .plan-card { background: linear-gradient(135deg, #E6FBEF 0%, #B8EDD0 100%); margin: 0 14px 18px; border-radius: 18px; padding: 18px 20px; }
+  .plan-label { font-weight: 700; font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: #2D7A52; }
+  .plan-name { font-weight: 800; font-size: 20px; color: #0A0A0A; margin-top: 4px; }
+  .plan-price { font-weight: 600; font-size: 14px; color: rgba(10,10,10,0.6); margin-top: 3px; }
+  .plan-extras { font-weight: 500; font-size: 12px; color: rgba(10,10,10,0.5); margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(45,122,82,0.18); }
+  .plan-btn { margin-top: 12px; background: #2D7A52; color: #FFFFFF; border: none; border-radius: 12px; padding: 10px 16px; font-family: 'Poppins'; font-weight: 600; font-size: 14px; width: 100%; }
+
+  /* Danger zone */
+  .danger-row .row-title { color: #C53030; }
+  .danger-row .row-ico { background: rgba(197,48,48,0.1); }
+
+  /* Notes panel */
+  .notes { max-width: 1400px; margin: 80px auto 0; background: #FFFFFF; border-radius: 18px; padding: 32px 36px; border: 1px solid rgba(10,10,10,0.06); }
+  .notes h2 { font-weight: 800; font-size: 22px; margin-bottom: 18px; letter-spacing: -0.3px; }
+  .notes h3 { font-weight: 700; font-size: 14px; margin-top: 22px; margin-bottom: 8px; color: #0A0A0A; text-transform: uppercase; letter-spacing: 1px; }
+  .notes p, .notes li { font-weight: 400; font-size: 14px; color: rgba(10,10,10,0.72); line-height: 22px; }
+  .notes ul { padding-left: 20px; margin-top: 6px; }
+  .notes li { margin-bottom: 4px; }
+  .notes code { background: rgba(10,10,10,0.06); padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono', monospace; font-size: 12px; }
+  .note-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .note-block { padding: 20px; background: #FAF8F5; border-radius: 14px; border-left: 3px solid #6B7280; }
+  .note-block h3 { margin-top: 0; }
+
+  /* Ico tinted bgs */
+  .ico-account { background: #E3F2FD; color: #1976D2; }
+  .ico-plan { background: #E6FBEF; color: #2D7A52; }
+  .ico-family { background: #FFE4F1; color: #D4006A; }
+  .ico-notif { background: #FFF4E0; color: #D97706; }
+  .ico-ai { background: #EDE8FF; color: #6B35D9; }
+  .ico-data { background: #FFE4E0; color: #B83333; }
+  .ico-integ { background: #E0F7FA; color: #00838F; }
+  .ico-about { background: rgba(10,10,10,0.06); color: #0A0A0A; }
+  .ico-dev { background: #1C2330; color: #B8EDD0; }
+
+  /* Pinned sign out */
+  .sign-out { margin: 12px 14px 0; background: #FFFFFF; border-radius: 16px; padding: 14px; text-align: center; font-weight: 600; color: #C53030; font-size: 15px; border: 1px solid rgba(10,10,10,0.05); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>Zaeli <span>· Settings — Design Mockup v1</span></h1>
+  <p>Standalone full-screen route (per architecture), accessed via MoreSheet → Settings tile. Slate grey accent. iOS-native grouped-list pattern. Hamburger stays top-right so cross-nav to other screens still works. Back arrow returns to Chat. Below: 3 phone frames (main + 2 sub-screens) + build notes.</p>
+</div>
+
+<div class="frames">
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- FRAME 1 — Main Settings screen                                  -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row">
+          <div class="back">‹</div>
+          <div class="wordmark">z<em>a</em>el<em>i</em></div>
+        </div>
+        <div class="header-right">
+          <div class="page-label">Settings</div>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="scroll">
+
+        <!-- Account hero -->
+        <div class="account-hero">
+          <div class="account-avatar">R</div>
+          <div class="account-info">
+            <div class="account-name">Rich de Kretser</div>
+            <div class="account-email">richarddekretser@gmail.com</div>
+            <div class="account-plan-tag">Family plan · Active</div>
+          </div>
+        </div>
+
+        <!-- Subscription -->
+        <div class="sec-label">Subscription</div>
+        <div class="plan-card">
+          <div class="plan-label">Current plan</div>
+          <div class="plan-name">Family</div>
+          <div class="plan-price">A$14.99 / month · next billed 17 May</div>
+          <div class="plan-extras">+ Tutor add-on · Poppy · A$9.99/month</div>
+          <button class="plan-btn">Manage subscription</button>
+        </div>
+
+        <!-- Family -->
+        <div class="sec-label">Family</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-family">👨‍👩‍👧‍👦</div>
+            <div class="row-body">
+              <div class="row-title">Our Family</div>
+              <div class="row-sub">Anna, Poppy, Gab, Duke</div>
+            </div>
+            <div class="row-chev">›</div>
+          </div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="sec-label">Preferences</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-notif">🔔</div>
+            <div class="row-body">
+              <div class="row-title">Notifications</div>
+              <div class="row-sub">Briefs, reminders, kids, shopping</div>
+            </div>
+            <div class="row-chev">›</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-ai">✦</div>
+            <div class="row-body">
+              <div class="row-title">Zaeli's memory</div>
+              <div class="row-sub">What I remember about your family</div>
+            </div>
+            <div class="row-chev">›</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-integ">🔗</div>
+            <div class="row-body">
+              <div class="row-title">Integrations</div>
+              <div class="row-sub">Calendar, health, school portals</div>
+            </div>
+            <div class="row-val">2 active</div>
+            <div class="row-chev">›</div>
+          </div>
+        </div>
+
+        <!-- Data & Privacy -->
+        <div class="sec-label">Data &amp; Privacy</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-data">📥</div>
+            <div class="row-body">
+              <div class="row-title">Export your data</div>
+              <div class="row-sub">Calendar, meals, shopping, notes</div>
+            </div>
+            <div class="row-chev">›</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-data">🗑️</div>
+            <div class="row-body">
+              <div class="row-title">Clear chat history</div>
+              <div class="row-sub">Keep your data, reset Zaeli's thread</div>
+            </div>
+            <div class="row-chev">›</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-data">🛡️</div>
+            <div class="row-body">
+              <div class="row-title">Privacy policy</div>
+            </div>
+            <div class="row-chev">›</div>
+          </div>
+        </div>
+
+        <!-- About -->
+        <div class="sec-label">About</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-about">💬</div>
+            <div class="row-body">
+              <div class="row-title">Help &amp; support</div>
+            </div>
+            <div class="row-chev">›</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-about">⭐</div>
+            <div class="row-body">
+              <div class="row-title">Rate Zaeli</div>
+            </div>
+            <div class="row-chev">›</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-about">📜</div>
+            <div class="row-body">
+              <div class="row-title">Terms of service</div>
+            </div>
+            <div class="row-chev">›</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-about">ℹ️</div>
+            <div class="row-body">
+              <div class="row-title">Version</div>
+            </div>
+            <div class="row-val">1.0.0 (build 156)</div>
+          </div>
+        </div>
+
+        <!-- Danger -->
+        <div class="group">
+          <div class="row danger-row">
+            <div class="row-ico">🚪</div>
+            <div class="row-body">
+              <div class="row-title">Sign out</div>
+            </div>
+          </div>
+          <div class="row danger-row">
+            <div class="row-ico">⚠️</div>
+            <div class="row-body">
+              <div class="row-title">Delete account</div>
+              <div class="row-sub">Permanent — all family data removed</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="phone-label">Main Settings</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- FRAME 2 — Notifications detail                                  -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row">
+          <div class="back">‹</div>
+          <div class="wordmark">z<em>a</em>el<em>i</em></div>
+        </div>
+        <div class="header-right">
+          <div class="page-label">Notifications</div>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="scroll">
+        <div class="sec-label">Zaeli's briefs</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-notif">🌅</div>
+            <div class="row-body">
+              <div class="row-title">Morning brief</div>
+              <div class="row-sub">Around 7:00 am</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-notif">☀️</div>
+            <div class="row-body">
+              <div class="row-title">Midday brief</div>
+              <div class="row-sub">Around 12:30 pm</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-notif">🌙</div>
+            <div class="row-body">
+              <div class="row-title">Evening brief</div>
+              <div class="row-sub">Around 6:30 pm</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div class="sec-label">Reminders</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-plan">📅</div>
+            <div class="row-body">
+              <div class="row-title">Calendar events</div>
+              <div class="row-sub">10 min before start</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-plan">🛒</div>
+            <div class="row-body">
+              <div class="row-title">Shopping low stock</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-plan">🍽️</div>
+            <div class="row-body">
+              <div class="row-title">Dinner not planned</div>
+              <div class="row-sub">5pm if nothing locked in</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div class="sec-label">Kids activity</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-family">🏆</div>
+            <div class="row-body">
+              <div class="row-title">Job completion approvals</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-family">🎁</div>
+            <div class="row-body">
+              <div class="row-title">Reward redemption requests</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div class="sec-label">Quiet hours</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-about">🌒</div>
+            <div class="row-body">
+              <div class="row-title">Do not disturb</div>
+              <div class="row-sub">9:30 pm — 6:30 am</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div class="sec-label">Sound &amp; vibration</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-about">🔉</div>
+            <div class="row-body">
+              <div class="row-title">Play sound</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-about">📳</div>
+            <div class="row-body">
+              <div class="row-title">Vibration</div>
+            </div>
+            <div class="toggle"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Notifications</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- FRAME 3 — Zaeli's memory detail                                 -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="status"><span>9:41</span><div class="right">●●●●● ▮▮</div></div>
+      <div class="header">
+        <div class="wordmark-row">
+          <div class="back">‹</div>
+          <div class="wordmark">z<em>a</em>el<em>i</em></div>
+        </div>
+        <div class="header-right">
+          <div class="page-label">Memory</div>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+
+      <div class="scroll">
+        <div style="padding: 14px 22px 4px;">
+          <div style="font-weight:600; font-size:14px; color:rgba(10,10,10,0.72); line-height:22px;">Here's what I've picked up about your family so far. You can remove anything — it's your life.</div>
+        </div>
+
+        <div class="sec-label">Routines</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-ai">🏃</div>
+            <div class="row-body">
+              <div class="row-title">Gab's soccer · Tuesdays 4pm</div>
+              <div class="row-sub">Observed over 6 weeks</div>
+            </div>
+            <div class="row-chev">×</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-ai">📚</div>
+            <div class="row-body">
+              <div class="row-title">Poppy's library day · Fridays</div>
+              <div class="row-sub">Mentioned 3 times</div>
+            </div>
+            <div class="row-chev">×</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-ai">🍝</div>
+            <div class="row-body">
+              <div class="row-title">Friday night pasta tradition</div>
+              <div class="row-sub">6 weeks running</div>
+            </div>
+            <div class="row-chev">×</div>
+          </div>
+        </div>
+
+        <div class="sec-label">Preferences</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-ai">🥗</div>
+            <div class="row-body">
+              <div class="row-title">Duke dislikes capsicum</div>
+              <div class="row-sub">Stored from chat</div>
+            </div>
+            <div class="row-chev">×</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-ai">🎿</div>
+            <div class="row-body">
+              <div class="row-title">Poppy into skiing this winter</div>
+            </div>
+            <div class="row-chev">×</div>
+          </div>
+        </div>
+
+        <div class="sec-label">Milestones</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-ai">🎂</div>
+            <div class="row-body">
+              <div class="row-title">Duke's 8th birthday · 14 March</div>
+            </div>
+            <div class="row-chev">×</div>
+          </div>
+          <div class="row">
+            <div class="row-ico ico-ai">🏖️</div>
+            <div class="row-body">
+              <div class="row-title">Bali family trip · July 2026</div>
+            </div>
+            <div class="row-chev">×</div>
+          </div>
+        </div>
+
+        <div class="sec-label">Controls</div>
+        <div class="group">
+          <div class="row">
+            <div class="row-ico ico-ai">✦</div>
+            <div class="row-body">
+              <div class="row-title">Let Zaeli learn from chats</div>
+              <div class="row-sub">Pick up routines, tastes, plans</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row danger-row">
+            <div class="row-ico">🗑️</div>
+            <div class="row-body">
+              <div class="row-title">Clear everything Zaeli remembers</div>
+              <div class="row-sub">Starts with a blank page</div>
+            </div>
+            <div class="row-chev">›</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">Zaeli's Memory</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- Design notes                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="notes">
+  <h2>Build notes</h2>
+
+  <div class="note-grid">
+    <div class="note-block">
+      <h3>Scope v1</h3>
+      <ul>
+        <li><strong>Account hero</strong> — avatar, name, email, plan tag</li>
+        <li><strong>Subscription card</strong> — plan, price, next bill, add-ons, manage</li>
+        <li><strong>Family</strong> — single row, opens Our Family</li>
+        <li><strong>Notifications</strong> — full sub-screen (frame 2)</li>
+        <li><strong>Zaeli's memory</strong> — full sub-screen (frame 3)</li>
+        <li><strong>Integrations</strong> — placeholder row, v2 scope</li>
+        <li><strong>Data &amp; Privacy</strong> — export, clear chat, privacy policy</li>
+        <li><strong>About</strong> — help, rate, terms, version</li>
+        <li><strong>Danger zone</strong> — sign out, delete account</li>
+      </ul>
+    </div>
+
+    <div class="note-block">
+      <h3>Pattern rules</h3>
+      <ul>
+        <li><strong>Standalone full-screen route</strong> — <code>app/(tabs)/settings.tsx</code></li>
+        <li>Back arrow in header = <code>router.back()</code> to Chat</li>
+        <li>Hamburger opens MoreSheet (cross-nav consistency)</li>
+        <li>Accent colour <code>#6B7280</code> slate (channel convention)</li>
+        <li>iOS-grouped lists: white cards, 16px radius, divider lines</li>
+        <li>Toggle = native iOS style, green <code>#34C759</code> on</li>
+        <li>Row icon tile: 34×34, 10px radius, tinted bg per section</li>
+      </ul>
+    </div>
+
+    <div class="note-block">
+      <h3>Data sources</h3>
+      <ul>
+        <li><strong>Account</strong> — Supabase auth user + <code>family_members</code> where name = 'Rich'</li>
+        <li><strong>Subscription</strong> — Stripe metadata (via backend when web sales live) · placeholder "Family · A$14.99" for now</li>
+        <li><strong>Notifications toggles</strong> — new <code>user_preferences</code> table (user_id, key, value) OR AsyncStorage for v1</li>
+        <li><strong>Zaeli's memory</strong> — reads <code>family_insights</code> + <code>family_milestones</code> + <code>conversation_memory</code>. Delete row = soft delete with confirmation</li>
+        <li><strong>Integrations</strong> — future — Apple Calendar, Google Calendar, HealthKit</li>
+      </ul>
+    </div>
+
+    <div class="note-block">
+      <h3>Sub-screens not mocked</h3>
+      <ul>
+        <li><strong>Manage subscription</strong> — opens Stripe customer portal in WebView (post-launch)</li>
+        <li><strong>Integrations</strong> — toggles for each integration + auth flow</li>
+        <li><strong>Export your data</strong> — generates JSON/ZIP, shares via iOS share sheet</li>
+        <li><strong>Clear chat history</strong> — confirmation modal, deletes <code>messages</code> rows</li>
+        <li><strong>Privacy policy / Terms</strong> — WebView to zaeli.app/privacy</li>
+        <li><strong>Help &amp; support</strong> — opens email or in-app Zaeli chat with support context</li>
+        <li><strong>Delete account</strong> — hard confirmation flow, then cascade delete</li>
+      </ul>
+    </div>
+
+    <div class="note-block">
+      <h3>Open questions for Richard</h3>
+      <ul>
+        <li>Do we want a <strong>Voice preferences</strong> row (auto-mic on open, default language)?</li>
+        <li>Do we show the <strong>AI engine toggle</strong> in Settings (for internal testing) or keep it hidden?</li>
+        <li><strong>Quiet hours</strong> — a single range OK or do we need weekday/weekend split?</li>
+        <li><strong>Manage subscription</strong> — direct to Stripe or intermediate screen first showing plan details + change/cancel?</li>
+        <li><strong>Profile photo</strong> — allow upload, or stick with initial avatar?</li>
+      </ul>
+    </div>
+
+    <div class="note-block">
+      <h3>Supabase migration needed</h3>
+      <ul>
+        <li><code>user_preferences</code> table (user_id, pref_key, pref_value, updated_at) — stores all toggles</li>
+        <li>Defaults: all notifications on, quiet hours 21:30-06:30, sound on, vibration off</li>
+        <li><code>family_insights</code> — add <code>is_dismissed</code> column so user can hide without delete</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
