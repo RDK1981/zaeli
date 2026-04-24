@@ -22,6 +22,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setFamilyFromSettings } from '../../lib/navigation-store';
+import { STOPS as TOUR_STOPS, TOTAL_STOPS as TOUR_TOTAL, replayFromStart, replayStop, loadTourState, isCompleted as tourIsCompleted, getState as getTourState } from '../../lib/tour-state';
+import { loadInvites, getPendingInvites, markAccepted } from '../../lib/invite-state';
+import { resetToOwner } from '../../lib/account-state';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import MoreSheet from '../components/MoreSheet';
@@ -40,13 +43,12 @@ const DANGER  = '#C53030';
 const SUCCESS = '#34C759';
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type View = 'main' | 'notifications' | 'memory';
+type View = 'main' | 'notifications' | 'memory' | 'tour';
 interface Prefs {
+  // Brief system = 2 windows (Session 19 — midday dropped)
   briefMorningTime: string;   // 'HH:MM' 24h
-  briefMiddayTime:  string;
   briefEveningTime: string;
   briefMorningOn:   boolean;
-  briefMiddayOn:    boolean;
   briefEveningOn:   boolean;
   calendarNotif:    boolean;
   shoppingLowNotif: boolean;
@@ -63,10 +65,8 @@ interface Prefs {
 
 const DEFAULT_PREFS: Prefs = {
   briefMorningTime: '07:00',
-  briefMiddayTime:  '12:30',
   briefEveningTime: '18:30',
   briefMorningOn:   true,
-  briefMiddayOn:    true,
   briefEveningOn:   true,
   calendarNotif:    true,
   shoppingLowNotif: true,
@@ -297,7 +297,11 @@ export default function SettingsScreen() {
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
-  const pageLabel = view === 'main' ? 'Settings' : view === 'notifications' ? 'Notifications' : 'Memory';
+  const pageLabel =
+    view === 'main' ? 'Settings'
+    : view === 'notifications' ? 'Notifications'
+    : view === 'memory' ? 'Memory'
+    : 'Replay tour';
   const handleBack = () => {
     if (view !== 'main') setView('main');
     else router.back();
@@ -313,10 +317,47 @@ export default function SettingsScreen() {
           prefs={prefs}
           onNavNotifications={() => setView('notifications')}
           onNavMemory={() => setView('memory')}
+          onNavTour={() => setView('tour')}
           onPlaceholder={handleRowPlaceholder}
           onSignOut={() => Alert.alert('Sign out', 'Sign out flow comes with account auth wiring.')}
           onDelete={() => Alert.alert('Delete account', 'Destructive flow — confirmation + cascade delete will live here.')}
           onOurFamily={() => { setFamilyFromSettings(); router.navigate('/(tabs)/family' as any); }}
+          onReplayOnboarding={async () => {
+            // Clear the completion flag so any future auto-redirect gate also fires,
+            // then navigate. Matches fresh-install behaviour for testing.
+            try { await AsyncStorage.removeItem('onboarding_complete'); } catch {}
+            router.navigate('/onboarding' as any);
+          }}
+          onSimulateInviteAccept={async () => {
+            await loadInvites();
+            const pending = getPendingInvites();
+            if (pending.length === 0) {
+              Alert.alert('No pending invites', 'Send one first from Our Family → + Invite, then tap this row again.');
+              return;
+            }
+            const oldest = [...pending].sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+            await markAccepted(oldest.token);
+            Alert.alert(
+              `${oldest.name} just accepted`,
+              `Open Home — Zaeli will surface a heads-up message in the chat.`,
+              [{ text: 'OK' }],
+            );
+          }}
+          onOpenLatestInvite={async () => {
+            await loadInvites();
+            const pending = getPendingInvites();
+            if (pending.length === 0) {
+              Alert.alert('No pending invites', 'Send one first from Our Family → + Invite, then tap this row again.');
+              return;
+            }
+            const newest = [...pending].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+            router.navigate(`/invite/${newest.token}` as any);
+          }}
+          onResetAccount={async () => {
+            await resetToOwner();
+            try { await AsyncStorage.removeItem('onboarding_just_completed'); } catch {}
+            Alert.alert('Reset', 'Switched back to the owner account (Rich).');
+          }}
         />
       )}
 
@@ -341,6 +382,19 @@ export default function SettingsScreen() {
               { text: 'Clear', style: 'destructive', onPress: () => Alert.alert('Done', 'Memory cleared (wiring coming when we move to Supabase).') },
             ],
           )}
+        />
+      )}
+
+      {loaded && view === 'tour' && (
+        <TourReplayView
+          onStartFull={async () => {
+            await replayFromStart();
+            router.navigate('/tour' as any);
+          }}
+          onJumpToStop={async (n: number) => {
+            await replayStop(n);
+            router.navigate('/tour' as any);
+          }}
         />
       )}
 
@@ -398,10 +452,15 @@ function MainView(p: {
   prefs: Prefs;
   onNavNotifications: () => void;
   onNavMemory: () => void;
+  onNavTour: () => void;
   onPlaceholder: (label: string) => void;
   onSignOut: () => void;
   onDelete: () => void;
   onOurFamily: () => void;
+  onReplayOnboarding: () => void;
+  onSimulateInviteAccept: () => void;
+  onOpenLatestInvite: () => void;
+  onResetAccount: () => void;
 }) {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
@@ -449,6 +508,9 @@ function MainView(p: {
         <Row icon="✦" iconBg="#EDE8FF" iconFg="#6B35D9"
              title="Zaeli's memory" sub="What I remember about your family"
              onPress={p.onNavMemory}/>
+        <Row icon="🧭" iconBg="#E6F7EF" iconFg="#2D7A52"
+             title="Replay tour" sub="Run the whole thing or jump to one stop"
+             onPress={p.onNavTour}/>
         <Row icon="🔗" iconBg="#E0F7FA" iconFg="#00838F"
              title="Integrations" sub="Calendar, health, school portals"
              onPress={() => p.onPlaceholder('Integrations')} last/>
@@ -466,6 +528,27 @@ function MainView(p: {
         <Row icon="🛡️" iconBg="#FFE4E0" iconFg="#B83333"
              title="Privacy policy"
              onPress={() => p.onPlaceholder('Privacy policy')} last/>
+      </View>
+
+      {/* Developer — remove before launch */}
+      <SecLabel>Developer</SecLabel>
+      <View style={s.group}>
+        <Row icon="🧪" iconBg="#E8F4FD" iconFg="#0A4A6A"
+             title="Re-do onboarding"
+             sub="Launch the first-run flow for testing"
+             onPress={p.onReplayOnboarding}/>
+        <Row icon="📨" iconBg="#E6F7EF" iconFg="#2D7A52"
+             title="Simulate invite accepted"
+             sub="Marks oldest pending invite as accepted — fires heads-up in chat"
+             onPress={p.onSimulateInviteAccept}/>
+        <Row icon="🔗" iconBg="#F0EBFF" iconFg="#5020C0"
+             title="Open latest invite as receiver"
+             sub="Walk through the invitee's stripped onboarding"
+             onPress={p.onOpenLatestInvite}/>
+        <Row icon="↩️" iconBg="rgba(10,10,10,0.05)" iconFg="#0A0A0A"
+             title="Reset to owner account"
+             sub="Switch back to Rich after testing as kid/adult invitee"
+             onPress={p.onResetAccount} last/>
       </View>
 
       {/* About */}
@@ -516,11 +599,6 @@ function NotificationsView(p: {
                   time={fmtTime12(p.prefs.briefMorningTime)}
                   on={p.prefs.briefMorningOn}
                   onToggle={v => p.onToggle('briefMorningOn', v)}/>
-        <BriefRow icon="☀️" title="Midday brief"
-                  onPress={() => p.onEditTime('briefMiddayTime')}
-                  time={fmtTime12(p.prefs.briefMiddayTime)}
-                  on={p.prefs.briefMiddayOn}
-                  onToggle={v => p.onToggle('briefMiddayOn', v)}/>
         <BriefRow icon="🌙" title="Evening brief"
                   onPress={() => p.onEditTime('briefEveningTime')}
                   time={fmtTime12(p.prefs.briefEveningTime)}
@@ -676,6 +754,83 @@ function MemoryView(p: {
         <Row icon="🗑️" iconBg="rgba(197,48,48,0.1)" iconFg={DANGER}
              title="Clear everything Zaeli remembers" sub="Starts with a blank page"
              danger onPress={p.onClearAll} last/>
+      </View>
+    </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOUR REPLAY VIEW
+// ═══════════════════════════════════════════════════════════════════════════
+function TourReplayView(p: {
+  onStartFull: () => void;
+  onJumpToStop: (n: number) => void;
+}) {
+  const [completedAt, setCompletedAt] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      await loadTourState();
+      setCompletedAt(getTourState().completedAt);
+    })();
+  }, []);
+
+  // Per-stop tile colour map (matches tour route accents)
+  const stopTileBg: Record<number, { bg: string; fg: string }> = {
+    1:  { bg: '#F0EBFF', fg: '#5020C0' }, // shopping — lavender
+    2:  { bg: '#E6F7EF', fg: '#2D7A52' }, // meals — mint
+    3:  { bg: '#E0E8FE', fg: '#2055F0' }, // calendar — cobalt
+    4:  { bg: '#F0EBFF', fg: '#5020C0' }, // kids — lavender
+    5:  { bg: '#FEF4D0', fg: '#8A6500' }, // tasks — gold
+    6:  { bg: '#FFF0E8', fg: '#8A3A00' }, // photos — peach
+    7:  { bg: '#F4ECFF', fg: '#6B35D9' }, // tutor — violet (HERO)
+    8:  { bg: '#E8F4FD', fg: '#0A4A6A' }, // travel — sky
+    9:  { bg: '#E6F7EF', fg: '#2D7A52' }, // budget — mint
+    10: { bg: '#FFF0E8', fg: '#8A3A00' }, // myspace — peach
+    11: { bg: '#FCE0F0', fg: '#A1014F' }, // family — magenta
+  };
+
+  const formatDate = (iso: string | null): string | null => {
+    if (!iso) return null;
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' });
+    } catch { return null; }
+  };
+  const lastCompletedLabel = formatDate(completedAt);
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingTop: 4, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+      {/* Hero — run the whole tour */}
+      <View style={s.tourHeroCard}>
+        <Text style={s.tourHeroLabel}>RUN THE WHOLE TOUR</Text>
+        <Text style={s.tourHeroH1}>All {TOUR_TOTAL} stops</Text>
+        <Text style={s.tourHeroSub}>~3–4 minutes · Skip any stop</Text>
+        {lastCompletedLabel && (
+          <Text style={s.tourHeroMeta}>Last completed: {lastCompletedLabel}</Text>
+        )}
+        <TouchableOpacity style={s.tourHeroCta} activeOpacity={0.85} onPress={p.onStartFull}>
+          <Text style={s.tourHeroCtaTxt}>▶  Start full tour</Text>
+        </TouchableOpacity>
+      </View>
+
+      <SecLabel>Or jump to one stop</SecLabel>
+      <View style={s.group}>
+        {TOUR_STOPS.map((stop, i) => {
+          const c = stopTileBg[stop.id] ?? { bg: 'rgba(10,10,10,0.05)', fg: INK };
+          const isHero = !!stop.isHero;
+          return (
+            <Row
+              key={stop.id}
+              icon={stop.emoji}
+              iconBg={c.bg}
+              iconFg={c.fg}
+              title={isHero ? `${stop.cardTitle}` : stop.cardTitle}
+              sub={isHero ? 'Hero feature' : `Stop ${stop.id}`}
+              onPress={() => p.onJumpToStop(stop.id)}
+              last={i === TOUR_STOPS.length - 1}
+            />
+          );
+        })}
       </View>
     </ScrollView>
   );
@@ -917,4 +1072,54 @@ const s = StyleSheet.create({
   timeModalBtn: { paddingHorizontal: 4, paddingVertical: 4 },
   timeModalBtnTxt: { fontFamily: 'Poppins_500Medium', fontSize: 15, color: INK3 },
   timeModalTitle: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK },
+
+  // ── Tour replay view ────────────────────────────────────────────────────
+  tourHeroCard: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 18,
+    backgroundColor: '#E6F7EF',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#C8F0DA',
+    padding: 18,
+  },
+  tourHeroLabel: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 11,
+    color: '#2D7A52',
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  tourHeroH1: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 19,
+    color: INK,
+    marginBottom: 4,
+  },
+  tourHeroSub: {
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 14,
+    color: INK3,
+    marginBottom: 4,
+  },
+  tourHeroMeta: {
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    color: INK4,
+    marginBottom: 12,
+  },
+  tourHeroCta: {
+    backgroundColor: '#2D7A52',
+    paddingVertical: 13,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  tourHeroCtaTxt: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 14,
+    color: '#fff',
+  },
 });

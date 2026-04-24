@@ -25,7 +25,6 @@ export interface BriefChip {
 export interface BriefPayload {
   text: string;
   chips: BriefChip[];
-  winBanner?: string | null;
   fromCache: boolean;
 }
 
@@ -110,55 +109,59 @@ CHIPS — must be genuinely useful:
 - NEVER use hollow generic chips like "Show reminders", "Yes plan it", "Quick win" — they're useless
 - Each chip should be something Zaeli can genuinely help with when tapped
 
+────────────────────────────────────────────
+STRUCTURE — write the brief as SHORT PARAGRAPHS, separated by \\n\\n
+────────────────────────────────────────────
+The brief renders as a soft tinted bubble in chat — paragraph breaks (\\n\\n) create visual rhythm. ALWAYS write in this 3-paragraph shape (drop the middle paragraph if data genuinely doesn't support it — better 2 honest paragraphs than 3 padded).
+
+Each paragraph gets ONE emoji at most. Don't sprinkle emoji inside paragraphs. Aim for 1 emoji per paragraph total (so 2-3 emoji across the whole brief, never more).
+
 OUTPUT FORMAT — STRICT JSON only, no prose:
 {
-  "text": "the brief body, plain text, line breaks as \\n, no markdown",
+  "text": "Opener line with one emoji.\\n\\nBody paragraph with specifics.\\n\\nOne thing: the single nudge.",
   "chips": [
     { "label": "Short action tied to real data", "primary": true },
     { "label": "Another real action" },
     { "label": "Got it", "dismiss": true }
-  ],
-  "winBanner": "Optional single-line encouraging moment based on real data (or null)"
+  ]
 }
 `;
 
   if (win === 'morning') {
     return common + `
-MORNING BRIEF (this one):
-- MAX 120 words in text
-- Open positively if warranted — it's 05:00-11:59
-- Cover today's events + any overnight changes Zaeli has handled + tomorrow if relevant
-- Win banner: max 1, only if genuine
-- Chips: max 4, first chip is primary (coral) — most time-sensitive action. Always include one dismissal chip ("All over it ✓" or "Got it").
+MORNING BRIEF (this one) — the "here's your day" brief, fires 05:00-15:59:
+- MAX 100 words total across all paragraphs
+- 3-paragraph structure (drop a paragraph if data is thin):
 
-Example quiet-morning voice (absorb the rhythm, don't copy):
-"Tuesday's looking gentle — nothing scheduled, 23 and clear, a rare one. Want to use the space or let it use you?"
+[OPENER — 1 line] Time-of-day greeting that sets the vibe. Reference weather, day-of-week, season — something specific. End with ONE emoji that captures the mood.
+Examples: "Morning Rich — light rain on the school run ☔" / "Tuesday's looking gentle 🌤" / "Big one ahead today 🚀"
+
+[BODY — 2-3 sentences] What's on TODAY specifically. Events, who's where, dinner plans, anything time-sensitive. Use specifics — names from the FAMILY list, times from the data, items from shopping. Optional ONE emoji at end if natural.
+Example: "Grab jackets for Poppy and Gab. Duke's swim is tonight at 4:30 — on the radar. Low on milk if pancakes are on the cards 🥞"
+
+[ONE THING — 1 sentence] A single actionable nudge. Lead with "One thing:" or similar phrasing. The MOST useful thing Rich could do right now. ONE emoji at end if it fits.
+Example: "One thing: plumber reminder goes off at 10am — genuinely worth the call 🔧"
+
+Quiet-day mode: opener + ONE THING only is fine. Lead with personality, drop the body if there's no data to fill it honestly.
 `;
   }
-  if (win === 'midday') {
-    return common + `
-MIDDAY BRIEF (this one):
-- MAX 80 words in text
-- Open by acknowledging morning progress first, then afternoon + dinner
-- Win banner: max 1, only if genuine
-- Chips: max 4, first chip is primary. Always include one dismissal chip.
-
-Example quiet-midday voice (absorb the rhythm, don't copy):
-"Midday lull with everything under control — that's a proper window. Coffee on the deck, or shall we lock tomorrow's dinner while it's quiet?"
-`;
-  }
-  // evening
+  // evening — covers today's wrap AND tomorrow-morning prep
   return common + `
-EVENING BRIEF (this one):
-- MAX 90 words in text
+EVENING BRIEF (this one) — the "wrap today + ready tomorrow" brief, fires 16:00-04:59:
+- MAX 100 words total across all paragraphs
 - NEVER open with a task or action item
-- Open with genuine acknowledgement of the day's effort
-- Look forward to tomorrow calmly
-- Win banner: max 1, this is where it lands hardest (the day's biggest win)
-- Chips: MAX 2 (usually just dismissal like "Night ✓" plus one action). Evening is not the time for a to-do list.
+- 3-paragraph structure (drop a paragraph if data is thin):
 
-Example quiet-evening voice (absorb the rhythm, don't copy):
-"Nothing hanging over tonight — a win earned earlier in the week. Tomorrow's clear too. Yours to enjoy."
+[OPENER — 1 line] Acknowledgement of the day. Calm, reflective, real. NEVER an action. End with ONE emoji.
+Examples: "Solid Thursday, Rich 🌙" / "A quiet one wrapped 🛋" / "You earned the pause tonight 🌿"
+
+[TOMORROW — 2-3 sentences] What's coming tomorrow morning. Dinner state, early starts, weather, anything they'd thank you for surfacing now so it's not a scramble at 7am. This brief replaces the old morning prep — so do NOT save it for sunrise. Use specifics. Optional ONE emoji.
+Example: "Gab's soccer at 8am, Poppy's dentist 3pm. Nothing else on. School fees still flagged for Friday morning."
+
+[ONE THING — 1 sentence] A prep nudge for tomorrow. Lead with "One thing:" or similar. ONE emoji at end if natural.
+Example: "One thing: lay out Duke's swim gear tonight — Friday mornings get messy 🩳"
+
+Quiet-evening mode: opener + ONE THING only is fine. If tomorrow is genuinely clear, celebrate the lull — don't manufacture stuff to mention.
 `;
 }
 
@@ -215,7 +218,7 @@ function computeSignature(ctx: FamilyContext): string {
 }
 
 // ── Parsing ──────────────────────────────────────────────────────────────
-function parseSonnetResponse(raw: string): { text: string; chips: BriefChip[]; winBanner?: string } {
+function parseSonnetResponse(raw: string): { text: string; chips: BriefChip[] } {
   // Strip code fences if present
   let cleaned = raw.trim();
   if (cleaned.startsWith('```')) {
@@ -226,14 +229,11 @@ function parseSonnetResponse(raw: string): { text: string; chips: BriefChip[]; w
     return {
       text: String(parsed.text || '').trim(),
       chips: Array.isArray(parsed.chips) ? parsed.chips.slice(0, 4) : [],
-      winBanner: parsed.winBanner || undefined,
     };
   } catch (e) {
-    // Fallback — treat whole response as text with a single dismissal chip
     return {
       text: cleaned.slice(0, 500),
       chips: [{ label: 'Got it', dismiss: true }],
-      winBanner: undefined,
     };
   }
 }
@@ -260,7 +260,6 @@ export async function generateBrief(args: {
     return {
       text: cached.brief_text,
       chips: cached.chips ?? [],
-      winBanner: cached.win_banner,
       fromCache: true,
     };
   }
@@ -297,12 +296,10 @@ export async function generateBrief(args: {
   console.log('[brief-gen] Sonnet raw response:\n', rawText || '(empty — full response keys: ' + Object.keys(response || {}).join(',') + ')');
 
   if (!rawText) {
-    // Fallback: honest quiet-day brief so UI doesn't break
     console.warn('[brief-gen] Empty response — using fallback');
     return {
       text: 'Quiet one right now — nothing urgent on the radar.',
       chips: [{ label: 'All good', dismiss: true }],
-      winBanner: null,
       fromCache: false,
     };
   }
@@ -319,7 +316,7 @@ export async function generateBrief(args: {
     time_window: args.window,
     brief_text: parsed.text,
     chips: parsed.chips,
-    win_banner: parsed.winBanner || null,
+    win_banner: null,
     model: SONNET,
     input_tokens: inputTokens,
     output_tokens: outputTokens,
@@ -330,7 +327,6 @@ export async function generateBrief(args: {
   return {
     text: parsed.text,
     chips: parsed.chips,
-    winBanner: parsed.winBanner || null,
     fromCache: false,
   };
 }

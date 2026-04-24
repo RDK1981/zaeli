@@ -14,10 +14,15 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal,
   Dimensions, StatusBar as RNStatusBar, TextInput, ActivityIndicator,
+  Share, Alert, Clipboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { consumeFamilyFrom } from '../../lib/navigation-store';
+import {
+  loadInvites, getPendingInvites, getPendingForName, resendInvite, revokeInvite,
+  relTime, type Invite, type InviteRole,
+} from '../../lib/invite-state';
 import Svg, { Polyline, Path } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { generateSubjectSummary, generateSessionSummary } from '../../lib/tutor-summaries';
@@ -43,7 +48,7 @@ const RED_ACCENT = '#A01830';
 // Family members — matches CLAUDE.md
 const FAMILY = {
   Rich:  { initial: 'R', colour: '#4D8BFF', role: 'parent', email: 'rich@email.com', dob: '1981', loginStatus: 'full' },
-  Anna:  { initial: 'A', colour: '#FF7B6B', role: 'parent', email: 'anna@email.com', dob: '1984', loginStatus: 'full' },
+  Anna:  { initial: 'A', colour: '#FF7B6B', role: 'parent', email: 'anna@email.com', dob: '1984', loginStatus: 'invite' },
   Poppy: { initial: 'P', colour: '#A855F7', role: 'child', year: 6, age: 12, dob: '3 Apr 2014', loginStatus: 'own', tutorActive: true },
   Gab:   { initial: 'G', colour: '#22C55E', role: 'child', year: 4, age: 10, dob: '14 Jun 2015', loginStatus: 'invite', tutorActive: false },
   Duke:  { initial: 'D', colour: '#F59E0B', role: 'child', year: 1, age: 8, dob: '22 Sep 2016', loginStatus: 'parent-device', tutorActive: true },
@@ -134,6 +139,12 @@ export default function OurFamilyScreen() {
   // Capture nav origin once on mount — if opened from Settings, back returns there
   const [fromOrigin] = useState<'settings' | null>(() => consumeFamilyFrom());
   const [activeTab, setActiveTab] = useState<'home' | 'jobs' | 'family'>('home');
+  // Pending invites (loaded from invite-state lib)
+  const [pendingInvites, setPendingInvites] = useState<Invite[]>([]);
+  async function refreshInvites() {
+    await loadInvites();
+    setPendingInvites(getPendingInvites());
+  }
   const [selectedChild, setSelectedChild] = useState<ChildName>('Poppy');
   const [dbPending, setDbPending] = useState<any[]>([]);
   const [dbPoints, setDbPoints] = useState<Record<string, number>>({});
@@ -179,6 +190,7 @@ export default function OurFamilyScreen() {
   useFocusEffect(useCallback(() => {
     RNStatusBar.setBarStyle('dark-content', true);
     loadFamilyData();
+    refreshInvites();
   }, []));
 
   async function loadFamilyData() {
@@ -1611,9 +1623,14 @@ export default function OurFamilyScreen() {
       return (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {/* Back */}
-          <TouchableOpacity onPress={() => setFamilyView('list')} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8 }} activeOpacity={0.7}>
-            <Text style={{ fontSize: 18, color: INK4 }}>‹</Text>
-            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK4 }}>Back</Text>
+          <TouchableOpacity
+            onPress={() => setFamilyView('list')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginVertical: 8, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#fff', borderRadius: 22, alignSelf: 'flex-start', borderWidth: 1, borderColor: 'rgba(10,10,10,0.08)' }}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={{ fontSize: 18, color: INK, fontWeight: '700', lineHeight: 18 }}>‹</Text>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: INK }}>Back to family</Text>
           </TouchableOpacity>
 
           {/* Avatar hero */}
@@ -1846,6 +1863,9 @@ export default function OurFamilyScreen() {
         <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginTop: 10, marginBottom: 6 }}>Parents</Text>
         {(['Rich', 'Anna'] as const).map(name => {
           const mem = FAMILY[name];
+          const isOwner = name === 'Rich'; // current logged-in user — comes from auth later
+          const pending = getPendingForName(name);
+          const hasOwnAccount = (mem as any).loginStatus === 'full' || (mem as any).loginStatus === 'own';
           return (
             <TouchableOpacity key={name} onPress={() => { setProfileMember(name); setFamilyView('profile'); }} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
               <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: mem.colour, alignItems: 'center', justifyContent: 'center' }}>
@@ -1854,9 +1874,31 @@ export default function OurFamilyScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK }}>{name}</Text>
                 <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK4 }}>{(mem as any).email}</Text>
-                <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 }}>
-                  <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, color: '#166534' }}>Full account</Text>
-                </View>
+                {isOwner && (
+                  <View style={{ backgroundColor: 'rgba(34,197,94,0.14)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', marginTop: 6 }}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: '#166534', letterSpacing: 0.2 }}>You · Account owner</Text>
+                  </View>
+                )}
+                {!isOwner && pending && (
+                  <View style={{ backgroundColor: '#FEF4D0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', marginTop: 6 }}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: '#8A6500', letterSpacing: 0.2 }}>⏳ Invite sent · {relTime(pending.createdAt)}</Text>
+                  </View>
+                )}
+                {!isOwner && !pending && hasOwnAccount && (
+                  <View style={{ backgroundColor: 'rgba(34,197,94,0.14)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', marginTop: 6 }}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: '#166534', letterSpacing: 0.2 }}>Joined</Text>
+                  </View>
+                )}
+                {!isOwner && !pending && !hasOwnAccount && (
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation(); router.navigate(`/invite?role=adult&name=${encodeURIComponent(name)}` as any); }}
+                    style={{ backgroundColor: '#2D7A52', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, alignSelf: 'flex-start', marginTop: 6 }}
+                    activeOpacity={0.85}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#fff', letterSpacing: 0.2 }}>+ Invite to Zaeli</Text>
+                  </TouchableOpacity>
+                )}
               </View>
               <Text style={{ fontSize: 16, color: 'rgba(0,0,0,0.20)' }}>›</Text>
             </TouchableOpacity>
@@ -1870,6 +1912,7 @@ export default function OurFamilyScreen() {
           const age = (mem as any).age;
           const dob = (mem as any).dob;
           const login = (mem as any).loginStatus;
+          const pendingForKid = getPendingForName(name);
           return (
             <TouchableOpacity key={name} onPress={() => { setProfileMember(name); setFamilyView('profile'); }} style={{ backgroundColor: '#fff', borderRadius: 16, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 }} activeOpacity={0.75}>
               <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: mem.colour, alignItems: 'center', justifyContent: 'center' }}>
@@ -1883,18 +1926,106 @@ export default function OurFamilyScreen() {
                   </View>
                 </View>
                 <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK4 }}>Age {age} {dob ? `· 🎂 ${dob}` : ''}</Text>
-                {login === 'own' && <View style={{ backgroundColor: 'rgba(34,197,94,0.12)', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 }}><Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, color: '#166534' }}>Own Zaeli login</Text></View>}
-                {login === 'invite' && <View style={{ backgroundColor: 'rgba(99,102,241,0.1)', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2, alignSelf: 'flex-start', marginTop: 3 }}><Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, color: '#4338CA' }}>+ Invite to Zaeli</Text></View>}
-                {login === 'parent-device' && <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 10, color: INK4, marginTop: 3 }}>Uses parent's device</Text>}
+                {pendingForKid ? (
+                  <View style={{ backgroundColor: '#FEF4D0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', marginTop: 6 }}>
+                    <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: '#8A6500', letterSpacing: 0.2 }}>⏳ Invite sent · {relTime(pendingForKid.createdAt)}</Text>
+                  </View>
+                ) : (
+                  <>
+                    {login === 'own' && (
+                      <View style={{ backgroundColor: 'rgba(34,197,94,0.14)', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', marginTop: 6 }}>
+                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: '#166534', letterSpacing: 0.2 }}>Joined</Text>
+                      </View>
+                    )}
+                    {login === 'invite' && (
+                      <TouchableOpacity
+                        onPress={(e) => { e.stopPropagation(); router.navigate(`/invite?role=kid&name=${encodeURIComponent(name)}` as any); }}
+                        style={{ backgroundColor: '#2D7A52', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, alignSelf: 'flex-start', marginTop: 6 }}
+                        activeOpacity={0.85}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#fff', letterSpacing: 0.2 }}>+ Invite to Zaeli</Text>
+                      </TouchableOpacity>
+                    )}
+                    {login === 'parent-device' && (
+                      <View style={{ marginTop: 6 }}>
+                        <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 12, color: INK4, marginBottom: 6 }}>Uses parent's device</Text>
+                        <TouchableOpacity
+                          onPress={(e) => { e.stopPropagation(); router.navigate(`/invite?role=kid&name=${encodeURIComponent(name)}` as any); }}
+                          style={{ backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#2D7A52', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, alignSelf: 'flex-start' }}
+                          activeOpacity={0.85}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#2D7A52', letterSpacing: 0.2 }}>+ Give them their own</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </>
+                )}
               </View>
               <Text style={{ fontSize: 16, color: 'rgba(0,0,0,0.20)' }}>›</Text>
             </TouchableOpacity>
           );
         })}
 
-        <TouchableOpacity onPress={() => { setNewName(''); setNewNickname(''); setNewRole(''); setNewDob(''); setNewYear(''); setNewEmail(''); setNewColour('#EC4899'); setNewAccess('shared'); setFamilyView('add'); }} style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.12)', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 }} activeOpacity={0.7}>
-          <Text style={{ fontSize: 18, opacity: 0.4 }}>+</Text>
-          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: 'rgba(0,0,0,0.38)' }}>Add a family member</Text>
+        {/* Pending invites — adults or anyone not already in FAMILY hardcoded list */}
+        {pendingInvites.filter(i => !(['Poppy','Gab','Duke','Rich','Anna'].includes(i.name))).length > 0 && (
+          <>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 10, color: 'rgba(0,0,0,0.30)', textTransform: 'uppercase', letterSpacing: 0.1, marginTop: 16, marginBottom: 6 }}>Pending invites</Text>
+            {pendingInvites
+              .filter(i => !(['Poppy','Gab','Duke','Rich','Anna'].includes(i.name)))
+              .map(inv => (
+                <PendingInviteRow
+                  key={inv.token}
+                  invite={inv}
+                  onCopy={async () => {
+                    Clipboard.setString(`https://zaeli.app/i/${inv.token}`);
+                    Alert.alert('Copied', 'Invite link is on your clipboard.');
+                  }}
+                  onResend={async () => {
+                    await resendInvite(inv.token);
+                    await refreshInvites();
+                    try {
+                      await Share.share({
+                        message: `Reminder — your Zaeli invite from Rich. Set up takes 2 min: https://zaeli.app/i/${inv.token}`,
+                      });
+                    } catch {}
+                  }}
+                  onRevoke={() => {
+                    Alert.alert(
+                      `Revoke ${inv.name}'s invite?`,
+                      'They won\u2019t be able to join with this link. You can send a new one anytime.',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Revoke', style: 'destructive', onPress: async () => { await revokeInvite(inv.token); refreshInvites(); } },
+                      ],
+                    );
+                  }}
+                />
+              ))}
+          </>
+        )}
+
+        {/* Invite CTA — replaces the old "Add a family member" dashed button */}
+        <View style={{ marginTop: 16, padding: 18, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#C8F0DA', backgroundColor: '#E6F7EF', alignItems: 'center' }}>
+          <Text style={{ fontSize: 32, marginBottom: 8 }}>📨</Text>
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: INK, marginBottom: 4 }}>Bring someone in</Text>
+          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, lineHeight: 19, textAlign: 'center', marginBottom: 14 }}>
+            Other parent, kid with their own device, grandparent, carer — anyone who'd benefit.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.navigate('/invite' as any)}
+            style={{ backgroundColor: '#2D7A52', paddingVertical: 11, paddingHorizontal: 24, borderRadius: 12 }}
+            activeOpacity={0.85}
+          >
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' }}>+ Invite</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Manual add — for non-Zaeli members (no own device) */}
+        <TouchableOpacity onPress={() => { setNewName(''); setNewNickname(''); setNewRole(''); setNewDob(''); setNewYear(''); setNewEmail(''); setNewColour('#EC4899'); setNewAccess('shared'); setFamilyView('add'); }} style={{ borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.12)', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10 }} activeOpacity={0.7}>
+          <Text style={{ fontSize: 16, opacity: 0.4 }}>+</Text>
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: 'rgba(0,0,0,0.38)' }}>Add a member without a device</Text>
         </TouchableOpacity>
       </ScrollView>
     );
@@ -2089,3 +2220,49 @@ const s = StyleSheet.create({
   addMember: { marginHorizontal: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(0,0,0,0.12)', borderRadius: 20, paddingHorizontal: 18, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   addMemberTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK4 },
 });
+
+// ── Pending invite row ────────────────────────────────────────────────────
+function PendingInviteRow({
+  invite, onCopy, onResend, onRevoke,
+}: {
+  invite: Invite;
+  onCopy: () => void;
+  onResend: () => void;
+  onRevoke: () => void;
+}) {
+  const initial = invite.name.trim()[0]?.toUpperCase() ?? '?';
+  const isKid = invite.role === 'kid';
+  const accentBg = isKid ? '#F0EBFF' : '#E6F7EF';
+  const accentBorder = isKid ? '#D8CCFF' : '#C8F0DA';
+  const tagBg = isKid ? '#D8CCFF' : '#FAC8A8';
+  const tagFg = isKid ? '#5020C0' : '#8A3A00';
+  return (
+    <View style={{ backgroundColor: accentBg, borderWidth: 1.5, borderColor: accentBorder, borderRadius: 16, padding: 14, marginBottom: 10 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(10,10,10,0.10)', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 17, color: 'rgba(10,10,10,0.55)' }}>{initial}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: 'rgba(10,10,10,0.72)' }}>{invite.name}</Text>
+          <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: '#2D7A52', marginTop: 2 }}>
+            ⏳ Invite sent · {relTime(invite.createdAt)}{invite.role === 'adult' ? ' · Adult' : ' · Kid'}
+          </Text>
+        </View>
+        <View style={{ backgroundColor: tagBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 9, color: tagFg, letterSpacing: 0.4 }}>PENDING</Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+        <TouchableOpacity onPress={onCopy} style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(10,10,10,0.08)', borderRadius: 18, paddingVertical: 7, alignItems: 'center' }} activeOpacity={0.7}>
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: 'rgba(10,10,10,0.72)' }}>📋 Copy link</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onResend} style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(10,10,10,0.08)', borderRadius: 18, paddingVertical: 7, alignItems: 'center' }} activeOpacity={0.7}>
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: 'rgba(10,10,10,0.72)' }}>📨 Resend</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onRevoke} style={{ flex: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: 'rgba(10,10,10,0.08)', borderRadius: 18, paddingVertical: 7, alignItems: 'center' }} activeOpacity={0.7}>
+          <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#B83333' }}>✕ Revoke</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}

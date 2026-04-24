@@ -3,6 +3,9 @@
 # dependencies
 node_modules/
 
+# Claude Code session data (local only)
+.claude/
+
 # Expo
 .expo/
 dist/

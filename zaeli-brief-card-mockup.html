@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli — Brief Card Options</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAF8F5;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.72);
+    --ink3: rgba(10,10,10,0.55);
+    --ink4: rgba(10,10,10,0.42);
+    --line: rgba(10,10,10,0.08);
+    --soft: rgba(10,10,10,0.04);
+    --card: #FFFFFF;
+    --coral: #FF4545;
+    --coralSoft: #FFE4E0;
+    --coralDeep: #B83333;
+    --mint: #B8EDD0;
+    --mintDeep: #2D7A52;
+    --mintTint: #E6F7EF;
+    --mintBorder: #C8F0DA;
+    --peach: #FAC8A8;
+    --peachBg: #F5EDE3;
+    --peachDeep: #8A3A00;
+    --peachTint: #FDF1E5;
+    --sky: #A8D8F0;
+    --skyBg: #E8F4FD;
+    --skyDeep: #0A4A6A;
+    --lav: #D8CCFF;
+    --lavTint: #F0EBFF;
+    --lavDeep: #5020C0;
+    --gold: #F0DC80;
+    --goldTint: #FEF4D0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #1C2330;
+    color: white;
+    padding: 50px 30px 80px;
+    min-height: 100vh;
+  }
+  .doc-header { text-align: center; margin-bottom: 40px; }
+  .doc-header h1 {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 38px;
+    letter-spacing: -1.2px;
+    margin-bottom: 10px;
+  }
+  .doc-header h1 .accent { color: var(--sky); }
+  .doc-header p { color: rgba(255,255,255,0.65); font-size: 14px; max-width: 700px; margin: 0 auto; line-height: 1.55; }
+  .section-label {
+    color: var(--mint);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+    margin: 50px 0 20px;
+  }
+  .frame-grid {
+    display: flex; flex-wrap: wrap; gap: 28px;
+    justify-content: center; align-items: flex-start;
+  }
+  .frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .frame-caption {
+    color: rgba(255,255,255,0.85);
+    font-size: 13px; font-weight: 600;
+    text-align: center; max-width: 380px;
+  }
+  .frame-caption .num { color: var(--sky); margin-right: 6px; }
+  .frame-caption .sub {
+    display: block;
+    color: rgba(255,255,255,0.5);
+    font-weight: 400;
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  /* iPhone */
+  .phone {
+    width: 380px; height: 720px;
+    background: var(--bg);
+    border-radius: 44px;
+    overflow: hidden; position: relative;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.4), 0 0 0 8px #1A1A1A, 0 0 0 9px #2A2A2A;
+    display: flex; flex-direction: column;
+  }
+  .status-bar {
+    height: 44px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; font-size: 14px; font-weight: 600; color: var(--ink);
+  }
+  .notch {
+    position: absolute; top: 14px; left: 50%;
+    transform: translateX(-50%); width: 110px; height: 32px;
+    background: #000; border-radius: 20px; z-index: 10;
+  }
+  .topbar {
+    flex-shrink: 0; padding: 8px 18px 12px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+  .wordmark {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800; font-size: 36px;
+    letter-spacing: -1.4px; line-height: 42px;
+    color: var(--ink);
+  }
+  .wordmark .ai { color: var(--sky); }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .pagelabel { font-weight: 700; font-size: 17px; color: var(--ink2); }
+  .ham {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: rgba(10,10,10,0.05);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ham div { width: 18px; height: 2px; background: var(--ink); margin: 2px 0; border-radius: 1px; }
+
+  .chat-body {
+    flex: 1; overflow: hidden;
+    padding: 8px 14px 14px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .eyebrow {
+    color: var(--ink4);
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.6px; margin: 6px 0 -4px 4px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .eyebrow .star {
+    width: 14px; height: 14px;
+    background: var(--sky); border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: var(--ink);
+  }
+
+  /* === SHARED brief styles === */
+  .brief-text {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 400; font-size: 17px;
+    color: var(--ink); line-height: 26px;
+  }
+  .brief-text b { font-weight: 700; }
+  .brief-text p + p { margin-top: 12px; }
+  .brief-text p.lead { font-weight: 600; }
+
+  /* Chips (shared across all options) */
+  .chip-row {
+    display: flex; flex-wrap: wrap; gap: 7px;
+    margin: 4px 0 4px 4px; align-self: flex-start;
+    max-width: 90%;
+  }
+  .chip {
+    padding: 8px 13px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+    border: 1.5px solid transparent;
+  }
+  .chip.primary {
+    background: var(--coralSoft);
+    color: var(--coralDeep);
+    border-color: #F5C2BA;
+  }
+  .chip.ghost {
+    background: rgba(10,10,10,0.04);
+    color: var(--ink3);
+    border-color: rgba(10,10,10,0.10);
+  }
+
+  /* Chat bar */
+  .chat-bar-wrap { flex-shrink: 0; padding: 8px 14px 22px; }
+  .chat-bar {
+    background: white; border-radius: 28px;
+    padding: 8px 8px 8px 14px;
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid rgba(220,220,220,0.6);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    min-height: 52px;
+  }
+  .bar-mic, .bar-cam {
+    width: 36px; height: 36px; border-radius: 18px;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .bar-input { flex: 1; color: var(--ink4); font-size: 15px; }
+  .bar-send {
+    width: 36px; height: 36px; border-radius: 18px;
+    background: var(--coral); color: white; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ─────────── CURRENT (for comparison) ─────────── */
+  .current-bubble {
+    background: var(--peach);
+    border-radius: 18px; border-top-left-radius: 4px;
+    padding: 15px 17px;
+    margin: 0 4px;
+  }
+  .current-win {
+    background: rgba(184,237,208,0.55);
+    border-left: 3px solid var(--mintDeep);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 12px;
+  }
+  .current-win-text {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600; font-size: 15px;
+    color: var(--mintDeep); line-height: 22px;
+  }
+
+  /* ─────────── OPTION A — Pure chat bubble ─────────── */
+  .opt-a-bubble {
+    background: var(--soft);
+    border-radius: 18px; border-bottom-left-radius: 6px;
+    padding: 14px 16px;
+    align-self: flex-start;
+    max-width: 90%;
+  }
+
+  /* ─────────── OPTION B — Time-of-day tint ─────────── */
+  .opt-b-bubble {
+    border-radius: 18px; border-bottom-left-radius: 6px;
+    padding: 16px 18px;
+    align-self: flex-start;
+    max-width: 92%;
+  }
+  .opt-b-bubble.morning { background: var(--peachTint); }
+  .opt-b-bubble.midday { background: var(--skyBg); }
+  .opt-b-bubble.evening { background: var(--lavTint); }
+  .opt-b-pill {
+    display: inline-block;
+    padding: 3px 10px; border-radius: 10px;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.6px; text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .opt-b-pill.morning { background: var(--peach); color: var(--peachDeep); }
+  .opt-b-pill.midday { background: var(--sky); color: var(--skyDeep); }
+  .opt-b-pill.evening { background: var(--lav); color: var(--lavDeep); }
+
+  /* ─────────── OPTION C — Letterhead (no bubble) ─────────── */
+  .opt-c-wrap {
+    display: flex; gap: 14px;
+    padding: 8px 4px 4px;
+    align-self: flex-start;
+    max-width: 92%;
+  }
+  .opt-c-bar {
+    width: 4px;
+    background: linear-gradient(180deg, var(--sky), var(--mint));
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .opt-c-bar.morning { background: linear-gradient(180deg, var(--peach), var(--coral)); }
+  .opt-c-bar.midday { background: linear-gradient(180deg, var(--sky), var(--mint)); }
+  .opt-c-bar.evening { background: linear-gradient(180deg, var(--lav), #8A6BD9); }
+  .opt-c-body { flex: 1; }
+  .opt-c-eyebrow {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .opt-c-eyebrow.morning { color: var(--peachDeep); }
+  .opt-c-eyebrow.midday { color: var(--skyDeep); }
+  .opt-c-eyebrow.evening { color: var(--lavDeep); }
+
+  /* ─────────── OPTION D — Sectioned ─────────── */
+  .opt-d-bubble {
+    background: var(--soft);
+    border-radius: 18px; border-bottom-left-radius: 6px;
+    padding: 16px;
+    align-self: flex-start;
+    max-width: 92%;
+  }
+  .opt-d-section { margin-top: 14px; }
+  .opt-d-section:first-child { margin-top: 0; }
+  .opt-d-section-tag {
+    display: inline-block;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.8px; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .tag-morning { background: var(--peachTint); color: var(--peachDeep); }
+  .tag-now { background: var(--skyBg); color: var(--skyDeep); }
+  .tag-onething { background: var(--mintTint); color: var(--mintDeep); }
+
+  /* legend */
+  .legend {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px 28px;
+    max-width: 900px;
+    margin: 60px auto 0;
+  }
+  .legend h3 {
+    color: var(--mint);
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .legend ul {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 32px;
+  }
+  .legend li {
+    color: rgba(255,255,255,0.78);
+    font-size: 13px; line-height: 1.55;
+  }
+  .legend li b { color: var(--sky); font-weight: 600; }
+  .recommend {
+    background: rgba(184,237,208,0.10);
+    border: 1.5px solid rgba(184,237,208,0.4);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-top: 18px;
+    color: rgba(255,255,255,0.92);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .recommend b { color: var(--mint); }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <h1>brief card — <span class="accent">options</span></h1>
+  <p>Current peach-card-with-mint-banner-and-coral-pill is busy. Four cleaner directions. All use Richard's preferred structured-paragraph copy. All use the standard chat bubble grammar so the brief feels like Zaeli talking, not a notification.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Current — for comparison</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow"><span class="star">★</span>ZAELI · MIDDAY · 12:31PM</div>
+        <div class="current-bubble">
+          <p class="brief-text">✦ Big morning, Rich. <b>Poppy's dentist</b> at 3pm — already on the calendar. Spaghetti bolognese for tonight, ingredients are sorted. School fees flagged for Friday. You're ahead of this one.</p>
+          <div class="current-win">
+            <div class="current-win-text">A proper Thursday shaping up. You've got this.</div>
+          </div>
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">Open Calendar</div>
+          <div class="chip ghost">Add milk to list</div>
+          <div class="chip ghost">Got it</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">⊘</span>Current<span class="sub">Peach card · mint win banner · coral primary chip · "all over the shop" per Richard</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Option A — Pure chat bubble (clean integration)</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow"><span class="star">✨</span>ZAELI · MIDDAY · 12:31PM</div>
+        <div class="opt-a-bubble">
+          <div class="brief-text">
+            <p class="lead">Midday check-in 🌤 — morning's ticked along well.</p>
+            <p>Shopping's sorted, <b>Gab's calendar</b> is updated, and your <b>2:40 reminder</b> is locked in for Poppy. The plumber reminder goes off in about an hour — genuinely worth the call ☎️</p>
+            <p>This afternoon: leave by <b>2:40</b> — Poppy will probably remind you herself. Anna's out tonight so it's <b>calamari with the three</b> 🦑 You're set.</p>
+            <p>One thing: Friday dinner is still blank. Easy fix if you've got 10 seconds 🍽</p>
+          </div>
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">Plan Friday dinner</div>
+          <div class="chip ghost">Open Calendar</div>
+          <div class="chip ghost">All over it ✓</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">A.</span>Pure chat bubble<span class="sub">Same soft-grey bubble as every Zaeli msg · structured paragraphs · sky eyebrow · emoji per paragraph · feels like Zaeli talking, not a card</span></div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow"><span class="star">✨</span>ZAELI · MORNING · 6:30AM</div>
+        <div class="opt-a-bubble">
+          <div class="brief-text">
+            <p class="lead">Morning Rich ☀️ — light rain on the school run.</p>
+            <p>Grab jackets for <b>Poppy and Gab</b>. <b>Duke's swim</b> is tonight at 4:30 — I've got it on the radar. Dinner's not locked in yet, and you're low on milk if pancakes are on the cards.</p>
+            <p>One thing: <b>plumber reminder</b> goes off at 10am — genuinely worth the call 🔧</p>
+          </div>
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">Plan dinner tonight</div>
+          <div class="chip ghost">Add milk to list</div>
+          <div class="chip ghost">All over it ✓</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">A2.</span>Option A · Morning brief<span class="sub">Same template, different time-of-day · 3 paragraphs feels right for morning · ☀️ instead of 🌤</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Option B — Time-of-day tint (palette per window)</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow"><span class="star">✨</span>ZAELI · MORNING · 6:30AM</div>
+        <div class="opt-b-bubble morning">
+          <span class="opt-b-pill morning">☀️ MORNING</span>
+          <div class="brief-text">
+            <p class="lead">Morning Rich — light rain on the school run.</p>
+            <p>Grab jackets for <b>Poppy and Gab</b>. <b>Duke's swim</b> is tonight at 4:30 — on the radar. You're low on milk if pancakes are on the cards.</p>
+            <p>One thing: <b>plumber reminder</b> goes off at 10am — genuinely worth the call 🔧</p>
+          </div>
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">Plan dinner tonight</div>
+          <div class="chip ghost">Add milk to list</div>
+          <div class="chip ghost">All over it ✓</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">B1.</span>Option B · Morning (peach tint)<span class="sub">Soft peach background · ☀️ MORNING pill · lighter than current peach card</span></div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow"><span class="star">✨</span>ZAELI · MIDDAY · 12:31PM</div>
+        <div class="opt-b-bubble midday">
+          <span class="opt-b-pill midday">🌤 MIDDAY CHECK-IN</span>
+          <div class="brief-text">
+            <p class="lead">Morning's ticked along well.</p>
+            <p>Shopping's sorted, <b>Gab's calendar</b> is updated, your <b>2:40 reminder</b> is locked in for Poppy. The plumber reminder goes off in about an hour ☎️</p>
+            <p>This afternoon: leave by <b>2:40</b>. Anna's out tonight so it's <b>calamari with the three</b> 🦑 You're set.</p>
+            <p>One thing: <b>Friday dinner</b> is still blank. Easy fix if you've got 10 seconds.</p>
+          </div>
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">Plan Friday dinner</div>
+          <div class="chip ghost">Open Calendar</div>
+          <div class="chip ghost">All over it ✓</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">B2.</span>Option B · Midday (sky tint)<span class="sub">Soft sky · 🌤 MIDDAY pill · ties to splash sky · Richard's exact copy</span></div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow"><span class="star">✨</span>ZAELI · EVENING · 7:42PM</div>
+        <div class="opt-b-bubble evening">
+          <span class="opt-b-pill evening">🌙 EVENING WIND-DOWN</span>
+          <div class="brief-text">
+            <p class="lead">Solid Thursday, Rich.</p>
+            <p>Calamari worked a treat. Poppy's already in pyjamas and Duke's brushing his teeth (with some encouragement 🪥). The plumber's booked for Tuesday.</p>
+            <p>Tomorrow's shape: <b>Gab's soccer</b> at 8am, <b>Poppy at the dentist</b> 3pm. Nothing else on. School fees still flagged for Friday morning.</p>
+            <p>One thing: lay out swim gear for Duke tonight — Friday morning gets messy 🩳</p>
+          </div>
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">All sorted</div>
+          <div class="chip ghost">Add to list</div>
+          <div class="chip ghost">Night ✓</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">B3.</span>Option B · Evening (lavender)<span class="sub">Soft lavender · 🌙 EVENING pill · calmer tone · evening covers tomorrow-prep</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Option C — Letterhead (no bubble, accent bar)</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="opt-c-wrap">
+          <div class="opt-c-bar midday"></div>
+          <div class="opt-c-body">
+            <div class="opt-c-eyebrow midday">🌤 Midday brief · 12:31pm</div>
+            <div class="brief-text">
+              <p class="lead">Morning's ticked along well.</p>
+              <p>Shopping's sorted, <b>Gab's calendar</b> updated, your <b>2:40 reminder</b> locked in for Poppy. The plumber reminder goes off in about an hour ☎️</p>
+              <p>This afternoon: leave by <b>2:40</b>. Anna's out tonight so it's <b>calamari with the three</b> 🦑 You're set.</p>
+              <p>One thing: <b>Friday dinner</b> is still blank. Easy fix if you've got 10 seconds.</p>
+            </div>
+          </div>
+        </div>
+        <div class="chip-row" style="margin-left: 22px;">
+          <div class="chip primary">Plan Friday dinner</div>
+          <div class="chip ghost">Open Calendar</div>
+          <div class="chip ghost">All over it ✓</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">C.</span>Letterhead style<span class="sub">No bubble · vertical gradient bar in time-of-day palette · feels editorial · most "designed" of the four</span></div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="opt-c-wrap">
+          <div class="opt-c-bar morning"></div>
+          <div class="opt-c-body">
+            <div class="opt-c-eyebrow morning">☀️ Morning brief · 6:30am</div>
+            <div class="brief-text">
+              <p class="lead">Morning Rich — light rain on the school run.</p>
+              <p>Grab jackets for <b>Poppy and Gab</b>. <b>Duke's swim</b> tonight at 4:30 — on the radar. Low on milk if pancakes are on the cards.</p>
+              <p>One thing: <b>plumber reminder</b> goes off at 10am — genuinely worth the call 🔧</p>
+            </div>
+          </div>
+        </div>
+        <div class="chip-row" style="margin-left: 22px;">
+          <div class="chip primary">Plan dinner tonight</div>
+          <div class="chip ghost">Add milk to list</div>
+          <div class="chip ghost">All over it ✓</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">C2.</span>Letterhead · Morning<span class="sub">Peach→coral gradient bar · ☀️ eyebrow · 3-para morning</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Option D — Sectioned (emoji-tagged blocks)</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow"><span class="star">✨</span>ZAELI · MIDDAY · 12:31PM</div>
+        <div class="opt-d-bubble">
+          <p class="brief-text" style="font-weight: 600; margin-bottom: 6px;">Midday check-in 🌤 — morning's ticked along well.</p>
+          <div class="opt-d-section">
+            <span class="opt-d-section-tag tag-morning">✓ DONE</span>
+            <p class="brief-text">Shopping sorted, <b>Gab's calendar</b> updated, <b>2:40 reminder</b> locked in for Poppy.</p>
+          </div>
+          <div class="opt-d-section">
+            <span class="opt-d-section-tag tag-now">↗ NEXT</span>
+            <p class="brief-text">Plumber reminder in about an hour ☎️ Leave by <b>2:40</b> for pickup. Anna's out tonight — <b>calamari with the three</b> 🦑</p>
+          </div>
+          <div class="opt-d-section">
+            <span class="opt-d-section-tag tag-onething">⚡ ONE THING</span>
+            <p class="brief-text"><b>Friday dinner</b> is still blank. Easy fix if you've got 10 seconds.</p>
+          </div>
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">Plan Friday dinner</div>
+          <div class="chip ghost">Open Calendar</div>
+          <div class="chip ghost">All over it ✓</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">D.</span>Sectioned with tags<span class="sub">Soft grey bubble · ✓ DONE / ↗ NEXT / ⚡ ONE THING tags · most scannable · most "structured"</span></div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow"><span class="star">✨</span>ZAELI · EVENING · 7:42PM</div>
+        <div class="opt-d-bubble">
+          <p class="brief-text" style="font-weight: 600; margin-bottom: 6px;">Solid Thursday 🌙 The day's mostly tucked in.</p>
+          <div class="opt-d-section">
+            <span class="opt-d-section-tag tag-morning">✓ TODAY</span>
+            <p class="brief-text">Calamari worked a treat. Poppy in pyjamas, Duke brushing teeth 🪥 The plumber's booked for Tuesday.</p>
+          </div>
+          <div class="opt-d-section">
+            <span class="opt-d-section-tag tag-now">↗ TOMORROW</span>
+            <p class="brief-text"><b>Gab's soccer</b> at 8am, <b>Poppy's dentist</b> 3pm. Nothing else. School fees still flagged Friday morning.</p>
+          </div>
+          <div class="opt-d-section">
+            <span class="opt-d-section-tag tag-onething">⚡ ONE THING</span>
+            <p class="brief-text">Lay out <b>Duke's swim gear</b> tonight — Friday mornings get messy 🩳</p>
+          </div>
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">All sorted</div>
+          <div class="chip ghost">Open calendar</div>
+          <div class="chip ghost">Night ✓</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">D2.</span>Sectioned · Evening<span class="sub">✓ TODAY / ↗ TOMORROW / ⚡ ONE THING — natural fit for evening's recap+tomorrow-prep job</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="legend">
+  <h3>The four directions — pick one</h3>
+  <ul>
+    <li><b>Option A — Pure chat bubble</b><br>Same soft-grey bubble as every other Zaeli message. Eyebrow + structured paragraphs + emoji per para + chips below. Brief reads as Zaeli speaking, not as a card. <i>Calmest. Most chat-native.</i></li>
+    <li><b>Option B — Time-of-day tint</b><br>Soft palette tint (peach morning, sky midday, lavender evening) + a tiny tag pill at top. No card border, no win banner. Palette ties brief to time without shouting. <i>Best palette use without being heavy.</i></li>
+    <li><b>Option C — Letterhead style</b><br>No bubble at all. Vertical gradient bar in time-of-day palette down the left. Looks editorial. Feels designed and intentional. <i>Most distinctive but least "chat-native".</i></li>
+    <li><b>Option D — Sectioned with tags</b><br>Soft-grey bubble with ✓ DONE / ↗ NEXT / ⚡ ONE THING tags inside. Most scannable. Best for users who want to skim. <i>Most structured but adds visual noise.</i></li>
+  </ul>
+  <div class="recommend">
+    <b>My pick: B (time-of-day tint).</b> Palette accent without a heavy card. Brief still reads as a chat message — just with a context-setting wash that signals "this is your daily check-in, not a regular reply". The tag pill at top (☀️ MORNING / 🌤 MIDDAY / 🌙 EVENING) gives Zaeli a clean signature without committing to chunky tags inside the body. Structure stays narrative-prose like Richard's preferred copy. Win banner = killed (collapse it into the prose itself when warranted).
+  </div>
+</div>
+
+</body>
+</html>

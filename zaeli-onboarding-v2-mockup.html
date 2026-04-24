@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Zaeli · Onboarding v2 — the first three minutes</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.72);
+    --ink3: rgba(10,10,10,0.55);
+    --ink4: rgba(10,10,10,0.42);
+    --ink5: rgba(10,10,10,0.30);
+    --ink6: rgba(10,10,10,0.14);
+    --warm: #FAF8F5;
+    --bg-page: #EFEBE4;
+    --coral: #FF4545;
+    --coral-soft: #FFE4E0;
+    --coral-deep: #B83333;
+    --sky: #A8D8F0;
+    --sky-bg: #E8F4FD;
+    --sky-deep: #0A4A6A;
+    --mint: #B8EDD0;
+    --mint-dark: #2D7A52;
+    --mint-bg: #E6F7EF;
+    --peach: #FAC8A8;
+    --peach-bg: #F5EDE3;
+    --peach-deep: #8A3A00;
+    --slate: #2D3748;
+    --gold: #F0DC80;
+    --lav: #D8CCFF;
+    /* Family colours — locked */
+    --rich: #4D8BFF;
+    --anna: #FF7B6B;
+    --poppy: #A855F7;
+    --gab: #22C55E;
+    --duke: #F59E0B;
+  }
+  body { font-family: 'Poppins', sans-serif; background: var(--bg-page); color: var(--ink); padding: 48px 22px 100px; }
+
+  /* Page header */
+  .hdr { max-width: 1400px; margin: 0 auto 32px; }
+  .eyebrow { font-weight: 700; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink4); }
+  .hdr h1 { font-family: 'Poppins'; font-weight: 800; font-size: 38px; letter-spacing: -1px; margin-top: 6px; }
+  .hdr h1 em { color: var(--sky); font-style: normal; }
+  .hdr p { font-weight: 400; font-size: 15px; color: var(--ink3); margin-top: 10px; max-width: 780px; line-height: 22px; }
+  .meta { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; padding: 6px 14px; border-radius: 20px; background: rgba(10,10,10,0.04); font-weight: 600; font-size: 12px; color: var(--ink3); }
+  .meta .dot { width: 7px; height: 7px; border-radius: 4px; background: var(--mint); }
+
+  /* Act headers */
+  .act { max-width: 1400px; margin: 60px auto 24px; padding: 20px 26px; border-radius: 20px; background: linear-gradient(135deg, #fff, #F5F2EC); border-left: 4px solid var(--sky); }
+  .act-num { font-weight: 700; font-size: 10px; letter-spacing: 2.5px; color: var(--ink4); text-transform: uppercase; }
+  .act-title { font-family: 'Poppins'; font-weight: 800; font-size: 24px; letter-spacing: -0.4px; margin-top: 4px; }
+  .act-sub { font-weight: 500; font-size: 14px; color: var(--ink3); margin-top: 4px; }
+
+  /* Phone grid */
+  .grid { display: grid; grid-template-columns: repeat(3, 380px); gap: 36px 32px; justify-content: center; }
+  @media (max-width: 1280px) { .grid { grid-template-columns: repeat(2, 380px); } }
+  @media (max-width: 880px)  { .grid { grid-template-columns: 380px; } }
+
+  .frame-wrap { position: relative; }
+  .frame-label { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; padding-left: 4px; }
+  .frame-step { font-weight: 700; font-size: 10px; letter-spacing: 2px; color: var(--ink4); text-transform: uppercase; }
+  .frame-name { font-weight: 800; font-size: 16px; color: var(--ink); letter-spacing: -0.2px; }
+  .frame-desc { font-weight: 400; font-size: 12px; color: var(--ink4); line-height: 17px; margin-top: 2px; }
+
+  /* Phone */
+  .phone { width: 380px; height: 780px; border-radius: 44px; background: var(--warm); box-shadow: 0 0 0 10px #18182A, 0 0 0 12px rgba(255,255,255,0.1), 0 30px 80px rgba(0,0,0,0.2); overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .notch { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 110px; height: 28px; background: #18182A; border-radius: 0 0 16px 16px; z-index: 50; }
+  .sbar { display: flex; justify-content: space-between; padding: 14px 30px 6px; font-weight: 600; font-size: 13px; }
+  .sbar .right { font-size: 11px; letter-spacing: 2px; }
+
+  /* Chat header */
+  .chdr { display: flex; justify-content: space-between; align-items: center; padding: 4px 20px 12px; border-bottom: 1px solid rgba(10,10,10,0.06); }
+  .wordmark { font-family: 'Poppins'; font-weight: 800; font-size: 36px; letter-spacing: -1.3px; line-height: 40px; color: var(--ink); }
+  .wordmark em { color: var(--sky); font-style: normal; }
+
+  /* Chat body */
+  .chat-body { flex: 1; overflow-y: auto; padding: 14px 14px 20px; display: flex; flex-direction: column; gap: 8px; }
+  .chat-body::-webkit-scrollbar { display: none; }
+
+  /* Message bubbles */
+  .z-msg { display: flex; flex-direction: column; gap: 6px; max-width: 86%; }
+  .z-bubble { background: rgba(10,10,10,0.04); border-radius: 18px 18px 18px 6px; padding: 12px 15px; font-weight: 400; font-size: 16px; color: var(--ink); line-height: 23px; }
+  .z-bubble b { font-family: 'Poppins'; font-weight: 700; }
+  .z-bubble em { font-family: 'Poppins'; font-weight: 500; font-style: italic; color: var(--sky-deep); }
+  .u-msg { align-self: flex-end; }
+  .u-bubble { background: var(--sky-bg); border-radius: 18px 18px 6px 18px; padding: 10px 14px; font-weight: 500; font-size: 15px; color: var(--ink); max-width: 260px; }
+
+  /* Zaeli eyebrow (brief style) */
+  .z-eye { display: flex; align-items: center; gap: 6px; padding: 4px 4px 0; }
+  .z-star { width: 14px; height: 14px; border-radius: 4px; background: var(--sky); display: flex; align-items: center; justify-content: center; }
+  .z-star svg { width: 9px; height: 9px; }
+  .z-elabel { font-weight: 700; font-size: 9px; letter-spacing: 0.8px; color: var(--ink4); text-transform: uppercase; }
+
+  /* Chat bar — unified pill */
+  .bar-wrap { padding: 10px 12px 18px; background: var(--warm); }
+  .bar-pill { display: flex; align-items: center; gap: 6px; padding: 8px 6px 8px 10px; background: #fff; border: 1px solid rgba(10,10,10,0.08); border-radius: 28px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); min-height: 54px; }
+  .bar-btn { width: 40px; height: 40px; border-radius: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .bar-mic { color: var(--ink3); font-size: 17px; }
+  .bar-sep { width: 1px; height: 22px; background: rgba(10,10,10,0.08); margin: 0 2px; }
+  .bar-input { flex: 1; font-weight: 500; font-size: 15px; color: rgba(10,10,10,0.42); padding-left: 6px; }
+  .bar-cam { color: var(--coral); font-size: 17px; }
+  .bar-send { background: var(--coral-soft); color: var(--coral); font-size: 17px; font-weight: 700; }
+
+  /* Inline cards */
+  .card { background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 18px; padding: 16px; margin-top: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+  .card-lbl { font-weight: 700; font-size: 10px; letter-spacing: 1.2px; color: var(--ink4); text-transform: uppercase; margin-bottom: 10px; }
+  .card-field { background: rgba(10,10,10,0.04); border-radius: 12px; padding: 12px 14px; font-weight: 600; font-size: 17px; color: var(--ink); margin-bottom: 10px; }
+  .card-field.placeholder { color: var(--ink4); font-weight: 500; }
+  .card-btn { background: var(--ink); color: #fff; border-radius: 14px; padding: 12px; text-align: center; font-weight: 700; font-size: 15px; margin-top: 6px; }
+  .card-btn.mint { background: var(--mint-dark); }
+  .card-btn.sky { background: var(--sky-deep); }
+  .skip-link { text-align: center; font-weight: 600; font-size: 12px; color: var(--ink4); margin-top: 8px; }
+
+  /* Welcome screen */
+  .welcome { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 30px; gap: 14px; }
+  .welcome .wm-big { font-family: 'Poppins'; font-weight: 800; font-size: 80px; letter-spacing: -3.5px; line-height: 84px; color: var(--ink); }
+  .welcome .wm-big em { color: var(--sky); font-style: normal; }
+  .welcome .tagline { font-weight: 500; font-size: 22px; color: var(--ink); line-height: 30px; text-align: center; margin-top: 14px; }
+  .welcome .tagline b { font-weight: 700; }
+  .welcome .sub { font-weight: 400; font-size: 14px; color: var(--ink3); text-align: center; line-height: 22px; max-width: 260px; margin-top: 4px; }
+  .welcome .cta { background: var(--ink); color: #fff; font-weight: 700; font-size: 15px; padding: 14px 40px; border-radius: 30px; margin-top: 32px; }
+  .welcome .fine { font-weight: 500; font-size: 12px; color: var(--ink4); margin-top: 12px; }
+
+  /* Voice pill */
+  .voice-pill { display: inline-flex; align-items: center; gap: 7px; background: linear-gradient(135deg, var(--sky-bg), var(--mint-bg)); border: 1px solid var(--sky); padding: 8px 14px; border-radius: 20px; margin-top: 6px; align-self: flex-start; }
+  .voice-pill .dot { width: 22px; height: 22px; border-radius: 11px; background: var(--sky-deep); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+  .voice-pill .txt { font-weight: 700; font-size: 13px; color: var(--sky-deep); }
+
+  /* Family card — member rows */
+  .mrow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(10,10,10,0.06); }
+  .mrow:last-of-type { border-bottom: none; }
+  .mavatar { width: 38px; height: 38px; border-radius: 19px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 15px; }
+  .mname { flex: 1; font-weight: 700; font-size: 15px; }
+  .mrole { font-weight: 500; font-size: 11px; color: var(--ink4); margin-top: 1px; }
+  .mage { padding: 3px 10px; border-radius: 12px; background: var(--mint-bg); color: var(--mint-dark); font-weight: 700; font-size: 11px; }
+  .mrow-add { display: flex; align-items: center; gap: 10px; padding: 12px 0; color: var(--ink4); font-weight: 600; font-size: 13px; border-top: 1px solid rgba(10,10,10,0.06); margin-top: 6px; }
+  .plus-sq { width: 24px; height: 24px; border-radius: 8px; border: 1.5px dashed var(--ink5); display: flex; align-items: center; justify-content: center; color: var(--ink4); font-weight: 700; }
+
+  /* Rhythm items */
+  .ritem { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(10,10,10,0.06); }
+  .ritem:last-of-type { border-bottom: none; }
+  .ricon { width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .rlbl { flex: 1; font-weight: 600; font-size: 14px; color: var(--ink); }
+  .rtime { font-family: 'Poppins'; font-weight: 800; font-size: 15px; color: var(--ink); }
+
+  /* Chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .chip { padding: 7px 12px; border-radius: 20px; background: #fff; border: 1.5px solid rgba(10,10,10,0.1); font-weight: 600; font-size: 13px; color: var(--ink2); }
+  .chip.on { background: var(--mint-bg); border-color: var(--mint-dark); color: var(--mint-dark); }
+
+  /* Preferences toggles */
+  .pref-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(10,10,10,0.06); }
+  .pref-row:last-of-type { border-bottom: none; }
+  .pref-icon { width: 34px; height: 34px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .pref-body { flex: 1; }
+  .pref-ttl { font-weight: 700; font-size: 14px; color: var(--ink); }
+  .pref-desc { font-weight: 500; font-size: 11px; color: var(--ink4); margin-top: 1px; line-height: 15px; }
+  .tog { width: 42px; height: 24px; border-radius: 14px; background: rgba(10,10,10,0.15); position: relative; }
+  .tog.on { background: var(--mint-dark); }
+  .tog::after { content: ''; position: absolute; width: 20px; height: 20px; border-radius: 10px; background: #fff; top: 2px; left: 2px; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+  .tog.on::after { left: 20px; }
+
+  /* Permissions hero */
+  .perm-card { background: linear-gradient(135deg, #fff, var(--sky-bg)); border: 1.5px solid var(--sky); border-radius: 22px; padding: 18px; margin-top: 4px; }
+  .perm-ttl { font-weight: 800; font-size: 18px; color: var(--ink); letter-spacing: -0.3px; }
+  .perm-sub { font-weight: 500; font-size: 12px; color: var(--ink3); margin-top: 4px; line-height: 17px; }
+  .perm-btn { background: var(--sky-deep); color: #fff; border-radius: 12px; padding: 11px; text-align: center; font-weight: 700; font-size: 14px; margin-top: 12px; }
+
+  /* Pantry demo */
+  .pantry { background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 16px; padding: 14px; }
+  .pitem { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(10,10,10,0.05); }
+  .pitem:last-of-type { border-bottom: none; }
+  .pemoji { font-size: 22px; }
+  .pinfo { flex: 1; }
+  .pname { font-weight: 700; font-size: 14px; }
+  .pmeta { font-weight: 500; font-size: 11px; color: var(--ink4); margin-top: 1px; }
+  .pstatus { font-weight: 700; font-size: 11px; padding: 3px 9px; border-radius: 7px; letter-spacing: 0.3px; }
+  .pstatus.low { background: var(--coral-soft); color: var(--coral-deep); }
+  .pstatus.ok { background: var(--mint-bg); color: var(--mint-dark); }
+
+  /* Homework demo */
+  .hw { background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 16px; padding: 14px; }
+  .hw-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid rgba(10,10,10,0.05); }
+  .hw-av { width: 34px; height: 34px; border-radius: 17px; background: var(--poppy); color: #fff; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .hw-name { font-weight: 700; font-size: 14px; }
+  .hw-sub { font-weight: 500; font-size: 11px; color: var(--ink4); margin-top: 1px; }
+  .hw-chain { display: flex; flex-direction: column; gap: 6px; }
+  .hw-b { padding: 9px 12px; border-radius: 12px; font-weight: 500; font-size: 13px; max-width: 80%; line-height: 18px; }
+  .hw-b.k { background: var(--sky-bg); color: var(--sky-deep); align-self: flex-end; border-radius: 12px 12px 4px 12px; }
+  .hw-b.z { background: rgba(10,10,10,0.04); color: var(--ink); border-radius: 12px 12px 12px 4px; }
+  .hw-b.z b { font-weight: 700; }
+
+  /* General life demo — photo-receipt pattern */
+  .photo-card { background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 16px; padding: 14px; }
+  .photo-thumb { border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #F5EDE3, #FAC8A8); padding: 14px 16px; position: relative; }
+  .photo-thumb-title { font-weight: 700; font-size: 11px; color: var(--peach-deep); letter-spacing: 0.8px; text-transform: uppercase; }
+  .photo-thumb-body { font-family: 'Poppins'; font-weight: 500; font-size: 10px; line-height: 14px; color: var(--peach-deep); opacity: 0.9; margin-top: 6px; }
+  .photo-meta { font-weight: 600; font-size: 11px; color: var(--ink4); margin-top: 8px; }
+  .photo-answer { background: var(--peach-bg); border-left: 3px solid var(--peach); border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-weight: 500; font-size: 13px; color: var(--ink2); line-height: 18px; }
+  .photo-answer b { font-weight: 700; color: var(--ink); }
+  .photo-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .photo-act { flex: 1; background: rgba(10,10,10,0.06); border-radius: 10px; padding: 8px; text-align: center; font-weight: 600; font-size: 12px; color: var(--ink2); }
+  .photo-act.primary { background: var(--peach-deep); color: #fff; }
+
+  /* Brief card — matches real brief exactly */
+  .brief-wrap { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .brief-bubble { background: var(--peach); border-radius: 18px 18px 18px 6px; padding: 16px 17px; border: 1px solid rgba(10,10,10,0.06); }
+  .brief-text { font-family: 'Poppins'; font-weight: 400; font-size: 17px; color: var(--ink); line-height: 27px; }
+  .brief-win { background: rgba(184,237,208,0.55); border-left: 3px solid var(--mint-dark); border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-family: 'Poppins'; font-weight: 600; font-size: 15px; color: var(--mint-dark); line-height: 22px; }
+  .brief-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; padding: 0 4px; }
+  .brief-chip { padding: 7px 13px; border-radius: 20px; background: #fff; border: 1.5px solid rgba(10,10,10,0.14); font-weight: 600; font-size: 12px; color: rgba(10,10,10,0.55); }
+  .brief-chip.pri { background: var(--coral-soft); border-color: #F5C2BA; color: var(--coral-deep); }
+
+  /* Dashboard preview */
+  .dash-prev { background: #fff; border: 1px solid rgba(10,10,10,0.06); border-radius: 16px; overflow: hidden; }
+  .dash-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid rgba(10,10,10,0.05); }
+  .dash-row:last-of-type { border-bottom: none; }
+  .dash-icon { width: 36px; height: 36px; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .dash-lbl { flex: 1; }
+  .dash-name { font-weight: 700; font-size: 13px; }
+  .dash-sub { font-weight: 500; font-size: 11px; color: var(--ink4); margin-top: 1px; }
+
+  /* Final hero */
+  .final { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 30px; text-align: center; gap: 14px; }
+  .final .big { font-size: 50px; }
+  .final h2 { font-family: 'Poppins'; font-weight: 800; font-size: 32px; letter-spacing: -0.8px; line-height: 38px; color: var(--ink); }
+  .final h2 em { color: var(--coral); font-style: normal; }
+  .final .p { font-weight: 400; font-size: 14px; color: var(--ink3); max-width: 280px; line-height: 21px; }
+  .final .cta { background: var(--ink); color: #fff; font-weight: 700; font-size: 15px; padding: 14px 42px; border-radius: 30px; margin-top: 18px; }
+
+  /* Acts wrap */
+  .act-wrap { margin-bottom: 0; }
+
+  /* Annotation */
+  .note { margin-top: 12px; padding: 14px 16px; background: rgba(255,255,255,0.6); border-radius: 14px; border-left: 3px solid var(--mint); }
+  .note b { font-weight: 800; color: var(--ink); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 4px; }
+  .note span { font-weight: 500; font-size: 13px; color: var(--ink2); line-height: 19px; }
+
+  /* Progress dots (tiny indicator at top of phone) */
+  .prog { display: flex; gap: 4px; justify-content: center; padding: 8px 0 0; }
+  .prog-dot { width: 18px; height: 3px; border-radius: 2px; background: rgba(10,10,10,0.1); }
+  .prog-dot.on { background: var(--ink); width: 28px; }
+
+  /* Footer */
+  .foot { max-width: 1400px; margin: 64px auto 0; background: #fff; border-radius: 20px; padding: 30px 36px; border: 1px solid rgba(10,10,10,0.06); }
+  .foot h3 { font-weight: 800; font-size: 20px; letter-spacing: -0.3px; margin-bottom: 12px; }
+  .foot p, .foot li { font-weight: 400; font-size: 14px; color: var(--ink2); line-height: 22px; }
+  .foot .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 18px; }
+  .foot .block { padding: 18px; background: var(--warm); border-radius: 14px; }
+  .foot .block h4 { font-weight: 800; font-size: 14px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.8px; }
+  .foot ul { padding-left: 20px; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="eyebrow">Zaeli · Onboarding v2 · First three minutes</div>
+  <h1>The moment she <em>earns</em> $14.99.</h1>
+  <p>A chat-first on-ramp where Zaeli introduces herself with wit, shows what she can do (not just as a module launcher but as your everyday co-pilot — type, talk, show her anything), collects what she needs through natural conversation, and lands on a personalised brief that makes the user say <em>"wait — this is for me."</em></p>
+  <div class="meta"><span class="dot"></span>13 screens · 4 acts · ElevenLabs voice · matches current design system</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- ACT 1 — MEETING ZAELI                                              -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+
+<div class="act">
+  <div class="act-num">Act · I</div>
+  <div class="act-title">Meeting Zaeli</div>
+  <div class="act-sub">Introduce the companion before the product. Set the relationship, not the transaction.</div>
+</div>
+
+<div class="grid">
+
+<!-- ─── SCREEN 1 — WELCOME ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 01</span>
+    <span class="frame-name">The first breath</span>
+    <span class="frame-desc">No logos wall. No value prop list. Just wordmark, a soft promise, one button.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="welcome">
+      <div class="wm-big">z<em>a</em>el<em>i</em></div>
+      <div class="tagline">Less <b>chaos</b>.<br>More family.</div>
+      <div class="sub">Your family's sharpest teammate — the one who always knows what's for dinner and when pickup is.</div>
+      <div class="cta">Let's meet</div>
+      <div class="fine">Already have an account? Sign in</div>
+    </div>
+  </div>
+  <div class="note"><b>Why it works</b><span>"Let's meet" sets relationship-tone not transaction-tone. Tagline honours the locked brand line — "chaos" in context here is fine (it's the enemy she fights).</span></div>
+</div>
+
+<!-- ─── SCREEN 2 — ZAELI OPENS WITH VOICE ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 02</span>
+    <span class="frame-name">Zaeli speaks first — literally</span>
+    <span class="frame-desc">Tap-to-hear pill (ElevenLabs). First-impression wow. Shows all 3 ways to talk to her.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="z-eye"><div class="z-star"><svg viewBox="0 0 24 24" fill="#0A0A0A"><path d="M12 2L14.09 8.26L20 10L14.09 11.74L12 18L9.91 11.74L4 10L9.91 8.26L12 2Z"/></svg></div><span class="z-elabel">Zaeli · just now</span></div>
+      <div class="z-msg"><div class="z-bubble">Hello — I'm <b>Zaeli</b>.</div></div>
+      <div class="voice-pill"><div class="dot">▶</div><div class="txt">Tap to hear me · 0:08</div></div>
+      <div class="z-msg"><div class="z-bubble">Think of me as your family's sharpest friend — the one who remembers what time pickup is, what's still in the freezer, and when the car rego is due.</div></div>
+      <div class="z-msg"><div class="z-bubble">You can <b>type</b>, <b>tap the mic</b> to talk, or <b>show me a photo</b> of just about anything. Permission slips, a confusing recipe, whatever. I'll take it from there.</div></div>
+      <div class="z-msg"><div class="z-bubble">Couple of quick questions and we're off. Ready?</div></div>
+    </div>
+    <div class="bar-wrap"><div class="bar-pill"><div class="bar-btn bar-mic">🎤</div><div class="bar-sep"></div><div class="bar-input">Reply to Zaeli…</div><div class="bar-btn bar-cam">📷</div><div class="bar-btn bar-send">↑</div></div></div>
+  </div>
+  <div class="note"><b>The sticky feature showcase</b><span>The <b>type / talk / photo</b> line is the product thesis in one sentence. Most onboarding teaches features. This teaches the <em>relationship</em>. The voice pill is the moment they scream at their spouse to come look.</span></div>
+</div>
+
+<!-- ─── SCREEN 3 — NAME + EMAIL ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 03</span>
+    <span class="frame-name">Reciprocity</span>
+    <span class="frame-desc">Zaeli introduced herself; now the user does the same. Email bundled in so we don't re-ask.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="u-msg"><div class="u-bubble">Go on then.</div></div>
+      <div class="z-msg"><div class="z-bubble">Wonderful. <b>Who are you</b>, and how do I email you? I promise I won't spam — I'll just send you your morning brief if the app's not open.</div></div>
+      <div class="card" style="width:100%;">
+        <div class="card-lbl">Let's get you set up</div>
+        <div class="card-field">Anna</div>
+        <div class="card-field placeholder">anna@example.com</div>
+        <div class="card-btn mint">That's me</div>
+      </div>
+    </div>
+    <div class="bar-wrap"><div class="bar-pill"><div class="bar-btn bar-mic">🎤</div><div class="bar-sep"></div><div class="bar-input">Type a message…</div><div class="bar-btn bar-cam">📷</div><div class="bar-btn bar-send">↑</div></div></div>
+  </div>
+  <div class="note"><b>Reframe</b><span>Asking for email the old way is a cold form field. Asking it in Zaeli's voice — "how do I email you? I won't spam" — is a promise wrapped in a question. Same data, better tone.</span></div>
+</div>
+
+<!-- ─── SCREEN 4 — FAMILY ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 04</span>
+    <span class="frame-name">Meet the family</span>
+    <span class="frame-desc">Family colours locked. Year levels for the kids (needed for Tutor). Zaeli reacts with wit.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="z-msg"><div class="z-bubble">Lovely to meet you, Anna. Now — <b>who else is in your family?</b> Add each one and I'll start remembering them.</div></div>
+      <div class="card" style="width:100%;">
+        <div class="card-lbl">Your household</div>
+        <div class="mrow"><div class="mavatar" style="background:var(--anna);">A</div><div class="mname">Anna<div class="mrole">Parent · you</div></div></div>
+        <div class="mrow"><div class="mavatar" style="background:var(--rich);">R</div><div class="mname">Richard<div class="mrole">Parent</div></div></div>
+        <div class="mrow"><div class="mavatar" style="background:var(--poppy);">P</div><div class="mname">Poppy<div class="mrole">Year 6</div></div><div class="mage">12</div></div>
+        <div class="mrow"><div class="mavatar" style="background:var(--gab);">G</div><div class="mname">Gab<div class="mrole">Year 4</div></div><div class="mage">10</div></div>
+        <div class="mrow"><div class="mavatar" style="background:var(--duke);">D</div><div class="mname">Duke<div class="mrole">Year 1</div></div><div class="mage">7</div></div>
+        <div class="mrow-add"><div class="plus-sq">+</div>Add another</div>
+        <div class="card-btn mint">Looks right</div>
+      </div>
+      <div class="z-msg"><div class="z-bubble">Poppy, Gab and Duke — got it. Year 1 is when everything's magical and everyone's tired. I'll keep an eye on Duke.</div></div>
+    </div>
+    <div class="bar-wrap"><div class="bar-pill"><div class="bar-btn bar-mic">🎤</div><div class="bar-sep"></div><div class="bar-input">Type a message…</div><div class="bar-btn bar-cam">📷</div><div class="bar-btn bar-send">↑</div></div></div>
+  </div>
+  <div class="note"><b>Wit earned, not sprayed</b><span>Zaeli reacts to the specific kids she just met — not a generic "great family!" response. Winning-mantra kicks in: "I'll keep an eye on Duke" = active-credit language. Family colours locked (Poppy purple, Gab green, Duke amber).</span></div>
+</div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- ACT 2 — GETTING TO KNOW YOU                                        -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+
+<div class="act">
+  <div class="act-num">Act · II</div>
+  <div class="act-title">Getting to know you</div>
+  <div class="act-sub">Collect what's needed — disguised as conversation. Every answer shapes the next brief.</div>
+</div>
+
+<div class="grid">
+
+<!-- ─── SCREEN 5 — RHYTHM ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 05</span>
+    <span class="frame-name">Daily rhythm</span>
+    <span class="frame-desc">When does your day bend? Used to time every brief she ever sends.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="z-msg"><div class="z-bubble">Every family's day has a shape. <b>When does yours bend?</b> I'll use this so I never nudge at the wrong moment — no one needs a ping at 7:58 when you're hunting for shoes.</div></div>
+      <div class="card" style="width:100%;">
+        <div class="card-lbl">Your weekday rhythm</div>
+        <div class="ritem"><div class="ricon" style="background:#FFE8D6;">☀️</div><div class="rlbl">School run out the door</div><div class="rtime">8:15</div></div>
+        <div class="ritem"><div class="ricon" style="background:#FFEBE2;">🍝</div><div class="rlbl">Dinner time</div><div class="rtime">6:00</div></div>
+        <div class="ritem"><div class="ricon" style="background:#E8E0FF;">🌙</div><div class="rlbl">Kids in bed</div><div class="rtime">8:30</div></div>
+        <div class="card-btn mint">That's us</div>
+        <div class="skip-link">A bit different each day · set later</div>
+      </div>
+    </div>
+    <div class="bar-wrap"><div class="bar-pill"><div class="bar-btn bar-mic">🎤</div><div class="bar-sep"></div><div class="bar-input">Type a message…</div><div class="bar-btn bar-cam">📷</div><div class="bar-btn bar-send">↑</div></div></div>
+  </div>
+  <div class="note"><b>Feature tease, quietly</b><span>Plants the seed that her brief timing is <em>intentional</em>. Source of truth for the 3 daily briefs. "Set later" skip-option present (applies to every card from here).</span></div>
+</div>
+
+<!-- ─── SCREEN 6 — WHERE TO HELP + PREFERENCES ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 06</span>
+    <span class="frame-name">What matters right now</span>
+    <span class="frame-desc">Multi-select chips + preference toggles (holidays, shared shopping, budget). One smart card.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="z-msg"><div class="z-bubble">Last question for a while, promise. <b>Where's the heat right now?</b> Tap anything that fits. I'll start there and stay out of what doesn't need me.</div></div>
+      <div class="card" style="width:100%;">
+        <div class="card-lbl">Where I can help most</div>
+        <div class="chips">
+          <div class="chip on">Meal planning</div>
+          <div class="chip on">The mental load</div>
+          <div class="chip">After-school chaos</div>
+          <div class="chip">Forgetting things</div>
+          <div class="chip on">Weekends feel rushed</div>
+          <div class="chip">Homework battles</div>
+          <div class="chip">Shopping admin</div>
+          <div class="chip">Solo-parent days</div>
+        </div>
+        <div class="card-lbl" style="margin-top:14px;">A few extras</div>
+        <div class="pref-row"><div class="pref-icon" style="background:var(--sky-bg);color:var(--sky-deep);">✈️</div><div class="pref-body"><div class="pref-ttl">Upcoming holiday or trip?</div><div class="pref-desc">I'll help with packing, bookings, countdown.</div></div><div class="tog on"></div></div>
+        <div class="pref-row"><div class="pref-icon" style="background:var(--lav);color:#5020C0;">🛒</div><div class="pref-body"><div class="pref-ttl">Shared shopping list</div><div class="pref-desc">Everyone in the family can add items.</div></div><div class="tog on"></div></div>
+        <div class="pref-row"><div class="pref-icon" style="background:var(--mint-bg);color:var(--mint-dark);">💰</div><div class="pref-body"><div class="pref-ttl">Track the monthly budget</div><div class="pref-desc">Plan categories, watch savings goals.</div></div><div class="tog"></div></div>
+        <div class="card-btn mint" style="margin-top:14px;">Start me there</div>
+        <div class="skip-link">None of these — skip</div>
+      </div>
+    </div>
+    <div class="bar-wrap"><div class="bar-pill"><div class="bar-btn bar-mic">🎤</div><div class="bar-sep"></div><div class="bar-input">Type a message…</div><div class="bar-btn bar-cam">📷</div><div class="bar-btn bar-send">↑</div></div></div>
+  </div>
+  <div class="note"><b>Growth hook</b><span>"The mental load" is in the chip list — that's the phrase people quote to friends. Validate it here, echo in the first brief, watch them tell someone. Three preference toggles (holiday, shared shopping, budget) are soft signals — they set what shows up on the dashboard next.</span></div>
+</div>
+
+<!-- ─── SCREEN 7 — PERMISSIONS ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 07</span>
+    <span class="frame-name">Two quick permissions</span>
+    <span class="frame-desc">Location (weather in brief) + notifications (the brief itself). Timed right — after she's earned trust.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="z-msg"><div class="z-bubble">Two tiny housekeeping bits. I promise this is the boring part — and the last of it.</div></div>
+      <div class="perm-card">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:36px;height:36px;border-radius:11px;background:var(--sky);display:flex;align-items:center;justify-content:center;font-size:18px;">📍</div>
+          <div class="perm-ttl">Where are you?</div>
+        </div>
+        <div class="perm-sub">So I can put the right weather in your brief. Nothing stored on my end — just used once each morning.</div>
+        <div class="perm-btn">Share location</div>
+        <div class="skip-link">Skip — I'll enter my suburb</div>
+      </div>
+      <div class="perm-card" style="background:linear-gradient(135deg,#fff,#FEF3C7);border-color:#F59E0B;margin-top:10px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <div style="width:36px;height:36px;border-radius:11px;background:#F59E0B;display:flex;align-items:center;justify-content:center;font-size:18px;">🔔</div>
+          <div class="perm-ttl">Let me nudge you</div>
+        </div>
+        <div class="perm-sub">Three notifications a day, max — morning, midday, evening. Never a badge buzzing with nothing useful.</div>
+        <div class="perm-btn" style="background:#D97706;">Yes, nudge me</div>
+        <div class="skip-link">Not yet</div>
+      </div>
+    </div>
+  </div>
+  <div class="note"><b>Permissions done right</b><span>Asks <em>after</em> Zaeli's personality has landed. Frames each ask in terms of the user benefit. Promises a cap ("3 a day, max") which relieves the main objection.</span></div>
+</div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- ACT 3 — SHOW, DON'T TELL                                           -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+
+<div class="act">
+  <div class="act-num">Act · III</div>
+  <div class="act-title">Show, don't tell</div>
+  <div class="act-sub">Three moments that reveal what Zaeli is. One of them makes her sticky forever.</div>
+</div>
+
+<div class="grid">
+
+<!-- ─── SCREEN 8 — PANTRY MEMORY ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 08</span>
+    <span class="frame-name">"I remember what you bought"</span>
+    <span class="frame-desc">Pantry demo — the killer detail for anyone who's ever bought three jars of mustard.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="z-msg"><div class="z-bubble">Brilliant. Before I set up your space, three tiny things so you know what I'm good for. 👇</div></div>
+      <div class="z-msg"><div class="z-bubble"><b>Remembering what you've bought.</b> Show me a receipt or snap the pantry — I'll track what's running low so no one's buying three jars of mustard.</div></div>
+      <div class="pantry">
+        <div class="card-lbl">Your pantry · a preview</div>
+        <div class="pitem"><div class="pemoji">🥛</div><div class="pinfo"><div class="pname">Full-cream milk</div><div class="pmeta">Last bought 6 days ago</div></div><div class="pstatus low">Low</div></div>
+        <div class="pitem"><div class="pemoji">🍞</div><div class="pinfo"><div class="pname">Sourdough</div><div class="pmeta">Last bought 2 days ago</div></div><div class="pstatus ok">Good</div></div>
+        <div class="pitem"><div class="pemoji">🥚</div><div class="pinfo"><div class="pname">Eggs, free range</div><div class="pmeta">Last bought 9 days ago</div></div><div class="pstatus low">Low</div></div>
+      </div>
+    </div>
+    <div class="bar-wrap"><div class="bar-pill"><div class="bar-btn bar-mic">🎤</div><div class="bar-sep"></div><div class="bar-input">Type a message…</div><div class="bar-btn bar-cam">📷</div><div class="bar-btn bar-send">↑</div></div></div>
+  </div>
+  <div class="note"><b>Active credit</b><span>"I'll track" — first-person. The joke ("so no one's buying three jars of mustard") is oddly specific on purpose — it's the moment that turns Zaeli from "another app" to "a person".</span></div>
+</div>
+
+<!-- ─── SCREEN 9 — HOMEWORK ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 09</span>
+    <span class="frame-name">Homework, done properly</span>
+    <span class="frame-desc">Sample Socratic exchange with Poppy. Shows Tutor without saying the word.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="z-msg"><div class="z-bubble"><b>Helping the kids without handing over the answer.</b> When Poppy gets stuck on homework, I guide her through it — she does the thinking.</div></div>
+      <div class="hw">
+        <div class="hw-head"><div class="hw-av">P</div><div><div class="hw-name">Poppy · a preview</div><div class="hw-sub">Year 6 · Maths</div></div></div>
+        <div class="hw-chain">
+          <div class="hw-b k">I don't know how to add 2.45 and 3.7</div>
+          <div class="hw-b z">Good one. First question for you — what's tricky about the two numbers?</div>
+          <div class="hw-b k">They have different decimal places</div>
+          <div class="hw-b z">Exactly. So what trick do we use to line them up? <b>Hint:</b> think about the decimal point…</div>
+        </div>
+      </div>
+      <div class="z-msg"><div class="z-bubble">Your kid gets a patient tutor. You get your dinner hour back. Everyone wins.</div></div>
+    </div>
+    <div class="bar-wrap"><div class="bar-pill"><div class="bar-btn bar-mic">🎤</div><div class="bar-sep"></div><div class="bar-input">Type a message…</div><div class="bar-btn bar-cam">📷</div><div class="bar-btn bar-send">↑</div></div></div>
+  </div>
+  <div class="note"><b>The differentiator</b><span>Parents instantly get this isn't ChatGPT-for-kids. The Socratic constraint IS the pitch. "You get your dinner hour back" — the benefit is what Zaeli saves the parent, not just what she does for the kid.</span></div>
+</div>
+
+<!-- ─── SCREEN 10 — GENERAL LIFE (BIG ONE) ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 10</span>
+    <span class="frame-name">"…and everything else, honestly"</span>
+    <span class="frame-desc">The sticky-feature demo. Upload ANY photo, ask ANYTHING. Zaeli handles life, not just lists.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="z-msg"><div class="z-bubble">Here's my favourite bit. The stuff you don't think to ask an app — <b>ask me anyway</b>.</div></div>
+      <div class="z-msg"><div class="z-bubble">Confusing school form? Mystery ingredient? <em>"Is this rash anything?"</em> Show me the photo, ask the question. I handle the whole business of being a parent — not just the lists.</div></div>
+      <div class="u-msg"><div class="u-bubble" style="display:flex;align-items:center;gap:8px;">📷 School permission slip.jpg</div></div>
+      <div class="photo-card">
+        <div class="photo-thumb">
+          <div class="photo-thumb-title">BRENTWOOD PRIMARY · Excursion Consent</div>
+          <div class="photo-thumb-body">Dear Families, On Friday 9 May, Year 4 students will travel to the Sydney Maritime Museum. Please return the slip below signed by a parent or guardian, along with $18 for entry. Packed lunch required. Departs 9:15am, returns 3:00pm. Spare warm layer recommended.</div>
+        </div>
+        <div class="photo-meta">Taken just now · from camera roll</div>
+        <div class="photo-answer">
+          <b>Got it — it's Gab's excursion.</b><br>
+          Friday 9 May, Sydney Maritime Museum. Depart 9:15am, back 3pm. $18, packed lunch, warm layer, signed slip. Shall I add the excursion to your calendar and put the $18 on your list of things to sort?
+        </div>
+        <div class="photo-actions">
+          <div class="photo-act primary">Yes, both</div>
+          <div class="photo-act">Just calendar</div>
+          <div class="photo-act">Not now</div>
+        </div>
+      </div>
+    </div>
+    <div class="bar-wrap"><div class="bar-pill"><div class="bar-btn bar-mic">🎤</div><div class="bar-sep"></div><div class="bar-input">Type a message…</div><div class="bar-btn bar-cam">📷</div><div class="bar-btn bar-send">↑</div></div></div>
+  </div>
+  <div class="note"><b>The long-term sticky feature</b><span>This screen is the unlock. If they only come for the shopping list, they'll drift away. If they come for <em>"show me a photo, ask anything"</em> — that's monthly retention. Every parent has a school form, a mystery label, a question at 10pm. Zaeli is the friend who answers.</span></div>
+</div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- ACT 4 — THE MAGIC MOMENT                                           -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+
+<div class="act">
+  <div class="act-num">Act · IV</div>
+  <div class="act-title">The magic moment</div>
+  <div class="act-sub">A real brief, generated from what she just learned. The payoff.</div>
+</div>
+
+<div class="grid">
+
+<!-- ─── SCREEN 11 — BRIEF PREVIEW ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 11</span>
+    <span class="frame-name">Tomorrow morning · a preview</span>
+    <span class="frame-desc">The Duolingo first-lesson moment. Real names, real time, real weather, real tone.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="z-msg"><div class="z-bubble">Okay Anna — enough from me. Let me show you something <b>real</b>.</div></div>
+      <div class="z-msg"><div class="z-bubble">Here's what tomorrow morning could look like, if I'd been with you a while.</div></div>
+      <div class="brief-wrap">
+        <div class="z-eye"><div class="z-star"><svg viewBox="0 0 24 24" fill="#0A0A0A"><path d="M12 2L14.09 8.26L20 10L14.09 11.74L12 18L9.91 11.74L4 10L9.91 8.26L12 2Z"/></svg></div><span class="z-elabel">Zaeli · Morning · 7:30 am</span></div>
+        <div class="brief-bubble">
+          <div class="brief-text">Morning Anna — light rain on the school run, so grab jackets for Poppy and Gab. Duke's swim is tonight at 4:30 — I've got it on the radar. Dinner's not locked in yet, and you're low on milk if pancakes are on the cards. Say the word and I'll sort it.</div>
+          <div class="brief-win">A proper Thursday shaping up. You've got this.</div>
+        </div>
+        <div class="brief-chips">
+          <div class="brief-chip pri">Plan dinner tonight</div>
+          <div class="brief-chip">Add milk to list</div>
+          <div class="brief-chip">All over it ✓</div>
+        </div>
+      </div>
+      <div class="z-msg" style="margin-top:12px;"><div class="z-bubble">That's what I'll send every morning, midday and evening. Gentle. Specific. Short.</div></div>
+    </div>
+    <div class="bar-wrap"><div class="bar-pill"><div class="bar-btn bar-mic">🎤</div><div class="bar-sep"></div><div class="bar-input">Type a message…</div><div class="bar-btn bar-cam">📷</div><div class="bar-btn bar-send">↑</div></div></div>
+  </div>
+  <div class="note"><b>Brief card is pixel-matched to the real thing</b><span>Peach bubble, black star + sky eyebrow, 17px body, mint win banner, coral-tinted primary chip. They should not be able to tell this mockup from a real brief. Closing line "You've got this" is earned here — winning-mantra in action, and Richard overruled the ban for onboarding context.</span></div>
+</div>
+
+<!-- ─── SCREEN 12 — FAMILY SPACE REVEAL ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 12</span>
+    <span class="frame-name">"I've set up your space"</span>
+    <span class="frame-desc">Dashboard as a reference layer — not the main event. Philosophy B honoured.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="chat-body">
+      <div class="u-msg"><div class="u-bubble">Oh that's lovely 🥹</div></div>
+      <div class="z-msg"><div class="z-bubble">I'm so glad. Three briefs a day — but I won't crowd you. Silence means nothing's urgent.</div></div>
+      <div class="z-msg"><div class="z-bubble">I've also set up a quiet little family space. Calendar, meals, shopping, your Bali trip — all one tap away when you want the full view.</div></div>
+      <div class="dash-prev">
+        <div class="card-lbl" style="padding:12px 14px 0;">Your family space</div>
+        <div class="dash-row"><div class="dash-icon" style="background:#2D3748;color:#fff;">📅</div><div class="dash-lbl"><div class="dash-name">Calendar</div><div class="dash-sub">3 things tomorrow</div></div></div>
+        <div class="dash-row"><div class="dash-icon" style="background:var(--mint-bg);color:var(--mint-dark);">🍽️</div><div class="dash-lbl"><div class="dash-name">Meal Planner</div><div class="dash-sub">Tonight unplanned</div></div></div>
+        <div class="dash-row"><div class="dash-icon" style="background:var(--lav);color:#5020C0;">🛒</div><div class="dash-lbl"><div class="dash-name">Shopping</div><div class="dash-sub">6 items · milk low</div></div></div>
+        <div class="dash-row"><div class="dash-icon" style="background:var(--sky-bg);color:var(--sky-deep);">✈️</div><div class="dash-lbl"><div class="dash-name">Bali · 18 days</div><div class="dash-sub">Packing 40%</div></div></div>
+        <div class="dash-row"><div class="dash-icon" style="background:var(--gold);color:#8B6914;">🎯</div><div class="dash-lbl"><div class="dash-name">On the Radar</div><div class="dash-sub">2 things need you</div></div></div>
+      </div>
+      <div class="z-msg" style="margin-top:10px;"><div class="z-bubble">And there's a corner for the kids too — we can set that up later when you want.</div></div>
+    </div>
+    <div class="bar-wrap"><div class="bar-pill"><div class="bar-btn bar-mic">🎤</div><div class="bar-sep"></div><div class="bar-input">Type a message…</div><div class="bar-btn bar-cam">📷</div><div class="bar-btn bar-send">↑</div></div></div>
+  </div>
+  <div class="note"><b>Philosophy B win</b><span>Dashboard framed as "a quiet little family space" — never the main event. Bali trip appears because they said they had an upcoming holiday. Every card is <em>personalised to their answers</em>. Kids Hub casually mentioned, deferred on purpose.</span></div>
+</div>
+
+<!-- ─── SCREEN 13 — READY ─── -->
+<div class="frame-wrap">
+  <div class="frame-label">
+    <span class="frame-step">Screen 13</span>
+    <span class="frame-name">Handoff</span>
+    <span class="frame-desc">Last beat before real life. One promise, one button. Ends on relationship, not product.</span>
+  </div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="sbar"><span>9:41</span><span class="right">●●●●● ▮▮</span></div>
+    <div class="chdr"><div class="wordmark">z<em>a</em>el<em>i</em></div></div>
+    <div class="final">
+      <div class="big">✦</div>
+      <h2>You're in<br><em>good hands</em>.</h2>
+      <div class="p">7:30 tomorrow morning — I'll be here. Gentle, specific, short. In the meantime, say hi anytime.</div>
+      <div class="cta">Start with Zaeli</div>
+      <div style="font-weight:500;font-size:12px;color:var(--ink4);margin-top:14px;">Free for 14 days · A$14.99/month after</div>
+    </div>
+  </div>
+  <div class="note"><b>The last beat</b><span>"You're in good hands" is a promise not a slogan. Coral accent on "good hands" ties to the Chat brief chip colour — tiny visual consistency. Trial mention is the only commercial moment and it's in the softest possible voice.</span></div>
+</div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- NOTES                                                              -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+
+<div class="foot">
+  <h3>Changes from v1</h3>
+  <ul>
+    <li><b>Screen count 12 → 13</b> — added a dedicated "show me a photo, ask me anything" screen (Screen 10). This is the sticky-feature screen and it earns its slot.</li>
+    <li><b>ElevenLabs voice pill</b> on Screen 2 — tap to hear Zaeli's voice. First-impression wow, lands before any friction.</li>
+    <li><b>Email collected in Screen 3</b> (alongside name) — one card, two fields, single submit. No second ask.</li>
+    <li><b>Kids' year levels</b> shown on Screen 4 — needed for Tutor to pitch level-appropriate help.</li>
+    <li><b>Preferences bundled into Screen 6</b> — holiday plans, shared shopping, monthly budget added as toggles under the stress chips. All under one "What matters right now" card.</li>
+    <li><b>Permissions screen (07)</b> — location + notifications, framed around user benefit, not product need. "3 a day, max" cap promise.</li>
+    <li><b>Family colours locked</b> — Poppy purple, Gab green, Duke amber, Rich blue, Anna coral (matches Kids Hub / Our Family / Travel palette).</li>
+    <li><b>Brief card pixel-matched</b> — Screen 11 brief is the real brief (peach bubble, black star on sky eyebrow, 17px body, mint win banner, coral-tinted primary chip).</li>
+    <li><b>Copy rewritten for wit</b> — Zaeli has more personality throughout. "So no one's buying three jars of mustard" / "You get your dinner hour back" / "I'll keep an eye on Duke". "You've got this" and "chaos" earn their places.</li>
+    <li><b>"Set this up later" skip link</b> on every non-critical card (rhythm, chips, permissions) — lowers pressure and abandon rate.</li>
+  </ul>
+
+  <div class="grid2">
+    <div class="block">
+      <h4>Design-system sync — mechanical</h4>
+      <ul>
+        <li>Wordmark: <code>z&lt;a-sky&gt;el&lt;i-sky&gt;</code> — each letter separately tinted (not <code>ae</code> together)</li>
+        <li>Chat bar: unified pill — mic · sep · input · camera · send</li>
+        <li>Family colours: Rich #4D8BFF · Anna #FF7B6B · Poppy #A855F7 · Gab #22C55E · Duke #F59E0B</li>
+        <li>Body bg: #FAF8F5 warm white</li>
+        <li>Brief bubble: #FAC8A8 peach · 17px Poppins body · mint win banner</li>
+        <li>Coral primary send / chip: #FF4545 / #FFE4E0 tint</li>
+      </ul>
+    </div>
+    <div class="block">
+      <h4>Open for Richard · quick calls</h4>
+      <ul>
+        <li><b>Voice scope:</b> Screen 2 tap-to-hear = 8-10s ElevenLabs audio. Generate once, cache. Future: Zaeli voices every brief. Start here.</li>
+        <li><b>General-life demo (Screen 10):</b> pre-canned excursion form. Live vision call adds latency. Swap to live post-launch.</li>
+        <li><b>Brief template:</b> pre-written with substitutions for name/time/weather/kid-names. Live Sonnet generation can come in a follow-up.</li>
+        <li><b>Progress indicator:</b> skipped in this mockup — 13 screens is short enough that a subtle fade-in between acts might be enough. Add dots if testing shows drift.</li>
+        <li><b>Subscription framing:</b> only mentioned on final screen, in soft voice. Is that right, or should trial be clearer earlier?</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3 style="margin-top:28px;">Build scope</h3>
+  <p>
+    <b>Session A (next):</b> Build the 13-screen flow end-to-end in <code>app/onboarding/</code>. Local state only. Brief template with substitutions. Pre-recorded 8s Zaeli voice clip for Screen 2 (ElevenLabs generates once, cache in assets). Permissions prompts live. Skip paths live. On completion: write a new <code>onboarding_complete</code> AsyncStorage flag and navigate to Chat with Zaeli's first real brief queued.
+    <br><br>
+    <b>Session B (backend pass):</b> Wire email capture → Supabase auth, family setup → <code>family_members</code> table, preferences → user_preferences, first brief → real Sonnet-generated one. ElevenLabs on-the-fly generation for briefs. iOS push notification scheduling tied to the rhythm data.
+  </p>
+</div>
+
+</body>
+</html>

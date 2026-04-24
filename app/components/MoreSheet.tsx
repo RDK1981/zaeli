@@ -13,7 +13,7 @@
  * Tapping any item closes the sheet and navigates/fires the relevant action.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
   Dimensions, Alert,
@@ -21,6 +21,7 @@ import {
 import { useRouter } from 'expo-router';
 import Svg, { Polyline, Line, Rect, Circle, Path, Polygon } from 'react-native-svg';
 import { setPendingChatContext } from '../../lib/navigation-store';
+import { loadAccount, isKidAccount } from '../../lib/account-state';
 
 const { height: H } = Dimensions.get('window');
 
@@ -158,6 +159,14 @@ function MoreIcon({ keyId, color }: { keyId: string; color: string }) {
 // ── Component ──────────────────────────────────────────────────────────────
 export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps) {
   const router = useRouter();
+
+  // Hide Budget + Family management tiles for kid accounts (they're parent-only)
+  const [isKid, setIsKid] = useState(false);
+  useEffect(() => {
+    if (visible) {
+      loadAccount().then(() => setIsKid(isKidAccount()));
+    }
+  }, [visible]);
 
   // Guard against phantom backdrop taps right after the sheet opens
   const canCloseRef = React.useRef(false);
@@ -317,7 +326,7 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
             <Text style={st.sectionLabel}>PERSONAL</Text>
             <View style={st.grid2}>
               <Tile keyId="myspace"/>
-              <Tile keyId="budget"/>
+              {!isKid && <Tile keyId="budget"/>}
             </View>
 
             <Text style={st.sectionLabel}>MODULES</Text>
@@ -328,7 +337,7 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
 
             <Text style={st.sectionLabel}>ACCOUNT</Text>
             <View style={st.grid2}>
-              <Tile keyId="family"/>
+              {!isKid && <Tile keyId="family"/>}
               <Tile keyId="settings"/>
             </View>
           </ScrollView>

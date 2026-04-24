@@ -1,32 +1,33 @@
 /**
  * brief-firing.ts — Pure logic for deciding when to fire a Zaeli brief
  *
- * Three windows:
- *   morning  05:00–11:59
- *   midday   12:00–16:59
- *   evening  17:00–04:59 (rolls through midnight)
+ * Two windows (Session 19 — reduced from 3 to 2):
+ *   morning  05:00–15:59 — "Here's your day" (forward-looking)
+ *   evening  16:00–04:59 — "Today's wrap + tomorrow's shape" (reflective + one step ahead)
  *
- * Rules (per CLAUDE.md Session 9):
+ * Midday brief was removed — it duplicated the morning forward-look and the
+ * notification cost wasn't justified. Evening now covers tomorrow-morning prep.
+ *
+ * Rules:
  *   - New day → always fire
  *   - Window changed → fire unless user is mid-conversation (last msg <15 min ago)
  *     - If held, the mid-conversation brief fires on next app open OR after 15 min of inactivity
  *   - Same window already fired → no fire
  */
 
-export type BriefWindow = 'morning' | 'midday' | 'evening';
+export type BriefWindow = 'morning' | 'evening';
 
 const INACTIVITY_THRESHOLD_MS = 15 * 60 * 1000; // 15 min
 
 export function currentWindow(now: Date = new Date()): BriefWindow {
   const h = now.getHours();
-  if (h >= 5 && h < 12) return 'morning';
-  if (h >= 12 && h < 17) return 'midday';
-  return 'evening'; // 17-23 + 0-4
+  if (h >= 5 && h < 16) return 'morning';
+  return 'evening'; // 16-23 + 0-4
 }
 
 export function windowLabel(win: BriefWindow, now: Date = new Date()): string {
   const time = now.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
-  const label = win === 'morning' ? 'Morning' : win === 'midday' ? 'Midday' : 'Evening';
+  const label = win === 'morning' ? 'Morning' : 'Evening';
   return `${label} \u00B7 ${time}`;
 }
 

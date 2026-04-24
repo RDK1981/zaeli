@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli — Invite Family Members</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAF8F5;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.72);
+    --ink3: rgba(10,10,10,0.55);
+    --ink4: rgba(10,10,10,0.42);
+    --line: rgba(10,10,10,0.08);
+    --soft: rgba(10,10,10,0.05);
+    --card: #FFFFFF;
+    --coral: #FF4545;
+    --coralSoft: #FFE4E0;
+    --coralDeep: #B83333;
+    --mint: #B8EDD0;
+    --mintDeep: #2D7A52;
+    --mintTint: #E6F7EF;
+    --mintBorder: #C8F0DA;
+    --lavender: #D8CCFF;
+    --lavenderTint: #F0EBFF;
+    --lavenderDeep: #5020C0;
+    --sky: #A8D8F0;
+    --skyTint: #E8F4FD;
+    --skyDeep: #0A4A6A;
+    --gold: #F0DC80;
+    --goldTint: #FEF4D0;
+    --peach: #FAC8A8;
+    --peachTint: #FFF0E8;
+    --peachDeep: #8A3A00;
+    --magenta: #D4006A;
+    --magentaTint: #FCE0F0;
+    --slate: #2D3748;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #1C2330;
+    color: white;
+    padding: 50px 30px 80px;
+    min-height: 100vh;
+  }
+  .doc-header { text-align: center; margin-bottom: 40px; }
+  .doc-header h1 {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 42px;
+    letter-spacing: -1.4px;
+    margin-bottom: 10px;
+  }
+  .doc-header h1 .accent { color: var(--sky); }
+  .doc-header p { color: rgba(255,255,255,0.65); font-size: 14px; max-width: 720px; margin: 0 auto; line-height: 1.55; }
+  .section-label {
+    color: var(--mint);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+    margin: 50px 0 20px;
+  }
+  .frame-grid {
+    display: flex; flex-wrap: wrap; gap: 28px;
+    justify-content: center; align-items: flex-start;
+  }
+  .frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .frame-caption {
+    color: rgba(255,255,255,0.85);
+    font-size: 13px; font-weight: 600;
+    text-align: center; max-width: 380px;
+  }
+  .frame-caption .num { color: var(--sky); margin-right: 6px; }
+  .frame-caption .sub {
+    display: block;
+    color: rgba(255,255,255,0.5);
+    font-weight: 400;
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  /* iPhone */
+  .phone {
+    width: 380px; height: 780px;
+    background: var(--bg);
+    border-radius: 44px;
+    overflow: hidden; position: relative;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.4), 0 0 0 8px #1A1A1A, 0 0 0 9px #2A2A2A;
+    display: flex; flex-direction: column;
+  }
+  .status-bar {
+    height: 44px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; font-size: 14px; font-weight: 600; color: var(--ink);
+  }
+  .notch {
+    position: absolute; top: 14px; left: 50%;
+    transform: translateX(-50%); width: 110px; height: 32px;
+    background: #000; border-radius: 20px; z-index: 10;
+  }
+  .topbar {
+    flex-shrink: 0; padding: 8px 18px 12px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+  .wordmark {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800; font-size: 36px;
+    letter-spacing: -1.4px; line-height: 42px;
+    color: var(--ink);
+  }
+  .wordmark .ai { color: var(--sky); }
+  .wordmark.lav .ai { color: #A855F7; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .pagelabel { font-weight: 700; font-size: 17px; color: var(--ink2); }
+  .ham {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: rgba(10,10,10,0.05);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ham div { width: 18px; height: 2px; background: var(--ink); margin: 2px 0; border-radius: 1px; }
+  .back-arrow {
+    width: 36px; height: 36px; border-radius: 18px;
+    background: rgba(10,10,10,0.05);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--ink2);
+  }
+
+  /* Body */
+  .body { flex: 1; overflow-y: auto; padding: 8px 18px 22px; }
+  .h1 {
+    font-family: 'Poppins', sans-serif; font-weight: 700;
+    font-size: 28px; color: var(--ink);
+    line-height: 34px; letter-spacing: -0.4px;
+  }
+  .sub {
+    font-size: 15px; color: var(--ink3); line-height: 22px;
+    margin-top: 6px;
+  }
+  .eyebrow {
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.8px; text-transform: uppercase;
+    color: var(--mintDeep);
+    margin-bottom: 6px;
+  }
+
+  /* Family member row (replicates Our Family screen) */
+  .member-card {
+    background: white; border: 1px solid var(--line);
+    border-radius: 16px; padding: 14px;
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 10px;
+  }
+  .member-avatar {
+    width: 44px; height: 44px; border-radius: 22px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Poppins'; font-weight: 700; color: white; font-size: 17px;
+  }
+  .member-info { flex: 1; }
+  .member-name { font-weight: 700; font-size: 16px; color: var(--ink); }
+  .member-meta { font-size: 12px; color: var(--ink3); margin-top: 2px; }
+  .member-arrow { color: var(--ink4); font-size: 18px; }
+  .member-status {
+    background: var(--goldTint);
+    color: #8A6500;
+    font-size: 10px; font-weight: 700;
+    padding: 3px 8px; border-radius: 8px;
+    letter-spacing: 0.4px;
+  }
+
+  /* Invite CTA card */
+  .invite-cta {
+    background: linear-gradient(135deg, var(--mintTint), white 70%);
+    border: 1.5px dashed var(--mintBorder);
+    border-radius: 16px;
+    padding: 18px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .invite-cta .icon { font-size: 32px; margin-bottom: 8px; }
+  .invite-cta .ttl {
+    font-family: 'Poppins'; font-weight: 700; font-size: 17px;
+    color: var(--ink); margin-bottom: 4px;
+  }
+  .invite-cta .sub {
+    font-size: 13px; color: var(--ink3); margin-top: 0; margin-bottom: 14px;
+    line-height: 19px;
+  }
+  .invite-cta-btn {
+    background: var(--mintDeep); color: white;
+    padding: 11px 24px; border-radius: 12px;
+    font-weight: 700; font-size: 14px;
+    display: inline-block;
+  }
+
+  /* Role picker */
+  .role-grid {
+    display: flex; gap: 12px; margin-top: 18px;
+  }
+  .role-tile {
+    flex: 1; padding: 22px 18px; border-radius: 18px;
+    border: 2px solid;
+  }
+  .role-tile.adult { background: var(--skyTint); border-color: var(--sky); }
+  .role-tile.kid   { background: var(--lavenderTint); border-color: var(--lavender); }
+  .role-emoji { font-size: 38px; margin-bottom: 12px; }
+  .role-name {
+    font-family: 'Poppins'; font-weight: 700; font-size: 18px;
+    color: var(--ink); margin-bottom: 6px;
+  }
+  .role-desc {
+    font-size: 13px; color: var(--ink2); line-height: 19px;
+  }
+  .role-features {
+    display: flex; flex-direction: column; gap: 4px;
+    margin-top: 12px;
+  }
+  .role-feature {
+    font-size: 11px; color: var(--ink3);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .role-feature .tick {
+    color: var(--mintDeep); font-weight: 700;
+  }
+
+  /* Form */
+  .form-field { margin-bottom: 16px; }
+  .form-label {
+    font-family: 'Poppins'; font-weight: 600; font-size: 13px;
+    color: var(--ink2); margin-bottom: 6px;
+  }
+  .form-input {
+    background: white; border: 1.5px solid var(--line);
+    border-radius: 12px; padding: 14px 14px;
+    font-size: 16px; color: var(--ink);
+  }
+  .form-input.placeholder { color: var(--ink4); }
+  .form-hint {
+    font-size: 11px; color: var(--ink4);
+    margin-top: 6px;
+  }
+  .form-cta {
+    background: var(--ink); color: white;
+    padding: 16px; border-radius: 14px;
+    font-weight: 700; font-size: 16px;
+    text-align: center; margin-top: 18px;
+  }
+
+  /* iOS Share Sheet preview */
+  .share-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 50;
+    display: flex; align-items: flex-end;
+  }
+  .share-sheet {
+    background: rgba(245,245,245,0.95);
+    backdrop-filter: blur(20px);
+    border-top-left-radius: 14px; border-top-right-radius: 14px;
+    width: 100%; padding: 16px 14px 28px;
+  }
+  .share-header {
+    background: white; border-radius: 12px;
+    padding: 14px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .share-header-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: var(--mintDeep);
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 18px;
+  }
+  .share-header-info { flex: 1; }
+  .share-header-title { font-weight: 700; font-size: 15px; color: var(--ink); }
+  .share-header-sub { font-size: 12px; color: var(--ink3); }
+  .share-row {
+    background: white; padding: 12px;
+    display: flex; align-items: center; gap: 12px;
+    border-bottom: 0.5px solid rgba(60,60,67,0.18);
+  }
+  .share-row:first-child { border-top-left-radius: 12px; border-top-right-radius: 12px; }
+  .share-row:last-child { border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; border-bottom: none; }
+  .share-row-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: white;
+  }
+  .share-row-label { flex: 1; font-size: 16px; color: var(--ink); }
+  .share-row.highlight { background: rgba(45,122,82,0.10); }
+  .share-cancel {
+    background: white; border-radius: 12px;
+    padding: 14px; margin-top: 8px;
+    text-align: center;
+    font-weight: 700; font-size: 16px; color: #007AFF;
+  }
+
+  /* Messages app preview */
+  .msg-thread {
+    background: white;
+    border-radius: 18px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    margin-top: 12px;
+  }
+  .msg-bubble-out {
+    background: #007AFF;
+    color: white;
+    padding: 10px 14px;
+    border-radius: 18px;
+    border-bottom-right-radius: 4px;
+    max-width: 86%;
+    margin-left: auto;
+    font-size: 14px;
+    line-height: 19px;
+  }
+  .msg-bubble-out .link {
+    color: rgba(255,255,255,0.95);
+    text-decoration: underline;
+  }
+  .msg-meta {
+    font-size: 10px; color: var(--ink4);
+    text-align: right; margin-top: 4px;
+  }
+
+  /* Onboarding mini frames */
+  .ob-flex {
+    flex: 1; display: flex; flex-direction: column;
+    padding: 22px 22px 30px;
+    position: relative;
+    overflow: hidden;
+  }
+  .ob-orb {
+    position: absolute; border-radius: 9999px;
+  }
+  .ob-orb.peach  { width: 240px; height: 240px; top: -60px; right: -70px; background: var(--peach); opacity: 0.42; }
+  .ob-orb.mint   { width: 200px; height: 200px; bottom: -40px; left: -60px; background: var(--mint); opacity: 0.50; }
+  .ob-orb.lav    { width: 160px; height: 160px; top: 200px; left: -50px; background: var(--lavender); opacity: 0.55; }
+  .ob-orb.sky    { width: 140px; height: 140px; bottom: 180px; right: -40px; background: var(--sky); opacity: 0.42; }
+  .ob-content {
+    flex: 1; display: flex; flex-direction: column;
+    justify-content: center; gap: 14px;
+    z-index: 1;
+  }
+  .ob-eyebrow {
+    color: var(--mintDeep);
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.8px; text-transform: uppercase;
+  }
+  .ob-h1 {
+    font-family: 'Poppins'; font-weight: 700;
+    font-size: 30px; color: var(--ink);
+    line-height: 36px; letter-spacing: -0.6px;
+  }
+  .ob-sub {
+    font-size: 15px; color: var(--ink2); line-height: 23px;
+  }
+  .ob-cta {
+    background: var(--ink); color: white;
+    padding: 16px; border-radius: 32px;
+    font-weight: 700; font-size: 16px;
+    text-align: center;
+    align-self: stretch;
+    z-index: 1;
+  }
+
+  /* Chat landing */
+  .chat-body {
+    flex: 1; padding: 10px 14px 18px;
+    display: flex; flex-direction: column; gap: 12px;
+    overflow: hidden;
+  }
+  .ch-eyebrow {
+    color: var(--ink4); font-size: 11px; font-weight: 600;
+    letter-spacing: 0.6px; margin: 4px 0 -2px 4px;
+  }
+  .bubble {
+    background: rgba(10,10,10,0.04);
+    border-radius: 18px; border-bottom-left-radius: 6px;
+    padding: 14px 16px;
+    max-width: 92%;
+    font-size: 16px; color: var(--ink); line-height: 24px;
+  }
+  .bubble b { font-weight: 700; }
+  .chip-row {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 4px 0 4px 4px;
+  }
+  .chip {
+    padding: 9px 14px; border-radius: 20px;
+    font-size: 13px; font-weight: 600;
+    border: 1.5px solid transparent;
+  }
+  .chip.primary { background: var(--coralSoft); color: var(--coralDeep); border-color: #F5C2BA; }
+  .chip.ghost { background: rgba(10,10,10,0.04); color: var(--ink2); border-color: rgba(10,10,10,0.08); }
+  .chat-bar-wrap { padding: 8px 14px 22px; }
+  .chat-bar {
+    background: white; border-radius: 28px;
+    padding: 8px 8px 8px 14px;
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid rgba(220,220,220,0.6);
+    min-height: 52px;
+  }
+  .bar-mic, .bar-cam {
+    width: 36px; height: 36px; border-radius: 18px;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .bar-input { flex: 1; color: var(--ink4); font-size: 15px; }
+  .bar-send {
+    width: 36px; height: 36px; border-radius: 18px;
+    background: var(--coral); color: white; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Kids landing */
+  .kids-hub-bg {
+    height: 100%;
+    background: linear-gradient(180deg, #F0E6FF 0%, var(--bg) 60%);
+    padding: 16px;
+  }
+  .kids-greet {
+    font-size: 26px; font-weight: 700; color: var(--ink); margin-bottom: 4px;
+  }
+  .kids-eyebrow {
+    color: #5020C0; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.6px; margin-bottom: 6px;
+  }
+  .kids-stats {
+    display: flex; gap: 8px; margin: 14px 0;
+  }
+  .kids-stat {
+    flex: 1; background: white; border: 1px solid var(--line);
+    border-radius: 14px; padding: 12px; text-align: center;
+  }
+  .kids-stat-num { font-size: 22px; font-weight: 700; color: #A855F7; }
+  .kids-stat-label { font-size: 11px; color: var(--ink3); margin-top: 2px; }
+
+  /* legend */
+  .legend {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px 28px;
+    max-width: 920px;
+    margin: 60px auto 0;
+  }
+  .legend h3 {
+    color: var(--mint);
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .legend ul {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 32px;
+  }
+  .legend li {
+    color: rgba(255,255,255,0.78);
+    font-size: 13px; line-height: 1.55;
+  }
+  .legend li b { color: var(--sky); font-weight: 600; }
+  .legend code {
+    background: rgba(255,255,255,0.08);
+    padding: 1px 6px; border-radius: 4px;
+    font-family: ui-monospace, SF Mono, Monaco, monospace;
+    font-size: 12px;
+    color: var(--mint);
+  }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <h1>zaeli — <span class="accent">invite</span> family members</h1>
+  <p>Anyone with a device can be invited (Adult or Kid). iOS share sheet → SMS link. Recipient lands in stripped onboarding (~90 sec) then full 11-stop tour. Trust the link — no approval needed. Equal access for adults; kids land in their own Hub.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Act 1 — Inviter side · open the invite</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <!-- Frame 1: Family screen with Invite CTA -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div class="wordmark">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel">Our Family</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="member-card">
+          <div class="member-avatar" style="background: #4D8BFF;">R</div>
+          <div class="member-info">
+            <div class="member-name">Rich</div>
+            <div class="member-meta">Adult · Account owner</div>
+          </div>
+          <div class="member-arrow">›</div>
+        </div>
+        <div class="member-card">
+          <div class="member-avatar" style="background: #FF7B6B;">A</div>
+          <div class="member-info">
+            <div class="member-name">Anna</div>
+            <div class="member-meta">Adult · Joined 12 Apr</div>
+          </div>
+          <div class="member-arrow">›</div>
+        </div>
+        <div class="member-card">
+          <div class="member-avatar" style="background: #A855F7;">P</div>
+          <div class="member-info">
+            <div class="member-name">Poppy</div>
+            <div class="member-meta">Kid · Yr 6 · Own device</div>
+          </div>
+          <div class="member-arrow">›</div>
+        </div>
+        <div class="member-card">
+          <div class="member-avatar" style="background: #22C55E;">G</div>
+          <div class="member-info">
+            <div class="member-name">Gab</div>
+            <div class="member-meta">Kid · Yr 4 · No device yet</div>
+          </div>
+          <div class="member-arrow">›</div>
+        </div>
+        <div class="member-card">
+          <div class="member-avatar" style="background: #F59E0B;">D</div>
+          <div class="member-info">
+            <div class="member-name">Duke</div>
+            <div class="member-meta">Kid · Yr 1 · No device yet</div>
+          </div>
+          <div class="member-arrow">›</div>
+        </div>
+
+        <div class="invite-cta">
+          <div class="icon">📨</div>
+          <div class="ttl">Bring someone in</div>
+          <div class="sub">Other parent, kid with their own device, grandparent, carer — anyone who'd benefit.</div>
+          <div class="invite-cta-btn">+ Invite</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">1.</span>Family screen with Invite CTA<span class="sub">Existing members + dashed-mint Invite card · "Joined" / "No device yet" status surfaced</span></div>
+  </div>
+
+  <!-- Frame 2: Role picker -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:15</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div class="wordmark">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel">Invite</div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="eyebrow">STEP 1 OF 2</div>
+        <div class="h1">Who are you inviting?</div>
+        <div class="sub">Adults get full access. Kids get their own Hub — jobs, rewards, games, and Tutor.</div>
+
+        <div class="role-grid">
+          <div class="role-tile adult">
+            <div class="role-emoji">🧑</div>
+            <div class="role-name">Adult</div>
+            <div class="role-desc">Other parent, grandparent, carer, nanny.</div>
+            <div class="role-features">
+              <div class="role-feature"><span class="tick">✓</span> Full app access</div>
+              <div class="role-feature"><span class="tick">✓</span> Edits everything</div>
+              <div class="role-feature"><span class="tick">✓</span> Their own Zaeli</div>
+            </div>
+          </div>
+          <div class="role-tile kid">
+            <div class="role-emoji">🧒</div>
+            <div class="role-name">Kid</div>
+            <div class="role-desc">A child in your family with their own device.</div>
+            <div class="role-features">
+              <div class="role-feature"><span class="tick">✓</span> Their Kids Hub</div>
+              <div class="role-feature"><span class="tick">✓</span> Tutor sessions</div>
+              <div class="role-feature"><span class="tick">✓</span> Chat with Zaeli</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">2.</span>Role picker — Adult or Kid<span class="sub">Sky for Adult, lavender for Kid · features clearly listed under each tile</span></div>
+  </div>
+
+  <!-- Frame 3: Invite form -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:16</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div class="wordmark">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel">Invite Adult</div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="eyebrow">STEP 2 OF 2</div>
+        <div class="h1">Who's joining?</div>
+        <div class="sub">We'll send them a link to set up. Takes 90 seconds.</div>
+
+        <div style="margin-top: 22px;">
+          <div class="form-field">
+            <div class="form-label">Their name</div>
+            <div class="form-input">Anna</div>
+          </div>
+          <div class="form-field">
+            <div class="form-label">Phone or email <span style="color: var(--ink4); font-weight: 400;">(optional)</span></div>
+            <div class="form-input placeholder">+61 4XX XXX XXX</div>
+            <div class="form-hint">If left blank, you'll just copy the link to send.</div>
+          </div>
+
+          <div style="background: var(--mintTint); border-radius: 12px; padding: 14px; margin-top: 6px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--mintDeep); letter-spacing: 0.6px; margin-bottom: 6px;">WHAT ANNA WILL SEE</div>
+            <div style="font-size: 13px; color: var(--ink2); line-height: 19px;">
+              "Anna — Rich invited you to join our family on Zaeli. Set up takes 2 min: <span style="color: #007AFF;">zaeli.app/i/k7f92d</span>"
+            </div>
+          </div>
+
+          <div class="form-cta">📨  Send invite</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">3.</span>Invite form + preview<span class="sub">Name + optional phone · live preview of the SMS · phone optional (copy-link fallback)</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Act 2 — Inviter side · share sheet + pending state</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <!-- Frame 4: iOS Share Sheet -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:16</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow" style="opacity: 0.5;">←</div>
+          <div class="wordmark">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel" style="opacity: 0.5;">Invite Adult</div>
+        </div>
+      </div>
+      <div class="body" style="opacity: 0.4;">
+        <div class="eyebrow">STEP 2 OF 2</div>
+        <div class="h1">Who's joining?</div>
+      </div>
+      <div class="share-overlay">
+        <div class="share-sheet">
+          <div class="share-header">
+            <div class="share-header-icon">Z</div>
+            <div class="share-header-info">
+              <div class="share-header-title">Anna's Zaeli invite</div>
+              <div class="share-header-sub">zaeli.app/i/k7f92d</div>
+            </div>
+          </div>
+          <div class="share-row highlight">
+            <div class="share-row-icon" style="background: #34C759;">💬</div>
+            <div class="share-row-label">Messages</div>
+            <span style="color: var(--mintDeep); font-weight: 600; font-size: 13px;">Send →</span>
+          </div>
+          <div class="share-row">
+            <div class="share-row-icon" style="background: #007AFF;">✉️</div>
+            <div class="share-row-label">Mail</div>
+          </div>
+          <div class="share-row">
+            <div class="share-row-icon" style="background: #25D366;">📱</div>
+            <div class="share-row-label">WhatsApp</div>
+          </div>
+          <div class="share-row">
+            <div class="share-row-icon" style="background: #555;">📋</div>
+            <div class="share-row-label">Copy Link</div>
+          </div>
+          <div class="share-row">
+            <div class="share-row-icon" style="background: #007AFF;">📡</div>
+            <div class="share-row-label">AirDrop</div>
+          </div>
+          <div class="share-cancel">Cancel</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">4.</span>iOS Share Sheet opens<span class="sub">Standard system share · Messages highlighted (most common path) · works to any recipient device</span></div>
+  </div>
+
+  <!-- Frame 5: Sent — Pending state on Family screen -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:18</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div class="wordmark">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel">Our Family</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="member-card">
+          <div class="member-avatar" style="background: #4D8BFF;">R</div>
+          <div class="member-info">
+            <div class="member-name">Rich</div>
+            <div class="member-meta">Adult · Account owner</div>
+          </div>
+          <div class="member-arrow">›</div>
+        </div>
+        <div class="member-card" style="border: 1.5px solid var(--mintBorder); background: var(--mintTint);">
+          <div class="member-avatar" style="background: #FF7B6B; opacity: 0.7;">A</div>
+          <div class="member-info">
+            <div class="member-name" style="color: var(--ink2);">Anna</div>
+            <div class="member-meta" style="color: var(--mintDeep); font-weight: 600;">⏳ Invite sent · 2 min ago</div>
+          </div>
+          <div class="member-status">PENDING</div>
+        </div>
+        <div class="member-card">
+          <div class="member-avatar" style="background: #A855F7;">P</div>
+          <div class="member-info">
+            <div class="member-name">Poppy</div>
+            <div class="member-meta">Kid · Yr 6 · Own device</div>
+          </div>
+          <div class="member-arrow">›</div>
+        </div>
+
+        <!-- Action chips for the pending invite -->
+        <div style="margin-top: 14px; padding: 12px 14px; background: var(--soft); border-radius: 12px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--ink2); margin-bottom: 8px; letter-spacing: 0.5px;">ANNA'S INVITE</div>
+          <div style="display: flex; gap: 8px;">
+            <div style="background: white; border: 1px solid var(--line); border-radius: 18px; padding: 7px 12px; font-size: 12px; font-weight: 600; color: var(--ink2);">📋 Copy link</div>
+            <div style="background: white; border: 1px solid var(--line); border-radius: 18px; padding: 7px 12px; font-size: 12px; font-weight: 600; color: var(--ink2);">📨 Resend</div>
+            <div style="background: white; border: 1px solid var(--line); border-radius: 18px; padding: 7px 12px; font-size: 12px; font-weight: 600; color: #B83333;">✕ Revoke</div>
+          </div>
+        </div>
+
+        <div class="invite-cta">
+          <div class="icon">📨</div>
+          <div class="ttl">Bring someone else in</div>
+          <div class="sub">Multiple invites can be active at once.</div>
+          <div class="invite-cta-btn">+ Invite</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">5.</span>Pending state on Family<span class="sub">Mint-tinted member card with "Invite sent" + PENDING tag · Copy/Resend/Revoke chips · multi-invite supported</span></div>
+  </div>
+
+  <!-- Frame 6: Recipient SMS preview -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:18</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 32px; height: 32px; border-radius: 16px; background: #4D8BFF; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;">R</div>
+            <div style="font-size: 11px; color: var(--ink2); margin-top: 2px;">Rich</div>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel" style="font-size: 13px;">Messages</div>
+        </div>
+      </div>
+      <div class="body" style="background: #F2F2F7;">
+        <div style="text-align: center; font-size: 11px; color: var(--ink3); margin: 16px 0 12px;">Today 9:18 AM</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 30px;">
+          <div style="background: #E5E5EA; color: var(--ink); padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 86%; font-size: 14px; line-height: 19px;">
+            Anna — Rich invited you to join our family on Zaeli 🏡
+          </div>
+          <div style="background: #E5E5EA; color: var(--ink); padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 86%; font-size: 14px; line-height: 19px;">
+            It's the family-life app I told you about — handles the daily juggle. Set up takes 2 min:
+          </div>
+          <div style="background: #E5E5EA; color: #007AFF; padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 86%; font-size: 14px; line-height: 19px; text-decoration: underline;">
+            zaeli.app/i/k7f92d
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">6.</span>Anna receives the SMS<span class="sub">Standard iMessage thread · friendly inviter-voice text · tap link → App Store or deep link if installed</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Act 3 — Adult invitee · stripped onboarding (~90 sec) → tour</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <!-- Frame 7: Adult onboarding — welcome -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:19</span><span>● ● ●</span></div>
+      <div class="ob-flex">
+        <div class="ob-orb peach"></div>
+        <div class="ob-orb mint"></div>
+        <div class="ob-orb lav"></div>
+        <div class="ob-orb sky"></div>
+        <div class="ob-content">
+          <div class="ob-eyebrow">WELCOME</div>
+          <div class="ob-h1">Hey Anna 👋<br>I'm <span style="color: var(--coral);">Zaeli</span>.</div>
+          <div class="ob-sub">Rich already set up your family — Poppy, Gab, Duke, the whole crew. Quick 90-second setup just for you, then I'll show you around.</div>
+        </div>
+        <div class="ob-cta">Let's go</div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">7.</span>Adult — welcome<span class="sub">Same orb splash style as primary onboarding · personalized "Rich already set up your family"</span></div>
+  </div>
+
+  <!-- Frame 8: Adult onboarding — confirm name + set password -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:19</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div class="wordmark">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel">Setup</div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="eyebrow">STEP 1 OF 3</div>
+        <div class="h1">Confirm a couple things.</div>
+        <div class="sub">Just to make sure I've got you right.</div>
+        <div style="margin-top: 22px;">
+          <div class="form-field">
+            <div class="form-label">Your name</div>
+            <div class="form-input">Anna de Kretser</div>
+          </div>
+          <div class="form-field">
+            <div class="form-label">Email</div>
+            <div class="form-input placeholder">anna@example.com</div>
+          </div>
+          <div class="form-field">
+            <div class="form-label">Create a password</div>
+            <div class="form-input placeholder">••••••••</div>
+            <div class="form-hint">Keeps your stuff yours.</div>
+          </div>
+          <div class="form-cta">Continue</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">8.</span>Adult — confirm + password<span class="sub">3-step total · name pre-filled from invite · email + password collected here</span></div>
+  </div>
+
+  <!-- Frame 9: Adult onboarding — your rhythm -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:20</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div class="wordmark">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel">Setup</div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="eyebrow">STEP 2 OF 3</div>
+        <div class="h1">Your daily rhythm.</div>
+        <div class="sub">When should I check in with you? Different from Rich is fine.</div>
+
+        <div style="margin-top: 22px;">
+          <div style="background: white; border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 700; font-size: 15px;">☀️ Morning brief</div>
+              <div style="font-size: 12px; color: var(--ink3);">Forward-looking</div>
+            </div>
+            <div style="font-weight: 700; font-size: 17px; color: var(--ink2);">7:15 am</div>
+          </div>
+          <div style="background: white; border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-weight: 700; font-size: 15px;">🌙 Evening brief</div>
+              <div style="font-size: 12px; color: var(--ink3);">Wrap + tomorrow prep</div>
+            </div>
+            <div style="font-weight: 700; font-size: 17px; color: var(--ink2);">8:30 pm</div>
+          </div>
+        </div>
+
+        <div class="form-cta">Continue</div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">9.</span>Adult — own rhythm<span class="sub">Anna picks her own brief times · doesn't inherit Rich's · personal preference</span></div>
+  </div>
+
+</div>
+
+<div class="frame-grid" style="margin-top: 32px;">
+
+  <!-- Frame 10: Adult onboarding — preferences (lite) -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:20</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div class="wordmark">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel">Setup</div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="eyebrow">STEP 3 OF 3 · OPTIONAL</div>
+        <div class="h1">What's on your plate?</div>
+        <div class="sub">Tap anything I should know. Skip if nothing fits.</div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px;">
+          <div style="background: white; border: 1.5px solid var(--line); padding: 10px 14px; border-radius: 22px; font-size: 13px; font-weight: 600; color: var(--ink2);">🏃 School run</div>
+          <div style="background: var(--mintTint); border: 1.5px solid var(--mintDeep); padding: 10px 14px; border-radius: 22px; font-size: 13px; font-weight: 600; color: var(--mintDeep);">🍽 Meal planning ✓</div>
+          <div style="background: white; border: 1.5px solid var(--line); padding: 10px 14px; border-radius: 22px; font-size: 13px; font-weight: 600; color: var(--ink2);">🛒 Groceries</div>
+          <div style="background: var(--mintTint); border: 1.5px solid var(--mintDeep); padding: 10px 14px; border-radius: 22px; font-size: 13px; font-weight: 600; color: var(--mintDeep);">🏥 Appointments ✓</div>
+          <div style="background: white; border: 1.5px solid var(--line); padding: 10px 14px; border-radius: 22px; font-size: 13px; font-weight: 600; color: var(--ink2);">📚 Homework</div>
+          <div style="background: white; border: 1.5px solid var(--line); padding: 10px 14px; border-radius: 22px; font-size: 13px; font-weight: 600; color: var(--ink2);">⚽ Activities</div>
+          <div style="background: white; border: 1.5px solid var(--line); padding: 10px 14px; border-radius: 22px; font-size: 13px; font-weight: 600; color: var(--ink2);">🎂 Birthdays</div>
+        </div>
+
+        <div style="margin-top: 22px; background: var(--soft); border-radius: 12px; padding: 14px;">
+          <div style="font-size: 13px; color: var(--ink2); line-height: 19px;">💡 You don't need to set this up — Rich already has the family stuff dialled in. This just helps me prioritise <b>your</b> brief.</div>
+        </div>
+
+        <div class="form-cta">Finish</div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">10.</span>Adult — preferences (skip-able)<span class="sub">Lite version · clear hint that family setup is already done · personal flavour only</span></div>
+  </div>
+
+  <!-- Frame 11: Adult lands in chat -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:21</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="ch-eyebrow">ZAELI · JUST NOW</div>
+        <div class="bubble">
+          You're in 🎉 Rich set things up — <b>Poppy, Gab, Duke</b>, the calendar, dinner plans for the week. I'm caught up on all of it.
+        </div>
+        <div class="bubble">
+          Want a quick tour so you know where everything lives? Three minutes — eleven stops.
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">🧭 Take the tour</div>
+          <div class="chip ghost">Maybe later</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">11.</span>Adult lands in chat → tour<span class="sub">Same tour offer as primary onboarding · acknowledges Rich's setup · full 11-stop tour follows</span></div>
+  </div>
+
+  <!-- Frame 12: Inviter sees Anna joined -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:21</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="ch-eyebrow">ZAELI · 9:21AM</div>
+        <div class="bubble" style="background: var(--mintTint); border-bottom-left-radius: 6px; border-left: 3px solid var(--mintDeep);">
+          ✨ <b>Anna just joined</b> — she'll have her own brief at 7:15am tomorrow. Anything you want me to flag for her first morning?
+        </div>
+        <div class="chip-row">
+          <div class="chip ghost">Tell her about Friday's dentist</div>
+          <div class="chip ghost">Nothing for now</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">12.</span>Rich gets a heads-up<span class="sub">Mint-bordered Zaeli message → "Anna just joined" with a follow-up offer · feels collaborative</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Act 4 — Kid invitee · simpler stripped onboarding</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <!-- Frame 13: Kid SMS — slightly different copy -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>3:42</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 32px; height: 32px; border-radius: 16px; background: #FF7B6B; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;">M</div>
+            <div style="font-size: 11px; color: var(--ink2); margin-top: 2px;">Mum</div>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel" style="font-size: 13px;">Messages</div>
+        </div>
+      </div>
+      <div class="body" style="background: #F2F2F7;">
+        <div style="text-align: center; font-size: 11px; color: var(--ink3); margin: 16px 0 12px;">Today 3:42 PM</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 30px;">
+          <div style="background: #E5E5EA; color: var(--ink); padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 86%; font-size: 14px; line-height: 19px;">
+            Poppy! 🎉 I set up Zaeli for our family — your own space, jobs, games, Tutor when you need help with homework. Tap to join:
+          </div>
+          <div style="background: #E5E5EA; color: #007AFF; padding: 10px 14px; border-radius: 18px; border-bottom-left-radius: 4px; max-width: 86%; font-size: 14px; line-height: 19px; text-decoration: underline;">
+            zaeli.app/i/p2k4n9
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">13.</span>Poppy gets the SMS<span class="sub">Different copy — kid-friendly · highlights Hub + Tutor rather than family management</span></div>
+  </div>
+
+  <!-- Frame 14: Kid welcome -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>3:43</span><span>● ● ●</span></div>
+      <div class="ob-flex">
+        <div class="ob-orb lav" style="opacity: 0.7;"></div>
+        <div class="ob-orb sky" style="background: #A855F7; opacity: 0.4; bottom: -40px; left: -50px; width: 220px; height: 220px;"></div>
+        <div class="ob-content">
+          <div class="ob-eyebrow" style="color: #5020C0;">YOUR SPACE</div>
+          <div class="ob-h1">Hi Poppy! ✨<br>Welcome to your <span style="color: #6B35D9;">hub</span>.</div>
+          <div class="ob-sub">Mum set this up for you. You've got jobs, rewards, games, and Tutor — all yours.</div>
+        </div>
+        <div class="ob-cta" style="background: #6B35D9;">Let's go</div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">14.</span>Kid — welcome (lavender)<span class="sub">Lavender accent (Kids Hub identity) · friendly + brief · "Mum set this up" framing</span></div>
+  </div>
+
+  <!-- Frame 15: Kid — pick avatar + PIN -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>3:43</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div class="wordmark lav">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel">Setup</div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="eyebrow" style="color: #5020C0;">STEP 1 OF 2</div>
+        <div class="h1">Pick your look.</div>
+        <div class="sub">You can change this anytime.</div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; justify-content: center;">
+          <div style="width: 60px; height: 60px; border-radius: 30px; background: #FF7B6B; display: flex; align-items: center; justify-content: center; font-size: 28px;">🦊</div>
+          <div style="width: 60px; height: 60px; border-radius: 30px; background: #4D8BFF; display: flex; align-items: center; justify-content: center; font-size: 28px;">🐳</div>
+          <div style="width: 60px; height: 60px; border-radius: 30px; background: #A855F7; display: flex; align-items: center; justify-content: center; font-size: 28px; border: 3px solid #5020C0;">🦄</div>
+          <div style="width: 60px; height: 60px; border-radius: 30px; background: #22C55E; display: flex; align-items: center; justify-content: center; font-size: 28px;">🐢</div>
+          <div style="width: 60px; height: 60px; border-radius: 30px; background: #F59E0B; display: flex; align-items: center; justify-content: center; font-size: 28px;">🦁</div>
+          <div style="width: 60px; height: 60px; border-radius: 30px; background: #14B8A6; display: flex; align-items: center; justify-content: center; font-size: 28px;">🐧</div>
+          <div style="width: 60px; height: 60px; border-radius: 30px; background: #EC4899; display: flex; align-items: center; justify-content: center; font-size: 28px;">🦋</div>
+          <div style="width: 60px; height: 60px; border-radius: 30px; background: #8B5CF6; display: flex; align-items: center; justify-content: center; font-size: 28px;">🦉</div>
+        </div>
+
+        <div style="margin-top: 30px;">
+          <div class="form-label">4-digit PIN <span style="color: var(--ink4); font-weight: 400;">(so it's just yours)</span></div>
+          <div style="display: flex; gap: 10px; margin-top: 8px;">
+            <div style="flex: 1; height: 56px; border: 2px solid var(--lavender); border-radius: 12px; background: var(--lavenderTint); display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--lavenderDeep); font-weight: 700;">●</div>
+            <div style="flex: 1; height: 56px; border: 2px solid var(--lavender); border-radius: 12px; background: var(--lavenderTint); display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--lavenderDeep); font-weight: 700;">●</div>
+            <div style="flex: 1; height: 56px; border: 2px solid var(--lavender); border-radius: 12px; background: white; display: flex; align-items: center; justify-content: center;"></div>
+            <div style="flex: 1; height: 56px; border: 2px solid var(--lavender); border-radius: 12px; background: white; display: flex; align-items: center; justify-content: center;"></div>
+          </div>
+        </div>
+
+        <div class="form-cta" style="background: #6B35D9;">Continue</div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">15.</span>Kid — avatar + PIN<span class="sub">PIN instead of password (kid-friendly) · 8 avatar options · lavender accent throughout</span></div>
+  </div>
+
+</div>
+
+<div class="frame-grid" style="margin-top: 32px;">
+
+  <!-- Frame 16: Kid — quick intro to Hub -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>3:44</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div class="wordmark lav">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel">Setup</div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="eyebrow" style="color: #5020C0;">STEP 2 OF 2</div>
+        <div class="h1">Here's what you've got.</div>
+        <div class="sub">A quick tour just for you.</div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 22px;">
+          <div style="background: var(--lavenderTint); border: 1.5px solid var(--lavender); border-radius: 14px; padding: 14px; display: flex; gap: 12px; align-items: center;">
+            <div style="font-size: 28px;">✅</div>
+            <div style="flex: 1;"><div style="font-weight: 700; font-size: 15px; color: var(--ink);">Jobs &amp; Rewards</div><div style="font-size: 12px; color: var(--ink3);">Tick off jobs, earn points, redeem rewards.</div></div>
+          </div>
+          <div style="background: var(--lavenderTint); border: 1.5px solid var(--lavender); border-radius: 14px; padding: 14px; display: flex; gap: 12px; align-items: center;">
+            <div style="font-size: 28px;">🎮</div>
+            <div style="flex: 1;"><div style="font-weight: 700; font-size: 15px; color: var(--ink);">Games</div><div style="font-size: 12px; color: var(--ink3);">Daily Wordle, Maths Sprint, World Trivia.</div></div>
+          </div>
+          <div style="background: var(--lavenderTint); border: 1.5px solid var(--lavender); border-radius: 14px; padding: 14px; display: flex; gap: 12px; align-items: center;">
+            <div style="font-size: 28px;">📚</div>
+            <div style="flex: 1;"><div style="font-weight: 700; font-size: 15px; color: var(--ink);">Tutor</div><div style="font-size: 12px; color: var(--ink3);">Stuck on homework? Ask me anything.</div></div>
+          </div>
+          <div style="background: var(--lavenderTint); border: 1.5px solid var(--lavender); border-radius: 14px; padding: 14px; display: flex; gap: 12px; align-items: center;">
+            <div style="font-size: 28px;">💬</div>
+            <div style="flex: 1;"><div style="font-weight: 700; font-size: 15px; color: var(--ink);">Chat with me</div><div style="font-size: 12px; color: var(--ink3);">Anything on your mind — I'm here.</div></div>
+          </div>
+        </div>
+
+        <div class="form-cta" style="background: #6B35D9;">Take me to my hub</div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">16.</span>Kid — quick capability intro<span class="sub">Lavender tile recap of what they get · NOT the full 11-stop tour (too much for a kid)</span></div>
+  </div>
+
+  <!-- Frame 17: Kid lands in Hub -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>3:44</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="back-arrow">←</div>
+          <div class="wordmark lav">zael<span class="ai">ai</span></div>
+        </div>
+        <div class="topbar-right">
+          <div class="pagelabel">Kids Hub</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div style="flex: 1; overflow: hidden; padding: 0 14px 14px;">
+        <div class="kids-hub-bg" style="height: 100%; border-radius: 18px;">
+          <div class="kids-eyebrow">HEY POPPY 🦄</div>
+          <div class="kids-greet">Year 6 · 12yo</div>
+          <div class="kids-stats">
+            <div class="kids-stat"><div class="kids-stat-num">0</div><div class="kids-stat-label">Day streak</div></div>
+            <div class="kids-stat"><div class="kids-stat-num">0/0</div><div class="kids-stat-label">Jobs today</div></div>
+            <div class="kids-stat"><div class="kids-stat-num">0</div><div class="kids-stat-label">Points</div></div>
+          </div>
+          <div style="background: white; border: 1.5px solid var(--lavender); border-radius: 14px; padding: 14px; margin-top: 8px; display: flex; gap: 10px;">
+            <div style="font-size: 22px;">✨</div>
+            <div style="flex: 1; font-size: 13px; color: var(--ink); line-height: 19px;">
+              Welcome Poppy! Mum's set up some jobs for you to do this week. Tap below to see what's on, or chat to me anytime.
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+            <div style="background: white; border-radius: 14px; padding: 13px; border: 1px solid var(--line); display: flex; gap: 10px; align-items: center;">
+              <div style="width: 32px; height: 32px; background: #F0E8FF; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px;">✅</div>
+              <div style="flex: 1; font-weight: 600;">Jobs</div>
+              <div style="background: #6B35D9; color: white; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 8px;">3 NEW</div>
+            </div>
+            <div style="background: white; border-radius: 14px; padding: 13px; border: 1px solid var(--line); display: flex; gap: 10px; align-items: center;">
+              <div style="width: 32px; height: 32px; background: #F0E8FF; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px;">🎮</div>
+              <div style="flex: 1; font-weight: 600;">Today's Wordle</div>
+              <div style="color: var(--ink4);">›</div>
+            </div>
+            <div style="background: white; border-radius: 14px; padding: 13px; border: 1px solid var(--line); display: flex; gap: 10px; align-items: center;">
+              <div style="width: 32px; height: 32px; background: #F0E8FF; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px;">📚</div>
+              <div style="flex: 1; font-weight: 600;">Tutor</div>
+              <div style="color: var(--ink4);">›</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">17.</span>Kid lands in Hub<span class="sub">Their own personalised Hub · 3 new jobs already waiting (set by Mum/Dad) · ✨ welcome message · NOT thrown into family chat</span></div>
+  </div>
+
+  <!-- Frame 18: Inviter sees Poppy joined -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>3:45</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="ch-eyebrow">ZAELI · 3:45PM</div>
+        <div class="bubble" style="background: var(--lavenderTint); border-bottom-left-radius: 6px; border-left: 3px solid #6B35D9;">
+          🦄 <b>Poppy just joined</b> her Hub. Three jobs already on her list this week. Want me to add a reward she can save towards?
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">Add a reward</div>
+          <div class="chip ghost">She'll suggest one</div>
+          <div class="chip ghost">Got it</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">18.</span>Mum gets the heads-up<span class="sub">Lavender-bordered "Poppy joined" message · concrete next-action offer (add a reward)</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="legend">
+  <h3>Build notes — what each piece does</h3>
+  <ul>
+    <li><b>Two roles only (v1):</b> <code>Adult</code> (parent, grandparent, carer — equal access, full app) and <code>Kid</code> (Kids Hub focused, can chat with Zaeli, limited family-wide editing). No granular permissions yet.</li>
+    <li><b>Invite trigger:</b> Our Family screen → "+ Invite" CTA card OR tap an existing kid member → role is pre-set if known. Settings → Family also surfaces the same flow.</li>
+    <li><b>iOS share sheet:</b> after "Send invite", standard system share opens. Sender picks Messages / Mail / WhatsApp / Copy. Recipient = any device — they get the link.</li>
+    <li><b>Invite link:</b> <code>zaeli.app/i/&lt;token&gt;</code>. v1 = local mock token (no backend cross-device). Real token validation lands with backend pass.</li>
+    <li><b>Invite token (backend pass):</b> Supabase row — <code>family_id, role, invited_email, invited_name, token, status, expires_at</code>. One-time-use, 7-day expiry.</li>
+    <li><b>SMS copy varies by role:</b> Adult = "Rich invited you to join our family on Zaeli." Kid = "Mum set up Zaeli for our family — your own space, jobs, games, Tutor."</li>
+    <li><b>Adult onboarding:</b> 3 steps — confirm name + password / their own brief times / their preferences (skip-able). Then full 11-stop tour. ~90 sec + tour.</li>
+    <li><b>Kid onboarding:</b> 2 steps — pick avatar + 4-digit PIN / quick capability intro. Lands in Kids Hub (NOT family chat). PIN instead of password (kid-friendly).</li>
+    <li><b>Pending state:</b> Family screen shows mint-tinted member with "PENDING" tag + Copy/Resend/Revoke chips. Multiple invites can be active.</li>
+    <li><b>Inviter heads-up:</b> when invitee accepts, Zaeli pushes a tinted message in chat (mint for adults, lavender for kids) with a follow-up offer.</li>
+    <li><b>Trust the link:</b> no approval flow. Anyone with the link joins. Safer flows (token expiry, single-use) come with backend pass.</li>
+    <li><b>Kid permissions:</b> sees own Hub + chat + Tutor. Cannot edit family calendar/meals/shopping. Can suggest jobs/rewards (existing approval flow stays).</li>
+  </ul>
+</div>
+
+</body>
+</html>

@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*22 April 2026 — Session 18 ✅ · Travel module rebuilt (standalone, 4 tabs, pure-planner budget) · Keyboard glitch fixed (KAV inside card) · Session 17 items still current*
+*24 April 2026 — Session 19 ✅ · Brief v3 (2 windows + structured prose) · Onboarding polish + cold-start splash redesigned (warm bg + palette orbs) · Chat bubble unification · TOUR system shipped (state machine + 11-stop route + first-time sheet banner + Settings replay + inactivity prompt) · INVITE system shipped (Adult/Kid roles, mock token via iOS share sheet, per-member status grid, receiver flow with stripped onboarding, kid permission gating)*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,21 +10,68 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 18 wrapped the **Travel module** (the last 92% channel placeholder), after Session 17 shipped Settings + Our Budget v2 Pure Planner + brief polish + the brief-system cleanup. Keyboard glitch on 92% sheets fixed and backported.
+Session 19 was the largest single body of work to date. Five interlocking workstreams: Brief v3, Onboarding polish, Cold-start splash redesign, Main chat bubble unification, full TOUR system, and full INVITE system. Tour and Invite are entirely new modules with state libs, dedicated routes, and chat integration.
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅ (Session 17)
+## CURRENT STATE — ALL WORKING ✅ (Session 19)
 ## ══════════════════════════════════
 
-### NEW THIS SESSION (Session 18 summary)
+### NEW THIS SESSION (Session 19 summary)
 
-**Travel module shipped** — standalone route at `/(tabs)/travel` (not 92% sheet — too much depth for a sheet). Trip Stack view (Upcoming + Past + `Plan a trip`) → Trip Detail with 4 tabs (Overview / Bookings / Packing / Notes). Pure-planner budget: Total set by user, **Booked** auto-sums booking amounts, **Still to plan** = Total − Booked. No manual "Spent" (same reason as Our Budget). Who's Going tappable → edit members sheet. Bookings tap-to-edit via unified `BookingSheet`. All sheets use mint/sky/peach/ocean-deep palette and the standard header rule. MoreSheet Travel tile wired in all 3 onAction handlers.
+**A. Brief system v3** — reduced from 3 windows to 2 (morning + evening). Midday killed; evening now carries tomorrow-morning prep. Render redesigned to **Option B**: soft tinted bubble (peach `#FDF1E5` morning / lavender `#F0EBFF` evening) + time-of-day pill (`☀️ MORNING` / `🌙 EVENING`) + structured 3-paragraph prose. **Win banner KILLED** — encouragement folds into prose. Generator prompt rewritten to enforce 3-paragraph structure (opener + body + "One thing:") with 1 emoji per paragraph max. `winBanner` field stripped from spec/parser/payload/upsert.
 
-**Keyboard glitch fix** — 92% sheets with TextInputs (Add Booking, Add Note, Edit Budget etc) had a bug: typing pushed the fixed-height card off the top of the screen. Root cause: KeyboardAvoidingView was wrapping the entire Modal. Fix: KAV moved **inside** the sheet card wrapping only the body. Backported to Our Budget sheets too. `keyboardShouldPersistTaps="handled"` added to all sheet ScrollViews.
+**B. Onboarding polish** — splash WelcomeStep + ReadyStep both got palette orb design (peach/mint/lavender/sky on warm BG). Wordmark lineHeight fix so "i" dot doesn't clip. Step 2 `Hey 👋 I'm Zaeli` greeting + emoji throughout copy. Duplicate "is this rash anything?" replaced with "what's this homework asking?". Brentwood Primary example bigger (white photo card + sky-tinted answer card). Brief preview (Step 11) updated to match Option B exactly. Chat bar removed from onboarding entirely. "Let's go" CTA standard.
 
-### Session 17 summary (still current)
+**C. Cold-start splash redesigned** — `swipe-world.tsx` dark slate Option C **REPLACED** with warm BG `#FAF8F5` + palette orbs (matches onboarding). INK wordmark, sky `a+i`, "Less **chaos**." in coral. Native splash bg in `app.json` updated `#1C2330` → `#FAF8F5`. **REQUIRES `npx expo prebuild --clean` + dev-client rebuild.**
+
+**D. Chat bubble unification** — Zaeli text now wrapped in soft-grey bubble (`rgba(10,10,10,0.04)`, BBL 6) matching onboarding. User bubble background `#F2F2F2` → sky `#E8F4FD`, shape radius 18 / BBR 6. Both texts matched: `Poppins_400Regular` 17px lineHeight 26.
+
+**E. TOUR system — full build (Phase 32)**
+- `lib/tour-state.ts` — state machine with 11 STOPS data + AsyncStorage `tour_state_v1` (currentStop, startedAt, completedAt, lastOpenedAt, lastResumePromptAt). Inactivity helpers: `shouldShowResumePrompt()` / `markResumePromptShown()`.
+- `app/tour/index.tsx` — single dedicated route. Header (× close + Skip-to-end) + eyebrow + h1 + sub + **animated** progress bar + per-stop card + bottom nav. Finale celebration screen with summary recap.
+- 11 stops: Shopping → Meals → Calendar → Kids Hub → Tasks → Photos → **Tutor (HERO)** → Travel → Our Budget → My Space → Our Family
+- **Tutor stop 7 = HERO** — violet accent throughout, trial badge "✨ FREE FOR 14 DAYS" inline at top of card, secondary CTA "Just have a look", price line "$9.99 / child / month".
+- Stop CTAs route via `pendingChatContext` for sheets, direct `router.navigate` for modules. Photos = "Open chat →".
+- **Tour pill** floats bottom-LEFT on chat (right reserved for scroll arrows) when `isInProgress()`. Refreshes on focus + mount.
+- **First-time mint banner** inside live sheets via reusable `app/components/TourBanner.tsx`. Wired into Shopping/Meals/Calendar/Notes&Tasks. Per-sheet AsyncStorage flag.
+- **Settings → Replay tour** view with hero "Start full tour" + 11-row per-stop picker + last-completed date. Tutor row tagged "Hero feature".
+- **Inactivity re-prompt** — 24h+ since last tour open, push Zaeli message "We were on [stop]" with chips ▶ Continue / 🏁 Skip / Not right now. 24h cooldown. Synchronous flag-clear prevents double-fire.
+- `🧭 Take the tour` chip from post-onboarding offer calls `replayFromStart()` BEFORE nav (was loading stale finale state).
+
+**F. INVITE system — full build (Phase 33)**
+- `lib/invite-state.ts` — pending invite store. Mock 6-char token. Per-role SMS composer. Copy/Resend/Revoke. AsyncStorage `invite_state_v1`. `recentlyAcceptedInvites()` + `clearJustAcceptedFlag()` for chat heads-up.
+- `lib/account-state.ts` — current account identity (`owner` / `adult` / `kid`). AsyncStorage `account_state_v1`. Used by MoreSheet for permission gating.
+- `app/invite/index.tsx` — inviter side: role picker (Adult sky / Kid lavender, **no emoji**) + form + iOS share sheet trigger via `Share.share({ message, url })`.
+- `app/invite/[token].tsx` — receiver side: branches by role. **Adult flow** (4 steps: welcome / account / rhythm / preferences) → marks accepted, sets account, sets `onboarding_just_completed` → routes to chat → tour offer auto-fires. **Kid flow** (3 steps: welcome / avatar+PIN / capability intro) → marks accepted, sets kid account → routes to /(tabs)/kids.
+- `app/(tabs)/family.tsx` — per-member inline invite + status grid (You · Account owner / Joined / Pending / + Invite to Zaeli / Uses parent's device · Give them their own). PendingInviteRow with Copy/Resend/Revoke chips. Status badges bumped from tiny 9px to 11-12px with hitSlop.
+- `app/(tabs)/index.tsx` — inviter heads-up message in chat when invite accepted (mint for adult / lavender for kid). **Synchronous flag-clear prevents double-fire.**
+- `app/components/MoreSheet.tsx` — hides Budget + Family tiles when `isKidAccount()` true.
+- `app/(tabs)/settings.tsx` — 3 dev rows for testing: 📨 Simulate invite accepted / 🔗 Open latest invite as receiver / ↩️ Reset to owner account.
+- **Roles locked**: Adult (full access, equal) and Kid (full app EXCEPT Our Budget + Our Family management). No Helper/granular for v1.
+- **Trust the link** — accepting = joined. No approval flow.
+
+**Mockups produced this session:**
+- `zaeli-tour-mockup.html` (v2 — 18 frames, 5 acts)
+- `zaeli-brief-card-mockup.html` (4 options; B picked)
+- `zaeli-invite-mockup.html` (18 frames, 4 acts)
+
+**Critical bugs fixed:**
+- Tour finale instead of stop 1 — chip handler now calls `replayFromStart()` first
+- Inviter heads-up double-fire — `clearJustAcceptedFlag()` runs synchronously before message-pushing setTimeout
+- Tour progress bar inconsistent steps — formula `((cur-1)/(TOTAL-1))*100`
+- Trial badge clipped — moved from absolute `top:-10` to inline at top of card
+- Tour pill collision with chat scroll arrows — moved from `right:16` to `left:16`
+- Tour fonts too small — bumped throughout
+- Family screen status badges hard to tap — fontSize/padding bumped, hitSlop added
+- Member profile back button barely visible — now white pill with dark text + hitSlop
+
+### Session 18 summary (still current — historical)
+
+**Travel module shipped** — standalone route at `/(tabs)/travel`. Trip Stack → Trip Detail with 4 tabs (Overview / Bookings / Packing / Notes). Pure-planner budget. Unified BookingSheet (add+edit). Keyboard glitch fix: KAV moved **inside** the sheet card.
+
+### Session 17 summary (still current — historical)
 
 **Our Budget v2 — Pure Planner (the big one)**
 - Positioned as a budget PLANNER, not a tracker. Without a bank feed, live tracking lies to users the moment data is stale (confirmed with real test — Nov ATM withdrawals imported as "this month").
@@ -246,34 +293,41 @@ MoreSheet sections   →  NAVIGATE · FAMILY CHANNELS · PERSONAL · MODULES · 
 ## NEXT PRIORITIES (in order)
 ## ══════════════════════════════════
 
-### Immediate — outstanding Session 15 items
-1. **Calendar month-view event glitch** — pre-existing bug. Days highlighted red (events present) but event list below is empty. Unrelated to Session 15 architecture work. Fix when revisiting Calendar.
+### Immediate — small Session 19 deferreds (all minor polish)
+1. **Kid tour = 9 stops** — kids currently get the full 11 if they tap Take the tour. Wire `tour-state` to read account kind and skip Budget + Family stops for kid invitees.
+2. **Welcome banner inside Kids Hub** — first-time banner for fresh kid invitees when they land in `/kids` after acceptance.
+3. **Direct-route gating for kid accounts** — kid could type `/our-budget` or `/family` and reach them. MoreSheet only hides the tile. Add route-level guards.
+4. **Native splash rebuild** — `app.json` bg changed to `#FAF8F5`. Run `npx expo prebuild --clean` + rebuild dev client so cold-start transition doesn't flash dark.
+5. **Calendar month-view event glitch** — pre-existing bug. Days highlighted red (events present) but event list below is empty.
 
-### Phase 16 — The AI Brief System (BIGGEST remaining piece)
+### Backend pass — BIGGEST remaining work (Phase 33)
 
-Philosophy B's centrepiece. Locked design from Session 9, updated Session 14 to 4 windows:
+The accumulated backlog now spans Settings, Budget, Travel, Tour, Invite, Account, Memory:
 
-- **4 time windows:**
-  - Morning 04:00–10:59
-  - Lunch 11:00–14:59
-  - Afternoon 15:00–19:59
-  - Evening 20:00–03:59
-- Each brief generated by Sonnet with prompt caching (cheap after first fire)
-- Time-relevant rule — system prompt includes current exact time; only mentions upcoming events
-- Cached in Supabase `zaeli_briefs` table (family_id + date + time_window unique)
-- Firing rules:
-  - On app open: check current window, if no brief for this window today → generate, display in Chat feed
-  - If brief exists for window → just scroll to it
-  - Background-to-foreground within 5 min: do nothing (user returns where they were)
-  - Window transitions while app is open: don't auto-fire (next cold launch)
-- Copy spec from Session 9 (CLAUDE.md Zaeli Persona section) — winning mantra, active credit, win banner max once per brief, chip rules
+**Supabase migrations needed:**
+- `tour_state` (per-user state, not family) — currentStop, startedAt, completedAt, lastOpenedAt, lastResumePromptAt
+- `invite_tokens` — id, family_id, role, invited_name, invited_email/phone, token, status, created_at, accepted_at, revoked_at, expires_at (7-day default)
+- `account_state` — kind (owner/adult/kid), name, avatar (kids), tied to auth user
+- `user_preferences` — migrate Settings AsyncStorage (`zaeli_settings_prefs_v1`) to per-user table
+- `income_streams` / `budget_categories` / `category_line_items` / `savings_goals` — Our Budget v2 (Session 17)
+- `trips` / `trip_members` / `trip_bookings` / `trip_packing_items` / `trip_notes` / `trip_budget` — Travel module (Session 18)
+- Memory wiring: `family_insights` / `family_milestones` / `conversation_memory` for Settings → Memory view
+
+**Other backend pass items:**
+- **Real auth** — Supabase auth user + JWT with `account.kind` claim. Replace DUMMY_FAMILY_ID + AsyncStorage `account_state_v1`.
+- **Real cross-device invite tokens** — `zaeli.app/i/<token>` deep link → server validates → routes to receiver flow. Replaces local mock.
+- **Stripe** — customer portal WebView, subscription metadata. Current "Manage subscription" row stub.
+- **Push notifications** — registration + scheduling tied to brief times + quiet hours from Settings.
+- **Direct-route gating** for kid accounts (alongside MoreSheet).
+- **Export data, Clear chat history, Privacy/Terms WebViews** — Settings rows currently stubs.
+- **Our Budget CSV/PDF** — `expo-document-picker` install + EAS dev-client rebuild.
+- **Our Budget share extension** — native module, EAS build step.
+- **Travel vision-for-bookings** — Sonnet vision auto-extract REF/dates/amount from booking screenshots.
 
 ### Other pending work:
 - Tutor stress testing with real kids (difficulty bands, all 6 pillars)
 - Tutor session resume (reload from `tutor_messages`)
 - 100 crosswords (content task, parked)
-- Settings screen
-- Our Budget (pending Basiq pricing)
 - EAS Build + TestFlight (for HealthKit, embedded YouTube, real auth)
 
 ---
@@ -327,6 +381,30 @@ Philosophy B's centrepiece. Locked design from Session 9, updated Session 14 to 
 - `_splashShownThisSession` module-level flag prevents splash re-trigger
 - MoreSheet contexts must NOT set `returnTo: 'dashboard'` (was triggering legacy pill)
 
+### New rules Session 19
+- **Brief = 2 windows ONLY.** Morning (05:00–15:59) + Evening (16:00–04:59). Never reintroduce midday. Evening covers tomorrow-morning prep.
+- **Brief render = Option B.** Soft tinted bubble (peach `#FDF1E5` morning / lavender `#F0EBFF` evening) + time-of-day pill at top of bubble. NO win banner. NO border. Eyebrow = `Zaeli · time` only (no window word — pill carries it).
+- **Brief generator format** — strict 3-paragraph structure: opener (1 line + emoji) / body (2-3 sentences) / one thing (single nudge). Max 100 words. 1 emoji per paragraph max. Quiet-day mode collapses to opener + one thing.
+- **Splash = warm bg + palette orbs** — both onboarding (Welcome + Ready) and cold-start (`swipe-world.tsx`) use `#FAF8F5` bg with peach/mint/lavender/sky orbs. INK wordmark, sky `a+i`, "Less **chaos**." in coral. `app.json` native splash bg `#FAF8F5` — requires `npx expo prebuild --clean`.
+- **Wordmark lineHeight rule** — for sizes 92px+, set `lineHeight: fontSize + ~28` AND `paddingTop: 12-14` so the i-dot doesn't clip.
+- **Chat bubble unification** — Zaeli text wrapped in `s.zaeliBubble` (bg `rgba(10,10,10,0.04)`, BBL 6, padding 13/16, alignSelf flex-start, maxWidth 90%). User bubble bg `#E8F4FD` (sky), shape radius 18 / BBR 6 / padding 11/15. Both texts: `Poppins_400Regular` 17px lineHeight 26.
+- **Tour state machine** = `lib/tour-state.ts`. AsyncStorage `tour_state_v1`. STOPS array is single source of truth. **Tutor stop 7 = HERO** (violet, trial badge, 2 CTAs, price line). Progress formula `((cur-1)/(TOTAL-1))*100`.
+- **Tour pill = bottom-LEFT** (`left: 16`). Right side reserved for chat scroll arrows.
+- **Tour offer chip handler** must call `replayFromStart()` BEFORE navigating to `/tour` — otherwise stale `currentStop = 'finale'` lands user wrong.
+- **First-time tour banner** uses `<TourBanner sheetKey="..." message="..."/>`. Per-sheet AsyncStorage flag. Renders only if tour-in-progress AND not previously dismissed.
+- **Inactivity prompt** — `markResumePromptShown()` runs synchronously to prevent double-fire (same pattern as invite heads-up).
+- **Invite state** = `lib/invite-state.ts`, AsyncStorage `invite_state_v1`. Mock 6-char token. **Account state** = `lib/account-state.ts`, AsyncStorage `account_state_v1`. Three kinds: owner / adult / kid.
+- **Invites = Adult or Kid only** for v1. Adult = full access. Kid = full access EXCEPT Our Budget + Our Family management.
+- **Invite delivery = iOS share sheet only** (`Share.share({ message, url })`). No backend in v1.
+- **Trust the link** — accepting = joined. No approval flow.
+- **Inviter heads-up + tour resume** must clear flags SYNCHRONOUSLY before message-pushing setTimeout — concurrent mount + focus calls would double-fire otherwise.
+- **Adult invitee onboarding** = 4 steps (welcome / account / rhythm / preferences). Sets `onboarding_just_completed` so tour offer fires.
+- **Kid invitee onboarding** = 3 steps (welcome / avatar+PIN / capability intro). Lands in Kids Hub, NOT chat.
+- **MoreSheet kid gating** — `loadAccount()` on visible-true, `isKidAccount()` hides Budget + Family tiles. Direct route navigation NOT yet gated (deferred).
+- **Status badge sizing** (Family screen) — fontSize 11px+, padding 10×5+, borderRadius 8+, letterSpacing 0.2. Action chips: fontSize 12, padding 12×7, borderRadius 10, filled mint pill bg, white text, hitSlop 10. NEVER fontSize 9.
+- **Onboarding finale → tour handoff** — `finishOnboarding()` sets BOTH `onboarding_complete` AND `onboarding_just_completed`. Chat reads + clears the latter on mount, pushes tour offer.
+- **No emoji on Adult/Kid role tiles** — Richard's call (felt off). Color-coded names (sky-deep "Adult", lavender-deep "Kid") + features carry the visual difference.
+
 ### New rules Session 18
 - **Travel = STANDALONE route.** Not a 92% sheet. Wordmark `a+i` = sky `#A8D8F0`, primary = ocean deep `#0060A0`.
 - **Travel Budget = PURE PLANNER.** No manual "Spent" — Booked auto-sums booking amounts. Still to plan = Total − Booked.
@@ -356,6 +434,18 @@ Philosophy B's centrepiece. Locked design from Session 9, updated Session 14 to 
 **Brief system spec**: `zaeli-brief-examples (1).html` in Downloads.
 
 ### Open for next session
-- **Backend pass** — batched: Supabase migrations for budget + settings + travel (6 tables), push notification scheduling, auth, Stripe, memory wiring, CSV document picker install, share extension, Travel vision-for-bookings
-- Tutor session resume (Phase 20)
+
+**Small Session 19 deferreds (quick wins):**
+- Kid tour = 9 stops (skip Budget + Family) — wire `tour-state` to read account kind
+- Kids Hub welcome banner for fresh kid invitees
+- Direct-route gating for kid accounts
+- Native splash rebuild — `npx expo prebuild --clean` after `app.json` bg change
+
+**Backend pass — bigger work** — batched across all modules now: Supabase migrations for tour_state + invite_tokens + account_state + user_preferences + budget (4 tables) + travel (6 tables). Real auth (Supabase user + JWT with account.kind claim). Real cross-device invite tokens. Stripe customer portal. Push notification scheduling tied to brief times. Memory wiring (insights/milestones/conversation_memory). Direct-route guards for kid accounts. Export data, Clear chat history, Privacy/Terms WebViews. CSV document picker (EAS rebuild). Travel vision-for-bookings.
+
+**Other:**
+- Tutor session resume (Phase 20 — reload from `tutor_messages`)
+- Calendar month-view event highlighting glitch
+- 100 crosswords (content task, parked)
+- Tutor stress testing with real kids
 - 100 crosswords (parked content task)

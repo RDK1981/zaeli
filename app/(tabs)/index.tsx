@@ -32,7 +32,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loadTourState, isInProgress as tourInProgress, getCurrentStop as tourCurrentStop, TOTAL_STOPS as TOUR_TOTAL, replayFromStart as tourReplayFromStart, shouldShowResumePrompt as tourShouldResume, markResumePromptShown as tourMarkResumePrompt, getStopById as tourGetStop, completeTour as tourCompleteTour } from '../../lib/tour-state';
+import { loadInvites as loadInviteState, recentlyAcceptedInvites, clearJustAcceptedFlag } from '../../lib/invite-state';
 import MoreSheet from '../components/MoreSheet';
+import TourBanner from '../components/TourBanner';
 import { currentWindow as getCurrentWindow, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
 import { generateBrief, FamilyContext } from '../../lib/brief-generator';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
@@ -57,7 +61,7 @@ const T = {
   ink2:       'rgba(10,10,10,0.5)',
   ink3:       'rgba(10,10,10,0.28)',
   border:     'rgba(10,10,10,0.09)',
-  userBubble: '#F2F2F2',
+  userBubble: '#E8F4FD',
   userText:   '#0A0A0A',
   zaeliAi:    HOME_AI,
   dateLine:   'rgba(10,10,10,0.09)',
@@ -196,9 +200,8 @@ interface Msg {
   quickReplies?: string[];
   inlineData?: InlineData;
   // ── Brief-specific fields ──
-  briefWindow?: 'morning' | 'midday' | 'evening';
+  briefWindow?: 'morning' | 'evening';
   briefChips?: { label: string; primary?: boolean; dismiss?: boolean }[];
-  briefWinBanner?: string | null;
   briefDividerLabel?: string;
   briefDismissed?: boolean;
 }
@@ -3096,7 +3099,123 @@ function HomeScreen({
     if (!chatLoaded || !persistenceHasLoaded.current || briefMountFiredRef.current) return;
     briefMountFiredRef.current = true;
     tryFireBrief({ appJustOpened: true });
+    maybeFireTourOffer();
+    maybeFireTourResume();
+    maybeFireInviteHeadsUp();
+    refreshTourPill();
   }, [chatLoaded]);
+
+  // Invite heads-up — when someone accepts an invite, push a Zaeli message
+  // letting the inviter know. Tinted mint for adults, lavender for kids.
+  // Polls on focus too (so a fresh accept while in chat surfaces on next focus).
+  // CRITICAL: clear the flag SYNCHRONOUSLY before the setTimeout fires so a
+  // concurrent call from the focus effect doesn't see the same invite + double-fire.
+  async function maybeFireInviteHeadsUp() {
+    try {
+      await loadInviteState();
+      const accepted = recentlyAcceptedInvites();
+      if (accepted.length === 0) return;
+      const toSurface = accepted.slice(0, 3);
+      // Mark surfaced FIRST so a second call (from focus) reads zero unsurfaced.
+      for (const inv of toSurface) {
+        await clearJustAcceptedFlag(inv.token);
+      }
+      // Slight delay so brief + tour offer settle first
+      setTimeout(() => {
+        for (const inv of toSurface) {
+          const isKid = inv.role === 'kid';
+          const text = isKid
+            ? `🎉 ${inv.name} just joined their Hub. Want me to add a reward they can save towards?`
+            : `✨ ${inv.name} just joined — they'll have their own brief tomorrow morning. Anything you want me to flag for their first day?`;
+          const chips = isKid
+            ? ['Add a reward', 'They\u2019ll suggest one', 'Got it']
+            : [`Tell them about Friday`, 'Nothing for now'];
+          const msg: Msg = {
+            id: uid(),
+            role: 'zaeli',
+            text,
+            ts: nowTs(),
+            isLoading: false,
+            quickReplies: chips,
+          };
+          setMessages(prev => [...prev, msg]);
+        }
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200);
+      }, 1800);
+    } catch {}
+  }
+
+  // Tour resume prompt — fires if tour is mid-stream and user hasn't opened it
+  // in 24h+. Lands AFTER brief + tour offer so it doesn't pile up. Cooldown
+  // 24h between prompts so it's not nagging.
+  async function maybeFireTourResume() {
+    try {
+      await loadTourState();
+      if (!tourShouldResume()) return;
+      await tourMarkResumePrompt();
+      const cur = tourCurrentStop();
+      const stopId = typeof cur === 'number' ? cur : 1;
+      const stop = tourGetStop(stopId);
+      const stopName = stop?.cardTitle ?? 'next stop';
+      // Land after brief + offer have settled
+      setTimeout(() => {
+        const msg: Msg = {
+          id: uid(),
+          role: 'zaeli',
+          text: `We were on the ${stopName} stop. Want to pick up where we left off, or skip ahead? You're ${stopId} of ${TOUR_TOTAL} through 🧭`,
+          ts: nowTs(),
+          isLoading: false,
+          quickReplies: ['▶ Continue tour', '🏁 Skip to end', 'Not right now'],
+        };
+        setMessages(prev => [...prev, msg]);
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200);
+      }, 1500);
+    } catch {}
+  }
+
+  // Tour pill — visible bottom-right when tour is mid-progress.
+  // Tap → resume tour at current stop.
+  const [tourPillVisible, setTourPillVisible] = useState(false);
+  const [tourPillStop, setTourPillStop] = useState<number>(1);
+  async function refreshTourPill() {
+    await loadTourState();
+    if (tourInProgress()) {
+      const cur = tourCurrentStop();
+      setTourPillVisible(true);
+      setTourPillStop(typeof cur === 'number' ? cur : TOUR_TOTAL);
+    } else {
+      setTourPillVisible(false);
+    }
+  }
+  // Re-check when chat regains focus (in case user exited tour mid-stream
+  // or accepted an invite via the dev row while chat was open)
+  useFocusEffect(useCallback(() => {
+    refreshTourPill();
+    maybeFireInviteHeadsUp();
+  }, []));
+
+  // Tour offer — fires once after onboarding completes. Flag is set in
+  // app/onboarding/index.tsx on finish, then read+cleared here.
+  async function maybeFireTourOffer() {
+    try {
+      const flag = await AsyncStorage.getItem('onboarding_just_completed');
+      if (flag !== 'true') return;
+      await AsyncStorage.removeItem('onboarding_just_completed');
+      // Slight delay so brief (if firing) lands first
+      setTimeout(() => {
+        const offer: Msg = {
+          id: uid(),
+          role: 'zaeli',
+          text: "You're set up. Want a quick tour of what I can do? Three minutes — eleven stops. You'll know exactly where everything lives.",
+          ts: nowTs(),
+          isLoading: false,
+          quickReplies: ['🧭 Take the tour', 'Maybe later'],
+        };
+        setMessages(prev => [...prev, offer]);
+        setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 200);
+      }, 800);
+    } catch {}
+  }
 
   function enterChat(topic?: string) {
     Animated.parallel([
@@ -3433,7 +3552,6 @@ CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
       isLoading: true,
       briefWindow: win,
       briefChips: [],
-      briefWinBanner: null,
       briefDividerLabel: showDivider ? windowLabel(win, now) : undefined,
     };
     setMessages(prev => [...prev, placeholder]);
@@ -3456,7 +3574,6 @@ CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
         text: payload.text,
         isLoading: false,
         briefChips: payload.chips,
-        briefWinBanner: payload.winBanner ?? null,
       } : m));
       lastBriefWindowRef.current = win;
       lastBriefDateRef.current = todayDate;
@@ -3923,6 +4040,38 @@ CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
   }, [pendingMicText, isActive]);
 
   function handleQuickReply(chip: string) {
+    if (chip === '🧭 Take the tour') {
+      // Strip the offer's chips so they don't reappear when user comes back
+      setMessages(prev => prev.map(m => m.quickReplies?.includes('🧭 Take the tour') ? { ...m, quickReplies: [] } : m));
+      // Reset tour state — this chip is a fresh start (post-onboarding handoff).
+      // If the user previously completed the tour, AsyncStorage holds currentStop='finale',
+      // which would land them on the finale screen instead of stop 1.
+      tourReplayFromStart().then(() => {
+        router.navigate('/tour' as any);
+      });
+      return;
+    }
+    if (chip === 'Maybe later') {
+      setMessages(prev => prev.map(m => m.quickReplies?.includes('🧭 Take the tour') ? { ...m, quickReplies: [] } : m));
+      return;
+    }
+    // ── Inactivity resume prompt chips ──
+    if (chip === '▶ Continue tour') {
+      setMessages(prev => prev.map(m => m.quickReplies?.includes('▶ Continue tour') ? { ...m, quickReplies: [] } : m));
+      router.navigate('/tour' as any);
+      return;
+    }
+    if (chip === '🏁 Skip to end') {
+      setMessages(prev => prev.map(m => m.quickReplies?.includes('▶ Continue tour') ? { ...m, quickReplies: [] } : m));
+      // Mark tour complete (skip the finale celebration since they're explicitly opting out).
+      // They can still replay anytime from Settings → Replay tour.
+      tourCompleteTour().then(() => refreshTourPill());
+      return;
+    }
+    if (chip === 'Not right now') {
+      setMessages(prev => prev.map(m => m.quickReplies?.includes('▶ Continue tour') ? { ...m, quickReplies: [] } : m));
+      return;
+    }
     if (chip === 'Open Meal Planner') {
       openMealSheet('meals');
       return;
@@ -5395,8 +5544,13 @@ Rules:
       return true;
     });
     return uniqueMessages.map((msg, i) => {
-      // ── Brief message (dark slate bubble + win banner + chips) ──
+      // ── Brief message (Option B — time-of-day tint, no card border, no win banner) ──
       if (msg.isBrief) {
+        const isEvening = msg.briefWindow === 'evening';
+        const bubbleStyle = isEvening ? s.briefBubbleEvening : s.briefBubbleMorning;
+        const pillStyle = isEvening ? s.briefPillEvening : s.briefPillMorning;
+        const pillTxtStyle = isEvening ? s.briefPillTxtEvening : s.briefPillTxtMorning;
+        const pillLabel = isEvening ? '🌙  EVENING' : '☀️  MORNING';
         return (
           <View key={msg.id}>
             {msg.briefDividerLabel && (
@@ -5414,16 +5568,14 @@ Rules:
               </View>
               <Text style={s.briefZaeliLabel}>Zaeli {'\u00B7'} {msg.ts}</Text>
             </View>
-            <View style={s.briefBubble}>
+            <View style={[s.briefBubble, bubbleStyle]}>
+              <View style={[s.briefPill, pillStyle]}>
+                <Text style={[s.briefPillTxt, pillTxtStyle]}>{pillLabel}</Text>
+              </View>
               {msg.isLoading ? (
                 <TypingDots color="rgba(10,10,10,0.5)"/>
               ) : (
                 <Text style={s.briefText}>{msg.text}</Text>
-              )}
-              {msg.briefWinBanner && !msg.isLoading && (
-                <View style={s.briefWinBanner}>
-                  <Text style={s.briefWinText}>{msg.briefWinBanner}</Text>
-                </View>
               )}
             </View>
             {msg.briefChips && msg.briefChips.length > 0 && !msg.briefDismissed && (
@@ -5495,12 +5647,16 @@ Rules:
           )}
 
           {msg.isLoading ? (
-            <TypingDots color={HOME_AI}/>
+            <View style={s.zaeliBubble}><TypingDots color={HOME_AI}/></View>
           ) : hasCalendarInline ? (
             <>
-              {!!msg.text && paragraphs.map((p, pi) => (
-                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom:8 }]}>{p}</Text>
-              ))}
+              {!!msg.text && (
+                <View style={s.zaeliBubble}>
+                  {paragraphs.map((p, pi) => (
+                    <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom: pi === paragraphs.length-1 ? 0 : 8 }]}>{p}</Text>
+                  ))}
+                </View>
+              )}
               <InlineCalendarCard
                 msgId={msg.id}
                 todayEvents={msg.inlineData!.items ?? []}
@@ -5560,9 +5716,13 @@ Rules:
             </>
           ) : hasShoppingInline ? (
             <>
-              {!!msg.text && paragraphs.map((p, pi) => (
-                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom:8 }]}>{p}</Text>
-              ))}
+              {!!msg.text && (
+                <View style={s.zaeliBubble}>
+                  {paragraphs.map((p, pi) => (
+                    <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom: pi === paragraphs.length-1 ? 0 : 8 }]}>{p}</Text>
+                  ))}
+                </View>
+              )}
               <InlineShoppingCard
                 items={msg.inlineData!.items ?? []}
                 totalCount={msg.inlineData!.tomorrowItems?.[0]?._count ?? (msg.inlineData!.items?.length ?? 0)}
@@ -5583,17 +5743,25 @@ Rules:
             </>
           ) : hasOtherInline ? (
             <>
-              {introParagraphs.map((p, pi) => (
-                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom:8 }]}>{p}</Text>
-              ))}
+              {introParagraphs.length > 0 && (
+                <View style={s.zaeliBubble}>
+                  {introParagraphs.map((p, pi) => (
+                    <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom: pi === introParagraphs.length-1 ? 0 : 8 }]}>{p}</Text>
+                  ))}
+                </View>
+              )}
               <View style={s.calCardsWrap}>
                 {(msg.inlineData!.items || []).map((ev:any) => (
                   <EventCard key={ev.id} ev={ev} onPress={() => setSelectedEvent(ev)}/>
                 ))}
               </View>
-              {followUpParagraphs.map((p, pi) => (
-                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginTop:8 }]}>{p}</Text>
-              ))}
+              {followUpParagraphs.length > 0 && (
+                <View style={[s.zaeliBubble, { marginTop:8 }]}>
+                  {followUpParagraphs.map((p, pi) => (
+                    <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom: pi === followUpParagraphs.length-1 ? 0 : 8 }]}>{p}</Text>
+                  ))}
+                </View>
+              )}
               {msg.inlineData!.showPortalPill && (
                 <View style={s.quickRepliesWrap}>
                   <View style={s.qrChips}>
@@ -5610,17 +5778,17 @@ Rules:
               )}
             </>
           ) : msg.isBrief ? (
-            <>
+            <View style={s.zaeliBubble}>
               {paragraphs.map((p, pi) => (
-                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom:8 }]}>{p}</Text>
+                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom: pi === paragraphs.length-1 ? 0 : 8 }]}>{p}</Text>
               ))}
-            </>
+            </View>
           ) : (
-            <>
+            <View style={s.zaeliBubble}>
               {paragraphs.map((p, pi) => (
-                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom:8 }]}>{p}</Text>
+                <Text key={pi} style={[s.zaeliMsgText, { color:T.ink, marginBottom: pi === paragraphs.length-1 ? 0 : 8 }]}>{p}</Text>
               ))}
-            </>
+            </View>
           )}
 
           {!msg.isLoading && !hasCalendarInline && !hasOtherInline && (msg.quickReplies??[]).length > 0 && (
@@ -5895,6 +6063,20 @@ Rules:
               </TouchableOpacity>
             </View>
 
+            {/* Tour pill — floats above the chat bar when tour is mid-progress */}
+            {tourPillVisible && (
+              <TouchableOpacity
+                style={s.tourPill}
+                activeOpacity={0.85}
+                onPress={() => router.navigate('/tour' as any)}
+              >
+                <Text style={s.tourPillTxt}>🧭  Resume tour</Text>
+                <View style={s.tourPillBadge}>
+                  <Text style={s.tourPillBadgeTxt}>{tourPillStop}/{TOUR_TOTAL}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
             {/* ── BAR — single pill (Tutor style), taller: [Mic | TextInput | Camera | Send] ── */}
             <View style={s.barFloat}>
               <View style={s.barPillV2}>
@@ -6074,8 +6256,16 @@ Rules:
                   />
                 ) : (
                   <View style={{ flex:1 }}>
+                    {/* Tour first-time banner */}
+                    <View style={{ paddingHorizontal:14, paddingTop:12 }}>
+                      <TourBanner
+                        sheetKey="calendar"
+                        message="You're in the live Calendar — long-press a day to add an event, or message me from chat."
+                      />
+                    </View>
+
                     {/* Tabs */}
-                    <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:4, marginHorizontal:14, marginTop:12, marginBottom:8 }}>
+                    <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:4, marginHorizontal:14, marginTop:0, marginBottom:8 }}>
                       {(['today','tomorrow','month'] as const).map(tab => (
                         <TouchableOpacity
                           key={tab}
@@ -6234,8 +6424,15 @@ Rules:
                   </View>
                 </View>
 
+                <View style={{ paddingHorizontal:14, paddingTop:12 }}>
+                  <TourBanner
+                    sheetKey="shopping"
+                    message="You're in the live Shopping list — tap an item to tick it off, or message me from chat to add anything."
+                  />
+                </View>
+
                 {/* Tab switcher */}
-                <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:4, marginHorizontal:14, marginTop:12, marginBottom:8, flexShrink:0 }}>
+                <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:4, marginHorizontal:14, marginTop:0, marginBottom:8, flexShrink:0 }}>
                   {(['list','pantry','spend'] as const).map(tab => (
                     <TouchableOpacity
                       key={tab}
@@ -7067,9 +7264,19 @@ Rules:
                   </View>
                 </View>
 
+                {/* Tour first-time banner — only on top-level meal planner view */}
+                {!mealCookPicker && !mealRecipeDetail && mealAddRecipeMode === 'closed' && !mealSendToList && (
+                  <View style={{ paddingHorizontal:14, paddingTop:12 }}>
+                    <TourBanner
+                      sheetKey="meals"
+                      message="You're in the live Meal Planner — tap a night to swap, or message me from chat to plan dinner."
+                    />
+                  </View>
+                )}
+
                 {/* Tab switcher — dark pill, matching shopping */}
                 {!mealCookPicker && !mealRecipeDetail && mealAddRecipeMode === 'closed' && !mealSendToList && (
-                  <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:4, marginHorizontal:14, marginTop:12, marginBottom:8, flexShrink:0 }}>
+                  <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:4, marginHorizontal:14, marginTop:0, marginBottom:8, flexShrink:0 }}>
                     {(['meals','recipes','favourites'] as const).map(tab => (
                       <TouchableOpacity
                         key={tab}
@@ -8444,7 +8651,8 @@ const s = StyleSheet.create({
   zName:        { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.2 },
   zTs:          { fontFamily:'Poppins_400Regular', fontSize:9, marginLeft:'auto' as any },
   zTsOnly:      { fontFamily:'Poppins_400Regular', fontSize:10, marginBottom:5 },
-  zaeliMsgText: { fontFamily:'Poppins_400Regular', fontSize:17, lineHeight:27, letterSpacing:-0.1 },
+  zaeliBubble:  { backgroundColor:'rgba(10,10,10,0.04)', borderRadius:18, borderBottomLeftRadius:6, paddingVertical:13, paddingHorizontal:16, alignSelf:'flex-start' as any, maxWidth:'90%' as any },
+  zaeliMsgText: { fontFamily:'Poppins_400Regular', fontSize:17, lineHeight:26, color:'#0A0A0A' },
   zaeliIconRow: { flexDirection:'row', alignItems:'center', marginTop:7, gap:2 },
 
   // Dots
@@ -8463,8 +8671,8 @@ const s = StyleSheet.create({
 
   // User bubble
   userMsgWrap: { alignItems:'flex-end', marginBottom:6, paddingHorizontal:18 },
-  userBubble:  { borderRadius:16, borderBottomRightRadius:3, paddingHorizontal:13, paddingVertical:9, maxWidth:'82%' as any },
-  userMsgText: { fontFamily:'Poppins_400Regular', fontSize:17, lineHeight:27 },
+  userBubble:  { borderRadius:18, borderBottomRightRadius:6, paddingHorizontal:15, paddingVertical:11, maxWidth:'86%' as any },
+  userMsgText: { fontFamily:'Poppins_400Regular', fontSize:17, lineHeight:26 },
 
   // ── Brief bubble (dark slate — matches HTML mockup) ──
   briefTimeDivider:   { flexDirection:'row', alignItems:'center', gap:8, marginHorizontal:20, marginVertical:16 },
@@ -8473,10 +8681,16 @@ const s = StyleSheet.create({
   briefEyebrow:       { flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:18, marginBottom:6, marginTop:8 },
   briefZaeliStar:     { width:16, height:16, borderRadius:5, backgroundColor:'#A8D8F0', alignItems:'center', justifyContent:'center' },
   briefZaeliLabel:    { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.8, color:'rgba(10,10,10,0.42)' },
-  briefBubble:        { backgroundColor:'#FAC8A8', borderTopLeftRadius:4, borderTopRightRadius:18, borderBottomRightRadius:18, borderBottomLeftRadius:18, paddingVertical:15, paddingHorizontal:17, marginHorizontal:14, marginBottom:10, borderWidth:1, borderColor:'rgba(10,10,10,0.06)' },
-  briefText:          { fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', lineHeight:27 },
-  briefWinBanner:     { backgroundColor:'rgba(184,237,208,0.55)', borderLeftWidth:3, borderLeftColor:'#2D7A52', borderRadius:8, paddingVertical:10, paddingHorizontal:12, marginTop:12 },
-  briefWinText:       { fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#2D7A52', lineHeight:22 },
+  briefBubble:        { borderRadius:18, borderBottomLeftRadius:6, paddingVertical:16, paddingHorizontal:18, marginHorizontal:14, marginBottom:10 },
+  briefBubbleMorning: { backgroundColor:'#FDF1E5' },
+  briefBubbleEvening: { backgroundColor:'#F0EBFF' },
+  briefPill:          { alignSelf:'flex-start' as any, paddingVertical:3, paddingHorizontal:10, borderRadius:10, marginBottom:10 },
+  briefPillMorning:   { backgroundColor:'#FAC8A8' },
+  briefPillEvening:   { backgroundColor:'#D8CCFF' },
+  briefPillTxt:       { fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.6 },
+  briefPillTxtMorning:{ color:'#8A3A00' },
+  briefPillTxtEvening:{ color:'#5020C0' },
+  briefText:          { fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', lineHeight:26 },
   briefChipsRow:      { flexDirection:'row', flexWrap:'wrap', gap:7, marginHorizontal:14, marginBottom:14 },
   briefChip:          { borderWidth:1.5, borderColor:'rgba(10,10,10,0.14)', borderRadius:20, paddingVertical:6, paddingHorizontal:13, backgroundColor:'#fff' },
   briefChipPrimary:   { backgroundColor:'#FFE4E0', borderColor:'#F5C2BA' },
@@ -8557,6 +8771,43 @@ const s = StyleSheet.create({
     bottom:0, left:0, right:0,
     paddingHorizontal:14,
     paddingBottom:Platform.OS === 'ios' ? 24 : 14,
+  },
+  // Tour pill — floats bottom-LEFT above the chat bar when mid-tour
+  // (right-side reserved for chat scroll up/down arrows)
+  tourPill: {
+    position:'absolute',
+    bottom:Platform.OS === 'ios' ? 96 : 78,
+    left:16,
+    flexDirection:'row',
+    alignItems:'center',
+    gap:6,
+    backgroundColor:'#2D3748',
+    paddingVertical:10,
+    paddingLeft:14,
+    paddingRight:10,
+    borderRadius:24,
+    shadowColor:'#000',
+    shadowOpacity:0.2,
+    shadowRadius:12,
+    shadowOffset:{ width:0, height:6 },
+    elevation:6,
+  },
+  tourPillTxt: {
+    fontFamily:'Poppins_600SemiBold',
+    fontSize:13,
+    color:'#fff',
+  },
+  tourPillBadge: {
+    backgroundColor:'#B8EDD0',
+    paddingHorizontal:7,
+    paddingVertical:2,
+    borderRadius:8,
+    marginLeft:4,
+  },
+  tourPillBadgeTxt: {
+    fontFamily:'Poppins_700Bold',
+    fontSize:10,
+    color:'#2D7A52',
   },
   barPill: {
     flexDirection:'row',

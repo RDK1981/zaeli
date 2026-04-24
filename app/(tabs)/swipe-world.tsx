@@ -117,19 +117,17 @@ export default function SwipeWorld() {
       {/* Dots removed — Navigate section in MoreSheet is the primary Chat↔Dashboard control */}
       {/* FAB removed — hamburger ☰ in each screen's header opens the new MoreSheet */}
 
-      {/* ── Landing splash — Option C (Deep Slate + Sky + Mint + Lavender orbs) ── */}
+      {/* ── Landing splash — Warm bg + palette orbs (matches onboarding splash) ── */}
       {showLanding && (
         <TouchableOpacity
           style={s.landing}
           activeOpacity={1}
           onPress={() => setShowLanding(false)}
         >
-          {/* Lavender orb — top right */}
-          <View style={s.landingOrbLavTop} pointerEvents="none" />
-          {/* Lavender orb — bottom left */}
-          <View style={s.landingOrbLavBot} pointerEvents="none" />
-          {/* Sky glow — wrapping the wordmark */}
-          <View style={s.landingGlow} pointerEvents="none" />
+          <View style={s.landingOrbPeach} pointerEvents="none" />
+          <View style={s.landingOrbMint} pointerEvents="none" />
+          <View style={s.landingOrbLav} pointerEvents="none" />
+          <View style={s.landingOrbSky} pointerEvents="none" />
 
           <View style={s.landingCenter}>
             <Text style={s.landingLogo}>
@@ -137,10 +135,9 @@ export default function SwipeWorld() {
               <Text style={s.landingLogoAccent}>i</Text>
             </Text>
             <Text style={s.landingTagline}>
-              <Text style={s.landingTaglineBold}>Less Chaos.</Text>
-              <Text> More Family.</Text>
+              Less <Text style={s.landingTaglineCoral}>chaos</Text>.
+              <Text>{'\n'}More family.</Text>
             </Text>
-            <View style={s.landingDivider} />
           </View>
 
           <Text style={s.landingHint}>TAP TO CONTINUE</Text>
@@ -167,43 +164,40 @@ const s = StyleSheet.create({
   landing: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: '#1C2330',
+    backgroundColor: '#FAF8F5',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
     overflow: 'hidden',
   },
-  // Sky-blue soft glow behind wordmark
-  landingGlow: {
+  // Palette orbs — peach, mint, lavender, sky
+  landingOrbPeach: {
     position: 'absolute',
-    width: 520,
-    height: 520,
-    borderRadius: 260,
-    backgroundColor: 'rgba(168,216,240,0.10)',
-    top: '50%',
-    left: '50%',
-    marginLeft: -260,
-    marginTop: -280,
+    width: 320, height: 320, borderRadius: 160,
+    backgroundColor: '#FAC8A8',
+    opacity: 0.42,
+    top: -100, right: -100,
   },
-  // Lavender orbs — Shopping-tile lavender #D8CCFF.
-  // On a dark slate bg we need high opacity for the purple to actually show (low opacity just blends to grey).
-  landingOrbLavTop: {
+  landingOrbMint: {
     position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: 'rgba(216,204,255,0.65)',
-    top: -80,
-    right: -90,
+    width: 280, height: 280, borderRadius: 140,
+    backgroundColor: '#B8EDD0',
+    opacity: 0.50,
+    bottom: -80, left: -90,
   },
-  landingOrbLavBot: {
+  landingOrbLav: {
     position: 'absolute',
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: 'rgba(216,204,255,0.55)',
-    bottom: -110,
-    left: -120,
+    width: 200, height: 200, borderRadius: 100,
+    backgroundColor: '#D8CCFF',
+    opacity: 0.55,
+    top: 140, left: -60,
+  },
+  landingOrbSky: {
+    position: 'absolute',
+    width: 180, height: 180, borderRadius: 90,
+    backgroundColor: '#A8D8F0',
+    opacity: 0.42,
+    bottom: 160, right: -50,
   },
   landingCenter: {
     alignItems: 'center',
@@ -212,40 +206,34 @@ const s = StyleSheet.create({
   landingLogo: {
     fontFamily: 'Poppins_800ExtraBold',
     fontSize: 96,
-    color: '#FFFFFF',
+    color: '#0A0A0A',
     letterSpacing: -4,
-    lineHeight: 128, // extra room so the dot on "i" never clips
-    paddingTop: 12,  // breathing space above
+    lineHeight: 128,
+    paddingTop: 12,
     textAlignVertical: 'center',
   },
   landingLogoAccent: {
     color: '#A8D8F0', // sky blue — My Space identity
   },
   landingTagline: {
-    fontFamily: 'Poppins_400Regular',
-    fontSize: 17,
-    color: 'rgba(255,255,255,0.60)',
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 26,
+    color: '#0A0A0A',
+    lineHeight: 36,
     marginTop: 16,
     letterSpacing: 0,
     textAlign: 'center',
   },
-  landingTaglineBold: {
+  landingTaglineCoral: {
     fontFamily: 'Poppins_700Bold',
-    color: '#B8EDD0', // mint accent on "Less Chaos." (kept as-is)
-  },
-  landingDivider: {
-    marginTop: 20,
-    width: 40,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: 'rgba(184,237,208,0.5)',
+    color: '#FF4545',
   },
   landingHint: {
     position: 'absolute',
     bottom: 48,
-    fontFamily: 'Poppins_400Regular',
+    fontFamily: 'Poppins_500Medium',
     fontSize: 13,
-    color: 'rgba(255,255,255,0.40)',
+    color: 'rgba(10,10,10,0.42)',
     letterSpacing: 1.4,
   },
 });

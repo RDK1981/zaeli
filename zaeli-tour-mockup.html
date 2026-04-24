@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli — Post-Onboarding Tour Mockup v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAF8F5;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.72);
+    --ink3: rgba(10,10,10,0.48);
+    --ink4: rgba(10,10,10,0.32);
+    --line: rgba(10,10,10,0.08);
+    --card: #FFFFFF;
+    --coral: #FF4545;
+    --coralSoft: #FFE4E0;
+    --coralDeep: #B83333;
+    --mint: #B8EDD0;
+    --mintDeep: #2D7A52;
+    --mintTint: #E6F7EF;
+    --mintBorder: #C8F0DA;
+    --lavender: #D8CCFF;
+    --lavenderDeep: #5020C0;
+    --sky: #A8D8F0;
+    --skyDeep: #0060A0;
+    --slate: #2D3748;
+    --gold: #F0DC80;
+    --goldDeep: #8A6500;
+    --peach: #FAC8A8;
+    --peachDeep: #8A3A00;
+    --magenta: #D4006A;
+    --violet: #6B35D9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #1C2330;
+    color: white;
+    padding: 50px 30px 80px;
+    min-height: 100vh;
+  }
+  .doc-header { text-align: center; margin-bottom: 50px; }
+  .doc-header h1 {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 44px;
+    letter-spacing: -1.5px;
+    margin-bottom: 10px;
+  }
+  .doc-header h1 .accent { color: var(--sky); }
+  .doc-header h1 .v { color: var(--mint); font-size: 22px; vertical-align: super; margin-left: 6px; }
+  .doc-header p { color: rgba(255,255,255,0.65); font-size: 15px; max-width: 720px; margin: 0 auto; line-height: 1.55; }
+  .section-label {
+    color: var(--mint);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+    margin: 60px 0 24px;
+  }
+  .frame-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .frame-caption {
+    color: rgba(255,255,255,0.85);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    max-width: 380px;
+  }
+  .frame-caption .num { color: var(--sky); margin-right: 6px; }
+  .frame-caption .sub {
+    display: block;
+    color: rgba(255,255,255,0.5);
+    font-weight: 400;
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  /* === iPhone Frame === */
+  .phone {
+    width: 380px;
+    height: 780px;
+    background: var(--bg);
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.4), 0 0 0 8px #1A1A1A, 0 0 0 9px #2A2A2A;
+    display: flex;
+    flex-direction: column;
+  }
+  .status-bar {
+    height: 44px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .notch {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 110px;
+    height: 32px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 10;
+  }
+
+  /* === Top Bar === */
+  .topbar {
+    flex-shrink: 0;
+    padding: 8px 18px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .wordmark {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 36px;
+    letter-spacing: -1.4px;
+    line-height: 42px;
+    color: var(--ink);
+  }
+  .wordmark .ai { color: var(--sky); }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .pagelabel { font-weight: 700; font-size: 17px; color: var(--ink2); }
+  .ham {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: rgba(10,10,10,0.05);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ham div {
+    width: 18px; height: 2px; background: var(--ink);
+    margin: 2px 0; border-radius: 1px;
+  }
+
+  /* === Chat (intro frame) === */
+  .chat-body {
+    flex: 1;
+    overflow: hidden;
+    padding: 8px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .eyebrow {
+    color: var(--ink4);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    margin: 6px 0 -4px 4px;
+  }
+  .bubble {
+    padding: 14px 16px;
+    border-radius: 18px;
+    max-width: 86%;
+    font-size: 16px;
+    line-height: 23px;
+  }
+  .bubble.zaeli {
+    background: var(--card);
+    border: 1px solid var(--line);
+    align-self: flex-start;
+    border-top-left-radius: 6px;
+  }
+  .bubble.user {
+    background: var(--ink);
+    color: white;
+    align-self: flex-end;
+    border-top-right-radius: 6px;
+    font-weight: 500;
+  }
+  .bubble b, .bubble strong { font-weight: 700; }
+  .chip-row {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 4px 0 4px 4px; align-self: flex-start; max-width: 86%;
+  }
+  .chip {
+    padding: 9px 14px; border-radius: 20px; font-size: 13px;
+    font-weight: 600; border: 1.5px solid transparent;
+  }
+  .chip.primary { background: var(--coralSoft); color: var(--coralDeep); border-color: #F5C2BA; }
+  .chip.ghost { background: rgba(10,10,10,0.04); color: var(--ink2); border-color: rgba(10,10,10,0.08); }
+  .chat-bar-wrap { flex-shrink: 0; padding: 8px 14px 22px; }
+  .chat-bar {
+    background: white; border-radius: 28px; padding: 8px 8px 8px 14px;
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid rgba(220,220,220,0.6);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    min-height: 56px;
+  }
+  .bar-mic, .bar-cam {
+    width: 40px; height: 40px; border-radius: 20px; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .bar-input { flex: 1; color: var(--ink4); font-size: 16px; }
+  .bar-send {
+    width: 40px; height: 40px; border-radius: 20px; background: var(--coral);
+    color: white; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* === Tour Page (dedicated route) === */
+  .tour-page {
+    height: 100%;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+  }
+  .tour-header {
+    padding: 8px 18px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .back-arrow {
+    width: 36px; height: 36px; border-radius: 18px;
+    background: rgba(10,10,10,0.05);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--ink2);
+  }
+  .tour-skip {
+    font-size: 13px; font-weight: 600;
+    color: var(--mintDeep); text-decoration: underline;
+  }
+  .tour-title-block { padding: 8px 20px 14px; }
+  .tour-eyebrow {
+    color: var(--mintDeep);
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.8px; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .tour-h1 {
+    font-size: 26px; font-weight: 700;
+    color: var(--ink); line-height: 32px; letter-spacing: -0.4px;
+  }
+  .tour-sub {
+    font-size: 14px; color: var(--ink3);
+    margin-top: 6px; line-height: 20px;
+  }
+  .tour-progress-bar {
+    margin: 0 20px 14px;
+    height: 4px;
+    background: rgba(10,10,10,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .tour-progress-fill {
+    height: 100%;
+    background: var(--mintDeep);
+    border-radius: 2px;
+  }
+  .tour-card-area { flex: 1; overflow-y: auto; padding-bottom: 8px; }
+
+  /* === Tour card (per-stop) === */
+  .tour-card {
+    margin: 0 20px 14px;
+    background: white;
+    border-radius: 22px;
+    padding: 22px;
+    border: 1px solid var(--line);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+  }
+  .tour-card.shopping { background: linear-gradient(135deg, #F0EBFF, white 60%); }
+  .tour-card.meals { background: linear-gradient(135deg, var(--mintTint), white 60%); }
+  .tour-card.calendar { background: linear-gradient(135deg, #E0E8FE, white 60%); }
+  .tour-card.kids { background: linear-gradient(135deg, #F4ECFF, white 60%); }
+  .tour-card.tasks { background: linear-gradient(135deg, #FEF4D0, white 60%); }
+  .tour-card.photos { background: linear-gradient(135deg, #FFF0E8, white 60%); }
+  .tour-card.tutor {
+    background: linear-gradient(135deg, #F0E8FF, #FFFFFF 70%);
+    border: 2px solid var(--violet);
+    position: relative;
+  }
+  .tour-card.travel { background: linear-gradient(135deg, #E8F4FD, white 60%); }
+  .tour-card.budget { background: linear-gradient(135deg, var(--mintTint), white 60%); }
+  .tour-card.myspace { background: linear-gradient(135deg, #FEF0E0, white 60%); }
+  .tour-card.family { background: linear-gradient(135deg, #FCE0F0, white 60%); }
+
+  .tour-icon {
+    width: 56px; height: 56px; border-radius: 16px; background: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; margin-bottom: 14px;
+    border: 1px solid var(--line);
+  }
+  .tour-card-title {
+    font-size: 22px; font-weight: 700; color: var(--ink); margin-bottom: 6px;
+  }
+  .tour-card-sub {
+    font-size: 14px; color: var(--ink3);
+    line-height: 20px; margin-bottom: 14px;
+  }
+  .try-saying {
+    background: rgba(45,122,82,0.08);
+    border: 1px dashed var(--mintBorder);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+  }
+  .try-label {
+    font-size: 10px; font-weight: 700;
+    color: var(--mintDeep); letter-spacing: 0.6px;
+    text-transform: uppercase; display: block; margin-bottom: 4px;
+  }
+  .try-text {
+    font-size: 13px; color: var(--ink); font-weight: 500;
+    font-style: italic;
+  }
+  .try-saying.alt {
+    background: rgba(168,216,240,0.15);
+    border-color: var(--sky);
+  }
+  .try-saying.alt .try-label { color: var(--skyDeep); }
+  .tour-card-features {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px;
+  }
+  .feature-pill {
+    background: rgba(10,10,10,0.05);
+    color: var(--ink2);
+    font-size: 11px; font-weight: 600;
+    padding: 5px 10px; border-radius: 10px;
+  }
+  .tour-card-cta {
+    background: var(--ink); color: white;
+    padding: 13px 18px; border-radius: 12px;
+    font-weight: 600; font-size: 14px;
+    text-align: center; width: 100%;
+  }
+  .tour-card-cta-secondary {
+    background: transparent; color: var(--ink2);
+    padding: 11px 18px; border-radius: 12px;
+    font-weight: 600; font-size: 13px;
+    text-align: center; width: 100%; margin-top: 8px;
+    border: 1.5px solid rgba(10,10,10,0.1);
+  }
+
+  /* === Tutor special bits === */
+  .trial-badge {
+    position: absolute;
+    top: -10px; right: 18px;
+    background: var(--mintDeep); color: white;
+    padding: 5px 12px; border-radius: 12px;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.5px; text-transform: uppercase;
+    box-shadow: 0 4px 10px rgba(45,122,82,0.3);
+  }
+  .price-line {
+    font-size: 12px; color: var(--ink3);
+    text-align: center; margin-top: 10px;
+    font-weight: 500;
+  }
+  .price-line b { color: var(--violet); font-weight: 700; }
+
+  /* === Tour bottom nav === */
+  .tour-bottom {
+    flex-shrink: 0;
+    padding: 12px 20px 28px;
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .tour-back-btn, .tour-next-btn {
+    flex: 1; padding: 14px; border-radius: 14px;
+    font-weight: 600; text-align: center; font-size: 14px;
+  }
+  .tour-back-btn { background: rgba(10,10,10,0.05); color: var(--ink2); }
+  .tour-next-btn { background: var(--mintDeep); color: white; }
+  .tour-finish-btn { background: var(--coral); color: white; flex: 2; }
+
+  /* === Sheet (live, with first-time banner) === */
+  .sheet-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 20;
+  }
+  .sheet {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 92%; background: var(--card);
+    border-top-left-radius: 28px; border-top-right-radius: 28px;
+    z-index: 21; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .sheet-handle {
+    width: 36px; height: 4px;
+    background: rgba(10,10,10,0.14); border-radius: 2px;
+    margin: 12px auto 0;
+  }
+  .sheet-header {
+    padding: 16px 20px 12px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--line);
+  }
+  .sheet-title { font-weight: 700; font-size: 22px; color: var(--ink); }
+  .sheet-eyebrow {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.8px; color: var(--ink3); text-transform: uppercase;
+  }
+  .sheet-close {
+    width: 36px; height: 36px; border-radius: 18px;
+    background: rgba(10,10,10,0.05);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--ink2);
+  }
+  .sheet-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+
+  .first-time-banner {
+    background: linear-gradient(135deg, var(--mintTint), white);
+    border: 1.5px solid var(--mintBorder);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .first-time-banner .icon { font-size: 22px; flex-shrink: 0; }
+  .first-time-banner .text {
+    flex: 1;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 19px;
+  }
+  .first-time-banner .text b { color: var(--mintDeep); font-weight: 700; }
+  .first-time-banner .text .sub-line {
+    font-size: 11px; color: var(--ink3);
+    margin-top: 4px; font-style: italic;
+  }
+  .first-time-banner .dismiss {
+    color: var(--mintDeep); font-size: 18px;
+    font-weight: 700; padding: 0 4px;
+  }
+  .shop-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 0; border-bottom: 1px solid var(--line);
+  }
+  .shop-check {
+    width: 22px; height: 22px; border-radius: 6px;
+    border: 2px solid rgba(10,10,10,0.18);
+  }
+  .shop-name { flex: 1; font-weight: 500; color: var(--ink); }
+
+  /* === Tour Pill === */
+  .tour-pill {
+    position: absolute; bottom: 100px; right: 16px;
+    background: var(--slate); color: white;
+    padding: 10px 16px 10px 14px; border-radius: 24px;
+    font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.18); z-index: 5;
+  }
+  .tour-pill .badge {
+    background: var(--mint); color: var(--mintDeep);
+    font-size: 10px; font-weight: 700;
+    padding: 2px 6px; border-radius: 8px; margin-left: 4px;
+  }
+
+  /* === End-of-tour celebration === */
+  .celebrate-wrap {
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 30px 26px;
+    text-align: center;
+  }
+  .ce-emoji { font-size: 56px; margin-bottom: 16px; }
+  .ce-title {
+    font-size: 28px; font-weight: 700; color: var(--ink);
+    line-height: 34px; letter-spacing: -0.4px; margin-bottom: 12px;
+  }
+  .ce-text {
+    font-size: 15px; color: var(--ink2);
+    line-height: 22px; margin-bottom: 26px;
+  }
+  .ce-summary {
+    background: white; border: 1px solid var(--line);
+    border-radius: 16px; padding: 16px;
+    width: 100%; margin-bottom: 22px; text-align: left;
+  }
+  .ce-summary .ce-row {
+    display: flex; gap: 10px; padding: 6px 0;
+    font-size: 13px; color: var(--ink2);
+  }
+  .ce-summary .ce-row b { color: var(--ink); font-weight: 600; }
+  .ce-summary .ce-check { color: var(--mintDeep); font-weight: 700; }
+
+  /* === Settings === */
+  .settings-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px; background: white;
+    border-radius: 14px; border: 1px solid var(--line);
+    margin-bottom: 8px;
+  }
+  .settings-row-left { display: flex; align-items: center; gap: 12px; }
+  .settings-icon {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: var(--mintTint);
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .settings-row-text { display: flex; flex-direction: column; gap: 2px; }
+  .settings-row-title { font-weight: 600; color: var(--ink); font-size: 15px; }
+  .settings-row-sub { font-size: 12px; color: var(--ink3); }
+  .settings-row-arrow { color: var(--ink4); font-size: 18px; }
+
+  /* === Inactivity bubble === */
+  .inact-bubble {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--mintDeep);
+    border-radius: 18px;
+    border-top-left-radius: 6px;
+    padding: 14px 16px;
+    align-self: flex-start;
+    max-width: 86%;
+    font-size: 16px; line-height: 23px;
+  }
+
+  /* === Legend === */
+  .legend {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px 28px;
+    max-width: 900px;
+    margin: 60px auto 0;
+  }
+  .legend h3 {
+    color: var(--mint); font-size: 12px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 14px;
+  }
+  .legend ul {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 32px;
+  }
+  .legend li {
+    color: rgba(255,255,255,0.78); font-size: 13px; line-height: 1.55;
+  }
+  .legend li b { color: var(--sky); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="doc-header">
+  <h1>zaeli — <span class="accent">tour</span> mockup<span class="v">v2</span></h1>
+  <p>Simplified. One consistent dedicated-route template across all <b style="color: var(--mint);">11 stops</b>. Each card = brief description + "Try saying" callout + Open CTA into the live module. First-time banner inside the live sheet. Tour pill persists 14 days. Tutor sits at stop 7 as the hero reveal between daily-life loop and More Features.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Act 1 — Tour offer + the daily loop (Stops 1–6)</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <!-- Frame 1: Tour offer in chat -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow">ZAELI · JUST NOW</div>
+        <div class="bubble zaeli">
+          You're set up 🎉 Want a quick tour of what I can do? Three minutes — eleven stops. You'll know exactly where everything lives.
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">🧭 Take the tour</div>
+          <div class="chip ghost">Maybe later</div>
+        </div>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">1.</span>Tour offer in chat<span class="sub">Entry point · "Maybe later" defers, re-prompts on next morning</span></div>
+  </div>
+
+  <!-- Frame 2: Stop 1 Shopping -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow">🧭 TOUR · STOP 1 OF 11</div>
+          <div class="tour-h1">Smart Shopping List.</div>
+          <div class="tour-sub">Built for chat. Add by typing, snap a receipt, or use the list directly.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 9%;"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card shopping">
+            <div class="tour-icon">🛒</div>
+            <div class="tour-card-title">Shopping</div>
+            <div class="tour-card-sub">Family-shared in real time. Auto-categorised. Receipt scan ticks bought items + updates pantry.</div>
+            <div class="try-saying">
+              <span class="try-label">💡 TRY SAYING</span>
+              <span class="try-text">"Add milk, eggs and bread to the shopping list"</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">Chat-driven</span>
+              <span class="feature-pill">Receipt scan</span>
+              <span class="feature-pill">Pantry tracking</span>
+              <span class="feature-pill">Spend monthly</span>
+            </div>
+            <div class="tour-card-cta">Open Shopping →</div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn">Next →</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">2.</span>Stop 1 — Shopping<span class="sub">Same template as everything else · brief + try-saying + Open CTA → live sheet</span></div>
+  </div>
+
+  <!-- Frame 3: Inside live sheet with first-time banner -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:15</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="sheet-overlay"></div>
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <div>
+            <div class="sheet-eyebrow">SHOPPING</div>
+            <div class="sheet-title">List</div>
+          </div>
+          <div class="sheet-close">✕</div>
+        </div>
+        <div class="sheet-body">
+          <div class="first-time-banner">
+            <span class="icon">👋</span>
+            <div class="text">
+              You're in the <b>live Shopping list</b> — tap the + button below to add an item, or message me from chat anytime.
+              <div class="sub-line">This banner won't show again.</div>
+            </div>
+            <span class="dismiss">×</span>
+          </div>
+          <div class="shop-row"><div class="shop-check"></div><div class="shop-name">Bread</div></div>
+          <div class="shop-row"><div class="shop-check"></div><div class="shop-name">Bananas</div></div>
+          <div class="shop-row"><div class="shop-check"></div><div class="shop-name">Pasta sauce</div></div>
+          <div class="shop-row"><div class="shop-check"></div><div class="shop-name">Tomatoes</div></div>
+          <div class="shop-row"><div class="shop-check"></div><div class="shop-name">Olive oil</div></div>
+          <div style="margin-top: 24px;">
+            <button style="background: var(--coral); color: white; padding: 14px; border-radius: 14px; width: 100%; border: none; font-weight: 600; font-size: 15px;">+ Add an item</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">3.</span>Inside the live Shopping sheet<span class="sub">First-time mint banner only on first open during tour · dismissable · won't show again</span></div>
+  </div>
+
+</div>
+
+<div class="frame-grid" style="margin-top: 32px;">
+
+  <!-- Frame 4: Stop 2 Meals -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:16</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow">🧭 TOUR · STOP 2 OF 11</div>
+          <div class="tour-h1">Meal Planner.</div>
+          <div class="tour-sub">10-day rolling plan. Recipes, favourites, pantry-aware shopping list pull.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 18%;"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card meals">
+            <div class="tour-icon">🍝</div>
+            <div class="tour-card-title">Meal Planner</div>
+            <div class="tour-card-sub">Plan the week. Tap a night to swap. Heart your favourites. Snap a recipe page and I'll save it.</div>
+            <div class="try-saying">
+              <span class="try-label">💡 TRY SAYING</span>
+              <span class="try-text">"Spag bol for tonight, chicken curry tomorrow"</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">10-day plan</span>
+              <span class="feature-pill">Recipe library</span>
+              <span class="feature-pill">Photo scan</span>
+              <span class="feature-pill">Cooks per night</span>
+            </div>
+            <div class="tour-card-cta">Open Meal Planner →</div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn">Next →</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">4.</span>Stop 2 — Meals</div>
+  </div>
+
+  <!-- Frame 5: Stop 3 Calendar -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:17</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow">🧭 TOUR · STOP 3 OF 11</div>
+          <div class="tour-h1">Calendar.</div>
+          <div class="tour-sub">Natural language works — even messy time references. Long-press a day to add inline.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 27%;"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card calendar">
+            <div class="tour-icon">📅</div>
+            <div class="tour-card-title">Calendar</div>
+            <div class="tour-card-sub">Family-shared. Each member colour-coded. Snap a permission slip and I add the date for you.</div>
+            <div class="try-saying">
+              <span class="try-label">💡 TRY SAYING</span>
+              <span class="try-text">"Add Poppy's dentist next Tuesday at 3pm"</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">Natural language</span>
+              <span class="feature-pill">Per-member colours</span>
+              <span class="feature-pill">Photo extract</span>
+              <span class="feature-pill">Reminders</span>
+            </div>
+            <div class="tour-card-cta">Open Calendar →</div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn">Next →</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">5.</span>Stop 3 — Calendar</div>
+  </div>
+
+  <!-- Frame 6: Stop 4 Kids Hub -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:18</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow">🧭 TOUR · STOP 4 OF 11</div>
+          <div class="tour-h1">Kids Hub.</div>
+          <div class="tour-sub">Each kid gets their own. Jobs, rewards, age-tiered games. They suggest, you approve.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 36%;"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card kids">
+            <div class="tour-icon">🎮</div>
+            <div class="tour-card-title">Kids Hub</div>
+            <div class="tour-card-sub">Younger kids get easier puzzles. Daily Wordle, Maths Sprint, World Trivia. Streaks + points + custom rewards.</div>
+            <div class="try-saying">
+              <span class="try-label">💡 TRY SAYING</span>
+              <span class="try-text">"Give Duke a job to feed the dog this week"</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">Per-child hub</span>
+              <span class="feature-pill">Jobs + approval</span>
+              <span class="feature-pill">Rewards system</span>
+              <span class="feature-pill">5 games · age-tiered</span>
+            </div>
+            <div class="tour-card-cta">Open Kids Hub →</div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn">Next →</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">6.</span>Stop 4 — Kids Hub</div>
+  </div>
+
+</div>
+
+<div class="frame-grid" style="margin-top: 32px;">
+
+  <!-- Frame 7: Stop 5 Tasks -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:19</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow">🧭 TOUR · STOP 5 OF 11</div>
+          <div class="tour-h1">Tasks & Reminders.</div>
+          <div class="tour-sub">The mental load you can offload. Personal or shared with the whole family.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 45%;"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card tasks">
+            <div class="tour-icon">✓</div>
+            <div class="tour-card-title">Tasks & Reminders</div>
+            <div class="tour-card-sub">Set-and-forget reminders with push notifications. Toggle "Shared" and the whole family sees it on their Dashboard.</div>
+            <div class="try-saying">
+              <span class="try-label">💡 TRY SAYING</span>
+              <span class="try-text">"Remind me to pay the school fees Friday morning"</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">Personal + shared</span>
+              <span class="feature-pill">Push reminders</span>
+              <span class="feature-pill">Dashboard surface</span>
+              <span class="feature-pill">Voice add</span>
+            </div>
+            <div class="tour-card-cta">Open Tasks →</div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn">Next →</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">7.</span>Stop 5 — Tasks & Reminders</div>
+  </div>
+
+  <!-- Frame 8: Stop 6 Photos -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:20</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow">🧭 TOUR · STOP 6 OF 11</div>
+          <div class="tour-h1">Photos & Docs.</div>
+          <div class="tour-sub">Snap anything. I read what matters and put it where it belongs.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 54%;"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card photos">
+            <div class="tour-icon">📸</div>
+            <div class="tour-card-title">Photos & Docs</div>
+            <div class="tour-card-sub">Permission slips → calendar. Recipes → meal planner. Receipts → pantry + spend. Even "is this rash anything?".</div>
+            <div class="try-saying alt">
+              <span class="try-label">💡 TAP THE 📷 ICON IN CHAT</span>
+              <span class="try-text">Snap a permission slip, recipe page, receipt, or anything you want me to read.</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">Permission slips</span>
+              <span class="feature-pill">Recipe pages</span>
+              <span class="feature-pill">Receipts</span>
+              <span class="feature-pill">Anything else</span>
+            </div>
+            <div class="tour-card-cta">Open chat →</div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn">Next →</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">8.</span>Stop 6 — Photos & Docs<span class="sub">CTA "Open chat" since photo lives in chat bar · sky-blue try-callout signals "tap action" not "say action"</span></div>
+  </div>
+
+  <!-- Frame 9: Stop 7 TUTOR (the hero) -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:21</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow" style="color: var(--violet);">🧭 TOUR · STOP 7 OF 11 · HERO</div>
+          <div class="tour-h1">And then there's <span style="color: var(--violet);">Tutor</span>.</div>
+          <div class="tour-sub">The thing that makes Zaeli different. Per-kid, curriculum-aligned, adaptive.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 64%; background: var(--violet);"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card tutor">
+            <div class="trial-badge">✨ FREE FOR 14 DAYS</div>
+            <div class="tour-icon" style="background: white; border-color: var(--violet);">📚</div>
+            <div class="tour-card-title" style="color: var(--violet);">Tutor</div>
+            <div class="tour-card-sub">Maths · English · Science · HASS. Foundation through Year 12. Difficulty bands shift up when they nail it, ease back when they're stuck. Parent recap after every session.</div>
+            <div class="try-saying" style="background: rgba(107,53,217,0.07); border-color: var(--violet);">
+              <span class="try-label" style="color: var(--violet);">💡 TRY SAYING</span>
+              <span class="try-text">"Run a maths session with Poppy"</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">4 subjects</span>
+              <span class="feature-pill">F–12 curriculum</span>
+              <span class="feature-pill">3 difficulty bands</span>
+              <span class="feature-pill">Parent recap</span>
+              <span class="feature-pill">Voice + photo</span>
+            </div>
+            <div class="tour-card-cta" style="background: var(--violet);">Open Tutor →</div>
+            <div class="tour-card-cta-secondary">Just have a look</div>
+            <div class="price-line">Trial includes everything · then <b>$9.99 / child / month</b></div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn" style="background: var(--violet);">Next →</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">9.</span>Stop 7 — TUTOR (hero)<span class="sub">Violet accent · trial badge top-right · 2 CTAs · price line below · same template, dialled up</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Act 2 — More Features (Stops 8–11)</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <!-- Frame 10: Stop 8 Travel -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:22</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow">🧭 TOUR · STOP 8 OF 11</div>
+          <div class="tour-h1">Travel.</div>
+          <div class="tour-sub">Trips planned, packed, costed. Bookings auto-extracted from screenshots.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 73%;"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card travel">
+            <div class="tour-icon">✈️</div>
+            <div class="tour-card-title">Travel</div>
+            <div class="tour-card-sub">Per-trip overview, bookings, packing checklist, notes. Pure Planner budget — set total + Booked auto-sums.</div>
+            <div class="try-saying">
+              <span class="try-label">💡 TRY SAYING</span>
+              <span class="try-text">"Plan a trip to Bali in September"</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">Bookings</span>
+              <span class="feature-pill">Packing</span>
+              <span class="feature-pill">Notes</span>
+              <span class="feature-pill">Per-trip budget</span>
+            </div>
+            <div class="tour-card-cta">Open Travel →</div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn">Next →</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">10.</span>Stop 8 — Travel</div>
+  </div>
+
+  <!-- Frame 11: Stop 9 Our Budget -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:23</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow">🧭 TOUR · STOP 9 OF 11</div>
+          <div class="tour-h1">Our Budget.</div>
+          <div class="tour-sub">A planner, not a tracker. Plan the month. Hit the goals. No surprise bills.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 82%;"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card budget">
+            <div class="tour-icon">💰</div>
+            <div class="tour-card-title">Our Budget</div>
+            <div class="tour-card-sub">Income streams, fixed bills, variable categories, savings goals. AI helper turns a statement screenshot into starter line items.</div>
+            <div class="try-saying">
+              <span class="try-label">💡 TRY SAYING</span>
+              <span class="try-text">"Set up a savings goal for our holiday"</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">Income streams</span>
+              <span class="feature-pill">Categories</span>
+              <span class="feature-pill">Savings goals</span>
+              <span class="feature-pill">Statement scan</span>
+            </div>
+            <div class="tour-card-cta">Open Our Budget →</div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn">Next →</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">11.</span>Stop 9 — Our Budget</div>
+  </div>
+
+  <!-- Frame 12: Stop 10 My Space -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:24</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow">🧭 TOUR · STOP 10 OF 11</div>
+          <div class="tour-h1">My Space.</div>
+          <div class="tour-sub">Your zone. Just you. Family stuff is everywhere else.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 91%;"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card myspace">
+            <div class="tour-icon">🌿</div>
+            <div class="tour-card-title">My Space</div>
+            <div class="tour-card-sub">Personal notes & tasks · goals · fitness ring · stretch · zen sessions · daily Wordle. Word of the Day.</div>
+            <div class="try-saying">
+              <span class="try-label">💡 TRY SAYING</span>
+              <span class="try-text">"Take me to my space" or just swipe to the My Space tile</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">Notes</span>
+              <span class="feature-pill">Goals</span>
+              <span class="feature-pill">Fitness</span>
+              <span class="feature-pill">Wordle</span>
+              <span class="feature-pill">Zen</span>
+            </div>
+            <div class="tour-card-cta">Open My Space →</div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn">Next →</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">12.</span>Stop 10 — My Space</div>
+  </div>
+
+</div>
+
+<div class="frame-grid" style="margin-top: 32px;">
+
+  <!-- Frame 13: Stop 11 Our Family (last) -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:25</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow">←</div>
+          <span class="tour-skip">Skip to end</span>
+        </div>
+        <div class="tour-title-block">
+          <div class="tour-eyebrow">🧭 TOUR · STOP 11 OF 11 · FINAL</div>
+          <div class="tour-h1">Our Family.</div>
+          <div class="tour-sub">Manage the household. Profiles, approvals, invitations.</div>
+        </div>
+        <div class="tour-progress-bar"><div class="tour-progress-fill" style="width: 100%;"></div></div>
+        <div class="tour-card-area">
+          <div class="tour-card family">
+            <div class="tour-icon">👨‍👩‍👧‍👦</div>
+            <div class="tour-card-title">Our Family</div>
+            <div class="tour-card-sub">Each member has a profile. Approve kid-suggested jobs and rewards. Invite Anna, the kids, even grandparents.</div>
+            <div class="try-saying">
+              <span class="try-label">💡 TRY SAYING</span>
+              <span class="try-text">"Invite Anna to join our family"</span>
+            </div>
+            <div class="tour-card-features">
+              <span class="feature-pill">Profiles</span>
+              <span class="feature-pill">Approvals</span>
+              <span class="feature-pill">Invites</span>
+              <span class="feature-pill">Roles</span>
+            </div>
+            <div class="tour-card-cta">Open Our Family →</div>
+          </div>
+        </div>
+        <div class="tour-bottom">
+          <div class="tour-back-btn">← Back</div>
+          <div class="tour-next-btn tour-finish-btn">🎉 Finish tour</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">13.</span>Stop 11 — Our Family<span class="sub">Last stop · Next button becomes coral "Finish tour" CTA</span></div>
+  </div>
+
+  <!-- Frame 14: Tour finished celebration -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:26</span><span>● ● ●</span></div>
+      <div class="tour-page">
+        <div class="tour-header">
+          <div class="back-arrow" style="visibility: hidden;">←</div>
+          <span class="tour-skip" style="visibility: hidden;">Skip to end</span>
+        </div>
+        <div class="celebrate-wrap">
+          <div class="ce-emoji">🎉</div>
+          <div class="ce-title">That's the lot.</div>
+          <div class="ce-text">You've seen everything I do. Now go play — I'll keep showing you new things along the way.</div>
+          <div class="ce-summary">
+            <div class="ce-row"><span class="ce-check">✓</span><span>Daily loop — <b>Shopping, Meals, Calendar, Kids, Tasks, Photos</b></span></div>
+            <div class="ce-row"><span class="ce-check">✓</span><span>Hero — <b style="color: var(--violet);">Tutor</b> (free 14 days)</span></div>
+            <div class="ce-row"><span class="ce-check">✓</span><span>Bonus — <b>Travel, Budget, My Space, Family</b></span></div>
+          </div>
+          <button style="background: var(--coral); color: white; padding: 14px 24px; border-radius: 14px; border: none; font-weight: 600; font-size: 15px; width: 100%;">Take me to chat ✨</button>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">14.</span>Tour finished — celebrate<span class="sub">Summary recap · "Take me to chat" CTA · Tour pill remains visible for the trial</span></div>
+  </div>
+
+  <!-- Frame 15: Tour pill on home -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:42</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow">ZAELI · MORNING · 9:14AM</div>
+        <div class="bubble zaeli" style="background: var(--peach); border-color: transparent;">
+          ✦ Big morning, Rich. <b>Poppy's dentist</b> at 3pm — already on the calendar. Spaghetti bolognese for tonight, ingredients are sorted. School fees flagged for Friday. You're ahead of this one.
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">Open Calendar</div>
+          <div class="chip ghost">Got it</div>
+        </div>
+        <div class="bubble user">Thanks ✨</div>
+        <div class="bubble zaeli">Anytime.</div>
+      </div>
+      <div class="tour-pill">
+        🧭 Replay tour <span class="badge">14 DAYS LEFT</span>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">15.</span>Tour pill on Home<span class="sub">Floats bottom-right during 14-day trial · "DAYS LEFT" badge counts down · disappears post-trial · Settings replay stays forever</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="section-label">Act 3 — Settings replay + inactivity prompt</div>
+<!-- ═══════════════════════════════════════════════ -->
+
+<div class="frame-grid">
+
+  <!-- Frame 16: Settings replay row -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>10:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Settings</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div style="flex: 1; overflow-y: auto; padding: 8px 16px 22px;">
+        <div style="font-size: 11px; font-weight: 700; color: var(--ink3); letter-spacing: 0.8px; margin: 12px 0 8px;">PREFERENCES</div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">🔔</div>
+            <div class="settings-row-text">
+              <div class="settings-row-title">Notifications</div>
+              <div class="settings-row-sub">Brief times, reminders, quiet hours</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon">🧠</div>
+            <div class="settings-row-text">
+              <div class="settings-row-title">Memory</div>
+              <div class="settings-row-sub">What Zaeli remembers about you</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="border: 2px solid var(--mintBorder);">
+          <div class="settings-row-left">
+            <div class="settings-icon">🧭</div>
+            <div class="settings-row-text">
+              <div class="settings-row-title">Replay tour</div>
+              <div class="settings-row-sub">Last completed: 23 April 2026 · 11 stops</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div style="margin-top: 12px; padding: 12px 14px; background: rgba(10,10,10,0.04); border-radius: 12px; font-size: 12px; color: var(--ink3); line-height: 18px;">
+          Tap to replay any individual stop, or run the whole tour again.
+        </div>
+        <div style="font-size: 11px; font-weight: 700; color: var(--ink3); letter-spacing: 0.8px; margin: 20px 0 8px;">DATA & PRIVACY</div>
+        <div class="settings-row">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: rgba(10,10,10,0.05);">📥</div>
+            <div class="settings-row-text">
+              <div class="settings-row-title">Export my data</div>
+            </div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">16.</span>Settings → Replay tour<span class="sub">Always available · shows last-completed date · routes to per-stop picker</span></div>
+  </div>
+
+  <!-- Frame 17: Per-stop picker -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>10:15</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Replay tour</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div style="flex: 1; overflow-y: auto; padding: 14px 16px 22px;">
+        <div style="background: linear-gradient(135deg, var(--mintTint), white); border: 1.5px solid var(--mintBorder); border-radius: 18px; padding: 16px; margin-bottom: 14px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--mintDeep); letter-spacing: 0.6px; margin-bottom: 6px;">RUN THE WHOLE TOUR</div>
+          <div style="font-weight: 600; font-size: 17px; color: var(--ink); margin-bottom: 4px;">All 11 stops</div>
+          <div style="font-size: 13px; color: var(--ink3); margin-bottom: 12px;">~3–4 minutes · Skip any stop</div>
+          <button style="background: var(--mintDeep); color: white; padding: 12px 20px; border-radius: 12px; border: none; font-weight: 600; font-size: 14px; width: 100%;">▶ Start full tour</button>
+        </div>
+        <div style="font-size: 11px; font-weight: 700; color: var(--ink3); letter-spacing: 0.8px; margin: 14px 0 10px;">OR JUMP TO ONE STOP</div>
+        <div class="settings-row" style="padding: 12px 14px;">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: var(--lavender); width: 32px; height: 32px; font-size: 15px;">🛒</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px;">Smart Shopping</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="padding: 12px 14px;">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: var(--mintTint); width: 32px; height: 32px; font-size: 15px;">🍝</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px;">Meal Planner</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="padding: 12px 14px;">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: rgba(32,85,240,0.12); width: 32px; height: 32px; font-size: 15px;">📅</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px;">Calendar</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="padding: 12px 14px;">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: #F4ECFF; width: 32px; height: 32px; font-size: 15px;">🎮</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px;">Kids Hub</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="padding: 12px 14px;">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: rgba(240,220,128,0.3); width: 32px; height: 32px; font-size: 15px;">✓</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px;">Tasks & Reminders</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="padding: 12px 14px;">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: #FFF0E8; width: 32px; height: 32px; font-size: 15px;">📸</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px;">Photos & Docs</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="padding: 12px 14px; border: 2px solid rgba(107,53,217,0.2);">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: #F0E8FF; width: 32px; height: 32px; font-size: 15px;">📚</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px; color: var(--violet);">Tutor</div><div class="settings-row-sub" style="color: var(--violet); font-weight: 600;">Hero feature</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="padding: 12px 14px;">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: #E8F4FD; width: 32px; height: 32px; font-size: 15px;">✈️</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px;">Travel</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="padding: 12px 14px;">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: var(--mintTint); width: 32px; height: 32px; font-size: 15px;">💰</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px;">Our Budget</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="padding: 12px 14px;">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: #FEF0E0; width: 32px; height: 32px; font-size: 15px;">🌿</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px;">My Space</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+        <div class="settings-row" style="padding: 12px 14px;">
+          <div class="settings-row-left">
+            <div class="settings-icon" style="background: #FCE0F0; width: 32px; height: 32px; font-size: 15px;">👨‍👩‍👧‍👦</div>
+            <div class="settings-row-text"><div class="settings-row-title" style="font-size: 14px;">Our Family</div></div>
+          </div>
+          <div class="settings-row-arrow">›</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">17.</span>Per-stop replay picker<span class="sub">11 rows · Tutor highlighted as hero · "Start full tour" CTA at top</span></div>
+  </div>
+
+  <!-- Frame 18: Inactivity re-prompt -->
+  <div class="frame-wrap">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status-bar"><span>9:14</span><span>● ● ●</span></div>
+      <div class="topbar">
+        <div class="wordmark">zael<span class="ai">ai</span></div>
+        <div class="topbar-right">
+          <div class="pagelabel">Home</div>
+          <div class="ham"><div></div><div></div><div></div></div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="eyebrow">ZAELI · MORNING · 9:14AM</div>
+        <div class="bubble zaeli" style="background: var(--peach); border-color: transparent;">
+          ✦ Morning Rich. <b>Spaghetti bolognese</b> tonight, ingredients sorted. The day is calm so far ☀️
+        </div>
+        <div style="height: 14px;"></div>
+        <div class="eyebrow">ZAELI · TOUR · PICK UP WHERE YOU LEFT</div>
+        <div class="inact-bubble">
+          We were on the <b>Calendar</b> stop yesterday — want to pick up where we left off, or skip ahead? You're <b>3 of 11</b> through 🧭
+        </div>
+        <div class="chip-row">
+          <div class="chip primary">▶ Continue tour</div>
+          <div class="chip ghost">Skip to end</div>
+          <div class="chip ghost">Not now</div>
+        </div>
+      </div>
+      <div class="tour-pill">
+        🧭 Resume tour <span class="badge">3 / 11</span>
+      </div>
+      <div class="chat-bar-wrap">
+        <div class="chat-bar">
+          <div class="bar-mic">🎙</div>
+          <div class="bar-input">Message Zaeli…</div>
+          <div class="bar-cam">📷</div>
+          <div class="bar-send">↑</div>
+        </div>
+      </div>
+    </div>
+    <div class="frame-caption"><span class="num">18.</span>Inactivity re-prompt<span class="sub">User stopped mid-tour 24h+ ago · Zaeli proactively offers to resume after morning brief · pill shows progress</span></div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════ -->
+<div class="legend">
+  <h3>Build notes — v2 simplified</h3>
+  <ul>
+    <li><b>One template, eleven stops</b> — same dedicated-route layout for everything: header + eyebrow + h1 + sub + progress bar + card + bottom nav. No special tour styling inside live sheets.</li>
+    <li><b>Tour card structure</b> — icon, title, sub, "Try saying" callout (mint dashed border), feature pills, primary CTA. Tutor adds: trial badge, secondary CTA, price line.</li>
+    <li><b>"Try saying" callout</b> — natural-language hook on every stop. Reinforces chat-first without elaborate machinery. Sky-blue variant for tap-actions (Photos).</li>
+    <li><b>First-time sheet banner</b> — only on first open during tour. Mint banner inside the live sheet. Dismissable. Stops users bouncing out without trying anything.</li>
+    <li><b>Tutor as hero (Stop 7)</b> — between daily loop and More Features. Violet accent throughout (icon ring, eyebrow, h1 highlight, CTAs, progress fill). Trial badge top-right of card. Two CTAs.</li>
+    <li><b>Tour pill</b> — floats bottom-right during 14-day trial only. Shows days left (post-tour) or progress (mid-tour). Disappears post-trial.</li>
+    <li><b>Order rationale</b> — daily loop first (Shopping/Meals/Calendar/Kids/Tasks/Photos), then Tutor as the climactic reveal, then bonus modules (Travel/Budget/MySpace/Family).</li>
+    <li><b>State machine (lib/tour-state.ts)</b> — <code>getCurrentStop()</code>, <code>advanceStop()</code>, <code>completeTour()</code>, <code>replayStop(n)</code>, <code>shouldRePrompt()</code>. AsyncStorage backed.</li>
+    <li><b>Inactivity</b> — if mid-tour and chat closed for 24h+, next morning brief is followed by "pick up where you left off" prompt with progress shown.</li>
+    <li><b>Replay forever</b> — Settings → Replay tour stays accessible post-trial. Per-stop picker plus "Start full tour" hero CTA.</li>
+  </ul>
+</div>
+
+</body>
+</html>

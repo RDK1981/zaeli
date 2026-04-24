@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import MoreSheet from '../components/MoreSheet';
+import TourBanner from '../components/TourBanner';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal, Share, Linking,
   StyleSheet, Dimensions, TextInput, KeyboardAvoidingView, Platform, Alert,
@@ -1878,6 +1879,14 @@ function NotesSheet({ visible, onClose, notes, tasks, onEdit, onNew, onDelete, o
 
       {/* ── Tab bar + content ── */}
       {!editingNote && (<>
+        {/* Tour first-time banner */}
+        <View style={{ paddingHorizontal:18, paddingTop:8 }}>
+          <TourBanner
+            sheetKey="tasks"
+            message="You're in the live Tasks list — tap + to add a task, or message me a reminder from chat."
+          />
+        </View>
+
         <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.05)', borderRadius:14, marginHorizontal:18, marginTop:4, marginBottom:14, padding:4 }}>
           <TouchableOpacity onPress={() => setActiveTab('notes')} activeOpacity={0.7}
             style={{ flex:1, paddingVertical:13, borderRadius:11, alignItems:'center',
