@@ -21,6 +21,7 @@ import {
   loadTourState, getCurrentStop, getStopById,
   advanceStop, goBackStop, skipToFinale, completeTour,
   startTourIfNeeded, markOpened, getProgressPct,
+  getEffectiveStops, getEffectiveTotal,
   STOPS, TOTAL_STOPS, StopPosition, TourStop,
 } from '../../lib/tour-state';
 import { setPendingChatContext } from '../../lib/navigation-store';
@@ -158,9 +159,15 @@ export default function TourScreen() {
   }
 
   const isHero = !!stop.isHero;
+  // Effective list (kids skip Budget + Family, adults see all 11)
+  const effectiveStops = getEffectiveStops();
+  const effectiveTotal = effectiveStops.length;
+  const effectiveIdx = effectiveStops.findIndex(es => es.id === stop.id);
+  const displayPos = effectiveIdx >= 0 ? effectiveIdx + 1 : 1;
+  const isLastStop = effectiveIdx === effectiveTotal - 1;
   const eyebrowLabel = isHero
-    ? `🧭 TOUR · STOP ${stop.id} OF ${TOTAL_STOPS} · HERO`
-    : `🧭 TOUR · STOP ${stop.id} OF ${TOTAL_STOPS}`;
+    ? `🧭 TOUR · STOP ${displayPos} OF ${effectiveTotal} · HERO`
+    : `🧭 TOUR · STOP ${displayPos} OF ${effectiveTotal}`;
 
   return (
     <View style={[s.root, { paddingTop: insets.top + 4 }]}>
@@ -263,10 +270,10 @@ export default function TourScreen() {
       {/* Bottom nav */}
       <View style={[s.bottomNav, { paddingBottom: insets.bottom + 14 }]}>
         <TouchableOpacity
-          style={[s.navBtn, s.navBack, position === 1 && s.navDisabled]}
+          style={[s.navBtn, s.navBack, effectiveIdx <= 0 && s.navDisabled]}
           activeOpacity={0.85}
           onPress={handleBack}
-          disabled={position === 1}
+          disabled={effectiveIdx <= 0}
         >
           <Text style={s.navBackTxt}>← Back</Text>
         </TouchableOpacity>
@@ -275,13 +282,13 @@ export default function TourScreen() {
             s.navBtn,
             s.navNext,
             { backgroundColor: stop.accent.progressFill },
-            position === TOTAL_STOPS && { backgroundColor: CORAL, flex: 2 },
+            isLastStop && { backgroundColor: CORAL, flex: 2 },
           ]}
           activeOpacity={0.85}
           onPress={handleNext}
         >
           <Text style={s.navNextTxt}>
-            {position === TOTAL_STOPS ? '🎉 Finish tour' : 'Next →'}
+            {isLastStop ? '🎉 Finish tour' : 'Next →'}
           </Text>
         </TouchableOpacity>
       </View>

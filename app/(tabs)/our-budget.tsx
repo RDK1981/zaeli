@@ -27,6 +27,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MoreSheet from '../components/MoreSheet';
+import { loadAccount, isKidAccount } from '../../lib/account-state';
 
 const { height: H } = Dimensions.get('window');
 
@@ -194,6 +195,17 @@ function IcoChevron() {
 export default function OurBudgetScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  // Kid accounts can't access Budget — bounce them straight to their Hub.
+  // (MoreSheet hides the tile, but kid could deep-link or back-button their way in.)
+  React.useEffect(() => {
+    (async () => {
+      await loadAccount();
+      if (isKidAccount()) {
+        router.replace('/(tabs)/kids' as any);
+      }
+    })();
+  }, []);
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [moreOpen, setMoreOpen]   = useState(false);

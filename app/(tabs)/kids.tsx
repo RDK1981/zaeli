@@ -22,6 +22,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, { Polyline } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loadAccount, isKidAccount, getAccount } from '../../lib/account-state';
 import {
   WORDLE_LITTLE, WORDLE_MIDDLE, WORDLE_OLDER,
   TRIVIA_LITTLE, TRIVIA_MIDDLE, TRIVIA_OLDER,
@@ -134,6 +135,8 @@ export default function KidsHubScreen() {
   const router = useRouter();
   const [view, setView] = useState<'select' | 'hub'>('select');
   const [selectedChild, setSelectedChild] = useState<ChildName>('Duke');
+  // One-shot welcome banner for fresh kid invitees (set by /invite/[token] finishKid)
+  const [showKidWelcome, setShowKidWelcome] = useState(false);
   const [activeTab, setActiveTab] = useState<'jobs' | 'rewards' | 'games' | 'leaderboard'>('jobs');
   const [showGiphy, setShowGiphy] = useState(false);
   const [giphyData, setGiphyData] = useState<{ pts: number; jobName: string; gifUrl: string | null }>({ pts: 0, jobName: '', gifUrl: null });
@@ -180,6 +183,30 @@ export default function KidsHubScreen() {
     RNStatusBar.setBarStyle('dark-content', true);
     loadKidsData();
   }, []));
+
+  // One-shot mount — handle fresh kid invitees:
+  //   1. Auto-select THIS kid's hub (so they don't see the kid picker)
+  //   2. Read + clear `kid_just_joined` flag, show welcome banner once
+  React.useEffect(() => {
+    (async () => {
+      try {
+        await loadAccount();
+        if (isKidAccount()) {
+          const acct = getAccount();
+          const name = acct.name as ChildName;
+          if (['Poppy', 'Gab', 'Duke'].includes(name)) {
+            setSelectedChild(name);
+            setView('hub');
+          }
+        }
+        const flag = await AsyncStorage.getItem('kid_just_joined');
+        if (flag === 'true') {
+          await AsyncStorage.removeItem('kid_just_joined');
+          setShowKidWelcome(true);
+        }
+      } catch {}
+    })();
+  }, []);
 
   async function loadKidsData() {
     setLoading(true);
@@ -660,6 +687,31 @@ where "correct" is the 0-based index of the right answer.`;
             <Text style={s.ptsBadgeL}>pts</Text>
           </View>
         </View>
+
+        {/* One-shot welcome banner — fresh kid invitees only, dismissable */}
+        {showKidWelcome && (
+          <View style={{
+            backgroundColor: '#F4ECFF', borderWidth: 1.5, borderColor: '#D8CCFF',
+            borderRadius: 14, marginHorizontal: 14, marginTop: 8, marginBottom: 4,
+            padding: 14, flexDirection: 'row', gap: 12, alignItems: 'flex-start',
+          }}>
+            <Text style={{ fontSize: 24, marginTop: 1 }}>✨</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#0A0A0A', marginBottom: 4 }}>
+                Welcome to your hub, {selectedChild}!
+              </Text>
+              <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(10,10,10,0.72)', lineHeight: 19 }}>
+                Jobs and rewards will start showing up. Tap any tab to explore — Tutor's there when you're stuck on homework, and you can chat to me anytime.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowKidWelcome(false)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={{ fontSize: 22, color: '#5020C0', paddingHorizontal: 4, marginTop: -4 }}>×</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* 3-stat row — same for all kids */}
         <View style={s.midStats}>

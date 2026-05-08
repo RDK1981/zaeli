@@ -23,6 +23,7 @@ import {
   loadInvites, getPendingInvites, getPendingForName, resendInvite, revokeInvite,
   relTime, type Invite, type InviteRole,
 } from '../../lib/invite-state';
+import { loadAccount, isKidAccount } from '../../lib/account-state';
 import Svg, { Polyline, Path } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { generateSubjectSummary, generateSessionSummary } from '../../lib/tutor-summaries';
@@ -136,6 +137,18 @@ function localDateStr(d?: Date): string {
 
 export default function OurFamilyScreen() {
   const router = useRouter();
+
+  // Kid accounts can't access family management — bounce to their Hub.
+  // (MoreSheet hides the tile, but kid could deep-link or back-button their way in.)
+  React.useEffect(() => {
+    (async () => {
+      await loadAccount();
+      if (isKidAccount()) {
+        router.replace('/(tabs)/kids' as any);
+      }
+    })();
+  }, []);
+
   // Capture nav origin once on mount — if opened from Settings, back returns there
   const [fromOrigin] = useState<'settings' | null>(() => consumeFamilyFrom());
   const [activeTab, setActiveTab] = useState<'home' | 'jobs' | 'family'>('home');

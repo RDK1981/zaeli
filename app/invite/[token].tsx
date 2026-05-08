@@ -115,6 +115,8 @@ async function finishKid(invite: Invite, extras: { avatar: string }, router: Ret
   await setAccount({ kind: 'kid', name: invite.name.split(/\s+/)[0], avatar: extras.avatar });
   try {
     await AsyncStorage.setItem('onboarding_complete', 'true');
+    // One-shot flag — Kids Hub reads + clears on mount, shows welcome banner
+    await AsyncStorage.setItem('kid_just_joined', 'true');
   } catch {}
   router.replace('/(tabs)/kids' as any);
 }

@@ -18,8 +18,13 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loadAccount, isKidAccount } from './account-state';
 
 const KEY_STATE = 'tour_state_v1';
+
+// Stops a kid invitee skips — Our Budget (id 9) + Our Family (id 11).
+// Adults / owner see all 11.
+const KID_SKIP_IDS: number[] = [9, 11];
 
 export type CtaTarget =
   | { kind: 'sheet'; ctx: any }       // Set pendingChatContext + nav to swipe-world
@@ -269,6 +274,8 @@ async function persist(): Promise<void> {
 }
 
 export async function loadTourState(): Promise<TourState> {
+  // Always ensure account is loaded too — getEffectiveStops() depends on it
+  await loadAccount();
   if (_loaded) return _state;
   try {
     const raw = await AsyncStorage.getItem(KEY_STATE);
@@ -285,6 +292,17 @@ export async function loadTourState(): Promise<TourState> {
   } catch {}
   _loaded = true;
   return _state;
+}
+
+// ── Effective stops (filtered by account kind) ────────────────────────────
+// Kids skip Budget + Family management. Owner/Adult see all 11.
+export function getEffectiveStops(): TourStop[] {
+  if (isKidAccount()) return STOPS.filter(s => !KID_SKIP_IDS.includes(s.id));
+  return STOPS;
+}
+
+export function getEffectiveTotal(): number {
+  return getEffectiveStops().length;
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
@@ -311,21 +329,35 @@ export async function markOpened(): Promise<void> {
 export async function advanceStop(): Promise<StopPosition> {
   const cur = _state.currentStop;
   if (cur === 'finale') return 'finale';
-  const next: StopPosition = cur >= TOTAL_STOPS ? 'finale' : cur + 1;
+  // Step through the EFFECTIVE list (kid skips Budget + Family)
+  const stops = getEffectiveStops();
+  const idx = stops.findIndex(s => s.id === cur);
+  let next: StopPosition;
+  if (idx < 0) {
+    // Current stop isn't in effective list (e.g. kid landed on Budget somehow) — jump to first
+    next = stops[0]?.id ?? 'finale';
+  } else if (idx >= stops.length - 1) {
+    next = 'finale';
+  } else {
+    next = stops[idx + 1].id;
+  }
   _state = { ..._state, currentStop: next };
   await persist();
   return next;
 }
 
 export async function goBackStop(): Promise<StopPosition> {
+  const stops = getEffectiveStops();
   const cur = _state.currentStop;
   if (cur === 'finale') {
-    _state = { ..._state, currentStop: TOTAL_STOPS };
+    const last = stops[stops.length - 1]?.id ?? 1;
+    _state = { ..._state, currentStop: last };
     await persist();
-    return TOTAL_STOPS;
+    return last;
   }
-  if (cur <= 1) return 1;
-  const prev = cur - 1;
+  const idx = stops.findIndex(s => s.id === cur);
+  if (idx <= 0) return cur;
+  const prev = stops[idx - 1].id;
   _state = { ..._state, currentStop: prev };
   await persist();
   return prev;
@@ -382,8 +414,13 @@ export function shouldShowResumePrompt(): boolean {
 }
 
 export async function replayStop(n: number): Promise<void> {
-  const clamped = Math.max(1, Math.min(TOTAL_STOPS, Math.floor(n)));
-  _state = { ..._state, currentStop: clamped, lastOpenedAt: new Date().toISOString() };
+  // Snap to a valid stop in the EFFECTIVE list — if a kid taps a skipped
+  // ID (shouldn't happen since picker hides them, but defensive), land on
+  // the closest valid stop.
+  const stops = getEffectiveStops();
+  const valid = stops.find(s => s.id === n);
+  const target = valid ? valid.id : (stops[0]?.id ?? 1);
+  _state = { ..._state, currentStop: target, lastOpenedAt: new Date().toISOString() };
   await persist();
 }
 
@@ -402,7 +439,11 @@ export function getStopById(id: number): TourStop | undefined {
 export function getProgressPct(): number {
   const cur = _state.currentStop;
   if (cur === 'finale') return 100;
-  // (cur - 1) / (TOTAL - 1) so stop 1 = 0%, stop 11 = 100% — even 10% jumps per step.
-  if (TOTAL_STOPS <= 1) return 100;
-  return Math.round(((cur - 1) / (TOTAL_STOPS - 1)) * 100);
+  // Compute against the EFFECTIVE list (kid = 9 stops, adult/owner = 11).
+  // (idx) / (total - 1) so stop 1 = 0%, last stop = 100% — even jumps per step.
+  const stops = getEffectiveStops();
+  if (stops.length <= 1) return 100;
+  const idx = stops.findIndex(s => s.id === cur);
+  if (idx < 0) return 0;
+  return Math.round((idx / (stops.length - 1)) * 100);
 }

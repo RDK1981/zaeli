@@ -33,7 +33,7 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loadTourState, isInProgress as tourInProgress, getCurrentStop as tourCurrentStop, TOTAL_STOPS as TOUR_TOTAL, replayFromStart as tourReplayFromStart, shouldShowResumePrompt as tourShouldResume, markResumePromptShown as tourMarkResumePrompt, getStopById as tourGetStop, completeTour as tourCompleteTour } from '../../lib/tour-state';
+import { loadTourState, isInProgress as tourInProgress, getCurrentStop as tourCurrentStop, TOTAL_STOPS as TOUR_TOTAL, replayFromStart as tourReplayFromStart, shouldShowResumePrompt as tourShouldResume, markResumePromptShown as tourMarkResumePrompt, getStopById as tourGetStop, completeTour as tourCompleteTour, getEffectiveStops as tourEffectiveStops, getEffectiveTotal as tourEffectiveTotal } from '../../lib/tour-state';
 import { loadInvites as loadInviteState, recentlyAcceptedInvites, clearJustAcceptedFlag } from '../../lib/invite-state';
 import MoreSheet from '../components/MoreSheet';
 import TourBanner from '../components/TourBanner';
@@ -3157,12 +3157,17 @@ function HomeScreen({
       const stopId = typeof cur === 'number' ? cur : 1;
       const stop = tourGetStop(stopId);
       const stopName = stop?.cardTitle ?? 'next stop';
+      // Effective totals — kid invitees see "X of 9", owners/adults see "X of 11"
+      const stops = tourEffectiveStops();
+      const total = stops.length;
+      const idx = stops.findIndex(s => s.id === stopId);
+      const pos = idx >= 0 ? idx + 1 : 1;
       // Land after brief + offer have settled
       setTimeout(() => {
         const msg: Msg = {
           id: uid(),
           role: 'zaeli',
-          text: `We were on the ${stopName} stop. Want to pick up where we left off, or skip ahead? You're ${stopId} of ${TOUR_TOTAL} through 🧭`,
+          text: `We were on the ${stopName} stop. Want to pick up where we left off, or skip ahead? You're ${pos} of ${total} through 🧭`,
           ts: nowTs(),
           isLoading: false,
           quickReplies: ['▶ Continue tour', '🏁 Skip to end', 'Not right now'],
@@ -3175,14 +3180,26 @@ function HomeScreen({
 
   // Tour pill — visible bottom-right when tour is mid-progress.
   // Tap → resume tour at current stop.
+  // Position is computed against the EFFECTIVE list — kid accounts see X/9, owner/adult see X/11.
   const [tourPillVisible, setTourPillVisible] = useState(false);
-  const [tourPillStop, setTourPillStop] = useState<number>(1);
+  const [tourPillPos, setTourPillPos] = useState<number>(1);
+  const [tourPillTotal, setTourPillTotal] = useState<number>(TOUR_TOTAL);
   async function refreshTourPill() {
     await loadTourState();
     if (tourInProgress()) {
       const cur = tourCurrentStop();
+      const stops = tourEffectiveStops();
+      const total = stops.length;
+      let pos: number;
+      if (cur === 'finale') {
+        pos = total;
+      } else {
+        const idx = stops.findIndex(s => s.id === cur);
+        pos = idx >= 0 ? idx + 1 : 1;
+      }
       setTourPillVisible(true);
-      setTourPillStop(typeof cur === 'number' ? cur : TOUR_TOTAL);
+      setTourPillPos(pos);
+      setTourPillTotal(total);
     } else {
       setTourPillVisible(false);
     }
@@ -3201,12 +3218,16 @@ function HomeScreen({
       const flag = await AsyncStorage.getItem('onboarding_just_completed');
       if (flag !== 'true') return;
       await AsyncStorage.removeItem('onboarding_just_completed');
+      // Effective tour size — kid invitee = 9, owner/adult = 11
+      await loadTourState(); // ensures account loaded
+      const total = tourEffectiveTotal();
+      const stopWord = total === 11 ? 'eleven stops' : `${total} stops`;
       // Slight delay so brief (if firing) lands first
       setTimeout(() => {
         const offer: Msg = {
           id: uid(),
           role: 'zaeli',
-          text: "You're set up. Want a quick tour of what I can do? Three minutes — eleven stops. You'll know exactly where everything lives.",
+          text: `You're set up. Want a quick tour of what I can do? Three minutes — ${stopWord}. You'll know exactly where everything lives.`,
           ts: nowTs(),
           isLoading: false,
           quickReplies: ['🧭 Take the tour', 'Maybe later'],
@@ -4457,7 +4478,18 @@ Only include events directly relevant to the question. Max 5 events.`;
   async function fetchMonthDayEvents(dateStr: string, userTapped = true) {
     setCalSheetSelDay(dateStr);
     setCalSheetUserTapped(userTapped);  // only light up red if user genuinely tapped
-    const { data } = await supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', FAMILY_ID).eq('date', dateStr).order('start_time').limit(20);
+    // Use a range query (gte today, lt tomorrow) instead of eq — mirrors fetchMonthDots
+    // and is robust against timestamp/timezone variations in the events.date column.
+    // This was the root cause of "dot shows but list empty" — eq missed any row where
+    // ev.date wasn't exactly bare YYYY-MM-DD.
+    const next = new Date(dateStr + 'T00:00:00');
+    next.setDate(next.getDate() + 1);
+    const nextStr = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}-${String(next.getDate()).padStart(2,'0')}`;
+    const { data } = await supabase.from('events')
+      .select('id,title,date,start_time,end_time,assignees,notes')
+      .eq('family_id', FAMILY_ID)
+      .gte('date', dateStr).lt('date', nextStr)
+      .order('start_time').limit(20);
     setCalSheetDayEvs(data ?? []);
   }
 
@@ -6072,7 +6104,7 @@ Rules:
               >
                 <Text style={s.tourPillTxt}>🧭  Resume tour</Text>
                 <View style={s.tourPillBadge}>
-                  <Text style={s.tourPillBadgeTxt}>{tourPillStop}/{TOUR_TOTAL}</Text>
+                  <Text style={s.tourPillBadgeTxt}>{tourPillPos}/{tourPillTotal}</Text>
                 </View>
               </TouchableOpacity>
             )}

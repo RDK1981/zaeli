@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { setFamilyFromSettings } from '../../lib/navigation-store';
-import { STOPS as TOUR_STOPS, TOTAL_STOPS as TOUR_TOTAL, replayFromStart, replayStop, loadTourState, isCompleted as tourIsCompleted, getState as getTourState } from '../../lib/tour-state';
+import { STOPS as TOUR_STOPS, TOTAL_STOPS as TOUR_TOTAL, replayFromStart, replayStop, loadTourState, isCompleted as tourIsCompleted, getState as getTourState, getEffectiveStops as tourEffectiveStops, getEffectiveTotal as tourEffectiveTotal } from '../../lib/tour-state';
 import { loadInvites, getPendingInvites, markAccepted } from '../../lib/invite-state';
 import { resetToOwner } from '../../lib/account-state';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -767,10 +767,13 @@ function TourReplayView(p: {
   onJumpToStop: (n: number) => void;
 }) {
   const [completedAt, setCompletedAt] = useState<string | null>(null);
+  // Effective stops list reflects account kind — kid sees 9 rows, adult/owner sees 11
+  const [stops, setStops] = useState(TOUR_STOPS);
   useEffect(() => {
     (async () => {
-      await loadTourState();
+      await loadTourState(); // also loads account
       setCompletedAt(getTourState().completedAt);
+      setStops(tourEffectiveStops());
     })();
   }, []);
 
@@ -803,7 +806,7 @@ function TourReplayView(p: {
       {/* Hero — run the whole tour */}
       <View style={s.tourHeroCard}>
         <Text style={s.tourHeroLabel}>RUN THE WHOLE TOUR</Text>
-        <Text style={s.tourHeroH1}>All {TOUR_TOTAL} stops</Text>
+        <Text style={s.tourHeroH1}>All {stops.length} stops</Text>
         <Text style={s.tourHeroSub}>~3–4 minutes · Skip any stop</Text>
         {lastCompletedLabel && (
           <Text style={s.tourHeroMeta}>Last completed: {lastCompletedLabel}</Text>
@@ -815,7 +818,7 @@ function TourReplayView(p: {
 
       <SecLabel>Or jump to one stop</SecLabel>
       <View style={s.group}>
-        {TOUR_STOPS.map((stop, i) => {
+        {stops.map((stop, i) => {
           const c = stopTileBg[stop.id] ?? { bg: 'rgba(10,10,10,0.05)', fg: INK };
           const isHero = !!stop.isHero;
           return (
@@ -825,9 +828,9 @@ function TourReplayView(p: {
               iconBg={c.bg}
               iconFg={c.fg}
               title={isHero ? `${stop.cardTitle}` : stop.cardTitle}
-              sub={isHero ? 'Hero feature' : `Stop ${stop.id}`}
+              sub={isHero ? 'Hero feature' : `Stop ${i + 1}`}
               onPress={() => p.onJumpToStop(stop.id)}
-              last={i === TOUR_STOPS.length - 1}
+              last={i === stops.length - 1}
             />
           );
         })}
