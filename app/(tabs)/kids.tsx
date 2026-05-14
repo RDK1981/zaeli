@@ -29,9 +29,10 @@ import {
   CROSSWORDS, CrosswordPuzzle, TriviaQuestion,
 } from './kids-games-data';
 import { KB_ROWS, getTileStates } from './wordle-data';
+import { getFamilyId } from '../../lib/family';
 
 const { width: W, height: H } = Dimensions.get('window');
-const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+// Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 function localDateStr(d?: Date): string {
   const dt = d || new Date();
   return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
@@ -213,19 +214,19 @@ export default function KidsHubScreen() {
     try {
       // Load jobs for all children
       const { data: jobsData } = await supabase.from('kids_jobs')
-        .select('*').eq('family_id', FAMILY_ID).eq('approved', true)
+        .select('*').eq('family_id', getFamilyId()).eq('approved', true)
         .order('created_at', { ascending: true });
       setDbJobs(jobsData ?? []);
 
       // Load rewards
       const { data: rewardsData } = await supabase.from('kids_rewards')
-        .select('*').eq('family_id', FAMILY_ID).eq('is_active', true)
+        .select('*').eq('family_id', getFamilyId()).eq('is_active', true)
         .order('cost', { ascending: true });
       setDbRewards(rewardsData ?? []);
 
       // Calculate points per child from points log
       const { data: pointsData } = await supabase.from('kids_points_log')
-        .select('child_name, points').eq('family_id', FAMILY_ID);
+        .select('child_name, points').eq('family_id', getFamilyId());
       const pts: Record<string, number> = {};
       (pointsData ?? []).forEach((p: any) => {
         pts[p.child_name] = (pts[p.child_name] || 0) + (p.points || 0);
@@ -282,7 +283,7 @@ export default function KidsHubScreen() {
     if (jobId) {
       try {
         await supabase.from('kids_jobs').update({ is_complete: true, completed_at: new Date().toISOString() }).eq('id', jobId);
-        await supabase.from('kids_points_log').insert({ family_id: FAMILY_ID, child_name: selectedChild, points: pts, reason: job.name, source: 'job_complete' });
+        await supabase.from('kids_points_log').insert({ family_id: getFamilyId(), child_name: selectedChild, points: pts, reason: job.name, source: 'job_complete' });
       } catch (e) { console.log('[kids] completeJob error:', e); }
     }
   }
@@ -300,7 +301,7 @@ export default function KidsHubScreen() {
         await supabase.from('kids_jobs').update({ is_complete: false, completed_at: null }).eq('id', jobId);
         // Remove the points log entry
         await supabase.from('kids_points_log').delete()
-          .eq('family_id', FAMILY_ID).eq('child_name', selectedChild)
+          .eq('family_id', getFamilyId()).eq('child_name', selectedChild)
           .eq('reason', job.name).eq('source', 'job_complete')
           .order('created_at', { ascending: false }).limit(1);
       } catch (e) { console.log('[kids] uncompleteJob error:', e); }
@@ -311,7 +312,7 @@ export default function KidsHubScreen() {
     // Send a repeat request to parent for approval
     try {
       await supabase.from('kids_pending_approvals').insert({
-        family_id: FAMILY_ID, child_name: selectedChild,
+        family_id: getFamilyId(), child_name: selectedChild,
         type: 'job_suggestion', title: `Repeat: ${job.name}`,
         emoji: job.icon || '📋', points: job.pts || 10,
         note: `${selectedChild} wants to do this job again`,
@@ -324,7 +325,7 @@ export default function KidsHubScreen() {
     if (!suggestTitle.trim()) return;
     try {
       await supabase.from('kids_pending_approvals').insert({
-        family_id: FAMILY_ID, child_name: selectedChild,
+        family_id: getFamilyId(), child_name: selectedChild,
         type: 'job_suggestion', title: suggestTitle.trim(),
         emoji: '📋', points: suggestPts, note: suggestNote.trim() || null,
         status: 'pending',
@@ -339,7 +340,7 @@ export default function KidsHubScreen() {
   async function requestReward(reward: any) {
     try {
       await supabase.from('kids_pending_approvals').insert({
-        family_id: FAMILY_ID, child_name: selectedChild,
+        family_id: getFamilyId(), child_name: selectedChild,
         type: 'reward_redemption', title: reward.name,
         emoji: reward.icon, points: reward.cost, note: null,
         status: 'pending',
@@ -401,7 +402,7 @@ export default function KidsHubScreen() {
     try {
       const { data } = await supabase.from('kids_trivia_history')
         .select('question, correct_answer')
-        .eq('family_id', FAMILY_ID)
+        .eq('family_id', getFamilyId())
         .eq('child_name', childName)
         .order('created_at', { ascending: false })
         .limit(200);
@@ -447,7 +448,7 @@ where "correct" is the 0-based index of the right answer.`;
     const cost = (pt / 1_000_000 * GPT_IN_PER_M) + (ct / 1_000_000 * GPT_OUT_PER_M);
     try {
       await supabase.from('api_logs').insert({
-        family_id: FAMILY_ID, feature: 'kids_trivia_generate', model: 'gpt-5.4-mini',
+        family_id: getFamilyId(), feature: 'kids_trivia_generate', model: 'gpt-5.4-mini',
         input_tokens: pt, output_tokens: ct, cost_usd: cost, created_at: new Date().toISOString(),
       });
     } catch {}
@@ -473,7 +474,7 @@ where "correct" is the 0-based index of the right answer.`;
   async function saveTriviaAnswer(childName: string, tier: AgeTier, q: TriviaQuestion, wasCorrect: boolean) {
     try {
       await supabase.from('kids_trivia_history').insert({
-        family_id: FAMILY_ID,
+        family_id: getFamilyId(),
         child_name: childName,
         question: q.question,
         correct_answer: q.options[q.correct],

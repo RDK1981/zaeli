@@ -20,9 +20,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
+import { getFamilyId } from '../../lib/family';
 
 // ── Constants ─────────────────────────────────────────────────
-const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+// Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 const CAL_BG  = '#B8EDD0';   // Calendar banner/day-strip bg
 const CAL_AI  = '#F0C8C0';   // Blush — ai letters, send button, eyebrow
 const ACC     = '#E8374B';   // Red — now-line, today pill, form accents
@@ -205,7 +206,7 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
         ? input.assignees
         : ['2'];
       const { error } = await supabase.from('events').insert({
-        family_id: DUMMY_FAMILY_ID, title: input.title,
+        family_id: getFamilyId(), title: input.title,
         date: dateOnly, start_time: localDt,
         end_time: (input.end_time || input.start_time).replace('Z','').split('+')[0],
         notes: input.notes || '', timezone: 'Australia/Brisbane', assignees,
@@ -216,7 +217,7 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
     }
     if (name === 'update_calendar_event') {
       let q = supabase.from('events').select('id,title,date,start_time,end_time,assignees')
-        .eq('family_id', DUMMY_FAMILY_ID).ilike('title', `%${input.search_title}%`);
+        .eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`);
       if (input.search_date) q = (q as any).eq('date', input.search_date);
       const { data } = await (q as any).order('date').limit(1);
       if (!data || data.length === 0) return `Couldn't find "${input.search_title}".`;
@@ -263,7 +264,7 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
     }
     if (name === 'delete_calendar_event') {
       let q = supabase.from('events').select('id,title,date')
-        .eq('family_id', DUMMY_FAMILY_ID).ilike('title', `%${input.search_title}%`);
+        .eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`);
       if (input.date) q = (q as any).eq('date', input.date);
       const { data } = await (q as any).order('date').limit(1);
       if (!data || data.length === 0) return `Couldn't find "${input.search_title}".`;
@@ -540,7 +541,7 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate, onAskZaeli, onS
         const eDStr = dStr; // same day for simplicity (edge: overnight events)
         const eTime = allDay ? `${eDStr}T23:59:00` : `${eDStr}T${pad(eH)}:${pad(eM)}:00`;
         return {
-          family_id: DUMMY_FAMILY_ID, title: title.trim(),
+          family_id: getFamilyId(), title: title.trim(),
           notes: [notes.trim(), location.trim()].filter(Boolean).join(' | '),
           date: dStr, start_time: sTime, end_time: eTime,
           timezone: 'Australia/Brisbane', repeat_rule: repeat, alert_rule: alert, assignees,
@@ -1114,7 +1115,7 @@ function WaveformBars() {
 
 function logWhisper(durationSeconds: number) {
   const cost = (durationSeconds / 60) * 0.006;
-  supabase.from('api_logs').insert({ family_id: DUMMY_FAMILY_ID, feature: 'whisper_transcription', model: 'whisper-1', input_tokens: 0, output_tokens: 0, cost_usd: cost });
+  supabase.from('api_logs').insert({ family_id: getFamilyId(), feature: 'whisper_transcription', model: 'whisper-1', input_tokens: 0, output_tokens: 0, cost_usd: cost });
 }
 
 // ── MicWaveform — larger bars for the recording overlay ────────
@@ -1334,7 +1335,7 @@ export default function CalendarScreen() {
       const toMonth  = calMonth === 11 ? 1 : calMonth + 2;
       const toDate   = `${toYear}-${String(toMonth).padStart(2, '0')}-01`;
       const { data, error } = await supabase.from('events').select('*')
-        .eq('family_id', DUMMY_FAMILY_ID)
+        .eq('family_id', getFamilyId())
         .gte('date', fromDate).lt('date', toDate)
         .order('start_time');
       if (!error) setEvents(data || []);
@@ -1667,7 +1668,7 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
         const ot   = (data.usage?.output_tokens ?? 0);
         const cost = (it / 1_000_000) * 3.0 + (ot / 1_000_000) * 15.0;
         await supabase.from('api_logs').insert({
-          family_id: DUMMY_FAMILY_ID,
+          family_id: getFamilyId(),
           feature: 'calendar_chat',
           model: 'claude-sonnet-4-6',
           input_tokens: it,

@@ -16,8 +16,9 @@
 
 import { supabase } from './supabase';
 import { callClaude } from './api-logger';
+import { getFamilyId } from './family';
 
-const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+// Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 const SONNET = 'claude-sonnet-4-6';
 
 // ══════════════════════════════════════════════════
@@ -65,7 +66,7 @@ export async function generateSessionSummary(sessionId: string): Promise<string 
 
     const response = await callClaude({
       feature: 'tutor_session',
-      familyId: FAMILY_ID,
+      familyId: getFamilyId(),
       body: {
         model: SONNET,
         max_tokens: 300,
@@ -119,7 +120,7 @@ export async function generateSubjectSummary(childName: string, subject: string)
     const { data: cached } = await supabase
       .from('tutor_subject_summaries')
       .select('summary, generated_at')
-      .eq('family_id', FAMILY_ID)
+      .eq('family_id', getFamilyId())
       .eq('child_name', childName)
       .eq('subject', subject)
       .single();
@@ -133,7 +134,7 @@ export async function generateSubjectSummary(childName: string, subject: string)
     const { data: sessions } = await supabase
       .from('tutor_sessions')
       .select('subject, topic, difficulty_band, question_count, hints_used, duration_seconds, summary, created_at')
-      .eq('family_id', FAMILY_ID)
+      .eq('family_id', getFamilyId())
       .eq('child_name', childName)
       .eq('subject', subject)
       .order('created_at', { ascending: false })
@@ -159,14 +160,14 @@ export async function generateSubjectSummary(childName: string, subject: string)
     const { data: memberData } = await supabase
       .from('family_members')
       .select('year_level')
-      .eq('family_id', FAMILY_ID)
+      .eq('family_id', getFamilyId())
       .eq('name', childName)
       .single();
     const yearLevel = memberData?.year_level ?? 4;
 
     const response = await callClaude({
       feature: 'tutor_session',
-      familyId: FAMILY_ID,
+      familyId: getFamilyId(),
       body: {
         model: SONNET,
         max_tokens: 400,
@@ -203,7 +204,7 @@ Write a 3-5 sentence progress report for the parent. Include:
       await supabase
         .from('tutor_subject_summaries')
         .upsert({
-          family_id: FAMILY_ID,
+          family_id: getFamilyId(),
           child_name: childName,
           subject,
           summary,

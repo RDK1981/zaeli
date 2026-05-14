@@ -18,8 +18,10 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { supabase } from './supabase';
+import { DUMMY_FAMILY_ID } from './family';
 
-const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+// DUMMY_FAMILY_ID kept as the default-parameter fallback so callers without
+// auth context still work. Authenticated callers should pass getFamilyId().
 
 // ── NOTIFICATION BEHAVIOUR ────────────────────────────────────
 // How notifications appear when app is in foreground

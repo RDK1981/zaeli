@@ -43,8 +43,8 @@ import { useChatPersistence } from '../../lib/use-chat-persistence';
 import { getPendingChatContext, clearPendingChatContext, setPendingChatContext } from '../../lib/navigation-store';
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const FAMILY_ID        = '00000000-0000-0000-0000-000000000001';
-const DUMMY_FAMILY_ID_HOME = FAMILY_ID;
+// Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
+import { getFamilyId } from '../../lib/family';
 const MEMBER_NAME      = 'Rich';
 const INK              = '#0A0A0A';
 const INK3             = 'rgba(10,10,10,0.32)';
@@ -569,7 +569,7 @@ async function fetchEventsForContext(days: number): Promise<{ eventsJson: string
     const { data } = await supabase
       .from('events')
       .select('id, title, date, start_time, end_time, notes, assignees, all_day')
-      .eq('family_id', FAMILY_ID)
+      .eq('family_id', getFamilyId())
       .gte('date', today)
       .lte('date', futureStr)
       .order('date')
@@ -626,17 +626,17 @@ async function callGPT(
   const pt = json?.usage?.prompt_tokens ?? 0;
   const ct = json?.usage?.completion_tokens ?? 0;
   const cost = (pt / 1_000_000 * GPT_IN_PER_M) + (ct / 1_000_000 * GPT_OUT_PER_M);
-  logApiCall({ family_id: FAMILY_ID, feature, model:'gpt-5.4-mini', input_tokens:pt, output_tokens:ct, cost_usd:cost });
+  logApiCall({ family_id: getFamilyId(), feature, model:'gpt-5.4-mini', input_tokens:pt, output_tokens:ct, cost_usd:cost });
   return text;
 }
 
 function logWhisper(durationSeconds: number) {
   const cost = (durationSeconds / 60) * 0.006;
-  logApiCall({ family_id:FAMILY_ID, feature:'whisper_transcription', model:'whisper-1', input_tokens:0, output_tokens:0, cost_usd:cost });
+  logApiCall({ family_id:getFamilyId(), feature:'whisper_transcription', model:'whisper-1', input_tokens:0, output_tokens:0, cost_usd:cost });
 }
 function logVision(inputTokens: number, outputTokens: number) {
   const cost = (inputTokens / 1_000_000 * CLAUDE_IN_PER_M) + (outputTokens / 1_000_000 * CLAUDE_OUT_PER_M);
-  logApiCall({ family_id:FAMILY_ID, feature:'chat_vision', model:'claude-sonnet-4-6', input_tokens:inputTokens, output_tokens:outputTokens, cost_usd:cost });
+  logApiCall({ family_id:getFamilyId(), feature:'chat_vision', model:'claude-sonnet-4-6', input_tokens:inputTokens, output_tokens:outputTokens, cost_usd:cost });
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -1570,7 +1570,7 @@ async function executeTool(name: string, input: any): Promise<string> {
         const mapped = input.assignees.map((n:string) => NAME_TO_ID[n.toLowerCase().trim()]).filter(Boolean);
         if (mapped.length > 0) assigneeIds = mapped;
       }
-      const row: any = { family_id:DUMMY_FAMILY_ID_HOME, title:input.title, date:dateOnly, start_time:localDt, end_time:endDt, notes:input.notes||'', timezone:'Australia/Brisbane', assignees:assigneeIds };
+      const row: any = { family_id:getFamilyId(), title:input.title, date:dateOnly, start_time:localDt, end_time:endDt, notes:input.notes||'', timezone:'Australia/Brisbane', assignees:assigneeIds };
       let { error } = await supabase.from('events').insert(row);
       if (error && (error.message?.includes('assignees') || error.code==='42703')) {
         const { assignees:_a, ...slim } = row;
@@ -1581,7 +1581,7 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `✅ "${input.title}" added on ${dateOnly} at ${localDt.split('T')[1]?.slice(0,5) ?? 'the time you specified'}.`;
     }
     if (name === 'update_calendar_event') {
-      let updateQuery = supabase.from('events').select('id,title,date,start_time,end_time,assignees').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`);
+      let updateQuery = supabase.from('events').select('id,title,date,start_time,end_time,assignees').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`);
       if (input.search_date) updateQuery = (updateQuery as any).eq('date', input.search_date);
       const { data } = await (updateQuery as any).order('date').limit(1);
       if (!data || data.length === 0) return `Couldn't find an event matching "${input.search_title}".`;
@@ -1642,7 +1642,7 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `✅ "${input.new_title || t.title}" — ${what}.`;
     }
     if (name === 'delete_calendar_event') {
-      let q = supabase.from('events').select('id,title,date').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`);
+      let q = supabase.from('events').select('id,title,date').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`);
       if (input.date) q = (q as any).eq('date', input.date);
       const { data } = await (q as any).order('date').limit(1);
       if (!data || data.length === 0) return `Couldn't find "${input.search_title}".`;
@@ -1652,7 +1652,7 @@ async function executeTool(name: string, input: any): Promise<string> {
     if (name === 'add_todo') {
       const now = new Date();
       const { error } = await supabase.from('todos').insert({
-        family_id:DUMMY_FAMILY_ID_HOME, title:input.title,
+        family_id:getFamilyId(), title:input.title,
         priority:input.priority||'normal', status:'active',
         due_date:input.due_date||null, created_at:now.toISOString(),
       });
@@ -1663,21 +1663,21 @@ async function executeTool(name: string, input: any): Promise<string> {
       const itemName = (input.name||'').charAt(0).toUpperCase() + (input.name||'').slice(1);
       const lowerName = itemName.toLowerCase();
       // Check for duplicates on the active shopping list
-      const { data: existingList } = await supabase.from('shopping_items').select('id,name').eq('family_id',DUMMY_FAMILY_ID_HOME).eq('checked',false);
+      const { data: existingList } = await supabase.from('shopping_items').select('id,name').eq('family_id',getFamilyId()).eq('checked',false);
       const listDup = existingList?.find((i:any) => (i.name||'').toLowerCase() === lowerName);
       if (listDup) {
         return `DUPLICATE: **${itemName}** is already on the shopping list. Want to update the quantity, or skip it?`;
       }
       // Check pantry for well-stocked items
       try {
-        const { data: pantryItems } = await supabase.from('pantry_items').select('id,name,stock').eq('family_id',DUMMY_FAMILY_ID_HOME);
+        const { data: pantryItems } = await supabase.from('pantry_items').select('id,name,stock').eq('family_id',getFamilyId());
         const pantryMatch = pantryItems?.find((i:any) => (i.name||'').toLowerCase() === lowerName);
         if (pantryMatch && (pantryMatch.stock === 'good' || pantryMatch.stock === 'medium')) {
           return `PANTRY: **${itemName}** looks ${pantryMatch.stock === 'good' ? 'well stocked' : 'okay'} in the pantry. Still want to add it to the list?`;
         }
       } catch { /* pantry table may not exist yet — skip check */ }
       const { error } = await supabase.from('shopping_items').insert({
-        family_id:DUMMY_FAMILY_ID_HOME, name:itemName,
+        family_id:getFamilyId(), name:itemName,
         item:itemName, category:input.category||guessCategory(itemName),
         meal_source: input.quantity || null,
         checked:false,
@@ -1690,12 +1690,12 @@ async function executeTool(name: string, input: any): Promise<string> {
       const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
       const dayLabel = input.day_label || dayNames[new Date(dateStr+'T00:00:00').getDay()] || '';
       // Check if a meal already exists for this date — warn, don't auto-swap
-      const { data: existing } = await supabase.from('meal_plans').select('id,meal_name').eq('family_id', DUMMY_FAMILY_ID_HOME).eq('planned_date', dateStr).limit(1);
+      const { data: existing } = await supabase.from('meal_plans').select('id,meal_name').eq('family_id', getFamilyId()).eq('planned_date', dateStr).limit(1);
       if (existing && existing.length > 0) {
         return `CLASH: **${existing[0].meal_name}** is already planned for ${dayLabel}. Want to swap it for **${input.meal_name}**, or pick a different night?`;
       }
       const { error } = await supabase.from('meal_plans').insert({
-        family_id: DUMMY_FAMILY_ID_HOME,
+        family_id: getFamilyId(),
         meal_name: input.meal_name,
         planned_date: dateStr,
         day_key: dateStr,
@@ -1705,7 +1705,7 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `\u2705 **${input.meal_name}** added for ${dayLabel} ${dateStr}.`;
     }
     if (name === 'update_todo') {
-      const { data } = await supabase.from('todos').select('id,title,status').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`).order('created_at', { ascending: false }).limit(1);
+      const { data } = await supabase.from('todos').select('id,title,status').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`).order('created_at', { ascending: false }).limit(1);
       if (!data || data.length === 0) return `Couldn't find a to-do matching "${input.search_title}".`;
       const todo = data[0];
       const u: any = {};
@@ -1720,14 +1720,14 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `\u2705 "${input.new_title || todo.title}" \u2014 ${what}.`;
     }
     if (name === 'delete_todo') {
-      const { data } = await supabase.from('todos').select('id,title').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`).order('created_at', { ascending: false }).limit(1);
+      const { data } = await supabase.from('todos').select('id,title').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`).order('created_at', { ascending: false }).limit(1);
       if (!data || data.length === 0) return `Couldn't find a to-do matching "${input.search_title}".`;
       const { error } = await supabase.from('todos').delete().eq('id', data[0].id);
       if (error) throw error;
       return `\u2705 **${data[0].title}** removed from your to-do list.`;
     }
     if (name === 'update_shopping_item') {
-      const { data } = await supabase.from('shopping_items').select('id,name,item').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('name', `%${input.search_name}%`).neq('checked', true).order('created_at', { ascending: false }).limit(1);
+      const { data } = await supabase.from('shopping_items').select('id,name,item').eq('family_id', getFamilyId()).ilike('name', `%${input.search_name}%`).neq('checked', true).order('created_at', { ascending: false }).limit(1);
       if (!data || data.length === 0) return `Couldn't find "${input.search_name}" on the shopping list.`;
       const item = data[0];
       const u: any = {};
@@ -1740,14 +1740,14 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `\u2705 "${input.new_name || item.name}" updated on the shopping list.`;
     }
     if (name === 'delete_shopping_item') {
-      const { data } = await supabase.from('shopping_items').select('id,name').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('name', `%${input.search_name}%`).neq('checked', true).order('created_at', { ascending: false }).limit(1);
+      const { data } = await supabase.from('shopping_items').select('id,name').eq('family_id', getFamilyId()).ilike('name', `%${input.search_name}%`).neq('checked', true).order('created_at', { ascending: false }).limit(1);
       if (!data || data.length === 0) return `Couldn't find "${input.search_name}" on the shopping list.`;
       const { error } = await supabase.from('shopping_items').delete().eq('id', data[0].id);
       if (error) throw error;
       return `\u2705 **${data[0].name}** removed from the shopping list.`;
     }
     if (name === 'update_meal') {
-      let q = supabase.from('meal_plans').select('id,meal_name,planned_date,day_key').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('meal_name', `%${input.search_meal}%`);
+      let q = supabase.from('meal_plans').select('id,meal_name,planned_date,day_key').eq('family_id', getFamilyId()).ilike('meal_name', `%${input.search_meal}%`);
       if (input.search_date) q = q.eq('planned_date', input.search_date);
       const { data } = await q.order('planned_date').limit(1);
       if (!data || data.length === 0) return `Couldn't find a meal matching "${input.search_meal}".`;
@@ -1763,7 +1763,7 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `\u2705 "${input.new_meal_name || meal.meal_name}" \u2014 ${what}.`;
     }
     if (name === 'delete_meal') {
-      let q = supabase.from('meal_plans').select('id,meal_name').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('meal_name', `%${input.search_meal}%`);
+      let q = supabase.from('meal_plans').select('id,meal_name').eq('family_id', getFamilyId()).ilike('meal_name', `%${input.search_meal}%`);
       if (input.date) q = q.eq('planned_date', input.date);
       const { data } = await q.order('planned_date').limit(1);
       if (!data || data.length === 0) return `Couldn't find a meal matching "${input.search_meal}".`;
@@ -1773,7 +1773,7 @@ async function executeTool(name: string, input: any): Promise<string> {
     }
     if (name === 'add_goal') {
       const { error } = await supabase.from('goals').insert({
-        family_id: DUMMY_FAMILY_ID_HOME,
+        family_id: getFamilyId(),
         title: input.title,
         target_date: input.target_date || null,
         detail: input.detail || '',
@@ -1784,7 +1784,7 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `\u2705 **${input.title}** added to your goals.${input.target_date ? ` Target: ${input.target_date}.` : ''}`;
     }
     if (name === 'update_goal') {
-      const { data } = await supabase.from('goals').select('id,title').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`).eq('status', 'active').order('created_at', { ascending: false }).limit(1);
+      const { data } = await supabase.from('goals').select('id,title').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`).eq('status', 'active').order('created_at', { ascending: false }).limit(1);
       if (!data || data.length === 0) return `Couldn't find a goal matching "${input.search_title}".`;
       const u: any = {};
       if (input.new_title) u.title = input.new_title;
@@ -1798,7 +1798,7 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `\u2705 "${input.new_title || data[0].title}" \u2014 ${what}.`;
     }
     if (name === 'delete_goal') {
-      const { data } = await supabase.from('goals').select('id,title').eq('family_id', DUMMY_FAMILY_ID_HOME).ilike('title', `%${input.search_title}%`).order('created_at', { ascending: false }).limit(1);
+      const { data } = await supabase.from('goals').select('id,title').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`).order('created_at', { ascending: false }).limit(1);
       if (!data || data.length === 0) return `Couldn't find a goal matching "${input.search_title}".`;
       const { error } = await supabase.from('goals').delete().eq('id', data[0].id);
       if (error) throw error;
@@ -2992,32 +2992,32 @@ function HomeScreen({
       ] = await Promise.all([
         supabase.from('events')
           .select('id,title,date,start_time,end_time,notes,assignees,all_day')
-          .eq('family_id', FAMILY_ID)
+          .eq('family_id', getFamilyId())
           .gte('date', today)
           .lte('date', tomorrow)
           .order('date').order('start_time').limit(30),
         supabase.from('shopping_items')
           .select('id,name,item,category,checked')
-          .eq('family_id', FAMILY_ID)
+          .eq('family_id', getFamilyId())
           .limit(10),
         supabase.from('shopping_items')
           .select('*', { count:'exact', head:true })
-          .eq('family_id', FAMILY_ID)
+          .eq('family_id', getFamilyId())
           .neq('checked', true),
         supabase.from('todos')
           .select('id,title,priority,status,due_date,assigned_to,notes')
-          .eq('family_id', FAMILY_ID)
+          .eq('family_id', getFamilyId())
           .eq('status', 'active')
           .order('created_at', { ascending: false }).limit(8),
         supabase.from('reminders')
           .select('id,title,remind_at,member_id,repeat,status')
-          .eq('family_id', FAMILY_ID)
+          .eq('family_id', getFamilyId())
           .eq('status', 'active')
           .lte('remind_at', new Date(Date.now() + 24*60*60*1000).toISOString())
           .order('remind_at').limit(5),
         supabase.from('meal_plans')
           .select('id,meal_name,meal_type,planned_date,day_key,prep_mins,cook_ids')
-          .eq('family_id', FAMILY_ID)
+          .eq('family_id', getFamilyId())
           .gte('planned_date', today)
           .lte('planned_date', in7days)
           .order('planned_date').limit(7),
@@ -3387,11 +3387,11 @@ function HomeScreen({
         const [todayRes, tomorrowRes] = await Promise.all([
           supabase.from('events')
             .select('id,title,date,start_time,end_time,assignees,notes')
-            .eq('family_id', FAMILY_ID).eq('date', today)
+            .eq('family_id', getFamilyId()).eq('date', today)
             .order('start_time').limit(8),
           supabase.from('events')
             .select('id,title,date,start_time,end_time,assignees,notes')
-            .eq('family_id', FAMILY_ID).eq('date', tomorrow)
+            .eq('family_id', getFamilyId()).eq('date', tomorrow)
             .order('start_time').limit(8),
         ]);
         items = todayRes.data ?? [];
@@ -3407,8 +3407,8 @@ function HomeScreen({
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 120);
       } else if (inlineType === 'shopping') {
         const [uncheckedRes, countRes] = await Promise.all([
-          supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', FAMILY_ID).neq('checked', true).order('created_at', { ascending: false }).limit(4),
-          supabase.from('shopping_items').select('*', { count: 'exact', head: true }).eq('family_id', FAMILY_ID).neq('checked', true),
+          supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', getFamilyId()).neq('checked', true).order('created_at', { ascending: false }).limit(4),
+          supabase.from('shopping_items').select('*', { count: 'exact', head: true }).eq('family_id', getFamilyId()).neq('checked', true),
         ]);
         const shopItems4 = uncheckedRes.data ?? [];
         const shopTotal  = countRes.count ?? 0;
@@ -3421,7 +3421,7 @@ function HomeScreen({
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
       } else if (inlineType === 'todos') {
         const { data } = await supabase.from('todos')
-          .select('id,title,priority,status,due_date').eq('family_id', FAMILY_ID)
+          .select('id,title,priority,status,due_date').eq('family_id', getFamilyId())
           .eq('status','active').limit(8);
         items = data ?? [];
         const msg: Msg = { id: cardMsgId, role: 'zaeli', text: '', ts: nowTs(), inlineData: { type: inlineType, items } };
@@ -3429,7 +3429,7 @@ function HomeScreen({
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 120);
       } else if (inlineType === 'meals') {
         const { data } = await supabase.from('meal_plans')
-          .select('id,meal_name,day_key,prep_mins').eq('family_id', FAMILY_ID)
+          .select('id,meal_name,day_key,prep_mins').eq('family_id', getFamilyId())
           .gte('day_key', today).limit(7);
         items = data ?? [];
         const msg: Msg = { id: cardMsgId, role: 'zaeli', text: '', ts: nowTs(), inlineData: { type: inlineType, items } };
@@ -3450,18 +3450,18 @@ function HomeScreen({
         const today = localDateStr();
         const contextLines: string[] = [];
         if (domain === 'calendar') {
-          const { data } = await supabase.from('events').select('title,start_time').eq('family_id',FAMILY_ID).eq('date',today).order('start_time').limit(5);
+          const { data } = await supabase.from('events').select('title,start_time').eq('family_id',getFamilyId()).eq('date',today).order('start_time').limit(5);
           contextLines.push((data??[]).length > 0 ? `Today: ${(data??[]).map((e:any) => `${e.title} at ${fmtTime(e.start_time)}`).join(', ')}` : 'No events today.');
         } else if (domain === 'shopping') {
-          const { data } = await supabase.from('shopping_items').select('name,item').eq('family_id',FAMILY_ID).neq('checked',true).limit(5);
+          const { data } = await supabase.from('shopping_items').select('name,item').eq('family_id',getFamilyId()).neq('checked',true).limit(5);
           const names = (data??[]).map((i:any) => i.name || i.item).filter(Boolean);
           contextLines.push(names.length > 0 ? `List: ${names.join(', ')} (${names.length} items)` : 'Shopping list is clear.');
         } else if (domain === 'meals') {
-          const { data } = await supabase.from('meal_plans').select('meal_name,day_key').eq('family_id',FAMILY_ID).gte('day_key',today).limit(3);
+          const { data } = await supabase.from('meal_plans').select('meal_name,day_key').eq('family_id',getFamilyId()).gte('day_key',today).limit(3);
           const tonightMeal = (data??[]).find((m:any) => m.day_key === today)?.meal_name;
           contextLines.push(tonightMeal ? `Tonight: ${tonightMeal}.` : 'Tonight not planned.');
         } else if (domain === 'todos') {
-          const { data } = await supabase.from('todos').select('title,due_date').eq('family_id',FAMILY_ID).eq('status','active').limit(4);
+          const { data } = await supabase.from('todos').select('title,due_date').eq('family_id',getFamilyId()).eq('status','active').limit(4);
           contextLines.push((data??[]).length > 0 ? `Open: ${(data??[]).map((t:any) => t.title).join(', ')}` : 'No open todos.');
         }
         const sys = `You are Zaeli — sharp, warm AI for Rich's Australian family.
@@ -3520,11 +3520,11 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         { count: todoCount },
         { data: meals },
       ] = await Promise.all([
-        supabase.from('shopping_items').select('*',{count:'exact',head:true}).eq('family_id',DUMMY_FAMILY_ID_HOME).eq('checked',false),
-        supabase.from('shopping_items').select('name').eq('family_id',DUMMY_FAMILY_ID_HOME).eq('checked',false).limit(50),
-        supabase.from('events').select('title,date,start_time').eq('family_id',DUMMY_FAMILY_ID_HOME).gte('date',td).lte('date', localDateStr(new Date(Date.now() + 7*24*60*60*1000))).order('date').order('start_time').limit(20),
-        supabase.from('todos').select('*',{count:'exact',head:true}).eq('family_id',DUMMY_FAMILY_ID_HOME).eq('done',false),
-        supabase.from('meal_plans').select('meal_name,planned_date,day_key').eq('family_id',DUMMY_FAMILY_ID_HOME).gte('planned_date',td).limit(7),
+        supabase.from('shopping_items').select('*',{count:'exact',head:true}).eq('family_id',getFamilyId()).eq('checked',false),
+        supabase.from('shopping_items').select('name').eq('family_id',getFamilyId()).eq('checked',false).limit(50),
+        supabase.from('events').select('title,date,start_time').eq('family_id',getFamilyId()).gte('date',td).lte('date', localDateStr(new Date(Date.now() + 7*24*60*60*1000))).order('date').order('start_time').limit(20),
+        supabase.from('todos').select('*',{count:'exact',head:true}).eq('family_id',getFamilyId()).eq('done',false),
+        supabase.from('meal_plans').select('meal_name,planned_date,day_key').eq('family_id',getFamilyId()).gte('planned_date',td).limit(7),
       ]);
       const shopNames = shopItems?.map((i:any) => i.name).join(', ') || '';
       const shopStr   = shopCount ? `${shopCount} items — ${shopNames}` : 'list is clear';
@@ -3626,7 +3626,7 @@ CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
       const ctx = await buildBriefContext();
 
       const payload = await generateBrief({
-        familyId: FAMILY_ID,
+        familyId: getFamilyId(),
         window: win,
         dateKey: todayDate,
         context: ctx,
@@ -3659,12 +3659,12 @@ CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
     const in7 = localDatePlusDays(7);
 
     const [evTodayRes, evTomorrowRes, shopRes, mealRes, tasksRes, membersRes] = await Promise.all([
-      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', FAMILY_ID).eq('date', today).order('start_time').limit(20),
-      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', FAMILY_ID).eq('date', tomorrow).order('start_time').limit(20),
-      supabase.from('shopping_items').select('id,name,item').eq('family_id', FAMILY_ID).neq('checked', true).limit(100),
-      supabase.from('meal_plans').select('id,meal_name,planned_date,day_key').eq('family_id', FAMILY_ID).or(`planned_date.eq.${today},day_key.eq.${today}`).limit(1),
-      supabase.from('personal_tasks').select('id,title,due_date,is_shared,member_name').eq('family_id', FAMILY_ID).eq('is_complete', false).lte('due_date', in7).order('due_date').limit(20),
-      supabase.from('family_members').select('name').eq('family_id', FAMILY_ID).limit(10),
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', getFamilyId()).eq('date', today).order('start_time').limit(20),
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', getFamilyId()).eq('date', tomorrow).order('start_time').limit(20),
+      supabase.from('shopping_items').select('id,name,item').eq('family_id', getFamilyId()).neq('checked', true).limit(100),
+      supabase.from('meal_plans').select('id,meal_name,planned_date,day_key').eq('family_id', getFamilyId()).or(`planned_date.eq.${today},day_key.eq.${today}`).limit(1),
+      supabase.from('personal_tasks').select('id,title,due_date,is_shared,member_name').eq('family_id', getFamilyId()).eq('is_complete', false).lte('due_date', in7).order('due_date').limit(20),
+      supabase.from('family_members').select('name').eq('family_id', getFamilyId()).limit(10),
     ]);
 
     const tonightMeal = (mealRes.data ?? [])[0];
@@ -4310,10 +4310,10 @@ Only include events directly relevant to the question. Max 5 events.`;
         const [uncheckedRes, countRes] = await Promise.all([
           supabase.from('shopping_items')
             .select('id,name,item,category,checked,meal_source')
-            .eq('family_id', FAMILY_ID).neq('checked', true)
+            .eq('family_id', getFamilyId()).neq('checked', true)
             .order('created_at', { ascending: false }).limit(4),
           supabase.from('shopping_items').select('*', { count: 'exact', head: true })
-            .eq('family_id', FAMILY_ID).neq('checked', true),
+            .eq('family_id', getFamilyId()).neq('checked', true),
         ]);
         const items4 = uncheckedRes.data ?? [];
         const total = countRes.count ?? 0;
@@ -4339,7 +4339,7 @@ Only include events directly relevant to the question. Max 5 events.`;
         const sevenDaysOut = localDatePlusDays(7);
         const { data: mealRows } = await supabase.from('meal_plans')
           .select('id,meal_name,day_key,prep_mins')
-          .eq('family_id', FAMILY_ID)
+          .eq('family_id', getFamilyId())
           .gte('day_key', today).lte('day_key', sevenDaysOut)
           .order('day_key', { ascending: true }).limit(10);
         const meals = mealRows ?? [];
@@ -4364,7 +4364,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       if (!imageUri && text && isTasksViewQuery(text)) {
         const { data: taskRows } = await supabase.from('todos')
           .select('id,title,priority,status,due_date')
-          .eq('family_id', FAMILY_ID).eq('status', 'active')
+          .eq('family_id', getFamilyId()).eq('status', 'active')
           .order('due_date', { ascending: true, nullsFirst: false } as any).limit(8);
         const tasks = taskRows ?? [];
         const today = localDateStr();
@@ -4424,7 +4424,7 @@ Only include events directly relevant to the question. Max 5 events.`;
         const inTok = data?.usage?.input_tokens ?? 0;
         const outTok = data?.usage?.output_tokens ?? 0;
         const claudeCost = (inTok/1_000_000*CLAUDE_IN_PER_M) + (outTok/1_000_000*CLAUDE_OUT_PER_M);
-        logApiCall({ family_id:FAMILY_ID, feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:claudeCost });
+        logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:claudeCost });
 
         const toolUses = (data.content||[]).filter((b:any) => b.type==='tool_use');
         if (toolUses.length > 0) {
@@ -4453,7 +4453,7 @@ Only include events directly relevant to the question. Max 5 events.`;
               const dateOnly = rawStart.includes('T') ? rawStart.split('T')[0] : today;
               const { data: newEvData } = await supabase.from('events')
                 .select('id,title,date,start_time,end_time,assignees,notes')
-                .eq('family_id', FAMILY_ID)
+                .eq('family_id', getFamilyId())
                 .ilike('title', `%${addTool.input.title}%`)
                 .eq('date', dateOnly)
                 .order('created_at', { ascending: false })
@@ -4601,8 +4601,8 @@ Only include events directly relevant to the question. Max 5 events.`;
 
     // Fetch data in background — sheet shows loading state while this runs
     const [todRes, tomRes] = await Promise.all([
-      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes').eq('family_id', FAMILY_ID).eq('date', today).order('start_time').limit(20),
-      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes').eq('family_id', FAMILY_ID).eq('date', tomorrow).order('start_time').limit(20),
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes').eq('family_id', getFamilyId()).eq('date', today).order('start_time').limit(20),
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes').eq('family_id', getFamilyId()).eq('date', tomorrow).order('start_time').limit(20),
     ]);
     setCalSheetEvents(todRes.data ?? []);
     setCalSheetTomEvents(tomRes.data ?? []);
@@ -4611,7 +4611,7 @@ Only include events directly relevant to the question. Max 5 events.`;
     // Fetch month dots separately (non-blocking)
     const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
     const monthEnd   = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()}`;
-    supabase.from('events').select('id,date,assignees').eq('family_id', FAMILY_ID).gte('date', monthStart).lte('date', monthEnd).limit(200)
+    supabase.from('events').select('id,date,assignees').eq('family_id', getFamilyId()).gte('date', monthStart).lte('date', monthEnd).limit(200)
       .then(({ data }) => setCalSheetMonthEvs(data ?? []));
   }
 
@@ -4627,7 +4627,7 @@ Only include events directly relevant to the question. Max 5 events.`;
     const nextStr = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}-${String(next.getDate()).padStart(2,'0')}`;
     const { data } = await supabase.from('events')
       .select('id,title,date,start_time,end_time,assignees,notes')
-      .eq('family_id', FAMILY_ID)
+      .eq('family_id', getFamilyId())
       .gte('date', dateStr).lt('date', nextStr)
       .order('start_time').limit(20);
     setCalSheetDayEvs(data ?? []);
@@ -4636,7 +4636,7 @@ Only include events directly relevant to the question. Max 5 events.`;
   async function fetchMonthDots(month: number, year: number) {
     const monthStart = `${year}-${String(month+1).padStart(2,'0')}-01`;
     const monthEnd   = `${year}-${String(month+1).padStart(2,'0')}-${new Date(year, month+1, 0).getDate()}`;
-    const { data } = await supabase.from('events').select('id,date,assignees').eq('family_id', FAMILY_ID).gte('date', monthStart).lte('date', monthEnd).limit(200);
+    const { data } = await supabase.from('events').select('id,date,assignees').eq('family_id', getFamilyId()).gte('date', monthStart).lte('date', monthEnd).limit(200);
     setCalSheetMonthEvs(data ?? []);
   }
 
@@ -4656,19 +4656,19 @@ Only include events directly relevant to the question. Max 5 events.`;
       const today = localDateStr();
       const monthStart = today.slice(0, 7) + '-01';
       const [listRes, boughtRes] = await Promise.all([
-        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', FAMILY_ID).neq('checked', true).order('created_at', { ascending: false }).limit(100),
-        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', FAMILY_ID).eq('checked', true).order('created_at', { ascending: false }).limit(30),
+        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', getFamilyId()).neq('checked', true).order('created_at', { ascending: false }).limit(100),
+        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', getFamilyId()).eq('checked', true).order('created_at', { ascending: false }).limit(30),
       ]);
       setShopSheetItems(listRes.data ?? []);
       setShopSheetBought(boughtRes.data ?? []);
 
       // Pantry + receipts — may not exist yet, fail silently
       try {
-        const { data: pantryData } = await supabase.from('pantry_items').select('id,name,emoji,last_bought,family_id').eq('family_id', FAMILY_ID).order('name').limit(500);
+        const { data: pantryData } = await supabase.from('pantry_items').select('id,name,emoji,last_bought,family_id').eq('family_id', getFamilyId()).order('name').limit(500);
         setShopSheetPantry(pantryData ?? []);
       } catch { setShopSheetPantry([]); }
       try {
-        const { data: receiptData } = await supabase.from('receipts').select('id,store,purchase_date,total_amount,item_count,items').eq('family_id', FAMILY_ID).order('purchase_date', { ascending: false }).limit(20);
+        const { data: receiptData } = await supabase.from('receipts').select('id,store,purchase_date,total_amount,item_count,items').eq('family_id', getFamilyId()).order('purchase_date', { ascending: false }).limit(20);
         setShopSheetReceipts(receiptData ?? []);
         // Calculate month spend totals
         const monthStart = localDateStr().slice(0, 7) + '-01';
@@ -4704,8 +4704,8 @@ Only include events directly relevant to the question. Max 5 events.`;
   async function refreshShopList() {
     try {
       const [listRes, boughtRes] = await Promise.all([
-        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', FAMILY_ID).neq('checked', true).order('created_at', { ascending: false }).limit(100),
-        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', FAMILY_ID).eq('checked', true).order('created_at', { ascending: false }).limit(30),
+        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', getFamilyId()).neq('checked', true).order('created_at', { ascending: false }).limit(100),
+        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', getFamilyId()).eq('checked', true).order('created_at', { ascending: false }).limit(30),
       ]);
       setShopSheetItems(listRes.data ?? []);
       setShopSheetBought(boughtRes.data ?? []);
@@ -4758,18 +4758,18 @@ Only include events directly relevant to the question. Max 5 events.`;
         const cat = item.category || guessCategory(item.name || item.item || '');
         if (FOOD_CATS.includes(cat)) {
           const name = (item.name || item.item || '').toLowerCase().trim();
-          const { data: existing } = await supabase.from('pantry_items').select('id').eq('family_id', FAMILY_ID).ilike('name', name).limit(1);
+          const { data: existing } = await supabase.from('pantry_items').select('id').eq('family_id', getFamilyId()).ilike('name', name).limit(1);
           if (existing && existing.length > 0) {
             await supabase.from('pantry_items').update({ last_bought: localDateStr() }).eq('id', existing[0].id);
           } else {
-            await supabase.from('pantry_items').insert({ family_id: FAMILY_ID, name: item.name || item.item, emoji: '🛒', last_bought: localDateStr() });
+            await supabase.from('pantry_items').insert({ family_id: getFamilyId(), name: item.name || item.item, emoji: '🛒', last_bought: localDateStr() });
           }
         }
       } catch { /* pantry table may not exist yet */ }
     } catch (e) { console.log('shopMarkBought error:', e); }
     // Refresh bought list to show in Recently Bought
     try {
-      const { data } = await supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', FAMILY_ID).eq('checked', true).order('created_at', { ascending: false }).limit(30);
+      const { data } = await supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', getFamilyId()).eq('checked', true).order('created_at', { ascending: false }).limit(30);
       setShopSheetBought(data ?? []);
     } catch { /* silent */ }
   }
@@ -4798,7 +4798,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       return `${itemName} is already on the list`;
     }
     const cat = guessCategory(itemName);
-    await supabase.from('shopping_items').insert({ family_id: FAMILY_ID, name: itemName, item: itemName, category: cat, meal_source: itemQty || null, checked: false });
+    await supabase.from('shopping_items').insert({ family_id: getFamilyId(), name: itemName, item: itemName, category: cat, meal_source: itemQty || null, checked: false });
     setShopAddInput('');
     refreshShopList();
     return null; // success, no issue
@@ -4848,9 +4848,9 @@ Only include events directly relevant to the question. Max 5 events.`;
     const dup = shopSheetPantry.find((i:any) => (i.name||'').toLowerCase() === lowerName);
     if (dup) return `${itemName} is already in the pantry`;
     try {
-      await supabase.from('pantry_items').insert({ family_id: FAMILY_ID, name: itemName, emoji: getItemEmoji(itemName), last_bought: localDateStr() });
+      await supabase.from('pantry_items').insert({ family_id: getFamilyId(), name: itemName, emoji: getItemEmoji(itemName), last_bought: localDateStr() });
       // Refresh pantry
-      const { data } = await supabase.from('pantry_items').select('id,name,emoji,last_bought,family_id').eq('family_id', FAMILY_ID).order('name').limit(500);
+      const { data } = await supabase.from('pantry_items').select('id,name,emoji,last_bought,family_id').eq('family_id', getFamilyId()).order('name').limit(500);
       setShopSheetPantry(data ?? []);
     } catch (e) { console.log('pantryAdd error:', e); }
     return null;
@@ -4916,8 +4916,8 @@ Only include events directly relevant to the question. Max 5 events.`;
       const days = getMealWeekDays();
       const keys = days.map(d => d.key);
       const [plansRes, recipesRes] = await Promise.all([
-        supabase.from('meal_plans').select('*').eq('family_id', FAMILY_ID).in('day_key', keys).order('created_at', { ascending: true }),
-        supabase.from('recipes').select('id,name,source_type,prep_mins,notes,tags,image_url,family_id,created_at').eq('family_id', FAMILY_ID).order('created_at', { ascending: false }).limit(100),
+        supabase.from('meal_plans').select('*').eq('family_id', getFamilyId()).in('day_key', keys).order('created_at', { ascending: true }),
+        supabase.from('recipes').select('id,name,source_type,prep_mins,notes,tags,image_url,family_id,created_at').eq('family_id', getFamilyId()).order('created_at', { ascending: false }).limit(100),
       ]);
       setMealSheetPlans(plansRes.data ?? []);
       // Enrich recipes with parsed data for the UI
@@ -4939,9 +4939,9 @@ Only include events directly relevant to the question. Max 5 events.`;
   async function addMealToDay(dayKeyStr: string, mealName: string) {
     try {
       console.log('[meal] Adding meal:', mealName, 'to', dayKeyStr);
-      await supabase.from('meal_plans').delete().eq('family_id', FAMILY_ID).eq('day_key', dayKeyStr);
+      await supabase.from('meal_plans').delete().eq('family_id', getFamilyId()).eq('day_key', dayKeyStr);
       const { error } = await supabase.from('meal_plans').insert({
-        family_id: FAMILY_ID, meal_name: mealName, planned_date: dayKeyStr, day_key: dayKeyStr,
+        family_id: getFamilyId(), meal_name: mealName, planned_date: dayKeyStr, day_key: dayKeyStr,
         meal_type: 'dinner', source: 'manual',
       });
       if (error) { console.error('[meal] addMealToDay Supabase error:', error.message, error.details); return; }
@@ -4952,7 +4952,7 @@ Only include events directly relevant to the question. Max 5 events.`;
 
   async function removeMealFromDay(dayKey: string) {
     try {
-      await supabase.from('meal_plans').delete().eq('family_id', FAMILY_ID).eq('day_key', dayKey);
+      await supabase.from('meal_plans').delete().eq('family_id', getFamilyId()).eq('day_key', dayKey);
       await refreshMealData();
     } catch (e) { console.log('removeMealFromDay error:', e); }
   }
@@ -4997,7 +4997,7 @@ Only include events directly relevant to the question. Max 5 events.`;
         await toggleRecipeFavourite(recipe.id, currentFav);
       } else {
         // Create recipe entry and mark as favourite
-        await supabase.from('recipes').insert({ family_id: FAMILY_ID, name: plan.meal_name, source_type: 'manual', tags: ['favourite'] });
+        await supabase.from('recipes').insert({ family_id: getFamilyId(), name: plan.meal_name, source_type: 'manual', tags: ['favourite'] });
         await refreshMealData();
       }
       // Optimistic update on plans
@@ -5015,7 +5015,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       // Resize to 600px for thumbnail use
       const resized = await manipulateAsync(r.assets[0].uri, [{ resize: { width: 600 } }], { compress: 0.75, format: SaveFormat.JPEG });
       const base64 = await FileSystem.readAsStringAsync(resized.uri, { encoding: 'base64' as any });
-      const fileName = `${FAMILY_ID}/${recipeId}-${Date.now()}.jpg`;
+      const fileName = `${getFamilyId()}/${recipeId}-${Date.now()}.jpg`;
       // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('recipe-photos')
@@ -5065,7 +5065,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       if (data.ingredients?.length) notesParts.push('INGREDIENTS:\n' + data.ingredients.map((i:any) => typeof i === 'string' ? i : i.name + (i.qty ? ` (${i.qty})` : '')).join('\n'));
       if (data.method?.length) notesParts.push('METHOD:\n' + data.method.map((s:any, i:number) => `${i+1}. ${typeof s === 'string' ? s : s.text || s}`).join('\n'));
       const { error } = await supabase.from('recipes').insert({
-        family_id: FAMILY_ID, name: data.name,
+        family_id: getFamilyId(), name: data.name,
         prep_mins: data.cook_time || null,
         source_type: data.source_type || 'manual',
         notes: notesParts.join('\n\n') || null,
@@ -5099,7 +5099,7 @@ Only include events directly relevant to the question. Max 5 events.`;
   async function createKidJob(kidName: string, title: string, points: number, linkedDate: string) {
     try {
       await supabase.from('kids_jobs').insert({
-        family_id: FAMILY_ID, child_name: kidName, title, points, source: 'meals', linked_date: linkedDate, is_complete: false,
+        family_id: getFamilyId(), child_name: kidName, title, points, source: 'meals', linked_date: linkedDate, is_complete: false,
       });
     } catch (e) { console.log('createKidJob error:', e); }
   }
@@ -5154,7 +5154,7 @@ Only include events directly relevant to the question. Max 5 events.`;
         const name = ing.name.charAt(0).toUpperCase() + ing.name.slice(1);
         const cat = guessCategory(name);
         await supabase.from('shopping_items').insert({
-          family_id: FAMILY_ID, name, item: name, category: cat,
+          family_id: getFamilyId(), name, item: name, category: cat,
           meal_source: ing.qty || null, checked: false,
         });
       }
@@ -5429,7 +5429,7 @@ Rules:
       const scanJson = await scanRes.json();
       const inTok = scanJson?.usage?.input_tokens ?? 0;
       const outTok = scanJson?.usage?.output_tokens ?? 0;
-      logApiCall({ family_id:FAMILY_ID, feature: mode === 'receipt' ? 'receipt_scan' : 'pantry_scan', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:(inTok/1_000_000*3)+(outTok/1_000_000*15) });
+      logApiCall({ family_id:getFamilyId(), feature: mode === 'receipt' ? 'receipt_scan' : 'pantry_scan', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:(inTok/1_000_000*3)+(outTok/1_000_000*15) });
 
       console.log('[scan] API status:', scanRes.status, 'error:', scanJson?.error?.message || 'none');
       if (scanJson?.error) {
@@ -5485,12 +5485,12 @@ Rules:
 
           // Update/add pantry
           try {
-            const { data: existing } = await supabase.from('pantry_items').select('id').eq('family_id', FAMILY_ID).ilike('name', lowerName).limit(1);
+            const { data: existing } = await supabase.from('pantry_items').select('id').eq('family_id', getFamilyId()).ilike('name', lowerName).limit(1);
             if (existing && existing.length > 0) {
               await supabase.from('pantry_items').update({ last_bought: receiptDate }).eq('id', existing[0].id);
               pantryUpdated++;
             } else {
-              await supabase.from('pantry_items').insert({ family_id: FAMILY_ID, name, emoji: getItemEmoji(name), last_bought: receiptDate });
+              await supabase.from('pantry_items').insert({ family_id: getFamilyId(), name, emoji: getItemEmoji(name), last_bought: receiptDate });
               pantryAdded++;
             }
           } catch { /* pantry table may not exist */ }
@@ -5499,7 +5499,7 @@ Rules:
           try {
             const { data: listMatch } = await supabase.from('shopping_items')
               .select('id,created_at')
-              .eq('family_id', FAMILY_ID)
+              .eq('family_id', getFamilyId())
               .eq('checked', false)
               .ilike('name', `%${lowerName}%`)
               .limit(1);
@@ -5519,7 +5519,7 @@ Rules:
         // Save receipt to receipts table
         try {
           await supabase.from('receipts').insert({
-            family_id: FAMILY_ID, store, purchase_date: receiptDate,
+            family_id: getFamilyId(), store, purchase_date: receiptDate,
             total_amount: total, item_count: items.length,
             items: items.map((i:any) => ({ name:i.name, qty:i.qty, price:i.price, emoji: getItemEmoji(i.name||''), category: guessCategory(i.name||'') })),
           });
@@ -5546,12 +5546,12 @@ Rules:
         refreshShopList();
         // Refresh pantry + spend data so tabs show updated info
         try {
-          const { data: freshPantry } = await supabase.from('pantry_items').select('id,name,emoji,last_bought,family_id').eq('family_id', FAMILY_ID).order('name').limit(500);
+          const { data: freshPantry } = await supabase.from('pantry_items').select('id,name,emoji,last_bought,family_id').eq('family_id', getFamilyId()).order('name').limit(500);
           setShopSheetPantry(freshPantry ?? []);
         } catch { /* silent */ }
         try {
           const monthStart = localDateStr().slice(0, 7) + '-01';
-          const { data: freshReceipts } = await supabase.from('receipts').select('id,store,purchase_date,total_amount,item_count,items').eq('family_id', FAMILY_ID).order('purchase_date', { ascending: false }).limit(20);
+          const { data: freshReceipts } = await supabase.from('receipts').select('id,store,purchase_date,total_amount,item_count,items').eq('family_id', getFamilyId()).order('purchase_date', { ascending: false }).limit(20);
           setShopSheetReceipts(freshReceipts ?? []);
           let totalSpend = 0, totalShops = 0, totalItems = 0;
           (freshReceipts ?? []).forEach((r: any) => {
@@ -5576,12 +5576,12 @@ Rules:
           if (!name) continue;
           const lowerName = name.toLowerCase();
           try {
-            const { data: existing } = await supabase.from('pantry_items').select('id').eq('family_id', FAMILY_ID).ilike('name', lowerName).limit(1);
+            const { data: existing } = await supabase.from('pantry_items').select('id').eq('family_id', getFamilyId()).ilike('name', lowerName).limit(1);
             if (existing && existing.length > 0) {
               await supabase.from('pantry_items').update({ last_bought: localDateStr() }).eq('id', existing[0].id);
               updated++;
             } else {
-              await supabase.from('pantry_items').insert({ family_id: FAMILY_ID, name, emoji: getItemEmoji(name), last_bought: localDateStr() });
+              await supabase.from('pantry_items').insert({ family_id: getFamilyId(), name, emoji: getItemEmoji(name), last_bought: localDateStr() });
               added++;
             }
           } catch { /* pantry table may not exist */ }
@@ -5589,7 +5589,7 @@ Rules:
 
         // Refresh pantry data
         try {
-          const { data } = await supabase.from('pantry_items').select('id,name,emoji,last_bought,family_id').eq('family_id', FAMILY_ID).order('name').limit(500);
+          const { data } = await supabase.from('pantry_items').select('id,name,emoji,last_bought,family_id').eq('family_id', getFamilyId()).order('name').limit(500);
           setShopSheetPantry(data ?? []);
         } catch { /* silent */ }
 
@@ -7040,7 +7040,7 @@ Rules:
                                 onPress={async () => {
                                   const cat = guessCategory(item.name);
                                   setShopSheetItems(prev => [...prev, { id: 'p-' + item.id, name: item.name, item: item.name, category: cat, checked: false }]);
-                                  await supabase.from('shopping_items').insert({ family_id: FAMILY_ID, name: item.name, item: item.name, category: cat, checked: false });
+                                  await supabase.from('shopping_items').insert({ family_id: getFamilyId(), name: item.name, item: item.name, category: cat, checked: false });
                                   refreshShopList();
                                 }}
                                 style={{ backgroundColor:'rgba(80,32,192,0.09)', borderRadius:12, paddingVertical:6, paddingHorizontal:12 }}
@@ -8062,7 +8062,7 @@ Rules:
                                   if (r.id && !r._fromPlan) {
                                     await supabase.from('recipes').update({ name: mealAddName.trim(), prep_mins: parseInt(mealAddTime) || null, notes: notesParts.join('\n\n') || null }).eq('id', r.id);
                                   } else {
-                                    await supabase.from('recipes').insert({ family_id: FAMILY_ID, name: mealAddName.trim(), prep_mins: parseInt(mealAddTime) || null, notes: notesParts.join('\n\n') || null, source_type: 'manual', tags: [] });
+                                    await supabase.from('recipes').insert({ family_id: getFamilyId(), name: mealAddName.trim(), prep_mins: parseInt(mealAddTime) || null, notes: notesParts.join('\n\n') || null, source_type: 'manual', tags: [] });
                                   }
                                 } catch (e) { console.log('editRecipe error:', e); }
                                 await refreshMealData();
@@ -8504,9 +8504,9 @@ function LandingOverlay({ onDismiss }: { onDismiss: () => void }) {
         if (!key) { setBriefText('Morning. Here\'s the day ahead.'); setLoading(false); return; }
         const today = localDateStr();
         const [evRes, tdRes, mlRes] = await Promise.all([
-          supabase.from('events').select('title,date,start_time').eq('family_id', FAMILY_ID).eq('date', today).order('start_time').limit(4),
-          supabase.from('todos').select('title,priority').eq('family_id', FAMILY_ID).eq('status','active').limit(3),
-          supabase.from('meal_plans').select('meal_name').eq('family_id', FAMILY_ID).eq('day_key', today).limit(1),
+          supabase.from('events').select('title,date,start_time').eq('family_id', getFamilyId()).eq('date', today).order('start_time').limit(4),
+          supabase.from('todos').select('title,priority').eq('family_id', getFamilyId()).eq('status','active').limit(3),
+          supabase.from('meal_plans').select('meal_name').eq('family_id', getFamilyId()).eq('day_key', today).limit(1),
         ]);
         const ctx: string[] = [];
         if (evRes.data?.length) ctx.push(`Today: ${evRes.data.map((e:any) => e.title).join(', ')}.`);

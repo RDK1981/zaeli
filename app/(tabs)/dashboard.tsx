@@ -28,9 +28,9 @@ import { supabase } from '../../lib/supabase';
 import MoreSheet from '../components/MoreSheet';
 import { setPendingChatContext } from '../../lib/navigation-store';
 import Svg, { Polygon, Line, Path, Circle, Polyline } from 'react-native-svg';
+import { getFamilyId } from '../../lib/family';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const FAMILY_ID   = '00000000-0000-0000-0000-000000000001';
 const WEATHER_LAT = -26.39;
 const WEATHER_LON = 153.03;
 const GPT_MINI    = 'gpt-4o-mini';
@@ -914,7 +914,7 @@ function OnTheRadarCard({ expanded, onToggleExpand, onViewFullList }: {
       const { data, error } = await supabase
         .from('personal_tasks')
         .select('id, title, due_date, is_shared, member_name, is_complete')
-        .eq('family_id', FAMILY_ID)
+        .eq('family_id', getFamilyId())
         .eq('is_complete', false)
         .or('member_name.eq.Rich,is_shared.eq.true')
         .or(`due_date.is.null,due_date.lte.${in7}`)
@@ -934,7 +934,7 @@ function OnTheRadarCard({ expanded, onToggleExpand, onViewFullList }: {
     setSaving(true);
     try {
       const { data, error } = await supabase.from('personal_tasks').insert({
-        family_id: FAMILY_ID,
+        family_id: getFamilyId(),
         title,
         is_shared: false,
         member_name: 'Rich',
@@ -1139,24 +1139,24 @@ export default function DashboardScreen({ onNavigateChat, onNavigateMySpace, isA
       const [evRes, shopRes, shopCountRes, todosRes, remindersRes, mealsRes] = await Promise.all([
         supabase.from('events')
           .select('id,title,date,start_time,end_time,assignees,all_day,notes')
-          .eq('family_id', FAMILY_ID).gte('date', today).lte('date', tomorrow)
+          .eq('family_id', getFamilyId()).gte('date', today).lte('date', tomorrow)
           .order('date').order('start_time').limit(30),
         supabase.from('shopping_items')
-          .select('id,name,item,category,checked').eq('family_id', FAMILY_ID).limit(30),
+          .select('id,name,item,category,checked').eq('family_id', getFamilyId()).limit(30),
         supabase.from('shopping_items')
-          .select('*', { count:'exact', head:true }).eq('family_id', FAMILY_ID).neq('checked', true),
+          .select('*', { count:'exact', head:true }).eq('family_id', getFamilyId()).neq('checked', true),
         supabase.from('todos')
           .select('id,title,priority,status,due_date,assigned_to')
-          .eq('family_id', FAMILY_ID).eq('status','active')
+          .eq('family_id', getFamilyId()).eq('status','active')
           .order('created_at', { ascending:false }).limit(10),
         supabase.from('reminders')
           .select('id,title,remind_at,member_id,status')
-          .eq('family_id', FAMILY_ID).eq('status','active')
+          .eq('family_id', getFamilyId()).eq('status','active')
           .lte('remind_at', new Date(Date.now()+24*60*60*1000).toISOString())
           .order('remind_at').limit(5),
         supabase.from('meal_plans')
           .select('id,meal_name,planned_date,day_key,prep_mins')
-          .eq('family_id', FAMILY_ID).gte('planned_date', today).lte('planned_date', in7days)
+          .eq('family_id', getFamilyId()).gte('planned_date', today).lte('planned_date', in7days)
           .order('planned_date').limit(7),
       ]);
 

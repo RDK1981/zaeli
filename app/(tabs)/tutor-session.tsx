@@ -31,9 +31,10 @@ import { supabase } from '../../lib/supabase';
 import { callClaude } from '../../lib/api-logger';
 import { getCurriculumPrompt, getMoneyLevelPrompt, getTopicChips, DIFFICULTY_RULES, HINT_RULES } from './tutor-curriculum';
 import { generateSessionSummary } from '../../lib/tutor-summaries';
+import { getFamilyId } from '../../lib/family';
 
 // ── Constants ─────────────────────────────────────────────────
-const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+// Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 const SONNET = 'claude-sonnet-4-6';
 const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
 const ANTHROPIC_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
@@ -443,7 +444,7 @@ export default function TutorSessionScreen() {
       const { data, error } = await supabase
         .from('tutor_sessions')
         .insert({
-          family_id: FAMILY_ID,
+          family_id: getFamilyId(),
           child_name: childName,
           pillar,
           mode: pillar,
@@ -575,7 +576,7 @@ export default function TutorSessionScreen() {
         const { data: progressData } = await supabase
           .from('tutor_progress')
           .select('difficulty_band')
-          .eq('family_id', FAMILY_ID)
+          .eq('family_id', getFamilyId())
           .eq('child_name', childName)
           .eq('subject', selectedSubject)
           .single();
@@ -713,7 +714,7 @@ BAND RULES — apply these to question difficulty:
 
       const response = await callClaude({
         feature: pillar === 'practice' ? 'tutor_practice' : pillar === 'comprehension' ? 'tutor_practice' : 'tutor_session',
-        familyId: FAMILY_ID,
+        familyId: getFamilyId(),
         body: {
           model: SONNET,
           max_tokens: 1200,
@@ -973,7 +974,7 @@ BAND RULES — apply these to question difficulty:
 
       const response = await callClaude({
         feature: 'tutor_vision',
-        familyId: FAMILY_ID,
+        familyId: getFamilyId(),
         body: {
           model: SONNET,
           max_tokens: 1200,
@@ -1145,7 +1146,7 @@ BAND RULES — apply these to question difficulty:
             // Persist difficulty band to tutor_progress for next session
             if (subject) {
               supabase.from('tutor_progress').upsert({
-                family_id: FAMILY_ID,
+                family_id: getFamilyId(),
                 child_name: childName,
                 subject,
                 difficulty_band: difficultyBand,

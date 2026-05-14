@@ -27,8 +27,9 @@ import { loadAccount, isKidAccount } from '../../lib/account-state';
 import Svg, { Polyline, Path } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
 import { generateSubjectSummary, generateSessionSummary } from '../../lib/tutor-summaries';
+import { getFamilyId } from '../../lib/family';
 
-const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+// Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 
 const { width: W } = Dimensions.get('window');
 
@@ -211,18 +212,18 @@ export default function OurFamilyScreen() {
       const today = localDateStr();
       // Load pending approvals
       const { data: pending } = await supabase.from('kids_pending_approvals')
-        .select('*').eq('family_id', FAMILY_ID).eq('status', 'pending')
+        .select('*').eq('family_id', getFamilyId()).eq('status', 'pending')
         .order('created_at', { ascending: false });
       setDbPending(pending ?? []);
       // Load points per child
       const { data: pointsData } = await supabase.from('kids_points_log')
-        .select('child_name, points').eq('family_id', FAMILY_ID);
+        .select('child_name, points').eq('family_id', getFamilyId());
       const pts: Record<string, number> = {};
       (pointsData ?? []).forEach((p: any) => { pts[p.child_name] = (pts[p.child_name] || 0) + (p.points || 0); });
       setDbPoints(pts);
       // Load all jobs
       const { data: jobsData } = await supabase.from('kids_jobs')
-        .select('*').eq('family_id', FAMILY_ID).eq('approved', true);
+        .select('*').eq('family_id', getFamilyId()).eq('approved', true);
       setDbJobs(jobsData ?? []);
       // Calculate per-child job counts for today
       const counts: Record<string, { done: number; total: number }> = {};
@@ -256,7 +257,7 @@ export default function OurFamilyScreen() {
       setDbStreaks(streaks);
       // Load rewards
       const { data: rewardsData } = await supabase.from('kids_rewards')
-        .select('*').eq('family_id', FAMILY_ID).eq('is_active', true);
+        .select('*').eq('family_id', getFamilyId()).eq('is_active', true);
       setDbRewards(rewardsData ?? []);
 
       // Load tutor sessions (last 30 days) per child
@@ -265,7 +266,7 @@ export default function OurFamilyScreen() {
         since.setDate(since.getDate() - 30);
         const { data: tutorSess, error: tutorErr } = await supabase.from('tutor_sessions')
           .select('id, child_name, pillar, subject, topic, duration_seconds, difficulty_band, question_count, hints_used, status, summary, created_at')
-          .eq('family_id', FAMILY_ID)
+          .eq('family_id', getFamilyId())
           .gte('created_at', since.toISOString())
           .order('created_at', { ascending: false })
           .limit(100);
@@ -281,7 +282,7 @@ export default function OurFamilyScreen() {
         // Load tutor progress per child per subject
         const { data: tutorProg } = await supabase.from('tutor_progress')
           .select('child_name, subject, difficulty_band, total_sessions, total_minutes, status_label, notes')
-          .eq('family_id', FAMILY_ID);
+          .eq('family_id', getFamilyId());
         const progMap: Record<string, any[]> = {};
         (tutorProg ?? []).forEach((p: any) => {
           if (!progMap[p.child_name]) progMap[p.child_name] = [];
@@ -313,7 +314,7 @@ export default function OurFamilyScreen() {
     try {
       for (const kidName of addSelectedKids) {
         await supabase.from('kids_jobs').insert({
-          family_id: FAMILY_ID, child_name: kidName, title: addTitle.trim(),
+          family_id: getFamilyId(), child_name: kidName, title: addTitle.trim(),
           emoji: addEmoji || '📋', points: addPoints, type: addType,
           source: 'parent', approved: true,
         });
@@ -330,7 +331,7 @@ export default function OurFamilyScreen() {
     try {
       for (const kidName of addSelectedKids) {
         await supabase.from('kids_rewards').insert({
-          family_id: FAMILY_ID, child_name: kidName, title: addTitle.trim(),
+          family_id: getFamilyId(), child_name: kidName, title: addTitle.trim(),
           emoji: addEmoji || '🎁', cost: addPoints,
         });
       }
@@ -345,18 +346,18 @@ export default function OurFamilyScreen() {
       if (item.type === 'job_suggestion') {
         // Create the job and award points
         await supabase.from('kids_jobs').insert({
-          family_id: FAMILY_ID, child_name: item.child_name, title: item.title,
+          family_id: getFamilyId(), child_name: item.child_name, title: item.title,
           emoji: item.emoji || '📋', points: item.points, type: 'oneoff',
           source: 'child_suggested', approved: true,
         });
         await supabase.from('kids_points_log').insert({
-          family_id: FAMILY_ID, child_name: item.child_name,
+          family_id: getFamilyId(), child_name: item.child_name,
           points: item.points, reason: item.title, source: 'job_complete',
         });
       } else if (item.type === 'reward_redemption') {
         // Deduct points
         await supabase.from('kids_points_log').insert({
-          family_id: FAMILY_ID, child_name: item.child_name,
+          family_id: getFamilyId(), child_name: item.child_name,
           points: -(item.points), reason: `Redeemed: ${item.title}`, source: 'reward_redeem',
         });
       }

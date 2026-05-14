@@ -18,9 +18,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, { Polyline } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
+import { getFamilyId } from '../../lib/family';
 
 // ── Constants ─────────────────────────────────────────────────
-const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+// Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 const { width: W } = Dimensions.get('window');
 
 // Tutor palette — lavender-based (v4 mockup)
@@ -91,7 +92,7 @@ export default function TutorScreen() {
       const { data: members } = await supabase
         .from('family_members')
         .select('id, name, year_level, tutor_active, role, colour')
-        .eq('family_id', FAMILY_ID)
+        .eq('family_id', getFamilyId())
         .in('role', ['child', 'kid'])
         .order('year_level', { ascending: false });
       const kids = members ?? [];
@@ -104,7 +105,7 @@ export default function TutorScreen() {
         const { data: sess } = await supabase
           .from('tutor_sessions')
           .select('child_name, created_at')
-          .eq('family_id', FAMILY_ID)
+          .eq('family_id', getFamilyId())
           .gte('created_at', since.toISOString())
           .order('created_at', { ascending: false })
           .limit(200);

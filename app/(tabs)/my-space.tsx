@@ -17,8 +17,9 @@ import { setPendingChatContext, getPendingChatContext, clearPendingChatContext }
 import { supabase } from '../../lib/supabase';
 import * as WebBrowser from 'expo-web-browser';
 import { ANSWER_WORDS, VALID_WORDS, getTodayWord, getTileStates, ZAELI_WIN_REACTIONS, ZAELI_LOSE_REACTIONS, KB_ROWS } from './wordle-data';
+import { getFamilyId } from '../../lib/family';
 
-const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+// Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -251,7 +252,7 @@ export default function MySpaceScreen({ onNavigateChat, isActive = true, context
     try {
       const { data } = await supabase.from('personal_notes')
         .select('id,title,text,preview,shared,updated_at')
-        .eq('family_id', FAMILY_ID)
+        .eq('family_id', getFamilyId())
         .order('updated_at', { ascending:false });
       if (data && data.length > 0) {
         setNotes(data.map((n:any) => ({
@@ -269,7 +270,7 @@ export default function MySpaceScreen({ onNavigateChat, isActive = true, context
     try {
       const { data } = await supabase.from('personal_tasks')
         .select('id,title,due_date,is_complete,linked_note_id,completed_at')
-        .eq('family_id', FAMILY_ID)
+        .eq('family_id', getFamilyId())
         .order('is_complete').order('due_date', { ascending:true, nullsFirst:false }).order('created_at', { ascending:false });
       if (data) setTasks(data);
     } catch {}
@@ -281,7 +282,7 @@ export default function MySpaceScreen({ onNavigateChat, isActive = true, context
     setTasks(prev => [task, ...prev]);
     try {
       const { data } = await supabase.from('personal_tasks').insert({
-        family_id:FAMILY_ID, title, due_date:due_date||null,
+        family_id:getFamilyId(), title, due_date:due_date||null,
       }).select('id').single();
       if (data) setTasks(prev => prev.map(t => t.id === tempId ? { ...t, id:data.id } : t));
     } catch {}
@@ -309,7 +310,7 @@ export default function MySpaceScreen({ onNavigateChat, isActive = true, context
     try {
       const { data } = await supabase.from('goals')
         .select('*')
-        .eq('family_id', FAMILY_ID)
+        .eq('family_id', getFamilyId())
         .eq('status', 'active')
         .order('created_at', { ascending:false });
       if (data && data.length > 0) {
@@ -347,7 +348,7 @@ export default function MySpaceScreen({ onNavigateChat, isActive = true, context
       const isNew = note.id.startsWith('new-');
       if (isNew) {
         const { data } = await supabase.from('personal_notes').insert({
-          family_id:FAMILY_ID, title:note.title, text:note.text,
+          family_id:getFamilyId(), title:note.title, text:note.text,
           preview:note.preview, shared:note.shared,
         }).select('id').single();
         if (data) {
@@ -373,7 +374,7 @@ export default function MySpaceScreen({ onNavigateChat, isActive = true, context
       const isNew = goal.id.startsWith('g-');
       if (isNew) {
         const { data } = await supabase.from('goals').insert({
-          family_id:FAMILY_ID, title:goal.title, type:goal.type, icon:goal.icon,
+          family_id:getFamilyId(), title:goal.title, type:goal.type, icon:goal.icon,
           start_value:goal.start_value, target_value:goal.target_value,
           current_value:goal.current_value, unit:goal.unit,
           frequency:goal.frequency || null, frequency_target:goal.frequency_target || null,
@@ -2232,7 +2233,7 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
     try {
       const { data } = await supabase.from('wordle_results')
         .select('guesses,status,score')
-        .eq('family_id', FAMILY_ID).eq('member_name', 'Rich').eq('game_date', todayStr)
+        .eq('family_id', getFamilyId()).eq('member_name', 'Rich').eq('game_date', todayStr)
         .limit(1).single();
       if (data) {
         const savedGuesses = (data.guesses as string[]) || [];
@@ -2261,7 +2262,7 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
     try {
       // Check if row exists
       const { data: existing } = await supabase.from('wordle_results')
-        .select('id').eq('family_id', FAMILY_ID).eq('member_name', 'Rich').eq('game_date', todayStr).limit(1).single();
+        .select('id').eq('family_id', getFamilyId()).eq('member_name', 'Rich').eq('game_date', todayStr).limit(1).single();
       if (existing) {
         await supabase.from('wordle_results').update({
           guesses: newGuesses, current_row: newGuesses.length,
@@ -2269,7 +2270,7 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
         }).eq('id', existing.id);
       } else {
         await supabase.from('wordle_results').insert({
-          family_id: FAMILY_ID, member_name: 'Rich', game_date: todayStr,
+          family_id: getFamilyId(), member_name: 'Rich', game_date: todayStr,
           game_number: dayIndex, guesses: newGuesses, current_row: newGuesses.length,
           status, score: score || null,
         });
@@ -2281,7 +2282,7 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
     try {
       const { data } = await supabase.from('wordle_results')
         .select('game_date')
-        .eq('family_id', FAMILY_ID).eq('member_name', 'Rich')
+        .eq('family_id', getFamilyId()).eq('member_name', 'Rich')
         .in('status', ['won','lost'])
         .order('game_date', { ascending: false }).limit(60);
       if (!data || data.length === 0) { setStreak(0); return; }
@@ -2300,7 +2301,7 @@ function WordleSheet({ visible, onClose }: { visible: boolean; onClose: () => vo
     try {
       const { data } = await supabase.from('wordle_results')
         .select('member_name,status,score')
-        .eq('family_id', FAMILY_ID).eq('game_date', todayStr)
+        .eq('family_id', getFamilyId()).eq('game_date', todayStr)
         .not('member_name', 'is', null);
       const members = [
         { name:'Rich', color:'#4D8BFF' },

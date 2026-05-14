@@ -16,9 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter, useLocalSearchParams } from 'expo-router';
 import Svg, { Polyline } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
+import { getFamilyId } from '../../lib/family';
 
 // ── Constants ─────────────────────────────────────────────────
-const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+// Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 const { width: W } = Dimensions.get('window');
 
 // Palette
@@ -134,7 +135,7 @@ export default function TutorChildScreen() {
       const { data: sess, error: sessErr } = await supabase
         .from('tutor_sessions')
         .select('id, pillar, subject, topic, duration_seconds, created_at, status')
-        .eq('family_id', FAMILY_ID)
+        .eq('family_id', getFamilyId())
         .eq('child_name', childName)
         .order('created_at', { ascending: false })
         .limit(5);
@@ -148,7 +149,7 @@ export default function TutorChildScreen() {
       const { data: weekSess } = await supabase
         .from('tutor_sessions')
         .select('subject, duration_seconds')
-        .eq('family_id', FAMILY_ID)
+        .eq('family_id', getFamilyId())
         .eq('child_name', childName)
         .gte('created_at', weekStart.toISOString());
 
@@ -166,7 +167,7 @@ export default function TutorChildScreen() {
       const { data: allSess } = await supabase
         .from('tutor_sessions')
         .select('created_at')
-        .eq('family_id', FAMILY_ID)
+        .eq('family_id', getFamilyId())
         .eq('child_name', childName)
         .gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString())
         .order('created_at', { ascending: false });

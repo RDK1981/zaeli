@@ -12,8 +12,11 @@
  */
 
 import { supabase } from './supabase';
+import { DUMMY_FAMILY_ID } from './family';
 
-const DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001';
+// DUMMY_FAMILY_ID kept as the default-parameter fallback so callers without
+// auth context (legacy / dev flows) still work. Authenticated callers should
+// pass getFamilyId() explicitly.
 
 // ── TYPES ─────────────────────────────────────────────────────
 export type Insight = {
