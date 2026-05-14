@@ -4253,6 +4253,91 @@ CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
 
       const imgCtx = imageDescription ? `\nIMAGE CONTEXT: ${imageDescription}` : '';
 
+      // ── Domain-specific VIEW queries — must run BEFORE calendar branch.
+      // CALENDAR_KEYWORDS includes "what's on" which would otherwise grab
+      // queries like "what's on the shopping list" and route them wrong.
+      // ────────────────────────────────────────────────────────────────
+
+      // Shopping VIEW query — render inline card, not 31 lines of text
+      if (!imageUri && text && isShoppingViewQuery(text)) {
+        const [uncheckedRes, countRes] = await Promise.all([
+          supabase.from('shopping_items')
+            .select('id,name,item,category,checked,meal_source')
+            .eq('family_id', getFamilyId()).neq('checked', true)
+            .order('created_at', { ascending: false }).limit(4),
+          supabase.from('shopping_items').select('*', { count: 'exact', head: true })
+            .eq('family_id', getFamilyId()).neq('checked', true),
+        ]);
+        const items4 = uncheckedRes.data ?? [];
+        const total = countRes.count ?? 0;
+        let intro = '';
+        if (total === 0)       intro = 'Nothing on the shopping list right now.';
+        else if (total === 1)  intro = `Just one thing on the list — ${items4[0]?.name || items4[0]?.item || 'unnamed item'}.`;
+        else if (total <= 8)   intro = `${total} items on the list — tap any to tick off.`;
+        else if (total <= 20)  intro = `${total} items — a fair stack. Here's the latest few; full list inside.`;
+        else                   intro = `${total} items on the list — that's a chunky one. Want to take a look?`;
+        updateMsg(replyId, {
+          text: intro,
+          inlineData: { type: 'shopping', items: items4, tomorrowItems: [{ _count: total }] },
+          quickReplies: total > 0 ? ['Open full list', 'Add an item', 'Got it'] : ['Add an item', 'Got it'],
+          isLoading: false,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Meals VIEW query — render inline meals card
+      if (!imageUri && text && isMealsViewQuery(text)) {
+        const today = localDateStr();
+        const sevenDaysOut = localDatePlusDays(7);
+        const { data: mealRows } = await supabase.from('meal_plans')
+          .select('id,meal_name,day_key,prep_mins')
+          .eq('family_id', getFamilyId())
+          .gte('day_key', today).lte('day_key', sevenDaysOut)
+          .order('day_key', { ascending: true }).limit(10);
+        const meals = mealRows ?? [];
+        const tonight = meals.find((m: any) => m.day_key === today);
+        let intro = '';
+        if (tonight)        intro = `Tonight's dinner: ${tonight.meal_name}.${meals.length > 1 ? ` ${meals.length - 1} more planned this week.` : ''}`;
+        else if (meals.length > 0) intro = `Tonight's not planned yet. ${meals.length} meal${meals.length > 1 ? 's' : ''} on the books for the week ahead.`;
+        else                intro = `No meals planned this week. Want me to suggest a few?`;
+        updateMsg(replyId, {
+          text: intro,
+          inlineData: { type: 'meals', items: meals },
+          quickReplies: tonight
+            ? ['Open Meal Planner', 'Plan tomorrow', 'Got it']
+            : ['Plan tonight', 'Open Meal Planner', 'Got it'],
+          isLoading: false,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Tasks VIEW query — render inline todos card
+      if (!imageUri && text && isTasksViewQuery(text)) {
+        const { data: taskRows } = await supabase.from('todos')
+          .select('id,title,priority,status,due_date')
+          .eq('family_id', getFamilyId()).eq('status', 'active')
+          .order('due_date', { ascending: true, nullsFirst: false } as any).limit(8);
+        const tasks = taskRows ?? [];
+        const today = localDateStr();
+        const overdue = tasks.filter((t: any) => t.due_date && t.due_date < today).length;
+        let intro = '';
+        if (tasks.length === 0)  intro = 'Nothing on your task list right now.';
+        else if (overdue > 0)    intro = `${tasks.length} active${overdue > 0 ? `, ${overdue} overdue` : ''}. Here's the top of the pile.`;
+        else                     intro = `${tasks.length} active task${tasks.length > 1 ? 's' : ''}. All on track.`;
+        updateMsg(replyId, {
+          text: intro,
+          inlineData: { type: 'todos', items: tasks },
+          quickReplies: tasks.length > 0
+            ? ['Open Tasks', 'Add a task', 'Got it']
+            : ['Add a task', 'Got it'],
+          isLoading: false,
+        });
+        setLoading(false);
+        return;
+      }
+
       // Calendar query path
       const calQuery = isCalendarQuery(text);
       if (!imageUri && text && calQuery) {
@@ -4301,86 +4386,6 @@ Only include events directly relevant to the question. Max 5 events.`;
         } catch {
           updateMsg(replyId, { text:raw, isLoading:false });
         }
-        setLoading(false);
-        return;
-      }
-
-      // ── Shopping VIEW query — render inline card, not 31 lines of text ──
-      if (!imageUri && text && isShoppingViewQuery(text)) {
-        const [uncheckedRes, countRes] = await Promise.all([
-          supabase.from('shopping_items')
-            .select('id,name,item,category,checked,meal_source')
-            .eq('family_id', getFamilyId()).neq('checked', true)
-            .order('created_at', { ascending: false }).limit(4),
-          supabase.from('shopping_items').select('*', { count: 'exact', head: true })
-            .eq('family_id', getFamilyId()).neq('checked', true),
-        ]);
-        const items4 = uncheckedRes.data ?? [];
-        const total = countRes.count ?? 0;
-        let intro = '';
-        if (total === 0)       intro = 'Nothing on the shopping list right now.';
-        else if (total === 1)  intro = `Just one thing on the list — ${items4[0]?.name || items4[0]?.item || 'unnamed item'}.`;
-        else if (total <= 8)   intro = `${total} items on the list — tap any to tick off.`;
-        else if (total <= 20)  intro = `${total} items — a fair stack. Here's the latest few; full list inside.`;
-        else                   intro = `${total} items on the list — that's a chunky one. Want to take a look?`;
-        updateMsg(replyId, {
-          text: intro,
-          inlineData: { type: 'shopping', items: items4, tomorrowItems: [{ _count: total }] },
-          quickReplies: total > 0 ? ['Open full list', 'Add an item', 'Got it'] : ['Add an item', 'Got it'],
-          isLoading: false,
-        });
-        setLoading(false);
-        return;
-      }
-
-      // ── Meals VIEW query — render inline meals card ──
-      if (!imageUri && text && isMealsViewQuery(text)) {
-        const today = localDateStr();
-        const sevenDaysOut = localDatePlusDays(7);
-        const { data: mealRows } = await supabase.from('meal_plans')
-          .select('id,meal_name,day_key,prep_mins')
-          .eq('family_id', getFamilyId())
-          .gte('day_key', today).lte('day_key', sevenDaysOut)
-          .order('day_key', { ascending: true }).limit(10);
-        const meals = mealRows ?? [];
-        const tonight = meals.find((m: any) => m.day_key === today);
-        let intro = '';
-        if (tonight)        intro = `Tonight's dinner: ${tonight.meal_name}.${meals.length > 1 ? ` ${meals.length - 1} more planned this week.` : ''}`;
-        else if (meals.length > 0) intro = `Tonight's not planned yet. ${meals.length} meal${meals.length > 1 ? 's' : ''} on the books for the week ahead.`;
-        else                intro = `No meals planned this week. Want me to suggest a few?`;
-        updateMsg(replyId, {
-          text: intro,
-          inlineData: { type: 'meals', items: meals },
-          quickReplies: tonight
-            ? ['Open Meal Planner', 'Plan tomorrow', 'Got it']
-            : ['Plan tonight', 'Open Meal Planner', 'Got it'],
-          isLoading: false,
-        });
-        setLoading(false);
-        return;
-      }
-
-      // ── Tasks VIEW query — render inline todos card ──
-      if (!imageUri && text && isTasksViewQuery(text)) {
-        const { data: taskRows } = await supabase.from('todos')
-          .select('id,title,priority,status,due_date')
-          .eq('family_id', getFamilyId()).eq('status', 'active')
-          .order('due_date', { ascending: true, nullsFirst: false } as any).limit(8);
-        const tasks = taskRows ?? [];
-        const today = localDateStr();
-        const overdue = tasks.filter((t: any) => t.due_date && t.due_date < today).length;
-        let intro = '';
-        if (tasks.length === 0)  intro = 'Nothing on your task list right now.';
-        else if (overdue > 0)    intro = `${tasks.length} active${overdue > 0 ? `, ${overdue} overdue` : ''}. Here's the top of the pile.`;
-        else                     intro = `${tasks.length} active task${tasks.length > 1 ? 's' : ''}. All on track.`;
-        updateMsg(replyId, {
-          text: intro,
-          inlineData: { type: 'todos', items: tasks },
-          quickReplies: tasks.length > 0
-            ? ['Open Tasks', 'Add a task', 'Got it']
-            : ['Add a task', 'Got it'],
-          isLoading: false,
-        });
         setLoading(false);
         return;
       }
@@ -4655,10 +4660,13 @@ Only include events directly relevant to the question. Max 5 events.`;
     try {
       const today = localDateStr();
       const monthStart = today.slice(0, 7) + '-01';
+      // DIAGNOSTIC: Phase 2a — verify auth + family_id alignment
+      const fid = getFamilyId();
       const [listRes, boughtRes] = await Promise.all([
-        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', getFamilyId()).neq('checked', true).order('created_at', { ascending: false }).limit(100),
-        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', getFamilyId()).eq('checked', true).order('created_at', { ascending: false }).limit(30),
+        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source').eq('family_id', fid).neq('checked', true).order('created_at', { ascending: false }).limit(100),
+        supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', fid).eq('checked', true).order('created_at', { ascending: false }).limit(30),
       ]);
+      console.log('[shop] list query — error:', listRes.error?.message ?? 'none', '· rows:', listRes.data?.length ?? 0);
       setShopSheetItems(listRes.data ?? []);
       setShopSheetBought(boughtRes.data ?? []);
 
