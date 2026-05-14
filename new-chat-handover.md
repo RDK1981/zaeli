@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*24 April 2026 — Session 19 ✅ · Brief v3 (2 windows + structured prose) · Onboarding polish + cold-start splash redesigned (warm bg + palette orbs) · Chat bubble unification · TOUR system shipped (state machine + 11-stop route + first-time sheet banner + Settings replay + inactivity prompt) · INVITE system shipped (Adult/Kid roles, mock token via iOS share sheet, per-member status grid, receiver flow with stripped onboarding, kid permission gating)*
+*28 April 2026 — Session 20 ✅ · On-device polish round (Tutor session resume from tutor_messages, chat VIEW-query inline cards across Shopping/Meals/Tasks, Shopping sheet add-bar layout fix using explicit useSafeAreaInsets) · Voice (ElevenLabs) LOCKED to AFTER backend pass · Session 19 quick wins shipped earlier same day (kid tour 9 stops, Kids Hub welcome banner + auto-jump, kid-account route gating, calendar month-view glitch fixed)*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -15,10 +15,31 @@ Session 19 was the largest single body of work to date. Five interlocking workst
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅ (Session 19)
+## CURRENT STATE — ALL WORKING ✅ (Session 20)
 ## ══════════════════════════════════
 
-### NEW THIS SESSION (Session 19 summary)
+### NEW THIS SESSION (Session 20 — on-device polish round, 28 April)
+
+Three bugs surfaced during real device testing — all fixed. Plus the voice timing decision locked.
+
+**A. Tutor session resume — STUB → real implementation.** Gab finished a Read Aloud session, returned to menu, tapped "Recent sessions" row → nothing happened. `goSessionReview` was a `console.log` stub. Active sessions called `goPillar(sess.pillar)` which started a NEW session. **Fix:** tutor-session accepts `resumeSessionId` param. New `loadExistingSession(sid)` fetches session row + tutor_messages, hydrates state (messages, conversationHistory, sessionId, subject, topic, difficultyBand, questionNum, hintsUsed, timer), sets phase based on whether subject was picked, flips status 'completed' → 'active' so exit-save works on next back. `goSessionReview` removed; replaced by `goResumeSession(sess)` for active OR completed. Works for all 6 pillars.
+
+**B. Chat VIEW-query inline cards across the board.** Asking "what's on shopping list" returned a wall of 31 plain-text items. Same for meals + tasks. **Root cause:** only CALENDAR view queries were intercepted before the GPT chat path. **Fix:** three new keyword arrays (`SHOPPING_VIEW_KEYWORDS` / `MEALS_VIEW_KEYWORDS` / `TASKS_VIEW_KEYWORDS`), three detection functions (`isXxxViewQuery` — all check `isActionQuery` first to exclude actions), three new branches in `send()` after the calendar branch. Each fetches data + updates the loading reply with intro text + inlineData + quickReplies. Action queries unaffected. Chip handlers wired: `Open full list`, `Open Tasks` / `Open To-dos` / `Add a task` (route to my-space + open Notes & Tasks sheet on Tasks tab), `Add an item` (mic), `Got it` / `All good` / `Thanks` / `Cheers` (just clears chips, leaves text in feed).
+
+**C. Shopping sheet add-bar layout fix.** First open: "Add an item…" bar squashed against bottom edge. After expand+collapse: corrects. **Root cause:** `<SafeAreaView edges={['bottom']}>` doesn't reliably resolve insets on first render INSIDE a Modal. **Fix:** imported `useSafeAreaInsets()`, read `insets` at component mount. Shopping sheet `SafeAreaView edges={['bottom']}` → `edges={[]}`. List + Pantry add-bar wrappers own the bottom inset explicitly: keyboard-closed `paddingBottom: max(insets.bottom, 8)`, keyboard-open small padding + `marginBottom: max(shopKbHeight - insets.bottom, 0)`. Spend tab ScrollView contentContainer `paddingBottom: 50 + insets.bottom`.
+
+**D. Voice (ElevenLabs) timing — LOCKED.** Decision: AFTER backend pass. Reasons: backend pass unlocks real users (auth, push, real cross-device invites); voice on a single-device prototype demos but can't go live; voice needs its own design conversation; best reveal moment = TestFlight build with voice + auth + push together; risk of re-work if chat UX shifts. Small exception: brief-only voice could go pre-backend (brief render is locked).
+
+### EARLIER THIS SAME DAY (Session 19 quick wins, committed `e22164d`)
+
+Closed the four small Session 19 deferred items in one commit:
+
+- **Kid tour = 9 stops** — `KID_SKIP_IDS = [9, 11]` (Budget + Family) in `lib/tour-state.ts`. New `getEffectiveStops()` / `getEffectiveTotal()` helpers. `loadTourState()` now also calls `loadAccount()`. All nav/progress/replay account-aware. Settings replay picker hides Budget + Family rows for kid accounts. Chat tour pill shows `X/9`. Post-onboarding offer text: "9 stops" instead of "eleven stops".
+- **Kids Hub welcome banner** — receiver flow `finishKid()` sets `kid_just_joined = 'true'` AsyncStorage flag. Kids Hub reads + clears on mount, shows lavender card with × dismiss above 3-stat row. Bonus: kid auto-jumps to their own hub (skipping picker) and `selectedChild` set from `getAccount()`.
+- **Direct-route gating** — `our-budget.tsx` + `family.tsx` both `loadAccount()` on mount, redirect kid accounts to `/(tabs)/kids` via `router.replace`. Belt-and-braces with MoreSheet's tile hiding.
+- **Calendar month-view glitch fixed** — `fetchMonthDayEvents` `.eq('date', dateStr)` → `.gte(dateStr).lt(nextDayStr)` (matches `fetchMonthDots`'s tolerance for timestamp/timezone column types).
+
+### Session 19 summary (still current — historical)
 
 **A. Brief system v3** — reduced from 3 windows to 2 (morning + evening). Midday killed; evening now carries tomorrow-morning prep. Render redesigned to **Option B**: soft tinted bubble (peach `#FDF1E5` morning / lavender `#F0EBFF` evening) + time-of-day pill (`☀️ MORNING` / `🌙 EVENING`) + structured 3-paragraph prose. **Win banner KILLED** — encouragement folds into prose. Generator prompt rewritten to enforce 3-paragraph structure (opener + body + "One thing:") with 1 emoji per paragraph max. `winBanner` field stripped from spec/parser/payload/upsert.
 
@@ -381,6 +402,19 @@ The accumulated backlog now spans Settings, Budget, Travel, Tour, Invite, Accoun
 - `_splashShownThisSession` module-level flag prevents splash re-trigger
 - MoreSheet contexts must NOT set `returnTo: 'dashboard'` (was triggering legacy pill)
 
+### New rules Session 20 (28 April — late)
+- **Tutor session resume** = `resumeSessionId` query param to `/tutor-session` route. `loadExistingSession(sid)` fetches session row + `tutor_messages`, hydrates state (messages, conversationHistory, sessionId, subject, topic, difficultyBand, questionNum, hintsUsed, timer), sets phase based on whether subject was picked, flips status 'completed' → 'active' so exit-save logic stays clean. Same pattern works for all 6 pillars. Replaces the old `goSessionReview` stub.
+- **Chat VIEW queries → inline cards** — for any data domain with an existing inline card render (calendar/shopping/meals/todos), intercept "what's on..." queries in `send()` BEFORE the action path or GPT chat path. Pattern: keyword array → detection function (`isXxxViewQuery` — must check `isActionQuery` first) → branch in `send()` that fetches data + `updateMsg(replyId, { text, inlineData, quickReplies, isLoading: false })` + `return`. NEVER let GPT type out long lists.
+- **SafeAreaView edges in Modal is unreliable on first render** — react-native-safe-area-context's `<SafeAreaView edges={['bottom']}>` doesn't always resolve insets on first render inside a Modal. For any element whose layout depends on bottom safe area, OWN the inset via `useSafeAreaInsets()` and apply `paddingBottom` directly. Don't rely on SafeAreaView alone. (Only Shopping sheet fixed so far — apply same pattern to Meals/Calendar/Notes&Tasks sheets if they show similar squashing.)
+- **Voice (ElevenLabs) AFTER backend pass** — explicit decision. Don't wire it now — would risk re-work when chat UX shifts. Only exception: brief-only voice (since brief render is locked).
+
+### New rules Session 19 quick wins (28 April — early)
+- **Kid tour skips Budget + Family** — `lib/tour-state.ts` exports `getEffectiveStops()` / `getEffectiveTotal()` filtered by `isKidAccount()`. ALL tour navigation (advanceStop, goBackStop, getProgressPct, replayStop) and ALL surfaces showing tour totals MUST use the effective list, not raw `STOPS`/`TOTAL_STOPS`. Stop IDs stay 1-11; kids just skip 9 + 11.
+- **Kids Hub auto-jump for kid accounts** — on mount, if `isKidAccount()` and account name matches a known child, set `selectedChild` and `view = 'hub'` so kid skips the picker.
+- **kid_just_joined welcome banner** — receiver flow `finishKid()` sets the AsyncStorage flag. Kids Hub reads + clears on mount, shows lavender welcome card with × dismiss above the 3-stat row. One-shot only.
+- **Kid account direct-route gating** — Budget + Family routes call `loadAccount()` on mount and `router.replace('/(tabs)/kids')` if `isKidAccount()`. Belt-and-braces with MoreSheet's tile hiding. NOT applied to Settings/Tutor/Travel/MySpace.
+- **Supabase date queries — prefer range over eq.** If you write `.eq('date', dateStr)` you'll silently miss any row where the column has a timestamp/timezone component. Always use `.gte(dateStr).lt(nextDayStr)` for single-day queries unless the column type is guaranteed bare DATE.
+
 ### New rules Session 19
 - **Brief = 2 windows ONLY.** Morning (05:00–15:59) + Evening (16:00–04:59). Never reintroduce midday. Evening covers tomorrow-morning prep.
 - **Brief render = Option B.** Soft tinted bubble (peach `#FDF1E5` morning / lavender `#F0EBFF` evening) + time-of-day pill at top of bubble. NO win banner. NO border. Eyebrow = `Zaeli · time` only (no window word — pill carries it).
@@ -435,17 +469,27 @@ The accumulated backlog now spans Settings, Budget, Travel, Tour, Invite, Accoun
 
 ### Open for next session
 
-**Small Session 19 deferreds (quick wins):**
-- Kid tour = 9 stops (skip Budget + Family) — wire `tour-state` to read account kind
-- Kids Hub welcome banner for fresh kid invitees
-- Direct-route gating for kid accounts
+All Session 19 quick wins ✅ shipped 28 April. Tutor session resume ✅ shipped 28 April. Voice timing ✅ locked (after backend pass).
+
+**Backend pass — THE NEXT BIG BLOCK** (multi-session). Batched across all modules:
+- Supabase migrations: `tour_state` + `invite_tokens` + `account_state` + `user_preferences` + budget (4 tables: `income_streams` / `budget_categories` / `category_line_items` / `savings_goals`) + travel (6 tables: `trips` / `trip_members` / `trip_bookings` / `trip_packing_items` / `trip_notes` / `trip_budget`)
+- Real auth — Supabase user + JWT with `account.kind` claim. Replace DUMMY_FAMILY_ID + AsyncStorage `account_state_v1`
+- Real cross-device invite tokens — `zaeli.app/i/<token>` deep link → server validates → routes to receiver flow
+- Stripe customer portal WebView, subscription metadata
+- Push notification scheduling tied to Settings brief times + quiet hours
+- Memory wiring — Settings → Memory to real `family_insights` / `family_milestones` / `conversation_memory`
+- Direct-route guards extension (Settings rows that should hide for kid accounts: Subscription, Family management)
+- Export data + Clear chat history + Privacy/Terms WebViews — Settings rows currently stubs
+- CSV document picker (`expo-document-picker` install + EAS rebuild) for Our Budget
+- Travel vision-for-bookings — Sonnet vision auto-extract REF/dates/amount
+
+**After backend pass:**
+- Voice (ElevenLabs) — Phase C launchable. Brief + chat reply playback. Voice settings UI in Settings. Cost controls.
+- EAS Build + TestFlight (real auth blocker is the main thing waiting on backend)
 - Native splash rebuild — `npx expo prebuild --clean` after `app.json` bg change
 
-**Backend pass — bigger work** — batched across all modules now: Supabase migrations for tour_state + invite_tokens + account_state + user_preferences + budget (4 tables) + travel (6 tables). Real auth (Supabase user + JWT with account.kind claim). Real cross-device invite tokens. Stripe customer portal. Push notification scheduling tied to brief times. Memory wiring (insights/milestones/conversation_memory). Direct-route guards for kid accounts. Export data, Clear chat history, Privacy/Terms WebViews. CSV document picker (EAS rebuild). Travel vision-for-bookings.
-
-**Other:**
-- Tutor session resume (Phase 20 — reload from `tutor_messages`)
-- Calendar month-view event highlighting glitch
-- 100 crosswords (content task, parked)
-- Tutor stress testing with real kids
+**Smaller / parked:**
+- 100 crossword pool expansion (content task, parked)
+- Tutor stress testing with real kids (ongoing — surfaced 2 bugs Session 20 already fixed)
+- Apply SafeAreaView fix pattern to Meals/Calendar/Notes&Tasks sheets if similar squashing surfaces
 - 100 crosswords (parked content task)

@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 24 April 2026 — Session 19 ✅ · Brief v3 (2 windows + structured prose) · Onboarding polish (orbs, emoji, copy, brief preview) · Cold-start splash redesigned (warm bg + palette orbs) · Chat bubble unification · TOUR system (state machine + 11-stop route + pill + first-time sheet banner + Settings replay + inactivity prompt) · INVITE system (Adult/Kid roles, mock token, share sheet, per-member status grid, receiver flow, account-state for kid permissions, MoreSheet gating)*
+*Last updated: 28 April 2026 — Session 20 ✅ · On-device polish round (Tutor session resume from tutor_messages · chat VIEW-query inline cards across Shopping/Meals/Tasks · Shopping sheet add-bar layout fix using explicit insets) · Voice (ElevenLabs) explicitly deferred to AFTER backend pass · Session 19 quick wins shipped earlier same day (kid tour 9 stops · Kids Hub welcome banner · kid-account route gating · calendar month-view glitch fixed)*
 
 ---
 
@@ -1312,11 +1312,149 @@ The largest single body of work in the build so far. Five interlocking workstrea
 
 ### Deferred from Session 19 (small)
 
-- **Kid tour = 9 stops** (skip Budget + Family) — kids currently get the full 11 if they tap Take the tour. Need to wire `tour-state` to read account kind and skip stops 9 + 11.
-- **Welcome banner inside Kids Hub** for fresh kid invitees — first time they land in /kids after acceptance.
-- **Direct-route gating** — kid could navigate to `/our-budget` or `/family` directly via deep link or back button. MoreSheet only hides the tile. Add route-level guards.
+- **Kid tour = 9 stops** (skip Budget + Family) — ✅ shipped Session 19 quick-wins commit (28 April).
+- **Welcome banner inside Kids Hub** for fresh kid invitees — ✅ shipped Session 19 quick-wins commit.
+- **Direct-route gating** — ✅ shipped Session 19 quick-wins commit (Budget + Family redirect kid accounts to /kids on mount).
 - **Trial-period pill countdown** (post-completion 14-day timer) — Richard explicitly skipped this as "too pushy". Note for future if Stripe integration changes the calculus.
 - **Real cross-device invite** — current mock token only works on the inviting device. Backend pass adds Supabase invite tokens + real deep linking.
+
+---
+
+## ══════════════════════════════════
+## SESSION 19 QUICK WINS (28 April 2026 — early) ✅
+## ══════════════════════════════════
+
+Closed the four small Session 19 deferred items in one commit ([`e22164d`](https://github.com/RDK1981/zaeli/commit/e22164d)):
+
+### A. Kid tour = 9 stops
+- New `KID_SKIP_IDS = [9, 11]` in [lib/tour-state.ts](lib/tour-state.ts) (Our Budget + Our Family)
+- New `getEffectiveStops()` / `getEffectiveTotal()` helpers — filter by `isKidAccount()`
+- `loadTourState()` now also calls `loadAccount()` so account kind is available
+- `advanceStop` / `goBackStop` / `getProgressPct` / `replayStop` all step through the EFFECTIVE list
+- Tour route eyebrow shows "STOP X OF 9" for kids; bottom-nav last-stop check uses effective index instead of fixed `position === TOTAL_STOPS`
+- Chat tour pill shows `X/9`, post-onboarding offer text says "9 stops" (`stopWord = total === 11 ? 'eleven stops' : '${total} stops'`), inactivity prompt uses effective totals
+- Settings → Replay tour picker hides Budget + Family rows for kid accounts via `getEffectiveStops()`
+
+### B. Kids Hub welcome banner
+- Receiver flow ([app/invite/[token].tsx](app/invite/[token].tsx)) `finishKid()` now sets `kid_just_joined = 'true'` AsyncStorage flag
+- [app/(tabs)/kids.tsx](app/(tabs)/kids.tsx) reads + clears flag on mount → renders lavender welcome card with × dismiss above the 3-stat row
+- Bonus: kid accounts now AUTO-jump straight into their hub (skipping the kid picker `view = 'select'`) and `selectedChild` is set to their name from `getAccount()`
+
+### C. Direct-route gating
+- [app/(tabs)/our-budget.tsx](app/(tabs)/our-budget.tsx) + [app/(tabs)/family.tsx](app/(tabs)/family.tsx) — both call `loadAccount()` on mount, redirect kid accounts to `/(tabs)/kids` via `router.replace`
+- Belt-and-braces with MoreSheet's tile hiding — kid can't reach these via deep link, back button, or any other path
+- Note: Settings + standalone routes (Tutor, Travel, MySpace) NOT gated — kids may legitimately want to use them with their own context
+
+### D. Calendar month-view glitch fixed
+- Root cause: `fetchMonthDayEvents` used `.eq('date', dateStr)` while `fetchMonthDots` used `.gte/.lte` range. If `events.date` column ever has a timestamp/timezone component (which the dots query tolerates), `eq` silently misses
+- Fix: switched day query to `.gte(dateStr).lt(nextDayStr)` — same pattern as the dots query
+
+### Plus: incidental config tidies
+- `app.json` — Android RECORD_AUDIO permission + `package: com.zaeli.app`
+- `package.json` — npm `ios`/`android` → `expo run:*` for native builds
+
+---
+
+## ══════════════════════════════════
+## SESSION 20 — ON-DEVICE POLISH ROUND (28 April 2026 — late) ✅
+## ══════════════════════════════════
+
+Three bugs surfaced during real device testing — all fixed in one commit. Plus the voice timing decision locked.
+
+### A. Tutor session resume — STUB → real implementation
+
+**Bug:** Gab finished a Read Aloud session, returned to Tutor menu, tapped the "Recent sessions" row → nothing happened. Reason: `goSessionReview(sessionId)` in [app/(tabs)/tutor-child.tsx](app/(tabs)/tutor-child.tsx) was a `console.log` stub. Active sessions called `goPillar(sess.pillar)` which started a NEW session instead of resuming the original.
+
+**Fix** ([app/(tabs)/tutor-session.tsx](app/(tabs)/tutor-session.tsx) + [app/(tabs)/tutor-child.tsx](app/(tabs)/tutor-child.tsx)):
+- Tutor-session accepts new optional `resumeSessionId` query param
+- New `loadExistingSession(sid)` function:
+  1. Fetches session row from `tutor_sessions` (id, pillar, subject, topic, difficulty_band, duration_seconds, hints_used, question_count, status)
+  2. Fetches all rows from `tutor_messages` for that session, ordered by `created_at`
+  3. Converts each row to a `Message` object (role / content / timestamp) — photo rows show `[Photo uploaded]` placeholder
+  4. Hydrates state: messages array, conversationHistory, sessionId, subject, topic, difficultyBand, questionNum, hintsUsed, timer
+  5. Sets phase = 'active' if subject was already picked; else 'select'
+  6. If session was 'completed', flips status back to 'active' so the exit-save logic on next back-button still works cleanly
+- Reset `useEffect` dependency includes `resumeSessionId` so navigating between resume/fresh works
+- `goSessionReview` removed entirely. Replaced by `goResumeSession(sess)` — same path for active OR completed sessions
+- Row tap handler simplified: `onPress={() => goResumeSession(sess)}` (was `sess.status === 'active' ? goPillar(sess.pillar) : goSessionReview(sess.id)`)
+- Works for ALL pillars (Practice, Homework, Read Aloud, Write & Review, Comprehension, Money & Life) since they all share `tutor-session.tsx`
+- Falls back to `sendInitialMessage()` if the session row isn't found or load fails
+
+### B. Chat VIEW-query inline cards (across the board)
+
+**Bug:** Asking Zaeli "what's on the shopping list" returned a plain-text wall of 31 items. No `InlineShoppingCard` render. No quick-reply chips. Same problem for meals + tasks queries.
+
+**Root cause:** `send()` only intercepted CALENDAR view queries (`isCalendarQuery`) before the GPT chat path. Shopping/Meals/Tasks fell through to plain GPT, which helpfully typed out everything.
+
+**Fix** ([app/(tabs)/index.tsx](app/(tabs)/index.tsx)):
+- Three new keyword arrays: `SHOPPING_VIEW_KEYWORDS` / `MEALS_VIEW_KEYWORDS` / `TASKS_VIEW_KEYWORDS`
+- Three new detection functions: `isShoppingViewQuery` / `isMealsViewQuery` / `isTasksViewQuery` — all check `isActionQuery` first so action queries ("add milk to shopping") still go through the tool path
+- Three new branches in `send()` after the calendar branch — each fetches data directly + updates the loading reply with intro text + inlineData + quickReplies, then `return`
+- Shopping branch: fetches first 4 unchecked items + total count → intro that scales with size ("Just one thing on the list" / "8 items — tap any to tick off" / "31 items — that's a chunky one") → chips: `Open full list` / `Add an item` / `Got it`
+- Meals branch: fetches next 7 days of meal_plans → tonight call-out + week count → chips: `Open Meal Planner` / `Plan tomorrow` (or `Plan tonight` if not planned) / `Got it`
+- Tasks branch: fetches active todos sorted by due_date → overdue count + intro → chips: `Open Tasks` / `Add a task` / `Got it`
+- Chip handlers wired in `handleQuickReply`:
+  - `Open full list` → `openShopSheet('list')`
+  - `Open Tasks` / `Open To-dos` / `Add a task` → `setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'tasks' })` + `router.navigate('/(tabs)/my-space')`
+  - `Add an item` (shopping) / `Add more items` → `startRecording()` (mic for voice add)
+  - `Got it` / `All good` / `Thanks` / `Cheers` → just clears the chips on the originating message, leaves the text in feed
+- Action queries unaffected — saying "add milk to shopping" still routes to the tool path (action keywords are checked first)
+
+### C. Shopping sheet add-bar layout fix
+
+**Bug:** First time the Shopping sheet opens, the "Add an item…" bar at the bottom is squashed against the bottom edge of the phone (mic + Zaeli buttons partially obscured). After the user taps the add bar to expand it and then closes it again, the layout corrects.
+
+**Root cause:** The sheet wraps content in `<SafeAreaView edges={['bottom']}>`. react-native-safe-area-context's `SafeAreaView` doesn't reliably resolve the bottom inset on first render INSIDE a Modal. Layout settles correctly only after a state-triggered re-measure (which is what tapping expand/collapse triggers).
+
+**Fix** ([app/(tabs)/index.tsx](app/(tabs)/index.tsx)):
+- Imported `useSafeAreaInsets()` alongside `SafeAreaView` from `react-native-safe-area-context`
+- Read `const insets = useSafeAreaInsets()` once at component mount
+- Shopping sheet `SafeAreaView edges={['bottom']}` → `edges={[]}` — no automatic bottom padding application
+- List + Pantry add-bar wrappers now own the bottom inset explicitly:
+  - Keyboard CLOSED: `paddingBottom: Math.max(insets.bottom, 8)`, `marginBottom: 0`
+  - Keyboard OPEN: `paddingBottom: 2 (iOS) / 4 (Android)`, `marginBottom: Math.max(shopKbHeight - insets.bottom, 0)`
+- Spend tab ScrollView contentContainer `paddingBottom: 50` → `50 + insets.bottom` (no add bar, just receipts — needed explicit padding so last receipt isn't tucked under home indicator)
+
+### D. Voice (ElevenLabs) timing — LOCKED
+
+Locked decision: voice integration goes **AFTER backend pass**, not before. Reasons:
+- Backend pass unlocks real users (auth, push, real cross-device invites). Voice on a single-device prototype demos well but can't actually go live yet
+- Voice needs its own design conversation (when does it play, playback settings, cost controls) — that takes time
+- Best reveal moment = TestFlight build with voice + real auth + real push all together
+- Risk: if voice is wired now and chat UX shifts during backend work, we re-do the integration
+
+Small exception: if voice gets wired pre-backend, it should be ONLY for the brief (already locked UX) — not chat replies or other surfaces.
+
+### Locked decisions Session 20
+
+- **Chat VIEW queries → inline render**, not text walls. Pattern: detect via keyword array → check `isActionQuery` first to exclude actions → fetch data directly → `updateMsg(replyId, { text, inlineData, quickReplies, isLoading: false })` → `return`. Apply this anywhere a query naturally maps to existing inline-card rendering.
+- **SafeAreaView inside Modal is unreliable on first render** — for any element whose position depends on bottom safe area, OWN the inset via `useSafeAreaInsets()` and apply `paddingBottom` directly. Don't rely on `<SafeAreaView edges={['bottom']}>` alone.
+- **Tutor session resume** = `resumeSessionId` query param to tutor-session route. Loads from `tutor_messages` ordered by created_at, hydrates state including conversationHistory. Always flips status 'completed' → 'active' on resume so exit-save logic stays clean.
+- **Voice (ElevenLabs) AFTER backend pass.** Don't wire it now — would risk re-work when chat UX shifts. Only exception: brief-only voice (since brief render is locked).
+
+### Files touched Session 20
+
+- `lib/tour-state.ts` — Session 19 quick wins (kid skip IDs + effective stops/total + account-aware advance/back/progress/replay)
+- `app/tour/index.tsx` — Session 19 quick wins (effective list for eyebrow + bottom nav)
+- `app/(tabs)/our-budget.tsx` + `app/(tabs)/family.tsx` — Session 19 quick wins (kid account redirect)
+- `app/(tabs)/kids.tsx` — Session 19 quick wins (welcome banner + auto-select kid's hub)
+- `app/(tabs)/settings.tsx` — Session 19 quick wins (Replay tour view shows effective stops)
+- `app/invite/[token].tsx` — Session 19 quick wins (sets kid_just_joined flag)
+- `app/(tabs)/tutor-child.tsx` — Session 20 (goResumeSession replaces stub)
+- `app/(tabs)/tutor-session.tsx` — Session 20 (loadExistingSession + resumeSessionId param)
+- `app/(tabs)/index.tsx` — Session 20 (3 view-query branches in send + 3 keyword arrays + chip handlers + useSafeAreaInsets + Shopping sheet edges + add-bar paddings + Spend tab paddingBottom)
+
+### Test paths
+
+**Tutor resume:** Open Tutor → pick child → Read Aloud (or any pillar) → say a few things → back → see "Recent sessions" row → tap it → session reopens with all messages + timer in place. Continue talking, hit back → saves cleanly.
+
+**Chat view-query inline cards:**
+- "what's on shopping list" → soft intro + InlineShoppingCard + chips
+- "what's for dinner" → tonight call-out + InlineMealsCard + chips
+- "any tasks for me" → top-of-pile + overdue count + InlineTodos + chips
+- "add milk to shopping" → still goes to tool path (action keyword wins)
+
+**Shopping add-bar layout:** Open Shopping sheet → "Add an item…" bar should sit cleanly above home indicator on FIRST open (no need to expand-collapse to fix).
 
 ---
 
@@ -1406,10 +1544,16 @@ Phase 33b: Invite inviter       ✅ Session 19 — /invite role picker (no emoji
 Phase 33c: Invite receiver      ✅ Session 19 — /invite/[token] with Adult flow (4 steps → chat → tour) and Kid flow (3 steps → Kids Hub). Invalid-link state included
 Phase 33d: Inviter heads-up     ✅ Session 19 — chat pushes mint/lavender Zaeli message on invite acceptance. Synchronous flag-clear prevents double-fire
 Phase 33e: Kid permission gating ✅ Session 19 — MoreSheet hides Budget + Family for kid accounts. (Direct route guards deferred)
-Phase 34: Kid tour 9 stops     🔨 Deferred — wire tour-state to read account kind, skip Budget + Family stops
-Phase 35: Kids Hub welcome     🔨 Deferred — first-time banner inside /kids for fresh kid invitees
-Phase 36: Direct-route gating  🔨 Deferred — kid account can still type /our-budget or /family; need route-level guards
-Phase 37: Real cross-device invite 🔨 Backend pass — Supabase invite_tokens table, real deep-link domain, JWT-based account
+Phase 34: Kid tour 9 stops     ✅ Session 19 quick wins (28 Apr) — KID_SKIP_IDS [9, 11], getEffectiveStops/Total, all nav/progress/replay account-aware. Settings picker + chat pill + inactivity prompt + post-onboarding offer all use effective totals
+Phase 35: Kids Hub welcome     ✅ Session 19 quick wins (28 Apr) — kid_just_joined AsyncStorage flag set in finishKid, lavender welcome card with × dismiss above 3-stat row. Bonus: kid auto-jumps to their own hub
+Phase 36: Direct-route gating  ✅ Session 19 quick wins (28 Apr) — Budget + Family screens loadAccount + redirect kid accounts to /kids on mount
+Phase 37: Calendar month-view  ✅ Session 19 quick wins (28 Apr) — fetchMonthDayEvents .eq('date') → range query .gte/.lt to match fetchMonthDots' tolerance for timestamp/timezone column types
+
+Phase 38a: Tutor session resume ✅ Session 20 (28 Apr) — Phase 20 from earlier sessions finally unblocked. resumeSessionId param to tutor-session, loadExistingSession hydrates from tutor_messages, status flips 'completed' → 'active' on resume so exit-save stays clean. Replaces goSessionReview stub. Works for all 6 pillars
+Phase 38b: Chat view-query inline cards ✅ Session 20 — Shopping/Meals/Tasks "what's on..." queries intercepted before GPT chat path, render existing inline cards + chips. Action queries unaffected
+Phase 38c: Shopping add-bar layout ✅ Session 20 — useSafeAreaInsets() for explicit bottom inset on add bar. SafeAreaView edges='bottom' was unreliable on first render inside Modal
+Phase 38d: Voice (ElevenLabs)   🅿️ DEFERRED — explicit decision to do AFTER backend pass. Brief-only voice could go pre-backend if needed
+Phase 39: Backend pass         🔨 Now the biggest open block — Supabase migrations across all modules + auth + Stripe + push + memory wiring. See Pending for backend pass section above
 ```
 
 ---
@@ -1490,3 +1634,12 @@ Phase 37: Real cross-device invite 🔨 Backend pass — Supabase invite_tokens 
 - **MoreSheet kid gating** — `loadAccount()` on each visible-true, `isKidAccount()` hides Budget + Family tiles. NOTE: doesn't gate direct route navigation yet — kid could type `/our-budget`. Defer to Phase 36.
 - **Status badge sizing rule** (Family screen) — `fontSize: 11px+`, `padding: 10×5+`, `borderRadius: 8+`, `letterSpacing: 0.2`. Action chips (tappable) bumped to `fontSize: 12`, `padding: 12×7`, `borderRadius: 10`, filled mint pill bg with white text, `hitSlop: { top: 10, bottom: 10, left: 10, right: 10 }`. Never use `fontSize: 9`.
 - **Onboarding finale → tour handoff** — `finishOnboarding()` sets BOTH `onboarding_complete` AND `onboarding_just_completed`. Chat `maybeFireTourOffer()` reads + clears the latter on mount, pushes tour offer message with chips ['🧭 Take the tour', 'Maybe later'].
+- **Kid tour skips Budget + Family** (Session 19 quick wins) — `lib/tour-state.ts` exports `getEffectiveStops()` / `getEffectiveTotal()` filtered by `isKidAccount()`. ALL tour navigation (advanceStop, goBackStop, getProgressPct, replayStop) and ALL surfaces showing tour totals (chat pill, post-onboarding offer text, inactivity prompt, Settings replay picker, tour route eyebrow + bottom nav) MUST use the effective list, not raw `STOPS`/`TOTAL_STOPS`. Stop IDs stay 1-11; kids just skip 9 + 11.
+- **Kids Hub auto-jump for kid accounts** — on mount, if `isKidAccount()` and account name matches a known child, set `selectedChild` and `view = 'hub'` so kid skips the picker and lands directly in their hub.
+- **Kid_just_joined welcome banner** — receiver flow `finishKid()` sets `kid_just_joined = 'true'` AsyncStorage flag. Kids Hub reads + clears on mount, shows lavender welcome card with × dismiss above the 3-stat row. One-shot only.
+- **Kid account direct-route gating** — Budget + Family routes call `loadAccount()` on mount and `router.replace('/(tabs)/kids')` if `isKidAccount()`. Belt-and-braces with MoreSheet's tile hiding. NOT applied to Settings, Tutor, Travel, MySpace — kids may use those legitimately.
+- **Supabase date queries — prefer range over eq** (Session 19 quick wins). If you write `.eq('date', dateStr)`, you'll silently miss any row where the column has a timestamp/timezone component. Always use `.gte(dateStr).lt(nextDayStr)` for single-day queries unless the column type is guaranteed bare DATE.
+- **Tutor session resume** (Session 20) — pass `resumeSessionId` query param to `/tutor-session` route. `loadExistingSession(sid)` fetches session row + tutor_messages, hydrates state (messages, conversationHistory, sessionId, subject, topic, difficultyBand, questionNum, hintsUsed, timer), sets phase based on whether subject was picked, flips status 'completed' → 'active' so exit-save logic works on next back. Same pattern works for all 6 pillars.
+- **Chat VIEW queries → inline cards** (Session 20) — for any data domain with an existing inline card render path (calendar/shopping/meals/todos), intercept "what's on..." queries in `send()` BEFORE the action path or GPT chat path. Pattern: keyword array → detection function (`isXxxViewQuery` — must check `isActionQuery` first to exclude actions) → branch in `send()` that fetches data + `updateMsg(replyId, { text, inlineData, quickReplies, isLoading: false })` + `return`. Never let GPT type out long lists.
+- **SafeAreaView edges in Modal is unreliable on first render** (Session 20) — react-native-safe-area-context's `<SafeAreaView edges={['bottom']}>` doesn't always resolve insets on first render inside a Modal. For any element whose layout depends on bottom safe area, OWN the inset via `useSafeAreaInsets()` and apply `paddingBottom` directly. Don't rely on SafeAreaView alone.
+- **Voice (ElevenLabs) AFTER backend pass** (Session 20 decision). Don't wire it now — would risk re-work when chat UX shifts. Only exception: brief-only voice (since brief render is locked).

@@ -23,7 +23,7 @@ import {
   PanResponder, StatusBar, Alert,
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { getPendingCalendarImage, setPendingCalendarImage } from './calendar';
 import Svg, { Path, Line, Rect, Circle, Polyline, Polygon } from 'react-native-svg';
@@ -496,6 +496,46 @@ function isCalendarQuery(text: string): boolean {
   const lower = text.toLowerCase();
   if (isActionQuery(lower)) return false;
   return CALENDAR_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+// ── View-only queries for non-calendar domains (Session 19 fix) ─────────────
+// These intercept "what's on the shopping list / what's for dinner / what
+// tasks do I have" etc and render the corresponding inline card with quick
+// replies — rather than letting GPT type out 31 items inline.
+const SHOPPING_VIEW_KEYWORDS = [
+  "shopping list", "shopping", "what's on the list", "whats on the list",
+  "what's on my list", "whats on my list",
+  "what do i need", "what do we need", "what's left to buy", "whats left to buy",
+  "what's still on", "show me the list", "show the list", "show shopping",
+  "view shopping", "open shopping",
+];
+const MEALS_VIEW_KEYWORDS = [
+  "what's for dinner", "whats for dinner", "what's for tonight", "whats for tonight",
+  "what's on for dinner", "whats on for dinner",
+  "what's planned", "whats planned", "what are we cooking", "what're we cooking",
+  "this week's meals", "this weeks meals", "meal plan", "what's the meal",
+  "show meals", "view meals", "open meal planner", "open meals",
+];
+const TASKS_VIEW_KEYWORDS = [
+  "my tasks", "any tasks", "what tasks", "what's on my to-do", "whats on my to-do",
+  "what's on my todo", "whats on my todo", "todos", "to-dos", "to do list", "todo list",
+  "what's outstanding", "whats outstanding", "what's overdue", "whats overdue",
+  "show my tasks", "show tasks", "view tasks", "show todos",
+];
+function isShoppingViewQuery(text: string): boolean {
+  const lower = text.toLowerCase();
+  if (isActionQuery(lower)) return false;
+  return SHOPPING_VIEW_KEYWORDS.some(kw => lower.includes(kw));
+}
+function isMealsViewQuery(text: string): boolean {
+  const lower = text.toLowerCase();
+  if (isActionQuery(lower)) return false;
+  return MEALS_VIEW_KEYWORDS.some(kw => lower.includes(kw));
+}
+function isTasksViewQuery(text: string): boolean {
+  const lower = text.toLowerCase();
+  if (isActionQuery(lower)) return false;
+  return TASKS_VIEW_KEYWORDS.some(kw => lower.includes(kw));
 }
 function isFullCalendarRequest(text: string): boolean {
   const lower = text.toLowerCase();
@@ -2708,6 +2748,9 @@ function HomeScreen({
   const scrollRef = useRef<ScrollView>(null);
   const inputRef  = externalInputRef ?? useRef<TextInput>(null);
   const fabRef    = externalFabRef   ?? useRef<any>(null);
+  // Read insets explicitly — SafeAreaView inside Modals can fail to apply
+  // bottom padding on first render. Used by sheet add-bars below.
+  const insets    = useSafeAreaInsets();
   const now       = new Date();
   const h         = now.getHours();
   const dateLabel = now.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' });
@@ -4097,22 +4140,39 @@ CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
       openMealSheet('meals');
       return;
     }
-    if (chip === 'Open Shopping List' || chip === 'Back to Full List') {
+    if (chip === 'Open Shopping List' || chip === 'Back to Full List' || chip === 'Open full list') {
       openShopSheet('list');
       return;
     }
-    if (chip === 'Add more items') {
+    if (chip === 'Add more items' || chip === 'Add an item') {
       startRecording();
       return;
     }
-    if (chip === 'Open To-dos') {
-      // TODO: open Family Tasks sheet when built
-      send('Show me my tasks');
+    if (chip === 'Open To-dos' || chip === 'Open Tasks') {
+      // Family Tasks live in My Space's Notes & Tasks sheet (Tasks tab)
+      setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'tasks' } as any);
+      router.navigate('/(tabs)/my-space' as any);
+      return;
+    }
+    if (chip === 'Add a task') {
+      // Same destination as Open Tasks — sheet has its own + button
+      setPendingChatContext({ type: 'notes_tasks_sheet', tab: 'tasks' } as any);
+      router.navigate('/(tabs)/my-space' as any);
       return;
     }
     if (chip === 'Open Goals') {
       // TODO: swipe to My Space + open goals sheet
       send('Show me my goals');
+      return;
+    }
+    // "Got it" / dismissal chips — just clear the chips on the originating message
+    if (chip === 'Got it' || chip === 'All good' || chip === 'Thanks' || chip === 'Cheers') {
+      setMessages(prev => {
+        const idx = [...prev].reverse().findIndex(m => (m.quickReplies ?? []).includes(chip));
+        if (idx < 0) return prev;
+        const realIdx = prev.length - 1 - idx;
+        return prev.map((m, i) => i === realIdx ? { ...m, quickReplies: [] } : m);
+      });
       return;
     }
     send(chip);
@@ -4241,6 +4301,86 @@ Only include events directly relevant to the question. Max 5 events.`;
         } catch {
           updateMsg(replyId, { text:raw, isLoading:false });
         }
+        setLoading(false);
+        return;
+      }
+
+      // ── Shopping VIEW query — render inline card, not 31 lines of text ──
+      if (!imageUri && text && isShoppingViewQuery(text)) {
+        const [uncheckedRes, countRes] = await Promise.all([
+          supabase.from('shopping_items')
+            .select('id,name,item,category,checked,meal_source')
+            .eq('family_id', FAMILY_ID).neq('checked', true)
+            .order('created_at', { ascending: false }).limit(4),
+          supabase.from('shopping_items').select('*', { count: 'exact', head: true })
+            .eq('family_id', FAMILY_ID).neq('checked', true),
+        ]);
+        const items4 = uncheckedRes.data ?? [];
+        const total = countRes.count ?? 0;
+        let intro = '';
+        if (total === 0)       intro = 'Nothing on the shopping list right now.';
+        else if (total === 1)  intro = `Just one thing on the list — ${items4[0]?.name || items4[0]?.item || 'unnamed item'}.`;
+        else if (total <= 8)   intro = `${total} items on the list — tap any to tick off.`;
+        else if (total <= 20)  intro = `${total} items — a fair stack. Here's the latest few; full list inside.`;
+        else                   intro = `${total} items on the list — that's a chunky one. Want to take a look?`;
+        updateMsg(replyId, {
+          text: intro,
+          inlineData: { type: 'shopping', items: items4, tomorrowItems: [{ _count: total }] },
+          quickReplies: total > 0 ? ['Open full list', 'Add an item', 'Got it'] : ['Add an item', 'Got it'],
+          isLoading: false,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // ── Meals VIEW query — render inline meals card ──
+      if (!imageUri && text && isMealsViewQuery(text)) {
+        const today = localDateStr();
+        const sevenDaysOut = localDatePlusDays(7);
+        const { data: mealRows } = await supabase.from('meal_plans')
+          .select('id,meal_name,day_key,prep_mins')
+          .eq('family_id', FAMILY_ID)
+          .gte('day_key', today).lte('day_key', sevenDaysOut)
+          .order('day_key', { ascending: true }).limit(10);
+        const meals = mealRows ?? [];
+        const tonight = meals.find((m: any) => m.day_key === today);
+        let intro = '';
+        if (tonight)        intro = `Tonight's dinner: ${tonight.meal_name}.${meals.length > 1 ? ` ${meals.length - 1} more planned this week.` : ''}`;
+        else if (meals.length > 0) intro = `Tonight's not planned yet. ${meals.length} meal${meals.length > 1 ? 's' : ''} on the books for the week ahead.`;
+        else                intro = `No meals planned this week. Want me to suggest a few?`;
+        updateMsg(replyId, {
+          text: intro,
+          inlineData: { type: 'meals', items: meals },
+          quickReplies: tonight
+            ? ['Open Meal Planner', 'Plan tomorrow', 'Got it']
+            : ['Plan tonight', 'Open Meal Planner', 'Got it'],
+          isLoading: false,
+        });
+        setLoading(false);
+        return;
+      }
+
+      // ── Tasks VIEW query — render inline todos card ──
+      if (!imageUri && text && isTasksViewQuery(text)) {
+        const { data: taskRows } = await supabase.from('todos')
+          .select('id,title,priority,status,due_date')
+          .eq('family_id', FAMILY_ID).eq('status', 'active')
+          .order('due_date', { ascending: true, nullsFirst: false } as any).limit(8);
+        const tasks = taskRows ?? [];
+        const today = localDateStr();
+        const overdue = tasks.filter((t: any) => t.due_date && t.due_date < today).length;
+        let intro = '';
+        if (tasks.length === 0)  intro = 'Nothing on your task list right now.';
+        else if (overdue > 0)    intro = `${tasks.length} active${overdue > 0 ? `, ${overdue} overdue` : ''}. Here's the top of the pile.`;
+        else                     intro = `${tasks.length} active task${tasks.length > 1 ? 's' : ''}. All on track.`;
+        updateMsg(replyId, {
+          text: intro,
+          inlineData: { type: 'todos', items: tasks },
+          quickReplies: tasks.length > 0
+            ? ['Open Tasks', 'Add a task', 'Got it']
+            : ['Add a task', 'Got it'],
+          isLoading: false,
+        });
         setLoading(false);
         return;
       }
@@ -6401,7 +6541,10 @@ Rules:
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setShopSheetOpen(false)} activeOpacity={1}/>
             <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }}>
-              <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={['bottom']}>
+              {/* SafeAreaView edges=[] — bottom inset is applied explicitly by the
+                  add-bar wrappers below (was edges={['bottom']} which failed to
+                  apply on first render inside Modal, leaving the add bar squashed) */}
+              <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={[]}>
 
                 {/* Handle */}
                 <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginTop:10 }}/>
@@ -6713,7 +6856,7 @@ Rules:
                         </View>
 
                         {/* ── Add item bar ── */}
-                        <View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:6, paddingBottom: Platform.OS === 'ios' ? 2 : 4, marginBottom: shopKbHeight > 0 ? shopKbHeight - 34 : 0 }}>
+                        <View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:6, paddingBottom: shopKbHeight > 0 ? (Platform.OS === 'ios' ? 2 : 4) : Math.max(insets.bottom, 8), marginBottom: shopKbHeight > 0 ? Math.max(shopKbHeight - insets.bottom, 0) : 0 }}>
 
                           {/* Confirmation / duplicate flash */}
                           {!!shopAddConfirm && (
@@ -7041,7 +7184,7 @@ Rules:
                         </View>
 
                         {/* ── Pantry add bar ── */}
-                        <View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:6, paddingBottom: Platform.OS === 'ios' ? 2 : 4, marginBottom: shopKbHeight > 0 ? shopKbHeight - 34 : 0 }}>
+                        <View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:6, paddingBottom: shopKbHeight > 0 ? (Platform.OS === 'ios' ? 2 : 4) : Math.max(insets.bottom, 8), marginBottom: shopKbHeight > 0 ? Math.max(shopKbHeight - insets.bottom, 0) : 0 }}>
 
                           {/* Confirmation / duplicate flash */}
                           {!!pantryAddConfirm && (
@@ -7137,7 +7280,7 @@ Rules:
                   {/* ════ SPEND TAB ════ */}
                   {shopSheetTab === 'spend' && (
                     <>
-                    <ScrollView ref={shopSpendScrollRef} style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom:50 }} showsVerticalScrollIndicator={false}>
+                    <ScrollView ref={shopSpendScrollRef} style={{ flex:1 }} contentContainerStyle={{ padding:16, paddingBottom: 50 + insets.bottom }} showsVerticalScrollIndicator={false}>
                       {/* Monthly hero */}
                       <View style={{ backgroundColor:'#A8E8CC', borderRadius:20, padding:18, marginBottom:14 }}>
                         <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:36, color:'#0A0A0A', letterSpacing:-0.5, lineHeight:40 }}>

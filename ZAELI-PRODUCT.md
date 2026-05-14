@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 24 April 2026 — Session 19 ✅ · Brief v3 (2 windows + structured prose) · Onboarding polish + cold-start splash redesigned (warm bg + palette orbs) · Chat bubble unification · TOUR system shipped (state machine + 11-stop route + first-time sheet banner + Settings replay + inactivity prompt) · INVITE system shipped (Adult/Kid roles, mock token via iOS share sheet, per-member status grid, receiver flow with stripped onboarding, kid permission gating in MoreSheet)*
+*Last updated: 28 April 2026 — Session 20 ✅ · On-device polish round (Tutor session resume, chat VIEW-query inline cards across Shopping/Meals/Tasks, Shopping sheet add-bar layout fix) · Voice (ElevenLabs) explicitly deferred to AFTER backend pass · Session 19 quick wins shipped earlier same day (kid tour 9 stops, Kids Hub welcome banner, kid-account route gating, calendar month-view glitch)*
 
 ---
 
@@ -503,13 +503,15 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 37d. ✅ **Chat bubble unification** (Session 19) — Zaeli text wrapped in soft-grey bubble, user bubble sky #E8F4FD, both Regular 17/26
 38. ✅ **TOUR system** (Session 19) — full build: state machine + 11-stop dedicated route + tour pill on chat + first-time mint banner inside live sheets + Settings replay + inactivity prompt. Tutor stop 7 = HERO with violet treatment + trial badge
 39. ✅ **INVITE system** (Session 19) — full build: Adult/Kid roles, mock token via iOS share sheet, per-member status grid + bigger badges, PendingInviteRow with Copy/Resend/Revoke, Receiver flow (Adult 4-step + Kid 3-step), inviter heads-up message in chat, MoreSheet hides Budget+Family for kids, Settings dev rows for testing
-40. 🔨 Tutor stress testing — kids testing all 6 pillars
-41. 🔨 Calendar month-view event highlighting glitch (pre-existing bug)
-42. 🅿️ Tutor session resume — reload from tutor_messages (parked)
+40. 🔨 Tutor stress testing — kids testing all 6 pillars (ongoing — surfaced 2 bugs Session 20 already fixed)
+41. ✅ Calendar month-view event highlighting glitch — Session 19 quick wins (28 Apr) — fetchMonthDayEvents range query
+42. ✅ Tutor session resume — Session 20 (28 Apr) — resumeSessionId param, loadExistingSession from tutor_messages, status flips on resume
 43. 🅿️ 100 crossword pool expansion — content task, parked
-44. 🔨 Kid tour = 9 stops (skip Budget + Family) — small, deferred from Session 19
-45. 🔨 Kids Hub welcome banner for fresh kid invitees — small, deferred from Session 19
-46. 🔨 Direct-route gating for kid accounts (kid can still type /our-budget) — small, deferred from Session 19
+44. ✅ Kid tour = 9 stops — Session 19 quick wins (28 Apr)
+45. ✅ Kids Hub welcome banner — Session 19 quick wins (28 Apr) — kid_just_joined flag + lavender card + auto-jump to kid's hub
+46. ✅ Direct-route gating for kid accounts — Session 19 quick wins (28 Apr) — Budget + Family redirect kids to /kids
+47. ✅ Chat VIEW-query inline cards — Session 20 (28 Apr) — Shopping/Meals/Tasks "what's on..." now renders inline card + chips, not text walls
+48. ✅ Shopping sheet add-bar layout — Session 20 (28 Apr) — explicit useSafeAreaInsets, SafeAreaView edges='[]'
 
 ### Phase B — Make it testable
 31. 🔨 Real authentication (replace DUMMY_FAMILY_ID + replace `account-state` AsyncStorage)
@@ -521,14 +523,14 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 37. ✅ Onboarding flow built (Session 19 polished)
 
 ### Phase C — Make it launchable
-26. 🔨 Zaeli Voice (ElevenLabs)
-27. 🔨 Push notifications (daily brief trigger — wire to Settings brief times)
+26. 🔨 Zaeli Voice (ElevenLabs) — **LOCKED Session 20: AFTER backend pass** (avoids re-work when chat UX shifts; brief-only voice could go pre-backend if needed)
+27. 🔨 Push notifications (daily brief trigger — wire to Settings brief times) — part of backend pass
 28. 🔨 Gmail + Outlook Calendar integration
 29. 🔨 Spoonacular integration (Recipes tab)
 30. ✅ Interactive onboarding (Session 19 — full polish + tour handoff wired)
 31. 🔨 Website + Stripe + web signup flow
 32. 🔨 Admin console updates + billing
-33. 🔨 **Backend pass** — Supabase migrations for tour_state / invite_tokens / account_state / settings prefs / savings goals / trips. Real cross-device invite validation. Stripe customer portal. Push notification scheduling. Memory wiring.
+33. 🔨 **Backend pass — NEXT BIGGEST BLOCK** (multi-session). Supabase migrations across all modules: tour_state / invite_tokens / account_state / settings prefs / savings goals / trips. Real cross-device invite validation. Real Supabase auth + JWT with account.kind claim. Stripe customer portal. Push notification scheduling tied to brief times. Memory wiring (insights/milestones/conversation_memory). Direct-route guards extension. Export data + Clear chat history + Privacy/Terms WebViews.
 
 ### Phase D — Scale
 33. 🔨 Live testing with 10 families

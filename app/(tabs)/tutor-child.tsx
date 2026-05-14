@@ -208,9 +208,21 @@ export default function TutorChildScreen() {
     });
   }
 
-  function goSessionReview(sessionId: string) {
-    // TODO: navigate to session review screen
-    console.log('Review session:', sessionId);
+  // Re-enter an existing session (active OR completed). tutor-session loads
+  // the messages from `tutor_messages` and hydrates state via the
+  // `resumeSessionId` param. If the session was 'completed' it gets flipped
+  // back to 'active' so the exit-save flow works the next time they leave.
+  function goResumeSession(sess: Session) {
+    router.navigate({
+      pathname: '/(tabs)/tutor-session',
+      params: {
+        childId,
+        childName,
+        yearLevel: String(yearLevel),
+        pillar: sess.pillar,
+        resumeSessionId: sess.id,
+      },
+    });
   }
 
   function goProgress() {
@@ -292,7 +304,7 @@ export default function TutorChildScreen() {
                   <TouchableOpacity
                     key={sess.id}
                     style={s.sessionRow}
-                    onPress={() => sess.status === 'active' ? goPillar(sess.pillar) : goSessionReview(sess.id)}
+                    onPress={() => goResumeSession(sess)}
                     onLongPress={() => { setEditingSession(sess.id); setEditTitle(sessionDisplayTitle(sess)); }}
                     activeOpacity={0.76}
                   >

@@ -261,6 +261,7 @@ export default function TutorSessionScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     childId: string; childName: string; yearLevel: string; pillar: string;
+    resumeSessionId?: string;
   }>();
 
   const childName = params.childName ?? 'Poppy';
@@ -268,6 +269,9 @@ export default function TutorSessionScreen() {
   const childId = params.childId ?? '';
   const pillar = params.pillar ?? 'practice';
   const colour = FAMILY_COLOURS[childName] ?? '#A855F7';
+  const resumeSessionId = typeof params.resumeSessionId === 'string' && params.resumeSessionId.length > 0
+    ? params.resumeSessionId
+    : null;
 
   const isStructured = STRUCTURED_PILLARS.includes(pillar);
   const isMoneyLife = pillar === 'money-life';
@@ -333,12 +337,89 @@ export default function TutorSessionScreen() {
     setConversationHistory([]);
 
     RNStatusBar.setBarStyle('dark-content', true);
-    sendInitialMessage();
+    if (resumeSessionId) {
+      loadExistingSession(resumeSessionId);
+    } else {
+      sendInitialMessage();
+    }
 
     return () => {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     };
-  }, [childId, pillar]);
+  }, [childId, pillar, resumeSessionId]);
+
+  // ── Resume an existing session from Supabase ──────────────────────────────
+  async function loadExistingSession(sid: string) {
+    try {
+      // 1. Fetch session metadata
+      const { data: sess, error: sErr } = await supabase
+        .from('tutor_sessions')
+        .select('id, pillar, subject, topic, difficulty_band, duration_seconds, hints_used, question_count, status')
+        .eq('id', sid)
+        .single();
+      if (sErr || !sess) {
+        console.error('RESUME: session not found', sErr?.message);
+        // Fall back to fresh start
+        sendInitialMessage();
+        return;
+      }
+
+      // 2. Fetch all messages for this session
+      const { data: rows, error: mErr } = await supabase
+        .from('tutor_messages')
+        .select('role, content, message_type, created_at')
+        .eq('session_id', sid)
+        .order('created_at', { ascending: true });
+      if (mErr) console.error('RESUME: messages fetch error', mErr.message);
+
+      // 3. Convert rows → Message objects + conversationHistory
+      const msgs: Message[] = [];
+      const history: { role: string; content: string }[] = [];
+      (rows ?? []).forEach((r: any) => {
+        const role: 'zaeli' | 'child' = r.role === 'zaeli' ? 'zaeli' : 'child';
+        let displayContent = r.content as string;
+        // Photo rows store '[Photo uploaded]' — keep that as a hint
+        if (r.message_type === 'photo' && role === 'child') {
+          displayContent = '[Photo uploaded]';
+        }
+        msgs.push({
+          id: nextMsgId(),
+          role,
+          content: displayContent,
+          timestamp: new Date(r.created_at),
+        });
+        history.push({
+          role: role === 'zaeli' ? 'assistant' : 'user',
+          content: r.content,
+        });
+      });
+
+      // 4. Hydrate state
+      setSessionId(sid);
+      setMessages(msgs);
+      setConversationHistory(history);
+      setSubject(sess.subject ?? null);
+      setTopic(sess.topic ?? null);
+      setDifficultyBand((sess.difficulty_band as any) ?? 'foundation');
+      setQuestionNum(sess.question_count ?? 0);
+      setHintsUsed(sess.hints_used ?? 0);
+      setTimer(sess.duration_seconds ?? 0);
+      // If subject was already picked, jump straight to active. Otherwise stay on select.
+      setPhase(sess.subject ? 'active' : 'select');
+
+      // 5. If session was completed, flip back to 'active' so the exit-save
+      // logic on back-button still works cleanly when they exit again.
+      if (sess.status === 'completed') {
+        supabase.from('tutor_sessions').update({ status: 'active' }).eq('id', sid).then(() => {});
+      }
+
+      console.log('RESUMED SESSION:', sid, 'messages:', msgs.length, 'subject:', sess.subject);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 200);
+    } catch (e) {
+      console.error('RESUME EXCEPTION:', e);
+      sendInitialMessage();
+    }
+  }
 
   // ── Timer — start/stop based on phase ──
   useEffect(() => {
