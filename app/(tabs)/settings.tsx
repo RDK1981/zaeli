@@ -25,6 +25,7 @@ import { setFamilyFromSettings } from '../../lib/navigation-store';
 import { STOPS as TOUR_STOPS, TOTAL_STOPS as TOUR_TOTAL, replayFromStart, replayStop, loadTourState, isCompleted as tourIsCompleted, getState as getTourState, getEffectiveStops as tourEffectiveStops, getEffectiveTotal as tourEffectiveTotal } from '../../lib/tour-state';
 import { loadInvites, getPendingInvites, markAccepted } from '../../lib/invite-state';
 import { resetToOwner } from '../../lib/account-state';
+import { signOut } from '../../lib/auth';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import MoreSheet from '../components/MoreSheet';
@@ -319,7 +320,17 @@ export default function SettingsScreen() {
           onNavMemory={() => setView('memory')}
           onNavTour={() => setView('tour')}
           onPlaceholder={handleRowPlaceholder}
-          onSignOut={() => Alert.alert('Sign out', 'Sign out flow comes with account auth wiring.')}
+          onSignOut={() => Alert.alert(
+            'Sign out?',
+            "You'll need to sign back in to access your family.",
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Sign out', style: 'destructive', onPress: async () => {
+                await signOut();
+                router.replace('/(auth)/sign-in' as any);
+              }},
+            ],
+          )}
           onDelete={() => Alert.alert('Delete account', 'Destructive flow — confirmation + cascade delete will live here.')}
           onOurFamily={() => { setFamilyFromSettings(); router.navigate('/(tabs)/family' as any); }}
           onReplayOnboarding={async () => {

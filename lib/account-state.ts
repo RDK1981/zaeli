@@ -1,18 +1,25 @@
 /**
  * lib/account-state.ts — Tracks the currently-active account identity.
  *
- * v1 = local AsyncStorage. Real auth comes with the backend pass.
+ * Phase 1 of backend pass (28 April 2026 — Session 21):
+ *   - When a Supabase session exists, account state is sourced from the
+ *     `profiles.kind` column via lib/auth.ts.
+ *   - When NO session (pre-auth-migration testing flows like the dev
+ *     "Open latest invite as receiver" row), falls back to the legacy
+ *     AsyncStorage `account_state_v1` key so existing tests still work.
  *
  * Three account shapes:
- *   - Owner (Rich) — primary user, full access. Default.
- *   - Adult  — invited adult (Anna, grandparent, carer). Full access.
- *   - Kid    — invited kid with own device. Full access EXCEPT Our Budget + Our Family management.
+ *   - Owner — primary user, account creator. Full access.
+ *   - Adult — invited adult (other parent, grandparent, carer). Full access.
+ *   - Kid   — invited kid with own device. Full access EXCEPT Our Budget + Our Family management.
  *
  * Kids land in their Kids Hub by default. They can swipe out to chat etc,
- * but Budget + Family management tiles are hidden in MoreSheet.
+ * but Budget + Family management tiles are hidden in MoreSheet AND those
+ * routes redirect to /kids on mount.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getProfile, loadProfile } from './auth';
 
 const KEY_ACCOUNT = 'account_state_v1';
 
@@ -35,6 +42,19 @@ async function persist(): Promise<void> {
 
 export async function loadAccount(): Promise<AccountState> {
   if (_loaded) return _state;
+  // Prefer Supabase profile when authenticated. Falls back to AsyncStorage
+  // for legacy/dev flows (no auth session, e.g. invite test dev row).
+  const profile = getProfile() ?? await loadProfile();
+  if (profile) {
+    _state = {
+      kind: profile.kind,
+      name: profile.name,
+      avatar: profile.avatar ?? undefined,
+    };
+    _loaded = true;
+    return _state;
+  }
+  // No auth — read AsyncStorage fallback
   try {
     const raw = await AsyncStorage.getItem(KEY_ACCOUNT);
     if (raw) {
@@ -48,6 +68,12 @@ export async function loadAccount(): Promise<AccountState> {
   } catch {}
   _loaded = true;
   return _state;
+}
+
+// Force a re-load on next call (e.g. after sign-in, account switch, profile update)
+export function invalidateAccount(): void {
+  _loaded = false;
+  _state = { ...DEFAULT_STATE };
 }
 
 export function getAccount(): AccountState { return { ..._state }; }
