@@ -9,7 +9,9 @@
  *  - Notifications: brief time pickers, reminders, kids, quiet hours, sound
  *  - Memory: dummy data (Supabase wiring later)
  *  - Rows not wired show a simple alert placeholder
- *  - All toggles/times persist to AsyncStorage (Supabase migration later)
+ *
+ * Phase 2c — toggles/times persist to profiles.user_preferences JSONB
+ * via lib/user-prefs.ts (Supabase write-through, AsyncStorage fallback).
  */
 
 import React, { useEffect, useState } from 'react';
@@ -26,6 +28,7 @@ import { STOPS as TOUR_STOPS, TOTAL_STOPS as TOUR_TOTAL, replayFromStart, replay
 import { loadInvites, getPendingInvites, markAccepted } from '../../lib/invite-state';
 import { resetToOwner } from '../../lib/account-state';
 import { signOut } from '../../lib/auth';
+import { loadPrefs, updatePref as persistUpdatePref, DEFAULT_PREFS, type Prefs } from '../../lib/user-prefs';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import MoreSheet from '../components/MoreSheet';
@@ -45,56 +48,7 @@ const SUCCESS = '#34C759';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type View = 'main' | 'notifications' | 'memory' | 'tour';
-interface Prefs {
-  // Brief system = 2 windows (Session 19 — midday dropped)
-  briefMorningTime: string;   // 'HH:MM' 24h
-  briefEveningTime: string;
-  briefMorningOn:   boolean;
-  briefEveningOn:   boolean;
-  calendarNotif:    boolean;
-  shoppingLowNotif: boolean;
-  dinnerUnplanned:  boolean;
-  kidsJobApprovals: boolean;
-  kidsRewardReqs:   boolean;
-  quietHoursOn:     boolean;
-  quietStart:       string;
-  quietEnd:         string;
-  soundOn:          boolean;
-  vibrationOn:      boolean;
-  memoryLearningOn: boolean;
-}
-
-const DEFAULT_PREFS: Prefs = {
-  briefMorningTime: '07:00',
-  briefEveningTime: '18:30',
-  briefMorningOn:   true,
-  briefEveningOn:   true,
-  calendarNotif:    true,
-  shoppingLowNotif: true,
-  dinnerUnplanned:  true,
-  kidsJobApprovals: true,
-  kidsRewardReqs:   true,
-  quietHoursOn:     true,
-  quietStart:       '21:30',
-  quietEnd:         '06:30',
-  soundOn:          true,
-  vibrationOn:      false,
-  memoryLearningOn: true,
-};
-
-const PREFS_KEY = 'zaeli_settings_prefs_v1';
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-async function loadPrefs(): Promise<Prefs> {
-  try {
-    const raw = await AsyncStorage.getItem(PREFS_KEY);
-    if (!raw) return DEFAULT_PREFS;
-    return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
-  } catch { return DEFAULT_PREFS; }
-}
-async function savePrefs(p: Prefs) {
-  try { await AsyncStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch {}
-}
+// Prefs / DEFAULT_PREFS imported from lib/user-prefs (Phase 2c — Supabase-backed)
 
 // '07:00' -> '7:00 am' · '12:30' -> '12:30 pm' · '18:30' -> '6:30 pm'
 function fmtTime12(hm: string): string {
@@ -268,7 +222,9 @@ export default function SettingsScreen() {
   function updatePref<K extends keyof Prefs>(key: K, val: Prefs[K]) {
     setPrefs(prev => {
       const next = { ...prev, [key]: val };
-      savePrefs(next);
+      // Phase 2c — write-through to profile + AsyncStorage. Fire-and-forget;
+      // the local React state is the immediate source for re-render.
+      persistUpdatePref(key, val).catch(() => {});
       return next;
     });
   }
