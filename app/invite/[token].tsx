@@ -5,8 +5,12 @@
  * Looks up the invite locally (v1; backend pass swaps for Supabase),
  * branches to AdultFlow (3 steps) or KidFlow (2 steps).
  *
+ * Phase 2b: lookup + accept now hit Supabase RPCs (anon-callable) so the
+ * receiver can be on a fresh device without a session yet. The inviter
+ * picks up the acceptance on their next loadInvites().
+ *
  * On finish:
- *   - markAccepted(token) so the inviter's chat surfaces a heads-up
+ *   - acceptInviteRemote(token) → DB row marked accepted (cross-device)
  *   - setAccount({...}) so Budget + Family permissions apply (kid only)
  *   - Adult: set onboarding_complete + onboarding_just_completed → routes to chat → tour offer fires
  *   - Kid: routes to /(tabs)/kids → lands in their Hub
@@ -21,7 +25,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loadInvites, findByToken, markAccepted, type Invite } from '../../lib/invite-state';
+import { lookupInviteByToken, acceptInviteRemote, type Invite } from '../../lib/invite-state';
 import { setAccount } from '../../lib/account-state';
 
 const BG = '#FAF8F5';
@@ -55,8 +59,8 @@ export default function InviteTokenScreen() {
 
   useEffect(() => {
     (async () => {
-      await loadInvites();
-      const inv = findByToken(token);
+      // Phase 2b — receiver lookup hits SECURITY DEFINER RPC (no auth needed)
+      const inv = await lookupInviteByToken(token);
       if (!inv) { setView('invalid'); return; }
       if (inv.status === 'revoked') { setView('invalid'); return; }
       if (inv.status === 'accepted') {
@@ -101,7 +105,9 @@ export default function InviteTokenScreen() {
 
 // ── Finish handlers ───────────────────────────────────────────────────────
 async function finishAdult(invite: Invite, router: ReturnType<typeof useRouter>) {
-  await markAccepted(invite.token);
+  // Phase 2b — accept via RPC so it persists to Supabase, then inviter's
+  // chat heads-up surfaces on their next mount/focus.
+  await acceptInviteRemote(invite.token);
   await setAccount({ kind: 'adult', name: invite.name.split(/\s+/)[0] });
   try {
     await AsyncStorage.setItem('onboarding_complete', 'true');
@@ -111,7 +117,7 @@ async function finishAdult(invite: Invite, router: ReturnType<typeof useRouter>)
 }
 
 async function finishKid(invite: Invite, extras: { avatar: string }, router: ReturnType<typeof useRouter>) {
-  await markAccepted(invite.token);
+  await acceptInviteRemote(invite.token);
   await setAccount({ kind: 'kid', name: invite.name.split(/\s+/)[0], avatar: extras.avatar });
   try {
     await AsyncStorage.setItem('onboarding_complete', 'true');

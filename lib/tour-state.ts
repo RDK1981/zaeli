@@ -1,12 +1,17 @@
 /**
  * lib/tour-state.ts — Post-onboarding tour state machine + stop definitions.
  *
+ * Phase 2b: tour state moved from AsyncStorage to profiles.tour_state JSONB.
+ * Profile is source of truth when signed in (so the tour follows the user
+ * across devices). AsyncStorage stays as offline fallback + pre-auth path
+ * (kid receivers don't have a Supabase user yet — Phase 2d will fix that).
+ *
  * 11 stops + finale celebration. Single source of truth: STOPS array drives
- * the /tour route render. AsyncStorage persists current stop + completion
- * timestamps so the user can leave the tour mid-stream and resume.
+ * the /tour route render. Public API surface unchanged from Phase 2a so
+ * call sites (chat tour pill, /tour route, settings replay picker) work as-is.
  *
  * Public API:
- *   loadTourState()     — read from AsyncStorage, initialise if missing
+ *   loadTourState()     — read from profile (or AsyncStorage), initialise if missing
  *   getCurrentStop()    — current stop number (1..11) or 'finale'
  *   advanceStop()       — next stop, or → 'finale' when past 11
  *   replayFromStart()   — reset to stop 1, clear completion
@@ -19,6 +24,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadAccount, isKidAccount } from './account-state';
+import { supabase } from './supabase';
 
 const KEY_STATE = 'tour_state_v1';
 
@@ -32,34 +38,33 @@ export type CtaTarget =
   | { kind: 'chat' };                 // Just go back to chat (Photos stop)
 
 export interface TourAccent {
-  cardBg: string;       // soft tint for the stop card
-  pillBg: string;       // CTA primary button
-  pillText: string;     // CTA primary text
-  progressFill: string; // top progress bar fill
-  eyebrow: string;      // tour-eyebrow label colour
-  border?: string;      // optional card border (used for hero)
+  cardBg: string;
+  pillBg: string;
+  pillText: string;
+  progressFill: string;
+  eyebrow: string;
+  border?: string;
 }
 
 export interface TourStop {
-  id: number;                // 1..11
+  id: number;
   emoji: string;
-  pageH1: string;            // big headline on tour page
-  pageSub: string;           // 1-line sub under headline
-  cardTitle: string;         // bold name on the card
-  cardSub: string;           // longer description on the card
-  trySaying: string;         // italic example phrase
-  trySayingType?: 'speak' | 'tap';  // 'speak' = mint callout, 'tap' = sky callout
-  features: string[];        // pill labels
+  pageH1: string;
+  pageSub: string;
+  cardTitle: string;
+  cardSub: string;
+  trySaying: string;
+  trySayingType?: 'speak' | 'tap';
+  features: string[];
   ctaLabel: string;
   ctaTarget: CtaTarget;
   accent: TourAccent;
-  isHero?: boolean;          // Tutor only — bumps to violet treatment + 2 CTAs
+  isHero?: boolean;
   trialBadge?: boolean;
   priceLine?: string;
-  secondaryCtaLabel?: string; // hero only
+  secondaryCtaLabel?: string;
 }
 
-// ── Palette tokens (mirrors CLAUDE.md channel accents) ────────────────────
 const TINT = {
   lavender:    '#F0EBFF',
   lavenderDeep:'#5020C0',
@@ -105,7 +110,7 @@ export const STOPS: TourStop[] = [
     pageH1: 'Meal Planner.',
     pageSub: '10-day rolling plan. Recipes, favourites, pantry-aware shopping list pull.',
     cardTitle: 'Meal Planner',
-    cardSub: 'Plan the week. Tap a night to swap. Heart your favourites. Snap a recipe page and I\u2019ll save it.',
+    cardSub: 'Plan the week. Tap a night to swap. Heart your favourites. Snap a recipe page and I’ll save it.',
     trySaying: '"Spag bol for tonight, chicken curry tomorrow"',
     features: ['10-day plan', 'Recipe library', 'Photo scan', 'Cooks per night'],
     ctaLabel: 'Open Meal Planner →',
@@ -114,12 +119,12 @@ export const STOPS: TourStop[] = [
   },
   {
     id: 3,
-    emoji: '\uD83D\uDCC5',
+    emoji: '📅',
     pageH1: 'Calendar.',
-    pageSub: 'Natural language works \u2014 even messy time references. Long-press a day to add inline.',
+    pageSub: 'Natural language works — even messy time references. Long-press a day to add inline.',
     cardTitle: 'Calendar',
     cardSub: 'Family-shared. Each member colour-coded. Snap a permission slip and I add the date for you.',
-    trySaying: '"Add Poppy\u2019s dentist next Tuesday at 3pm"',
+    trySaying: '"Add Poppy’s dentist next Tuesday at 3pm"',
     features: ['Natural language', 'Per-member colours', 'Photo extract', 'Reminders'],
     ctaLabel: 'Open Calendar →',
     ctaTarget: { kind: 'sheet', ctx: { type: 'calendar_sheet', event: { tab: 'today' } } },
@@ -127,20 +132,20 @@ export const STOPS: TourStop[] = [
   },
   {
     id: 4,
-    emoji: '\uD83C\uDFAE',
+    emoji: '🎮',
     pageH1: 'Kids Hub.',
     pageSub: 'Each kid gets their own. Jobs, rewards, age-tiered games. They suggest, you approve.',
     cardTitle: 'Kids Hub',
     cardSub: 'Younger kids get easier puzzles. Daily Wordle, Maths Sprint, World Trivia. Streaks + points + custom rewards.',
     trySaying: '"Give Duke a job to feed the dog this week"',
-    features: ['Per-child hub', 'Jobs + approval', 'Rewards system', '5 games \u00B7 age-tiered'],
+    features: ['Per-child hub', 'Jobs + approval', 'Rewards system', '5 games · age-tiered'],
     ctaLabel: 'Open Kids Hub →',
     ctaTarget: { kind: 'route', path: '/(tabs)/kids' },
     accent: { cardBg: TINT.lavender, pillBg: INK, pillText: '#fff', progressFill: TINT.lavenderDeep, eyebrow: TINT.mintDeep },
   },
   {
     id: 5,
-    emoji: '\u2713',
+    emoji: '✓',
     pageH1: 'Tasks & Reminders.',
     pageSub: 'The mental load you can offload. Personal or shared with the whole family.',
     cardTitle: 'Tasks & Reminders',
@@ -153,28 +158,28 @@ export const STOPS: TourStop[] = [
   },
   {
     id: 6,
-    emoji: '\uD83D\uDCF8',
+    emoji: '📸',
     pageH1: 'Photos & Docs.',
     pageSub: 'Snap anything. I read what matters and put it where it belongs.',
     cardTitle: 'Photos & Docs',
-    cardSub: 'Permission slips \u2192 calendar. Recipes \u2192 meal planner. Receipts \u2192 pantry + spend. Even "is this rash anything?".',
-    trySaying: 'Tap the camera icon in chat. Snap a permission slip, recipe page, receipt \u2014 anything.',
+    cardSub: 'Permission slips → calendar. Recipes → meal planner. Receipts → pantry + spend. Even "is this rash anything?".',
+    trySaying: 'Tap the camera icon in chat. Snap a permission slip, recipe page, receipt — anything.',
     trySayingType: 'tap',
     features: ['Permission slips', 'Recipe pages', 'Receipts', 'Anything else'],
-    ctaLabel: 'Open chat \u2192',
+    ctaLabel: 'Open chat →',
     ctaTarget: { kind: 'chat' },
     accent: { cardBg: TINT.peach, pillBg: INK, pillText: '#fff', progressFill: TINT.peachDeep, eyebrow: TINT.mintDeep },
   },
   {
     id: 7,
-    emoji: '\uD83D\uDCDA',
-    pageH1: 'And then there\u2019s Tutor.',
+    emoji: '📚',
+    pageH1: 'And then there’s Tutor.',
     pageSub: 'The thing that makes Zaeli different. Per-kid, curriculum-aligned, adaptive.',
     cardTitle: 'Tutor',
-    cardSub: 'Maths \u00B7 English \u00B7 Science \u00B7 HASS. Foundation through Year 12. Difficulty bands shift up when they nail it, ease back when they\u2019re stuck. Parent recap after every session.',
+    cardSub: 'Maths · English · Science · HASS. Foundation through Year 12. Difficulty bands shift up when they nail it, ease back when they’re stuck. Parent recap after every session.',
     trySaying: '"Run a maths session with Poppy"',
-    features: ['4 subjects', 'F\u201312 curriculum', '3 difficulty bands', 'Parent recap', 'Voice + photo'],
-    ctaLabel: 'Open Tutor \u2192',
+    features: ['4 subjects', 'F–12 curriculum', '3 difficulty bands', 'Parent recap', 'Voice + photo'],
+    ctaLabel: 'Open Tutor →',
     ctaTarget: { kind: 'route', path: '/(tabs)/tutor' },
     accent: {
       cardBg: TINT.violet,
@@ -186,58 +191,58 @@ export const STOPS: TourStop[] = [
     },
     isHero: true,
     trialBadge: true,
-    priceLine: 'Trial includes everything \u00B7 then $9.99 / child / month',
+    priceLine: 'Trial includes everything · then $9.99 / child / month',
     secondaryCtaLabel: 'Just have a look',
   },
   {
     id: 8,
-    emoji: '\u2708\uFE0F',
+    emoji: '✈️',
     pageH1: 'Travel.',
     pageSub: 'Trips planned, packed, costed. Bookings auto-extracted from screenshots.',
     cardTitle: 'Travel',
-    cardSub: 'Per-trip overview, bookings, packing checklist, notes. Pure Planner budget \u2014 set total + Booked auto-sums.',
+    cardSub: 'Per-trip overview, bookings, packing checklist, notes. Pure Planner budget — set total + Booked auto-sums.',
     trySaying: '"Plan a trip to Bali in September"',
     features: ['Bookings', 'Packing', 'Notes', 'Per-trip budget'],
-    ctaLabel: 'Open Travel \u2192',
+    ctaLabel: 'Open Travel →',
     ctaTarget: { kind: 'route', path: '/(tabs)/travel' },
     accent: { cardBg: TINT.sky, pillBg: INK, pillText: '#fff', progressFill: TINT.skyDeep, eyebrow: TINT.mintDeep },
   },
   {
     id: 9,
-    emoji: '\uD83D\uDCB0',
+    emoji: '💰',
     pageH1: 'Our Budget.',
     pageSub: 'A planner, not a tracker. Plan the month. Hit the goals. No surprise bills.',
     cardTitle: 'Our Budget',
     cardSub: 'Income streams, fixed bills, variable categories, savings goals. AI helper turns a statement screenshot into starter line items.',
     trySaying: '"Set up a savings goal for our holiday"',
     features: ['Income streams', 'Categories', 'Savings goals', 'Statement scan'],
-    ctaLabel: 'Open Our Budget \u2192',
+    ctaLabel: 'Open Our Budget →',
     ctaTarget: { kind: 'route', path: '/(tabs)/our-budget' },
     accent: { cardBg: TINT.mint, pillBg: INK, pillText: '#fff', progressFill: TINT.mintDeep, eyebrow: TINT.mintDeep },
   },
   {
     id: 10,
-    emoji: '\uD83C\uDF3F',
+    emoji: '🌿',
     pageH1: 'My Space.',
     pageSub: 'Your zone. Just you. Family stuff is everywhere else.',
     cardTitle: 'My Space',
-    cardSub: 'Personal notes & tasks \u00B7 goals \u00B7 fitness ring \u00B7 stretch \u00B7 zen sessions \u00B7 daily Wordle. Word of the Day.',
+    cardSub: 'Personal notes & tasks · goals · fitness ring · stretch · zen sessions · daily Wordle. Word of the Day.',
     trySaying: '"Take me to my space" or just swipe to the My Space tile',
     features: ['Notes', 'Goals', 'Fitness', 'Wordle', 'Zen'],
-    ctaLabel: 'Open My Space \u2192',
+    ctaLabel: 'Open My Space →',
     ctaTarget: { kind: 'route', path: '/(tabs)/my-space' },
     accent: { cardBg: TINT.peach, pillBg: INK, pillText: '#fff', progressFill: TINT.peachDeep, eyebrow: TINT.mintDeep },
   },
   {
     id: 11,
-    emoji: '\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66',
+    emoji: '👨‍👩‍👧‍👦',
     pageH1: 'Our Family.',
     pageSub: 'Manage the household. Profiles, approvals, invitations.',
     cardTitle: 'Our Family',
     cardSub: 'Each member has a profile. Approve kid-suggested jobs and rewards. Invite Anna, the kids, even grandparents.',
     trySaying: '"Invite Anna to join our family"',
     features: ['Profiles', 'Approvals', 'Invites', 'Roles'],
-    ctaLabel: 'Open Our Family \u2192',
+    ctaLabel: 'Open Our Family →',
     ctaTarget: { kind: 'route', path: '/(tabs)/family' },
     accent: { cardBg: TINT.magenta, pillBg: INK, pillText: '#fff', progressFill: TINT.magentaDeep, eyebrow: TINT.mintDeep },
   },
@@ -248,11 +253,11 @@ export const TOTAL_STOPS = STOPS.length; // 11
 export type StopPosition = number | 'finale';
 
 export interface TourState {
-  currentStop: StopPosition; // 1..11 or 'finale'
-  startedAt: string | null;  // ISO
+  currentStop: StopPosition;
+  startedAt: string | null;
   completedAt: string | null;
-  lastOpenedAt: string | null;        // last time /tour mounted
-  lastResumePromptAt: string | null;  // last time the inactivity prompt was shown
+  lastOpenedAt: string | null;
+  lastResumePromptAt: string | null;
 }
 
 const DEFAULT_STATE: TourState = {
@@ -266,36 +271,75 @@ const DEFAULT_STATE: TourState = {
 let _state: TourState = { ...DEFAULT_STATE };
 let _loaded = false;
 
-// ── Persistence ────────────────────────────────────────────────────────────
+// ── Persistence (write-through to profile + AsyncStorage) ────────────────
 async function persist(): Promise<void> {
+  // AsyncStorage write — fire-and-forget for offline + fast restart.
+  AsyncStorage.setItem(KEY_STATE, JSON.stringify(_state)).catch(() => {});
+
+  // Profile write — only if signed in. Same fire-and-forget; cache stays
+  // authoritative locally until next loadTourState().
   try {
-    await AsyncStorage.setItem(KEY_STATE, JSON.stringify(_state));
-  } catch {}
+    const { data } = await supabase.auth.getSession();
+    const userId = data?.session?.user?.id;
+    if (!userId) return;
+    await supabase
+      .from('profiles')
+      .update({ tour_state: _state })
+      .eq('id', userId);
+  } catch (e: any) {
+    // Network blips are fine — AsyncStorage already has the latest.
+    console.log('[tour] persist DB error:', e?.message);
+  }
 }
 
 export async function loadTourState(): Promise<TourState> {
-  // Always ensure account is loaded too — getEffectiveStops() depends on it
+  // Always make sure account is loaded too — getEffectiveStops() depends on it.
   await loadAccount();
   if (_loaded) return _state;
+
+  // Profile is source of truth when signed in. Fall back to AsyncStorage
+  // for pre-auth (kid receivers, mid-onboarding) + offline restart.
+  let loadedFromProfile = false;
   try {
-    const raw = await AsyncStorage.getItem(KEY_STATE);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<TourState>;
-      _state = {
-        currentStop: parsed.currentStop ?? 1,
-        startedAt: parsed.startedAt ?? null,
-        completedAt: parsed.completedAt ?? null,
-        lastOpenedAt: parsed.lastOpenedAt ?? null,
-        lastResumePromptAt: parsed.lastResumePromptAt ?? null,
-      };
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData?.session?.user?.id;
+    if (userId) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('tour_state')
+        .eq('id', userId)
+        .single();
+      if (!error && data?.tour_state) {
+        _state = sanitiseState(data.tour_state);
+        loadedFromProfile = true;
+      }
     }
-  } catch {}
+  } catch (e: any) {
+    console.log('[tour] load DB error:', e?.message);
+  }
+
+  if (!loadedFromProfile) {
+    try {
+      const raw = await AsyncStorage.getItem(KEY_STATE);
+      if (raw) _state = sanitiseState(JSON.parse(raw));
+    } catch {}
+  }
+
   _loaded = true;
   return _state;
 }
 
+function sanitiseState(parsed: any): TourState {
+  return {
+    currentStop:        parsed?.currentStop ?? 1,
+    startedAt:          parsed?.startedAt ?? null,
+    completedAt:        parsed?.completedAt ?? null,
+    lastOpenedAt:       parsed?.lastOpenedAt ?? null,
+    lastResumePromptAt: parsed?.lastResumePromptAt ?? null,
+  };
+}
+
 // ── Effective stops (filtered by account kind) ────────────────────────────
-// Kids skip Budget + Family management. Owner/Adult see all 11.
 export function getEffectiveStops(): TourStop[] {
   if (isKidAccount()) return STOPS.filter(s => !KID_SKIP_IDS.includes(s.id));
   return STOPS;
@@ -329,12 +373,10 @@ export async function markOpened(): Promise<void> {
 export async function advanceStop(): Promise<StopPosition> {
   const cur = _state.currentStop;
   if (cur === 'finale') return 'finale';
-  // Step through the EFFECTIVE list (kid skips Budget + Family)
   const stops = getEffectiveStops();
   const idx = stops.findIndex(s => s.id === cur);
   let next: StopPosition;
   if (idx < 0) {
-    // Current stop isn't in effective list (e.g. kid landed on Budget somehow) — jump to first
     next = stops[0]?.id ?? 'finale';
   } else if (idx >= stops.length - 1) {
     next = 'finale';
@@ -414,9 +456,6 @@ export function shouldShowResumePrompt(): boolean {
 }
 
 export async function replayStop(n: number): Promise<void> {
-  // Snap to a valid stop in the EFFECTIVE list — if a kid taps a skipped
-  // ID (shouldn't happen since picker hides them, but defensive), land on
-  // the closest valid stop.
   const stops = getEffectiveStops();
   const valid = stops.find(s => s.id === n);
   const target = valid ? valid.id : (stops[0]?.id ?? 1);
@@ -439,8 +478,6 @@ export function getStopById(id: number): TourStop | undefined {
 export function getProgressPct(): number {
   const cur = _state.currentStop;
   if (cur === 'finale') return 100;
-  // Compute against the EFFECTIVE list (kid = 9 stops, adult/owner = 11).
-  // (idx) / (total - 1) so stop 1 = 0%, last stop = 100% — even jumps per step.
   const stops = getEffectiveStops();
   if (stops.length <= 1) return 100;
   const idx = stops.findIndex(s => s.id === cur);

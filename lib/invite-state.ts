@@ -1,70 +1,86 @@
 /**
- * lib/invite-state.ts — Local store for pending family invites.
+ * lib/invite-state.ts — Family invite tokens (Supabase-backed, Phase 2b).
  *
- * v1 = mock token (no backend). Each invite has a short code that gets
- * embedded in a `zaeli.app/i/<token>` link the user shares via SMS.
- * Real Supabase-backed token validation lands with the backend pass.
+ * Phase 2a stored these in AsyncStorage as a single-device mock. Phase 2b
+ * moves them to public.invite_tokens with RLS so invites work cross-device.
  *
- * Public API:
- *   loadInvites()                     — read from AsyncStorage on mount
- *   getInvites()                      — current array of invites
- *   createInvite({...})               — new invite, returns { invite, link, sms }
- *   markAccepted(token)               — receiver finished onboarding
- *   resendInvite(token)               — bumps timestamp (no real send)
- *   revokeInvite(token)               — removes from list
- *   getPendingForName(name)           — find pending invite for a member
- *   recentlyAcceptedInvites()         — invites accepted in last N min, for chat heads-up
- *   clearJustAcceptedFlag(token)      — once heads-up fired, mark surfaced
+ * Two halves:
+ *
+ *   Inviter side (signed-in user): hydrates a module-level cache from
+ *   Supabase via family-scoped RLS. Same call-site API as before
+ *   (getInvites / getPendingInvites / findByToken / createInvite /
+ *   markAccepted / resendInvite / revokeInvite) so chat + family screens
+ *   don't need to change. Mutations write through to Supabase.
+ *
+ *   Receiver side (no session yet — they just tapped a link):
+ *   - lookupInviteByToken(token)  → RPC get_invite_by_token (anon-callable)
+ *   - acceptInviteRemote(token)   → RPC accept_invite
+ *
+ *   Both RPCs are SECURITY DEFINER so they bypass RLS but only return /
+ *   modify the single token row. The token IS the secret — same security
+ *   model as Stripe idempotency keys / password reset links.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from './supabase';
 
-const KEY_INVITES = 'invite_state_v1';
 const INVITE_LINK_BASE = 'zaeli.app/i/';
 
 export type InviteRole = 'adult' | 'kid';
 export type InviteStatus = 'pending' | 'accepted' | 'revoked';
 
 export interface Invite {
-  token: string;            // short code embedded in link
+  token: string;
   role: InviteRole;
-  name: string;             // who we're inviting
-  phone?: string;           // optional, just stored for record
+  name: string;
+  phone?: string;
   status: InviteStatus;
-  createdAt: string;        // ISO
+  createdAt: string;
   acceptedAt: string | null;
   revokedAt: string | null;
-  surfacedHeadsUp: boolean; // once chat shows "Anna joined" we set this true
+  surfacedHeadsUp: boolean;
 }
 
 let _invites: Invite[] = [];
 let _loaded = false;
 
-// ── Persistence ────────────────────────────────────────────────────────────
-async function persist(): Promise<void> {
-  try { await AsyncStorage.setItem(KEY_INVITES, JSON.stringify(_invites)); } catch {}
+// ── Row mapping ───────────────────────────────────────────────────────────
+function rowToInvite(row: any): Invite {
+  return {
+    token:           row.token,
+    role:            row.role,
+    name:            row.name,
+    phone:           row.phone || undefined,
+    status:          row.status,
+    createdAt:       row.created_at,
+    acceptedAt:      row.accepted_at,
+    revokedAt:       row.revoked_at,
+    surfacedHeadsUp: !!row.surfaced_heads_up,
+  };
 }
 
+// ── Inviter-side cache ────────────────────────────────────────────────────
 export async function loadInvites(): Promise<Invite[]> {
-  if (_loaded) return _invites;
+  // Always re-fetch on call — caller-controlled refresh. Cache stays warm
+  // for sync getInvites() reads in render after the first load.
   try {
-    const raw = await AsyncStorage.getItem(KEY_INVITES);
-    if (raw) _invites = JSON.parse(raw) as Invite[];
-  } catch {}
-  _loaded = true;
+    const { data, error } = await supabase
+      .from('invite_tokens')
+      .select('token,role,name,phone,status,surfaced_heads_up,created_at,accepted_at,revoked_at')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.log('[invites] load error:', error.message);
+      // Keep stale cache if present
+      _loaded = true;
+      return _invites;
+    }
+    _invites = (data || []).map(rowToInvite);
+    _loaded = true;
+  } catch (e: any) {
+    console.log('[invites] load exception:', e?.message);
+  }
   return _invites;
 }
 
-// ── Token helper ───────────────────────────────────────────────────────────
-function generateToken(): string {
-  // 6 chars, alphanumeric. Mock — real token would be cryptographically signed.
-  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-  let out = '';
-  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
-}
-
-// ── Public API ─────────────────────────────────────────────────────────────
 export function getInvites(): Invite[] {
   return [..._invites];
 }
@@ -79,41 +95,89 @@ export function getPendingForName(name: string): Invite | undefined {
 }
 
 export function findByToken(token: string): Invite | undefined {
+  // Inviter-side cache lookup. Receivers should use lookupInviteByToken().
   return _invites.find(i => i.token === token);
 }
 
+// ── Token helper ──────────────────────────────────────────────────────────
+function generateToken(): string {
+  // 6 chars, alphanumeric, no easily-confused glyphs.
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let out = '';
+  for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+
+// ── createInvite ──────────────────────────────────────────────────────────
 export interface CreateInviteArgs {
   role: InviteRole;
   name: string;
   phone?: string;
-  inviterFirstName: string;   // used in SMS copy
+  inviterFirstName: string;
 }
 
 export interface CreatedInvite {
   invite: Invite;
-  link: string;               // full https link (mock domain)
-  sms: string;                // pre-composed SMS body for share sheet
+  link: string;
+  sms: string;
 }
 
 export async function createInvite(args: CreateInviteArgs): Promise<CreatedInvite> {
-  const token = generateToken();
+  // Resolve current family + user from auth context. Without a session this
+  // throws — createInvite is inviter-only (must be signed in).
+  const { data: sessionData } = await supabase.auth.getSession();
+  const session = sessionData?.session;
+  if (!session) throw new Error('Not signed in');
+  const userId = session.user.id;
+
+  const { data: profile, error: profErr } = await supabase
+    .from('profiles')
+    .select('family_id')
+    .eq('id', userId)
+    .limit(1)
+    .single();
+  if (profErr || !profile?.family_id) throw new Error('No family for current user');
+  const familyId = profile.family_id as string;
+
+  // Generate a unique token (retry up to 5x on the rare collision).
+  let token = generateToken();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { error } = await supabase
+      .from('invite_tokens')
+      .insert({
+        token,
+        family_id:       familyId,
+        inviter_user_id: userId,
+        role:            args.role,
+        name:            args.name.trim(),
+        phone:           args.phone?.trim() || null,
+        status:          'pending',
+      });
+    if (!error) break;
+    if (error.code === '23505') {
+      // Unique violation on token — regenerate and try again
+      token = generateToken();
+      if (attempt === 4) throw error;
+      continue;
+    }
+    throw error;
+  }
+
   const invite: Invite = {
     token,
-    role: args.role,
-    name: args.name.trim(),
-    phone: args.phone?.trim() || undefined,
-    status: 'pending',
-    createdAt: new Date().toISOString(),
-    acceptedAt: null,
-    revokedAt: null,
+    role:            args.role,
+    name:            args.name.trim(),
+    phone:           args.phone?.trim() || undefined,
+    status:          'pending',
+    createdAt:       new Date().toISOString(),
+    acceptedAt:      null,
+    revokedAt:       null,
     surfacedHeadsUp: false,
   };
-  _invites.push(invite);
-  await persist();
+  _invites.unshift(invite);
 
   const link = `https://${INVITE_LINK_BASE}${token}`;
   const sms = composeSms(args.role, args.name, args.inviterFirstName, link);
-
   return { invite, link, sms };
 }
 
@@ -125,32 +189,61 @@ function composeSms(role: InviteRole, name: string, inviter: string, link: strin
   return `${first}! 🎉 ${inviter} set up Zaeli for our family — your own hub, jobs, games, Tutor for homework, plus the family calendar, meals and shopping. Tap to join: ${link}`;
 }
 
+// ── markAccepted (inviter cache + DB) ────────────────────────────────────
+// Call from inviter side ONLY (rarely — receiver path uses acceptInviteRemote).
+// Kept for the dev "Simulate invite accepted" row in Settings.
 export async function markAccepted(token: string): Promise<void> {
   const inv = _invites.find(i => i.token === token);
-  if (!inv) return;
-  inv.status = 'accepted';
-  inv.acceptedAt = new Date().toISOString();
-  inv.surfacedHeadsUp = false; // chat will surface + mark true
-  await persist();
+  if (inv) {
+    inv.status = 'accepted';
+    inv.acceptedAt = new Date().toISOString();
+    inv.surfacedHeadsUp = false;
+  }
+  try {
+    await supabase
+      .from('invite_tokens')
+      .update({
+        status:            'accepted',
+        accepted_at:       new Date().toISOString(),
+        surfaced_heads_up: false,
+      })
+      .eq('token', token);
+  } catch (e: any) {
+    console.log('[invites] markAccepted DB error:', e?.message);
+  }
 }
 
 export async function resendInvite(token: string): Promise<void> {
   const inv = _invites.find(i => i.token === token);
-  if (!inv) return;
-  inv.createdAt = new Date().toISOString(); // bump
-  await persist();
+  if (inv) inv.createdAt = new Date().toISOString();
+  try {
+    await supabase
+      .from('invite_tokens')
+      .update({ created_at: new Date().toISOString() })
+      .eq('token', token);
+  } catch (e: any) {
+    console.log('[invites] resend DB error:', e?.message);
+  }
 }
 
 export async function revokeInvite(token: string): Promise<void> {
   const inv = _invites.find(i => i.token === token);
-  if (!inv) return;
-  inv.status = 'revoked';
-  inv.revokedAt = new Date().toISOString();
-  await persist();
+  if (inv) {
+    inv.status = 'revoked';
+    inv.revokedAt = new Date().toISOString();
+  }
+  try {
+    await supabase
+      .from('invite_tokens')
+      .update({ status: 'revoked', revoked_at: new Date().toISOString() })
+      .eq('token', token);
+  } catch (e: any) {
+    console.log('[invites] revoke DB error:', e?.message);
+  }
 }
 
-// ── Heads-up surfacing for inviter chat ────────────────────────────────────
-const HEADSUP_WINDOW_MIN = 60; // surface within an hour of acceptance
+// ── Heads-up surfacing for inviter chat ──────────────────────────────────
+const HEADSUP_WINDOW_MIN = 60;
 
 export function recentlyAcceptedInvites(): Invite[] {
   const cutoff = Date.now() - HEADSUP_WINDOW_MIN * 60 * 1000;
@@ -164,12 +257,58 @@ export function recentlyAcceptedInvites(): Invite[] {
 
 export async function clearJustAcceptedFlag(token: string): Promise<void> {
   const inv = _invites.find(i => i.token === token);
-  if (!inv) return;
-  inv.surfacedHeadsUp = true;
-  await persist();
+  if (inv) inv.surfacedHeadsUp = true;
+  try {
+    await supabase
+      .from('invite_tokens')
+      .update({ surfaced_heads_up: true })
+      .eq('token', token);
+  } catch (e: any) {
+    console.log('[invites] clearJustAcceptedFlag DB error:', e?.message);
+  }
 }
 
-// ── Helpers for relative time display on Family screen ────────────────────
+// ── Receiver-side lookup (no auth required) ──────────────────────────────
+// Hits SECURITY DEFINER RPC so RLS doesn't block the lookup. Returns null
+// for invalid / missing tokens.
+export async function lookupInviteByToken(token: string): Promise<Invite | null> {
+  if (!token) return null;
+  try {
+    const { data, error } = await supabase.rpc('get_invite_by_token', { p_token: token });
+    if (error) {
+      console.log('[invites] lookup RPC error:', error.message);
+      return null;
+    }
+    if (!data) return null;
+    return rowToInvite(data);
+  } catch (e: any) {
+    console.log('[invites] lookup exception:', e?.message);
+    return null;
+  }
+}
+
+// Mark accepted from the receiver side. Doesn't require auth (anon RPC).
+// p_user_id is optional — passes null until Phase 2d wires real auth at signup.
+export async function acceptInviteRemote(token: string, userId?: string | null): Promise<Invite | null> {
+  if (!token) return null;
+  try {
+    const { data, error } = await supabase.rpc('accept_invite', {
+      p_token:   token,
+      p_user_id: userId ?? null,
+    });
+    if (error) {
+      console.log('[invites] accept RPC error:', error.message);
+      return null;
+    }
+    // RPC returns a partial row — re-fetch the full one for cache parity.
+    return await lookupInviteByToken(token);
+  } catch (e: any) {
+    console.log('[invites] accept exception:', e?.message);
+    return null;
+  }
+}
+
+// ── Helpers for relative time display on Family screen ───────────────────
 export function relTime(iso: string): string {
   const t = new Date(iso).getTime();
   const now = Date.now();
@@ -181,4 +320,12 @@ export function relTime(iso: string): string {
   const diffDay = Math.floor(diffHr / 24);
   if (diffDay < 7) return `${diffDay}d ago`;
   return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+}
+
+// ── Reset (for dev row in Settings) ──────────────────────────────────────
+// Wipes the local cache and refetches. Useful after backfill / testing.
+export async function resetCache(): Promise<void> {
+  _invites = [];
+  _loaded = false;
+  await loadInvites();
 }
