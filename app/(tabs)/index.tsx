@@ -6259,6 +6259,23 @@ Rules:
 
             {/* ── BAR — single pill (Tutor style), taller: [Mic | TextInput | Camera | Send] ── */}
             <View style={s.barFloat}>
+              {/* Pending photo preview — shows above the bar after camera/photos pick */}
+              {pendingImage && (
+                <View style={{ flexDirection:'row', alignItems:'center', marginBottom:8, paddingHorizontal:4 }}>
+                  <View style={{ position:'relative' }}>
+                    <Image source={{ uri: pendingImage }} style={{ width:64, height:64, borderRadius:12, borderWidth:1.5, borderColor:'rgba(10,10,10,0.10)' }}/>
+                    <TouchableOpacity
+                      onPress={() => setPendingImage(null)}
+                      style={{ position:'absolute', top:-6, right:-6, width:22, height:22, borderRadius:11, backgroundColor:'#0A0A0A', alignItems:'center', justifyContent:'center', borderWidth:2, borderColor:'#FAF8F5' }}
+                      activeOpacity={0.75}
+                      hitSlop={{ top:8, right:8, bottom:8, left:8 }}
+                    >
+                      <Text style={{ fontSize:11, color:'#fff', fontFamily:'Poppins_700Bold' }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={{ marginLeft:10, fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(10,10,10,0.55)' }}>Photo ready — tap send</Text>
+                </View>
+              )}
               <View style={s.barPillV2}>
                 {/* Mic */}
                 <TouchableOpacity
@@ -6301,10 +6318,17 @@ Rules:
                     <Circle cx="12" cy="13" r="4"/>
                   </Svg>
                 </TouchableOpacity>
-                {/* Send — onTouchStart preserved */}
+                {/* Send — onTouchStart preserved. Allows photo-only sends. */}
                 <View
-                  style={[s.barSendV2, !input.trim() && { opacity:0.3 }]}
-                  onTouchStart={() => { if (input.trim()) { const t = input; setInput(''); inputRef.current?.clear(); send(t); } }}
+                  style={[s.barSendV2, !input.trim() && !pendingImage && { opacity:0.3 }]}
+                  onTouchStart={() => {
+                    const t = input;
+                    if (t.trim() || pendingImage) {
+                      setInput('');
+                      inputRef.current?.clear();
+                      send(t.trim() ? t : '');
+                    }
+                  }}
                 >
                   <Svg width={22} height={22} viewBox="0 0 24 24" fill="none"
                     stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
