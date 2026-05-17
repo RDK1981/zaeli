@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 28 April 2026 — Session 20 ✅ · On-device polish round (Tutor session resume from tutor_messages · chat VIEW-query inline cards across Shopping/Meals/Tasks · Shopping sheet add-bar layout fix using explicit insets) · Voice (ElevenLabs) explicitly deferred to AFTER backend pass · Session 19 quick wins shipped earlier same day (kid tour 9 stops · Kids Hub welcome banner · kid-account route gating · calendar month-view glitch fixed)*
+*Last updated: 18 May 2026 — Session 21 ✅ · Backend Pass kickoff: Phases 1 (auth foundation), 2a (RLS + DUMMY_FAMILY_ID swap + session persistence), 2b (invite tokens + tour state to Supabase), 2c (settings preferences to Supabase) — all shipped, all verified end-to-end on device · Chat bar photo upload bug fixed (missing thumbnail + photo-only send blocked) · Phase 2d (real auth at invite acceptance) next*
 
 ---
 
@@ -1458,6 +1458,168 @@ Small exception: if voice gets wired pre-backend, it should be ONLY for the brie
 
 ---
 
+## ══════════════════════════════════
+## SESSION 21 — BACKEND PASS KICKOFF (14–18 May 2026) ✅
+## ══════════════════════════════════
+
+Four-phase backend migration shipped + a chat bar photo bug fix. Largest single block of backend infrastructure work to date. All four phases verified end-to-end on device.
+
+### A. Backend Phase 1 — Auth foundation (commit `91dbf1e`)
+
+First real Supabase auth in the project. Sign-up + sign-in via DB trigger, atomic family + profile creation, AsyncStorage session persistence, polished sign-in UI with palette orbs matching onboarding.
+
+**NEW SQL: `supabase-auth-tables.sql`** (idempotent)
+- `public.families` table (id, name, created_at)
+- `public.profiles` table (id PK = auth.users.id, family_id, kind ENUM 'owner'/'adult'/'kid', name, email, avatar, colour, year_level, brief_morning_at, brief_evening_at, created_at, updated_at)
+- `handle_new_user()` SECURITY DEFINER trigger on `auth.users` INSERT — reads `name` + `family_name` from `raw_user_meta_data`, creates a families row + matching profile in one transaction. Avoids the classic Supabase RLS-vs-fresh-session chicken-and-egg.
+- `public.current_family_id()` helper — single source of truth for "what family does this user belong to". Used by every RLS policy downstream.
+- RLS policies: "Read own profile" (id = auth.uid()), "Read family profiles" (family_id = current_family_id()), "Update own profile".
+
+**NEW `lib/auth.ts`** — public API: `signUpOwner({email, password, name, familyName?})` / `signInWithPassword({email, password})` / `signOut()` / `getSession()` / `getCurrentUserId()` / `loadProfile()` / `getProfile()` / `getCurrentFamilyId()` / `onAuthChange(cb)`. Module-level `_profile` cache for sync reads.
+
+**NEW `app/(auth)/sign-in.tsx`** — three states: 'sign-in' | 'sign-up' | 'check-email'. Palette orb splash design (matches onboarding). Layout polish: explicit `lineHeight` on every text style to prevent 'y'/'g' descender clipping (was cutting off "family" and "Sign in"). Bottom-right sky orb removed (was overlapping Sign in button). `zIndex: 1` on ScrollView.
+
+**`app/_layout.tsx`** — auth guard with session check on mount. `onAuthChange` listener calls `invalidateAccount()` + `loadProfile()` on SIGNED_IN. Returns blank `<View>` until `loaded && authed !== null`.
+
+**Critical setup**: Disable "Confirm email" in Supabase dashboard for dev (otherwise sign-up sends confirmation email and stalls).
+
+### B. Backend Phase 2a — RLS on data tables + DUMMY_FAMILY_ID swap (commit `24aa73c` then fixes in `4884290`)
+
+The big lift. Move from the hardcoded `DUMMY_FAMILY_ID = '00000000-0000-0000-0000-000000000001'` constant scattered across 12 files to dynamic `getFamilyId()` resolving at query time via the authenticated profile.
+
+**NEW SQL: `supabase-data-rls.sql`**
+- Standard RLS policies (SELECT/INSERT/UPDATE/DELETE) added via DO-block iterating 19 family-scoped tables: events, todos, shopping_items, pantry_items, receipts, meal_plans, recipes, family_members, zaeli_briefs, personal_tasks, kids_jobs, kids_rewards, kids_points_log, kids_pending_approvals, kids_trivia_history, tutor_sessions, tutor_progress, reminders, notes
+- All policies: `family_id = public.current_family_id()`
+- `tutor_messages` gets session-aware policy: `session_id IN (SELECT id FROM tutor_sessions WHERE family_id = current_family_id())`
+- `claim_legacy_data()` helper RPC — reassigns rows on DUMMY_FAMILY_ID to caller's real family (returns per-table counts for verification)
+
+**NEW `lib/family.ts`** — `getFamilyId()` calls `getCurrentFamilyId()` from auth.ts. If profile not loaded yet (race condition), falls back to DUMMY_FAMILY_ID + logs once + auto-triggers `loadProfile()` to self-heal.
+
+**99 swaps across 12 files** — perl word-boundary regex `\bFAMILY_ID\b` → `getFamilyId()`. Files: `app/(tabs)/index.tsx` (99 refs — the bulk), `dashboard.tsx` (9), `my-space.tsx` (11), `family.tsx` (11), `kids.tsx` (11), `tutor.tsx` (2), `tutor-child.tsx` (3), `tutor-session.tsx` (5), `calendar.tsx` (9 — DUMMY_FAMILY_ID variant), `lib/tutor-summaries.ts` (6). `lib/zaeli-memory.ts` and `lib/notifications.ts` kept DUMMY_FAMILY_ID as imported constant for default-parameter fallback.
+
+**Three NEW view-query branches added to `send()` in index.tsx** (Shopping/Meals/Tasks "what's on…" queries). These had to go BEFORE the calendar branch — otherwise CALENDAR_KEYWORDS' "what's on" matched first and intercepted shopping queries with a calendar render.
+
+### C. Backend Phase 2a follow-up fixes (commit `4884290`) — session persistence + RLS finally working
+
+After initial Phase 2a, three issues surfaced during on-device testing:
+
+**Issue 1: User signed out on every reload.** Root cause: Supabase auth defaulted to `window.localStorage` which doesn't exist in RN. Fix in `lib/supabase.ts`:
+- Wire `AsyncStorage` as `auth.storage`
+- `react-native-url-polyfill/auto` import (required for RN auth — Supabase tokens don't serialize properly without it)
+- `AppState` listener to call `supabase.auth.startAutoRefresh()` / `stopAutoRefresh()` on foreground / background
+- Required `npx expo start --dev-client --clear` after install
+
+**Issue 2: `lib/family.ts` warned-once fallback hardening.** When `getFamilyId()` called before profile cache populated, log once + auto-trigger `loadProfile()`. Surfaces race conditions cleanly + self-heals.
+
+**Issue 3 (the big one): Shopping list still returned 0 rows despite all auth context correct.**
+
+Diagnosed end-to-end:
+- ✅ JWT working (`auth_uid: 700edaa4-...`)
+- ✅ Function returns right family (`family_id_from_fn: 51dff810-...`)
+- ✅ Profile row exists
+- ❌ Query returned `rows: 0`
+
+Cause: `current_family_id()` SECURITY DEFINER function was created without `SET search_path = public, auth`. Inside SECURITY DEFINER context running as `postgres` role, `auth.uid()` didn't resolve and the function silently returned NULL. Then `family_id = NULL` was always false → zero rows.
+
+Compounded by a SECOND silent failure: original `supabase-data-rls.sql` DO-block had rolled back during its first run (probably because the function existed at the wrong moment) — so RLS was ON with ZERO policies, which is Postgres' deny-everything default.
+
+**Fix:**
+1. `CREATE OR REPLACE FUNCTION public.current_family_id() ... SET search_path = public, auth ...` — auth.uid() resolves cleanly inside SECURITY DEFINER
+2. Re-ran the policy DO-block (idempotent DROP IF EXISTS + CREATE) — all 19 tables got their 4 policies
+3. Verified end-to-end: shopping list, calendar, meals, tasks, kids hub, tutor — all rendered correctly under signed-in auth
+
+**Lesson locked**: any SECURITY DEFINER function that calls `auth.uid()` MUST have `SET search_path = public, auth`. No exceptions.
+
+### D. Backend Phase 2b — invite tokens + tour state to Supabase (commit `a632852`)
+
+Two state libs migrated from AsyncStorage to Supabase so they work cross-device. Public API surface preserved on both libs so call sites in chat, family, tour route, and settings replay didn't change.
+
+**NEW SQL: `supabase-invites-tour.sql`**
+- `public.invite_tokens` table (token PK + family_id + role + name + phone + status + surfaced_heads_up + accepted_user_id + inviter_user_id + timestamps)
+- 4 RLS policies on invite_tokens scoped by `family_id = current_family_id()` — inviters only see their own family's invites
+- SECURITY DEFINER RPC `public.get_invite_by_token(text)` → returns jsonb. **GRANT EXECUTE TO anon** so receivers without a session can lookup by token without RLS visibility. Token IS the secret — same security model as Stripe idempotency keys / password reset links.
+- SECURITY DEFINER RPC `public.accept_invite(text, uuid)` → marks invite accepted + records timestamp. Also anon-callable.
+- `profiles.tour_state JSONB` column for tour state persistence
+
+**`lib/invite-state.ts` rewrite**
+- Inviter side: `loadInvites/getInvites/getPendingInvites/findByToken/createInvite/markAccepted/resendInvite/revokeInvite` all preserved but now backed by Supabase (RLS-scoped SELECT to hydrate the module cache, mutations write through to DB)
+- `createInvite` resolves family_id from current user's profile, INSERTs to invite_tokens with retry-on-token-collision (5x for unique violation)
+- NEW `lookupInviteByToken(token)` and `acceptInviteRemote(token, userId)` for the receiver-side flow — both go through the SECURITY DEFINER RPCs so no session required
+
+**`lib/tour-state.ts` rewrite**
+- Source of truth: `profiles.tour_state` JSONB when signed in. AsyncStorage stays as offline fallback + pre-auth path (kid receivers don't have a Supabase user yet — Phase 2d)
+- `persist()` is write-through: AsyncStorage fire-and-forget + `profiles.tour_state` UPDATE if signed in. Cache is authoritative locally between persist() and next loadTourState()
+- All 16 public exports unchanged so /tour route + chat tour pill + settings replay picker work as-is
+- Inline emoji unicode escape sequences (`📅` etc) replaced with literal emoji characters since they were rendering literally in some JSX text contexts — no functional change
+
+**`app/invite/[token].tsx`** — receiver flow updated: `loadInvites + findByToken` → `lookupInviteByToken` (one RPC, no AsyncStorage), `markAccepted` → `acceptInviteRemote`
+
+### E. Backend Phase 2c — Settings preferences to Supabase (commit `8b7d543`)
+
+Smallest of the four phases. Same write-through pattern as tour-state.
+
+**NEW SQL: `supabase-user-prefs.sql`** — `ALTER TABLE profiles ADD COLUMN user_preferences jsonb`. No new RLS — profiles already has the right policies.
+
+**NEW `lib/user-prefs.ts`** — same shape as `lib/tour-state.ts`: module-level cache, `sanitise()` for forward-compat (extra keys ignored, missing keys filled from DEFAULT_PREFS), `persist()` write-through to AsyncStorage + `profiles.user_preferences` UPDATE if signed in. Public API: `loadPrefs / getPrefs / updatePref / savePrefs / invalidateCache + DEFAULT_PREFS + Prefs` type. All 15 settings fields preserved (briefMorningTime, briefEveningTime, brief on/off, notification toggles, quiet hours, sound + vibration, memory learning).
+
+**`app/(tabs)/settings.tsx`** — removed the inline `Prefs` interface, `DEFAULT_PREFS`, `PREFS_KEY`, and inline `loadPrefs/savePrefs` functions (now in lib). Imports from `lib/user-prefs`. `updatePref()` still updates local React state for immediate re-render, then fire-and-forgets the write-through via `persistUpdatePref()`.
+
+### F. Chat bar photo upload bug (commit `7b125d4`)
+
+Surfaced during testing after Phase 2c. User taps camera icon → picker opens → user selects → nothing visible happens.
+
+**Root cause — three combined issues:**
+1. **Missing thumbnail preview.** `pendingImage` state set on photo selection but never rendered. User had zero feedback that anything happened.
+2. **Send button disabled with photo-only.** Opacity check was `!input.trim()` — stayed at 30% even when pendingImage was present.
+3. **Send tap blocked with photo-only.** `onTouchStart` guard was `if (input.trim())` which rejected photo-only attempts.
+
+**Fix:**
+- 64px thumbnail above chat bar pill with "Photo ready — tap send" label + small ✕ dismiss
+- Opacity check: `!input.trim() && !pendingImage`
+- Tap guard: `if (t.trim() || pendingImage)` — calls `send('')` when no text but photo pending. The existing `send()` guard already accepts empty text + image (line 4185 `if ((!text && !imageUri) || loading) return`).
+
+### Locked decisions Session 21
+
+- **SECURITY DEFINER functions calling `auth.uid()` MUST have `SET search_path = public, auth`.** Otherwise auth.uid() silently returns NULL inside the function's role context. Single biggest lesson of this whole backend pass.
+- **State lib pattern is locked**: module-level cache for sync render reads + `loadX()` hydrates from profile JSONB (or table) when signed in / AsyncStorage when not + `persist()` write-through to both. Used in `lib/tour-state.ts` and `lib/user-prefs.ts`. Future state libs should follow this exact pattern.
+- **Receiver-side data lookups via anon-callable SECURITY DEFINER RPCs**, not direct table queries. RLS would otherwise hide every row from anon. Token IS the secret.
+- **Supabase SQL editor only shows the LAST query result** when running multiple queries together — known UX quirk. Run verification queries individually if you want all results.
+- **`pg_class.relrowsecurity = true` with no policies = deny-everything** by default. Always verify both RLS-on AND policies-exist when debugging "everything's empty" symptoms.
+- **For SQL backfills that need to bypass RLS during dev**: `ALTER TABLE x DISABLE ROW LEVEL SECURITY` → `UPDATE x SET ...` → `ALTER TABLE x ENABLE ROW LEVEL SECURITY`. `SET LOCAL row_security = off` does NOT work for non-postgres roles.
+- **Voice (ElevenLabs) stays deferred to after Phase 2 backend pass.** Session 20 decision still holds.
+
+### Files touched Session 21
+
+**NEW files:**
+- `supabase-auth-tables.sql`
+- `supabase-data-rls.sql`
+- `supabase-invites-tour.sql`
+- `supabase-user-prefs.sql`
+- `lib/auth.ts`
+- `lib/family.ts`
+- `lib/user-prefs.ts`
+- `app/(auth)/sign-in.tsx`
+
+**MODIFIED:**
+- `app/_layout.tsx` — auth guard + onAuthChange listener
+- `lib/supabase.ts` — AsyncStorage storage + url-polyfill + AppState refresh
+- `lib/invite-state.ts` — full rewrite to use Supabase + new receiver RPC functions
+- `lib/tour-state.ts` — full rewrite to use profile JSONB + AsyncStorage fallback
+- `lib/zaeli-memory.ts` + `lib/notifications.ts` — DUMMY_FAMILY_ID kept as imported default-parameter fallback
+- `app/invite/[token].tsx` — receiver flow uses new RPC functions
+- `app/(tabs)/settings.tsx` — inline prefs removed, uses lib
+- `app/(tabs)/index.tsx` — 99 getFamilyId() swaps + chat bar photo fix (thumbnail + photo-only send) + 3 view-query branches added earlier same phase
+- `app/(tabs)/dashboard.tsx`, `my-space.tsx`, `family.tsx`, `kids.tsx`, `tutor.tsx`, `tutor-child.tsx`, `tutor-session.tsx`, `calendar.tsx` — getFamilyId() swaps
+- `lib/tutor-summaries.ts` — getFamilyId() swaps
+
+### What's next — Phase 2d
+
+The remaining backend piece: **real auth wiring at invite acceptance.** Adult/kid invitees should actually create Supabase auth users, get profiles linked to the inviter's family_id, and sign in on a real second device. Modifies `handle_new_user()` trigger to detect `invite_token` in `raw_user_meta_data` and create profile linked to inviter's family_id (instead of new family). Updates `signUpFromInvite()` helper in `lib/auth.ts`. Updates `app/invite/[token].tsx` to do real signup + auto-mark invite accepted with new user id.
+
+After Phase 2d: cross-device verification on a real second device. Then memory wiring (Phase 2f), then external integrations (Push, Stripe, deep links — Phase 3), then ship-ready cleanup (Phase 4).
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -1553,7 +1715,19 @@ Phase 38a: Tutor session resume ✅ Session 20 (28 Apr) — Phase 20 from earlie
 Phase 38b: Chat view-query inline cards ✅ Session 20 — Shopping/Meals/Tasks "what's on..." queries intercepted before GPT chat path, render existing inline cards + chips. Action queries unaffected
 Phase 38c: Shopping add-bar layout ✅ Session 20 — useSafeAreaInsets() for explicit bottom inset on add bar. SafeAreaView edges='bottom' was unreliable on first render inside Modal
 Phase 38d: Voice (ElevenLabs)   🅿️ DEFERRED — explicit decision to do AFTER backend pass. Brief-only voice could go pre-backend if needed
-Phase 39: Backend pass         🔨 Now the biggest open block — Supabase migrations across all modules + auth + Stripe + push + memory wiring. See Pending for backend pass section above
+
+Phase 39a: Backend Phase 1 (auth foundation) ✅ Session 21 (14 May) — supabase-auth-tables.sql (families + profiles + handle_new_user SECURITY DEFINER trigger + current_family_id helper + 3 RLS policies). lib/auth.ts (signUpOwner/signIn/signOut/loadProfile + module cache). app/(auth)/sign-in.tsx (3-state UI with palette orbs). app/_layout.tsx auth guard + onAuthChange listener. Disabled email confirmation in Supabase dashboard.
+Phase 39b: Backend Phase 2a (RLS + DUMMY_FAMILY_ID swap) ✅ Session 21 (14-15 May) — supabase-data-rls.sql (19 tables × 4 policies + claim_legacy_data backfill RPC + tutor_messages session-aware policy). lib/family.ts (getFamilyId at query time, warned-once fallback). 99 swaps across 12 files via perl word-boundary regex. Plus 3 NEW view-query branches in send() (Shopping/Meals/Tasks) — must go BEFORE calendar branch.
+Phase 39c: Backend Phase 2a fixes (session persistence + RLS unblocked) ✅ Session 21 (15 May) — lib/supabase.ts AsyncStorage + react-native-url-polyfill + AppState refresh. Critical SQL fix: current_family_id() SET search_path = public, auth (was silently returning NULL because auth.uid() didn't resolve in SECURITY DEFINER without search_path). Re-ran policy DO-block (had silently rolled back on first run — RLS was ON with ZERO policies).
+Phase 39d: Backend Phase 2b (invite tokens + tour state to Supabase) ✅ Session 21 (15 May) — supabase-invites-tour.sql (invite_tokens + RLS + get_invite_by_token/accept_invite RPCs anon-callable + profiles.tour_state JSONB). lib/invite-state.ts rewrite (inviter side Supabase-backed, NEW receiver-side lookupInviteByToken/acceptInviteRemote via RPC). lib/tour-state.ts rewrite (profile JSONB source of truth, AsyncStorage offline fallback). app/invite/[token].tsx receiver uses new RPC functions.
+Phase 39e: Backend Phase 2c (settings prefs to Supabase) ✅ Session 21 (15 May) — supabase-user-prefs.sql (profiles.user_preferences JSONB). NEW lib/user-prefs.ts (same write-through pattern as tour-state). settings.tsx removed inline Prefs/DEFAULT_PREFS/loadPrefs/savePrefs.
+Phase 39f: Backend Phase 2d (real auth at invite acceptance) 🔨 NEXT — Adult/kid invitees create real Supabase auth users + profile linked to inviter's family_id (modify handle_new_user trigger to detect invite_token in raw_user_meta_data). Unlocks real cross-device invite usage.
+Phase 39g: Backend Phase 2e (cross-device verification) 🔨 — Test real invite + sign-up on a second device end-to-end.
+Phase 39h: Backend Phase 2f (memory wiring) 🔨 — Wire Settings → Memory view to real family_insights / family_milestones / conversation_memory tables.
+Phase 39i: Backend Phase 3 (external integrations) 🔨 — Push notifications scheduled to brief times. Stripe customer portal WebView. Real cross-device deep links (zaeli.app/i/<token>).
+Phase 39j: Backend Phase 4 (cleanup + ship-ready) 🔨 — Remove dev rows, LANDING_TEST_MODE=false, expo-document-picker for Our Budget CSV (EAS rebuild), share extension (EAS), GDPR / export data / privacy WebViews.
+
+Phase 40: Chat bar photo upload bug ✅ Session 21 (18 May) — 64px thumbnail above bar with "Photo ready — tap send" + ✕ dismiss. Send button opacity + tap guard updated to allow photo-only (send('') with imageUri). Three combined bugs presenting as one symptom (picker opens, select does nothing).
 ```
 
 ---
@@ -1643,3 +1817,10 @@ Phase 39: Backend pass         🔨 Now the biggest open block — Supabase migr
 - **Chat VIEW queries → inline cards** (Session 20) — for any data domain with an existing inline card render path (calendar/shopping/meals/todos), intercept "what's on..." queries in `send()` BEFORE the action path or GPT chat path. Pattern: keyword array → detection function (`isXxxViewQuery` — must check `isActionQuery` first to exclude actions) → branch in `send()` that fetches data + `updateMsg(replyId, { text, inlineData, quickReplies, isLoading: false })` + `return`. Never let GPT type out long lists.
 - **SafeAreaView edges in Modal is unreliable on first render** (Session 20) — react-native-safe-area-context's `<SafeAreaView edges={['bottom']}>` doesn't always resolve insets on first render inside a Modal. For any element whose layout depends on bottom safe area, OWN the inset via `useSafeAreaInsets()` and apply `paddingBottom` directly. Don't rely on SafeAreaView alone.
 - **Voice (ElevenLabs) AFTER backend pass** (Session 20 decision). Don't wire it now — would risk re-work when chat UX shifts. Only exception: brief-only voice (since brief render is locked).
+- **SECURITY DEFINER functions calling `auth.uid()` MUST have `SET search_path = public, auth`** (Session 21 — single biggest lesson of the backend pass). Without it, `auth.uid()` silently returns NULL inside the function's `postgres` role context. Function appears to succeed but returns NULL/false from any policy that uses it. Cost us a half day of debugging "shopping list empty" when everything else looked correct.
+- **State lib pattern is locked** (Session 21) — for any data that lives on a user-by-user basis (tour state, settings prefs, account state, etc): module-level cache for sync render reads + `loadX()` hydrates from `profiles.<col>` JSONB when signed in / AsyncStorage when not + `persist()` write-through to both. Used in `lib/tour-state.ts`, `lib/user-prefs.ts`. Future per-user state libs should follow this exact shape — public API matches what the lib used to do with pure AsyncStorage, so call sites don't change.
+- **Receiver-side data lookups via anon-callable SECURITY DEFINER RPCs** (Session 21), not direct table queries. RLS would otherwise hide every row from `anon` role. Token IS the secret (same security model as Stripe idempotency keys / password reset links). Example: `lib/invite-state.ts` `lookupInviteByToken()` + `acceptInviteRemote()` both hit `get_invite_by_token` / `accept_invite` RPCs with `GRANT EXECUTE TO anon`.
+- **Supabase SQL editor only shows the LAST query result** when running multiple queries together (Session 21). Run verification queries individually if you need to confirm each. Earlier queries DID execute — Postgres would error loudly if they failed.
+- **`pg_class.relrowsecurity = true` with no policies = deny-everything** by default (Session 21). When debugging "everything's empty" symptoms, always verify both RLS-on AND policies-exist via `SELECT polname FROM pg_policy WHERE polrelid = 'public.<table>'::regclass`.
+- **For SQL backfills that need to bypass RLS during dev** (Session 21): `ALTER TABLE x DISABLE ROW LEVEL SECURITY` → `UPDATE x SET ...` → `ALTER TABLE x ENABLE ROW LEVEL SECURITY`. `SET LOCAL row_security = off` does NOT work for non-postgres roles. SQL editor's own role enforces RLS on UPDATE, so silent zero-affected-rows is the silent failure mode.
+- **Chat bar photo-only send must work** (Session 21) — `pendingImage` state has a thumbnail preview above the bar (64px + ✕ dismiss + "Photo ready — tap send"). Send button opacity check + tap guard must allow `pendingImage` alone (no text required). `send('')` with `pendingImage` triggers the existing image-handling path in send().

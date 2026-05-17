@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 28 April 2026 — Session 20 ✅ · On-device polish round (Tutor session resume, chat VIEW-query inline cards across Shopping/Meals/Tasks, Shopping sheet add-bar layout fix) · Voice (ElevenLabs) explicitly deferred to AFTER backend pass · Session 19 quick wins shipped earlier same day (kid tour 9 stops, Kids Hub welcome banner, kid-account route gating, calendar month-view glitch)*
+*Last updated: 18 May 2026 — Session 21 ✅ · Backend Pass kickoff: Phases 1 (auth foundation), 2a (RLS + DUMMY_FAMILY_ID swap + session persistence), 2b (invite tokens + tour state to Supabase), 2c (settings preferences to Supabase) — all shipped, all verified on device · Chat bar photo upload bug fixed · Phase 2d (real auth at invite acceptance) NEXT*
 
 ---
 
@@ -512,6 +512,12 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 46. ✅ Direct-route gating for kid accounts — Session 19 quick wins (28 Apr) — Budget + Family redirect kids to /kids
 47. ✅ Chat VIEW-query inline cards — Session 20 (28 Apr) — Shopping/Meals/Tasks "what's on..." now renders inline card + chips, not text walls
 48. ✅ Shopping sheet add-bar layout — Session 20 (28 Apr) — explicit useSafeAreaInsets, SafeAreaView edges='[]'
+49. ✅ **Backend Phase 1 — Auth foundation** — Session 21 (14 May) — `supabase-auth-tables.sql` (families + profiles + handle_new_user DB trigger + current_family_id helper + 3 RLS policies). `lib/auth.ts` (signUpOwner / signIn / signOut / loadProfile + module cache). `app/(auth)/sign-in.tsx` (3-state UI with palette orbs matching onboarding). `app/_layout.tsx` auth guard + onAuthChange listener. Sign-up flow lands directly in chat (email confirmation disabled for dev).
+50. ✅ **Backend Phase 2a — RLS on data tables + getFamilyId() swap** — Session 21 (14-15 May) — `supabase-data-rls.sql` (19 family-scoped tables × 4 policies + claim_legacy_data backfill RPC + tutor_messages session-aware policy). `lib/family.ts` (getFamilyId resolves at query time, warned-once fallback with self-healing loadProfile). 99 swaps from DUMMY_FAMILY_ID constant to getFamilyId() across 12 files (perl word-boundary regex). Plus 3 NEW view-query branches added to send() in index.tsx (Shopping/Meals/Tasks "what's on…" — must go BEFORE calendar branch).
+51. ✅ **Backend Phase 2a fixes — session persistence + RLS unblocked** — Session 21 (15 May) — `lib/supabase.ts` AsyncStorage as auth.storage + `react-native-url-polyfill` + AppState foreground/background token refresh. **Critical SQL fix:** `current_family_id()` `SET search_path = public, auth` (was silently returning NULL because `auth.uid()` didn't resolve in SECURITY DEFINER without search_path — biggest backend lesson learned). Re-ran policy DO-block which had silently rolled back on first run (RLS was ON with ZERO policies = deny-everything default).
+52. ✅ **Backend Phase 2b — Invite tokens + tour state to Supabase** — Session 21 (15 May) — `supabase-invites-tour.sql` (invite_tokens table + RLS + get_invite_by_token/accept_invite RPCs SECURITY DEFINER and **anon-callable** for receiver lookup + profiles.tour_state JSONB). `lib/invite-state.ts` full rewrite — inviter side hydrates from family-scoped SELECT; receiver side uses new `lookupInviteByToken` / `acceptInviteRemote` via RPC. `lib/tour-state.ts` full rewrite — profile JSONB source of truth, AsyncStorage offline fallback. Public APIs preserved so call sites in chat / family / tour route / settings replay didn't change. Unlocks real cross-device invite tracking at the DB level.
+53. ✅ **Backend Phase 2c — Settings preferences to Supabase** — Session 21 (15 May) — `supabase-user-prefs.sql` (profiles.user_preferences JSONB). NEW `lib/user-prefs.ts` with same write-through pattern as tour-state. `settings.tsx` removed inline Prefs interface / DEFAULT_PREFS / PREFS_KEY / loadPrefs / savePrefs (now in lib). All 15 settings fields persist across devices.
+54. ✅ **Chat bar photo upload fix** — Session 21 (18 May) — Three combined bugs presenting as one "picker opens, select does nothing" symptom: (1) missing thumbnail preview above bar, (2) send button disabled with photo-only, (3) send tap blocked with photo-only. Fixed all three: 64px thumbnail with "Photo ready — tap send" + ✕ dismiss; opacity check now `!input.trim() && !pendingImage`; tap guard now `if (t.trim() || pendingImage)` calls `send('')` with image.
 
 ### Phase B — Make it testable
 31. 🔨 Real authentication (replace DUMMY_FAMILY_ID + replace `account-state` AsyncStorage)
@@ -530,7 +536,16 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 30. ✅ Interactive onboarding (Session 19 — full polish + tour handoff wired)
 31. 🔨 Website + Stripe + web signup flow
 32. 🔨 Admin console updates + billing
-33. 🔨 **Backend pass — NEXT BIGGEST BLOCK** (multi-session). Supabase migrations across all modules: tour_state / invite_tokens / account_state / settings prefs / savings goals / trips. Real cross-device invite validation. Real Supabase auth + JWT with account.kind claim. Stripe customer portal. Push notification scheduling tied to brief times. Memory wiring (insights/milestones/conversation_memory). Direct-route guards extension. Export data + Clear chat history + Privacy/Terms WebViews.
+33. 🔨 **Backend pass — IN PROGRESS, ~50% complete** (multi-session). Status as of 18 May:
+    - ✅ Phase 1: Auth foundation (sign-up + sign-in via DB trigger)
+    - ✅ Phase 2a: RLS on 19 data tables + DUMMY_FAMILY_ID swap + session persistence
+    - ✅ Phase 2b: invite_tokens table + tour state migrated to Supabase (cross-device unlocked at DB level)
+    - ✅ Phase 2c: Settings preferences migrated to Supabase (profiles.user_preferences JSONB)
+    - 🔨 Phase 2d (NEXT): Real auth wiring at invite acceptance — adult/kid invitees create real Supabase auth users + profiles linked to inviter's family_id (modify handle_new_user trigger to detect invite_token in raw_user_meta_data). Unlocks real cross-device invite usage.
+    - 🔨 Phase 2e: Cross-device verification on a real second device.
+    - 🔨 Phase 2f: Memory wiring (Settings → Memory view to real family_insights / family_milestones / conversation_memory tables).
+    - 🔨 Phase 3: External integrations — Push notifications scheduled to brief times. Stripe customer portal WebView. Real cross-device deep links (zaeli.app/i/<token>).
+    - 🔨 Phase 4: Cleanup + ship-ready — Remove dev rows, LANDING_TEST_MODE=false, expo-document-picker for Our Budget CSV (EAS rebuild), share extension (EAS), GDPR / export data / privacy WebViews.
 
 ### Phase D — Scale
 33. 🔨 Live testing with 10 families
@@ -575,7 +590,7 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 - [x] GPT-5.4 mini routing — already live
 - [ ] AI Brief system — implement (BIGGEST remaining)
 - [ ] zaeli_briefs Supabase table
-- [ ] Real authentication
+- [x] Real authentication ✅ (Session 21 — Phase 1 sign-up/sign-in via DB trigger; Phase 2d will add invitee signup)
 - [ ] EAS build · TestFlight · native splash rebuild (for app.json changes)
 - [ ] LANDING_TEST_MODE = false
 - [x] Kids Hub ✅ (Session 12 — built, Session 13 — trimmed to 3 games, crossword fixed)

@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*28 April 2026 — Session 20 ✅ · On-device polish round (Tutor session resume from tutor_messages, chat VIEW-query inline cards across Shopping/Meals/Tasks, Shopping sheet add-bar layout fix using explicit useSafeAreaInsets) · Voice (ElevenLabs) LOCKED to AFTER backend pass · Session 19 quick wins shipped earlier same day (kid tour 9 stops, Kids Hub welcome banner + auto-jump, kid-account route gating, calendar month-view glitch fixed)*
+*18 May 2026 — Session 21 ✅ · BACKEND PASS KICKOFF — Phases 1 (auth foundation), 2a (RLS + DUMMY_FAMILY_ID swap + session persistence), 2b (invite tokens + tour state to Supabase), 2c (settings preferences to Supabase) — all shipped, all verified end-to-end on device · Chat bar photo upload fixed (missing thumbnail + photo-only send blocked) · **Phase 2d (real auth at invite acceptance) is NEXT***
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,25 +10,67 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 19 was the largest single body of work to date. Five interlocking workstreams: Brief v3, Onboarding polish, Cold-start splash redesign, Main chat bubble unification, full TOUR system, and full INVITE system. Tour and Invite are entirely new modules with state libs, dedicated routes, and chat integration.
+Session 21 was the largest single block of backend infrastructure work in the project — four phases of the backend pass shipped across four days (14–18 May), plus a chat bar photo upload bug fix. We now have real Supabase auth + RLS + session persistence + cross-device-capable invite tokens + cross-device tour state + cross-device settings prefs, all verified end-to-end on device.
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅ (Session 20)
+## CURRENT STATE — ALL WORKING ✅ (Session 21)
 ## ══════════════════════════════════
 
-### NEW THIS SESSION (Session 20 — on-device polish round, 28 April)
+### NEW THIS SESSION (Session 21 — Backend Pass kickoff, 14–18 May)
 
-Three bugs surfaced during real device testing — all fixed. Plus the voice timing decision locked.
+Five distinct pieces shipped:
 
-**A. Tutor session resume — STUB → real implementation.** Gab finished a Read Aloud session, returned to menu, tapped "Recent sessions" row → nothing happened. `goSessionReview` was a `console.log` stub. Active sessions called `goPillar(sess.pillar)` which started a NEW session. **Fix:** tutor-session accepts `resumeSessionId` param. New `loadExistingSession(sid)` fetches session row + tutor_messages, hydrates state (messages, conversationHistory, sessionId, subject, topic, difficultyBand, questionNum, hintsUsed, timer), sets phase based on whether subject was picked, flips status 'completed' → 'active' so exit-save works on next back. `goSessionReview` removed; replaced by `goResumeSession(sess)` for active OR completed. Works for all 6 pillars.
+**A. Backend Phase 1 — Auth foundation (commit `91dbf1e`).** First real Supabase auth in the project. `supabase-auth-tables.sql` (idempotent) creates `families` + `profiles` tables with RLS + a `handle_new_user()` SECURITY DEFINER trigger that creates families row + matching profile in one atomic transaction (reads `name` + `family_name` from `raw_user_meta_data`). `public.current_family_id()` helper used by every RLS policy downstream. NEW `lib/auth.ts` (signUpOwner / signInWithPassword / signOut / loadProfile / getCurrentFamilyId + module cache). NEW `app/(auth)/sign-in.tsx` (3-state UI sign-in/sign-up/check-email with palette orbs matching onboarding splash). `app/_layout.tsx` auth guard + `onAuthChange` listener. **Critical dev setup**: disable "Confirm email" in Supabase dashboard.
 
-**B. Chat VIEW-query inline cards across the board.** Asking "what's on shopping list" returned a wall of 31 plain-text items. Same for meals + tasks. **Root cause:** only CALENDAR view queries were intercepted before the GPT chat path. **Fix:** three new keyword arrays (`SHOPPING_VIEW_KEYWORDS` / `MEALS_VIEW_KEYWORDS` / `TASKS_VIEW_KEYWORDS`), three detection functions (`isXxxViewQuery` — all check `isActionQuery` first to exclude actions), three new branches in `send()` after the calendar branch. Each fetches data + updates the loading reply with intro text + inlineData + quickReplies. Action queries unaffected. Chip handlers wired: `Open full list`, `Open Tasks` / `Open To-dos` / `Add a task` (route to my-space + open Notes & Tasks sheet on Tasks tab), `Add an item` (mic), `Got it` / `All good` / `Thanks` / `Cheers` (just clears chips, leaves text in feed).
+**B. Backend Phase 2a — RLS + DUMMY_FAMILY_ID swap (commits `24aa73c` and `4884290`).** The big lift. `supabase-data-rls.sql` adds standard RLS policies (SELECT/INSERT/UPDATE/DELETE) to 19 family-scoped tables via DO-block iteration. All policies: `family_id = public.current_family_id()`. `tutor_messages` gets session-aware policy. `claim_legacy_data()` RPC for reassigning dummy-family rows. NEW `lib/family.ts` — `getFamilyId()` resolves at query time via auth context, warned-once fallback with self-healing `loadProfile()` trigger. **99 swaps** across 12 files (`app/(tabs)/index.tsx` had the bulk — 99 refs alone) via perl word-boundary regex. Plus 3 NEW view-query branches added to `send()` in index.tsx for Shopping/Meals/Tasks "what's on…" queries — **must go BEFORE the calendar branch** otherwise CALENDAR_KEYWORDS' "what's on" intercepts shopping queries with calendar render.
 
-**C. Shopping sheet add-bar layout fix.** First open: "Add an item…" bar squashed against bottom edge. After expand+collapse: corrects. **Root cause:** `<SafeAreaView edges={['bottom']}>` doesn't reliably resolve insets on first render INSIDE a Modal. **Fix:** imported `useSafeAreaInsets()`, read `insets` at component mount. Shopping sheet `SafeAreaView edges={['bottom']}` → `edges={[]}`. List + Pantry add-bar wrappers own the bottom inset explicitly: keyboard-closed `paddingBottom: max(insets.bottom, 8)`, keyboard-open small padding + `marginBottom: max(shopKbHeight - insets.bottom, 0)`. Spend tab ScrollView contentContainer `paddingBottom: 50 + insets.bottom`.
+**C. Backend Phase 2a follow-up fixes (commit `4884290`) — session persistence + RLS finally working.** Three issues after the initial Phase 2a landing:
+  1. **User signed out on every reload.** Cause: Supabase auth defaulted to `window.localStorage` which doesn't exist in RN. Fix in `lib/supabase.ts`: AsyncStorage as `auth.storage` + `react-native-url-polyfill/auto` import (required for RN auth) + `AppState` listener for token refresh. Required `npx expo start --dev-client --clear`.
+  2. **`lib/family.ts` warned-once fallback hardening.**
+  3. **Shopping list returned 0 rows despite all auth context correct.** JWT ✅, function returned right family ✅, profile row exists ✅, query returned 0 rows ❌. Root cause: `current_family_id()` SECURITY DEFINER function was created **without `SET search_path = public, auth`**. Inside SECURITY DEFINER context running as `postgres` role, `auth.uid()` didn't resolve and the function silently returned NULL. Then `family_id = NULL` was always false. Compounded by a SECOND silent failure: original `supabase-data-rls.sql` DO-block had rolled back during its first run (likely a function-ordering issue) — so RLS was ON with ZERO policies = Postgres' deny-everything default. Fix: `CREATE OR REPLACE FUNCTION current_family_id() ... SET search_path = public, auth` AND re-ran the policy DO-block. **Single biggest lesson of the whole backend pass — any SECURITY DEFINER function calling auth.uid() MUST have explicit search_path.**
 
-**D. Voice (ElevenLabs) timing — LOCKED.** Decision: AFTER backend pass. Reasons: backend pass unlocks real users (auth, push, real cross-device invites); voice on a single-device prototype demos but can't go live; voice needs its own design conversation; best reveal moment = TestFlight build with voice + auth + push together; risk of re-work if chat UX shifts. Small exception: brief-only voice could go pre-backend (brief render is locked).
+**D. Backend Phase 2b — invite tokens + tour state to Supabase (commit `a632852`).** Two state libs migrated from AsyncStorage to Supabase so they work cross-device. Public API surface preserved on both libs so call sites didn't change. `supabase-invites-tour.sql` creates `invite_tokens` table + RLS + SECURITY DEFINER RPCs (`get_invite_by_token` + `accept_invite`) **anon-callable** for receiver lookup without a session (token IS the secret) + `profiles.tour_state` JSONB column. `lib/invite-state.ts` rewritten — inviter side hydrates from family-scoped SELECT; receiver side uses NEW `lookupInviteByToken` / `acceptInviteRemote` via RPC. `lib/tour-state.ts` rewritten — `profiles.tour_state` JSONB is source of truth when signed in, AsyncStorage as offline fallback + pre-auth path. `app/invite/[token].tsx` updated to use new RPC functions. **Unlocks real cross-device invite tracking at the DB level** (but not yet real cross-device sign-up — that's Phase 2d).
+
+**E. Backend Phase 2c — settings preferences to Supabase (commit `8b7d543`).** Smallest of the four phases. `supabase-user-prefs.sql` adds `profiles.user_preferences` JSONB column. NEW `lib/user-prefs.ts` with same write-through pattern as tour-state. `settings.tsx` removed inline `Prefs` interface / `DEFAULT_PREFS` / `PREFS_KEY` / `loadPrefs` / `savePrefs` (now in lib). All 15 settings fields (brief times, notification toggles, quiet hours, sound + vibration, memory learning) now persist across devices.
+
+**F. Chat bar photo upload bug fix (commit `7b125d4`).** Surfaced after Phase 2c. User taps camera icon → picker opens → user selects → nothing visible happens. Three combined bugs: (1) `pendingImage` state set but never rendered as preview, (2) Send button opacity check `!input.trim()` stayed 30% with photo-only, (3) Send tap guard `if (input.trim())` rejected photo-only sends. Fixed all three: 64px thumbnail above bar with "Photo ready — tap send" + ✕ dismiss; opacity now `!input.trim() && !pendingImage`; tap guard now `if (t.trim() || pendingImage)` calls `send('')` with image (existing send() guard already accepts empty text + image).
+
+### What's NEXT — Phase 2d (real auth at invite acceptance)
+
+**The remaining backend piece for invitee flow.** Adult/kid invitees should actually create Supabase auth users, get profiles linked to the inviter's family_id, and be able to sign in on a real second device. Today the receiver flow accepts invites at the DB level (Phase 2b) and sets local AsyncStorage `account_state`, but doesn't create an auth user — the invitee can't sign in.
+
+**Plan for Phase 2d:**
+- Modify `handle_new_user()` trigger to detect `invite_token` in `raw_user_meta_data`. If present: look up `invite_tokens.family_id`, create profile linked to that family (instead of creating new family), auto-mark invite accepted with the new auth.users.id.
+- Add `signUpFromInvite()` helper to `lib/auth.ts`.
+- Update `app/invite/[token].tsx` AdultFlow to actually call `signUp()` instead of just setting local state.
+- Kid flow: similar, with generated email like `kid-<token>@invitees.zaeli.app` + 4-digit PIN as password.
+- After successful signup: invitee fully signed in → reads family data via existing RLS → cross-device works for real.
+
+**After 2d:** Phase 2e (cross-device verification on a real second device), Phase 2f (memory wiring — Settings → Memory view to real family_insights/milestones tables), Phase 3 (external integrations — push, Stripe, deep links), Phase 4 (cleanup + ship-ready).
+
+### Locked decisions Session 21
+
+- **SECURITY DEFINER functions calling `auth.uid()` MUST have `SET search_path = public, auth`.** Single biggest lesson of the backend pass. Otherwise auth.uid() silently returns NULL → policies that depend on it silently fail → "everything's empty" symptom.
+- **State lib pattern is locked**: module-level cache for sync render reads + `loadX()` hydrates from profile JSONB when signed in / AsyncStorage when not + `persist()` write-through to both. Used in `lib/tour-state.ts` + `lib/user-prefs.ts`. Future per-user state libs should follow this exact shape.
+- **Receiver-side data lookups via anon-callable SECURITY DEFINER RPCs**, not direct table queries. Token IS the secret. Used in `lib/invite-state.ts` for `lookupInviteByToken` + `acceptInviteRemote`.
+- **Supabase SQL editor only shows the LAST query result** when running multiple queries together — known UX quirk.
+- **`pg_class.relrowsecurity = true` with no policies = deny-everything default.** Always verify both RLS-on AND policies-exist when debugging.
+- **For backfill SQL that needs to bypass RLS**: `ALTER TABLE DISABLE ROW LEVEL SECURITY` → `UPDATE` → `ENABLE`. `SET LOCAL row_security = off` does NOT work for non-postgres roles.
+- **Voice (ElevenLabs) stays deferred to after backend pass.** Session 20 decision still holds.
+
+### Earlier this same session block (Session 20 — on-device polish round, 28 April — historical)
+
+Three bugs surfaced during real device testing — all fixed in one commit. Plus the voice timing decision locked.
+
+**Tutor session resume** — `goSessionReview` was a `console.log` stub. **Fix:** `resumeSessionId` param to tutor-session. New `loadExistingSession(sid)` fetches session row + tutor_messages, hydrates state. Status flips 'completed' → 'active' so exit-save works on next back. Works for all 6 pillars.
+
+**Chat VIEW-query inline cards** — only CALENDAR view queries were intercepted before GPT chat path. **Fix:** three keyword arrays + detection functions + branches in `send()`. Each fetches data + renders inline card + chips. Action queries unaffected.
+
+**Shopping sheet add-bar layout** — `SafeAreaView edges={['bottom']}` doesn't reliably resolve insets on first render inside a Modal. **Fix:** `useSafeAreaInsets()` + explicit padding. Spend tab paddingBottom: `50 + insets.bottom`.
+
+**Voice (ElevenLabs) — LOCKED AFTER backend pass.** Voice on a single-device prototype demos but can't go live; best reveal moment = TestFlight build with voice + auth + push together.
 
 ### EARLIER THIS SAME DAY (Session 19 quick wins, committed `e22164d`)
 
