@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 18 May 2026 — Session 21 ✅ · Backend Pass kickoff: Phases 1 (auth foundation), 2a (RLS + DUMMY_FAMILY_ID swap + session persistence), 2b (invite tokens + tour state to Supabase), 2c (settings preferences to Supabase) — all shipped, all verified end-to-end on device · Chat bar photo upload bug fixed (missing thumbnail + photo-only send blocked) · Phase 2d (real auth at invite acceptance) next*
+*Last updated: 20 May 2026 — Session 22 ✅ · Backend Phase 2d shipped: real auth at invite acceptance (handle_new_user trigger branches on invite_token; adult/kid invitees create real Supabase auth users + profiles linked to inviter's family) PLUS six multi-user safety fixes (inviter-only heads-up filter, per-user chat persistence, local messages reset on user switch, no-AsyncStorage-fallback when signed in for tour-state + user-prefs, all-cache invalidation on auth change, fresh-invitee welcome polish suppressing first-session brief) · Cross-device invite + signup now works end-to-end · Phase 2e (real second-device verification) + 2f (memory wiring) next*
 
 ---
 
@@ -1620,6 +1620,86 @@ After Phase 2d: cross-device verification on a real second device. Then memory w
 
 ---
 
+## ══════════════════════════════════
+## SESSION 22 — BACKEND PHASE 2d + MULTI-USER SAFETY (20 May 2026) ✅
+## ══════════════════════════════════
+
+Phase 2d done. Real auth at invite acceptance is wired and verified end-to-end. Six combined multi-user safety fixes surfaced during testing, plus a fresh-invitee welcome polish — all shipped in one commit.
+
+### A. Real auth at invite acceptance (the headline)
+
+**NEW SQL: `supabase-invite-signup.sql`** (idempotent)
+- `handle_new_user()` trigger now branches on whether `raw_user_meta_data` includes an `invite_token`:
+  - **No token** (original owner flow): create fresh families row + matching owner profile.
+  - **With token** (NEW invitee flow): validate token (must exist, not revoked, not already accepted). Create profile linked to the INVITE's `family_id` (not a new one). Use `invite.role` as the new profile's `kind` ('adult' or 'kid'). Mark the invite_tokens row accepted with the new user's id — all in one transaction.
+- Bad tokens (missing/revoked/already-accepted) raise an exception → Postgres rolls back the `auth.users` INSERT → no orphan users.
+- `SET search_path = public, auth` preserved (the Phase 2a lesson lives on).
+
+**`lib/auth.ts`** — NEW `signUpFromInvite({inviteToken, email, password, name})` helper. Wraps `supabase.auth.signUp` with `invite_token` in `raw_user_meta_data` so the trigger can branch on it. Same 250ms post-signup wait as `signUpOwner()` for trigger settle.
+
+**`app/invite/[token].tsx`**:
+- `finishAdult` now collects email + password from the form and calls `signUpFromInvite` + `loadProfile` so `getCurrentFamilyId()` resolves on the next screen. Real auth, real session.
+- `finishKid` generates a synthetic email (`kid-<token>@invitees.zaeli.app`) + uses `<token>-<PIN>` as the password (Supabase requires 6+ chars; 4-digit PIN alone is too short). Kid sign-IN ergonomics for separate device use come in a later phase — they just stay signed in via AsyncStorage session persistence for now.
+- `AdultAccountStep` validates email (`/^\S+@\S+\.\S+$/`) + password length (≥ 6) client-side. Continue button greys out + disabled until valid so we don't fail 3 steps later with a confusing alert.
+- Signup errors wrap in user-friendly `Alert.alert` — "An account already exists with that email. Try a different one, or sign in." if duplicate, else raw message.
+
+### B. Multi-user safety — six fixes surfaced during testing
+
+Once we could actually switch users mid-session, six leak bugs surfaced. All fixed in the same commit:
+
+**1. Heads-up filter is inviter-only.** Previous filter used `accepted_user_id !== currentUserId` which correctly hid the heads-up from the accepter themselves, BUT still surfaced it to other family members (e.g. GMa would see "Test3 just joined" even though she didn't send the invite). Now uses `inviter_user_id === currentUserId` — only the actual sender of the invite sees it. Added `inviter_user_id` to the `Invite` type + cache SELECT + `rowToInvite()` mapping. Plus `getProfile()?.id ?? null` resolved sync via the auth module cache. Fail-closed: returns `[]` if profile not loaded yet (no false positives during the loading race window).
+
+**2. Chat persistence per-user.** `useChatPersistence` was keyed by channel only (`zaeli_chat_home.json`) — globally shared across all users. After auth switch, the new user would load the PREVIOUS user's chat history from disk. Fix: hook now subscribes to `supabase.auth.onAuthStateChange`, tracks `userId` state, and scopes the filename with it (`zaeli_chat_home_<userId>.json` or `_anon` for no session). When user changes, scopedKey changes, load effect re-runs, state resets to empty, new file (if any) loads.
+
+**3. Local chat messages state in index.tsx resets on user switch.** Even with the hook fixed, the local `messages` state array in chat still held the previous user's messages. Detect via the `chatLoaded` true→false transition (signal that the persistence hook is reloading because user changed). On that transition: clear local `messages`, reset `persistenceHasLoaded.current = false`, reset `lastBriefWindowRef` + `lastBriefDateRef` so the brief re-fires fresh for the new user.
+
+**4. tour-state + user-prefs don't fall back to AsyncStorage when signed in.** Previously: if a fresh user's `profiles.tour_state` (or `user_preferences`) was null, the lib fell back to AsyncStorage — which still held the previous user's data. Silent leak. Now: when a session exists, profile is the ONLY source of truth (even if null → start fresh with DEFAULT_STATE). AsyncStorage fallback ONLY fires when no session (pre-auth flows like kid receivers mid-onboarding). Same pattern in both libs.
+
+**5. All module caches invalidated on auth change.** `_layout.tsx`'s `onAuthChange` listener now also calls `invalidateTourCache()` + `invalidatePrefsCache()` + `resetCache()` (invites) alongside the existing `invalidateAccount()`, on BOTH `SIGNED_IN` and `SIGNED_OUT` events. NEW `invalidateCache()` exports added to `lib/tour-state.ts` and `lib/user-prefs.ts` (the others already had them). Each lib's next `loadX()` re-hydrates from the correct profile.
+
+**6. Fresh-invitee welcome polish.** New invitees who land in chat for the first time would see the family brief (because brief is family-scoped — they're in the family). Mid-context: "One thing: bins go out tomorrow night…" Jarring as someone's first ever Zaeli message. Fix: in chat mount effect, check `onboarding_just_completed === 'true'` AND `getProfile()?.kind !== 'owner'`. If both true: suppress `tryFireBrief`, push a warm welcome message instead — "Hey <name> 👋 Welcome in. Family stuff is already wired up — you'll get your first proper brief tomorrow morning. Until then, ask me anything." Tour offer still fires below. The flag gets cleared by `maybeFireTourOffer` so subsequent sessions show the normal family brief.
+
+### C. Debugging insights from testing
+
+**The "nested invites" gotcha.** During testing Richard created multiple test invites in a row. Each time, the dev row "Open latest invite as receiver" signed him in as the PREVIOUS invitee, and then when he tapped "+ Invite" again, the new invite's `inviter_user_id` was that previous invitee's user id — not Rich's. So when Rich signed back in, he didn't see heads-ups for those chained invites (correctly — he wasn't the inviter). The inviter-only filter is functioning as designed; just need to be careful in the test workflow to STAY as Rich (or whoever you want as inviter) when creating each test invite.
+
+**Brief leak vs family brief — important distinction.** When a new family member lands in chat, the family brief firing for them is NOT a leak — it's correct. The brief is keyed by `family_id + date + window` in `zaeli_briefs`. Different users in the same family see the same brief. That's the design. The welcome polish (fix #6) is a UX layer on top — first-session invitees don't get the brief because mid-context "bins go out tomorrow" is a bad first impression. Their second session onwards, they get the brief normally.
+
+### Locked decisions Session 22
+
+- **Real cross-device invite works end-to-end via DB trigger.** No app-side workaround needed — the trigger atomically validates + creates profile + marks invite accepted. If the trigger raises, the auth user creation rolls back. No orphans, no partial state.
+- **Kid sign-up uses synthetic email + token+PIN password.** They stay signed in via AsyncStorage session persistence. Kid sign-IN ergonomics (separate device, lost PIN recovery, etc) come in a later phase.
+- **Adult signup form validates client-side** before allowing Continue. Email regex + password length 6+. Otherwise sign-up failures land 3 steps later in a confusing alert.
+- **Chat persistence is per-user** by Supabase user id. The old global file (`zaeli_chat_home.json`) becomes orphaned on first new-user load — that's one-time and acceptable for dev.
+- **When signed in, profile JSONB is the ONLY source of truth** for tour state + user prefs. No AsyncStorage fallback in that path. AsyncStorage stays as offline / pre-auth fallback only.
+- **All module caches MUST be invalidated on auth change.** `_layout.tsx` onAuthChange is the single place this happens. Future per-user state libs (memory wiring etc) should add their `invalidateCache()` to the list.
+- **Heads-up filter = inviter-only.** `inviter_user_id === currentUserId`. Other family members don't get heads-ups for invites they didn't send.
+- **Fresh invitees suppress the family brief on first session.** Warm welcome message instead. Triggered by `onboarding_just_completed` flag + `profile.kind !== 'owner'`. Flag cleared by `maybeFireTourOffer` so it's one-shot.
+
+### Files touched Session 22
+
+**NEW:**
+- `supabase-invite-signup.sql` — updated handle_new_user trigger
+
+**MODIFIED:**
+- `lib/auth.ts` — NEW signUpFromInvite() + updated docstring
+- `lib/invite-state.ts` — inviter_user_id field + cache SELECT + heads-up filter (inviter-only)
+- `lib/tour-state.ts` — no-AsyncStorage-fallback when signed in + NEW invalidateCache()
+- `lib/user-prefs.ts` — no-AsyncStorage-fallback when signed in (already had invalidateCache)
+- `lib/use-chat-persistence.ts` — per-user scopedKey via auth.onAuthStateChange subscriber
+- `app/_layout.tsx` — invalidate all module caches on SIGNED_IN/SIGNED_OUT
+- `app/invite/[token].tsx` — finishAdult real signup, finishKid synthetic email signup, client-side form validation, error alerts
+- `app/(tabs)/index.tsx` — local messages state reset on user switch + fresh-invitee welcome polish
+
+### What's next — Phase 2e + beyond
+
+- **Phase 2e:** Real cross-device verification — sign up an invitee on a SECOND physical device (not via the same-device dev row) and confirm everything works.
+- **Phase 2f:** Memory wiring — Settings → Memory view connected to real `family_insights` / `family_milestones` / `conversation_memory` tables.
+- **Phase 3:** External integrations — Push notifications scheduled to brief times, Stripe customer portal WebView, real cross-device deep links (`zaeli.app/i/<token>`).
+- **Phase 4:** Cleanup + ship-ready — Remove dev rows, LANDING_TEST_MODE=false, expo-document-picker for Our Budget CSV (EAS rebuild), share extension (EAS), GDPR / export data / privacy WebViews.
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -1721,13 +1801,14 @@ Phase 39b: Backend Phase 2a (RLS + DUMMY_FAMILY_ID swap) ✅ Session 21 (14-15 M
 Phase 39c: Backend Phase 2a fixes (session persistence + RLS unblocked) ✅ Session 21 (15 May) — lib/supabase.ts AsyncStorage + react-native-url-polyfill + AppState refresh. Critical SQL fix: current_family_id() SET search_path = public, auth (was silently returning NULL because auth.uid() didn't resolve in SECURITY DEFINER without search_path). Re-ran policy DO-block (had silently rolled back on first run — RLS was ON with ZERO policies).
 Phase 39d: Backend Phase 2b (invite tokens + tour state to Supabase) ✅ Session 21 (15 May) — supabase-invites-tour.sql (invite_tokens + RLS + get_invite_by_token/accept_invite RPCs anon-callable + profiles.tour_state JSONB). lib/invite-state.ts rewrite (inviter side Supabase-backed, NEW receiver-side lookupInviteByToken/acceptInviteRemote via RPC). lib/tour-state.ts rewrite (profile JSONB source of truth, AsyncStorage offline fallback). app/invite/[token].tsx receiver uses new RPC functions.
 Phase 39e: Backend Phase 2c (settings prefs to Supabase) ✅ Session 21 (15 May) — supabase-user-prefs.sql (profiles.user_preferences JSONB). NEW lib/user-prefs.ts (same write-through pattern as tour-state). settings.tsx removed inline Prefs/DEFAULT_PREFS/loadPrefs/savePrefs.
-Phase 39f: Backend Phase 2d (real auth at invite acceptance) 🔨 NEXT — Adult/kid invitees create real Supabase auth users + profile linked to inviter's family_id (modify handle_new_user trigger to detect invite_token in raw_user_meta_data). Unlocks real cross-device invite usage.
-Phase 39g: Backend Phase 2e (cross-device verification) 🔨 — Test real invite + sign-up on a second device end-to-end.
+Phase 39f: Backend Phase 2d (real auth at invite acceptance) ✅ Session 22 (20 May) — handle_new_user trigger branches on invite_token in raw_user_meta_data, creates profile linked to inviter's family_id, marks invite accepted atomically. signUpFromInvite() helper in lib/auth.ts. AdultFlow: real signup with form email+password + client-side validation. KidFlow: synthetic email (kid-<token>@invitees.zaeli.app) + token+PIN password. Bad tokens raise → auth user rolled back. Verified end-to-end on device.
+Phase 39g: Backend Phase 2e (cross-device verification) 🔨 NEXT — Test real invite + sign-up on a SECOND physical device (not same-device dev row).
 Phase 39h: Backend Phase 2f (memory wiring) 🔨 — Wire Settings → Memory view to real family_insights / family_milestones / conversation_memory tables.
 Phase 39i: Backend Phase 3 (external integrations) 🔨 — Push notifications scheduled to brief times. Stripe customer portal WebView. Real cross-device deep links (zaeli.app/i/<token>).
 Phase 39j: Backend Phase 4 (cleanup + ship-ready) 🔨 — Remove dev rows, LANDING_TEST_MODE=false, expo-document-picker for Our Budget CSV (EAS rebuild), share extension (EAS), GDPR / export data / privacy WebViews.
 
 Phase 40: Chat bar photo upload bug ✅ Session 21 (18 May) — 64px thumbnail above bar with "Photo ready — tap send" + ✕ dismiss. Send button opacity + tap guard updated to allow photo-only (send('') with imageUri). Three combined bugs presenting as one symptom (picker opens, select does nothing).
+Phase 41: Multi-user safety patches ✅ Session 22 (20 May) — six combined fixes surfaced during 2d testing: (1) heads-up filter inviter-only via inviter_user_id === currentUserId, (2) chat persistence file scoped per user via auth.onAuthStateChange subscription in useChatPersistence, (3) local chat messages state resets on user switch via chatLoaded transition, (4) tour-state + user-prefs don't fall back to AsyncStorage when signed in (profile JSONB is sole source), (5) all module caches invalidated in _layout.tsx onAuthChange (tour, prefs, invites + existing account), (6) fresh-invitee welcome polish — suppress family brief on first session, show warm welcome instead.
 ```
 
 ---
@@ -1824,3 +1905,13 @@ Phase 40: Chat bar photo upload bug ✅ Session 21 (18 May) — 64px thumbnail a
 - **`pg_class.relrowsecurity = true` with no policies = deny-everything** by default (Session 21). When debugging "everything's empty" symptoms, always verify both RLS-on AND policies-exist via `SELECT polname FROM pg_policy WHERE polrelid = 'public.<table>'::regclass`.
 - **For SQL backfills that need to bypass RLS during dev** (Session 21): `ALTER TABLE x DISABLE ROW LEVEL SECURITY` → `UPDATE x SET ...` → `ALTER TABLE x ENABLE ROW LEVEL SECURITY`. `SET LOCAL row_security = off` does NOT work for non-postgres roles. SQL editor's own role enforces RLS on UPDATE, so silent zero-affected-rows is the silent failure mode.
 - **Chat bar photo-only send must work** (Session 21) — `pendingImage` state has a thumbnail preview above the bar (64px + ✕ dismiss + "Photo ready — tap send"). Send button opacity check + tap guard must allow `pendingImage` alone (no text required). `send('')` with `pendingImage` triggers the existing image-handling path in send().
+- **Trigger-based invitee signup** (Session 22) — `handle_new_user()` is the single place that branches on `invite_token` in `raw_user_meta_data`. Client just calls `signUpFromInvite()` with metadata; trigger validates + creates profile linked to inviter's family + marks invite accepted in one transaction. If token is invalid/revoked/already accepted, trigger raises → auth.users INSERT rolls back → no orphan users. Never bypass this — DON'T accept invites client-side then try to fix the family link after.
+- **Kid invitee signup = synthetic email + token+PIN password** (Session 22) — kids don't have email. Format: `kid-<token>@invitees.zaeli.app` + password `<token>-<PIN>` (≥6 chars for Supabase). They stay signed in via AsyncStorage session persistence. Kid sign-IN ergonomics on separate devices come in a later phase.
+- **All module caches MUST be invalidated on auth change** (Session 22) — `_layout.tsx` `onAuthChange` is the single place this happens. Currently calls `invalidateAccount()` + `invalidateTourCache()` + `invalidatePrefsCache()` + `resetCache()` (invites) on both SIGNED_IN AND SIGNED_OUT. Future per-user state libs (memory wiring etc) MUST add their `invalidateCache()` to this list — otherwise the previous user's data silently leaks to the new user.
+- **When signed in, profile JSONB is the ONLY source of truth** for per-user state libs (Session 22) — tour-state + user-prefs do NOT fall back to AsyncStorage when there's a session, even if profile.X is null (fresh user = start clean with DEFAULT). AsyncStorage fallback ONLY fires when there's no session (pre-auth flows like kid receivers mid-onboarding). Without this, fresh user inherits previous user's data silently.
+- **Chat persistence files are scoped per-user by Supabase user id** (Session 22) — `useChatPersistence` subscribes to `supabase.auth.onAuthStateChange`, includes userId in filename (`zaeli_chat_home_<userId>.json` or `_anon`). When user changes, scopedKey changes, state resets, new file loads. Previous user's file stays on disk but invisible to new user. Also: local `messages` state in index.tsx resets via `chatLoaded` true→false→true transition detection.
+- **Heads-up filter = inviter-only** (Session 22) — `recentlyAcceptedInvites()` filters by `inviter_user_id === currentUserId` (NOT `accepted_user_id !== currentUserId`). Only the actual sender of the invite sees "X just joined". Other family members don't. Fail-closed: returns `[]` if profile not loaded yet.
+- **Fresh invitees suppress the family brief on first session** (Session 22) — chat mount effect checks `onboarding_just_completed === 'true'` AND `getProfile()?.kind !== 'owner'`. If both: skip `tryFireBrief`, push warm welcome message ("Hey <name> 👋 Welcome in. Family stuff is already wired up — you'll get your first proper brief tomorrow morning."). Flag cleared by `maybeFireTourOffer` so subsequent sessions show normal brief. Mid-context family brief ("bins go out tomorrow") is jarring as someone's first-ever Zaeli message.
+- **Adult invitee signup form validates client-side** (Session 22) — Continue button disabled until email matches `/^\S+@\S+\.\S+$/` AND password length ≥ 6. Otherwise sign-up fails 3 steps later in a confusing alert.
+- **Family brief is family-scoped, not user-scoped** (Session 22 distinction) — when a new family member sees the family brief on second-session-onwards, that's NOT a leak. The brief is keyed by `family_id + date + window` in `zaeli_briefs`. All family members see the same brief. The Session 22 welcome polish is a UX layer on first session only.
+- **Test workflow gotcha — "nested invites"** (Session 22) — the dev row "Open latest invite as receiver" signs you in as the new invitee. If you then create another invite WITHOUT signing back in as the owner, the new invite's `inviter_user_id` is that invitee's id (not yours). Heads-ups won't fire for the owner because the owner isn't the inviter. Always sign back in as the intended inviter before creating each test invite.

@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 18 May 2026 — Session 21 ✅ · Backend Pass kickoff: Phases 1 (auth foundation), 2a (RLS + DUMMY_FAMILY_ID swap + session persistence), 2b (invite tokens + tour state to Supabase), 2c (settings preferences to Supabase) — all shipped, all verified on device · Chat bar photo upload bug fixed · Phase 2d (real auth at invite acceptance) NEXT*
+*Last updated: 20 May 2026 — Session 22 ✅ · Backend Phase 2d shipped: real auth at invite acceptance (handle_new_user trigger detects invite_token in metadata, creates profile linked to inviter's family) + six combined multi-user safety patches (inviter-only heads-up filter, per-user chat persistence, all-cache invalidation on auth change, no-AsyncStorage-fallback for tour/prefs when signed in, fresh-invitee welcome polish suppressing first-session brief) · Cross-device invite + signup works end-to-end · Phase 2e (real second-device test) + 2f (memory wiring) NEXT*
 
 ---
 
@@ -518,6 +518,8 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 52. ✅ **Backend Phase 2b — Invite tokens + tour state to Supabase** — Session 21 (15 May) — `supabase-invites-tour.sql` (invite_tokens table + RLS + get_invite_by_token/accept_invite RPCs SECURITY DEFINER and **anon-callable** for receiver lookup + profiles.tour_state JSONB). `lib/invite-state.ts` full rewrite — inviter side hydrates from family-scoped SELECT; receiver side uses new `lookupInviteByToken` / `acceptInviteRemote` via RPC. `lib/tour-state.ts` full rewrite — profile JSONB source of truth, AsyncStorage offline fallback. Public APIs preserved so call sites in chat / family / tour route / settings replay didn't change. Unlocks real cross-device invite tracking at the DB level.
 53. ✅ **Backend Phase 2c — Settings preferences to Supabase** — Session 21 (15 May) — `supabase-user-prefs.sql` (profiles.user_preferences JSONB). NEW `lib/user-prefs.ts` with same write-through pattern as tour-state. `settings.tsx` removed inline Prefs interface / DEFAULT_PREFS / PREFS_KEY / loadPrefs / savePrefs (now in lib). All 15 settings fields persist across devices.
 54. ✅ **Chat bar photo upload fix** — Session 21 (18 May) — Three combined bugs presenting as one "picker opens, select does nothing" symptom: (1) missing thumbnail preview above bar, (2) send button disabled with photo-only, (3) send tap blocked with photo-only. Fixed all three: 64px thumbnail with "Photo ready — tap send" + ✕ dismiss; opacity check now `!input.trim() && !pendingImage`; tap guard now `if (t.trim() || pendingImage)` calls `send('')` with image.
+55. ✅ **Backend Phase 2d — Real auth at invite acceptance** — Session 22 (20 May) — `supabase-invite-signup.sql` updates the `handle_new_user()` trigger to branch on `invite_token` in `raw_user_meta_data`. With token: validates, creates profile linked to inviter's `family_id`, marks invite accepted atomically. Bad tokens raise → auth.users INSERT rolls back → no orphan users. `lib/auth.ts` NEW `signUpFromInvite()` helper. `app/invite/[token].tsx` adult flow does real signup with form email+password (client-side validated), kid flow uses synthetic email (`kid-<token>@invitees.zaeli.app`) + token+PIN password. **Cross-device invite + signup now works end-to-end.**
+56. ✅ **Multi-user safety patches** — Session 22 (20 May) — six combined fixes surfaced during 2d on-device testing: (1) heads-up filter now `inviter_user_id === currentUserId` so only the actual sender sees "X just joined"; (2) chat persistence file scoped per-user (`zaeli_chat_home_<userId>.json`) via auth.onAuthStateChange subscription in `useChatPersistence`; (3) local chat `messages` state resets on user switch via `chatLoaded` true→false→true transition detection; (4) tour-state + user-prefs no longer fall back to AsyncStorage when signed in (profile JSONB is sole source — pre-empts silent leak when fresh user's profile.X is null); (5) all module caches invalidated in `_layout.tsx` `onAuthChange` (tour, prefs, invites + existing account) on both SIGNED_IN and SIGNED_OUT; (6) fresh-invitee welcome polish — when `onboarding_just_completed === 'true'` AND `profile.kind !== 'owner'`, suppress family brief on first session and push warm welcome ("Hey <name> 👋 Welcome in...") instead.
 
 ### Phase B — Make it testable
 31. 🔨 Real authentication (replace DUMMY_FAMILY_ID + replace `account-state` AsyncStorage)
@@ -536,13 +538,13 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 30. ✅ Interactive onboarding (Session 19 — full polish + tour handoff wired)
 31. 🔨 Website + Stripe + web signup flow
 32. 🔨 Admin console updates + billing
-33. 🔨 **Backend pass — IN PROGRESS, ~50% complete** (multi-session). Status as of 18 May:
+33. 🔨 **Backend pass — IN PROGRESS, ~70% complete** (multi-session). Status as of 20 May:
     - ✅ Phase 1: Auth foundation (sign-up + sign-in via DB trigger)
     - ✅ Phase 2a: RLS on 19 data tables + DUMMY_FAMILY_ID swap + session persistence
-    - ✅ Phase 2b: invite_tokens table + tour state migrated to Supabase (cross-device unlocked at DB level)
+    - ✅ Phase 2b: invite_tokens table + tour state migrated to Supabase (cross-device DB-level)
     - ✅ Phase 2c: Settings preferences migrated to Supabase (profiles.user_preferences JSONB)
-    - 🔨 Phase 2d (NEXT): Real auth wiring at invite acceptance — adult/kid invitees create real Supabase auth users + profiles linked to inviter's family_id (modify handle_new_user trigger to detect invite_token in raw_user_meta_data). Unlocks real cross-device invite usage.
-    - 🔨 Phase 2e: Cross-device verification on a real second device.
+    - ✅ Phase 2d: Real auth at invite acceptance — invitees create Supabase users + family-linked profiles via DB trigger. Six multi-user safety patches shipped alongside (per-user chat persistence, all-cache invalidation, inviter-only heads-up filter, fresh-invitee welcome polish, etc).
+    - 🔨 Phase 2e (NEXT): Cross-device verification on a real second physical device.
     - 🔨 Phase 2f: Memory wiring (Settings → Memory view to real family_insights / family_milestones / conversation_memory tables).
     - 🔨 Phase 3: External integrations — Push notifications scheduled to brief times. Stripe customer portal WebView. Real cross-device deep links (zaeli.app/i/<token>).
     - 🔨 Phase 4: Cleanup + ship-ready — Remove dev rows, LANDING_TEST_MODE=false, expo-document-picker for Our Budget CSV (EAS rebuild), share extension (EAS), GDPR / export data / privacy WebViews.
