@@ -297,13 +297,16 @@ export async function loadTourState(): Promise<TourState> {
   await loadAccount();
   if (_loaded) return _state;
 
-  // Profile is source of truth when signed in. Fall back to AsyncStorage
-  // for pre-auth (kid receivers, mid-onboarding) + offline restart.
-  let loadedFromProfile = false;
+  // Phase 2d — when signed in, profile is the ONLY source of truth (even
+  // if it's null = fresh user). Don't fall back to AsyncStorage because
+  // it might still hold the previous user's data. Only the unsignedin
+  // path (kid receivers mid-onboarding) reads from AsyncStorage.
+  let signedIn = false;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData?.session?.user?.id;
     if (userId) {
+      signedIn = true;
       const { data, error } = await supabase
         .from('profiles')
         .select('tour_state')
@@ -311,14 +314,16 @@ export async function loadTourState(): Promise<TourState> {
         .single();
       if (!error && data?.tour_state) {
         _state = sanitiseState(data.tour_state);
-        loadedFromProfile = true;
+      } else {
+        // Signed-in user with no saved tour_state yet — start clean.
+        _state = { ...DEFAULT_STATE };
       }
     }
   } catch (e: any) {
     console.log('[tour] load DB error:', e?.message);
   }
 
-  if (!loadedFromProfile) {
+  if (!signedIn) {
     try {
       const raw = await AsyncStorage.getItem(KEY_STATE);
       if (raw) _state = sanitiseState(JSON.parse(raw));
@@ -327,6 +332,14 @@ export async function loadTourState(): Promise<TourState> {
 
   _loaded = true;
   return _state;
+}
+
+// Phase 2d — clear cache so next loadTourState() re-fetches from profile.
+// Called from _layout.tsx onAuthChange so a new user doesn't see the
+// previous user's tour progress.
+export function invalidateCache(): void {
+  _loaded = false;
+  _state = { ...DEFAULT_STATE };
 }
 
 function sanitiseState(parsed: any): TourState {

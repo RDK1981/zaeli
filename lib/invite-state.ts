@@ -22,6 +22,7 @@
  */
 
 import { supabase } from './supabase';
+import { getProfile } from './auth';
 
 const INVITE_LINK_BASE = 'zaeli.app/i/';
 
@@ -36,6 +37,8 @@ export interface Invite {
   status: InviteStatus;
   createdAt: string;
   acceptedAt: string | null;
+  acceptedUserId: string | null;   // Phase 2d — auth.users.id of the accepter
+  inviterUserId: string | null;    // Phase 2d — auth.users.id of the inviter
   revokedAt: string | null;
   surfacedHeadsUp: boolean;
 }
@@ -53,6 +56,8 @@ function rowToInvite(row: any): Invite {
     status:          row.status,
     createdAt:       row.created_at,
     acceptedAt:      row.accepted_at,
+    acceptedUserId:  row.accepted_user_id ?? null,
+    inviterUserId:   row.inviter_user_id ?? null,
     revokedAt:       row.revoked_at,
     surfacedHeadsUp: !!row.surfaced_heads_up,
   };
@@ -65,7 +70,7 @@ export async function loadInvites(): Promise<Invite[]> {
   try {
     const { data, error } = await supabase
       .from('invite_tokens')
-      .select('token,role,name,phone,status,surfaced_heads_up,created_at,accepted_at,revoked_at')
+      .select('token,role,name,phone,status,surfaced_heads_up,created_at,accepted_at,accepted_user_id,inviter_user_id,revoked_at')
       .order('created_at', { ascending: false });
     if (error) {
       console.log('[invites] load error:', error.message);
@@ -247,11 +252,17 @@ const HEADSUP_WINDOW_MIN = 60;
 
 export function recentlyAcceptedInvites(): Invite[] {
   const cutoff = Date.now() - HEADSUP_WINDOW_MIN * 60 * 1000;
+  // Phase 2d — only the INVITER sees the heads-up, not the accepter and
+  // not other family members. Filter to invites where the current user is
+  // the original sender.
+  const currentUserId = getProfile()?.id ?? null;
+  if (!currentUserId) return [];  // Fail closed — no heads-up if we don't know who we are
   return _invites.filter(i =>
     i.status === 'accepted' &&
     !i.surfacedHeadsUp &&
     i.acceptedAt &&
-    new Date(i.acceptedAt).getTime() > cutoff
+    new Date(i.acceptedAt).getTime() > cutoff &&
+    i.inviterUserId === currentUserId
   );
 }
 

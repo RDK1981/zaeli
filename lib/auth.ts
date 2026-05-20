@@ -4,6 +4,8 @@
  * Public API:
  *   signInWithPassword({ email, password })       — existing user sign-in
  *   signUpOwner({ email, password, name, familyName? }) — new family + owner profile
+ *   signUpFromInvite({ inviteToken, email, password, name }) — invitee signup,
+ *                                                  linked to inviter's family via DB trigger
  *   signOut()                                      — clears session
  *   getSession()                                   — current Supabase session or null
  *   getCurrentUserId()                             — auth.uid() shortcut
@@ -11,9 +13,6 @@
  *   getProfile()                                   — returns cached profile (call loadProfile() first)
  *   getCurrentFamilyId()                           — convenience for families.id
  *   onAuthChange(cb)                               — subscribe to session changes
- *
- * Phase 1 scope: just owner sign-up and sign-in.
- * Phase 2 will add signUpFromInvite() once invite_tokens table lands.
  */
 
 import { supabase } from './supabase';
@@ -73,6 +72,37 @@ export async function signUpOwner(args: {
   // Trigger fires synchronously inside the transaction, but a tiny wait
   // before reading the profile back avoids any read-after-write race in
   // the supabase-js client cache.
+  await new Promise(r => setTimeout(r, 250));
+
+  return { user: data.user };
+}
+
+export async function signUpFromInvite(args: {
+  inviteToken: string;
+  email: string;
+  password: string;
+  name: string;
+}) {
+  // The handle_new_user trigger (Phase 2d) reads `invite_token` from
+  // raw_user_meta_data and links the new profile to the inviter's
+  // family_id atomically. If the token is invalid/revoked/already
+  // accepted, the trigger raises an exception and the auth.users INSERT
+  // gets rolled back — no orphan auth user.
+  const { data, error } = await supabase.auth.signUp({
+    email: args.email.trim(),
+    password: args.password,
+    options: {
+      data: {
+        name: args.name.trim(),
+        invite_token: args.inviteToken,
+      },
+    },
+  });
+  if (error) throw error;
+  if (!data.user) throw new Error('Sign up succeeded but no user returned');
+
+  // Tiny wait so the trigger commits cleanly before the client reads the
+  // profile back (matches signUpOwner pattern).
   await new Promise(r => setTimeout(r, 250));
 
   return { user: data.user };

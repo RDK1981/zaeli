@@ -89,12 +89,16 @@ async function persist(): Promise<void> {
 export async function loadPrefs(): Promise<Prefs> {
   if (_loaded) return _prefs;
 
-  // Profile is source of truth when signed in. Fall back to AsyncStorage.
-  let loadedFromProfile = false;
+  // Phase 2d — when signed in, profile is the ONLY source of truth (even
+  // if it's null = fresh user). Don't fall back to AsyncStorage because
+  // it might still hold the previous user's prefs. Only the unsigned-in
+  // path reads from AsyncStorage.
+  let signedIn = false;
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData?.session?.user?.id;
     if (userId) {
+      signedIn = true;
       const { data, error } = await supabase
         .from('profiles')
         .select('user_preferences')
@@ -102,14 +106,16 @@ export async function loadPrefs(): Promise<Prefs> {
         .single();
       if (!error && data?.user_preferences) {
         _prefs = sanitise(data.user_preferences);
-        loadedFromProfile = true;
+      } else {
+        // Signed-in user with no saved prefs yet — start with defaults.
+        _prefs = { ...DEFAULT_PREFS };
       }
     }
   } catch (e: any) {
     console.log('[prefs] load DB error:', e?.message);
   }
 
-  if (!loadedFromProfile) {
+  if (!signedIn) {
     try {
       const raw = await AsyncStorage.getItem(KEY_PREFS);
       if (raw) _prefs = sanitise(JSON.parse(raw));

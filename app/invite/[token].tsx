@@ -5,13 +5,25 @@
  * Looks up the invite locally (v1; backend pass swaps for Supabase),
  * branches to AdultFlow (3 steps) or KidFlow (2 steps).
  *
- * Phase 2b: lookup + accept now hit Supabase RPCs (anon-callable) so the
- * receiver can be on a fresh device without a session yet. The inviter
- * picks up the acceptance on their next loadInvites().
+ * Phase 2d (current): receiver actually creates a Supabase auth user via
+ * signUpFromInvite(). The handle_new_user() DB trigger reads `invite_token`
+ * from raw_user_meta_data, validates it, creates the invitee's profile
+ * linked to the inviter's family_id, and marks the invite accepted in
+ * the same transaction. This means the invitee is fully signed in after
+ * onboarding completes — they can read family data via RLS, and (once
+ * cross-device deep linking lands in Phase 3) work on a different
+ * physical device.
+ *
+ * Adult invitee: email + password from the form go straight to signup.
+ * Kid invitee:   we generate a synthetic email + use token+PIN as the
+ *                password (Supabase requires 6+ chars). Kid sign-IN
+ *                (vs first signup) ergonomics come in a later phase.
  *
  * On finish:
- *   - acceptInviteRemote(token) → DB row marked accepted (cross-device)
- *   - setAccount({...}) so Budget + Family permissions apply (kid only)
+ *   - signUpFromInvite(token, email, password, name) → creates auth user
+ *     + profile linked to inviter's family + marks invite accepted (via trigger)
+ *   - loadProfile() so getCurrentFamilyId() works immediately on next screen
+ *   - setAccount({...}) for MoreSheet permission gating (kid only — owner/adult fine)
  *   - Adult: set onboarding_complete + onboarding_just_completed → routes to chat → tour offer fires
  *   - Kid: routes to /(tabs)/kids → lands in their Hub
  */
@@ -19,14 +31,15 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  TextInput, KeyboardAvoidingView, Platform, StatusBar as RNStatusBar,
+  TextInput, KeyboardAvoidingView, Platform, StatusBar as RNStatusBar, Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { lookupInviteByToken, acceptInviteRemote, type Invite } from '../../lib/invite-state';
+import { lookupInviteByToken, type Invite } from '../../lib/invite-state';
 import { setAccount } from '../../lib/account-state';
+import { signUpFromInvite, loadProfile } from '../../lib/auth';
 
 const BG = '#FAF8F5';
 const INK = '#0A0A0A';
@@ -99,32 +112,73 @@ export default function InviteTokenScreen() {
   if (!invite) return null;
 
   return invite.role === 'adult'
-    ? <AdultFlow invite={invite} onFinish={() => finishAdult(invite, router)}/>
+    ? <AdultFlow invite={invite} onFinish={(creds) => finishAdult(invite, creds, router)}/>
     : <KidFlow invite={invite} onFinish={(extras) => finishKid(invite, extras, router)}/>;
 }
 
-// ── Finish handlers ───────────────────────────────────────────────────────
-async function finishAdult(invite: Invite, router: ReturnType<typeof useRouter>) {
-  // Phase 2b — accept via RPC so it persists to Supabase, then inviter's
-  // chat heads-up surfaces on their next mount/focus.
-  await acceptInviteRemote(invite.token);
-  await setAccount({ kind: 'adult', name: invite.name.split(/\s+/)[0] });
+// ── Finish handlers (Phase 2d — real Supabase signup) ────────────────────
+async function finishAdult(
+  invite: Invite,
+  creds: { name: string; email: string; password: string },
+  router: ReturnType<typeof useRouter>,
+) {
   try {
-    await AsyncStorage.setItem('onboarding_complete', 'true');
-    await AsyncStorage.setItem('onboarding_just_completed', 'true');
-  } catch {}
-  router.replace('/(tabs)/swipe-world' as any);
+    await signUpFromInvite({
+      inviteToken: invite.token,
+      email:       creds.email,
+      password:    creds.password,
+      name:        creds.name,
+    });
+    // Trigger created profile + marked invite accepted in same transaction.
+    // Now load profile so getCurrentFamilyId() resolves on the next screen.
+    await loadProfile();
+    await setAccount({ kind: 'adult', name: invite.name.split(/\s+/)[0] });
+    try {
+      await AsyncStorage.setItem('onboarding_complete', 'true');
+      await AsyncStorage.setItem('onboarding_just_completed', 'true');
+    } catch {}
+    router.replace('/(tabs)/swipe-world' as any);
+  } catch (e: any) {
+    const msg = String(e?.message || e || 'Something went wrong');
+    Alert.alert(
+      'Sign-up failed',
+      msg.toLowerCase().includes('already')
+        ? 'An account already exists with that email. Try a different one, or sign in.'
+        : msg,
+    );
+  }
 }
 
-async function finishKid(invite: Invite, extras: { avatar: string }, router: ReturnType<typeof useRouter>) {
-  await acceptInviteRemote(invite.token);
-  await setAccount({ kind: 'kid', name: invite.name.split(/\s+/)[0], avatar: extras.avatar });
+async function finishKid(
+  invite: Invite,
+  extras: { avatar: string; pin: string },
+  router: ReturnType<typeof useRouter>,
+) {
+  // Synthetic email + token-based password — kids don't have real email
+  // and Supabase requires 6+ char passwords (4-digit PIN alone is too short).
+  // Sign-IN ergonomics for kids are a later phase; for now they just stay
+  // signed in via AsyncStorage session persistence.
+  const synthEmail    = `kid-${invite.token}@invitees.zaeli.app`;
+  const synthPassword = `${invite.token}-${extras.pin}`;
   try {
-    await AsyncStorage.setItem('onboarding_complete', 'true');
-    // One-shot flag — Kids Hub reads + clears on mount, shows welcome banner
-    await AsyncStorage.setItem('kid_just_joined', 'true');
-  } catch {}
-  router.replace('/(tabs)/kids' as any);
+    await signUpFromInvite({
+      inviteToken: invite.token,
+      email:       synthEmail,
+      password:    synthPassword,
+      name:        invite.name,
+    });
+    await loadProfile();
+    await setAccount({ kind: 'kid', name: invite.name.split(/\s+/)[0], avatar: extras.avatar });
+    try {
+      await AsyncStorage.setItem('onboarding_complete', 'true');
+      // One-shot flag — Kids Hub reads + clears on mount, shows welcome banner
+      await AsyncStorage.setItem('kid_just_joined', 'true');
+    } catch {}
+    router.replace('/(tabs)/kids' as any);
+  } catch (e: any) {
+    const msg = String(e?.message || e || 'Something went wrong');
+    Alert.alert('Sign-up failed', msg);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -132,7 +186,12 @@ async function finishKid(invite: Invite, extras: { avatar: string }, router: Ret
 // ═══════════════════════════════════════════════════════════════════════════
 type AdultStep = 'welcome' | 'account' | 'rhythm' | 'preferences';
 
-function AdultFlow({ invite, onFinish }: { invite: Invite; onFinish: () => void }) {
+function AdultFlow({
+  invite, onFinish,
+}: {
+  invite: Invite;
+  onFinish: (creds: { name: string; email: string; password: string }) => void;
+}) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<AdultStep>('welcome');
 
@@ -147,7 +206,7 @@ function AdultFlow({ invite, onFinish }: { invite: Invite; onFinish: () => void 
     if (step === 'welcome') setStep('account');
     else if (step === 'account') setStep('rhythm');
     else if (step === 'rhythm') setStep('preferences');
-    else onFinish();
+    else onFinish({ name: fullName, email, password });
   }
   function back() {
     if (step === 'account') setStep('welcome');
@@ -184,7 +243,7 @@ function AdultFlow({ invite, onFinish }: { invite: Invite; onFinish: () => void 
           onNext={next}
         />
       )}
-      {step === 'preferences' && <AdultPrefsStep onFinish={onFinish}/>}
+      {step === 'preferences' && <AdultPrefsStep onFinish={() => onFinish({ name: fullName, email, password })}/>}
     </View>
   );
 }
@@ -213,6 +272,11 @@ function AdultAccountStep(p: {
   onChangeName: (v: string) => void; onChangeEmail: (v: string) => void; onChangePassword: (v: string) => void;
   onNext: () => void;
 }) {
+  // Phase 2d — validate before letting them continue (otherwise signup fails
+  // at the end with a confusing alert). Email needs an @ + dot, password 6+.
+  const emailOk = /^\S+@\S+\.\S+$/.test(p.email.trim());
+  const pwOk    = p.password.length >= 6;
+  const canContinue = !!p.fullName.trim() && emailOk && pwOk;
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -234,12 +298,17 @@ function AdultAccountStep(p: {
           <Text style={[s.formLabel, { marginTop: 16 }]}>Create a password</Text>
           <TextInput
             style={s.formInput} value={p.password} onChangeText={p.onChangePassword}
-            placeholder="••••••••" placeholderTextColor={INK4}
+            placeholder="At least 6 characters" placeholderTextColor={INK4}
             secureTextEntry
           />
           <Text style={s.formHint}>Keeps your stuff yours.</Text>
 
-          <TouchableOpacity style={s.primaryCta} onPress={p.onNext} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={[s.primaryCta, !canContinue && { opacity: 0.4 }]}
+            onPress={p.onNext}
+            activeOpacity={0.85}
+            disabled={!canContinue}
+          >
             <Text style={s.primaryCtaTxt}>Continue</Text>
           </TouchableOpacity>
         </View>
@@ -351,7 +420,12 @@ const KID_AVATARS = [
   { emoji: '🦉', bg: '#8B5CF6' },
 ];
 
-function KidFlow({ invite, onFinish }: { invite: Invite; onFinish: (extras: { avatar: string }) => void }) {
+function KidFlow({
+  invite, onFinish,
+}: {
+  invite: Invite;
+  onFinish: (extras: { avatar: string; pin: string }) => void;
+}) {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<KidStep>('welcome');
   const first = invite.name.split(/\s+/)[0];
@@ -361,7 +435,7 @@ function KidFlow({ invite, onFinish }: { invite: Invite; onFinish: (extras: { av
   function next() {
     if (step === 'welcome') setStep('identity');
     else if (step === 'identity') setStep('capabilities');
-    else onFinish({ avatar: KID_AVATARS[avatarIdx].emoji });
+    else onFinish({ avatar: KID_AVATARS[avatarIdx].emoji, pin });
   }
   function back() {
     if (step === 'identity') setStep('welcome');
@@ -390,7 +464,7 @@ function KidFlow({ invite, onFinish }: { invite: Invite; onFinish: (extras: { av
           onNext={next}
         />
       )}
-      {step === 'capabilities' && <KidCapabilitiesStep onFinish={() => onFinish({ avatar: KID_AVATARS[avatarIdx].emoji })}/>}
+      {step === 'capabilities' && <KidCapabilitiesStep onFinish={() => onFinish({ avatar: KID_AVATARS[avatarIdx].emoji, pin })}/>}
     </View>
   );
 }

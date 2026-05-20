@@ -7,6 +7,9 @@ import { DMSans_300Light, DMSans_400Regular, DMSans_700Bold } from '@expo-google
 import * as SplashScreen from 'expo-splash-screen'
 import { getSession, loadProfile, onAuthChange, getProfile } from '../lib/auth'
 import { invalidateAccount } from '../lib/account-state'
+import { invalidateCache as invalidateTourCache } from '../lib/tour-state'
+import { invalidateCache as invalidatePrefsCache } from '../lib/user-prefs'
+import { resetCache as invalidateInvitesCache } from '../lib/invite-state'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -40,11 +43,20 @@ export default function RootLayout() {
   useEffect(() => {
     const { data: sub } = onAuthChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
+        // Phase 2d — clear all user-scoped module caches so the new
+        // user doesn't inherit the previous user's state. Each lib's
+        // next loadX() call will re-hydrate from the correct profile.
         invalidateAccount()
+        invalidateTourCache()
+        invalidatePrefsCache()
+        invalidateInvitesCache().catch(() => {})
         await loadProfile()
         setAuthed(!!getProfile())
       } else if (event === 'SIGNED_OUT') {
         invalidateAccount()
+        invalidateTourCache()
+        invalidatePrefsCache()
+        invalidateInvitesCache().catch(() => {})
         setAuthed(false)
       }
     })

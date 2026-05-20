@@ -35,6 +35,7 @@ import { supabase } from '../../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadTourState, isInProgress as tourInProgress, getCurrentStop as tourCurrentStop, TOTAL_STOPS as TOUR_TOTAL, replayFromStart as tourReplayFromStart, shouldShowResumePrompt as tourShouldResume, markResumePromptShown as tourMarkResumePrompt, getStopById as tourGetStop, completeTour as tourCompleteTour, getEffectiveStops as tourEffectiveStops, getEffectiveTotal as tourEffectiveTotal } from '../../lib/tour-state';
 import { loadInvites as loadInviteState, recentlyAcceptedInvites, clearJustAcceptedFlag } from '../../lib/invite-state';
+import { getProfile } from '../../lib/auth';
 import MoreSheet from '../components/MoreSheet';
 import TourBanner from '../components/TourBanner';
 import { currentWindow as getCurrentWindow, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
@@ -3089,6 +3090,23 @@ function HomeScreen({
   // ── Sync messages with persistence ────────────────────────────────────────
   const persistenceHasLoaded = useRef(false);
 
+  // Phase 2d — detect auth user switch via chatLoaded false→true cycle.
+  // When useChatPersistence reloads (new user signed in), reset the
+  // local `messages` state + persistenceHasLoaded ref so the previous
+  // user's brief, tour offer, heads-up etc don't bleed into the new
+  // user's chat.
+  const lastChatLoadedRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (lastChatLoadedRef.current && !chatLoaded) {
+      // User just switched — reset everything that's user-scoped
+      persistenceHasLoaded.current = false;
+      setMessages([]);
+      lastBriefWindowRef.current = null;
+      lastBriefDateRef.current = null;
+    }
+    lastChatLoadedRef.current = chatLoaded;
+  }, [chatLoaded]);
+
   useEffect(() => {
     if (chatLoaded && !persistenceHasLoaded.current) {
       persistenceHasLoaded.current = true;
@@ -3141,7 +3159,34 @@ function HomeScreen({
   useEffect(() => {
     if (!chatLoaded || !persistenceHasLoaded.current || briefMountFiredRef.current) return;
     briefMountFiredRef.current = true;
-    tryFireBrief({ appJustOpened: true });
+    // Phase 2d — fresh invitee path: if they just completed the receiver
+    // onboarding AND their profile is adult/kid (not owner), suppress the
+    // family brief on first session and show a warm welcome instead.
+    // A mid-context family brief ("bins go out tomorrow") is jarring as
+    // someone's first ever Zaeli message. Their first proper brief lands
+    // next morning.
+    (async () => {
+      try {
+        const justCompleted = await AsyncStorage.getItem('onboarding_just_completed');
+        const kind = getProfile()?.kind ?? 'owner';
+        if (justCompleted === 'true' && kind !== 'owner') {
+          const firstName = getProfile()?.name?.split(/\s+/)[0] || 'there';
+          const welcome: Msg = {
+            id: uid(),
+            role: 'zaeli',
+            text: `Hey ${firstName} 👋 Welcome in. Family stuff is already wired up — you'll get your first proper brief tomorrow morning. Until then, ask me anything.`,
+            ts: nowTs(),
+          };
+          setMessages(prev => [...prev, welcome]);
+          // Skip tryFireBrief for this first session. Tour offer + heads-up
+          // (won't fire for invitee anyway) still go below.
+        } else {
+          tryFireBrief({ appJustOpened: true });
+        }
+      } catch {
+        tryFireBrief({ appJustOpened: true });
+      }
+    })();
     maybeFireTourOffer();
     maybeFireTourResume();
     maybeFireInviteHeadsUp();

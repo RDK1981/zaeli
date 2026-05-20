@@ -4,12 +4,18 @@
  * Uses expo-file-system (already in project, no native rebuild needed).
  * Persists last MAX_MESSAGES messages per channel with a 24hr TTL.
  *
+ * Phase 2d: scope the file path by current Supabase user id so chat
+ * history doesn't leak across user switches (sign-out + new sign-in, or
+ * invitee signup via the receiver flow). Anon (no session) falls back to
+ * `_anon` so pre-auth flows still work.
+ *
  * Usage:
  *   const { messages, setMessages, clearMessages } = useChatPersistence('shopping');
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
+import { supabase } from './supabase';
 
 export interface PersistedMsg {
   id: string;
@@ -34,15 +40,44 @@ function chatFilePath(channelKey: string): string {
 }
 
 export function useChatPersistence(channelKey: string) {
+  // Phase 2d — scope by current Supabase user id so signing in as a
+  // different user (or signing in after a fresh invite acceptance) doesn't
+  // load the previous user's chat history from disk.
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userIdReady, setUserIdReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Initial read of session — populates userId before first load attempt
+    supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      setUserId(data.session?.user?.id ?? null);
+      setUserIdReady(true);
+    });
+    // Subscribe so the file scopes to whoever is signed in right now
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+      setUserIdReady(true);
+    });
+    return () => { cancelled = true; sub.subscription.unsubscribe(); };
+  }, []);
+
+  const scopedKey = `${channelKey}_${userId || 'anon'}`;
+
   const [messages, setMessagesState] = useState<PersistedMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load on mount
+  // Load on mount AND on user switch (scopedKey changes when userId does)
   useEffect(() => {
+    if (!userIdReady) return; // wait for initial session read before touching files
+    // Reset state immediately so old user's messages disappear from view
+    // before the new user's file (if any) loads
+    setLoaded(false);
+    setMessagesState([]);
     (async () => {
       try {
-        const path = chatFilePath(channelKey);
+        const path = chatFilePath(scopedKey);
         const info = await FileSystem.getInfoAsync(path);
         if (info.exists) {
           const raw = await FileSystem.readAsStringAsync(path);
@@ -61,7 +96,7 @@ export function useChatPersistence(channelKey: string) {
         setLoaded(true);
       }
     })();
-  }, [channelKey]);
+  }, [scopedKey, userIdReady]);
 
   // Debounced save whenever messages change
   useEffect(() => {
@@ -70,7 +105,7 @@ export function useChatPersistence(channelKey: string) {
     saveTimerRef.current = setTimeout(async () => {
       try {
         const toSave = messages.filter(m => !m.isLoading).slice(-MAX_MESSAGES);
-        const path = chatFilePath(channelKey);
+        const path = chatFilePath(scopedKey);
         if (toSave.length === 0) {
           await FileSystem.deleteAsync(path, { idempotent: true });
           return;
@@ -82,7 +117,7 @@ export function useChatPersistence(channelKey: string) {
       }
     }, 500);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [messages, loaded, channelKey]);
+  }, [messages, loaded, scopedKey]);
 
   // Wrapped setter with rolling cap
   const setMessages = useCallback(
@@ -103,9 +138,9 @@ export function useChatPersistence(channelKey: string) {
   const clearMessages = useCallback(async () => {
     setMessagesState([]);
     try {
-      await FileSystem.deleteAsync(chatFilePath(channelKey), { idempotent: true });
+      await FileSystem.deleteAsync(chatFilePath(scopedKey), { idempotent: true });
     } catch {}
-  }, [channelKey]);
+  }, [scopedKey]);
 
   return { messages, setMessages, clearMessages, loaded };
 }
