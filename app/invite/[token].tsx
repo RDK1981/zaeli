@@ -58,9 +58,6 @@ const LAV = '#D8CCFF';
 const LAV_DEEP = '#5020C0';
 const VIOLET = '#6B35D9';
 
-// Inviter shown in welcome lines — comes from auth later
-const INVITER_FIRST_NAME = 'Rich';
-
 export default function InviteTokenScreen() {
   const params = useLocalSearchParams<{ token?: string }>();
   const token = typeof params.token === 'string' ? params.token : '';
@@ -196,6 +193,8 @@ function AdultFlow({
   const [step, setStep] = useState<AdultStep>('welcome');
 
   const first = invite.name.split(/\s+/)[0];
+  // Session 23 — real inviter name from the invite (was hardcoded 'Rich')
+  const inviter = invite.inviterName || 'A family member';
   const [fullName, setFullName] = useState(invite.name);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -228,7 +227,7 @@ function AdultFlow({
         </View>
       )}
 
-      {step === 'welcome' && <AdultWelcome first={first} inviter={INVITER_FIRST_NAME} onNext={next}/>}
+      {step === 'welcome' && <AdultWelcome first={first} inviter={inviter} onNext={next}/>}
       {step === 'account' && (
         <AdultAccountStep
           fullName={fullName} email={email} password={password}
@@ -243,7 +242,7 @@ function AdultFlow({
           onNext={next}
         />
       )}
-      {step === 'preferences' && <AdultPrefsStep onFinish={() => onFinish({ name: fullName, email, password })}/>}
+      {step === 'preferences' && <AdultPrefsStep inviter={inviter} onFinish={() => onFinish({ name: fullName, email, password })}/>}
     </View>
   );
 }
@@ -362,7 +361,7 @@ const PREF_CHIPS = [
   { key: 'birthdays', label: '🎂 Birthdays' },
 ];
 
-function AdultPrefsStep({ onFinish }: { onFinish: () => void }) {
+function AdultPrefsStep({ inviter, onFinish }: { inviter: string; onFinish: () => void }) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   function toggle(k: string) {
     setPicked(prev => {
@@ -394,7 +393,7 @@ function AdultPrefsStep({ onFinish }: { onFinish: () => void }) {
       </View>
 
       <View style={s.tipBox}>
-        <Text style={s.tipTxt}>💡 You don't need to set this up — {INVITER_FIRST_NAME} already has the family stuff dialled in. This just helps me prioritise <Text style={{ fontFamily: 'Poppins_700Bold' }}>your</Text> brief.</Text>
+        <Text style={s.tipTxt}>💡 You don't need to set this up — {inviter} already has the family stuff dialled in. This just helps me prioritise <Text style={{ fontFamily: 'Poppins_700Bold' }}>your</Text> brief.</Text>
       </View>
 
       <TouchableOpacity style={s.primaryCta} onPress={onFinish} activeOpacity={0.85}>
@@ -429,6 +428,7 @@ function KidFlow({
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<KidStep>('welcome');
   const first = invite.name.split(/\s+/)[0];
+  const inviter = invite.inviterName || 'A family member';
   const [avatarIdx, setAvatarIdx] = useState<number>(2); // unicorn default
   const [pin, setPin] = useState<string>('');
 
@@ -456,7 +456,7 @@ function KidFlow({
         </View>
       )}
 
-      {step === 'welcome' && <KidWelcome first={first} inviter={INVITER_FIRST_NAME} onNext={next}/>}
+      {step === 'welcome' && <KidWelcome first={first} inviter={inviter} onNext={next}/>}
       {step === 'identity' && (
         <KidIdentityStep
           avatarIdx={avatarIdx} pin={pin}

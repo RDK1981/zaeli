@@ -27,7 +27,7 @@ import { setFamilyFromSettings } from '../../lib/navigation-store';
 import { STOPS as TOUR_STOPS, TOTAL_STOPS as TOUR_TOTAL, replayFromStart, replayStop, loadTourState, isCompleted as tourIsCompleted, getState as getTourState, getEffectiveStops as tourEffectiveStops, getEffectiveTotal as tourEffectiveTotal } from '../../lib/tour-state';
 import { loadInvites, getPendingInvites, markAccepted } from '../../lib/invite-state';
 import { resetToOwner } from '../../lib/account-state';
-import { signOut } from '../../lib/auth';
+import { signOut, loadProfile, getProfile, type Profile } from '../../lib/auth';
 import { loadPrefs, updatePref as persistUpdatePref, DEFAULT_PREFS, type Prefs } from '../../lib/user-prefs';
 import {
   fetchInsightsByCategory, fetchMilestones, deleteInsight, deleteMilestone,
@@ -202,6 +202,9 @@ export default function SettingsScreen() {
   const [prefs, setPrefs]   = useState<Prefs>(DEFAULT_PREFS);
   const [loaded, setLoaded] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // Real signed-in profile for the account hero (Phase 2 auth wiring).
+  const [profile, setProfile] = useState<Profile | null>(getProfile());
+  useEffect(() => { loadProfile().then(p => { if (p) setProfile(p); }); }, []);
 
   // Time picker state: which field is being edited (null = closed)
   const [editingTimeKey, setEditingTimeKey] = useState<keyof Prefs | null>(null);
@@ -329,6 +332,7 @@ export default function SettingsScreen() {
       {loaded && view === 'main' && (
         <MainView
           prefs={prefs}
+          profile={profile}
           onNavNotifications={() => setView('notifications')}
           onNavMemory={() => setView('memory')}
           onNavTour={() => setView('tour')}
@@ -518,6 +522,7 @@ export default function SettingsScreen() {
 // ═══════════════════════════════════════════════════════════════════════════
 function MainView(p: {
   prefs: Prefs;
+  profile: Profile | null;
   onNavNotifications: () => void;
   onNavMemory: () => void;
   onNavTour: () => void;
@@ -536,17 +541,27 @@ function MainView(p: {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
 
-      {/* Account hero */}
-      <View style={s.accountHero}>
-        <View style={s.accountAvatar}><Text style={s.accountAvatarTxt}>R</Text></View>
-        <View style={{ flex: 1 }}>
-          <Text style={s.accountName}>Rich de Kretser</Text>
-          <Text style={s.accountEmail}>richarddekretser@gmail.com</Text>
-          <View style={s.accountPlanTag}>
-            <Text style={s.accountPlanTagTxt}>Family plan · Active</Text>
+      {/* Account hero — real signed-in profile (Phase 2 auth wiring) */}
+      {(() => {
+        const name = p.profile?.name?.trim() || 'You';
+        const email = p.profile?.email || '';
+        const initial = name[0]?.toUpperCase() || 'Z';
+        const kindTag = p.profile?.kind === 'kid' ? 'Kid account'
+          : p.profile?.kind === 'adult' ? 'Adult · Family plan'
+          : 'Family plan · Active';
+        return (
+          <View style={s.accountHero}>
+            <View style={s.accountAvatar}><Text style={s.accountAvatarTxt}>{initial}</Text></View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.accountName}>{name}</Text>
+              {!!email && <Text style={s.accountEmail}>{email}</Text>}
+              <View style={s.accountPlanTag}>
+                <Text style={s.accountPlanTagTxt}>{kindTag}</Text>
+              </View>
+            </View>
           </View>
-        </View>
-      </View>
+        );
+      })()}
 
       {/* Subscription */}
       <SecLabel>Subscription</SecLabel>

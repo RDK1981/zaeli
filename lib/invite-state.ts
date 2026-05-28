@@ -39,6 +39,7 @@ export interface Invite {
   acceptedAt: string | null;
   acceptedUserId: string | null;   // Phase 2d — auth.users.id of the accepter
   inviterUserId: string | null;    // Phase 2d — auth.users.id of the inviter
+  inviterName: string | null;      // Session 23 — denormalised inviter first name for receiver UI
   revokedAt: string | null;
   surfacedHeadsUp: boolean;
 }
@@ -58,6 +59,7 @@ function rowToInvite(row: any): Invite {
     acceptedAt:      row.accepted_at,
     acceptedUserId:  row.accepted_user_id ?? null,
     inviterUserId:   row.inviter_user_id ?? null,
+    inviterName:     row.inviter_name ?? null,
     revokedAt:       row.revoked_at,
     surfacedHeadsUp: !!row.surfaced_heads_up,
   };
@@ -70,7 +72,7 @@ export async function loadInvites(): Promise<Invite[]> {
   try {
     const { data, error } = await supabase
       .from('invite_tokens')
-      .select('token,role,name,phone,status,surfaced_heads_up,created_at,accepted_at,accepted_user_id,inviter_user_id,revoked_at')
+      .select('token,role,name,phone,status,surfaced_heads_up,created_at,accepted_at,accepted_user_id,inviter_user_id,inviter_name,revoked_at')
       .order('created_at', { ascending: false });
     if (error) {
       console.log('[invites] load error:', error.message);
@@ -153,6 +155,7 @@ export async function createInvite(args: CreateInviteArgs): Promise<CreatedInvit
         token,
         family_id:       familyId,
         inviter_user_id: userId,
+        inviter_name:    args.inviterFirstName?.trim() || null,
         role:            args.role,
         name:            args.name.trim(),
         phone:           args.phone?.trim() || null,
@@ -176,6 +179,9 @@ export async function createInvite(args: CreateInviteArgs): Promise<CreatedInvit
     status:          'pending',
     createdAt:       new Date().toISOString(),
     acceptedAt:      null,
+    acceptedUserId:  null,
+    inviterUserId:   userId,
+    inviterName:     args.inviterFirstName?.trim() || null,
     revokedAt:       null,
     surfacedHeadsUp: false,
   };

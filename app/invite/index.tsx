@@ -24,6 +24,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { createInvite, InviteRole } from '../../lib/invite-state';
+import { getProfile, loadProfile } from '../../lib/auth';
 
 const BG = '#FAF8F5';
 const INK = '#0A0A0A';
@@ -42,10 +43,6 @@ const LAV = '#D8CCFF';
 const LAV_TINT = '#F0EBFF';
 const LAV_DEEP = '#5020C0';
 
-// Inviter is currently hardcoded — this comes from the logged-in account
-// once auth lands. For now Rich is the primary user.
-const INVITER_FIRST_NAME = 'Rich';
-
 type View = 'role' | 'form';
 
 export default function InviteScreen() {
@@ -62,6 +59,13 @@ export default function InviteScreen() {
   const [name, setName] = useState<string>(typeof params.name === 'string' ? params.name : '');
   const [phone, setPhone] = useState<string>('');
   const [sending, setSending] = useState(false);
+  // Inviter's first name = the signed-in user (Session 23 — was hardcoded 'Rich').
+  const [inviterFirstName, setInviterFirstName] = useState<string>(
+    getProfile()?.name?.split(/\s+/)[0] || 'A family member'
+  );
+  useEffect(() => {
+    loadProfile().then(p => { if (p?.name) setInviterFirstName(p.name.split(/\s+/)[0]); });
+  }, []);
 
   function handleBack() {
     if (view === 'form' && !initialRole) { setView('role'); return; }
@@ -84,7 +88,7 @@ export default function InviteScreen() {
         role,
         name: name.trim(),
         phone: phone.trim() || undefined,
-        inviterFirstName: INVITER_FIRST_NAME,
+        inviterFirstName,
       });
 
       // Open iOS share sheet with the pre-composed SMS body.
@@ -131,7 +135,7 @@ export default function InviteScreen() {
           name={name}
           phone={phone}
           sending={sending}
-          inviterName={INVITER_FIRST_NAME}
+          inviterName={inviterFirstName}
           onChangeName={setName}
           onChangePhone={setPhone}
           onSend={handleSend}
