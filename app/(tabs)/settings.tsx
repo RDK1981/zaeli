@@ -29,6 +29,11 @@ import { loadInvites, getPendingInvites, markAccepted } from '../../lib/invite-s
 import { resetToOwner } from '../../lib/account-state';
 import { signOut } from '../../lib/auth';
 import { loadPrefs, updatePref as persistUpdatePref, DEFAULT_PREFS, type Prefs } from '../../lib/user-prefs';
+import {
+  fetchInsightsByCategory, fetchMilestones, deleteInsight, deleteMilestone,
+  clearAllMemory, type InsightRow, type MilestoneRow,
+} from '../../lib/zaeli-memory';
+import { getFamilyId } from '../../lib/family';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import MoreSheet from '../components/MoreSheet';
@@ -200,22 +205,60 @@ export default function SettingsScreen() {
   const [editingTimeKey, setEditingTimeKey] = useState<keyof Prefs | null>(null);
   const [pickerDate, setPickerDate] = useState<Date>(new Date());
 
-  // Memory dummy data (replace with Supabase wiring in next pass)
-  const [memory] = useState(() => ({
-    routines: [
-      { id: 'r1', icon: '🏃', title: "Gab's soccer · Tuesdays 4pm", sub: 'Observed over 6 weeks' },
-      { id: 'r2', icon: '📚', title: "Poppy's library day · Fridays", sub: 'Mentioned 3 times' },
-      { id: 'r3', icon: '🍝', title: 'Friday night pasta tradition', sub: '6 weeks running' },
-    ],
-    preferences: [
-      { id: 'p1', icon: '🥗', title: 'Duke dislikes capsicum',        sub: 'Stored from chat' },
-      { id: 'p2', icon: '🎿', title: 'Poppy into skiing this winter', sub: '' },
-    ],
-    milestones: [
-      { id: 'm1', icon: '🎂', title: "Duke's 8th birthday · 14 March", sub: '' },
-      { id: 'm2', icon: '🏖️', title: 'Bali family trip · July 2026',   sub: '' },
-    ],
-  }));
+  // Memory — Phase 2f: real Supabase data via lib/zaeli-memory.ts.
+  // Fetched on first navigation into the Memory view (not on settings mount,
+  // since most users won't open this view every session).
+  const [memory, setMemory] = useState<{
+    routines: InsightRow[];
+    preferences: InsightRow[];
+    milestones: MilestoneRow[];
+    loaded: boolean;
+  }>({ routines: [], preferences: [], milestones: [], loaded: false });
+
+  async function loadMemory() {
+    const familyId = getFamilyId();
+    const [routines, preferences, milestones] = await Promise.all([
+      fetchInsightsByCategory(familyId, 'routine'),
+      fetchInsightsByCategory(familyId, 'preference'),
+      fetchMilestones(familyId),
+    ]);
+    setMemory({ routines, preferences, milestones, loaded: true });
+  }
+
+  // Trigger load whenever Memory view becomes visible. Always re-fetches so
+  // SQL changes / new insights from chat show up on next entry. The "Loading…"
+  // skeleton only shows on the very first load (when memory.loaded is false);
+  // subsequent re-entries swap the data silently with no flash.
+  useEffect(() => {
+    if (view === 'memory') {
+      loadMemory().catch(() => setMemory(prev => ({ ...prev, loaded: true })));
+    }
+  }, [view]);
+
+  async function handleDeleteInsight(id: string) {
+    // Optimistic UI — remove from local state first, then DB
+    setMemory(prev => ({
+      ...prev,
+      routines:    prev.routines.filter(r => r.id !== id),
+      preferences: prev.preferences.filter(p => p.id !== id),
+    }));
+    const ok = await deleteInsight(id);
+    if (!ok) { Alert.alert('Couldn’t remove', 'Try again in a moment.'); loadMemory(); }
+  }
+  async function handleDeleteMilestone(id: string) {
+    setMemory(prev => ({ ...prev, milestones: prev.milestones.filter(m => m.id !== id) }));
+    const ok = await deleteMilestone(id);
+    if (!ok) { Alert.alert('Couldn’t remove', 'Try again in a moment.'); loadMemory(); }
+  }
+  async function handleClearAllMemory() {
+    const familyId = getFamilyId();
+    const res = await clearAllMemory(familyId);
+    if (!res.ok) {
+      Alert.alert('Partial clear', `Some tables errored:\n${res.errors.join('\n')}`);
+    }
+    // Reset local state regardless — anything that did delete is gone
+    setMemory({ routines: [], preferences: [], milestones: [], loaded: true });
+  }
 
   useEffect(() => { loadPrefs().then(p => { setPrefs(p); setLoaded(true); }); }, []);
 
@@ -341,12 +384,14 @@ export default function SettingsScreen() {
           memory={memory}
           prefs={prefs}
           onToggleLearning={v => updatePref('memoryLearningOn', v)}
+          onDeleteInsight={handleDeleteInsight}
+          onDeleteMilestone={handleDeleteMilestone}
           onClearAll={() => Alert.alert(
             'Clear everything Zaeli remembers?',
-            'This resets all routines, preferences and milestones Zaeli has learned.',
+            'Removes all routines, preferences, milestones, and saved chat memory for the family. Can’t be undone.',
             [
               { text: 'Cancel', style: 'cancel' },
-              { text: 'Clear', style: 'destructive', onPress: () => Alert.alert('Done', 'Memory cleared (wiring coming when we move to Supabase).') },
+              { text: 'Clear', style: 'destructive', onPress: handleClearAllMemory },
             ],
           )}
         />
@@ -669,48 +714,85 @@ function BriefRow(p: {
 // MEMORY VIEW
 // ═══════════════════════════════════════════════════════════════════════════
 function MemoryView(p: {
-  memory: { routines: any[]; preferences: any[]; milestones: any[] };
+  memory: { routines: InsightRow[]; preferences: InsightRow[]; milestones: MilestoneRow[]; loaded: boolean };
   prefs: Prefs;
   onToggleLearning: (v: boolean) => void;
+  onDeleteInsight: (id: string) => void;
+  onDeleteMilestone: (id: string) => void;
   onClearAll: () => void;
 }) {
+  // Confidence → short label for the sub line ("Strong" / "Building" / "New")
+  const confidenceLabel = (c: number): string =>
+    c >= 70 ? 'Strong pattern' : c >= 40 ? 'Building confidence' : 'New observation';
+  const occurrenceLabel = (n: number | null): string =>
+    !n ? '' : n === 1 ? ' · noticed once' : ` · noticed ${n}×`;
+
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 4, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
       <View style={{ paddingHorizontal: 22, paddingVertical: 14 }}>
         <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 14, color: INK2, lineHeight: 22 }}>
-          Here's what I've picked up about your family so far. You can remove anything — it's your life.
+          Here’s what I’ve picked up about your family so far. You can remove anything — it’s your life.
         </Text>
       </View>
 
-      <SecLabel>Routines</SecLabel>
-      <View style={s.group}>
-        {p.memory.routines.map((r, i) => (
-          <Row key={r.id} icon={r.icon} iconBg="#EDE8FF" iconFg="#6B35D9"
-               title={r.title} sub={r.sub} removable
-               onRemove={() => Alert.alert('Remove', 'Will wire when memory moves to Supabase.')}
-               last={i === p.memory.routines.length - 1}/>
-        ))}
-      </View>
+      {/* Loading state — only on first visit to this view in the session */}
+      {!p.memory.loaded && (
+        <View style={{ padding: 32, alignItems: 'center' }}>
+          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK3 }}>Loading…</Text>
+        </View>
+      )}
 
-      <SecLabel>Preferences</SecLabel>
-      <View style={s.group}>
-        {p.memory.preferences.map((r, i) => (
-          <Row key={r.id} icon={r.icon} iconBg="#EDE8FF" iconFg="#6B35D9"
-               title={r.title} sub={r.sub} removable
-               onRemove={() => Alert.alert('Remove', 'Will wire when memory moves to Supabase.')}
-               last={i === p.memory.preferences.length - 1}/>
-        ))}
-      </View>
+      {p.memory.loaded && (
+        <>
+          <SecLabel>Routines</SecLabel>
+          <View style={s.group}>
+            {p.memory.routines.length === 0 ? (
+              <EmptyMemoryRow text="Nothing yet — I'll start picking these up from chat as you use me." last/>
+            ) : (
+              p.memory.routines.map((r, i) => (
+                <Row key={r.id} icon="🔁" iconBg="#EDE8FF" iconFg="#6B35D9"
+                     title={r.subject ? `${r.subject} · ${r.insight}` : r.insight}
+                     sub={`${confidenceLabel(r.confidence)}${occurrenceLabel(r.occurrence_count)}`}
+                     removable
+                     onRemove={() => p.onDeleteInsight(r.id)}
+                     last={i === p.memory.routines.length - 1}/>
+              ))
+            )}
+          </View>
 
-      <SecLabel>Milestones</SecLabel>
-      <View style={s.group}>
-        {p.memory.milestones.map((r, i) => (
-          <Row key={r.id} icon={r.icon} iconBg="#EDE8FF" iconFg="#6B35D9"
-               title={r.title} sub={r.sub} removable
-               onRemove={() => Alert.alert('Remove', 'Will wire when memory moves to Supabase.')}
-               last={i === p.memory.milestones.length - 1}/>
-        ))}
-      </View>
+          <SecLabel>Preferences</SecLabel>
+          <View style={s.group}>
+            {p.memory.preferences.length === 0 ? (
+              <EmptyMemoryRow text="Tell me anything in chat — likes, dislikes, allergies — and I'll remember." last/>
+            ) : (
+              p.memory.preferences.map((r, i) => (
+                <Row key={r.id} icon="✨" iconBg="#EDE8FF" iconFg="#6B35D9"
+                     title={r.subject ? `${r.subject} · ${r.insight}` : r.insight}
+                     sub={`${confidenceLabel(r.confidence)}${occurrenceLabel(r.occurrence_count)}`}
+                     removable
+                     onRemove={() => p.onDeleteInsight(r.id)}
+                     last={i === p.memory.preferences.length - 1}/>
+              ))
+            )}
+          </View>
+
+          <SecLabel>Milestones</SecLabel>
+          <View style={s.group}>
+            {p.memory.milestones.length === 0 ? (
+              <EmptyMemoryRow text="Birthdays, trips, big moments — I'll capture them as they come up." last/>
+            ) : (
+              p.memory.milestones.map((r, i) => (
+                <Row key={r.id} icon={r.emoji || '⭐'} iconBg="#EDE8FF" iconFg="#6B35D9"
+                     title={r.title}
+                     sub={`${r.happened_on}${r.description ? ' · ' + r.description : ''}`}
+                     removable
+                     onRemove={() => p.onDeleteMilestone(r.id)}
+                     last={i === p.memory.milestones.length - 1}/>
+              ))
+            )}
+          </View>
+        </>
+      )}
 
       <SecLabel>Controls</SecLabel>
       <View style={s.group}>
@@ -723,6 +805,20 @@ function MemoryView(p: {
              danger onPress={p.onClearAll} last/>
       </View>
     </ScrollView>
+  );
+}
+
+// Empty-state line for a Memory section — same shape as Row but greyed.
+function EmptyMemoryRow({ text, last }: { text: string; last?: boolean }) {
+  return (
+    <View style={[
+      { paddingVertical: 14, paddingHorizontal: 16 },
+      !last && { borderBottomWidth: 1, borderBottomColor: BORDER },
+    ]}>
+      <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK3, lineHeight: 20 }}>
+        {text}
+      </Text>
+    </View>
   );
 }
 

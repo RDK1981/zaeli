@@ -319,3 +319,113 @@ export async function saveMilestone(
     console.log('Save milestone error:', e);
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+//  Settings → Memory view fetchers (Phase 2f)
+//  Display + delete operations for the user-facing Memory list.
+// ─────────────────────────────────────────────────────────────
+
+export type InsightRow = {
+  id:               string;
+  category:         string;     // 'routine' | 'preference' | 'pattern'
+  subject:          string;
+  insight:          string;
+  confidence:       number;
+  occurrence_count: number | null;
+  last_seen:        string | null;
+};
+
+export type MilestoneRow = {
+  id:          string;
+  title:       string;
+  description: string | null;
+  happened_on: string;
+  emoji:       string | null;
+  category:    string | null;
+};
+
+// Fetch insights for a specific category. Caller decides which category to
+// pull (settings.tsx shows routines + preferences in separate sections).
+export async function fetchInsightsByCategory(
+  familyId: string,
+  category: 'routine' | 'preference' | 'pattern',
+): Promise<InsightRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from('family_insights')
+      .select('id, category, subject, insight, confidence, occurrence_count, last_seen')
+      .eq('family_id', familyId)
+      .eq('category', category)
+      .order('confidence', { ascending: false })
+      .limit(50);
+    if (error) {
+      console.log('[memory] fetchInsightsByCategory error:', error.message);
+      return [];
+    }
+    return (data || []) as InsightRow[];
+  } catch (e: any) {
+    console.log('[memory] fetchInsightsByCategory exception:', e?.message);
+    return [];
+  }
+}
+
+// Fetch recent + upcoming milestones. Ordered with most-recent first.
+export async function fetchMilestones(familyId: string): Promise<MilestoneRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from('family_milestones')
+      .select('id, title, description, happened_on, emoji, category')
+      .eq('family_id', familyId)
+      .order('happened_on', { ascending: false })
+      .limit(50);
+    if (error) {
+      console.log('[memory] fetchMilestones error:', error.message);
+      return [];
+    }
+    return (data || []) as MilestoneRow[];
+  } catch (e: any) {
+    console.log('[memory] fetchMilestones exception:', e?.message);
+    return [];
+  }
+}
+
+// Delete a single insight by id. RLS enforces family scope.
+export async function deleteInsight(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('family_insights').delete().eq('id', id);
+    if (error) { console.log('[memory] deleteInsight error:', error.message); return false; }
+    return true;
+  } catch (e: any) {
+    console.log('[memory] deleteInsight exception:', e?.message);
+    return false;
+  }
+}
+
+// Delete a single milestone by id. RLS enforces family scope.
+export async function deleteMilestone(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('family_milestones').delete().eq('id', id);
+    if (error) { console.log('[memory] deleteMilestone error:', error.message); return false; }
+    return true;
+  } catch (e: any) {
+    console.log('[memory] deleteMilestone exception:', e?.message);
+    return false;
+  }
+}
+
+// Clear EVERYTHING Zaeli remembers about this family — insights,
+// milestones, conversation memory, pattern log. Destructive.
+// Caller should confirm via Alert before invoking.
+export async function clearAllMemory(familyId: string): Promise<{ ok: boolean; errors: string[] }> {
+  const errors: string[] = [];
+  const tables = ['family_insights', 'family_milestones', 'conversation_memory', 'pattern_log'];
+  for (const t of tables) {
+    try {
+      const { error } = await supabase.from(t).delete().eq('family_id', familyId);
+      if (error) errors.push(`${t}: ${error.message}`);
+    } catch (e: any) {
+      errors.push(`${t}: ${e?.message ?? 'unknown'}`);
+    }
+  }
+  return { ok: errors.length === 0, errors };
+}
