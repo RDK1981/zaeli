@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View } from 'react-native'
+import { View, Linking } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useFonts, DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display'
@@ -67,6 +67,21 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded && authed !== null) SplashScreen.hideAsync()
   }, [loaded, authed])
+
+  // ── Deep link debug listener ────────────────────────────────────────
+  // Logs every URL the OS hands us (initial cold-start URL + URLs while
+  // running). Helps verify the `zaeli://invite/<token>` scheme is firing
+  // correctly when the QR is scanned from a second device. Expo Router
+  // handles the actual routing automatically based on `scheme` in app.json.
+  useEffect(() => {
+    Linking.getInitialURL().then(url => {
+      if (url) console.log('[link] initial URL:', url)
+    })
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      console.log('[link] incoming URL:', url)
+    })
+    return () => { sub.remove() }
+  }, [])
 
   // ── Route guard ─────────────────────────────────────────────────────
   // If authed=false and user isn't already on /(auth) or /invite/[token],

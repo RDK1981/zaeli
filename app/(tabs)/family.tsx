@@ -25,6 +25,7 @@ import {
 } from '../../lib/invite-state';
 import { loadAccount, isKidAccount } from '../../lib/account-state';
 import Svg, { Polyline, Path } from 'react-native-svg';
+import QRCode from 'react-native-qrcode-svg';
 import { supabase } from '../../lib/supabase';
 import { generateSubjectSummary, generateSessionSummary } from '../../lib/tutor-summaries';
 import { getFamilyId } from '../../lib/family';
@@ -155,6 +156,10 @@ export default function OurFamilyScreen() {
   const [activeTab, setActiveTab] = useState<'home' | 'jobs' | 'family'>('home');
   // Pending invites (loaded from invite-state lib)
   const [pendingInvites, setPendingInvites] = useState<Invite[]>([]);
+  // QR overlay for cross-device testing — value is the token of the invite to show
+  // (Phase 2e bridge — lets a second device scan + open the app directly to /invite/[token]
+  // without needing zaeli.app Universal Links live yet)
+  const [qrToken, setQrToken] = useState<string | null>(null);
   async function refreshInvites() {
     await loadInvites();
     setPendingInvites(getPendingInvites());
@@ -1993,8 +1998,15 @@ export default function OurFamilyScreen() {
                   key={inv.token}
                   invite={inv}
                   onCopy={async () => {
-                    Clipboard.setString(`https://zaeli.app/i/${inv.token}`);
-                    Alert.alert('Copied', 'Invite link is on your clipboard.');
+                    // Copies the WORKING dev link (custom scheme). Once Phase 3
+                    // wires Universal Links + the zaeli.app domain, swap this
+                    // back to `https://zaeli.app/i/${inv.token}` so it auto-links
+                    // in SMS / Mail / Safari.
+                    Clipboard.setString(`zaeli://invite/${inv.token}`);
+                    Alert.alert(
+                      'Dev link copied',
+                      'Paste into Notes or Messages, then tap the link to open Zaeli at the invite screen. (Production https link comes with Phase 3.)'
+                    );
                   }}
                   onResend={async () => {
                     await resendInvite(inv.token);
@@ -2015,6 +2027,7 @@ export default function OurFamilyScreen() {
                       ],
                     );
                   }}
+                  onShowQR={() => setQrToken(inv.token)}
                 />
               ))}
           </>
@@ -2067,6 +2080,46 @@ export default function OurFamilyScreen() {
         {activeTab === 'jobs' && JobsRewardsTab()}
         {activeTab === 'family' && FamilyTab()}
       </View>
+
+      {/* QR overlay — Phase 2e bridge: lets a second device scan + open the app at
+          /invite/[token] via the zaeli:// custom scheme. Will be removed once
+          Universal Links on zaeli.app are live (Phase 3). */}
+      <Modal visible={qrToken !== null} transparent animationType="fade" onRequestClose={() => setQrToken(null)}>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setQrToken(null)}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+        >
+          <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 28, alignItems: 'center', maxWidth: 360, gap: 16 }}>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 18, color: '#0A0A0A', textAlign: 'center' }}>
+              Scan with the invitee's phone
+            </Text>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: 'rgba(10,10,10,0.55)', textAlign: 'center', lineHeight: 19 }}>
+              Open the camera app and point at this code. iOS will offer to open Zaeli.
+            </Text>
+            {qrToken && (
+              <View style={{ padding: 12, backgroundColor: '#fff', borderRadius: 12 }}>
+                <QRCode
+                  value={`zaeli://invite/${qrToken}`}
+                  size={240}
+                  backgroundColor="#fff"
+                  color="#0A0A0A"
+                />
+              </View>
+            )}
+            <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: 'rgba(10,10,10,0.42)', textAlign: 'center' }}>
+              zaeli://invite/{qrToken}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setQrToken(null)}
+              style={{ marginTop: 4, backgroundColor: '#0A0A0A', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28 }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: '#fff' }}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
 
     </SafeAreaView>
   );
@@ -2237,12 +2290,13 @@ const s = StyleSheet.create({
 
 // ── Pending invite row ────────────────────────────────────────────────────
 function PendingInviteRow({
-  invite, onCopy, onResend, onRevoke,
+  invite, onCopy, onResend, onRevoke, onShowQR,
 }: {
   invite: Invite;
   onCopy: () => void;
   onResend: () => void;
   onRevoke: () => void;
+  onShowQR: () => void;
 }) {
   const initial = invite.name.trim()[0]?.toUpperCase() ?? '?';
   const isKid = invite.role === 'kid';
@@ -2277,6 +2331,16 @@ function PendingInviteRow({
           <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#B83333' }}>✕ Revoke</Text>
         </TouchableOpacity>
       </View>
+      {/* QR shortcut for cross-device testing — Phase 2e bridge until Universal Links land */}
+      <TouchableOpacity
+        onPress={onShowQR}
+        style={{ marginTop: 8, backgroundColor: 'rgba(10,10,10,0.04)', borderRadius: 12, paddingVertical: 8, alignItems: 'center' }}
+        activeOpacity={0.7}
+      >
+        <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: 'rgba(10,10,10,0.55)' }}>
+          📷 Show QR for second device
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
