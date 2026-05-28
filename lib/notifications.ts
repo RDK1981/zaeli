@@ -49,6 +49,89 @@ export type ScheduledReminder = {
   remindAt:  Date;
 };
 
+// ── BRIEF NOTIFICATION IDS (stable so re-schedule is idempotent) ──
+const BRIEF_ID_MORNING = 'zaeli_brief_morning';
+const BRIEF_ID_EVENING = 'zaeli_brief_evening';
+
+// ── SCHEDULE / CANCEL DAILY BRIEF NOTIFICATIONS ──────────────
+// Phase 3a — wires the morning + evening brief times from
+// profiles.user_preferences into iOS local notifications. Daily
+// recurring trigger fires even when the app is closed.
+//
+// Idempotent: caller can re-invoke whenever prefs change; this
+// cancels both first then re-schedules whichever are toggled on.
+//
+// Skips silently if notification permission isn't granted — the
+// briefs still fire in-app when chat opens, the user just doesn't
+// get an OS-level reminder.
+export interface BriefScheduleOpts {
+  morningTime: string;   // 'HH:MM' (24h)
+  eveningTime: string;
+  morningOn:   boolean;
+  eveningOn:   boolean;
+}
+
+export async function scheduleBriefNotifications(opts: BriefScheduleOpts): Promise<void> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+
+    await cancelBriefNotifications();
+
+    if (opts.morningOn) {
+      const [h, m] = opts.morningTime.split(':').map(n => parseInt(n, 10));
+      await Notifications.scheduleNotificationAsync({
+        identifier: BRIEF_ID_MORNING,
+        content: {
+          title: '☀️ Morning brief',
+          body:  'Tap to see how today shapes up.',
+          sound: true,
+          data:  { type: 'brief', window: 'morning' },
+        },
+        trigger: { type: 'daily' as any, hour: h, minute: m } as any,
+      });
+    }
+
+    if (opts.eveningOn) {
+      const [h, m] = opts.eveningTime.split(':').map(n => parseInt(n, 10));
+      await Notifications.scheduleNotificationAsync({
+        identifier: BRIEF_ID_EVENING,
+        content: {
+          title: '🌙 Evening brief',
+          body:  "Today's wrap + tomorrow's shape.",
+          sound: true,
+          data:  { type: 'brief', window: 'evening' },
+        },
+        trigger: { type: 'daily' as any, hour: h, minute: m } as any,
+      });
+    }
+  } catch (e: any) {
+    console.log('[notifications] scheduleBriefNotifications error:', e?.message);
+  }
+}
+
+export async function cancelBriefNotifications(): Promise<void> {
+  try { await Notifications.cancelScheduledNotificationAsync(BRIEF_ID_MORNING); } catch {}
+  try { await Notifications.cancelScheduledNotificationAsync(BRIEF_ID_EVENING); } catch {}
+}
+
+// Debug helper — returns currently-scheduled brief notification identifiers
+// + their next-fire trigger. Useful for the dev rows / test plan.
+export async function debugBriefNotifications(): Promise<Array<{ id: string; title: string; trigger: any }>> {
+  try {
+    const all = await Notifications.getAllScheduledNotificationsAsync();
+    return all
+      .filter(n => n.identifier === BRIEF_ID_MORNING || n.identifier === BRIEF_ID_EVENING)
+      .map(n => ({
+        id: n.identifier,
+        title: typeof n.content.title === 'string' ? n.content.title : '',
+        trigger: n.trigger,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 // ── REQUEST PERMISSION ────────────────────────────────────────
 // Call this on app launch from _layout.tsx
 export async function requestNotificationPermission(): Promise<boolean> {

@@ -34,6 +34,8 @@ import {
   clearAllMemory, type InsightRow, type MilestoneRow,
 } from '../../lib/zaeli-memory';
 import { getFamilyId } from '../../lib/family';
+import { scheduleBriefNotifications } from '../../lib/notifications';
+import * as NotificationsAPI from 'expo-notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import MoreSheet from '../components/MoreSheet';
@@ -268,6 +270,18 @@ export default function SettingsScreen() {
       // Phase 2c — write-through to profile + AsyncStorage. Fire-and-forget;
       // the local React state is the immediate source for re-render.
       persistUpdatePref(key, val).catch(() => {});
+      // Phase 3a — if a brief time/toggle changed, re-schedule the daily
+      // local notifications so they fire at the new time. Idempotent on
+      // notification side (cancel + re-add).
+      if (key === 'briefMorningTime' || key === 'briefEveningTime' ||
+          key === 'briefMorningOn'   || key === 'briefEveningOn') {
+        scheduleBriefNotifications({
+          morningTime: next.briefMorningTime,
+          eveningTime: next.briefEveningTime,
+          morningOn:   next.briefMorningOn,
+          eveningOn:   next.briefEveningOn,
+        }).catch(() => {});
+      }
       return next;
     });
   }
@@ -367,6 +381,39 @@ export default function SettingsScreen() {
             await resetToOwner();
             try { await AsyncStorage.removeItem('onboarding_just_completed'); } catch {}
             Alert.alert('Reset', 'Switched back to the owner account (Rich).');
+          }}
+          onTestNotification={async () => {
+            try {
+              const { status } = await NotificationsAPI.getPermissionsAsync();
+              if (status !== 'granted') {
+                Alert.alert('No permission', `Notification permission is "${status}". Enable it in iPhone Settings → Notifications → Zaeli.`);
+                return;
+              }
+              await NotificationsAPI.scheduleNotificationAsync({
+                content: { title: '🔔 Test', body: 'If you see this, delivery works.', sound: true },
+                trigger: { type: 'timeInterval' as any, seconds: 10, repeats: false } as any,
+              });
+              Alert.alert('Scheduled', 'Background the app now. Should fire in ~10 seconds.');
+            } catch (e: any) {
+              Alert.alert('Error', e?.message ?? 'Failed to schedule test notification.');
+            }
+          }}
+          onListScheduledBriefs={async () => {
+            try {
+              const all = await NotificationsAPI.getAllScheduledNotificationsAsync();
+              if (all.length === 0) {
+                Alert.alert('Scheduled notifications', 'None scheduled.');
+                return;
+              }
+              const lines = all.map(n => {
+                const title = typeof n.content.title === 'string' ? n.content.title : '(no title)';
+                const trig = JSON.stringify(n.trigger);
+                return `${n.identifier}\n${title}\n${trig}`;
+              });
+              Alert.alert(`Scheduled (${all.length})`, lines.join('\n\n'));
+            } catch (e: any) {
+              Alert.alert('Error', e?.message ?? 'Failed to read scheduled notifications.');
+            }
           }}
         />
       )}
@@ -473,6 +520,8 @@ function MainView(p: {
   onSimulateInviteAccept: () => void;
   onOpenLatestInvite: () => void;
   onResetAccount: () => void;
+  onTestNotification: () => void;
+  onListScheduledBriefs: () => void;
 }) {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
@@ -560,7 +609,15 @@ function MainView(p: {
         <Row icon="↩️" iconBg="rgba(10,10,10,0.05)" iconFg="#0A0A0A"
              title="Reset to owner account"
              sub="Switch back to Rich after testing as kid/adult invitee"
-             onPress={p.onResetAccount} last/>
+             onPress={p.onResetAccount}/>
+        <Row icon="🔔" iconBg="#FEF4D0" iconFg="#8A6500"
+             title="Fire test notification (10s)"
+             sub="Background the app — should buzz in 10 seconds"
+             onPress={p.onTestNotification}/>
+        <Row icon="📋" iconBg="#FEF4D0" iconFg="#8A6500"
+             title="List scheduled briefs"
+             sub="Shows what's queued + next fire time"
+             onPress={p.onListScheduledBriefs} last/>
       </View>
 
       {/* About */}

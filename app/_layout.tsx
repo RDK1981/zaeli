@@ -8,8 +8,9 @@ import * as SplashScreen from 'expo-splash-screen'
 import { getSession, loadProfile, onAuthChange, getProfile } from '../lib/auth'
 import { invalidateAccount } from '../lib/account-state'
 import { invalidateCache as invalidateTourCache } from '../lib/tour-state'
-import { invalidateCache as invalidatePrefsCache } from '../lib/user-prefs'
+import { invalidateCache as invalidatePrefsCache, loadPrefs } from '../lib/user-prefs'
 import { resetCache as invalidateInvitesCache } from '../lib/invite-state'
+import { requestNotificationPermission, scheduleBriefNotifications } from '../lib/notifications'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -82,6 +83,33 @@ export default function RootLayout() {
     })
     return () => { sub.remove() }
   }, [])
+
+  // ── Push notifications — Phase 3a ───────────────────────────────────
+  // After auth completes, request notification permission (one-shot OS
+  // prompt) and schedule the user's morning + evening brief notifications
+  // from their preferences. Re-scheduling on prefs change is handled by
+  // Settings calling scheduleBriefNotifications directly.
+  useEffect(() => {
+    if (!authed) return
+    ;(async () => {
+      try {
+        const granted = await requestNotificationPermission()
+        if (!granted) {
+          console.log('[notifications] permission not granted — briefs still fire in-app on chat open')
+          return
+        }
+        const prefs = await loadPrefs()
+        await scheduleBriefNotifications({
+          morningTime: prefs.briefMorningTime,
+          eveningTime: prefs.briefEveningTime,
+          morningOn:   prefs.briefMorningOn,
+          eveningOn:   prefs.briefEveningOn,
+        })
+      } catch (e: any) {
+        console.log('[notifications] init error:', e?.message)
+      }
+    })()
+  }, [authed])
 
   // ── Route guard ─────────────────────────────────────────────────────
   // If authed=false and user isn't already on /(auth) or /invite/[token],
