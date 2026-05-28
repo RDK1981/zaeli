@@ -321,6 +321,89 @@ export async function saveMilestone(
 }
 
 // ─────────────────────────────────────────────────────────────
+//  detectInsightsFromConversations  (Phase 2f memory loop)
+//  Reads recent conversation_memory turns and asks Sonnet to extract
+//  DURABLE facts (routines + preferences). Writes via writeInsight()
+//  which dedupes + bumps confidence on repeats.
+//
+//  This is the "learn from chats" engine — distinct from
+//  detectAndSavePatterns() which reads the (currently-unused)
+//  pattern_log of structured events. Call this periodically from the
+//  chat flow (e.g. every N exchanges), gated by the user's
+//  memoryLearningOn preference.
+// ─────────────────────────────────────────────────────────────
+export async function detectInsightsFromConversations(
+  familyId: string = DUMMY_FAMILY_ID
+): Promise<void> {
+  try {
+    // Pull recent conversation turns (most recent 40)
+    const { data: convos } = await supabase
+      .from('conversation_memory')
+      .select('role, content, created_at')
+      .eq('family_id', familyId)
+      .order('created_at', { ascending: false })
+      .limit(40);
+
+    if (!convos || convos.length < 6) return; // not enough signal yet
+
+    // Chronological order so the AI reads the thread naturally
+    const transcript = [...convos]
+      .reverse()
+      .map(c => `${c.role}: ${c.content}`)
+      .join('\n');
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type':                              'application/json',
+        'x-api-key':                                 process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '',
+        'anthropic-version':                         '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model:      'claude-sonnet-4-6',
+        max_tokens: 400,
+        system: `You analyse a family's chat with their assistant to extract DURABLE facts worth remembering long-term.
+Return a JSON array. Each item: { "category": "routine|preference", "subject": "person's name or 'family'", "insight": "one clear sentence" }
+ONLY include durable facts: recurring routines (e.g. "Soccer training Tuesdays"), stable likes/dislikes/allergies, standing commitments.
+NEVER include one-off events, questions, scheduling for a single date, or transient chit-chat.
+Max 5 items. If nothing durable, return []. Return ONLY valid JSON, no markdown, no other text.`,
+        messages: [{ role: 'user', content: `Recent chat:\n${transcript}` }],
+      }),
+    });
+
+    if (!res.ok) {
+      console.log('[memory] detectInsightsFromConversations API error:', res.status);
+      return;
+    }
+
+    const d = await res.json();
+    const raw = (d.content?.[0]?.text || '[]').replace(/```json|```/g, '').trim();
+    let insights: Array<{ category: string; subject: string; insight: string }> = [];
+    try {
+      insights = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    if (!Array.isArray(insights)) return;
+
+    for (const ins of insights) {
+      if (ins.category !== 'routine' && ins.category !== 'preference') continue;
+      if (!ins.insight || !ins.insight.trim()) continue;
+      await writeInsight(familyId, {
+        category:   ins.category,
+        subject:    ins.subject || 'family',
+        insight:    ins.insight.trim(),
+        confidence: 45,
+      });
+    }
+    console.log(`[memory] detectInsightsFromConversations: processed ${insights.length} insight(s)`);
+  } catch (e) {
+    console.log('detectInsightsFromConversations error:', e);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 //  Settings → Memory view fetchers (Phase 2f)
 //  Display + delete operations for the user-facing Memory list.
 // ─────────────────────────────────────────────────────────────

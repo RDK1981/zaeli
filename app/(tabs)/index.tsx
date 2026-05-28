@@ -36,6 +36,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadTourState, isInProgress as tourInProgress, getCurrentStop as tourCurrentStop, TOTAL_STOPS as TOUR_TOTAL, replayFromStart as tourReplayFromStart, shouldShowResumePrompt as tourShouldResume, markResumePromptShown as tourMarkResumePrompt, getStopById as tourGetStop, completeTour as tourCompleteTour, getEffectiveStops as tourEffectiveStops, getEffectiveTotal as tourEffectiveTotal } from '../../lib/tour-state';
 import { loadInvites as loadInviteState, recentlyAcceptedInvites, clearJustAcceptedFlag } from '../../lib/invite-state';
 import { getProfile } from '../../lib/auth';
+import { buildMemoryContext, saveConversation, detectInsightsFromConversations } from '../../lib/zaeli-memory';
+import { loadPrefs } from '../../lib/user-prefs';
 import MoreSheet from '../components/MoreSheet';
 import TourBanner from '../components/TourBanner';
 import { currentWindow as getCurrentWindow, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
@@ -3607,10 +3609,47 @@ SHOPPING RULES:
 
 FORMAT: 2–4 sentences. Natural prose. No bullet points, no lists, no asterisks. Never start with "I". Never say "mate". Never say "Of course!" or any hollow affirmation.
 CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
-      return { system, mealToday, shopCount:shopCount??0, shopStr, evStr, todoCount:todoCount??0, td };
+      // ── Memory recall (Phase 2f) ──────────────────────────────────────────
+      // Inject learned family memory (routines / preferences / milestones)
+      // when the user has "learn from chats" enabled. Makes Zaeli actually
+      // remember the family across conversations — the Philosophy B promise.
+      let systemWithMemory = system;
+      try {
+        const prefs = await loadPrefs();
+        if (prefs.memoryLearningOn) {
+          const mem = await buildMemoryContext(getFamilyId());
+          if (mem && mem.trim()) {
+            systemWithMemory = `${system}\n\nWHAT YOU'VE LEARNED ABOUT THIS FAMILY (use naturally, don't recite):${mem}`;
+          }
+        }
+      } catch {}
+      return { system: systemWithMemory, mealToday, shopCount:shopCount??0, shopStr, evStr, todoCount:todoCount??0, td };
     } catch {
       const td = localDateStr(now);
       return { system:`You are Zaeli — smart, warm, witty AI teammate for Rich's Australian family. Today is ${td}.`, mealToday:null, shopCount:0, shopStr:'unknown', evStr:'nothing on calendar', todoCount:0, td };
+    }
+  }
+
+  // ── Memory capture (Phase 2f) ──────────────────────────────────────────────
+  // Called after each completed chat exchange. Saves the turn to
+  // conversation_memory, and every 6th exchange kicks off AI insight
+  // extraction (fire-and-forget — it's a Sonnet call, runs in background).
+  // All gated by the user's "learn from chats" preference.
+  const memoryExchangeCount = useRef(0);
+  async function captureMemory(userText: string, replyText: string) {
+    try {
+      if (!userText || !userText.trim() || !replyText || !replyText.trim()) return;
+      const prefs = await loadPrefs();
+      if (!prefs.memoryLearningOn) return;
+      const fid = getFamilyId();
+      await saveConversation(fid, userText, replyText);
+      memoryExchangeCount.current += 1;
+      if (memoryExchangeCount.current % 6 === 0) {
+        // Background extraction — don't block the UI on a Sonnet call
+        detectInsightsFromConversations(fid).catch(() => {});
+      }
+    } catch (e) {
+      console.log('[memory] captureMemory error:', e);
     }
   }
 
@@ -4520,6 +4559,7 @@ Only include events directly relevant to the question. Max 5 events.`;
                     : m
                   ).concat([confirmCard]);
                 });
+                captureMemory(text, followText);
                 loadCardData();
                 refreshCalendarEvents();
                 setLoading(false);
@@ -4540,12 +4580,14 @@ Only include events directly relevant to the question. Max 5 events.`;
           const shopChips = hasShopTool ? ['Add more items', 'Back to Full List'] : [];
 
           updateMsg(replyId, { text:cleanText, isLoading:false, quickReplies: shopChips.length > 0 ? shopChips : undefined });
+          captureMemory(text, cleanText);
           // Refresh card data + inline calendar cards after any tool action
           loadCardData();
           refreshCalendarEvents();
         } else {
           const reply = data.content?.find((b:any) => b.type==='text')?.text ?? 'Something went wrong — try again?';
           updateMsg(replyId, { text:reply, isLoading:false });
+          captureMemory(text, reply);
         }
         setLoading(false);
         return;
@@ -4558,6 +4600,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       }));
       const reply = await callGPT(system + imgCtx, apiMsgs, 400, 'home_chat');
       updateMsg(replyId, { text:reply, isLoading:false });
+      captureMemory(text, reply);
     } catch (e: any) {
       console.error('send error:', e?.message || e);
       updateMsg(replyId, { text:"Something went wrong — try that again?", isLoading:false });

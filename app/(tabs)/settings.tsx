@@ -31,7 +31,7 @@ import { signOut } from '../../lib/auth';
 import { loadPrefs, updatePref as persistUpdatePref, DEFAULT_PREFS, type Prefs } from '../../lib/user-prefs';
 import {
   fetchInsightsByCategory, fetchMilestones, deleteInsight, deleteMilestone,
-  clearAllMemory, type InsightRow, type MilestoneRow,
+  clearAllMemory, detectInsightsFromConversations, type InsightRow, type MilestoneRow,
 } from '../../lib/zaeli-memory';
 import { getFamilyId } from '../../lib/family';
 import { scheduleBriefNotifications } from '../../lib/notifications';
@@ -415,6 +415,15 @@ export default function SettingsScreen() {
               Alert.alert('Error', e?.message ?? 'Failed to read scheduled notifications.');
             }
           }}
+          onRunMemoryExtraction={async () => {
+            try {
+              Alert.alert('Working…', 'Analysing recent chats for durable facts. Check Memory in a few seconds.');
+              await detectInsightsFromConversations(getFamilyId());
+              Alert.alert('Done', 'Extraction finished. Open Settings → Memory to see what landed.');
+            } catch (e: any) {
+              Alert.alert('Error', e?.message ?? 'Extraction failed.');
+            }
+          }}
         />
       )}
 
@@ -522,6 +531,7 @@ function MainView(p: {
   onResetAccount: () => void;
   onTestNotification: () => void;
   onListScheduledBriefs: () => void;
+  onRunMemoryExtraction: () => void;
 }) {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
@@ -617,7 +627,11 @@ function MainView(p: {
         <Row icon="📋" iconBg="#FEF4D0" iconFg="#8A6500"
              title="List scheduled briefs"
              sub="Shows what's queued + next fire time"
-             onPress={p.onListScheduledBriefs} last/>
+             onPress={p.onListScheduledBriefs}/>
+        <Row icon="🧠" iconBg="#EDE8FF" iconFg="#6B35D9"
+             title="Run memory extraction now"
+             sub="Analyses recent chats → writes insights (then check Memory)"
+             onPress={p.onRunMemoryExtraction} last/>
       </View>
 
       {/* About */}
