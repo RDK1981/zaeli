@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*20 May 2026 — Session 22 ✅ · BACKEND PHASE 2d SHIPPED — real auth at invite acceptance (handle_new_user trigger branches on invite_token → creates profile linked to inviter's family + marks invite accepted, all atomic) + six combined multi-user safety patches (inviter-only heads-up filter / per-user chat persistence / local messages reset on user switch / no-AsyncStorage-fallback when signed in for tour-state + user-prefs / all-cache invalidation in _layout.tsx on auth change / fresh-invitee welcome polish suppressing first-session brief) · **Cross-device invite + signup now works end-to-end** · Phase 2e (real second-device test) + 2f (memory wiring) NEXT*
+*28 May 2026 — Session 23 ✅ · BACKEND PASS ~85% — Phase 2f (Memory view → real Supabase data) + Phase 2f+ (COMPLETED the memory capture+recall loop: chat saves conversations, extracts durable facts via Sonnet every 6 exchanges, injects buildMemoryContext into the prompt — Zaeli genuinely remembers the family now, the core Philosophy B promise) + Phase 3a (daily brief push notifications via expo-notifications) + Phase 2e prep (QR cross-device invite test + PHASE-2E-TEST-PLAN.md) · Spoonacular parked to post-TestFlight · **NEXT: 2e real-device test (waiting on Anna), 3b Stripe, 3c Universal Links, Phase 4 cleanup***
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,15 +10,45 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 22 wrapped Backend Phase 2d — invite acceptance now creates real Supabase auth users with profiles linked to the inviter's family. The signup happens via a DB trigger (`handle_new_user`) that branches on whether the metadata includes an invite_token. Six combined multi-user safety patches landed alongside, surfaced during on-device testing — they're the difference between "the data is right" and "the user experience is right" once you can actually switch between users.
+Session 23 pushed the backend pass to ~85%. The headline is **completing the memory loop** — Zaeli now actually remembers the family across conversations (previously the whole memory system was display-only, nothing wrote to it). Plus daily brief push notifications and QR-based cross-device invite testing.
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅ (Session 22)
+## CURRENT STATE — ALL WORKING ✅ (Session 23)
 ## ══════════════════════════════════
 
-### NEW THIS SESSION (Session 22 — Backend Phase 2d + multi-user safety, 20 May)
+### NEW THIS SESSION (Session 23 — memory loop, push notifications, cross-device prep, 28 May)
+
+**A. Phase 2f — Memory view → real Supabase data** (commit `8dbfb08`). Settings → Memory now reads `family_insights` + `family_milestones` via new lib fetchers (`fetchInsightsByCategory`, `fetchMilestones`, `deleteInsight`, `deleteMilestone`, `clearAllMemory`). Per-category empty states, confidence-derived sub labels, × delete (optimistic + DB), clear-all. Lesson: view-mount data effects must re-fetch on every entry, not gate on a `loaded` flag (the empty-first-load bug).
+
+**B. Phase 2f+ — COMPLETED the memory capture + recall loop** ⭐ (commit `83738a7`). The big one. The gap: chat never called any memory functions, so the Memory view would always be empty for real users and Zaeli never remembered anything. Now:
+- RECALL — `buildContext()` injects `buildMemoryContext()` into the chat system prompt when `memoryLearningOn`.
+- CAPTURE — new `captureMemory(userText, replyText)` saves each exchange to `conversation_memory`; every 6th fires extraction (fire-and-forget). Wired at ALL completion points (general chat, tool path both branches, calendar-confirm).
+- EXTRACT — NEW `detectInsightsFromConversations(familyId)` reads recent conversation_memory, Sonnet pulls DURABLE facts only, writes via `writeInsight` (dedupe + confidence bump). Reads conversations, NOT pattern_log (that's `detectAndSavePatterns`, still unused).
+- Dev row "🧠 Run memory extraction now" to test without waiting 6 exchanges.
+
+**C. Phase 3a — daily brief push notifications** (commit `25490a9`). `scheduleBriefNotifications` in `lib/notifications.ts` wires morning+evening brief times → iOS local daily notifications. Permission on auth (`_layout.tsx`), re-schedule on prefs change (`settings.tsx` updatePref). Idempotent, stable ids, permission-denial non-fatal. Dev rows: "🔔 Fire test notification (10s)" + "📋 List scheduled briefs". Notification = nudge; in-app brief = once-per-window content (no dupe).
+
+**D. Phase 2e prep — QR cross-device invite test** (commit `ac048d6`). `react-native-qrcode-svg` + "📷 Show QR" chip/modal in family.tsx (encodes `zaeli://invite/<token>`). Camera scan → app opens at invite route. Linking debug listener in `_layout.tsx`. Copy-link copies the working `zaeli://` dev link. NEW `PHASE-2E-TEST-PLAN.md`. iOS gotcha: Safari blocks custom schemes in the address bar — use Notes/Messages/QR.
+
+### Key decisions Session 23
+
+- **Memory loop = 3 gated parts** (recall / capture / extract), all controlled by the "learn from chats" toggle. Insight extraction reads `conversation_memory`, extracts DURABLE facts only.
+- **Brief notifications = local expo-notifications, daily recurring, scheduled from prefs.** Re-scheduled on any brief time/toggle change.
+- **Invite link: `zaeli://` for dev/QR today, `https://zaeli.app/i/` Universal Link for production** (Phase 3c, needs domain).
+- **Spoonacular parked to post-TestFlight** — Meals already does recipe management; discovery isn't a launch-blocker.
+
+### What's NEXT — Phase 2e + beyond
+
+- **Phase 2e:** real second-device test on Anna's phone — follow `PHASE-2E-TEST-PLAN.md`.
+- **Phase 3b:** Stripe customer portal WebView (needs Stripe account + products).
+- **Phase 3c:** Universal Links (needs `zaeli.app` domain live + apple-app-site-association + `associatedDomains` in app.json + native rebuild).
+- **Phase 4:** cleanup + ship-ready — remove dev rows (incl. Session 23 memory/notif ones), remove the redundant `requestNotificationPermission` in `(tabs)/_layout.tsx`, LANDING_TEST_MODE=false, expo-document-picker for Budget CSV, GDPR/export/privacy WebViews.
+
+### Earlier this same backend pass (Session 22 — historical, 20 May)
+
+#### Session 22 — Backend Phase 2d + multi-user safety
 
 Single commit `7d2e418` covers all of it.
 
@@ -46,13 +76,6 @@ Single commit `7d2e418` covers all of it.
 **The "nested invites" gotcha.** Dev row "Open latest invite as receiver" signs you in as the new invitee. If you then create another invite WITHOUT signing back in as the owner, the new invite's `inviter_user_id` is that invitee's id — not yours. Heads-ups won't fire for the owner because the owner isn't the inviter. Always sign back in as the intended inviter before creating each test invite.
 
 **Brief leak vs family brief — important distinction.** When a new family member sees the family brief, that's NOT a leak — the brief is keyed by `family_id + date + window` in `zaeli_briefs`. Different users in the same family see the same brief. That's the design. The Session 22 welcome polish (fix #6) is a UX layer on top — first-session invitees don't get the brief because the mid-context content is a bad first impression.
-
-### What's NEXT — Phase 2e + beyond
-
-- **Phase 2e:** Real cross-device verification — sign up an invitee on a SECOND physical device (not via same-device dev row) and confirm the full flow works.
-- **Phase 2f:** Memory wiring — Settings → Memory view connected to real `family_insights` / `family_milestones` / `conversation_memory` tables.
-- **Phase 3:** External integrations — Push notifications scheduled to brief times. Stripe customer portal WebView. Real cross-device deep links (`zaeli.app/i/<token>`).
-- **Phase 4:** Cleanup + ship-ready — Remove dev rows, LANDING_TEST_MODE=false, expo-document-picker for Our Budget CSV (EAS rebuild), share extension (EAS), GDPR / export data / privacy WebViews.
 
 ### Locked decisions Session 22
 
