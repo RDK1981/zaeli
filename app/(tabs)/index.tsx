@@ -3636,7 +3636,9 @@ CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
         if (prefs.memoryLearningOn) {
           const mem = await buildMemoryContext(getFamilyId());
           if (mem && mem.trim()) {
-            systemWithMemory = `${system}\n\nWHAT YOU'VE LEARNED ABOUT THIS FAMILY (use naturally, don't recite):${mem}`;
+            systemWithMemory = `${system}
+
+BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, learned over time. This is NOT the calendar and NOT a to-do list. NEVER treat anything here as a scheduled event, booking, or task. NEVER say something is "already locked in", "already booked", or "already on the calendar" based on this. The LIVE DATA section above (calendar, shopping, meals, tasks) is the ONLY source of truth for what is actually scheduled or pending. Use this background only to be personal and helpful — e.g. suggesting an activity Poppy enjoys — never to claim something exists.${mem}`;
           }
         }
       } catch {}
