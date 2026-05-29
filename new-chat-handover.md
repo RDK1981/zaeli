@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*28 May 2026 — Session 23 ✅ · BACKEND PASS ~85% — Phase 2f (Memory view → real Supabase data) + Phase 2f+ (COMPLETED the memory capture+recall loop: chat saves conversations, extracts durable facts via Sonnet every 6 exchanges, injects buildMemoryContext into the prompt — Zaeli genuinely remembers the family now, the core Philosophy B promise) + Phase 3a (daily brief push notifications via expo-notifications) + Phase 2e prep (QR cross-device invite test + PHASE-2E-TEST-PLAN.md) · Spoonacular parked to post-TestFlight · **NEXT: 2e real-device test (waiting on Anna), 3b Stripe, 3c Universal Links, Phase 4 cleanup***
+*29 May 2026 — Session 24 ✅ · REAL-DATA + CALENDAR POWER SESSION — profile identity wired into Settings hero + invite inviter name (no hardcoded "Rich") · family roster now real/dynamic from the DB up to 8 members (lib/family-roster.ts, replaces hardcoded FAMILY_MEMBERS; assignees are real family_members UUIDs) · calendar inline-card date-label fix · memory hallucination fix (background knowledge ≠ booked events) · RECURRING EVENTS shipped (12-month horizon, repeat_group_id series grouping, update_all/delete_all/extend tools, morning-brief ending nudge) · prior Session 23 (memory loop, push notifications, QR prep) still current · **NEXT: 2e real-device test (waiting on Anna), 3b Stripe, 3c Universal Links, Phase 4 cleanup***
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,15 +10,47 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 23 pushed the backend pass to ~85%. The headline is **completing the memory loop** — Zaeli now actually remembers the family across conversations (previously the whole memory system was display-only, nothing wrote to it). Plus daily brief push notifications and QR-based cross-device invite testing.
+Session 24 was a big real-data + calendar session: removed hardcoded "Rich" identity, made the family roster a real dynamic DB-backed thing (up to 8 members), fixed two calendar bugs + a memory hallucination, and shipped full recurring events.
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅ (Session 23)
+## CURRENT STATE — ALL WORKING ✅ (Session 24)
 ## ══════════════════════════════════
 
-### NEW THIS SESSION (Session 23 — memory loop, push notifications, cross-device prep, 28 May)
+### NEW THIS SESSION (Session 24 — real-data identity, family roster, recurring events, 29 May)
+
+**A. Profile identity wired into UI** (commit `f58988d`). Settings account hero reads the real signed-in profile (name/email/initial/kind tag). Invite inviter name comes from the profile — new `invite_tokens.inviter_name` column + `get_invite_by_token` RPC returns it; receiver shows the real inviter ("Anna invited you", not always "Rich"). SQL: `supabase-invite-inviter-name.sql`.
+
+**B. Family roster → real DB data** ⭐ (commit `eec133f`). NEW `lib/family-roster.ts` — dynamic DB-backed roster (up to `MAX_FAMILY_MEMBERS` = 8), `getRoster()`/`getMemberById()`/`getMemberByName()`/`resolveAssigneeId()`/`defaultAssigneeIds()`, cache invalidated on auth change. Replaced the hardcoded `FAMILY_MEMBERS` arrays in index/dashboard/calendar (read via `getRoster()` + a version-bump re-render). ALL assignee write paths now resolve names → real `family_members` UUIDs (chat tools, calendar's own tools, manual form, system prompt). SQL: `supabase-family-member-colours.sql` (canonical colours) + `supabase-remap-event-assignees.sql` (legacy '1'-'5' → UUIDs). Finding: existing assignees were all empty so zero migration risk.
+
+**C. Calendar inline-card date-label fix** (in `eec133f`). `InlineData.initialTab` + `dateLabelOverride`; the confirm-after-add card shows the event's real day (today bucket / tomorrow tab / explicit date label), not always "TODAY".
+
+**D. Memory hallucination fix** (commit `7d9597b`). After the Session 23 memory loop, Zaeli treated background memory as scheduled events ("add poppy dance" → "it's already locked in" because of a "Poppy enjoys dance" preference). Fixed by reframing the memory injection as BACKGROUND KNOWLEDGE — calendar/live data is the only source of truth for what's scheduled.
+
+**E. RECURRING EVENTS** ⭐ (commit `c089d95`). `add_calendar_event` gained `repeat` + `repeat_days` (multi-day weekly like Mon/Tue/Fri). ~12-month horizon of concrete instances, all sharing a `repeat_group_id` + `repeat_rule`. SQL: `supabase-event-repeat-group.sql`. Series ops: `update_all` (fixes "add me to all of Gab's soccer" only hitting one), `delete_all`, NEW `extend_recurring_event` tool. Morning brief flags series ending within 6 weeks (`FamilyContext.endingSoonSeries`) and offers to roll on.
+
+### Key decisions Session 24
+
+- **Family roster is DB-backed + dynamic** — never reintroduce a hardcoded FAMILY_MEMBERS array; read via `getRoster()`; assignees resolve names → real UUIDs via `resolveAssigneeId`.
+- **Memory = background knowledge, calendar = source of truth** — the memory prompt must keep that distinction.
+- **Recurring = generated instances** (not rule+expand), 12-month horizon, grouped by `repeat_group_id`; series ops via update_all/delete_all/extend; ending-soon in morning brief only.
+- **Current-user identity from the profile** — no hardcoded "Rich" for identity (roster member names are separate seed data, now in the DB).
+
+### What's NEXT (unchanged from Session 23)
+
+- **Phase 2e:** real second-device test on Anna's phone — `PHASE-2E-TEST-PLAN.md`.
+- **Phase 3b:** Stripe customer portal WebView (needs Stripe account + products).
+- **Phase 3c:** Universal Links (needs `zaeli.app` domain + apple-app-site-association + associatedDomains + rebuild).
+- **Phase 4:** cleanup + ship-ready (remove dev rows incl. Session 23 memory/notif test rows + the QR chip, LANDING_TEST_MODE=false, expo-document-picker for Budget CSV, GDPR/export/privacy WebViews).
+
+### SQL migrations to run for Session 24 (if setting up fresh)
+
+`supabase-invite-inviter-name.sql`, `supabase-family-member-colours.sql`, `supabase-remap-event-assignees.sql`, `supabase-event-repeat-group.sql` — all idempotent.
+
+### Earlier this same backend pass (Session 23 — historical, 28 May)
+
+#### Session 23 — memory loop, push notifications, cross-device prep
 
 **A. Phase 2f — Memory view → real Supabase data** (commit `8dbfb08`). Settings → Memory now reads `family_insights` + `family_milestones` via new lib fetchers (`fetchInsightsByCategory`, `fetchMilestones`, `deleteInsight`, `deleteMilestone`, `clearAllMemory`). Per-category empty states, confidence-derived sub labels, × delete (optimistic + DB), clear-all. Lesson: view-mount data effects must re-fetch on every entry, not gate on a `loaded` flag (the empty-first-load bug).
 
@@ -38,13 +70,6 @@ Session 23 pushed the backend pass to ~85%. The headline is **completing the mem
 - **Brief notifications = local expo-notifications, daily recurring, scheduled from prefs.** Re-scheduled on any brief time/toggle change.
 - **Invite link: `zaeli://` for dev/QR today, `https://zaeli.app/i/` Universal Link for production** (Phase 3c, needs domain).
 - **Spoonacular parked to post-TestFlight** — Meals already does recipe management; discovery isn't a launch-blocker.
-
-### What's NEXT — Phase 2e + beyond
-
-- **Phase 2e:** real second-device test on Anna's phone — follow `PHASE-2E-TEST-PLAN.md`.
-- **Phase 3b:** Stripe customer portal WebView (needs Stripe account + products).
-- **Phase 3c:** Universal Links (needs `zaeli.app` domain live + apple-app-site-association + `associatedDomains` in app.json + native rebuild).
-- **Phase 4:** cleanup + ship-ready — remove dev rows (incl. Session 23 memory/notif ones), remove the redundant `requestNotificationPermission` in `(tabs)/_layout.tsx`, LANDING_TEST_MODE=false, expo-document-picker for Budget CSV, GDPR/export/privacy WebViews.
 
 ### Earlier this same backend pass (Session 22 — historical, 20 May)
 

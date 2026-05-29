@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 28 May 2026 — Session 23 ✅ · Backend pass ~85%: Phase 2f (Memory view → real Supabase data + delete + clear-all) · Phase 2f+ (COMPLETED the memory capture+recall loop — chat now saves conversations, extracts durable facts via Sonnet, injects buildMemoryContext into the prompt so Zaeli actually remembers the family — the core Philosophy B promise) · Phase 3a (daily brief push notifications via expo-notifications, scheduled from prefs, re-scheduled on change) · Phase 2e prep (QR code in family.tsx for cross-device invite testing via zaeli:// scheme + Linking debug listener + PHASE-2E-TEST-PLAN.md) · Spoonacular parked until post-TestFlight · Remaining: 2e real-device test (waiting on Anna), 3b Stripe (needs account), 3c Universal Links (needs zaeli.app domain live), Phase 4 cleanup*
+*Last updated: 29 May 2026 — Session 24 ✅ · Real-data + calendar power session: profile identity wired into Settings hero + invite inviter name (no more hardcoded "Rich") · Family roster → real DB (lib/family-roster.ts — dynamic, up to 8 members, replaces hardcoded FAMILY_MEMBERS across index/dashboard/calendar; assignees now real family_members UUIDs via resolveAssigneeId) · Calendar inline-card date-label fix (initialTab + dateLabelOverride — was always "TODAY") · Memory hallucination fix (background-knowledge framing so a preference like "Poppy enjoys dance" isn't treated as a booked event) · RECURRING EVENTS shipped (12-month horizon, repeat_group_id series grouping, update_all/delete_all/extend tools, morning-brief ending-soon nudge) · Prior Session 23 work (memory loop, push notifications, QR prep) still current · Remaining: 2e real-device test (Anna), 3b Stripe, 3c Universal Links, Phase 4 cleanup*
 
 ---
 
@@ -1778,6 +1778,70 @@ The big one. Phase 2f wired the *display*, but the chat never called ANY memory 
 
 ---
 
+## ══════════════════════════════════
+## SESSION 24 — REAL-DATA IDENTITY · FAMILY ROSTER · RECURRING EVENTS (29 May 2026) ✅
+## ══════════════════════════════════
+
+Large follow-on to Session 23. Removed launch-blocking hardcoded identity, made the family roster real + dynamic, fixed two calendar bugs, fixed a memory hallucination, and shipped full recurring events.
+
+### A. Profile identity wired into UI (commit `f58988d`)
+
+Two hardcoded "Rich" values that would be wrong once any adult uses the app:
+- **Settings account hero** — was hardcoded "R" / "Rich de Kretser" / fixed email. Now reads the real signed-in profile (`loadProfile()` on mount): initial from name, real name, real email, kind-aware tag ("Family plan · Active" / "Adult · Family plan" / "Kid account").
+- **Invite inviter name** — was `const INVITER_FIRST_NAME = 'Rich'` in both invite files. Now: inviter side (`invite/index.tsx`) derives from `getProfile()` first name; receiver side (`invite/[token].tsx`) reads `invite.inviterName`. **NEW SQL `supabase-invite-inviter-name.sql`** adds `invite_tokens.inviter_name` + returns it from the `get_invite_by_token` RPC (anon-readable). `createInvite` stores it. So if Anna sends an invite, the recipient correctly sees "Anna invited you", not "Rich".
+
+### B. Family roster → real DB data (commit `eec133f`) ⭐
+
+Replaced the hardcoded `FAMILY_MEMBERS = [5 members, ids '1'-'5']` arrays (duplicated across index/dashboard/calendar) with a dynamic DB-backed roster.
+
+- **NEW `lib/family-roster.ts`** — `RosterMember { id, name, color, role, yearLevel, avatarEmoji, tutorActive }`, module cache, `loadRoster(familyId)` (limit `MAX_FAMILY_MEMBERS = 8`), `getRoster()` / `getMemberById()` / `getMemberByName()` sync reads, `invalidateRosterCache()`. `colorFor()` maps the DB's old generic colour (`#4A90D9` — every row had it) to the canonical palette by name, so colours are right even pre-migration. NEW `resolveAssigneeId(name)` (fuzzy name→UUID, replaces hardcoded NAME_TO_ID maps) + `defaultAssigneeIds()` (new-event default = signed-in user).
+- **Migration approach:** the 3 big files removed the const, replaced all `FAMILY_MEMBERS` reads with `getRoster()`, and added a `setRosterVersion` bump + `loadRoster()` effect so render picks up DB rows. `_layout.tsx` invalidates the roster cache on auth change.
+- **Assignee WRITE paths fixed everywhere** — chat add/update tools, calendar's own AI tools, manual-add form defaults, calendar system prompt — all resolve names → real UUIDs. Tool schemas now ask for first names, not numeric ids.
+- **NEW SQL:** `supabase-family-member-colours.sql` (set the 5 rows to canonical palette), `supabase-remap-event-assignees.sql` (one-time remap of legacy '1'-'5' assignee ids on existing events → real UUIDs, JSONB-safe).
+- **Key finding:** all existing `events.assignees` were empty `[]`, so zero event-migration risk. `family_members` was already seeded (UUIDs); the only data issue was the generic colour.
+- **Now supports up to 8 members** + edits via Our Family (the hardcoded 5 was a real limit).
+
+### C. Calendar inline-card date-label fix (in `eec133f`)
+
+The confirm-after-add inline card always showed "TODAY" even for tomorrow/future events (it dumped the new event into the today bucket). Fix: `InlineData` gained `initialTab` + `dateLabelOverride`; `InlineCalendarCard` honours them; the confirm builder is now date-aware (today → today bucket; tomorrow → tomorrow tab; beyond → real-date label like "TUE 2 JUN").
+
+### D. Memory hallucination fix (commit `7d9597b`)
+
+After the Session 23 memory loop, Zaeli started treating background memory as scheduled events — asked to "add poppy dance", she said "Poppy's dance is already locked in" because `family_insights` held "preference · Poppy · Enjoys dance". Fix: `buildContext()`'s memory injection is now explicitly labelled **BACKGROUND KNOWLEDGE** (likes/routines/patterns), NOT the calendar; she must never claim something is "already locked in / booked / on the calendar" from memory; the LIVE DATA section is the only source of truth for what's scheduled. The insights themselves were correct — only the prompt framing needed fixing.
+
+### E. RECURRING EVENTS (commit `c089d95`) ⭐
+
+Zaeli can now create true recurring events from chat (she used to say the system didn't support it). Mirrors the manual form's instance-generation.
+
+- **NEW SQL `supabase-event-repeat-group.sql`** — `events.repeat_group_id uuid` (+ index) ties a series together for precise series ops + ending detection.
+- **`add_calendar_event`** gained `repeat` (`none|daily|weekdays|weekly|fortnightly|monthly`) + `repeat_days` (`["mon","tue","fri"]`). `generateRecurrenceDates()` produces a **~12-month horizon** of concrete instances (weekly 52w, daily 365, weekdays 260, fortnightly 26, monthly 12; capped 400). Each instance shares a `uuidv4` `repeat_group_id` + `repeat_rule`. **Multi-day weekly** (Mon/Tue/Fri in one request) — the manual form can't do this.
+- **`update_calendar_event`** gained `update_all` — applies title/notes/assignees across EVERY instance (by group_id, fallback title+future). Fixes "add me to all of Gab's soccer" only hitting one. Date/time stay per-instance. Also now prefers a today/future instance when matching so series ops don't grab a stale past event.
+- **`delete_calendar_event`** gained `delete_all` (cancel a whole series).
+- **NEW `extend_recurring_event` tool** — rolls a series on another ~12 months from its current end, reusing group_id/time/assignees/repeat_rule.
+- **Morning-brief "ending soon"** — `FamilyContext.endingSoonSeries`; `buildBriefContext` groups future recurring instances by repeat_group_id, flags any whose last date is within 6 weeks; the morning brief offers a one-line "want me to roll X on?" (morning only). Not testable until a series nears its end, but the detection + extend tool are wired.
+
+### Locked decisions Session 24
+
+- **Family roster is DB-backed + dynamic** (`lib/family-roster.ts`). NEVER reintroduce a hardcoded FAMILY_MEMBERS array. All member reads go through `getRoster()`; all assignee writes resolve names → real UUIDs via `resolveAssigneeId`; new-event default assignee = `defaultAssigneeIds()` (signed-in user). Supports up to `MAX_FAMILY_MEMBERS` (8).
+- **Memory = background knowledge, calendar = source of truth.** The memory injection prompt must keep that distinction; never let a preference/routine insight be treated as a scheduled event.
+- **Recurring events = generated instances** (not rule+expand-on-read), 12-month horizon, grouped by `repeat_group_id`. Series ops: `update_all` / `delete_all` / `extend_recurring_event`. Ending-soon surfaces in the morning brief only.
+- **Identity comes from the profile** — Settings hero + invite inviter name read real auth data. No more hardcoded "Rich" for current-user identity (the family-member *roster* names Rich/Anna/etc. are separate seed data, now in the DB).
+
+### Files touched Session 24
+
+**NEW:** `lib/family-roster.ts`, `supabase-invite-inviter-name.sql`, `supabase-family-member-colours.sql`, `supabase-remap-event-assignees.sql`, `supabase-event-repeat-group.sql`
+
+**MODIFIED:** `app/(tabs)/settings.tsx` (account hero real profile), `app/invite/index.tsx` + `app/invite/[token].tsx` (inviter name), `lib/invite-state.ts` (inviterName field), `app/(tabs)/index.tsx` (roster migration + assignee resolve + inline-card date fix + memory framing + recurring tools), `app/(tabs)/calendar.tsx` + `app/(tabs)/dashboard.tsx` (roster migration), `app/_layout.tsx` (roster cache invalidation), `lib/brief-generator.ts` (endingSoonSeries)
+
+### Known follow-ups
+
+- Recurring **edit-a-single-instance vs whole-series** UX is coarse (update_all is all-or-one). Fine for v1.
+- The **edit-focused** inline calendar cards (not the add-confirm) could also use the date-label fix — minor.
+- calendar.tsx's **own AI tools** don't do recurring (only the main chat does) — acceptable, main chat is the primary surface.
+- Ending-soon brief prompt only fires when a series nears its end — can't be tested until then.
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -1887,6 +1951,11 @@ Phase 39j: Backend Phase 3b/3c (Stripe + Universal Links) 🔨 — Stripe custom
 Phase 39k: Backend Phase 4 (cleanup + ship-ready) 🔨 — Remove dev rows (incl. Session 23 memory/notif ones), remove redundant requestNotificationPermission in (tabs)/_layout.tsx, LANDING_TEST_MODE=false, expo-document-picker for Our Budget CSV (EAS rebuild), share extension (EAS), GDPR / export data / privacy WebViews.
 
 Phase 42: Phase 2e QR prep ✅ Session 23 (28 May) — react-native-qrcode-svg, "📷 Show QR" chip + modal in family.tsx (zaeli://invite/<token>), Linking debug listener in _layout.tsx, copy-link switched to working dev link, PHASE-2E-TEST-PLAN.md.
+Phase 43: Profile identity wiring ✅ Session 24 (29 May) — Settings account hero reads real signed-in profile (name/email/initial/kind tag); invite inviter name from profile (supabase-invite-inviter-name.sql adds invite_tokens.inviter_name + RPC return). No more hardcoded "Rich" for current-user identity.
+Phase 44: Family roster → real DB ✅ Session 24 (29 May) — lib/family-roster.ts (dynamic, up to 8, getRoster/getMemberById/getMemberByName/resolveAssigneeId/defaultAssigneeIds). Replaced hardcoded FAMILY_MEMBERS across index/dashboard/calendar. Assignee writes resolve names → real family_members UUIDs everywhere. SQL: family-member-colours + remap-event-assignees. Cache invalidated on auth change.
+Phase 45: Calendar inline-card date label ✅ Session 24 (29 May) — InlineData.initialTab + dateLabelOverride; confirm-after-add card shows the event's real day, not always "TODAY".
+Phase 46: Memory hallucination fix ✅ Session 24 (29 May) — buildContext memory block reframed as BACKGROUND KNOWLEDGE so a preference ("Poppy enjoys dance") isn't treated as a scheduled/booked event.
+Phase 47: Recurring events ✅ Session 24 (29 May) — add_calendar_event repeat + repeat_days, 12-month horizon, repeat_group_id series grouping (supabase-event-repeat-group.sql), update_all/delete_all + extend_recurring_event tools, morning-brief ending-soon nudge. Multi-day weekly supported.
 
 Phase 40: Chat bar photo upload bug ✅ Session 21 (18 May) — 64px thumbnail above bar with "Photo ready — tap send" + ✕ dismiss. Send button opacity + tap guard updated to allow photo-only (send('') with imageUri). Three combined bugs presenting as one symptom (picker opens, select does nothing).
 Phase 41: Multi-user safety patches ✅ Session 22 (20 May) — six combined fixes surfaced during 2d testing: (1) heads-up filter inviter-only via inviter_user_id === currentUserId, (2) chat persistence file scoped per user via auth.onAuthStateChange subscription in useChatPersistence, (3) local chat messages state resets on user switch via chatLoaded transition, (4) tour-state + user-prefs don't fall back to AsyncStorage when signed in (profile JSONB is sole source), (5) all module caches invalidated in _layout.tsx onAuthChange (tour, prefs, invites + existing account), (6) fresh-invitee welcome polish — suppress family brief on first session, show warm welcome instead.
@@ -2004,3 +2073,12 @@ Phase 41: Multi-user safety patches ✅ Session 22 (20 May) — six combined fix
 - **Notification = nudge, brief = content** (Session 23) — the OS notification fires at the user's set time; the in-app brief is once-per-window-per-day. Tapping a notification when the brief already fired does NOT duplicate (tryFireBrief already-fired guard). They can be out of sync — acceptable.
 - **Invite link formats** (Session 23) — `zaeli://invite/<token>` (custom scheme, works today via QR/Notes/Messages) for dev + cross-device testing; `https://zaeli.app/i/<token>` (Universal Link) for production once the domain + apple-app-site-association are live (Phase 3c). Copy-link button currently copies the `zaeli://` form. iOS Safari blocks typing custom schemes in the address bar — use Notes/Messages or Camera-scan-QR.
 - **Custom URL scheme already configured** — `app.json` has `"scheme": "zaeli"`, so Expo Router auto-routes `zaeli://invite/<token>` → `/invite/[token]`. No native change needed for the scheme itself; only Universal Links (associatedDomains entitlement) need a rebuild.
+- **Family roster = `lib/family-roster.ts`, DB-backed** (Session 24) — NEVER reintroduce a hardcoded `FAMILY_MEMBERS` array. Read members via `getRoster()` (sync cache) / `getMemberById()` / `getMemberByName()`. Screens load via `loadRoster(getFamilyId())` + a version-bump state to re-render. Cache invalidated in `_layout.tsx` on auth change. Supports up to `MAX_FAMILY_MEMBERS` (8).
+- **Calendar assignees are real `family_members` UUIDs** (Session 24) — NEVER use the old numeric ids ('1'-'5') or a NAME_TO_ID map. Resolve names → UUIDs with `resolveAssigneeId(name)` (fuzzy: exact / name-prefix / query-prefix). New-event default assignee = `defaultAssigneeIds()` (signed-in user). Tool schemas ask the model for first names, not ids.
+- **Current-user identity comes from the profile** (Session 24) — Settings hero, invite inviter name, etc. read `getProfile()`. No hardcoded "Rich" for *identity*. (The roster member *names* are separate seed data, now in `family_members`.)
+- **Memory is BACKGROUND KNOWLEDGE, the calendar is the source of truth** (Session 24) — `buildContext()`'s memory block is explicitly labelled background (likes/routines/patterns). Zaeli must never claim something is "already locked in / booked / scheduled" from a memory insight. Keep this framing if you touch the memory injection — a "Poppy enjoys dance" preference must not become a phantom calendar event.
+- **Recurring events = generated instances** (Session 24) — `add_calendar_event` with `repeat` + `repeat_days`. `generateRecurrenceDates()` produces a ~12-month horizon (capped 400 rows). All instances share a `uuidv4` `repeat_group_id` + `repeat_rule`. NOT a rule+expand-on-read engine — every calendar surface reads concrete rows. Multi-day weekly via `repeat_days: ["mon","tue","fri"]`.
+- **Recurring series operations** (Session 24) — `update_all` (apply title/notes/assignees to every instance), `delete_all` (cancel series), `extend_recurring_event` (roll on ~12 months). All target by `repeat_group_id` (fallback title+future). Date/time changes stay per-instance. CAPABILITY_RULES tells Zaeli recurring IS supported + when to use each flag.
+- **Recurring "ending soon" → morning brief only** (Session 24) — `buildBriefContext` groups future recurring instances by `repeat_group_id`, flags any whose last date is within 6 weeks into `FamilyContext.endingSoonSeries`; the morning brief offers a one-line roll-on. Never spam other windows.
+- **Calendar inline confirm card is date-aware** (Session 24) — `InlineData.initialTab` + `dateLabelOverride`; the add-confirm card shows the event's real day (today bucket / tomorrow tab / explicit "TUE 2 JUN" label), never always "TODAY".
+- **calendar.tsx month view loads from the displayed month forward** — `loadEvents` queries `date >= firstOfDisplayedMonth`. A past-month event won't appear when viewing a later month (by design). If "an event is missing", check which month is displayed before assuming a data bug.
