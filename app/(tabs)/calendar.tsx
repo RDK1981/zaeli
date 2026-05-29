@@ -21,9 +21,11 @@ import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
 import { getFamilyId } from '../../lib/family';
+import { getRoster, loadRoster, resolveAssigneeId, defaultAssigneeIds } from '../../lib/family-roster';
 
 // ── Constants ─────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
+// Session 23 — FAMILY_MEMBERS roster now comes from lib/family-roster (DB-backed).
 const CAL_BG  = '#B8EDD0';   // Calendar banner/day-strip bg
 const CAL_AI  = '#F0C8C0';   // Blush — ai letters, send button, eyebrow
 const ACC     = '#E8374B';   // Red — now-line, today pill, form accents
@@ -37,14 +39,6 @@ const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
 let _pendingCalendarImage: string | null = null;
 export function getPendingCalendarImage(): string | null { return _pendingCalendarImage; }
 export function setPendingCalendarImage(uri: string | null) { _pendingCalendarImage = uri; }
-
-const FAMILY_MEMBERS = [
-  { id:'1', name:'Anna',  color:'#FF7B6B' },
-  { id:'2', name:'Rich',  color:'#4D8BFF' },
-  { id:'3', name:'Poppy', color:'#A855F7' },
-  { id:'4', name:'Gab',   color:'#22C55E' },
-  { id:'5', name:'Duke',  color:'#F59E0B' },
-];
 
 const DAYS_SHORT   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const MONTHS       = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -85,7 +79,7 @@ function fmtTime(iso: string): string {
 
 function getMemberColor(assignees?: string[]): string {
   if (!assignees || assignees.length === 0) return ACC;
-  const m = FAMILY_MEMBERS.find(m => assignees.includes(m.id));
+  const m = getRoster().find(m => assignees.includes(m.id));
   return m?.color ?? ACC;
 }
 
@@ -102,7 +96,7 @@ function isoToMinutes(iso: string): number {
 function getEvAssignees(ev: any): any[] {
   if (!ev.assignees || ev.assignees.length === 0) return [];
   return (ev.assignees as string[])
-    .map((id: string) => FAMILY_MEMBERS.find(m => m.id === id))
+    .map((id: string) => getRoster().find(m => m.id === id))
     .filter(Boolean) as any[];
 }
 
@@ -174,7 +168,7 @@ const TOOLS = [
       start_time: { type:'string', description:'ISO 8601 local e.g. 2026-03-26T09:00:00' },
       end_time:   { type:'string' },
       notes:      { type:'string' },
-      assignees:  { type:'array', items:{ type:'string' }, description:'Array of family member IDs. Anna=1, Rich=2, Poppy=3, Gab=4, Duke=5. Whole family=["1","2","3","4","5"]' },
+      assignees:  { type:'array', items:{ type:'string' }, description:'Array of family member first names, e.g. ["Rich","Gab"]. Use the names exactly. Whole family = list everyone.' },
     }, required:['title','start_time'] } },
   { name:'update_calendar_event',
     description:'Update/reschedule an existing event. Use this to change time, date, title, notes, or assignees.',
@@ -186,7 +180,7 @@ const TOOLS = [
       new_end_time:   { type:'string' },
       new_date:       { type:'string', description:'YYYY-MM-DD' },
       new_notes:      { type:'string' },
-      new_assignees:  { type:'array', items:{ type:'string' }, description:'Full list of family member IDs for the event. Anna=1, Rich=2, Poppy=3, Gab=4, Duke=5. Include ALL people who should be on the event — replaces existing assignees entirely.' },
+      new_assignees:  { type:'array', items:{ type:'string' }, description:'Full list of family member first names for the event, e.g. ["Rich","Gab"]. Include ALL people who should be on the event — replaces existing assignees entirely.' },
     }, required:['search_title'] } },
   { name:'delete_calendar_event',
     description:'Delete a calendar event by title.',
@@ -201,10 +195,12 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
     if (name === 'add_calendar_event') {
       const localDt  = (input.start_time || '').replace('Z','').split('+')[0];
       const dateOnly = localDt.split('T')[0] || toLocalDateStr(new Date());
-      // Use assignees from model input, default to Rich only if not provided
-      const assignees = Array.isArray(input.assignees) && input.assignees.length > 0
-        ? input.assignees
-        : ['2'];
+      // Resolve names → real roster UUIDs (Session 23); default to the
+      // signed-in user when none provided.
+      const mappedAssignees = Array.isArray(input.assignees)
+        ? input.assignees.map((n: string) => resolveAssigneeId(n)).filter(Boolean) as string[]
+        : [];
+      const assignees = mappedAssignees.length > 0 ? mappedAssignees : defaultAssigneeIds();
       const { error } = await supabase.from('events').insert({
         family_id: getFamilyId(), title: input.title,
         date: dateOnly, start_time: localDt,
@@ -225,10 +221,12 @@ async function executeTool(name: string, input: any, onReload: () => void): Prom
       if (input.new_title) u.title = input.new_title;
       if (input.new_notes) u.notes = input.new_notes;
       if (input.new_assignees && Array.isArray(input.new_assignees) && input.new_assignees.length > 0) {
-        // Calendar channel passes IDs directly (Anna=1 etc) — merge with existing
-        const existing: string[] = Array.isArray(t.assignees) ? t.assignees : [];
-        const merged = Array.from(new Set([...existing, ...input.new_assignees.map(String)]));
-        u.assignees = merged;
+        // Resolve names → real roster UUIDs (Session 23), merge with existing
+        const mapped = input.new_assignees.map((n: string) => resolveAssigneeId(n)).filter(Boolean) as string[];
+        if (mapped.length > 0) {
+          const existing: string[] = Array.isArray(t.assignees) ? t.assignees : [];
+          u.assignees = Array.from(new Set([...existing, ...mapped]));
+        }
       }
       if (input.new_start_time) {
         u.start_time = input.new_start_time.replace('Z','').split('+')[0];
@@ -492,7 +490,7 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate, onAskZaeli, onS
   const [endAmpm,   setEndAmpm]   = useState<'am'|'pm'>('am');
   const [repeat,    setRepeat]    = useState('Never');
   const [alert,     setAlert]     = useState('None');
-  const [assignees, setAssignees] = useState<string[]>(['2']);
+  const [assignees, setAssignees] = useState<string[]>(() => defaultAssigneeIds());
   const [saving,    setSaving]    = useState(false);
   const [tab,       setTab]       = useState<'details'|'people'>('details');
 
@@ -502,7 +500,7 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate, onAskZaeli, onS
       setStartDate(toLocalDateStr(selectedDate)); setEndDate(toLocalDateStr(selectedDate));
       setStartHour(9); setStartMin(0); setStartAmpm('am');
       setEndHour(10);  setEndMin(0);   setEndAmpm('am');
-      setRepeat('Never'); setAlert('None'); setAssignees(['2']); setSaving(false); setTab('details');
+      setRepeat('Never'); setAlert('None'); setAssignees(defaultAssigneeIds()); setSaving(false); setTab('details');
     }
   }, [visible]);
 
@@ -692,7 +690,7 @@ function AddEventFlow({ visible, onClose, onSaved, selectedDate, onAskZaeli, onS
               ) : (
                 <View style={{ padding:20, gap:12 }}>
                   <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:INK2, lineHeight:20 }}>Who is this event for?</Text>
-                  {FAMILY_MEMBERS.map(m => {
+                  {getRoster().map(m => {
                     const on = assignees.includes(m.id);
                     return (
                       <TouchableOpacity key={m.id}
@@ -915,7 +913,7 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
                     placeholder="Notes" placeholderTextColor={INK3} multiline numberOfLines={3} textAlignVertical="top"/>
                 </View>
                 <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:INK2 }}>Who is this for?</Text>
-                {FAMILY_MEMBERS.map(m => {
+                {getRoster().map(m => {
                   const on = editAssignees.includes(m.id);
                   return (
                     <TouchableOpacity key={m.id}
@@ -1025,7 +1023,7 @@ function TimeGrid({ events, selectedDate, onEventPress, onAddPress }: {
           )}
           {positionedEvents.map(({ ev, topPx, heightPx, leftFrac, widthFrac, isCompact }) => {
             const accent = getMemberColor(ev.assignees);
-            const assignedMembers = (ev.assignees||[]).map((id: string) => FAMILY_MEMBERS.find(m => m.id===id)).filter(Boolean);
+            const assignedMembers = (ev.assignees||[]).map((id: string) => getRoster().find(m => m.id===id)).filter(Boolean);
             return (
               <TouchableOpacity key={ev.id} style={{
                 position:'absolute', top:topPx, height:Math.max(heightPx, 12),
@@ -1194,7 +1192,7 @@ function getEventEmoji(title: string): string {
 // ── EventCard component ────────────────────────────────────────
 function EventCard({ ev, onPress }: { ev: any; onPress: () => void }) {
   const assignedMembers = (ev.assignees || [])
-    .map((id: string) => FAMILY_MEMBERS.find(m => m.id === id))
+    .map((id: string) => getRoster().find(m => m.id === id))
     .filter(Boolean) as any[];
   const primaryColor = assignedMembers.length > 0 ? assignedMembers[0].color : null;
   const bgColor = primaryColor ? primaryColor + '2E' : 'rgba(0,0,0,0.06)';
@@ -1344,6 +1342,13 @@ export default function CalendarScreen() {
 
   useEffect(() => { loadEvents(); }, [loadEvents]);
   useFocusEffect(useCallback(() => { loadEvents(); }, [loadEvents]));
+
+  // Family roster (Session 23) — load DB roster + bump version so avatar
+  // dots/letters render with real member UUIDs (matching what chat writes).
+  const [, setRosterVersion] = useState(0);
+  useEffect(() => {
+    loadRoster(getFamilyId()).then(() => setRosterVersion(v => v + 1));
+  }, []);
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardWillShow', () => setKeyboardOpen(true));
@@ -1555,7 +1560,7 @@ export default function CalendarScreen() {
       const upcomingCtx = events
         .filter(e => e.date >= td)
         .slice(0, 20)
-        .map(e => `${e.title} (${e.date}${e.start_time ? ' at ' + fmtTime(e.start_time) : ''}${e.assignees?.length ? ' · ' + e.assignees.map((id: string) => FAMILY_MEMBERS.find(m => m.id === id)?.name).filter(Boolean).join(', ') : ''})`)
+        .map(e => `${e.title} (${e.date}${e.start_time ? ' at ' + fmtTime(e.start_time) : ''}${e.assignees?.length ? ' · ' + e.assignees.map((id: string) => getRoster().find(m => m.id === id)?.name).filter(Boolean).join(', ') : ''})`)
         .join('\n');
 
       // Calculate day of week context for relative date resolution
@@ -1573,12 +1578,11 @@ export default function CalendarScreen() {
 
 UPCOMING EVENTS:\n${upcomingCtx || 'Nothing upcoming.'}
 
-FAMILY MEMBERS — always use these exact assignee arrays:
-- Anna = ['1'], Rich = ['2'], Poppy = ['3'], Gab = ['4'], Duke = ['5']
-- "whole family" / "everyone" / "all of us" / "all" / "the whole family" → MUST use ['1','2','3','4','5']
-- "the kids" / "kids" / "children" → ['3','4','5']
-- "Rich and Anna" → ['1','2']
-- Default (no person specified) → ['2'] (Rich only)
+FAMILY MEMBERS — pass assignees as arrays of first NAMES (the app resolves them):
+- e.g. ["Rich"], ["Gab"], ["Rich","Anna"]
+- "whole family" / "everyone" / "all of us" / "all" → list everyone: ["Anna","Rich","Poppy","Gab","Duke"]
+- "the kids" / "kids" / "children" → ["Poppy","Gab","Duke"]
+- Default (no person specified) → ["Rich"]
 
 EXACT DATES FOR RELATIVE REFERENCES — use these, do not calculate yourself:
 ${nextDays}
@@ -1972,7 +1976,7 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
 
                 {/* Family legend */}
                 <View style={s.legend}>
-                  {FAMILY_MEMBERS.map(m => (
+                  {getRoster().map(m => (
                     <View key={m.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: m.color }}/>
                       <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 11, color: INK2 }}>{m.name}</Text>

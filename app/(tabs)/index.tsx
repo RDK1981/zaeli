@@ -38,6 +38,7 @@ import { loadInvites as loadInviteState, recentlyAcceptedInvites, clearJustAccep
 import { getProfile } from '../../lib/auth';
 import { buildMemoryContext, saveConversation, detectInsightsFromConversations } from '../../lib/zaeli-memory';
 import { loadPrefs } from '../../lib/user-prefs';
+import { getRoster, loadRoster, getMemberByName, resolveAssigneeId, defaultAssigneeIds } from '../../lib/family-roster';
 import MoreSheet from '../components/MoreSheet';
 import TourBanner from '../components/TourBanner';
 import { currentWindow as getCurrentWindow, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
@@ -153,13 +154,10 @@ function getItemEmoji(name: string): string {
   return '🛒';
 }
 
-const FAMILY_MEMBERS = [
-  { id:'1', name:'Anna',  color:'#FF7B6B' },
-  { id:'2', name:'Rich',  color:'#4D8BFF' },
-  { id:'3', name:'Poppy', color:'#A855F7' },
-  { id:'4', name:'Gab',   color:'#22C55E' },
-  { id:'5', name:'Duke',  color:'#F59E0B' },
-];
+// FAMILY_MEMBERS roster now comes from lib/family-roster (Session 23) —
+// dynamic, DB-backed, supports up to 8. Read via getRoster() everywhere
+// (module-level helpers + in-render). The component bumps a version state
+// after loadRoster() so render picks up the DB rows.
 
 const OPENAI_URL  = 'https://api.openai.com/v1/chat/completions';
 const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
@@ -189,6 +187,8 @@ interface InlineData {
   items?: any[];
   tomorrowItems?: any[];   // calendar only — tomorrow's events
   showPortalPill?: boolean;
+  initialTab?: 'today' | 'tomorrow';  // calendar — which tab to open on
+  dateLabelOverride?: string;          // calendar — header label for events beyond tomorrow
 }
 
 interface Msg {
@@ -274,15 +274,18 @@ function isoToMinutes(iso: string): number {
 }
 function getMemberColor(assignees?: string[]): string {
   if (!assignees || assignees.length === 0) return '#A8D8F0';
-  const m = FAMILY_MEMBERS.find(m => assignees.includes(m.id));
+  const m = getRoster().find(m => assignees.includes(m.id));
   return m?.color ?? '#A8D8F0';
 }
 function getEvAssignees(ev: any): any[] {
   if (!ev.assignees || ev.assignees.length === 0) return [];
   return (ev.assignees as string[])
-    .map((id: string) => FAMILY_MEMBERS.find(m => m.id === id))
+    .map((id: string) => getRoster().find(m => m.id === id))
     .filter(Boolean) as any[];
 }
+
+// resolveAssigneeId + defaultAssigneeIds now live in lib/family-roster
+// (Session 23) — shared with calendar.tsx so both resolve to real UUIDs.
 
 function renderHeroText(text: string, highlightColor: string) {
   const parts = text.split(/(\[[^\]]+\])/g);
@@ -823,7 +826,7 @@ function getEventEmoji(title: string): string {
 // ── EventCard (card stack, existing style) ────────────────────────────────
 function EventCard({ ev, onPress }: { ev: any; onPress: () => void }) {
   const assignedMembers = (ev.assignees || [])
-    .map((id: string) => FAMILY_MEMBERS.find(m => m.id === id))
+    .map((id: string) => getRoster().find(m => m.id === id))
     .filter(Boolean) as any[];
   const primaryColor = assignedMembers.length > 0 ? assignedMembers[0].color : null;
   const bgColor = primaryColor ? primaryColor + '2E' : 'rgba(0,0,0,0.06)';
@@ -891,7 +894,7 @@ function ExpandedEventDetail({ ev, onCollapse, onEditWithZaeli, onFullSheet, onM
   const anim = useRef(new Animated.Value(0)).current;
   const noteParts = (ev.notes||'').split(' | ');
   const location = noteParts.length > 1 ? noteParts[noteParts.length-1] : '';
-  const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+  const members = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
   const emoji = getEventEmoji(ev.title||'');
 
   useEffect(() => {
@@ -977,6 +980,7 @@ function InlineCalendarCard({
   onEditWithZaeli, onAddWithZaeli,
   onFullSheet, onTomorrowSheet,
   onExpandingCard, onManualEdit, onDeleteEvent,
+  initialTab, dateLabelOverride,
 }: {
   msgId: string;
   todayEvents: any[];
@@ -988,15 +992,21 @@ function InlineCalendarCard({
   onExpandingCard: () => void;
   onManualEdit: (ev: any) => void;
   onDeleteEvent: (ev: any) => void;
+  initialTab?: 'today' | 'tomorrow';
+  dateLabelOverride?: string;
 }) {
-  const [showTab, setShowTab] = useState<'today'|'tomorrow'>('today');
+  const [showTab, setShowTab] = useState<'today'|'tomorrow'>(initialTab ?? 'today');
   const [expandedId, setExpandedId] = useState<string|null>(null);
   const events = showTab === 'today' ? todayEvents : tomorrowEvents;
   const now = new Date();
   const todayLabel = now.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase();
   const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate()+1);
   const tomorrowLabel = tomorrow.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase();
-  const eyeLabel = showTab === 'today'
+  // dateLabelOverride lets the confirm-after-add card show the event's real
+  // date when it's beyond tomorrow (Session 23 fix — was always "TODAY").
+  const eyeLabel = dateLabelOverride
+    ? `📅 ${dateLabelOverride}`
+    : showTab === 'today'
     ? `📅 TODAY · ${todayLabel}`
     : `📅 TOMORROW · ${tomorrowLabel}`;
 
@@ -1028,7 +1038,7 @@ function InlineCalendarCard({
           Nothing on {showTab === 'today' ? 'today' : 'tomorrow'}
         </Text>
       ) : events.map((ev: any) => {
-        const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+        const members = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
         const dotColor = members.length > 0 ? members[0].color : 'rgba(255,255,255,0.4)';
 
         if (expandedId === ev.id) {
@@ -1505,7 +1515,7 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
                     value={editLocation} onChangeText={setEditLocation}/>
                 </View>
                 <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:INK, marginBottom:6 }}>People</Text>
-                {FAMILY_MEMBERS.map(m => {
+                {getRoster().map(m => {
                   const on = editAssignees.includes(m.id);
                   return (
                     <TouchableOpacity key={m.id} style={[s.memberRow, on && { borderColor:m.color, backgroundColor:m.color+'0A' }]}
@@ -1529,8 +1539,8 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
 
 // ── Tool execution ─────────────────────────────────────────────────────────
 const TOOLS = [
-  { name:'add_calendar_event', description:'Add a new calendar event', input_schema:{ type:'object', properties:{ title:{type:'string'}, start_time:{type:'string',description:'ISO datetime local'}, end_time:{type:'string'}, notes:{type:'string'}, assignees:{type:'array',items:{type:'string'}} }, required:['title','start_time'] } },
-  { name:'update_calendar_event', description:'Update an existing event', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, search_date:{type:'string'}, new_title:{type:'string'}, new_start_time:{type:'string'}, new_end_time:{type:'string'}, new_date:{type:'string'}, new_notes:{type:'string'}, new_assignees:{type:'array',items:{type:'string'}} }, required:['search_title'] } },
+  { name:'add_calendar_event', description:'Add a new calendar event', input_schema:{ type:'object', properties:{ title:{type:'string'}, start_time:{type:'string',description:'ISO datetime local'}, end_time:{type:'string'}, notes:{type:'string'}, assignees:{type:'array',items:{type:'string'},description:'Family member first names, e.g. ["Rich","Gab"]. Omit to default to the current user.'} }, required:['title','start_time'] } },
+  { name:'update_calendar_event', description:'Update an existing event', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, search_date:{type:'string'}, new_title:{type:'string'}, new_start_time:{type:'string'}, new_end_time:{type:'string'}, new_date:{type:'string'}, new_notes:{type:'string'}, new_assignees:{type:'array',items:{type:'string'},description:'Family member first names to add, e.g. ["Rich","Gab"].'} }, required:['search_title'] } },
   { name:'delete_calendar_event', description:'Delete a calendar event', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, date:{type:'string'} }, required:['search_title'] } },
   { name:'add_todo', description:'Add a todo item', input_schema:{ type:'object', properties:{ title:{type:'string'}, priority:{type:'string',enum:['low','normal','high','urgent']}, due_date:{type:'string'} }, required:['title'] } },
   { name:'add_shopping_item', description:'Add item to shopping list', input_schema:{ type:'object', properties:{ name:{type:'string'}, category:{type:'string'}, quantity:{type:'string'} }, required:['name'] } },
@@ -1567,10 +1577,11 @@ async function executeTool(name: string, input: any): Promise<string> {
           endDt = `${e.getFullYear()}-${pad(e.getMonth()+1)}-${pad(e.getDate())}T${pad(e.getHours())}:${pad(e.getMinutes())}:00`;
         } catch { endDt = localDt; }
       }
-      const NAME_TO_ID: Record<string,string> = { anna:'1', rich:'2', richard:'2', poppy:'3', gab:'4', gabriel:'4', duke:'5' };
-      let assigneeIds: string[] = ['2'];
+      // Default assignee = the signed-in user (was hardcoded old id '2').
+      const meId = (getMemberByName(getProfile()?.name || '') ?? getRoster().find(m => m.role === 'parent') ?? getRoster()[0])?.id;
+      let assigneeIds: string[] = meId ? [meId] : [];
       if (input.assignees && Array.isArray(input.assignees) && input.assignees.length > 0) {
-        const mapped = input.assignees.map((n:string) => NAME_TO_ID[n.toLowerCase().trim()]).filter(Boolean);
+        const mapped = input.assignees.map((n:string) => resolveAssigneeId(n)).filter(Boolean) as string[];
         if (mapped.length > 0) assigneeIds = mapped;
       }
       const row: any = { family_id:getFamilyId(), title:input.title, date:dateOnly, start_time:localDt, end_time:endDt, notes:input.notes||'', timezone:'Australia/Brisbane', assignees:assigneeIds };
@@ -1593,8 +1604,7 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (input.new_title)      u.title = input.new_title;
       if (input.new_notes)      u.notes = input.new_notes;
       if (input.new_assignees && Array.isArray(input.new_assignees)) {
-        const NAME_TO_ID: Record<string,string> = { anna:'1', rich:'2', richard:'2', poppy:'3', gab:'4', gabriel:'4', duke:'5' };
-        const mapped = input.new_assignees.map((n:string) => NAME_TO_ID[n.toLowerCase().trim()]).filter(Boolean);
+        const mapped = input.new_assignees.map((n:string) => resolveAssigneeId(n)).filter(Boolean) as string[];
         if (mapped.length > 0) {
           const existing: string[] = Array.isArray(t.assignees) ? t.assignees : [];
           u.assignees = Array.from(new Set([...existing, ...mapped]));
@@ -1843,7 +1853,7 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
 }) {
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+  const members = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
   const borderColor = members.length > 0 ? members[0].color : 'rgba(0,0,0,0.15)';
   const noteParts = (ev.notes||'').split(' | ');
   const location = noteParts.length > 1 ? noteParts[noteParts.length-1] : '';
@@ -1939,7 +1949,7 @@ function CalSheetMonthView({ monthYear, onMonthChange, selectedDay, dayEvents, o
   const dotMap: Record<string, string[]> = {};
   allEvents.forEach((ev:any) => {
     if (!ev.date) return;
-    const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+    const members = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
     const color = members.length > 0 ? members[0].color : '#A8D8F0';
     if (!dotMap[ev.date]) dotMap[ev.date] = [];
     if (dotMap[ev.date].length < 3) dotMap[ev.date].push(color);
@@ -2210,7 +2220,7 @@ function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDel
         {/* Attendees */}
         <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color:'rgba(0,0,0,0.40)', textTransform:'uppercase', letterSpacing:0.8, marginBottom:12 }}>Who's going</Text>
         <View style={{ flexDirection:'row', gap:16, marginBottom:20, flexWrap:'wrap' }}>
-          {FAMILY_MEMBERS.map(m => {
+          {getRoster().map(m => {
             const sel = assignees.includes(m.id);
             return (
               <TouchableOpacity key={m.id} onPress={() => toggleAssignee(m.id)} activeOpacity={0.75} style={{ alignItems:'center', gap:6 }}>
@@ -2375,7 +2385,7 @@ function CalendarCard({
   const overflow = events.length - INITIAL_SHOW;
 
   function renderEventRow(ev: any, i: number) {
-    const members = (ev.assignees || []).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+    const members = (ev.assignees || []).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
     const dotColor = members.length > 0 ? members[0].color : 'rgba(255,255,255,0.45)';
     return (
       <TouchableOpacity key={ev.id || i} style={cardS.tRow} onPress={() => onEventPress(ev)} activeOpacity={0.7}>
@@ -2545,7 +2555,7 @@ function ActionsCard({
           const dotColor = isDone ? 'rgba(0,0,0,0.12)' : todoPriorityColor(todo);
           const badge = todoBadge(todo);
           const memberIds: string[] = Array.isArray(todo.assigned_to) ? todo.assigned_to : todo.assigned_to ? [todo.assigned_to] : [];
-          const members = memberIds.map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+          const members = memberIds.map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
           return (
             <View key={todo.id || i} style={[cardS.actRow, isDone && { opacity:0.45 }]}>
               {/* Circle tick */}
@@ -2591,7 +2601,7 @@ function ActionsCard({
             <View style={cardS.actDivLine}/>
           </View>
           {tomorrowMorningEvents.slice(0, 3).map((ev:any, i:number) => {
-            const members = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+            const members = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
             const dotColor = members.length > 0 ? members[0].color : 'rgba(0,0,0,0.2)';
             return (
               <View key={ev.id || i} style={[cardS.actRow, { marginLeft:6 }]}>
@@ -3141,6 +3151,13 @@ function HomeScreen({
       setPersistedMessages(messages);
     }
   }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Family roster (Session 23) — load DB roster, bump version to re-render
+  // so getRoster() reads in render pick up the real members + colours. ──────
+  const [, setRosterVersion] = useState(0);
+  useEffect(() => {
+    loadRoster(getFamilyId()).then(() => setRosterVersion(v => v + 1));
+  }, []);
 
   // ── Mount → load cards (brief fires AFTER persistence restore, see below) ─
   useEffect(() => {
@@ -4548,9 +4565,21 @@ Only include events directly relevant to the question. Max 5 events.`;
                 .order('created_at', { ascending: false })
                 .limit(1);
               if (newEvData && newEvData.length > 0) {
+                // Date-aware confirm card (Session 23 fix) — show the event under
+                // its REAL day, not always "TODAY". Today → today bucket; tomorrow
+                // → tomorrow tab; beyond → real-date label override.
+                const ev0 = newEvData[0];
+                const tomorrowStr = localDatePlusDays(1);
+                const confirmInline: InlineData = ev0.date === today
+                  ? { type: 'calendar', items: [ev0], tomorrowItems: [] }
+                  : ev0.date === tomorrowStr
+                  ? { type: 'calendar', items: [], tomorrowItems: [ev0], initialTab: 'tomorrow' }
+                  : { type: 'calendar', items: [ev0], tomorrowItems: [],
+                      dateLabelOverride: new Date(ev0.date + 'T00:00:00')
+                        .toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase() };
                 const confirmCard: Msg = {
                   id: uid(), role: 'zaeli', text: '', ts: nowTs(),
-                  inlineData: { type: 'calendar', items: [newEvData[0]], tomorrowItems: [] },
+                  inlineData: confirmInline,
                 };
                 setMessages(prev => {
                   // Replace the loading reply with confirmation card + text
@@ -5929,6 +5958,8 @@ Rules:
                 msgId={msg.id}
                 todayEvents={msg.inlineData!.items ?? []}
                 tomorrowEvents={msg.inlineData!.tomorrowItems ?? []}
+                initialTab={msg.inlineData!.initialTab}
+                dateLabelOverride={msg.inlineData!.dateLabelOverride}
                 onExpandingCard={() => {
                   isExpandingCard.current = true;
                   setTimeout(() => { isExpandingCard.current = false; }, 400);
@@ -6598,7 +6629,7 @@ Rules:
                             {/* Add row */}
                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderWidth:1.5, borderStyle:'dashed', borderColor:'rgba(0,0,0,0.12)', borderRadius:14, padding:14, marginTop:4 }}>
                               <TouchableOpacity
-                                onPress={() => setCalSheetEditEv({ date: calSheetTab === 'today' ? localDateStr() : localDatePlusDays(1), title:'', assignees:['2'], start_time:'', end_time:'' })}
+                                onPress={() => setCalSheetEditEv({ date: calSheetTab === 'today' ? localDateStr() : localDatePlusDays(1), title:'', assignees: defaultAssigneeIds(), start_time:'', end_time:'' })}
                                 activeOpacity={0.75}
                                 style={{ flexDirection:'row', alignItems:'center', gap:10, flex:1 }}
                               >
@@ -6637,7 +6668,7 @@ Rules:
                           onEditWithZaeli={handleSheetEditWithZaeli}
                           onManualEdit={(ev) => setCalSheetEditEv(ev)}
                           onAddWithZaeli={handleSheetAddWithZaeli}
-                          onManualAdd={(dateStr) => setCalSheetEditEv({ date: dateStr, title:'', assignees:['2'], start_time:'', end_time:'' })}
+                          onManualAdd={(dateStr) => setCalSheetEditEv({ date: dateStr, title:'', assignees: defaultAssigneeIds(), start_time:'', end_time:'' })}
                           onDeleted={() => { fetchMonthDayEvents(calSheetSelDay ?? localDateStr()); fetchMonthDots(calSheetMonthYear.month, calSheetMonthYear.year); }}
                         />
                       )}
@@ -7602,7 +7633,7 @@ Rules:
                             // Read cooks from source field (stored as JSON) or _cooks optimistic update
                             let cooks: string[] = plan?._cooks || [];
                             if (!cooks.length && plan?.source) { try { const s = JSON.parse(plan.source); cooks = s.cooks || []; } catch {} }
-                            const cookMembers = cooks.map((id:string) => FAMILY_MEMBERS.find(m => m.id === id)).filter(Boolean);
+                            const cookMembers = cooks.map((id:string) => getRoster().find(m => m.id === id)).filter(Boolean);
 
                             return (
                               <View key={day.key} style={{ marginBottom:8, borderRadius:16, borderWidth: (isSwapOpen || day.isToday) ? 2 : 0, borderColor: day.isToday ? '#FF4545' : isSwapOpen ? MEAL_MINT_TEXT : 'transparent', overflow:'hidden' }}>
@@ -7823,7 +7854,7 @@ Rules:
                       <View style={{ backgroundColor:'#fff', borderRadius:16, padding:16 }}>
                         <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:17, color:'#0A0A0A', marginBottom:14 }}>Who's cooking?</Text>
                         <View style={{ flexDirection:'row', gap:12, flexWrap:'wrap', justifyContent:'center' }}>
-                          {FAMILY_MEMBERS.map((m:any) => {
+                          {getRoster().map((m:any) => {
                             const selected = mealCookSelected.includes(m.id);
                             return (
                               <TouchableOpacity key={m.id} onPress={() => setMealCookSelected(prev => selected ? prev.filter(id => id !== m.id) : [...prev, m.id])} style={{ alignItems:'center', gap:5 }} activeOpacity={0.75}>
@@ -7847,7 +7878,7 @@ Rules:
                             const kidIds = ['3','4','5']; // Poppy, Gab, Duke
                             const selectedKid = mealCookSelected.find(id => kidIds.includes(id));
                             if (selectedKid) {
-                              const kidMember = FAMILY_MEMBERS.find(m => m.id === selectedKid);
+                              const kidMember = getRoster().find(m => m.id === selectedKid);
                               setMealKidJobPopup({ kidId: selectedKid, kidName: kidMember?.name || '', mealName: mealCookPicker.mealName, dayKey: mealCookPicker.dayKey });
                             }
                             setMealCookPicker(null);

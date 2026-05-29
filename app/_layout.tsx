@@ -10,6 +10,7 @@ import { invalidateAccount } from '../lib/account-state'
 import { invalidateCache as invalidateTourCache } from '../lib/tour-state'
 import { invalidateCache as invalidatePrefsCache, loadPrefs } from '../lib/user-prefs'
 import { resetCache as invalidateInvitesCache } from '../lib/invite-state'
+import { invalidateRosterCache } from '../lib/family-roster'
 import { requestNotificationPermission, scheduleBriefNotifications } from '../lib/notifications'
 
 SplashScreen.preventAutoHideAsync()
@@ -51,6 +52,7 @@ export default function RootLayout() {
         invalidateTourCache()
         invalidatePrefsCache()
         invalidateInvitesCache().catch(() => {})
+        invalidateRosterCache()
         await loadProfile()
         setAuthed(!!getProfile())
       } else if (event === 'SIGNED_OUT') {
@@ -58,6 +60,7 @@ export default function RootLayout() {
         invalidateTourCache()
         invalidatePrefsCache()
         invalidateInvitesCache().catch(() => {})
+        invalidateRosterCache()
         setAuthed(false)
       }
     })

@@ -29,6 +29,7 @@ import MoreSheet from '../components/MoreSheet';
 import { setPendingChatContext } from '../../lib/navigation-store';
 import Svg, { Polygon, Line, Path, Circle, Polyline } from 'react-native-svg';
 import { getFamilyId } from '../../lib/family';
+import { getRoster, loadRoster } from '../../lib/family-roster';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const WEATHER_LAT = -26.39;
@@ -36,13 +37,7 @@ const WEATHER_LON = 153.03;
 const GPT_MINI    = 'gpt-4o-mini';
 const OPENAI_KEY  = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
 
-const FAMILY_MEMBERS = [
-  { id:'1', name:'Anna',  color:'#FF7B6B' },
-  { id:'2', name:'Rich',  color:'#4D8BFF' },
-  { id:'3', name:'Poppy', color:'#A855F7' },
-  { id:'4', name:'Gab',   color:'#22C55E' },
-  { id:'5', name:'Duke',  color:'#F59E0B' },
-];
+// FAMILY_MEMBERS roster now comes from lib/family-roster (Session 23) — DB-backed.
 
 // ── Word of the Day ───────────────────────────────────────────────────────────
 const WOTD_LIST = [
@@ -445,7 +440,7 @@ function CalendarCard({ events, showTomorrow, expanded, onToggleExpand, onAdd, o
   }
 
   function renderEventRow(ev: any, i: number, isPast: boolean) {
-    const members  = (ev.assignees||[]).map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+    const members  = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
     const dotColor = isPast ? 'rgba(255,255,255,0.20)' : (members.length > 0 ? members[0].color : 'rgba(255,255,255,0.45)');
     const isSel    = selectedId === ev.id;
     const isConf   = confirmDelId === ev.id;
@@ -842,7 +837,7 @@ function ActionsCard({ todos, isEvening, tomorrowMorningEvents, expanded, onTogg
                 const dotColor = isDone ? 'rgba(0,0,0,0.12)' : todoPriorityColor(todo);
                 const badge    = todoBadge(todo);
                 const memberIds: string[] = Array.isArray(todo.assigned_to) ? todo.assigned_to : todo.assigned_to ? [todo.assigned_to] : [];
-                const members  = memberIds.map((id:string) => FAMILY_MEMBERS.find(m=>m.id===id)).filter(Boolean) as any[];
+                const members  = memberIds.map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
                 return (
                   <View key={todo.id||i} style={[cS.actRow, isDone && { opacity:0.40 }]}>
                     <TouchableOpacity style={[cS.actChk, isDone && cS.actChkDone]} onPress={() => onTick(todo)} activeOpacity={0.7} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
@@ -961,7 +956,7 @@ function OnTheRadarCard({ expanded, onToggleExpand, onViewFullList }: {
   const totalCount = tasks.length;
 
   const memberColour = (name: string | null): string => {
-    const m = FAMILY_MEMBERS.find(fm => fm.name === name);
+    const m = getRoster().find(fm => fm.name === name);
     return m?.color ?? '#8B6914';
   };
 
@@ -1110,6 +1105,13 @@ export default function DashboardScreen({ onNavigateChat, onNavigateMySpace, isA
   const noticesGeneratedRef = useRef(false);
   const [dashBrief,     setDashBrief]     = useState('');
   const dashBriefGenRef = useRef(false);
+
+  // Family roster (Session 23) — load DB roster + bump version so member
+  // colour dots on cards render with real member UUIDs.
+  const [, setRosterVersion] = useState(0);
+  useEffect(() => {
+    loadRoster(getFamilyId()).then(() => setRosterVersion(v => v + 1));
+  }, []);
 
   function toggleCard(key: CardKey) {
     setExpandedCard(prev => prev === key ? null : key);
