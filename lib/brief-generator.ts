@@ -38,6 +38,7 @@ export interface FamilyContext {
   weather: { temp: number; condition: string } | null;
   memberNames: string[];        // family member first names
   primaryUser: string;          // 'Rich' for now
+  endingSoonSeries?: { title: string; lastDate: string }[];  // recurring series ending within ~6 weeks
 }
 
 // ── Persona + format rules (cached via Anthropic prompt caching) ─────────
@@ -199,6 +200,12 @@ function formatContext(ctx: FamilyContext, win: BriefWindow, now: Date): string 
 
   if (ctx.weather) {
     parts.push(`WEATHER: ${ctx.weather.temp}\u00B0C ${ctx.weather.condition}`);
+  }
+
+  // Recurring series nearing their end \u2014 gives Zaeli a chance to offer an
+  // extension in the brief (morning only \u2014 keeps it low-friction).
+  if (win === 'morning' && ctx.endingSoonSeries && ctx.endingSoonSeries.length > 0) {
+    parts.push(`RECURRING ENDING SOON (offer to roll on \u2014 ONE LINE max, only if nothing more urgent): ${ctx.endingSoonSeries.map(s => `${s.title} (last on ${s.lastDate})`).join('; ')}`);
   }
 
   parts.push(`\nGenerate the ${win} brief now. Respond with JSON only.`);

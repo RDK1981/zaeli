@@ -287,6 +287,62 @@ function getEvAssignees(ev: any): any[] {
 // resolveAssigneeId + defaultAssigneeIds now live in lib/family-roster
 // (Session 23) — shared with calendar.tsx so both resolve to real UUIDs.
 
+// ── Recurring events (Session 23) ──────────────────────────────────────────
+// Mirrors the manual calendar form's instance-generation approach (the
+// events table has a repeat_rule column). Generates concrete event dates
+// for a bounded horizon. Supports multi-day weekly (Mon/Tue/Fri) which the
+// manual form can't. Returns YYYY-MM-DD strings.
+const WEEKDAY_NUM: Record<string, number> = {
+  sun:0, sunday:0, mon:1, monday:1, tue:2, tues:2, tuesday:2,
+  wed:3, weds:3, wednesday:3, thu:4, thur:4, thurs:4, thursday:4,
+  fri:5, friday:5, sat:6, saturday:6,
+};
+// UUID v4 for the repeat_group_id (RN has no reliable crypto.randomUUID).
+function uuidv4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// Horizon ≈ 12 months per series (Session 23 decision), capped at 400 rows
+// for safety. Generates concrete instance dates (YYYY-MM-DD).
+function generateRecurrenceDates(startDateStr: string, repeat: string, repeatDays?: string[]): string[] {
+  const pad = (n:number)=>String(n).padStart(2,'0');
+  const toStr = (d:Date)=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const base = new Date(startDateStr + 'T12:00:00');
+  const r = (repeat||'').toLowerCase().trim();
+  const out: string[] = [];
+  const CAP = 400;
+
+  if (r === 'daily' || r === 'every day') {
+    for (let i=0;i<365 && out.length<CAP;i++){ const d=new Date(base); d.setDate(d.getDate()+i); out.push(toStr(d)); }
+  } else if (r === 'weekdays' || r === 'weekday') {
+    let count=0, i=0;
+    while (count<260 && i<400 && out.length<CAP){ const d=new Date(base); d.setDate(d.getDate()+i); const wd=d.getDay(); if(wd>=1&&wd<=5){out.push(toStr(d));count++;} i++; }
+  } else if (r === 'weekly' || r === 'every week') {
+    const days = (repeatDays && repeatDays.length>0)
+      ? repeatDays.map(dn => WEEKDAY_NUM[dn.toLowerCase().trim()]).filter(n => n!==undefined)
+      : [base.getDay()];
+    for (let w=0; w<52 && out.length<CAP; w++){
+      for (const wd of days){
+        const d = new Date(base);
+        const delta = ((wd - base.getDay() + 7) % 7) + w*7;
+        d.setDate(d.getDate()+delta);
+        out.push(toStr(d));
+      }
+    }
+  } else if (r === 'fortnightly' || r === 'every fortnight') {
+    for (let i=0;i<26 && out.length<CAP;i++){ const d=new Date(base); d.setDate(d.getDate()+i*14); out.push(toStr(d)); }
+  } else if (r === 'monthly' || r === 'every month') {
+    for (let i=0;i<12 && out.length<CAP;i++){ const d=new Date(base); d.setMonth(d.getMonth()+i); out.push(toStr(d)); }
+  } else {
+    out.push(toStr(base));
+  }
+  return Array.from(new Set(out)).sort();
+}
+
 function renderHeroText(text: string, highlightColor: string) {
   const parts = text.split(/(\[[^\]]+\])/g);
   return parts.map((part, i) => {
@@ -1539,9 +1595,10 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
 
 // ── Tool execution ─────────────────────────────────────────────────────────
 const TOOLS = [
-  { name:'add_calendar_event', description:'Add a new calendar event', input_schema:{ type:'object', properties:{ title:{type:'string'}, start_time:{type:'string',description:'ISO datetime local'}, end_time:{type:'string'}, notes:{type:'string'}, assignees:{type:'array',items:{type:'string'},description:'Family member first names, e.g. ["Rich","Gab"]. Omit to default to the current user.'} }, required:['title','start_time'] } },
-  { name:'update_calendar_event', description:'Update an existing event', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, search_date:{type:'string'}, new_title:{type:'string'}, new_start_time:{type:'string'}, new_end_time:{type:'string'}, new_date:{type:'string'}, new_notes:{type:'string'}, new_assignees:{type:'array',items:{type:'string'},description:'Family member first names to add, e.g. ["Rich","Gab"].'} }, required:['search_title'] } },
-  { name:'delete_calendar_event', description:'Delete a calendar event', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, date:{type:'string'} }, required:['search_title'] } },
+  { name:'add_calendar_event', description:'Add a new calendar event. Supports recurring events via repeat + repeat_days.', input_schema:{ type:'object', properties:{ title:{type:'string'}, start_time:{type:'string',description:'ISO datetime local'}, end_time:{type:'string'}, notes:{type:'string'}, assignees:{type:'array',items:{type:'string'},description:'Family member first names, e.g. ["Rich","Gab"]. Omit to default to the current user.'}, repeat:{type:'string',enum:['none','daily','weekdays','weekly','fortnightly','monthly'],description:'Recurrence. Use "weekly" with repeat_days for things like "every Mon/Tue/Fri". Default none.'}, repeat_days:{type:'array',items:{type:'string'},description:'For repeat="weekly" — weekday names, e.g. ["mon","tue","fri"]. Omit for a single weekday (uses start_time\'s day).'} }, required:['title','start_time'] } },
+  { name:'update_calendar_event', description:'Update an existing event. Set update_all:true to apply title/notes/assignees changes to a whole recurring series.', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, search_date:{type:'string'}, new_title:{type:'string'}, new_start_time:{type:'string'}, new_end_time:{type:'string'}, new_date:{type:'string'}, new_notes:{type:'string'}, new_assignees:{type:'array',items:{type:'string'},description:'Family member first names to add, e.g. ["Rich","Gab"].'}, update_all:{type:'boolean',description:'true = apply to ALL instances of a recurring series (e.g. "add me to all of Gab\'s soccer"). Use for assignee/title/notes changes on recurring events.'} }, required:['search_title'] } },
+  { name:'delete_calendar_event', description:'Delete a calendar event. Set delete_all:true to remove a whole recurring series.', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, date:{type:'string'}, delete_all:{type:'boolean',description:'true = delete all upcoming events with this title (the whole recurring series)'} }, required:['search_title'] } },
+  { name:'extend_recurring_event', description:'Roll a recurring event series on by another ~12 months from where it currently ends. Use when a series is running out or the user asks to extend/keep it going.', input_schema:{ type:'object', properties:{ search_title:{type:'string'} }, required:['search_title'] } },
   { name:'add_todo', description:'Add a todo item', input_schema:{ type:'object', properties:{ title:{type:'string'}, priority:{type:'string',enum:['low','normal','high','urgent']}, due_date:{type:'string'} }, required:['title'] } },
   { name:'add_shopping_item', description:'Add item to shopping list', input_schema:{ type:'object', properties:{ name:{type:'string'}, category:{type:'string'}, quantity:{type:'string'} }, required:['name'] } },
   { name:'add_meal', description:'Add a meal to the weekly meal planner', input_schema:{ type:'object', properties:{ meal_name:{type:'string',description:'Name of the meal e.g. Spaghetti Bolognese'}, date:{type:'string',description:'Date in YYYY-MM-DD format'}, day_label:{type:'string',description:'Day abbreviation e.g. Mon, Tue, Wed'}, prep_mins:{type:'number',description:'Estimated prep time in minutes'} }, required:['meal_name','date'] } },
@@ -1584,22 +1641,93 @@ async function executeTool(name: string, input: any): Promise<string> {
         const mapped = input.assignees.map((n:string) => resolveAssigneeId(n)).filter(Boolean) as string[];
         if (mapped.length > 0) assigneeIds = mapped;
       }
-      const row: any = { family_id:getFamilyId(), title:input.title, date:dateOnly, start_time:localDt, end_time:endDt, notes:input.notes||'', timezone:'Australia/Brisbane', assignees:assigneeIds };
-      let { error } = await supabase.from('events').insert(row);
-      if (error && (error.message?.includes('assignees') || error.code==='42703')) {
-        const { assignees:_a, ...slim } = row;
-        const r2 = await supabase.from('events').insert(slim);
-        error = r2.error;
+      const repeat = (input.repeat || 'none').toString().toLowerCase().trim();
+      const isRecurring = repeat !== 'none' && repeat !== '';
+
+      if (!isRecurring) {
+        const row: any = { family_id:getFamilyId(), title:input.title, date:dateOnly, start_time:localDt, end_time:endDt, notes:input.notes||'', timezone:'Australia/Brisbane', assignees:assigneeIds };
+        let { error } = await supabase.from('events').insert(row);
+        if (error && (error.message?.includes('assignees') || error.code==='42703')) {
+          const { assignees:_a, ...slim } = row;
+          const r2 = await supabase.from('events').insert(slim);
+          error = r2.error;
+        }
+        if (error) return `TOOL_FAILED: Couldn't save "${input.title}" — ${error.message}`;
+        return `✅ "${input.title}" added on ${dateOnly} at ${localDt.split('T')[1]?.slice(0,5) ?? 'the time you specified'}.`;
       }
-      if (error) return `TOOL_FAILED: Couldn't save "${input.title}" — ${error.message}`;
-      return `✅ "${input.title}" added on ${dateOnly} at ${localDt.split('T')[1]?.slice(0,5) ?? 'the time you specified'}.`;
+
+      // ── Recurring — generate instances (Session 23) ──
+      const dates = generateRecurrenceDates(dateOnly, repeat, input.repeat_days);
+      const timeStr    = localDt.split('T')[1] || '09:00:00';
+      const endTimeStr = endDt.split('T')[1] || timeStr;
+      const repeatRule = repeat + (Array.isArray(input.repeat_days) && input.repeat_days.length ? ':' + input.repeat_days.join(',') : '');
+      const groupId = uuidv4();
+      const rows = dates.map(d => ({
+        family_id: getFamilyId(), title: input.title, date: d,
+        start_time: `${d}T${timeStr}`, end_time: `${d}T${endTimeStr}`,
+        notes: input.notes || '', timezone: 'Australia/Brisbane',
+        assignees: assigneeIds, repeat_rule: repeatRule, repeat_group_id: groupId,
+      }));
+      for (let i=0; i<rows.length; i+=20) {
+        const batch = rows.slice(i, i+20);
+        let { error } = await supabase.from('events').insert(batch);
+        if (error && (error.message?.includes('assignees') || error.message?.includes('repeat_rule') || error.message?.includes('repeat_group_id') || error.code==='42703')) {
+          const slim = batch.map(({ assignees:_a, repeat_rule:_r, repeat_group_id:_g, ...rest }) => rest);
+          const r2 = await supabase.from('events').insert(slim);
+          error = r2.error;
+        }
+        if (error) return `TOOL_FAILED: Couldn't save the recurring "${input.title}" — ${error.message}`;
+      }
+      const daysLabel = Array.isArray(input.repeat_days) && input.repeat_days.length
+        ? input.repeat_days.join(', ')
+        : repeat;
+      return `✅ "${input.title}" set up — ${dates.length} sessions (${daysLabel}) at ${timeStr.slice(0,5)}, from ${dates[0]}.`;
     }
     if (name === 'update_calendar_event') {
-      let updateQuery = supabase.from('events').select('id,title,date,start_time,end_time,assignees').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`);
+      let updateQuery = supabase.from('events').select('id,title,date,start_time,end_time,assignees,repeat_group_id').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`);
       if (input.search_date) updateQuery = (updateQuery as any).eq('date', input.search_date);
-      const { data } = await (updateQuery as any).order('date').limit(1);
-      if (!data || data.length === 0) return `Couldn't find an event matching "${input.search_title}".`;
-      const t = data[0];
+      // Prefer a future/today instance so "add me to Gab's soccer" matches the series, not a past one
+      const { data } = await (updateQuery as any).gte('date', localDateStr()).order('date').limit(1);
+      let matched = data;
+      if (!matched || matched.length === 0) {
+        const { data: anyData } = await (supabase.from('events').select('id,title,date,start_time,end_time,assignees,repeat_group_id').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`) as any).order('date').limit(1);
+        matched = anyData;
+      }
+      if (!matched || matched.length === 0) return `Couldn't find an event matching "${input.search_title}".`;
+      const t = matched[0];
+
+      // ── Series update (Session 23) — "add me to ALL of Gab's soccer" ──
+      // Applies title/notes/assignees across every instance. Date/time are
+      // per-instance so they're intentionally excluded from a series update.
+      if (input.update_all) {
+        const uAll: any = {};
+        if (input.new_title) uAll.title = input.new_title;
+        if (input.new_notes) uAll.notes = input.new_notes;
+        if (input.new_assignees && Array.isArray(input.new_assignees)) {
+          const mapped = input.new_assignees.map((n:string) => resolveAssigneeId(n)).filter(Boolean) as string[];
+          if (mapped.length > 0) {
+            const existing: string[] = Array.isArray(t.assignees) ? t.assignees : [];
+            uAll.assignees = Array.from(new Set([...existing, ...mapped]));
+          }
+        }
+        if (Object.keys(uAll).length === 0) return `TOOL_FAILED: Nothing to update across the series.`;
+        const today = localDateStr();
+        let idsQuery: any = supabase.from('events').select('id').eq('family_id', getFamilyId()).gte('date', today);
+        if (t.repeat_group_id) idsQuery = idsQuery.eq('repeat_group_id', t.repeat_group_id);
+        else idsQuery = idsQuery.ilike('title', `%${input.search_title}%`);
+        const { data: idRows } = await idsQuery;
+        const ids = (idRows || []).map((e:any) => e.id);
+        if (ids.length === 0) return `Couldn't find the series for "${input.search_title}".`;
+        let { error } = await supabase.from('events').update(uAll).in('id', ids);
+        if (error && (error.message?.includes('assignees') || error.code==='42703')) {
+          const { assignees:_a, ...slim } = uAll;
+          if (Object.keys(slim).length) { const r2 = await supabase.from('events').update(slim).in('id', ids); error = r2.error; }
+          else error = null;
+        }
+        if (error) throw error;
+        return `✅ Updated all ${ids.length} upcoming "${input.new_title || t.title}" events.`;
+      }
+
       const u: any = {};
       if (input.new_title)      u.title = input.new_title;
       if (input.new_notes)      u.notes = input.new_notes;
@@ -1655,12 +1783,58 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `✅ "${input.new_title || t.title}" — ${what}.`;
     }
     if (name === 'delete_calendar_event') {
+      // delete_all:true removes the whole recurring series (all matching
+      // future instances by title); otherwise just the next matching one.
+      if (input.delete_all) {
+        const today = localDateStr();
+        let q = supabase.from('events').select('id,title').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`).gte('date', today);
+        const { data } = await (q as any);
+        if (!data || data.length === 0) return `Couldn't find "${input.search_title}".`;
+        const ids = data.map((e:any) => e.id);
+        await supabase.from('events').delete().in('id', ids);
+        return `✅ Removed all ${ids.length} upcoming "${data[0].title}" events.`;
+      }
       let q = supabase.from('events').select('id,title,date').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`);
       if (input.date) q = (q as any).eq('date', input.date);
       const { data } = await (q as any).order('date').limit(1);
       if (!data || data.length === 0) return `Couldn't find "${input.search_title}".`;
       await supabase.from('events').delete().eq('id', data[0].id);
       return `✅ **${data[0].title}** deleted.`;
+    }
+    if (name === 'extend_recurring_event') {
+      // Roll a recurring series on — generate the next ~12 months from where
+      // it currently ends, reusing the same group_id / time / assignees.
+      const { data: rows } = await supabase.from('events')
+        .select('id,title,date,start_time,end_time,assignees,repeat_rule,repeat_group_id')
+        .eq('family_id', getFamilyId())
+        .ilike('title', `%${input.search_title}%`)
+        .not('repeat_group_id', 'is', null)
+        .order('date', { ascending: false })
+        .limit(1);
+      if (!rows || rows.length === 0) return `Couldn't find a recurring series matching "${input.search_title}".`;
+      const last = rows[0];
+      const repeatRule: string = last.repeat_rule || 'weekly';
+      const [repeatType, daysCsv] = repeatRule.split(':');
+      const repeatDays = daysCsv ? daysCsv.split(',') : undefined;
+      const pad = (n:number) => String(n).padStart(2,'0');
+      const nextStart = (() => { const d = new Date(last.date + 'T12:00:00'); d.setDate(d.getDate()+1); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; })();
+      const dates = generateRecurrenceDates(nextStart, repeatType, repeatDays);
+      if (dates.length === 0) return `Couldn't work out how to extend "${last.title}".`;
+      const timeStr    = (last.start_time||'').split('T')[1] || '09:00:00';
+      const endTimeStr = (last.end_time||'').split('T')[1] || timeStr;
+      const rows2 = dates.map(d => ({
+        family_id:getFamilyId(), title:last.title, date:d,
+        start_time:`${d}T${timeStr}`, end_time:`${d}T${endTimeStr}`,
+        notes:'', timezone:'Australia/Brisbane',
+        assignees:last.assignees||[], repeat_rule:repeatRule, repeat_group_id:last.repeat_group_id,
+      }));
+      for (let i=0;i<rows2.length;i+=20){
+        const batch=rows2.slice(i,i+20);
+        let {error}=await supabase.from('events').insert(batch);
+        if(error){ const slim=batch.map(({assignees:_a,repeat_rule:_r,repeat_group_id:_g,...rest})=>rest); const r2=await supabase.from('events').insert(slim); error=r2.error; }
+        if(error) return `TOOL_FAILED: Couldn't extend "${last.title}" — ${error.message}`;
+      }
+      return `✅ Rolled "${last.title}" on another ${dates.length} sessions, through ${dates[dates.length-1]}.`;
     }
     if (name === 'add_todo') {
       const now = new Date();
@@ -1828,6 +2002,8 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - For "tomorrow" use tomorrow's actual date (today is provided in the system prompt).
 - CRITICAL: When the user says "change", "move", "update", "shift", "reschedule" an EXISTING item, use the UPDATE tool. NEVER use an ADD tool to modify something that already exists. This applies to ALL types: events, meals, shopping, todos.
 - update_calendar_event: use this to change time/date/assignees of an existing event. NEVER delete and re-add. NEVER use add_calendar_event when the user wants to change an existing event.
+- RECURRING EVENTS ARE SUPPORTED. When the user wants something repeating (e.g. "every Monday", "Mon/Tue/Fri", "daily", "every weekday"), call add_calendar_event with repeat set (daily/weekdays/weekly/fortnightly/monthly). For specific weekdays use repeat="weekly" + repeat_days like ["mon","tue","fri"]. NEVER say you can't do recurring events. NEVER add individual events one-by-one for a repeating request — use repeat.
+- RECURRING SERIES CHANGES: when the user wants to change a RECURRING event (e.g. "add me to all of Gab's soccer", "rename the soccer sessions", "add a note to every swimming") set update_all:true on update_calendar_event so ALL instances change, not just one. When they want to cancel a recurring event entirely, use delete_calendar_event with delete_all:true. Only change a single instance (update_all omitted) if the user clearly means just one date.
 - update_meal: use this to change a meal name, move a meal to a different date, or change prep time. NEVER use add_meal when the user wants to change or move an existing meal.
 - update_todo: use this to change title, priority, due date, or mark a todo as done. When the user says "mark X as done/complete/finished", use update_todo with mark_done:true.
 - update_shopping_item: use this to rename or change quantity/category of an existing shopping item.
@@ -3773,6 +3949,28 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
     const tonightMeal = (mealRes.data ?? [])[0];
     const memberNames = (membersRes.data ?? []).map((m: any) => m.name).filter(Boolean);
 
+    // Recurring series ending within ~6 weeks — group future recurring
+    // instances by repeat_group_id, find each series' last date, flag any
+    // whose last date falls inside the 6-week window so the morning brief
+    // can offer to roll it on.
+    let endingSoonSeries: { title: string; lastDate: string }[] = [];
+    try {
+      const in6w = localDatePlusDays(42);
+      const { data: recRows } = await supabase.from('events')
+        .select('title,date,repeat_group_id')
+        .eq('family_id', getFamilyId())
+        .not('repeat_group_id', 'is', null)
+        .gte('date', today)
+        .order('date', { ascending: false })
+        .limit(1000);
+      const maxByGroup: Record<string, { title: string; lastDate: string }> = {};
+      for (const r of (recRows ?? [])) {
+        const g = (r as any).repeat_group_id;
+        if (!maxByGroup[g]) maxByGroup[g] = { title: (r as any).title, lastDate: (r as any).date }; // first seen = latest (desc order)
+      }
+      endingSoonSeries = Object.values(maxByGroup).filter(s => s.lastDate <= in6w);
+    } catch {}
+
     const ctx: FamilyContext = {
       todayEvents: evTodayRes.data ?? [],
       tomorrowEvents: evTomorrowRes.data ?? [],
@@ -3783,6 +3981,7 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
       weather: null,
       memberNames: memberNames.length > 0 ? memberNames : ['Rich'],
       primaryUser: 'Rich',
+      endingSoonSeries,
     };
 
     // DEBUG — log what we're sending to Sonnet
