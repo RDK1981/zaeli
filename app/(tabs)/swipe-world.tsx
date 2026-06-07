@@ -12,14 +12,19 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   View, ScrollView, Dimensions, StyleSheet, Platform,
-  Text, TouchableOpacity,
+  Text, TouchableOpacity, Animated, Easing,
   NativeSyntheticEvent, NativeScrollEvent,
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import DashboardScreen from './dashboard';
 import { HomeScreen as ChatScreen } from './index';
+
+// First-run flag for the "Swipe for your Dashboard →" hint — one-shot.
+const SWIPE_HINT_KEY = 'swipe_hint_seen';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const { width: W } = Dimensions.get('window');
@@ -35,12 +40,19 @@ let _splashShownThisSession = false;
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function SwipeWorld() {
   const router    = useRouter();
+  const insets    = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
 
   const [activePage,  setActivePage]  = useState(PAGE_CHAT);
   const [showLanding, setShowLanding] = useState(false);
   const [pendingMicText, setPendingMicText] = useState<string|null>(null);
   const [contextTrigger, setContextTrigger] = useState(0);
+
+  // First-run swipe hint — "Swipe for your Dashboard →" — shown once ever.
+  // Auto-dismisses on first swipe to dashboard, or after 6 seconds.
+  const [showSwipeHint, setShowSwipeHint] = useState(false);
+  const hintOpacity = useRef(new Animated.Value(0)).current;
+  const hintArrowX  = useRef(new Animated.Value(0)).current;
 
   // Open on Chat (page 0)
   useEffect(() => {
@@ -61,6 +73,39 @@ export default function SwipeWorld() {
     }
   }, []);
 
+  // First-run swipe hint — show once ever. Triggers after a short delay so it
+  // doesn't fight with the landing splash + brief settling in.
+  useEffect(() => {
+    (async () => {
+      try {
+        const seen = await AsyncStorage.getItem(SWIPE_HINT_KEY);
+        if (seen) return;
+        // Wait for the landing splash + initial chat render to settle
+        setTimeout(() => {
+          setShowSwipeHint(true);
+          // Fade in
+          Animated.timing(hintOpacity, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+          // Loop the chevron nudge horizontally
+          Animated.loop(
+            Animated.sequence([
+              Animated.timing(hintArrowX, { toValue: 6,  duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+              Animated.timing(hintArrowX, { toValue: 0,  duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+            ]),
+          ).start();
+          // Auto-dismiss after 6s
+          setTimeout(() => dismissSwipeHint(), 6000);
+        }, 2200);
+      } catch {}
+    })();
+  }, []);
+
+  function dismissSwipeHint() {
+    Animated.timing(hintOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start(() => {
+      setShowSwipeHint(false);
+    });
+    AsyncStorage.setItem(SWIPE_HINT_KEY, 'true').catch(() => {});
+  }
+
   // ── Navigation helpers ───────────────────────────────────────────────────
   function scrollToPage(page: number) {
     scrollRef.current?.scrollTo({ x: page * W, animated: true });
@@ -69,7 +114,11 @@ export default function SwipeWorld() {
 
   function handleScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const page = Math.round(e.nativeEvent.contentOffset.x / W);
-    if (page !== activePage) setActivePage(page);
+    if (page !== activePage) {
+      setActivePage(page);
+      // Dismiss the swipe hint on first real swipe — user discovered it
+      if (showSwipeHint && page === PAGE_DASHBOARD) dismissSwipeHint();
+    }
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -114,7 +163,43 @@ export default function SwipeWorld() {
         </View>
       </ScrollView>
 
-      {/* Dots removed — Navigate section in MoreSheet is the primary Chat↔Dashboard control */}
+      {/* ── Page dots — anchored INSIDE the header band, above the wordmark
+          (Session 25). Sit on top of the swipe container so they stay put
+          while pages swipe. Tappable — tap right dot to animate to Dashboard. */}
+      <View pointerEvents="box-none" style={[s.dotsWrap, { top: insets.top + 10 }]}>
+        <TouchableOpacity
+          accessibilityLabel="Go to Chat"
+          onPress={() => scrollToPage(PAGE_CHAT)}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <View style={[s.dot, activePage === PAGE_CHAT ? s.dotActive : s.dotIdle]} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityLabel="Go to Dashboard"
+          onPress={() => scrollToPage(PAGE_DASHBOARD)}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <View style={[s.dot, activePage === PAGE_DASHBOARD ? s.dotActive : s.dotIdle]} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── First-run swipe hint — one-shot, fades out on dismiss ── */}
+      {showSwipeHint && activePage === PAGE_CHAT && (
+        <Animated.View
+          pointerEvents="box-none"
+          style={[s.hintWrap, { opacity: hintOpacity, bottom: insets.bottom + 130 }]}
+        >
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => { scrollToPage(PAGE_DASHBOARD); dismissSwipeHint(); }}
+            style={s.hintPill}
+          >
+            <Text style={s.hintText}>Swipe for your Dashboard</Text>
+            <Animated.Text style={[s.hintArrow, { transform: [{ translateX: hintArrowX }] }]}>→</Animated.Text>
+          </TouchableOpacity>
+        </Animated.View>
+      )}
+
       {/* FAB removed — hamburger ☰ in each screen's header opens the new MoreSheet */}
 
       {/* ── Landing splash — Warm bg + palette orbs (matches onboarding splash) ── */}
@@ -160,7 +245,59 @@ const s = StyleSheet.create({
     width: W,
     flex: 1,
   },
-  // dots removed — navigation handled via MoreSheet Navigate section + swipe
+  // ── Page dots (Session 25) — header-anchored, both pages ──
+  dotsWrap: {
+    position: 'absolute',
+    left: 0, right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 50,
+  },
+  dot: {
+    height: 7,
+    borderRadius: 4,
+  },
+  dotIdle: {
+    width: 7,
+    backgroundColor: 'rgba(10,10,10,0.20)',
+  },
+  dotActive: {
+    width: 22,
+    backgroundColor: '#FF4545',  // coral — primary brand accent (chat send button)
+  },
+  // ── First-run swipe hint pill (Session 25) — one-shot ──
+  hintWrap: {
+    position: 'absolute',
+    left: 0, right: 0,
+    alignItems: 'center',
+    zIndex: 50,
+  },
+  hintPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(10,10,10,0.85)',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  hintText: {
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 13,
+    color: '#fff',
+    letterSpacing: 0.1,
+  },
+  hintArrow: {
+    fontFamily: 'Poppins_700Bold',
+    fontSize: 15,
+    color: '#A8D8F0',  // sky blue — matches Dashboard tile in MoreSheet
+  },
   landing: {
     position: 'absolute',
     top: 0, left: 0, right: 0, bottom: 0,
