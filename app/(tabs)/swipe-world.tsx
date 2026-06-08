@@ -32,7 +32,7 @@ const { width: W } = Dimensions.get('window');
 const PAGE_CHAT      = 0;
 const PAGE_DASHBOARD = 1;
 
-const LANDING_TEST_MODE = true; // set false before launch
+const LANDING_TEST_MODE = false; // Phase 4a — landing now fires only at time-window check (morning/midday/evening)
 
 // Module-level flag — only show splash once per app session, not on every swipe-world re-mount
 let _splashShownThisSession = false;

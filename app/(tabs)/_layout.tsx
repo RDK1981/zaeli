@@ -10,9 +10,11 @@ import {
 } from '@expo-google-fonts/poppins';
 import { useFonts } from 'expo-font';
 import { Tabs } from 'expo-router';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View } from 'react-native';
-import { requestNotificationPermission } from '../../lib/notifications';
+// Phase 4a — removed redundant requestNotificationPermission() call.
+// The root _layout.tsx now both requests permission AND schedules the
+// brief notifications post-auth (Phase 3a). This duplicate just asked.
 
 export default function TabLayout() {
   const [fontsLoaded] = useFonts({
@@ -23,10 +25,6 @@ export default function TabLayout() {
     Poppins_700Bold,
     Poppins_800ExtraBold,
   });
-
-  useEffect(() => {
-    requestNotificationPermission();
-  }, []);
 
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: '#0057FF' }} />;
@@ -40,7 +38,6 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen name="swipe-world"   options={{ href: null }} />
-      <Tabs.Screen name="landing"      options={{ href: null }} />
       <Tabs.Screen name="index"        options={{ href: null }} />
       <Tabs.Screen name="dashboard"    options={{ href: null }} />
       <Tabs.Screen name="calendar"     options={{ href: null }} />

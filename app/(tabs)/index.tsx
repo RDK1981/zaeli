@@ -8788,7 +8788,7 @@ Rules:
           </View>
         )}
 
-        {/* MIC OVERLAY removed in v5 — ZaeliFAB handles mic pill internally */}
+        {/* MIC OVERLAY removed in v5 — mic pill handled in chat bar directly */}
       </Animated.View>
     </View>
   );
