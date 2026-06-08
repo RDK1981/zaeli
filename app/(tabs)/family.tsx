@@ -1998,14 +1998,15 @@ export default function OurFamilyScreen() {
                   key={inv.token}
                   invite={inv}
                   onCopy={async () => {
-                    // Copies the WORKING dev link (custom scheme). Once Phase 3
-                    // wires Universal Links + the zaeli.app domain, swap this
-                    // back to `https://zaeli.app/i/${inv.token}` so it auto-links
-                    // in SMS / Mail / Safari.
-                    Clipboard.setString(`zaeli://invite/${inv.token}`);
+                    // Phase 3c — copies the production Universal Link. Auto-opens
+                    // the app once the AASA file is hosted at zaeli.app and the
+                    // dev-client is rebuilt with associatedDomains. Until then,
+                    // the link still lands on the website (or fails if not hosted).
+                    // The QR chip below uses zaeli:// for guaranteed dev opening.
+                    Clipboard.setString(`https://zaeli.app/invite/${inv.token}`);
                     Alert.alert(
-                      'Dev link copied',
-                      'Paste into Notes or Messages, then tap the link to open Zaeli at the invite screen. (Production https link comes with Phase 3.)'
+                      'Invite link copied',
+                      'Paste into Messages / Mail / anywhere. Once the app is rebuilt with Universal Links, tapping opens straight to Zaeli.'
                     );
                   }}
                   onResend={async () => {
@@ -2013,7 +2014,7 @@ export default function OurFamilyScreen() {
                     await refreshInvites();
                     try {
                       await Share.share({
-                        message: `Reminder — your Zaeli invite from Rich. Set up takes 2 min: https://zaeli.app/i/${inv.token}`,
+                        message: `Reminder — your Zaeli invite from Rich. Set up takes 2 min: https://zaeli.app/invite/${inv.token}`,
                       });
                     } catch {}
                   }}

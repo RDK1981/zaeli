@@ -24,7 +24,9 @@
 import { supabase } from './supabase';
 import { getProfile } from './auth';
 
-const INVITE_LINK_BASE = 'zaeli.app/i/';
+// Phase 3c — link path matches the Expo Router route `/invite/[token]` so
+// the Universal Link auto-routes when the AASA file is hosted on zaeli.app.
+const INVITE_LINK_BASE = 'zaeli.app/invite/';
 
 export type InviteRole = 'adult' | 'kid';
 export type InviteStatus = 'pending' | 'accepted' | 'revoked';

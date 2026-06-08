@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["REPLACE_WITH_TEAM_ID.com.zaeli.app"],
+        "components": [
+          {
+            "/": "/invite/*",
+            "comment": "Family invite links — opens /invite/[token] in the app"
+          }
+        ]
+      }
+    ]
+  }
+}

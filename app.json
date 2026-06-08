@@ -15,7 +15,8 @@
         "NSPhotoLibraryUsageDescription": "Zaeli can add items from photos in your library.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.zaeli.app"
+      "bundleIdentifier": "com.zaeli.app",
+      "associatedDomains": ["applinks:zaeli.app"]
     },
     "android": {
       "adaptiveIcon": {

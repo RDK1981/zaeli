@@ -17,7 +17,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
-  Dimensions, Alert, Platform,
+  Dimensions, Alert, Platform, Linking,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,6 +35,7 @@ import {
 } from '../../lib/zaeli-memory';
 import { getFamilyId } from '../../lib/family';
 import { scheduleBriefNotifications } from '../../lib/notifications';
+import { getSubscription, subscriptionLabel, fetchCustomerPortalUrl } from '../../lib/stripe';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import MoreSheet from '../components/MoreSheet';
@@ -385,6 +386,21 @@ export default function SettingsScreen() {
             try { await AsyncStorage.removeItem('onboarding_just_completed'); } catch {}
             Alert.alert('Reset', 'Switched back to the owner account (Rich).');
           }}
+          onManageSubscription={async () => {
+            // Phase 3b — opens Stripe Customer Portal in a WebView once the
+            // server endpoint is built. Until then, friendly placeholder.
+            const url = await fetchCustomerPortalUrl();
+            if (url) {
+              Linking.openURL(url).catch(() => {
+                Alert.alert("Couldn't open portal", 'Try again in a moment.');
+              });
+            } else {
+              Alert.alert(
+                'Coming soon',
+                'Subscription management opens in your browser. Stripe isn’t wired up yet — see STRIPE-SETUP.md.',
+              );
+            }
+          }}
         />
       )}
 
@@ -491,6 +507,7 @@ function MainView(p: {
   onSimulateInviteAccept: () => void;
   onOpenLatestInvite: () => void;
   onResetAccount: () => void;
+  onManageSubscription: () => void;
 }) {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
@@ -517,19 +534,28 @@ function MainView(p: {
         );
       })()}
 
-      {/* Subscription */}
+      {/* Subscription — Phase 3b: reads real data from profile when present,
+          falls back to placeholder copy when Stripe isn't configured yet. */}
       <SecLabel>Subscription</SecLabel>
-      <View style={s.planCard}>
-        <Text style={s.planLabel}>Current plan</Text>
-        <Text style={s.planName}>Family</Text>
-        <Text style={s.planPrice}>A$14.99 / month · next billed 17 May</Text>
-        <View style={s.planExtras}>
-          <Text style={s.planExtrasTxt}>+ Tutor add-on · Poppy · A$9.99/month</Text>
-        </View>
-        <TouchableOpacity style={s.planBtn} activeOpacity={0.85} onPress={() => p.onPlaceholder('Manage subscription')}>
-          <Text style={s.planBtnTxt}>Manage subscription</Text>
-        </TouchableOpacity>
-      </View>
+      {(() => {
+        const sub = getSubscription();
+        const label = subscriptionLabel(sub);
+        const planName = sub.plan === 'family_tutor_1' || sub.plan === 'family_tutor_2'
+          ? 'Family + Tutor'
+          : sub.plan === 'family'
+          ? 'Family'
+          : 'Free trial';
+        return (
+          <View style={s.planCard}>
+            <Text style={s.planLabel}>Current plan</Text>
+            <Text style={s.planName}>{planName}</Text>
+            <Text style={s.planPrice}>{label}</Text>
+            <TouchableOpacity style={s.planBtn} activeOpacity={0.85} onPress={p.onManageSubscription}>
+              <Text style={s.planBtnTxt}>Manage subscription</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      })()}
 
       {/* Family */}
       <SecLabel>Family</SecLabel>

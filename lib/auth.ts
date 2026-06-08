@@ -29,6 +29,12 @@ export interface Profile {
   year_level: number | null;
   brief_morning_at: string | null;
   brief_evening_at: string | null;
+  // Phase 3b — Stripe subscription fields (managed by server webhook)
+  stripe_customer_id:     string | null;
+  subscription_status:    'trialing' | 'active' | 'past_due' | 'cancelled' | 'incomplete' | null;
+  subscription_plan:      string | null;
+  subscription_renews_at: string | null;
+  trial_ends_at:          string | null;
   created_at: string;
   updated_at: string;
 }
