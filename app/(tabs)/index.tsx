@@ -41,7 +41,7 @@ import { loadPrefs } from '../../lib/user-prefs';
 import { getRoster, loadRoster, getMemberByName, resolveAssigneeId, defaultAssigneeIds } from '../../lib/family-roster';
 import MoreSheet from '../components/MoreSheet';
 import TourBanner from '../components/TourBanner';
-import { currentWindow as getCurrentWindow, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
+import { currentWindow as getCurrentWindow, currentBucket as getCurrentBucket, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
 import { generateBrief, FamilyContext } from '../../lib/brief-generator';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
 import { getPendingChatContext, clearPendingChatContext, setPendingChatContext } from '../../lib/navigation-store';
@@ -3311,11 +3311,28 @@ function HomeScreen({
           return true;
         });
         setMessages(briefOnly);
-        // Sync refs from restored briefs (if any) so we don't double-fire
+        // Sync refs from restored briefs (if any) so we don't double-fire —
+        // BUT only if the persisted brief is still in the same 3-hour bucket
+        // as now. If it's older than that, treat as stale and allow refire
+        // so time-of-day framing stays current (evening brief written at
+        // 5:33pm shouldn't gate a fresh brief at 10:30pm).
         if (briefOnly.length > 0) {
           const last = briefOnly[briefOnly.length - 1];
-          lastBriefWindowRef.current = last.briefWindow ?? null;
-          lastBriefDateRef.current = today;
+          const currentBucket = getCurrentBucket();
+          let persistedBucket: number | null = null;
+          try {
+            const persistedTs = last.ts ? new Date(last.ts) : null;
+            if (persistedTs && !isNaN(persistedTs.getTime())) {
+              persistedBucket = Math.floor(persistedTs.getHours() / 3);
+            }
+          } catch {}
+          const sameBucket = persistedBucket !== null && persistedBucket === currentBucket;
+          if (sameBucket) {
+            lastBriefWindowRef.current = last.briefWindow ?? null;
+            lastBriefDateRef.current = today;
+          }
+          // else — leave refs as null so shouldFireBrief treats this like a
+          // window-change / new-day and fires a fresh brief on next mount.
         }
       }
     }
@@ -3982,6 +3999,7 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
       memberNames: memberNames.length > 0 ? memberNames : ['Rich'],
       primaryUser: 'Rich',
       endingSoonSeries,
+      hourBucket: getCurrentBucket(),
     };
 
     // DEBUG — log what we're sending to Sonnet

@@ -25,6 +25,24 @@ export function currentWindow(now: Date = new Date()): BriefWindow {
   return 'evening'; // 16-23 + 0-4
 }
 
+/**
+ * Coarse hour bucket used for brief signature refresh.
+ * A brief generated in bucket 5 (15:00-17:59) stays cached until the user
+ * enters bucket 6 (18:00-20:59), at which point the signature changes,
+ * the cache misses, and Sonnet regenerates with fresh time-of-day framing.
+ *
+ * Rationale: without this, an evening brief written at 5:33pm can still be
+ * showing at 10:30pm — "get bins out after dinner" reads absurd once
+ * dinner is done and bedtime is close.
+ *
+ * 3-hour granularity = 4-5 buckets per window = at most 4-5 fresh briefs
+ * per family per day. At ~A$0.008 / brief with prompt caching that's under
+ * A$0.05/family/day extra — comfortable at A$9.99 revenue.
+ */
+export function currentBucket(now: Date = new Date()): number {
+  return Math.floor(now.getHours() / 3);
+}
+
 export function windowLabel(win: BriefWindow, now: Date = new Date()): string {
   const time = now.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
   const label = win === 'morning' ? 'Morning' : 'Evening';

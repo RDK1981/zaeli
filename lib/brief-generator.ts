@@ -39,6 +39,7 @@ export interface FamilyContext {
   memberNames: string[];        // family member first names
   primaryUser: string;          // 'Rich' for now
   endingSoonSeries?: { title: string; lastDate: string }[];  // recurring series ending within ~6 weeks
+  hourBucket?: number;          // coarse time-of-day bucket (from currentBucket) — part of signature so briefs refresh as time-of-day shifts within a window
 }
 
 // ── Persona + format rules (cached via Anthropic prompt caching) ─────────
@@ -275,6 +276,11 @@ function computeSignature(ctx: FamilyContext): string {
     String(ctx.shopCount),
     ctx.shopFlagged.join(','),
     ctx.openTasks.map(t => t.id).join('|'),
+    // Coarse hour bucket — see currentBucket() in brief-firing.ts.
+    // Including this means a brief written in bucket 5 gets a different
+    // signature to the same underlying data in bucket 7 — the cache misses
+    // and Sonnet regenerates with fresh time-of-day framing.
+    `b${ctx.hourBucket ?? -1}`,
   ].join('~');
   return hashString(s);
 }
