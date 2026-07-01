@@ -23,6 +23,25 @@ CREATE INDEX IF NOT EXISTS idx_zaeli_briefs_lookup
 
 ALTER TABLE zaeli_briefs ENABLE ROW LEVEL SECURITY;
 
+-- Drop legacy allow-all policy if present (was pre-Session-21 auth)
 DROP POLICY IF EXISTS "Allow all for now" ON zaeli_briefs;
-CREATE POLICY "Allow all for now" ON zaeli_briefs
-  FOR ALL USING (true) WITH CHECK (true);
+
+-- Session 21 RLS pattern — family-scoped via current_family_id() helper.
+-- Requires supabase-data-rls.sql (or supabase-auth-tables.sql) to have been run first
+-- so that public.current_family_id() exists.
+DROP POLICY IF EXISTS "zaeli_briefs_select_own_family" ON zaeli_briefs;
+CREATE POLICY "zaeli_briefs_select_own_family" ON zaeli_briefs
+  FOR SELECT USING (family_id = public.current_family_id());
+
+DROP POLICY IF EXISTS "zaeli_briefs_insert_own_family" ON zaeli_briefs;
+CREATE POLICY "zaeli_briefs_insert_own_family" ON zaeli_briefs
+  FOR INSERT WITH CHECK (family_id = public.current_family_id());
+
+DROP POLICY IF EXISTS "zaeli_briefs_update_own_family" ON zaeli_briefs;
+CREATE POLICY "zaeli_briefs_update_own_family" ON zaeli_briefs
+  FOR UPDATE USING (family_id = public.current_family_id())
+  WITH CHECK (family_id = public.current_family_id());
+
+DROP POLICY IF EXISTS "zaeli_briefs_delete_own_family" ON zaeli_briefs;
+CREATE POLICY "zaeli_briefs_delete_own_family" ON zaeli_briefs
+  FOR DELETE USING (family_id = public.current_family_id());
