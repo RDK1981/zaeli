@@ -274,7 +274,7 @@ export default function TutorScreen() {
             <Text style={{ fontSize: 22 }}>{'\u{1F393}'}</Text>
             <View style={{ flex: 1 }}>
               <Text style={s.upsellTitle}>Add {displayLocked[0].name} to Tutor</Text>
-              <Text style={s.upsellSub}>Year {displayLocked[0].year_level} reading & maths {'·'} A$9.99/mo</Text>
+              <Text style={s.upsellSub}>Year {displayLocked[0].year_level} reading & maths {'·'} A$7.99/mo</Text>
             </View>
             <TouchableOpacity style={s.upsellBtn} activeOpacity={0.75}>
               <Text style={s.upsellBtnTxt}>Add</Text>

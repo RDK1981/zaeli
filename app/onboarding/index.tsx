@@ -1534,7 +1534,7 @@ function ReadyStep(p: { name: string; rhythm: Rhythm; onFinish: () => void }) {
         <TouchableOpacity style={s.readyCta} onPress={p.onFinish} activeOpacity={0.85}>
           <Text style={s.readyCtaTxt}>Start with Zaeli</Text>
         </TouchableOpacity>
-        <Text style={s.readyFine}>Free for 14 days · A$14.99/month after</Text>
+        <Text style={s.readyFine}>Free for 14 days · A$9.99/month after</Text>
       </View>
     </View>
   );

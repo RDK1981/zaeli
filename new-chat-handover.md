@@ -30,7 +30,7 @@ Session 25 was a big infrastructure session: Universal Links live end-to-end, St
 - `lib/auth.ts` — Profile type extended with 5 Stripe fields.
 - Settings Subscription card reads real data via `getSubscription`. "Manage subscription" button opens portal URL in WebBrowser or shows friendly placeholder.
 - **Edge Functions ready to deploy** (`supabase/functions/`): `stripe-portal` (JWT-verified, creates billing portal session) + `stripe-webhook` (signature-verified via `constructEventAsync`, handles subscription lifecycle, deploy with `--no-verify-jwt`). Deploy scripts + curl/Stripe CLI test recipes in the folder's README.
-- `STRIPE-SETUP.md` — ~25 min external activation path (Stripe account with AU country, products A$14.99 Family + A$9.99 Tutor, Customer Portal config with `zaeli://settings` return URL, Price IDs, webhook endpoint registration).
+- `STRIPE-SETUP.md` — ~25 min external activation path (Stripe account with AU country, products **A$9.99 Family + A$7.99 Tutor both tax-inclusive** — pricing reduced Session 25 for competitive positioning, Customer Portal config with `zaeli://settings` return URL, Price IDs, webhook endpoint registration).
 
 **D. Phase 3c — Universal Links LIVE** ⭐ (commits `0398a07` + `b0d8dc1`). The headline:
 - `app.json` — added `"associatedDomains": ["applinks:zaeli.app"]` to iOS.
@@ -69,7 +69,7 @@ Session 25 was a big infrastructure session: Universal Links live end-to-end, St
 ### What's NEXT
 
 - **Phase 2e — Anna's phone.** Universal Link + QR both wired. `PHASE-2E-TEST-PLAN.md` walks the flow. Waiting on Anna's device.
-- **Phase 3b — Stripe activation** (Richard's external action, ~25 min): stripe.com account (AU) → create Family Plan A$14.99/mo + Tutor Add-on A$9.99/mo → Customer Portal config with return URL `zaeli://settings` → collect Price IDs. Then I'll deploy the Edge Functions, register the webhook, fill in `PRICE_TO_PLAN` in `lib/stripe.ts`, and replace `fetchCustomerPortalUrl` stub with real fetch.
+- **Phase 3b — Stripe activation** (Richard's external action, ~25 min): stripe.com account (AU) → create **Family Plan A$9.99/mo + Tutor Add-on A$7.99/mo both tax-inclusive** → Customer Portal config with return URL `zaeli://settings` → collect Price IDs. Then I'll deploy the Edge Functions, register the webhook, fill in `PRICE_TO_PLAN` in `lib/stripe.ts`, and replace `fetchCustomerPortalUrl` stub with real fetch.
 - **TestFlight submission** (Phase 4b, for Anna): `eas build --profile preview` (standalone, no Metro dependency) → `eas submit --platform ios` → TestFlight review → Anna installs via TestFlight app.
 - **Phase 4b full cleanup** (post-Anna): remove the 4 remaining dev rows (Re-do onboarding, Simulate invite accepted, Open latest invite as receiver, Reset to owner account), remove QR chip, expo-document-picker for Budget CSV, GDPR / export data / privacy WebViews.
 - **zaeli.ai marketing site** — parked. `hello@zaeli.ai` already routes. Pricing page + landing content when Stripe path is live.
@@ -213,7 +213,7 @@ Closed the four small Session 19 deferred items in one commit:
 - `lib/tour-state.ts` — state machine with 11 STOPS data + AsyncStorage `tour_state_v1` (currentStop, startedAt, completedAt, lastOpenedAt, lastResumePromptAt). Inactivity helpers: `shouldShowResumePrompt()` / `markResumePromptShown()`.
 - `app/tour/index.tsx` — single dedicated route. Header (× close + Skip-to-end) + eyebrow + h1 + sub + **animated** progress bar + per-stop card + bottom nav. Finale celebration screen with summary recap.
 - 11 stops: Shopping → Meals → Calendar → Kids Hub → Tasks → Photos → **Tutor (HERO)** → Travel → Our Budget → My Space → Our Family
-- **Tutor stop 7 = HERO** — violet accent throughout, trial badge "✨ FREE FOR 14 DAYS" inline at top of card, secondary CTA "Just have a look", price line "$9.99 / child / month".
+- **Tutor stop 7 = HERO** — violet accent throughout, trial badge "✨ FREE FOR 14 DAYS" inline at top of card, secondary CTA "Just have a look", price line "$7.99 / child / month" (Session 25 pricing reduction).
 - Stop CTAs route via `pendingChatContext` for sheets, direct `router.navigate` for modules. Photos = "Open chat →".
 - **Tour pill** floats bottom-LEFT on chat (right reserved for scroll arrows) when `isInProgress()`. Refreshes on focus + mount.
 - **First-time mint banner** inside live sheets via reusable `app/components/TourBanner.tsx`. Wired into Shopping/Meals/Calendar/Notes&Tasks. Per-sheet AsyncStorage flag.

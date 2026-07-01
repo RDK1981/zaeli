@@ -60,7 +60,7 @@ Dashboard and My Space do NOT have chat bars. Each screen has a clear purpose. C
 
 ## Business
 - iOS-first AI family life platform · Australian families with kids
-- Family plan: A$14.99/month · Tutor add-on: A$9.99/child/month · 100% web sales
+- Family plan: A$9.99/month inc GST · Tutor add-on: A$7.99/child/month inc GST · 100% web sales (Session 25 — reduced from A$14.99 / A$9.99 for competitive positioning in a tight economy)
 - Core differentiator: Zaeli is an AI-first product. Not a better calendar app. A family companion.
 - Word of mouth is the primary growth mechanism — Zaeli must consistently earn it.
 
@@ -1881,7 +1881,7 @@ Everything needed to wire Stripe once Richard creates the account and gets Price
 - `supabase/functions/stripe-webhook/index.ts` — verifies Stripe signature via `constructEventAsync`, handles `customer.subscription.*` + `invoice.payment_failed` + `customer.created`, updates profile fields accordingly. Deploy with `--no-verify-jwt` (Stripe uses signature auth).
 - `supabase/functions/README.md` — full deploy sequence with curl + Stripe CLI test recipes.
 
-**`STRIPE-SETUP.md`** — step-by-step for the external activation (account creation with Australia country, pk_test/sk_test keys, Family Plan A$14.99 + Tutor Add-on A$9.99 products, Customer Portal config with return URL `zaeli://settings`, webhook endpoint registration). Estimated 25 min once Richard sits down.
+**`STRIPE-SETUP.md`** — step-by-step for the external activation (account creation with Australia country, pk_test/sk_test keys, Family Plan A$9.99 + Tutor Add-on A$7.99 products both tax-inclusive, Customer Portal config with return URL `zaeli://settings`, webhook endpoint registration). Estimated 25 min once Richard sits down.
 
 ### D. Phase 3c — Universal Links wiring (same commit `0398a07`)
 

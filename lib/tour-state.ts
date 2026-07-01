@@ -191,7 +191,7 @@ export const STOPS: TourStop[] = [
     },
     isHero: true,
     trialBadge: true,
-    priceLine: 'Trial includes everything · then $9.99 / child / month',
+    priceLine: 'Trial includes everything · then $7.99 / child / month',
     secondaryCtaLabel: 'Just have a look',
   },
   {

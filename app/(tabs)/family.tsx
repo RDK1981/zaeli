@@ -778,7 +778,7 @@ export default function OurFamilyScreen() {
                 <Text style={{ fontSize: 26 }}>{'\u{1F4DA}'}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, marginBottom: 1 }}>Tutor not enrolled</Text>
-                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>A$9.99/month {'·'} Australian curriculum Yr {(member as any).year}</Text>
+                  <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4 }}>A$7.99/month {'·'} Australian curriculum Yr {(member as any).year}</Text>
                 </View>
               </View>
               <TouchableOpacity style={s.tutorCta} activeOpacity={0.7}>
@@ -1768,7 +1768,7 @@ export default function OurFamilyScreen() {
                     <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: TUTOR_PURPLE, flex: 1 }}>
                       {(mem as any).tutorActive ? 'Tutor enrolled' : 'Tutor not enrolled'}
                     </Text>
-                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(80,32,192,0.6)' }}>A$9.99/month</Text>
+                    <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(80,32,192,0.6)' }}>A$7.99/month</Text>
                   </View>
                   {(mem as any).tutorActive && (
                     <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 11, color: 'rgba(80,32,192,0.5)', marginTop: 4, lineHeight: 16 }}>

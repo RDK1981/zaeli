@@ -28,8 +28,10 @@ Sign up at https://stripe.com. **Use test mode** for development — get the tes
 
 In Stripe Dashboard → Products → Add product:
 
-- **Family plan** — A$14.99 / month recurring → note the **Price ID** (looks like `price_1AbC...`)
-- **Tutor add-on (per child)** — A$9.99 / month recurring → note its **Price ID**
+- **Family plan** — A$9.99 / month recurring, **tax-inclusive** (see note below) → note the **Price ID** (looks like `price_1AbC...`)
+- **Tutor add-on (per child)** — A$7.99 / month recurring, **tax-inclusive** → note its **Price ID**
+
+**Tax-inclusive setup (important for AU):** the A$ figures above are what the customer pays end-to-end (GST included). Under the price setup, set tax behaviour to "Inclusive" — otherwise Stripe adds 10% GST on top and the user gets charged ~A$11 / A$8.79 instead of the intended A$9.99 / A$7.99. Also enable **Stripe Tax** in Settings → Tax so GST is calculated and remitted automatically.
 
 You'll reference these Price IDs in your checkout flow when users subscribe.
 

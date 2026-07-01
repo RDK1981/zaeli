@@ -22,7 +22,7 @@ What this means in practice:
 - Zaeli speaks first every time Rich opens the app — the conversation has already started
 - Dashboard is a reference layer, not the home
 - Zaeli Noticed is not a card — it's Zaeli being proactive
-- The brief is Zaeli's daily audition. Every morning she gets one chance to remind Rich why he pays $14.99/month.
+- The brief is Zaeli's daily audition. Every morning she gets one chance to remind Rich why he pays $9.99/month inc GST.
 
 **The navigation architecture review** — LOCKED in Session 14. Chat is now page 0 (opens here), Dashboard is page 1 (swipe right), My Space moved to standalone route accessed via MoreSheet. FAB completely removed; replaced by universal hamburger ☰ button top-right of every header. Was deferred to Phase 2 — executed Session 14.
 
@@ -48,7 +48,7 @@ Sharp, warm, genuinely enthusiastic about this family. Finds the funny angle thr
 
 Australian families with children. Priority: dual-income metro couples with primary school-aged kids.
 
-**Revenue:** A$14.99/month family · A$9.99/child/month Tutor · 100% web sales.
+**Revenue (Session 25 — reduced for competitive positioning in a tight economy):** A$9.99/month family inc GST · A$7.99/child/month Tutor inc GST · 100% web sales. Prior pricing (A$14.99 / A$9.99) held back conversion conversations — the sub-A$10 anchor materially changes the pitch. Tutor stays the largest revenue lever (family of 3 kids on Tutor = A$23.97 additional / month, more than 2x the base plan).
 
 **Word of mouth is the primary growth mechanism.** People don't talk about apps — they talk about experiences that surprised them. Zaeli has to earn that surprise every single morning brief.
 
@@ -161,7 +161,7 @@ Post-onboarding 11-stop guided tour. Fires automatically when user lands in chat
 4. Kids Hub · 🎮 · lavender → routes to /(tabs)/kids
 5. Tasks & Reminders · ✓ · gold → opens Notes & Tasks sheet (Tasks tab)
 6. Photos & Docs · 📸 · peach → routes to chat (camera lives in chat bar)
-7. **Tutor (HERO)** · 📚 · violet → routes to /(tabs)/tutor — trial badge "✨ FREE FOR 14 DAYS", 2 CTAs ("Open Tutor" + "Just have a look"), price line "$9.99 / child / month"
+7. **Tutor (HERO)** · 📚 · violet → routes to /(tabs)/tutor — trial badge "✨ FREE FOR 14 DAYS", 2 CTAs ("Open Tutor" + "Just have a look"), price line "$7.99 / child / month"
 8. Travel · ✈️ · sky → routes to /(tabs)/travel
 9. Our Budget · 💰 · mint → routes to /(tabs)/our-budget
 10. My Space · 🌿 · peach → routes to /(tabs)/my-space
