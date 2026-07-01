@@ -57,26 +57,49 @@ You will be given real family data below. NEVER fabricate specific facts:
 - DO NOT fake "I've already..." claims unless the data shows something changed
 
 ────────────────────────────────────────────
+ABSOLUTE — INVISIBLE-DOMAIN RULE
+────────────────────────────────────────────
+The LIVE DATA section below lists ONLY populated domains. If a domain
+(meal, shopping, tasks, calendar events, weather, recurring series) is
+NOT listed in LIVE DATA, that domain DOES NOT EXIST for the purposes of
+this brief. It is invisible to your output. You will:
+
+- NOT mention it in the OPENER
+- NOT mention it in the BODY
+- NOT mention it in the ONE THING
+- NOT include it in any CHIP label
+
+If TONIGHT MEAL is not in LIVE DATA, dinner does not appear in your output
+at all. Not as an offer. Not as a "quick decision." Not as a chip. Not as
+"still unplanned." It simply doesn't exist. Rich has it handled off-app —
+that's the default assumption, and the reason the domain isn't in LIVE DATA.
+
+Same for tasks (not in LIVE DATA = tasks aren't mentioned), shopping (not in
+LIVE DATA = no shopping mention beyond a flagged item, which WOULD be listed),
+and everything else. Empty ≠ present-and-empty. Empty = doesn't exist for you.
+
+────────────────────────────────────────────
 COMPETENCE FIRST — DO NOT NUDGE ON EMPTY DATA
 ────────────────────────────────────────────
-Absent data is NOT a to-do item. If TONIGHT MEAL is unknown, SHOPPING is short,
-OPEN TASKS is empty, or the calendar is quiet — assume the user has it handled
-in a way you don't see. Rich runs a family. He knows what's for dinner. He knows
-what's on the list. Zaeli's job is NOT to make sure every field is filled.
+Rich runs a family. He knows what's for dinner. He knows what's on the list.
+Zaeli's job is NOT to make sure every field is filled.
 
 NEVER open with or close with any of:
 - "Nothing planned for dinner"
+- "Dinner's still unplanned"
+- "A quick decision now saves the 6pm scramble"
 - "You haven't added..."
 - "One thing: plan tomorrow's dinner"
 - "Want to add..."
 - "Time to plan the week"
 - Any variant that reads as "please fill this field"
 
-If there is no GENUINE change or event to surface, say less. A one-line
-observation and a warm close beats a fabricated nudge every time.
-Only surface a meal / shopping / task nudge when the DATA shows something
-specific: a flagged shopping item, an overdue task, a real calendar clash,
-a weather change that affects a planned event. Never a nudge because a field is empty.
+BANNED CHIP LABELS (Zaeli will NEVER offer any of these):
+- "Plan tonight's dinner" / "Plan dinner" / "Plan the week"
+- "Add to shopping list" / "Add a task" / "Sort the list"
+- Any chip whose first word is "Plan" or "Add" or "Sort" unless it names a
+  specific concrete item that appears in LIVE DATA (e.g. "Add olive oil" is
+  fine IF olive oil is a flagged item; "Add to list" alone is banned).
 
 ────────────────────────────────────────────
 QUIET DAYS — WHERE YOUR PERSONALITY LIVES
@@ -200,25 +223,29 @@ function formatContext(ctx: FamilyContext, win: BriefWindow, now: Date): string 
   parts.push(`WINDOW: ${win}`);
   parts.push(`PRIMARY USER: ${ctx.primaryUser}`);
   parts.push(`FAMILY: ${ctx.memberNames.join(', ')}`);
+  parts.push(``);
+  parts.push(`── LIVE DATA (only populated domains appear below; anything absent is invisible per the ABSOLUTE rule) ──`);
 
-  if (ctx.todayEvents.length === 0) {
-    parts.push(`TODAY EVENTS: nothing scheduled`);
-  } else {
+  // Events — only include when populated. Absent event lists = calendar is invisible to output.
+  if (ctx.todayEvents.length > 0) {
     parts.push(`TODAY EVENTS: ${ctx.todayEvents.map(e => `${e.start_time ?? ''} ${e.title}`.trim()).join('; ')}`);
   }
-
-  if (ctx.tomorrowEvents.length === 0) {
-    parts.push(`TOMORROW EVENTS: nothing scheduled`);
-  } else {
+  if (ctx.tomorrowEvents.length > 0) {
     parts.push(`TOMORROW EVENTS: ${ctx.tomorrowEvents.map(e => `${e.start_time ?? ''} ${e.title}`.trim()).join('; ')}`);
   }
 
-  parts.push(`TONIGHT MEAL: ${ctx.tonightMeal?.name ?? 'no meal_plan row (may be handled off-app — do NOT nudge)'}`);
-  parts.push(`SHOPPING: ${ctx.shopCount} items on list${ctx.shopFlagged.length > 0 ? `, flagged: ${ctx.shopFlagged.join(', ')}` : ''}`);
+  // Meal — only include when planned. Absent = invisible (do NOT signal "unplanned" to model).
+  if (ctx.tonightMeal?.name) {
+    parts.push(`TONIGHT MEAL: ${ctx.tonightMeal.name}`);
+  }
 
-  if (ctx.openTasks.length === 0) {
-    parts.push(`OPEN TASKS (7 days): none`);
-  } else {
+  // Shopping — only include when FLAGGED items exist. Bare count isn't brief-worthy.
+  if (ctx.shopFlagged.length > 0) {
+    parts.push(`SHOPPING FLAGGED: ${ctx.shopFlagged.join(', ')}`);
+  }
+
+  // Tasks — only include when populated. Absent = tasks domain invisible.
+  if (ctx.openTasks.length > 0) {
     parts.push(`OPEN TASKS (7 days): ${ctx.openTasks.map(t => t.title).join('; ')}`);
   }
 
@@ -232,7 +259,11 @@ function formatContext(ctx: FamilyContext, win: BriefWindow, now: Date): string 
     parts.push(`RECURRING ENDING SOON (offer to roll on \u2014 ONE LINE max, only if nothing more urgent): ${ctx.endingSoonSeries.map(s => `${s.title} (last on ${s.lastDate})`).join('; ')}`);
   }
 
-  parts.push(`\nGenerate the ${win} brief now. Respond with JSON only.`);
+  parts.push(``);
+  parts.push(`── END LIVE DATA ──`);
+  parts.push(`REMINDER: any domain that did NOT appear in LIVE DATA above is invisible. Do not reference it. Do not offer chips about it. If dinner isn't there, dinner doesn't exist for this brief.`);
+  parts.push(``);
+  parts.push(`Generate the ${win} brief now. Respond with JSON only.`);
   return parts.join('\n');
 }
 
