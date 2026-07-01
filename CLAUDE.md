@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 29 May 2026 — Session 24 ✅ · Real-data + calendar power session: profile identity wired into Settings hero + invite inviter name (no more hardcoded "Rich") · Family roster → real DB (lib/family-roster.ts — dynamic, up to 8 members, replaces hardcoded FAMILY_MEMBERS across index/dashboard/calendar; assignees now real family_members UUIDs via resolveAssigneeId) · Calendar inline-card date-label fix (initialTab + dateLabelOverride — was always "TODAY") · Memory hallucination fix (background-knowledge framing so a preference like "Poppy enjoys dance" isn't treated as a booked event) · RECURRING EVENTS shipped (12-month horizon, repeat_group_id series grouping, update_all/delete_all/extend tools, morning-brief ending-soon nudge) · Prior Session 23 work (memory loop, push notifications, QR prep) still current · Remaining: 2e real-device test (Anna), 3b Stripe, 3c Universal Links, Phase 4 cleanup*
+*Last updated: 1 July 2026 — Session 25 ✅ · UNIVERSAL LINKS LIVE end-to-end · Phase 4a cleanup shipped · Stripe Phase 3b scaffolded · Swipe affordance shipped · zaeli.app hosting infrastructure fully deployed (Cloudflare DNS → Netlify + Let's Encrypt SSL + AASA file serving `application/json`) · First EAS Build proven — new dev-client with `associatedDomains: ["applinks:zaeli.app"]` entitlement · Cloudflare Email Routing on zaeli.ai (hello@ → Gmail) · Apple Team ID captured: V37VPTPKQ8 · Verified on device: tap invite link in Messages → app opens directly to receiver flow · Backend pass now ~90% complete — remaining: Anna's phone (Phase 2e), Stripe activation (external, ~25 min account setup), Phase 4b (post-Anna dev-row cleanup + TestFlight)*
 
 ---
 
@@ -1842,6 +1842,147 @@ Zaeli can now create true recurring events from chat (she used to say the system
 
 ---
 
+## ══════════════════════════════════
+## SESSION 25 — UNIVERSAL LINKS LIVE · PHASE 4a · STRIPE SCAFFOLDING (1 July 2026) ✅
+## ══════════════════════════════════
+
+Multi-strand session that took the backend pass from ~85% to ~90%. The headline: **Universal Links working end-to-end on device** — tapping `https://zaeli.app/invite/<token>` in Messages opens the app straight to the receiver flow. That unblocks TestFlight / real cross-device invites without any custom-scheme workarounds.
+
+### A. Swipe affordance (commit `ad32064`)
+
+Small polish shipped before the big work. `app/(tabs)/swipe-world.tsx` now renders a **2-dot page indicator anchored to the header** (top: `insets.top + 10`) — coral active `#FF4545`, grey idle. A **first-run swipe hint pill** ("Swipe → for Dashboard") shows once per install then vanishes forever (AsyncStorage flag `SWIPE_HINT_KEY`). The indicator moved from the middle of the screen (killed Session 15) to the header — the middle-air position looked awkward when the chat bar wasn't beneath it. Chat home = subtle wayfinding without demanding attention.
+
+### B. Phase 4a — safe cleanup (commit `bd4fdbb`)
+
+The pre-launch cleanup slice that doesn't block Phase 2e testing. Six removals:
+
+1. **`LANDING_TEST_MODE = false`** in `swipe-world.tsx`. Splash now fires only once per app session (not every render).
+2. **Redundant `requestNotificationPermission()`** in `app/(tabs)/_layout.tsx` removed — Session 23 wired it in the root `_layout.tsx` where it runs after auth. Was firing twice.
+3. **3 memory/notif dev rows** removed from Settings → Developer (🔔 Fire test notification / 📋 List scheduled briefs / 🧠 Run memory extraction now). Kept: 🧪 Re-do onboarding, 📨 Simulate invite accepted, 🔗 Open latest invite as receiver, ↩️ Reset to owner account — these are still needed for Phase 2e.
+4. **Deleted `app/components/ZaeliFAB.tsx`** — killed Session 14 but file kept around. No references, safe to remove.
+5. **Deleted `app/(tabs)/landing.tsx`** and its `Tabs.Screen` entry — old separate landing route, superseded by the in-swipe-world splash Session 14.
+6. **Kept the QR chip in family.tsx** — still needed for Phase 2e on Anna's device.
+
+### C. Phase 3b — Stripe scaffolding (commit `0398a07`)
+
+Everything needed to wire Stripe once Richard creates the account and gets Price IDs. Cannot go live without external steps (documented in `STRIPE-SETUP.md`).
+
+**Migrations:**
+- `supabase-stripe-fields.sql` — adds five columns to `profiles`: `stripe_customer_id`, `subscription_status` (enum: trialing/active/past_due/cancelled/incomplete/null), `subscription_plan`, `subscription_renews_at`, `trial_ends_at`.
+
+**Lib:**
+- `lib/stripe.ts` — `getSubscription()` reads the profile fields, `subscriptionLabel()` renders "Family plan · Active" style, `fetchCustomerPortalUrl()` currently returns `null` (stub). Wires up once the Edge Function is live.
+- `lib/auth.ts` — `Profile` type extended with the 5 Stripe fields.
+
+**Settings integration** (`app/(tabs)/settings.tsx`) — Subscription card reads real data via `getSubscription()`. "Manage subscription" button calls `fetchCustomerPortalUrl()` + opens in WebBrowser. Friendly placeholder alert if endpoint isn't ready yet ("Manage subscription is coming soon — Stripe integration is being wired up.").
+
+**Edge Functions (Deno)** — deploy scripts ready, code committed but not deployed (waiting on Stripe secrets):
+- `supabase/functions/stripe-portal/index.ts` — verifies JWT, looks up `stripe_customer_id`, creates `billingPortal.sessions`, returns `{ url }`.
+- `supabase/functions/stripe-webhook/index.ts` — verifies Stripe signature via `constructEventAsync`, handles `customer.subscription.*` + `invoice.payment_failed` + `customer.created`, updates profile fields accordingly. Deploy with `--no-verify-jwt` (Stripe uses signature auth).
+- `supabase/functions/README.md` — full deploy sequence with curl + Stripe CLI test recipes.
+
+**`STRIPE-SETUP.md`** — step-by-step for the external activation (account creation with Australia country, pk_test/sk_test keys, Family Plan A$14.99 + Tutor Add-on A$9.99 products, Customer Portal config with return URL `zaeli://settings`, webhook endpoint registration). Estimated 25 min once Richard sits down.
+
+### D. Phase 3c — Universal Links wiring (same commit `0398a07`)
+
+Two code changes + one path rename:
+
+1. **`app.json`** — added `"associatedDomains": ["applinks:zaeli.app"]` to the iOS section. Requires a native rebuild (EAS) to take effect — this is the biggest cost of the wire-up.
+2. **Invite path swap** — `lib/invite-state.ts` `INVITE_LINK_BASE` changed from `zaeli.app/i/` to `zaeli.app/invite/`. The receiver route is `/invite/[token]` in Expo Router, so the URL path must match for the app to auto-route on Universal Link tap. Web fallback pages match the same path.
+3. **`app/(tabs)/family.tsx`** — Copy Link button + Resend share now use `https://zaeli.app/invite/<token>` (production Universal Link) instead of `zaeli://invite/<token>` (dev scheme). Real cross-device path.
+
+### E. Team ID (commit `b0d8dc1`)
+
+Filled in Richard's Apple Team ID `V37VPTPKQ8` across:
+- `well-known/apple-app-site-association` in the deploy template
+- `UNIVERSAL-LINKS-SETUP.md` documentation
+
+Team ID is grabbed from Apple Developer → Membership Details in the browser (the native app was blocked; browser worked immediately).
+
+### F. Deploy template (commit `2a32cac`)
+
+`zaeli-app-links-template/` folder scaffolded in the repo — ready to become its own GitHub repo (`zaeli-app-links`) for Netlify auto-deploy. Contents:
+
+- **`public/.well-known/apple-app-site-association`** — AASA file with real Team ID + `com.zaeli.app` bundle ID + `/invite/*` component match.
+- **`public/index.html`** — landing page at `zaeli.app/` — palette orbs (peach/mint/lavender/sky) + INK wordmark with sky `a+i` + "Less **chaos**. More family." tagline + "Learn more →" CTA linking to `zaeli.ai` (marketing site, parked). Matches app aesthetic.
+- **`public/invite/index.html`** — browser fallback at `zaeli.app/invite/<anything>` for someone who taps a link on a non-iOS device or before installing. Peach + mint orbs, "You've been invited 🏡", App Store CTA (placeholder App ID).
+- **`netlify.toml`** — `publish = "public"` + **CRITICAL** `Content-Type: application/json` header for the AASA path (Netlify's default `application/octet-stream` breaks Universal Links).
+- **`README.md`** — quick verify with `curl -I` for the maintainer.
+
+### G. INFRASTRUCTURE — Cloudflare + Netlify + Let's Encrypt (external, this session)
+
+The parts that don't sit in the git repo but are now live:
+
+- **`zaeli-app-links` GitHub repo** created (deploy source, auto-deploys on push to main).
+- **Netlify site** at `zaeli-app-links.netlify.app` connected to the GitHub repo. Build: `publish = "public"`, no build command needed (pure static).
+- **Cloudflare DNS** for `zaeli.app`:
+  - Apex: `zaeli.app` → CNAME `apex-loadbalancer.netlify.com` (CNAME flattening, grey cloud DNS-only)
+  - www: `www.zaeli.app` → CNAME `zaeli-app-links.netlify.app` (grey cloud DNS-only)
+  - **Grey cloud is deliberate** — Cloudflare's orange-cloud proxy can rewrite Content-Type headers on extension-less files, which breaks the AASA fetch. Later once verified, orange cloud can be turned on with a specific Cloudflare Rule keeping the AASA path unproxied.
+- **Let's Encrypt SSL** provisioned by Netlify covering `zaeli.app` + `www.zaeli.app`, auto-renews before 29 Sep 2026.
+- **Cloudflare Email Routing** enabled on `zaeli.ai` (separate domain for the marketing site). `hello@zaeli.ai` forwards to `richarddekretser@gmail.com`. MX + TXT records auto-added by Cloudflare's onboarding flow. Free tier, unlimited forwards.
+
+**Verification** — `curl -I https://zaeli.app/.well-known/apple-app-site-association` returns `HTTP/2 200` + `content-type: application/json`. AASA lives.
+
+### H. First EAS Build for iOS (external, this session)
+
+Richard's first ever EAS Build. Trigger: dev-client with the new `associatedDomains` entitlement needed to be rebuilt (associatedDomains is a native entitlement, not something Metro can hot-reload).
+
+- Cloud build via `eas build --platform ios --profile development` on `eas.dev`.
+- Authenticated with Apple Developer credentials — **regular password + 2FA code** (not an App-Specific Password — Fastlane/EAS uses the Developer API which accepts regular credentials with 2FA).
+- Build completed, install link generated. Installing on iPhone updated the existing app (same bundle ID `com.zaeli.app`) — did NOT create a duplicate app icon.
+- Session persistence survived the reinstall (AsyncStorage kept the auth session), so the app auto-logged in.
+
+**Test path:** Richard tapped an invite link in Messages → app opened directly to the invite receiver welcome screen showing "Hey Universal…" (the invitee name). No Safari intermediary, no scheme prompt. First try. Working.
+
+### Locked decisions Session 25
+
+- **Universal Links = production path.** `zaeli://` custom scheme is now DEV-ONLY. Invite links generated by the app use `https://zaeli.app/invite/<token>`. Copy-link + Resend share both use the https form.
+- **Cloudflare grey cloud (DNS-only) for AASA** — orange-cloud proxy can rewrite Content-Type on extension-less files, which is silently fatal for Universal Links. When enabling proxy later, add a Rule to bypass proxy on `/.well-known/apple-app-site-association`.
+- **AASA MUST be served with `Content-Type: application/json`.** Netlify's default `application/octet-stream` for extension-less files fails silently — Apple's iOS parser rejects and Universal Links never activate. `netlify.toml` `[[headers]]` block is mandatory.
+- **Native entitlement changes = new EAS build.** `associatedDomains` (and any other native entitlement / capability) can't be hot-reloaded by Metro. Every entitlement change → `eas build`.
+- **EAS authenticates with regular Apple ID password + 2FA**, NOT an App-Specific Password. Fastlane uses the Developer API which expects regular credentials.
+- **Same bundle ID = update-in-place on iOS.** New EAS build with `com.zaeli.app` overwrites the previous dev-client without creating a duplicate app icon. Session state survives.
+- **Team ID `V37VPTPKQ8`** captured in AASA + documentation. If it ever changes (app transfer, new dev account), the AASA needs updating + the app needs rebuilding.
+- **Stripe scaffolding is done, activation is Richard's move.** Code + SQL + Edge Functions committed. Cannot ship without external account setup (Stripe dashboard: products + Portal config + Price IDs + Webhook endpoint registration). `STRIPE-SETUP.md` has the full path — ~25 min.
+- **Voice (ElevenLabs) still deferred to after full backend pass + TestFlight.** Session 20 decision unchanged.
+
+### Files touched Session 25
+
+**NEW:**
+- `supabase-stripe-fields.sql`
+- `lib/stripe.ts`
+- `supabase/functions/stripe-portal/index.ts`
+- `supabase/functions/stripe-webhook/index.ts`
+- `supabase/functions/README.md`
+- `STRIPE-SETUP.md`
+- `UNIVERSAL-LINKS-SETUP.md`
+- `zaeli-app-links-template/` (full folder — AASA, index.html, invite/index.html, netlify.toml, README.md)
+
+**MODIFIED:**
+- `app.json` — added `associatedDomains: ["applinks:zaeli.app"]`
+- `lib/auth.ts` — Profile type + 5 Stripe fields
+- `lib/invite-state.ts` — `INVITE_LINK_BASE` swapped `/i/` → `/invite/`
+- `app/(tabs)/family.tsx` — Copy Link + Resend use production https URL
+- `app/(tabs)/settings.tsx` — Subscription card real data + Manage subscription handler
+- `app/(tabs)/swipe-world.tsx` — anchored 2-dot page indicator + first-run swipe hint, `LANDING_TEST_MODE = false`
+- `app/(tabs)/_layout.tsx` — redundant `requestNotificationPermission` removed
+- `app/(tabs)/settings.tsx` — 3 memory/notif dev rows removed
+
+**DELETED:**
+- `app/components/ZaeliFAB.tsx`
+- `app/(tabs)/landing.tsx` (+ its `Tabs.Screen` entry)
+
+### What's next
+
+- **Phase 2e — Anna's phone.** QR + Universal Link both wired. `PHASE-2E-TEST-PLAN.md` walks the path. Waiting on Anna's device availability.
+- **Phase 3b Stripe activation** — Richard's ~25 min setup at `stripe.com/register`. Once Price IDs are in hand: deploy Edge Functions (`supabase functions deploy`), set `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` secrets, register webhook in Stripe dashboard, fill in `PRICE_TO_PLAN` map in `lib/stripe.ts`, replace `fetchCustomerPortalUrl` stub with real fetch.
+- **TestFlight submission** (for Anna, then broader dogfood): `eas build --profile preview` (standalone, no Metro dependency) → `eas submit --platform ios` → TestFlight review (usually same-day) → Anna installs via TestFlight app.
+- **Phase 4b** (post-Anna): remove the 4 remaining dev rows (Re-do onboarding, Simulate invite accepted, Open latest invite as receiver, Reset to owner account), remove the QR chip, expo-document-picker for Budget CSV, GDPR / export data / privacy WebViews.
+- **zaeli.ai marketing site** — parked. `hello@zaeli.ai` already routes. Pricing page + landing content when the Stripe path is live.
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -1959,6 +2100,13 @@ Phase 47: Recurring events ✅ Session 24 (29 May) — add_calendar_event repeat
 
 Phase 40: Chat bar photo upload bug ✅ Session 21 (18 May) — 64px thumbnail above bar with "Photo ready — tap send" + ✕ dismiss. Send button opacity + tap guard updated to allow photo-only (send('') with imageUri). Three combined bugs presenting as one symptom (picker opens, select does nothing).
 Phase 41: Multi-user safety patches ✅ Session 22 (20 May) — six combined fixes surfaced during 2d testing: (1) heads-up filter inviter-only via inviter_user_id === currentUserId, (2) chat persistence file scoped per user via auth.onAuthStateChange subscription in useChatPersistence, (3) local chat messages state resets on user switch via chatLoaded transition, (4) tour-state + user-prefs don't fall back to AsyncStorage when signed in (profile JSONB is sole source), (5) all module caches invalidated in _layout.tsx onAuthChange (tour, prefs, invites + existing account), (6) fresh-invitee welcome polish — suppress family brief on first session, show warm welcome instead.
+
+Phase 48: Swipe affordance ✅ Session 25 (1 July) — anchored 2-dot page indicator (top: insets.top+10, coral active/grey idle) + first-run "Swipe → for Dashboard" hint pill (AsyncStorage SWIPE_HINT_KEY, one-shot). Middle-air indicator (killed Session 15) replaced with header-anchored positioning that works even without a chat bar underneath.
+Phase 49: Phase 4a — safe cleanup ✅ Session 25 (1 July) — LANDING_TEST_MODE=false, redundant requestNotificationPermission in (tabs)/_layout.tsx removed, 3 dev rows removed (🔔 test notification, 📋 list scheduled briefs, 🧠 run memory extraction). DELETED: app/components/ZaeliFAB.tsx (killed Session 14) + app/(tabs)/landing.tsx + its Tabs.Screen entry. Kept: QR chip + 4 dev rows still needed for Phase 2e (Re-do onboarding, Simulate invite accepted, Open latest invite as receiver, Reset to owner account).
+Phase 50: Phase 3b — Stripe scaffolding ✅ Session 25 (1 July) — supabase-stripe-fields.sql (profiles + 5 columns: stripe_customer_id, subscription_status, subscription_plan, subscription_renews_at, trial_ends_at). lib/stripe.ts (getSubscription/subscriptionLabel/fetchCustomerPortalUrl stub). lib/auth.ts Profile type extended. Settings Subscription card reads real data + Manage subscription handler with WebBrowser + friendly placeholder. Edge Functions ready to deploy (stripe-portal + stripe-webhook, Deno, --no-verify-jwt for webhook). STRIPE-SETUP.md + supabase/functions/README.md. **NEEDS EXTERNAL:** Stripe account (~25 min setup), Price IDs, deploy Edge Functions, register webhook.
+Phase 51: Phase 3c — Universal Links LIVE ⭐ ✅ Session 25 (1 July) — app.json associatedDomains ["applinks:zaeli.app"]. INVITE_LINK_BASE 'zaeli.app/i/' → 'zaeli.app/invite/' (matches Expo Router route). Copy Link + Resend use https://zaeli.app/invite/<token>. AASA hosted at zaeli.app/.well-known/apple-app-site-association with Team ID V37VPTPKQ8 + Content-Type application/json. Deploy stack: Cloudflare DNS (grey cloud) → Netlify + Let's Encrypt SSL. Verified end-to-end on device: tap link in Messages → app opens to receiver flow, first try.
+Phase 52: EAS Build infrastructure ✅ Session 25 (1 July) — First cloud iOS build via EAS. Apple Developer credentials (regular password + 2FA, NOT App-Specific Password — Fastlane uses Developer API). Same bundle ID (com.zaeli.app) → update-in-place on iOS (no duplicate icon). Session persistence survived reinstall. Blueprint for TestFlight (Phase 4b): eas build --profile preview + eas submit --platform ios.
+Phase 53: External hosting infrastructure ✅ Session 25 (1 July) — zaeli-app-links GitHub repo → Netlify auto-deploy (netlify.toml with Content-Type: application/json for AASA path — CRITICAL, Netlify default application/octet-stream fails silently). Cloudflare DNS zaeli.app apex CNAME → apex-loadbalancer.netlify.com + www CNAME → zaeli-app-links.netlify.app (BOTH grey cloud DNS-only, orange proxy rewrites AASA Content-Type). Cloudflare Email Routing on zaeli.ai: hello@ → richarddekretser@gmail.com (free tier). Let's Encrypt SSL covers both zaeli.app + www, auto-renews.
 ```
 
 ---
@@ -2082,3 +2230,15 @@ Phase 41: Multi-user safety patches ✅ Session 22 (20 May) — six combined fix
 - **Recurring "ending soon" → morning brief only** (Session 24) — `buildBriefContext` groups future recurring instances by `repeat_group_id`, flags any whose last date is within 6 weeks into `FamilyContext.endingSoonSeries`; the morning brief offers a one-line roll-on. Never spam other windows.
 - **Calendar inline confirm card is date-aware** (Session 24) — `InlineData.initialTab` + `dateLabelOverride`; the add-confirm card shows the event's real day (today bucket / tomorrow tab / explicit "TUE 2 JUN" label), never always "TODAY".
 - **calendar.tsx month view loads from the displayed month forward** — `loadEvents` queries `date >= firstOfDisplayedMonth`. A past-month event won't appear when viewing a later month (by design). If "an event is missing", check which month is displayed before assuming a data bug.
+- **Universal Links are the production invite path** (Session 25) — `https://zaeli.app/invite/<token>` served via Netlify with `apple-app-site-association` at `/.well-known/`. The `zaeli://` custom scheme is dev-only now. `INVITE_LINK_BASE` in `lib/invite-state.ts` is `zaeli.app/invite/` (matches the Expo Router `/invite/[token]` route — the path MUST match exactly for iOS to route the tap into the app). Copy Link + Resend share generate the https form.
+- **AASA file MUST be served with `Content-Type: application/json`** (Session 25) — Netlify's default for extension-less files is `application/octet-stream`, which iOS silently rejects. Universal Links then never activate and there is no error message. The `netlify.toml` `[[headers]]` block for `/.well-known/apple-app-site-association` is mandatory. Verify with `curl -I https://zaeli.app/.well-known/apple-app-site-association` — must see `content-type: application/json`.
+- **Cloudflare DNS for AASA host = grey cloud (DNS-only), NOT orange cloud (proxied)** (Session 25) — Cloudflare's orange-cloud proxy can rewrite Content-Type headers on extension-less files, which breaks Universal Links exactly the same way. Keep grey cloud until you write a specific Cloudflare Rule bypassing proxy on `/.well-known/apple-app-site-association`. Even then, test with curl before assuming it worked.
+- **iOS Universal Link path must EXACTLY match** the AASA `components` pattern (Session 25) — AASA declares `"/": "/invite/*"`. Links generated by the app therefore MUST be `zaeli.app/invite/<token>`. When we had `/i/<token>` in the app but `/invite/*` in the AASA, iOS opened Safari instead of the app because the paths didn't match.
+- **Apple Team ID `V37VPTPKQ8`** captured in AASA (`well-known/apple-app-site-association` in the deploy repo) + `app.json` (via bundle ID association). If it ever changes (app transfer, new dev account), update the AASA + rebuild the app.
+- **Native entitlement changes require a new EAS build** (Session 25) — `associatedDomains`, HealthKit, background modes, camera capabilities, etc. Metro can't hot-reload iOS entitlements. Every entitlement change = `eas build`. Budget the wait time (~15-30 min cloud build).
+- **EAS authenticates with regular Apple ID password + 2FA code**, NOT an App-Specific Password (Session 25) — Fastlane uses the Developer API which expects your normal credentials. App-Specific Passwords are for third-party services accessing iCloud data, not Apple's own Dev tools. Save yourself the confusion — regular password.
+- **Same bundle ID = update-in-place on iOS**, no duplicate app icon (Session 25) — new EAS build with `com.zaeli.app` overwrites the previous install, keeps AsyncStorage (session survives). Only bundle-ID changes create a second app on the phone.
+- **Stripe activation is Richard's move** (Session 25) — code + SQL + Edge Functions committed, but nothing goes live until Richard finishes stripe.com setup (products with Australian pricing, Customer Portal config with `zaeli://settings` return URL, Price IDs, webhook endpoint). `STRIPE-SETUP.md` has the ~25 min path. Don't offer to do the account setup — it needs Richard's identity + banking details.
+- **Stripe webhook deploys with `--no-verify-jwt` flag** (Session 25) — Stripe uses signature-based auth via `constructEventAsync`, not JWT. The portal endpoint verifies JWT normally (user must be signed in). Two different security models — don't cross-wire them.
+- **Universal Link generation MUST match app's route path** (Session 25) — if you rename the receiver route from `/invite/[token]` to anything else, update BOTH `INVITE_LINK_BASE` in `lib/invite-state.ts` AND the AASA file's `components` pattern in the deploy repo. Ship both together or Universal Links break silently.
+- **Post-deploy Universal Link verification** (Session 25) — before assuming things work, hit `https://zaeli.app/.well-known/apple-app-site-association` from browser + `curl -I` to confirm HTTP 200 + `content-type: application/json`. Then test tap in Messages (not Safari address bar — Safari blocks Universal Links from address-bar navigation, use Messages / Mail / Notes / a shared link).

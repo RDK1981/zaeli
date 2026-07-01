@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*29 May 2026 — Session 24 ✅ · REAL-DATA + CALENDAR POWER SESSION — profile identity wired into Settings hero + invite inviter name (no hardcoded "Rich") · family roster now real/dynamic from the DB up to 8 members (lib/family-roster.ts, replaces hardcoded FAMILY_MEMBERS; assignees are real family_members UUIDs) · calendar inline-card date-label fix · memory hallucination fix (background knowledge ≠ booked events) · RECURRING EVENTS shipped (12-month horizon, repeat_group_id series grouping, update_all/delete_all/extend tools, morning-brief ending nudge) · prior Session 23 (memory loop, push notifications, QR prep) still current · **NEXT: 2e real-device test (waiting on Anna), 3b Stripe, 3c Universal Links, Phase 4 cleanup***
+*1 July 2026 — Session 25 ✅ · UNIVERSAL LINKS LIVE END-TO-END — tap `https://zaeli.app/invite/<token>` in Messages → app opens directly to receiver flow, verified on device · Phase 4a cleanup shipped (LANDING_TEST_MODE off, dead files deleted, 3 dev rows removed) · Phase 3b Stripe fully scaffolded (SQL + lib + Edge Functions + Settings, awaits ~25 min external activation) · Swipe affordance shipped (anchored 2-dot indicator + first-run hint) · zaeli.app hosting infrastructure fully deployed: Cloudflare DNS → Netlify + Let's Encrypt SSL + AASA serving application/json · Cloudflare Email Routing on zaeli.ai (hello@ → Gmail) · First EAS Build proven — new dev-client with `associatedDomains: ["applinks:zaeli.app"]` · Apple Team ID `V37VPTPKQ8` captured · Backend pass now ~90% complete · **NEXT: 2e Anna's phone (Universal Link now the primary path), 3b Stripe activation (external ~25 min), Phase 4b (TestFlight + post-Anna dev-row cleanup)***
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,43 +10,79 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 24 was a big real-data + calendar session: removed hardcoded "Rich" identity, made the family roster a real dynamic DB-backed thing (up to 8 members), fixed two calendar bugs + a memory hallucination, and shipped full recurring events.
+Session 25 was a big infrastructure session: Universal Links live end-to-end, Stripe scaffolded ready for activation, Phase 4a cleanup shipped, first EAS Build proven. The path to TestFlight is now unblocked.
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅ (Session 24)
+## CURRENT STATE — ALL WORKING ✅ (Session 25)
 ## ══════════════════════════════════
 
-### NEW THIS SESSION (Session 24 — real-data identity, family roster, recurring events, 29 May)
+### NEW THIS SESSION (Session 25 — Universal Links · Phase 4a · Stripe scaffolding, 1 July)
 
-**A. Profile identity wired into UI** (commit `f58988d`). Settings account hero reads the real signed-in profile (name/email/initial/kind tag). Invite inviter name comes from the profile — new `invite_tokens.inviter_name` column + `get_invite_by_token` RPC returns it; receiver shows the real inviter ("Anna invited you", not always "Rich"). SQL: `supabase-invite-inviter-name.sql`.
+**A. Swipe affordance** (commit `ad32064`). Anchored 2-dot page indicator on Chat header (`top: insets.top + 10`) — coral active `#FF4545`, grey idle. First-run "Swipe → for Dashboard" hint pill (AsyncStorage `SWIPE_HINT_KEY`, one-shot). Replaces the middle-air indicator killed Session 15 — that position looked awkward on Dashboard when the chat bar wasn't underneath.
 
-**B. Family roster → real DB data** ⭐ (commit `eec133f`). NEW `lib/family-roster.ts` — dynamic DB-backed roster (up to `MAX_FAMILY_MEMBERS` = 8), `getRoster()`/`getMemberById()`/`getMemberByName()`/`resolveAssigneeId()`/`defaultAssigneeIds()`, cache invalidated on auth change. Replaced the hardcoded `FAMILY_MEMBERS` arrays in index/dashboard/calendar (read via `getRoster()` + a version-bump re-render). ALL assignee write paths now resolve names → real `family_members` UUIDs (chat tools, calendar's own tools, manual form, system prompt). SQL: `supabase-family-member-colours.sql` (canonical colours) + `supabase-remap-event-assignees.sql` (legacy '1'-'5' → UUIDs). Finding: existing assignees were all empty so zero migration risk.
+**B. Phase 4a — safe cleanup** (commit `bd4fdbb`). Six removals that don't block Phase 2e testing: `LANDING_TEST_MODE = false` in swipe-world; redundant `requestNotificationPermission()` in `(tabs)/_layout.tsx` removed (Session 23 wired it in root `_layout.tsx`, was firing twice); 3 memory/notif dev rows removed from Settings (🔔 test notification / 📋 list scheduled briefs / 🧠 run memory extraction); deleted `app/components/ZaeliFAB.tsx` (killed Session 14, no refs); deleted `app/(tabs)/landing.tsx` + `Tabs.Screen` entry (superseded by in-swipe-world splash). Kept: QR chip + 4 core dev rows still needed for Phase 2e (Re-do onboarding / Simulate invite accepted / Open latest invite as receiver / Reset to owner account).
 
-**C. Calendar inline-card date-label fix** (in `eec133f`). `InlineData.initialTab` + `dateLabelOverride`; the confirm-after-add card shows the event's real day (today bucket / tomorrow tab / explicit date label), not always "TODAY".
+**C. Phase 3b — Stripe scaffolding** (commit `0398a07` + `cff0ed6`). Everything needed to wire Stripe once Richard finishes the external account setup:
+- `supabase-stripe-fields.sql` — profiles + 5 columns (stripe_customer_id, subscription_status, subscription_plan, subscription_renews_at, trial_ends_at).
+- `lib/stripe.ts` — `getSubscription`/`subscriptionLabel`/`fetchCustomerPortalUrl` (stub returns null until endpoint deployed).
+- `lib/auth.ts` — Profile type extended with 5 Stripe fields.
+- Settings Subscription card reads real data via `getSubscription`. "Manage subscription" button opens portal URL in WebBrowser or shows friendly placeholder.
+- **Edge Functions ready to deploy** (`supabase/functions/`): `stripe-portal` (JWT-verified, creates billing portal session) + `stripe-webhook` (signature-verified via `constructEventAsync`, handles subscription lifecycle, deploy with `--no-verify-jwt`). Deploy scripts + curl/Stripe CLI test recipes in the folder's README.
+- `STRIPE-SETUP.md` — ~25 min external activation path (Stripe account with AU country, products A$14.99 Family + A$9.99 Tutor, Customer Portal config with `zaeli://settings` return URL, Price IDs, webhook endpoint registration).
 
-**D. Memory hallucination fix** (commit `7d9597b`). After the Session 23 memory loop, Zaeli treated background memory as scheduled events ("add poppy dance" → "it's already locked in" because of a "Poppy enjoys dance" preference). Fixed by reframing the memory injection as BACKGROUND KNOWLEDGE — calendar/live data is the only source of truth for what's scheduled.
+**D. Phase 3c — Universal Links LIVE** ⭐ (commits `0398a07` + `b0d8dc1`). The headline:
+- `app.json` — added `"associatedDomains": ["applinks:zaeli.app"]` to iOS.
+- `lib/invite-state.ts` — `INVITE_LINK_BASE` swapped `zaeli.app/i/` → `zaeli.app/invite/` (MUST match Expo Router `/invite/[token]` route + AASA's `/invite/*` component pattern).
+- `app/(tabs)/family.tsx` — Copy Link + Resend share now use `https://zaeli.app/invite/<token>` (production https, not `zaeli://` dev scheme).
+- AASA hosted at `zaeli.app/.well-known/apple-app-site-association` with real Team ID `V37VPTPKQ8` + `com.zaeli.app` bundle ID + `/invite/*` component.
+- **Verified on device**: tap invite link in Messages → app opens direct to receiver welcome ("Hey Universal..." showing the invitee name). First try. No Safari intermediary.
 
-**E. RECURRING EVENTS** ⭐ (commit `c089d95`). `add_calendar_event` gained `repeat` + `repeat_days` (multi-day weekly like Mon/Tue/Fri). ~12-month horizon of concrete instances, all sharing a `repeat_group_id` + `repeat_rule`. SQL: `supabase-event-repeat-group.sql`. Series ops: `update_all` (fixes "add me to all of Gab's soccer" only hitting one), `delete_all`, NEW `extend_recurring_event` tool. Morning brief flags series ending within 6 weeks (`FamilyContext.endingSoonSeries`) and offers to roll on.
+**E. External hosting infrastructure** (this session, not in the app repo):
+- **`zaeli-app-links` GitHub repo** — static site source, auto-deploys on push to main. Template folder committed to app repo: `zaeli-app-links-template/` (commit `2a32cac`).
+- **Netlify** at `zaeli-app-links.netlify.app` connected to the repo. `netlify.toml` sets `publish = "public"` + **CRITICAL** `Content-Type: application/json` header for AASA path (Netlify default `application/octet-stream` breaks Universal Links silently).
+- **Cloudflare DNS** for `zaeli.app`: apex CNAME → `apex-loadbalancer.netlify.com`, www CNAME → `zaeli-app-links.netlify.app`. **Both grey cloud (DNS-only)** — orange-cloud proxy can rewrite Content-Type headers on extension-less files, same silent failure.
+- **Let's Encrypt SSL** covers `zaeli.app` + `www.zaeli.app`, auto-renews before 29 Sep 2026.
+- **Cloudflare Email Routing** enabled on `zaeli.ai` (separate marketing domain): `hello@zaeli.ai` → `richarddekretser@gmail.com`. Free tier, unlimited forwards. MX + TXT auto-added.
 
-### Key decisions Session 24
+**F. First EAS Build for iOS** (this session, external). Cloud build via `eas build --platform ios --profile development`. Authenticated with **regular Apple ID password + 2FA code** (Fastlane uses Developer API — NOT App-Specific Password, that's for third-party services). Same bundle ID `com.zaeli.app` = update-in-place install on iPhone (no duplicate app icon). Session persistence survived (AsyncStorage kept the auth token). **Blueprint for TestFlight**: `eas build --profile preview` (standalone) → `eas submit --platform ios`.
 
-- **Family roster is DB-backed + dynamic** — never reintroduce a hardcoded FAMILY_MEMBERS array; read via `getRoster()`; assignees resolve names → real UUIDs via `resolveAssigneeId`.
-- **Memory = background knowledge, calendar = source of truth** — the memory prompt must keep that distinction.
-- **Recurring = generated instances** (not rule+expand), 12-month horizon, grouped by `repeat_group_id`; series ops via update_all/delete_all/extend; ending-soon in morning brief only.
-- **Current-user identity from the profile** — no hardcoded "Rich" for identity (roster member names are separate seed data, now in the DB).
+**G. Deploy template folder** (commit `2a32cac`). `zaeli-app-links-template/` in the app repo — ready to spin up as its own GitHub repo:
+- `public/.well-known/apple-app-site-association` — AASA with Team ID V37VPTPKQ8, bundle `com.zaeli.app`, `/invite/*` match.
+- `public/index.html` — landing page (palette orbs + INK wordmark + coral "chaos" + Learn more → `zaeli.ai`).
+- `public/invite/index.html` — browser fallback for `/invite/<anything>` (peach + mint orbs, App Store CTA).
+- `netlify.toml` — `publish = "public"` + AASA `Content-Type: application/json` header.
 
-### What's NEXT (unchanged from Session 23)
+### Key decisions Session 25
 
-- **Phase 2e:** real second-device test on Anna's phone — `PHASE-2E-TEST-PLAN.md`.
-- **Phase 3b:** Stripe customer portal WebView (needs Stripe account + products).
-- **Phase 3c:** Universal Links (needs `zaeli.app` domain + apple-app-site-association + associatedDomains + rebuild).
-- **Phase 4:** cleanup + ship-ready (remove dev rows incl. Session 23 memory/notif test rows + the QR chip, LANDING_TEST_MODE=false, expo-document-picker for Budget CSV, GDPR/export/privacy WebViews).
+- **Universal Links = production path** — `zaeli://` custom scheme is dev-only now.
+- **AASA MUST be served with `Content-Type: application/json`** — Netlify default fails silently. `netlify.toml` `[[headers]]` block is mandatory.
+- **Cloudflare grey cloud (DNS-only) for AASA host** — orange proxy rewrites Content-Type. Only turn on orange with a specific Rule bypassing proxy on the AASA path, and test with curl.
+- **Universal Link path MUST match the Expo Router route path** — AASA declares `/invite/*`, app has `/invite/[token]`, `INVITE_LINK_BASE` generates `/invite/`. All three must agree.
+- **Native entitlement changes require a new EAS build** — `associatedDomains` can't be hot-reloaded by Metro. Every entitlement change = `eas build`.
+- **EAS auth = regular Apple ID password + 2FA**, NOT App-Specific Password.
+- **Same bundle ID = update-in-place on iOS** — new build overwrites, session survives.
+- **Stripe activation is Richard's move** — code committed, but needs ~25 min external account setup before going live. `STRIPE-SETUP.md` has the path.
+- **Voice (ElevenLabs) still deferred** to after full backend pass + TestFlight (Session 20 decision).
 
-### SQL migrations to run for Session 24 (if setting up fresh)
+### What's NEXT
 
-`supabase-invite-inviter-name.sql`, `supabase-family-member-colours.sql`, `supabase-remap-event-assignees.sql`, `supabase-event-repeat-group.sql` — all idempotent.
+- **Phase 2e — Anna's phone.** Universal Link + QR both wired. `PHASE-2E-TEST-PLAN.md` walks the flow. Waiting on Anna's device.
+- **Phase 3b — Stripe activation** (Richard's external action, ~25 min): stripe.com account (AU) → create Family Plan A$14.99/mo + Tutor Add-on A$9.99/mo → Customer Portal config with return URL `zaeli://settings` → collect Price IDs. Then I'll deploy the Edge Functions, register the webhook, fill in `PRICE_TO_PLAN` in `lib/stripe.ts`, and replace `fetchCustomerPortalUrl` stub with real fetch.
+- **TestFlight submission** (Phase 4b, for Anna): `eas build --profile preview` (standalone, no Metro dependency) → `eas submit --platform ios` → TestFlight review → Anna installs via TestFlight app.
+- **Phase 4b full cleanup** (post-Anna): remove the 4 remaining dev rows (Re-do onboarding, Simulate invite accepted, Open latest invite as receiver, Reset to owner account), remove QR chip, expo-document-picker for Budget CSV, GDPR / export data / privacy WebViews.
+- **zaeli.ai marketing site** — parked. `hello@zaeli.ai` already routes. Pricing page + landing content when Stripe path is live.
+
+### SQL migrations to run for Session 25 (if setting up fresh)
+
+`supabase-stripe-fields.sql` (idempotent — adds 5 columns to profiles).
+
+Session 24 migrations still current: `supabase-invite-inviter-name.sql`, `supabase-family-member-colours.sql`, `supabase-remap-event-assignees.sql`, `supabase-event-repeat-group.sql`.
+
+### Session 24 (still current — historical, 29 May)
+
+Real-data identity + family roster + recurring events. Profile identity wired (Settings hero + invite inviter name); family roster now dynamic DB-backed via `lib/family-roster.ts` (up to 8 members, replaces hardcoded arrays); calendar inline-card date-label fix; memory hallucination fix (background knowledge ≠ scheduled events); RECURRING EVENTS shipped (12-month horizon, `repeat_group_id` series grouping, update_all/delete_all/extend tools, morning-brief ending-soon nudge). Commits: `f58988d`, `eec133f`, `7d9597b`, `c089d95`, `15cef8a`.
 
 ### Earlier this same backend pass (Session 23 — historical, 28 May)
 
