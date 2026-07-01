@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*1 July 2026 — Session 25 ✅ · UNIVERSAL LINKS LIVE END-TO-END — tap `https://zaeli.app/invite/<token>` in Messages → app opens directly to receiver flow, verified on device · Phase 4a cleanup shipped (LANDING_TEST_MODE off, dead files deleted, 3 dev rows removed) · Phase 3b Stripe fully scaffolded (SQL + lib + Edge Functions + Settings, awaits ~25 min external activation) · Swipe affordance shipped (anchored 2-dot indicator + first-run hint) · zaeli.app hosting infrastructure fully deployed: Cloudflare DNS → Netlify + Let's Encrypt SSL + AASA serving application/json · Cloudflare Email Routing on zaeli.ai (hello@ → Gmail) · First EAS Build proven — new dev-client with `associatedDomains: ["applinks:zaeli.app"]` · Apple Team ID `V37VPTPKQ8` captured · Backend pass now ~90% complete · **NEXT: 2e Anna's phone (Universal Link now the primary path), 3b Stripe activation (external ~25 min), Phase 4b (TestFlight + post-Anna dev-row cleanup)***
+*1 July 2026 (late evening) — Session 26 ✅ · BRIEF QUALITY DEEP-DIVE + STRATEGIC PRICING PIVOT · Brief prompt v1 (competence-first) + v2 (invisible-domain rule — remove empty-state signals from context entirely, fixes Sonnet finding wiggle room to nag) · zaeli_briefs table finally created (had never been run since Session 16 — briefs were silently uncached) + RLS updated to Session 21 pattern · **PRICING REDUCED: A$9.99 family / A$7.99 tutor per child inc GST** (was A$14.99 / A$9.99 — competitive positioning in tight economy) · 3-hour bucket refresh so briefs stay time-of-day-current within wide windows · Auto-dismiss earlier same-window briefs on refire · Prior Session 25 (Universal Links LIVE, EAS Build proven, Cloudflare/Netlify hosting deployed, Stripe scaffolded) still current · **NEXT: 2e Anna's phone, 3b Stripe activation (external ~25 min with tax-inclusive setup), Phase 4b (TestFlight + post-Anna dev-row cleanup)***
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,12 +10,56 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 25 was a big infrastructure session: Universal Links live end-to-end, Stripe scaffolded ready for activation, Phase 4a cleanup shipped, first EAS Build proven. The path to TestFlight is now unblocked.
+Session 26 was a brief-system deep-dive plus a strategic pricing pivot. Six commits: brief v1 + v2 prompt fine-tuning, backfill of the `zaeli_briefs` table that had never been created, pricing reduction to A$9.99 / A$7.99 inc GST, 3-hour bucket refresh so briefs stay time-of-day-current, and auto-dismiss of earlier same-window briefs when a new one fires. All verified working on device.
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅ (Session 25)
+## CURRENT STATE — ALL WORKING ✅ (Session 26)
+## ══════════════════════════════════
+
+### NEW THIS SESSION (Session 26 — brief quality + pricing, 1 July late evening)
+
+**A. Brief v1 — competence-first prompt** (commit `18f38d5`). Richard stopped reading briefs because they kept nagging about dinner even when he had it handled off-app. Classic "empty state = to-do item" AI failure mode. Four targeted changes to `lib/brief-generator.ts`: `TONIGHT MEAL` context line reframed ("not planned yet" → "no meal_plan row do NOT nudge"), new `COMPETENCE FIRST` rule block with banned-phrase list, sparse-day chip examples cleaned up (dropped "Plan tomorrow's dinner"), One Thing paragraph made OPTIONAL with explicit good-vs-bad examples inline.
+
+**B. zaeli_briefs table backfill + RLS fix** (commit `be2fc90`). Trying to `DELETE FROM zaeli_briefs` returned "relation does not exist." The Session 16 migration had NEVER been run in Richard's dev DB — every brief since had been a fresh Sonnet call with silent upsert failure. Also updated the legacy `USING (true)` allow-all policy to the Session 21 standard (family-scoped SELECT/INSERT/UPDATE/DELETE via `current_family_id()`). Table live, caching finally working after ~10 sessions of silent failure.
+
+**C. Brief v2 — invisible-domain rule** ⭐ (commit `5e19e54`). V1 stopped body opener but Sonnet compensated by pushing dinner nudges into the One Thing + primary chip ("dinner's still unplanned" / "Plan tonight's dinner"). Even with explicit bans, the model's helpful-assistant training bias found wiggle room. Real fix: **don't tell Sonnet the domain exists at all when empty**. `formatContext` filters out empty domains (no `TONIGHT MEAL` line if null, no `OPEN TASKS: none`, no `TODAY EVENTS: nothing scheduled`). New `── LIVE DATA ──` fence + closing REMINDER. New ABSOLUTE `INVISIBLE-DOMAIN RULE` at top of prompt. BANNED CHIP LABELS block. **Verified**: 10:47pm brief was warm and event-tied ("Wednesday's done, Rich — and the bins are already out 🌙" + tomorrow's real events + soccer nudge tied to real 2pm event + clarifying "Which kid has soccer?" primary chip). No dinner mention anywhere.
+
+**D. Pricing pivot — A$9.99 family / A$7.99 tutor per child, inc GST** ⭐ (commit `3220703`). Strategic reduction from A$14.99 / A$9.99. Driven by real conversations with prospective users: old pricing was a barrier in the current Australian economy. Sub-A$10 base plan changes the conversion conversation; Tutor at A$7.99 keeps the biggest revenue lever affordable for multi-kid families (3 kids on Tutor = A$23.97/mo, more than 2x the base — that math makes the base reduction sustainable). 5 production surfaces updated (sign-up, onboarding, Tutor upsells, Tour hero) + 4 docs synced + `STRIPE-SETUP.md` gained **critical tax-inclusive setup note** (Stripe AU adds 10% GST on top by default — must set behaviour to Inclusive). Memory `project-pricing-decision.md` written.
+
+**E. 3-hour bucket refresh** ⭐ (commit `ab90557`). Evening window is 13 hours wide — Richard at 10:30pm was still seeing a 5:33pm brief telling him to get bins out after dinner. Added coarse `Math.floor(hour / 3)` bucket to `FamilyContext` + `computeSignature`. `lib/brief-firing.ts` exports new `currentBucket(now)`. Persistence-restore of `lastBriefWindowRef` in index.tsx now gated on bucket match — stale bucket means "already fired" signal is not carried forward, so `shouldFireBrief` fires fresh on next mount. Cost: A$0.03-0.05/family/day worst case, comfortable at A$9.99 revenue.
+
+**F. Auto-dismiss earlier same-window briefs** (commit `93c7065`). After bucket refresh worked, the old brief was still visible with stale interactive chips ("Plan tonight's dinner") competing with the fresh brief. `tryFireBrief` placeholder-swap step now walks messages and sets `briefDismissed=true` on any OTHER same-window brief. Text stays as chat history, chip row hides. Uses existing Session 17 mechanism — no render path change.
+
+### Key decisions Session 26
+
+- **Empty state is fragile as an AI signal — remove the signal, not just add a "don't nudge" rule.** Sonnet's helpful-assistant training bias fights explicit bans. General pattern for any AI content surface.
+- **Pricing: A$9.99 family / A$7.99 tutor per child, both inc GST.** Sub-A$10 anchor. Stripe products must be set as tax-inclusive.
+- **3-hour bucket in brief signature.** Briefs stay time-of-day-current within wide windows. 4-5 buckets per window × 2 windows = at most 8-10 briefs/family/day worst case.
+- **Same-window brief auto-dismiss** — old chips would push stale nudges; text stays as truthful record.
+- **Cache tables with SECURITY DEFINER-scoped RLS must use the Session 21 `current_family_id()` pattern.**
+- **Silent upsert failure is a real risk** — always verify migrations landed. Consider a startup check that surfaces missing tables.
+
+### What's NEXT (unchanged from Session 25)
+
+- **Phase 2e** — Anna's phone (Universal Link is now the primary invite path).
+- **Phase 3b Stripe activation** — Richard's ~25 min at stripe.com. Products must be tax-inclusive (see STRIPE-SETUP.md).
+- **TestFlight submission** — `eas build --profile preview` → `eas submit --platform ios`.
+- **Phase 4b** — remove 4 remaining dev rows, QR chip, expo-document-picker, GDPR / privacy WebViews.
+
+### SQL migrations to run for Session 26 (if setting up fresh)
+
+`supabase-zaeli-briefs.sql` (updated — proper RLS + still-idempotent). Session 24 migrations still required first: `supabase-invite-inviter-name.sql`, `supabase-family-member-colours.sql`, `supabase-remap-event-assignees.sql`, `supabase-event-repeat-group.sql`.
+
+### Session 25 (still current — historical, 1 July earlier same day)
+
+Universal Links LIVE end-to-end + Phase 4a cleanup + Stripe Phase 3b scaffolding. Tap `https://zaeli.app/invite/<token>` in Messages → app opens direct to receiver flow, verified on device. Cloudflare DNS + Netlify + Let's Encrypt SSL + AASA serving `application/json`. First EAS Build proven with new dev-client carrying `associatedDomains: ["applinks:zaeli.app"]` entitlement. Cloudflare Email Routing on zaeli.ai (hello@ → Gmail). Apple Team ID `V37VPTPKQ8`. Commits: `ad32064`, `bd4fdbb`, `0398a07`, `b0d8dc1`, `cff0ed6`, `2a32cac`, `5e4e0a9`.
+
+---
+
+## ══════════════════════════════════
+## PRIOR STATE — SESSION 25 REFERENCE (historical)
 ## ══════════════════════════════════
 
 ### NEW THIS SESSION (Session 25 — Universal Links · Phase 4a · Stripe scaffolding, 1 July)

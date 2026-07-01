@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 1 July 2026 — Session 25 ✅ · UNIVERSAL LINKS LIVE end-to-end · Phase 4a cleanup shipped · Stripe Phase 3b scaffolded · Swipe affordance shipped · zaeli.app hosting infrastructure fully deployed (Cloudflare DNS → Netlify + Let's Encrypt SSL + AASA file serving `application/json`) · First EAS Build proven — new dev-client with `associatedDomains: ["applinks:zaeli.app"]` entitlement · Cloudflare Email Routing on zaeli.ai (hello@ → Gmail) · Apple Team ID captured: V37VPTPKQ8 · Verified on device: tap invite link in Messages → app opens directly to receiver flow · Backend pass now ~90% complete — remaining: Anna's phone (Phase 2e), Stripe activation (external, ~25 min account setup), Phase 4b (post-Anna dev-row cleanup + TestFlight)*
+*Last updated: 1 July 2026 (late evening) — Session 26 ✅ · BRIEF QUALITY DEEP-DIVE + STRATEGIC PRICING PIVOT · Brief prompt v1 (competence-first, stop nudging on empty data) + v2 (invisible-domain rule — remove empty-state signals from context entirely) · zaeli_briefs table finally created (had never been run since Session 16 — briefs were silently uncached) + proper RLS policies · **Pricing reduced: A$9.99 family / A$7.99 tutor per child inc GST** (was A$14.99 / A$9.99 — competitive positioning in a tight economy) · 3-hour bucket refresh so briefs stay time-of-day-current (5:33pm brief → fresh 10:47pm brief with "day's done, bins already out, tomorrow's shape" framing) · Auto-dismiss earlier same-window briefs on refire · Prior Session 25 (Universal Links LIVE, EAS Build, Cloudflare/Netlify hosting, Stripe scaffolding) still current — remaining: Anna's phone (Phase 2e), Stripe activation (external ~25 min), Phase 4b TestFlight*
 
 ---
 
@@ -1983,6 +1983,111 @@ Richard's first ever EAS Build. Trigger: dev-client with the new `associatedDoma
 
 ---
 
+## ══════════════════════════════════
+## SESSION 26 — BRIEF QUALITY DEEP-DIVE · PRICING PIVOT (1 July 2026, late evening) ✅
+## ══════════════════════════════════
+
+Same-day continuation of Session 25 that turned into a substantial body of work. Six commits — brief system fine-tune, table backfill, and a strategic pricing decision.
+
+### A. Brief v1 — competence-first prompt (commit `18f38d5`)
+
+Richard noticed he'd stopped reading briefs because they kept nagging about dinner even when he had it handled off-app. **The bug is a classic AI-product failure mode**: the assistant treats "no data" as "user is behind" — an empty `meal_plans` row becomes "Nothing planned for dinner," and every brief becomes a data-entry chase. Opposite of the winning mantra.
+
+Four targeted changes to the Sonnet prompt in `lib/brief-generator.ts`:
+- `TONIGHT MEAL` context line reframed: "not planned yet" (reads as problem) → "no meal_plan row (may be handled off-app — do NOT nudge)".
+- NEW `COMPETENCE FIRST` rule block: explicit list of banned nudge phrases ("Nothing planned for dinner", "You haven't added...", "Time to plan the week"), default assumption that Rich has empty fields handled off-app.
+- Sparse-day chip examples cleaned up — dropped "Plan tomorrow's dinner", replaced with genuinely warm moves ("Add a note", "Chat with me"). Explicit ban on data-entry chips.
+- "One thing" paragraph made OPTIONAL in both morning + evening blocks. Only fires when there's a genuine nudge tied to real data. If nothing warrants a nudge, the paragraph is dropped entirely. Explicit good-vs-bad examples inline.
+
+### B. zaeli_briefs table backfill + RLS fix (commit `be2fc90`)
+
+Trying to `DELETE FROM zaeli_briefs` returned `ERROR 42P01: relation does not exist`. **The table had never been created in Richard's dev DB.** Which means every brief since Session 16 has been a fresh Sonnet call with a silent upsert failure — no caching at all. The migration file (`supabase-zaeli-briefs.sql`) also predated Session 21's real RLS, using a `USING (true)` allow-all policy that would've been a security hole once real users signed up.
+
+Fixed the migration to the Session 21 standard (family-scoped SELECT/INSERT/UPDATE/DELETE via `public.current_family_id()`) then Richard ran it. Table live, RLS wired, caching finally working.
+
+### C. Brief v2 — invisible-domain rule (commit `5e19e54`) ⭐
+
+V1 stopped the body opening with "Nothing planned for dinner" but Sonnet **compensated by pushing the dinner nudge into the One Thing + primary chip** ("dinner's still unplanned" / "Plan tonight's dinner"). My explicit bans on those phrases didn't stick — the model's helpful-assistant training bias found wiggle room.
+
+Root cause: even with `TONIGHT MEAL: no meal_plan row (do NOT nudge)`, I was still signalling that dinner EXISTS as a domain and is empty. That's an invitation for a "helpful" AI to fill the void. Real fix: **don't tell Sonnet the domain exists at all when it's empty.**
+
+Changes in `lib/brief-generator.ts`:
+- `formatContext` only includes populated domains. If `TONIGHT MEAL` is null → line is omitted entirely. Same for `OPEN TASKS`, `TODAY EVENTS`, `TOMORROW EVENTS`. `SHOPPING` replaced with `SHOPPING FLAGGED` — only appears when flagged items exist.
+- New `── LIVE DATA ──` fence around populated domains in the context; closing `REMINDER` line reiterates the rule.
+- New ABSOLUTE `INVISIBLE-DOMAIN RULE` at top of common prompt: if a domain isn't in LIVE DATA, it does NOT appear in opener / body / one thing / chip.
+- Strengthened banned-phrase list ("Dinner's still unplanned", "A quick decision now saves the 6pm scramble").
+- New explicit `BANNED CHIP LABELS` block: no chip starting with "Plan" / "Add" / "Sort" unless the label names a concrete item present in LIVE DATA.
+
+**Verified working**: fresh 10:47pm brief was "Wednesday's done, Rich — and the bins are already out 🌙" + body about tomorrow's real events (soccer at 2pm, morning run) + soft one-thing tied to soccer + primary chip "Which kid has soccer?" (clarifying question, not a data-entry nudge). No dinner mention anywhere.
+
+### D. Pricing pivot — A$9.99 family / A$7.99 tutor per child, inc GST (commit `3220703`) ⭐
+
+Strategic reduction from A$14.99 / A$9.99. Driven by real conversations with prospective users — the old pricing was a barrier in the current Australian economy. Sub-A$10 base plan changes the conversion conversation. Tutor at A$7.99 keeps the biggest revenue lever affordable for multi-kid families (family with 3 kids on Tutor = A$23.97/mo, more than 2x the base plan — that math is what makes the base reduction sustainable).
+
+**Production surfaces updated**: sign-up fineprint (`app/(auth)/sign-in.tsx`), onboarding Ready step (`app/onboarding/index.tsx`), Tutor upsell + status rows in Family screen (`app/(tabs)/family.tsx`), Tutor lock upsell (`app/(tabs)/tutor.tsx`), Tour stop 7 (Tutor HERO) price line (`lib/tour-state.ts`).
+
+**Docs synced**: CLAUDE.md Business section, ZAELI-PRODUCT.md pitch + revenue line + Tour section, STRIPE-SETUP.md new prices **plus critical tax-inclusive setup note** (Stripe AU adds 10% GST on top by default — must set price behaviour to "Inclusive" or customer gets charged A$10.99 / A$8.79), new-chat-handover.md Session 25 narrative + What's NEXT + Tour stop.
+
+**Cost implication**: API cost was ~10% of A$14.99 revenue, now ~15% of A$9.99. Still healthy. Any new feature that materially increases per-family API cost should be evaluated against the A$9.99 anchor, not the old A$14.99.
+
+### E. 3-hour bucket refresh (commit `ab90557`) ⭐
+
+Richard opened Chat at 10:30pm and was still seeing a brief written at 5:33pm — "get bins out after dinner" reading absurd once bedtime was close and bins were already out. **The evening window is 13 hours wide** (16:00–04:59), and neither `shouldFireBrief` nor `data_signature` captured how far time had moved within it.
+
+Fix: coarse 3-hour bucket in the signature + gate the persistence-restore path on bucket match.
+
+`lib/brief-firing.ts`:
+- New `currentBucket(now)` helper: `Math.floor(now.getHours() / 3)`.
+
+`lib/brief-generator.ts`:
+- `FamilyContext` gains optional `hourBucket: number`.
+- `computeSignature` includes bucket. Bucket shift = cache miss = Sonnet regenerates with fresh time-of-day framing.
+
+`app/(tabs)/index.tsx`:
+- `buildBriefContext` sets `hourBucket: getCurrentBucket()`.
+- Persistence-restore of `lastBriefWindowRef` only carries the "already fired" signal forward if the persisted brief's bucket matches now. Stale bucket → refs stay null → `shouldFireBrief` fires fresh on next mount.
+
+**Cost**: at ~A$0.008 / brief with prompt caching, worst case adds A$0.03-0.05/family/day on top of the 2/day baseline. Comfortable at A$9.99 revenue.
+
+### F. Auto-dismiss earlier same-window briefs on refire (commit `93c7065`)
+
+After the bucket refresh worked, the old 5:33pm brief was still visible in the chat feed alongside the fresh 10:47pm one — with its stale "Plan tonight's dinner" chip still tappable. Two sets of competing chips, old set pushing bad nudges.
+
+Fix in `tryFireBrief`'s placeholder-swap step: in addition to filling the placeholder with the real Sonnet response, walk `messages` and set `briefDismissed=true` on any other same-window brief that isn't already dismissed. Text stays as chat history; chip row hides. Uses the same `briefDismissed` mechanism the manual dismiss chip already uses (Session 17), so render path is unchanged.
+
+### Locked decisions Session 26
+
+- **Empty state signal is fragile — remove the signal, not just add a "don't nudge" rule.** Sonnet's helpful-assistant training bias fights explicit bans. If a domain is empty, the domain shouldn't appear in the AI's context at all. This is the invisible-domain pattern — applicable to any future AI-generated content surface.
+- **Pricing: A$9.99 family / A$7.99 tutor per child, both inc GST** (locked Session 26). Sub-A$10 anchor. Stripe products must be set as tax-inclusive (default behaviour adds 10% on top in AU). See [[project-pricing-decision]] memory.
+- **3-hour bucket in brief signature** — briefs stay time-of-day-current within wide windows. 4-5 buckets per window × 2 windows = at most 8-10 briefs/family/day worst case. Bucket size chosen for balance: shorter = more Sonnet calls, longer = staleness returns.
+- **Same-window brief auto-dismiss** — when a new brief fires, previous same-window briefs' chips hide but text stays as history. Old chips would push stale nudges; text stays as truthful record of what Zaeli said at 5pm vs 10pm.
+- **Cache tables with SECURITY DEFINER-scoped RLS must depend on the helper being created first.** `supabase-zaeli-briefs.sql` was written Session 16 with a legacy `USING (true)` policy — updating it to the Session 21 `current_family_id()` pattern before running was necessary. Any future family-scoped cache table needs the same pattern.
+- **Silent upsert failure is a real risk.** Session 16's migration was never run in dev DB — briefs ran uncached from Session 16 through Session 25 with `zaeli_briefs` upsert failing silently. Always verify migrations landed. Consider adding a startup check that surfaces missing tables to Metro logs.
+
+### Files touched Session 26
+
+**NEW:**
+- `.claude/projects/C--Users-richa-zaeli/memory/project-pricing-decision.md`
+
+**MODIFIED:**
+- `lib/brief-generator.ts` — v1 + v2 prompt changes, `formatContext` filters empty domains, `computeSignature` includes bucket, `FamilyContext.hourBucket` optional
+- `lib/brief-firing.ts` — `currentBucket(now)` helper
+- `app/(tabs)/index.tsx` — persistence-restore bucket gate, `hourBucket` in `buildBriefContext`, auto-dismiss in `tryFireBrief` placeholder swap, `currentBucket` import
+- `supabase-zaeli-briefs.sql` — legacy allow-all policy replaced with Session 21 family-scoped SELECT/INSERT/UPDATE/DELETE
+- `app/(auth)/sign-in.tsx`, `app/onboarding/index.tsx`, `app/(tabs)/family.tsx`, `app/(tabs)/tutor.tsx`, `lib/tour-state.ts` — pricing updated to A$9.99 / A$7.99
+- `CLAUDE.md`, `ZAELI-PRODUCT.md`, `STRIPE-SETUP.md`, `new-chat-handover.md` — pricing sweep + tax-inclusive setup note
+
+### What's next (unchanged from Session 25)
+
+- Phase 2e — Anna's phone
+- Phase 3b Stripe activation (external, ~25 min)
+- TestFlight submission (`eas build --profile preview`)
+- Phase 4b post-Anna cleanup
+
+Nothing to do with the brief system tonight — v2 + bucket refresh + auto-dismiss are working well. Watch for a few days; if any nag pattern re-emerges we'd escalate to memory-driven back-off (fix #2 from the original diagnosis).
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -2107,6 +2212,13 @@ Phase 50: Phase 3b — Stripe scaffolding ✅ Session 25 (1 July) — supabase-s
 Phase 51: Phase 3c — Universal Links LIVE ⭐ ✅ Session 25 (1 July) — app.json associatedDomains ["applinks:zaeli.app"]. INVITE_LINK_BASE 'zaeli.app/i/' → 'zaeli.app/invite/' (matches Expo Router route). Copy Link + Resend use https://zaeli.app/invite/<token>. AASA hosted at zaeli.app/.well-known/apple-app-site-association with Team ID V37VPTPKQ8 + Content-Type application/json. Deploy stack: Cloudflare DNS (grey cloud) → Netlify + Let's Encrypt SSL. Verified end-to-end on device: tap link in Messages → app opens to receiver flow, first try.
 Phase 52: EAS Build infrastructure ✅ Session 25 (1 July) — First cloud iOS build via EAS. Apple Developer credentials (regular password + 2FA, NOT App-Specific Password — Fastlane uses Developer API). Same bundle ID (com.zaeli.app) → update-in-place on iOS (no duplicate icon). Session persistence survived reinstall. Blueprint for TestFlight (Phase 4b): eas build --profile preview + eas submit --platform ios.
 Phase 53: External hosting infrastructure ✅ Session 25 (1 July) — zaeli-app-links GitHub repo → Netlify auto-deploy (netlify.toml with Content-Type: application/json for AASA path — CRITICAL, Netlify default application/octet-stream fails silently). Cloudflare DNS zaeli.app apex CNAME → apex-loadbalancer.netlify.com + www CNAME → zaeli-app-links.netlify.app (BOTH grey cloud DNS-only, orange proxy rewrites AASA Content-Type). Cloudflare Email Routing on zaeli.ai: hello@ → richarddekretser@gmail.com (free tier). Let's Encrypt SSL covers both zaeli.app + www, auto-renews.
+
+Phase 54: Brief v1 — competence-first prompt ✅ Session 26 (1 July late evening) — commit 18f38d5. TONIGHT MEAL context line reframed. NEW COMPETENCE FIRST rule block with banned phrase list. Sparse-day chip examples cleaned. One Thing paragraph made OPTIONAL with explicit good-vs-bad examples inline. Diagnosis: "empty state = to-do item" is a category-standard AI-product failure mode.
+Phase 55: zaeli_briefs table backfill + RLS fix ✅ Session 26 (1 July late evening) — commit be2fc90. Table had never been created in dev DB (Session 16 migration never run) — every brief was uncached with silent upsert failures. Migration also used pre-Session-21 "USING (true)" allow-all. Updated to Session 21 pattern (family-scoped SELECT/INSERT/UPDATE/DELETE via current_family_id()). Table created, caching finally working.
+Phase 56: Brief v2 — invisible-domain rule ⭐ ✅ Session 26 (1 July late evening) — commit 5e19e54. V1 stopped the body opener but Sonnet compensated by pushing dinner nudge into One Thing + primary chip. Real fix: don't tell Sonnet the domain exists when empty. formatContext filters out empty domains entirely. New ── LIVE DATA ── fence + closing REMINDER. New ABSOLUTE INVISIBLE-DOMAIN RULE at top of prompt. BANNED CHIP LABELS block. Verified working: 10:47pm brief was warm, real-event-tied, no dinner mention anywhere.
+Phase 57: Pricing pivot ⭐ ✅ Session 26 (1 July late evening) — commit 3220703. **A$9.99 family / A$7.99 tutor per child, inc GST** (from A$14.99 / A$9.99). Strategic reduction for competitive positioning in a tight economy. 5 production surfaces + 4 docs updated + STRIPE-SETUP.md gained critical tax-inclusive setup note (Stripe AU defaults to adding 10% on top). Memory saved in [[project-pricing-decision]].
+Phase 58: 3-hour bucket refresh ⭐ ✅ Session 26 (1 July late evening) — commit ab90557. Coarse hourBucket = Math.floor(hour / 3) added to FamilyContext + computeSignature. Persistence-restore of lastBriefWindowRef gated on bucket match — stale bucket means "already fired" signal is not carried forward, so shouldFireBrief refires fresh. Fixes 5pm brief still showing "get bins out after dinner" at 10:30pm.
+Phase 59: Auto-dismiss earlier same-window briefs ✅ Session 26 (1 July late evening) — commit 93c7065. tryFireBrief placeholder-swap step now walks messages and sets briefDismissed=true on any other same-window brief. Text stays as chat history, chips hide. Uses existing briefDismissed mechanism (Session 17) — no render path change.
 ```
 
 ---
@@ -2242,3 +2354,11 @@ Phase 53: External hosting infrastructure ✅ Session 25 (1 July) — zaeli-app-
 - **Stripe webhook deploys with `--no-verify-jwt` flag** (Session 25) — Stripe uses signature-based auth via `constructEventAsync`, not JWT. The portal endpoint verifies JWT normally (user must be signed in). Two different security models — don't cross-wire them.
 - **Universal Link generation MUST match app's route path** (Session 25) — if you rename the receiver route from `/invite/[token]` to anything else, update BOTH `INVITE_LINK_BASE` in `lib/invite-state.ts` AND the AASA file's `components` pattern in the deploy repo. Ship both together or Universal Links break silently.
 - **Post-deploy Universal Link verification** (Session 25) — before assuming things work, hit `https://zaeli.app/.well-known/apple-app-site-association` from browser + `curl -I` to confirm HTTP 200 + `content-type: application/json`. Then test tap in Messages (not Safari address bar — Safari blocks Universal Links from address-bar navigation, use Messages / Mail / Notes / a shared link).
+- **Empty state should not leak into AI context — invisible-domain rule** (Session 26). Sonnet's helpful-assistant training bias fights explicit "don't nudge" instructions. If an AI-generated surface (brief, chat, notification) can be gamed by fabricating from absent data, the fix is not to add stricter bans — it's to remove the empty state from context entirely. If TONIGHT MEAL is null, the line is omitted; if OPEN TASKS is empty, the line is omitted. Sonnet literally cannot propose "plan dinner" if it doesn't know dinner is a thing to think about. This is a general pattern for any AI content surface — apply the same discipline anywhere Sonnet is asked to summarise state.
+- **Brief signature includes hour bucket** (Session 26) — coarse `Math.floor(hour / 3)` in `lib/brief-firing.ts` `currentBucket()`, added to `FamilyContext.hourBucket`, included in `computeSignature`. Fixes 5pm briefs still showing at 10:30pm within the 13-hour evening window. Bucket size chosen for balance: shorter = more Sonnet calls, longer = staleness. If you ever change the size, update the `hourBucket` type comment in `FamilyContext` too.
+- **Brief persistence-restore is bucket-gated** (Session 26) — the `lastBriefWindowRef` "already fired" signal is only carried forward from the persisted chat feed if the persisted brief's bucket matches now. Stale bucket → refs stay null → `shouldFireBrief` fires fresh on next mount (treats stale-bucket like a natural window change). Any future addition to the brief-restore path needs the same bucket check or it'll silently gate refresh.
+- **Auto-dismiss earlier same-window briefs on refire** (Session 26) — when `tryFireBrief` completes its placeholder-swap, walk `messages` and set `briefDismissed=true` on any OTHER same-window brief that isn't already dismissed. Text stays as chat history, chip row hides. Uses existing `briefDismissed` mechanism (Session 17). Don't remove briefs from `messages` — dismissing preserves history and reuses the render path.
+- **Silent upsert failure is a real risk** (Session 26) — `zaeli_briefs` never existed in dev DB from Session 16 through Session 25, briefs upserted with no error surfaced. Whenever adding a new Supabase table dependency, run the migration explicitly + confirm at least one row lands before trusting the code path. Consider a startup check that surfaces missing tables to Metro logs.
+- **Cache table migrations depending on `current_family_id()` must use the Session 21 RLS pattern** (Session 26) — the `supabase-zaeli-briefs.sql` original was Session 16 pre-auth with `USING (true)` allow-all. Updated to standard 4 policies (SELECT / INSERT / UPDATE / DELETE) scoped by `family_id = public.current_family_id()`. Any future family-scoped cache table has to follow this exact pattern — copy from `supabase-zaeli-briefs.sql` as a template.
+- **Pricing anchor is A$9.99 family / A$7.99 tutor per child, inc GST** (Session 26 — locked in [[project-pricing-decision]] memory). Stripe products must be set to tax-inclusive (AU defaults to adding 10% on top). Any new feature that materially increases per-family API cost must be evaluated against A$9.99, not A$14.99. Tutor stays the single biggest revenue lever — a family with 3 kids on Tutor adds A$23.97/mo, more than 2x the base.
+- **Never rewrite historical cost calculations** (Session 26) — when pricing changes, update the LIVE reference lines in CLAUDE.md's Business section and any narrative that mentions old figures in current-truth framing. Leave old cost-analysis paragraphs from prior sessions (e.g. "18% of A$14.99 revenue") as historical point-in-time observations. Rewriting them scrambles the audit trail.
