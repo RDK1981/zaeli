@@ -3928,13 +3928,24 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
         context: ctx,
       });
 
-      // 2. Swap placeholder for real brief in place
-      setMessages(prev => prev.map(m => m.id === placeholderId ? {
-        ...m,
-        text: payload.text,
-        isLoading: false,
-        briefChips: payload.chips,
-      } : m));
+      // 2. Swap placeholder for real brief in place. Also auto-dismiss any
+      // earlier same-window briefs so their chips (which may reference
+      // stale time-of-day nudges like "Plan tonight's dinner") disappear —
+      // the text stays as history but stops competing for interaction.
+      setMessages(prev => prev.map(m => {
+        if (m.id === placeholderId) {
+          return {
+            ...m,
+            text: payload.text,
+            isLoading: false,
+            briefChips: payload.chips,
+          };
+        }
+        if (m.isBrief && m.briefWindow === win && !m.briefDismissed) {
+          return { ...m, briefDismissed: true };
+        }
+        return m;
+      }));
       lastBriefWindowRef.current = win;
       lastBriefDateRef.current = todayDate;
 
