@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["REPLACE_WITH_TEAM_ID.com.zaeli.app"],
+        "appIDs": ["V37VPTPKQ8.com.zaeli.app"],
         "components": [
           {
             "/": "/invite/*",

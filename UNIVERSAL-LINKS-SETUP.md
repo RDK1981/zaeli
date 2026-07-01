@@ -12,22 +12,20 @@ When this is done, tapping `https://zaeli.app/invite/<token>` from SMS / Mail / 
 
 ## What you need to do
 
-### 1. Get your Apple Team ID
+### 1. Apple Team ID ✅ done
 
-Either:
-- Apple Developer portal → Account → Membership → Team ID (e.g. `ABC123XYZ4`), or
-- `cat ios/zaeli.xcodeproj/project.pbxproj | grep DEVELOPMENT_TEAM` after `npx expo prebuild`
+Richard's Team ID: `V37VPTPKQ8`. Apple Developer Program valid through 24 Mar 2027.
 
-### 2. Fill in the AASA file
+### 2. AASA file ✅ done
 
-Edit `well-known/apple-app-site-association` and replace `REPLACE_WITH_TEAM_ID` with your Team ID:
+`well-known/apple-app-site-association` has been filled in with the real Team ID + bundle ID:
 
 ```json
 {
   "applinks": {
     "details": [
       {
-        "appIDs": ["ABC123XYZ4.com.zaeli.app"],
+        "appIDs": ["V37VPTPKQ8.com.zaeli.app"],
         "components": [
           { "/": "/invite/*", "comment": "Family invite links" }
         ]
@@ -36,6 +34,8 @@ Edit `well-known/apple-app-site-association` and replace `REPLACE_WITH_TEAM_ID` 
   }
 }
 ```
+
+**The file is ready to host — no further edits needed.**
 
 ### 3. Host it at zaeli.app
 
