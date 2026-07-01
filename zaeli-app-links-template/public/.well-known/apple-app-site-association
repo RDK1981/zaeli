@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["V37VPTPKQ8.com.zaeli.app"],
+        "components": [
+          {
+            "/": "/invite/*",
+            "comment": "Family invite links — opens /invite/[token] in the app"
+          }
+        ]
+      }
+    ]
+  }
+}

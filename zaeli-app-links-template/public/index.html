@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zaeli — Less chaos. More family.</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #FAF8F5;
+      color: #0A0A0A;
+      min-height: 100vh;
+    }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; position: relative; overflow: hidden;
+    }
+    .orb { position: absolute; border-radius: 50%; z-index: 0; }
+    .orb-peach { width: 320px; height: 320px; background: #FAC8A8; opacity: .42; top: -100px; right: -100px; }
+    .orb-mint  { width: 280px; height: 280px; background: #B8EDD0; opacity: .50; bottom: -80px; left: -90px; }
+    .orb-lav   { width: 200px; height: 200px; background: #D8CCFF; opacity: .55; top: 140px; left: -60px; }
+    .orb-sky   { width: 180px; height: 180px; background: #A8D8F0; opacity: .42; bottom: 160px; right: -50px; }
+    .wrap { text-align: center; max-width: 480px; position: relative; z-index: 1; }
+    .logo {
+      font-size: 82px; font-weight: 800; letter-spacing: -3px;
+      margin-bottom: 24px; line-height: 1;
+    }
+    .accent { color: #A8D8F0; }
+    .tagline { font-size: 26px; line-height: 1.3; margin-bottom: 40px; }
+    .coral { color: #FF4545; font-weight: 700; }
+    .cta {
+      display: inline-block; background: #0A0A0A; color: white;
+      padding: 16px 32px; border-radius: 30px;
+      text-decoration: none; font-weight: 600; font-size: 16px;
+    }
+    .cta:hover { opacity: .85; }
+  </style>
+</head>
+<body>
+  <div class="orb orb-peach"></div>
+  <div class="orb orb-mint"></div>
+  <div class="orb orb-lav"></div>
+  <div class="orb orb-sky"></div>
+  <div class="wrap">
+    <div class="logo">z<span class="accent">a</span>el<span class="accent">i</span></div>
+    <p class="tagline">Less <span class="coral">chaos</span>.<br>More family.</p>
+    <a class="cta" href="https://zaeli.ai">Learn more →</a>
+  </div>
+</body>
+</html>

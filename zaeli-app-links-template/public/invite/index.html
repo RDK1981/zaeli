@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zaeli — You've been invited</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #FAF8F5; color: #0A0A0A; min-height: 100vh;
+    }
+    body {
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px; position: relative; overflow: hidden;
+    }
+    .orb { position: absolute; border-radius: 50%; z-index: 0; }
+    .orb-peach { width: 300px; height: 300px; background: #FAC8A8; opacity: .42; top: -80px; right: -80px; }
+    .orb-mint  { width: 240px; height: 240px; background: #B8EDD0; opacity: .50; bottom: -60px; left: -70px; }
+    .wrap { text-align: center; max-width: 460px; position: relative; z-index: 1; }
+    .logo { font-size: 60px; font-weight: 800; letter-spacing: -2px; margin-bottom: 28px; line-height: 1; }
+    .accent { color: #A8D8F0; }
+    h1 { font-size: 30px; line-height: 1.25; margin-bottom: 18px; letter-spacing: -.5px; }
+    p { color: rgba(10,10,10,0.72); line-height: 1.55; margin-bottom: 36px; font-size: 16px; }
+    .cta {
+      display: inline-block; background: #0A0A0A; color: white;
+      padding: 16px 32px; border-radius: 30px;
+      text-decoration: none; font-weight: 600; font-size: 16px;
+      margin-bottom: 14px;
+    }
+    .cta:hover { opacity: .85; }
+    .sub { display: block; color: rgba(10,10,10,0.55); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="orb orb-peach"></div>
+  <div class="orb orb-mint"></div>
+  <div class="wrap">
+    <div class="logo">z<span class="accent">a</span>el<span class="accent">i</span></div>
+    <h1>You've been invited 🏡</h1>
+    <p>Open this invite in the Zaeli iPhone app. Don't have it yet? Download from the App Store first, then tap your invite link again.</p>
+    <a class="cta" href="https://apps.apple.com/app/id_placeholder">Download Zaeli</a>
+    <span class="sub">Available on iPhone</span>
+  </div>
+</body>
+</html>

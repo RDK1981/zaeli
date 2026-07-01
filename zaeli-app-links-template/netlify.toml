@@ -1,0 +1,14 @@
+# Netlify config for zaeli.app
+# Deploys everything in /public as the site root.
+
+[build]
+  publish = "public"
+
+# CRITICAL: Apple's Universal Links fetcher rejects the AASA file if
+# it's not served with Content-Type: application/json. Netlify's default
+# for extension-less files is application/octet-stream, which fails.
+[[headers]]
+  for = "/.well-known/apple-app-site-association"
+  [headers.values]
+    Content-Type = "application/json"
+    Cache-Control = "public, max-age=3600"
