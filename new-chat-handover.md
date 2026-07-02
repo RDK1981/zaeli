@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*1 July 2026 (late evening) — Session 26 ✅ · BRIEF QUALITY DEEP-DIVE + STRATEGIC PRICING PIVOT · Brief prompt v1 (competence-first) + v2 (invisible-domain rule — remove empty-state signals from context entirely, fixes Sonnet finding wiggle room to nag) · zaeli_briefs table finally created (had never been run since Session 16 — briefs were silently uncached) + RLS updated to Session 21 pattern · **PRICING REDUCED: A$9.99 family / A$7.99 tutor per child inc GST** (was A$14.99 / A$9.99 — competitive positioning in tight economy) · 3-hour bucket refresh so briefs stay time-of-day-current within wide windows · Auto-dismiss earlier same-window briefs on refire · Prior Session 25 (Universal Links LIVE, EAS Build proven, Cloudflare/Netlify hosting deployed, Stripe scaffolded) still current · **NEXT: 2e Anna's phone, 3b Stripe activation (external ~25 min with tax-inclusive setup), Phase 4b (TestFlight + post-Anna dev-row cleanup)***
+*2 July 2026 (early hours) — Session 27 ✅ · APP ICON SHIPPED + EAS PREVIEW BUILD LIVE + BRIEF SYSTEM FINAL POLISH · **Icon 2B ("za" + peach/mint/lavender orbs on warm bg)** designed via HTML mockup, exported via browser Canvas tool, dropped into `assets/images/icon.png` + `splash-icon.png` · **First standalone iOS preview build** unblocked — was crashing on boot because EAS cloud builds don't inherit local `.env`; fixed by adding EXPO_PUBLIC_* keys to EAS Environment Variables as "Sensitive" · **Brief bucket-check bug fixed** (Session 26's fix parsed display string as Date, silently failed, refs never restored) · **Brief dedup on restore** — 7 stacked briefs from tonight's iterations were flashing; now filtered to just the latest per window, self-healing · **Splash Option C** — first install ever fires regardless of time (AsyncStorage flag), then respects windows · Prior Session 26 (brief v1/v2, pricing pivot A$9.99/A$7.99 inc GST, bucket refresh) + Session 25 (Universal Links LIVE, EAS Build proven, Cloudflare/Netlify hosting, Stripe scaffolded) still current · **NEXT: fresh preview build to verify dev-client-specific flashes are gone, 2e Anna's phone, 3b Stripe activation (external ~25 min tax-inclusive setup), Phase 4b TestFlight, Phase 5 (NEW) — move Anthropic/OpenAI keys server-side before public launch***
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,12 +10,63 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 26 was a brief-system deep-dive plus a strategic pricing pivot. Six commits: brief v1 + v2 prompt fine-tuning, backfill of the `zaeli_briefs` table that had never been created, pricing reduction to A$9.99 / A$7.99 inc GST, 3-hour bucket refresh so briefs stay time-of-day-current, and auto-dismiss of earlier same-window briefs when a new one fires. All verified working on device.
+Session 27 continued Session 26's late-evening work into the early morning. Two headline deliverables: **app icon shipped** and **first standalone iOS preview build working**. Also cleared brief-system bugs still lurking after Session 26's dedup fix. All verified working on device end-to-end.
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅ (Session 26)
+## CURRENT STATE — ALL WORKING ✅ (Session 27)
+## ══════════════════════════════════
+
+### NEW THIS SESSION (Session 27 — app icon + EAS preview + brief polish, 2 July early hours)
+
+**A. App icon 2B shipped** ⭐. Icon needed for TestFlight — Apple requires a proper 1024×1024 asset. Design mockup at `zaeli-icon-options.html` presented 6 options across letterform + sparkle themes. **Pick 2B ("za" wordmark fragment in Poppins ExtraBold with sky-blue `a` + peach/mint/lavender orbs behind, on warm bg)** — instantly recognisable to anyone who's seen the wordmark, echoes the splash design. Browser Canvas tool `zaeli-icon-generator.html` renders at 1024 + 2048 and triggers PNG downloads. Assets shipped to `assets/images/icon.png` + `splash-icon.png`. Opaque, no alpha, no rounded corners (iOS applies mask), flat warm bg `#FAF8F5`.
+
+**B. EAS preview build unblocked** ⭐. First `eas build --profile preview` completed and installed, but crashed immediately on JS boot (native splash briefly showed → crash). Diagnosis: cloud builds don't inherit local `.env`. All `EXPO_PUBLIC_*` variables were `undefined` at bundle load, `createClient(undefined, undefined)` in `lib/supabase.ts` threw immediately. Fixed via expo.dev web UI: 4 environment variables added as **Sensitive** visibility (SUPABASE URL + ANON, ANTHROPIC, OPENAI). Scoped Preview + Production. Second build boots cleanly. Universal Links continue to route. Same bundle ID = install-in-place.
+
+Important gotcha: Expo blocks "Secret" visibility for `EXPO_PUBLIC_*` because these variables bake into the JS bundle at build time (Expo won't let you lie about them being secret). **Use "Sensitive" instead** — values hidden in EAS UI but same bundle behaviour. Both "Plain text" and "Sensitive" bake identically.
+
+**C. Security implication — new Phase 5 item.** `EXPO_PUBLIC_ANTHROPIC_API_KEY` and `EXPO_PUBLIC_OPENAI_API_KEY` are extractable from the compiled app bundle. Fine for TestFlight dogfood with trusted testers. **NOT fine for public App Store launch.** Phase 5 (deferred) migrates these calls to Supabase Edge Functions (same pattern as Stripe portal). Supabase URL + anon key can stay client-side (RLS enforces security).
+
+**D. Brief bucket-check bug fix** (commit `e78efa3`). Session 26's bucket-check gated ref restoration on `sameBucket`, but parsed `last.ts` — a locale display string like `"9:31 pm"`, not an ISO date. `new Date("9:31 pm")` returns Invalid Date, `try/catch` swallowed it, `persistedBucket` always `null`, `sameBucket` always `false`, refs never restored, every kill+reopen fired a fresh Sonnet brief. **Fix: parse trailing 13-digit millis from message id** (`brief-<win>-<YYYY-MM-DD>-<millis>`). Regex `/-(\d{13})$/`. Diagnostic logging (`403f781`) surfaced the bug in one round; logging removed in `ac04038`.
+
+**E. Brief dedup on restore** (commit `ac04038`). Post-bucket-fix logs still showed `fire: false, reason: "already-fired-this-window"` — no new briefs generated. But feed still showed multiple briefs stacked. Log revealed `briefOnlyCount: 7` — persistence file had accumulated 7 briefs from tonight's iteration tests (v1, v2, bucket refresh, auto-dismiss). **Fix: on restore, filter to LATEST brief per window** (highest millis in id). Save effect writes back clean single-brief array; self-healing across future cycles.
+
+**F. Splash Option C** (commit `ac04038`). Session 15 locked splash to 6-9am/12-2pm/5-8pm windows. Correct steady-state UX, but hostile to first-time users (fresh install at any other time = no brand moment). **Fix: AsyncStorage flag `splash_first_install_seen_v1`** — unset → fire regardless of time + set flag; set → respect original windows.
+
+**G. Cosmetic flashes deferred to next preview build**. Richard reported two glitches on kill+reopen: brief flash of old stacked briefs (likely persistence save-debounce hadn't fired before rapid swipe-kill), and a "flat bright blue page" flash (likely dev-client Metro bundle-fetch artifact). **Neither should appear in a standalone preview build** — bundle is baked in, no Metro fetching, no timing races. Verify next day with a fresh preview build.
+
+### Key decisions Session 27
+
+- **App icon = 2B "za + orbs"** — never plain letterform or dark background; warm-bg + sky-blue `a` combination IS the brand identity.
+- **`EXPO_PUBLIC_*` env vars use "Sensitive" visibility in EAS**, never "Secret" (Expo blocks it). All 4 API keys required for standalone builds to boot.
+- **Anthropic + OpenAI keys must move server-side before public launch (Phase 5)**. Client-bundled keys are extractable.
+- **Brief bucket-check parses from message id, NEVER from `ts`** — `ts` is a locale display string, not an ISO date.
+- **Brief dedup on restore keeps only the LATEST brief per window** — self-healing via save effect.
+- **Splash Option C** — first install fires + then respects time windows.
+- **Dev-client rendering artifacts don't predict standalone behaviour** — Metro fetches, hot-reload glitches, and other dev-client oddities aren't reliable signals for production UX. Always verify in standalone preview.
+- **Preview builds are standalone; dev-client uses Metro** — same bundle ID = install-in-place, so switching between them on the same phone overwrites the previous.
+
+### What's NEXT
+
+- **Verify cosmetic flashes in a fresh preview build** — `eas build --platform ios --profile preview`. Likely dev-client artifacts, but confirm.
+- **Phase 2e — Anna's phone.** Universal Link is production-ready. `PHASE-2E-TEST-PLAN.md` walks the flow.
+- **Phase 3b Stripe activation** — Richard's ~25 min at stripe.com. Remember tax-inclusive setting (see STRIPE-SETUP.md).
+- **Phase 4b TestFlight submission** — `eas build --profile preview` (standalone with baked JS) → `eas submit --platform ios`.
+- **Phase 5 (NEW, before public launch)** — migrate Anthropic + OpenAI calls to Supabase Edge Functions. Same pattern as Stripe portal.
+
+### Session 26 (still current — historical, 1 July late evening)
+
+Brief-system deep-dive + strategic pricing pivot. Six commits: v1 competence-first prompt, v2 invisible-domain rule (removes empty-state signals from context entirely), `zaeli_briefs` table finally created (had never been run since Session 16), 3-hour bucket refresh, auto-dismiss earlier same-window briefs. **Pricing reduced: A$9.99 family / A$7.99 tutor per child inc GST** (was A$14.99 / A$9.99). Commits: `18f38d5`, `be2fc90`, `5e19e54`, `3220703`, `ab90557`, `93c7065`, `6a44ea6`.
+
+### Session 25 (still current — historical, 1 July earlier same day)
+
+Universal Links LIVE end-to-end + Phase 4a cleanup + Stripe Phase 3b scaffolding. Cloudflare DNS + Netlify + Let's Encrypt SSL + AASA serving `application/json`. First EAS Build proven with `associatedDomains` entitlement. Cloudflare Email Routing on zaeli.ai. Apple Team ID `V37VPTPKQ8`. Commits: `ad32064`, `bd4fdbb`, `0398a07`, `b0d8dc1`, `cff0ed6`, `2a32cac`, `5e4e0a9`.
+
+---
+
+## ══════════════════════════════════
+## PRIOR STATE — SESSION 26 REFERENCE (historical)
 ## ══════════════════════════════════
 
 ### NEW THIS SESSION (Session 26 — brief quality + pricing, 1 July late evening)

@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zaeli App Icon — Design Options</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Zaeli palette — matches app + splash exactly */
+      --bg:        #FAF8F5;
+      --ink:       #0A0A0A;
+      --ink2:      rgba(10,10,10,0.72);
+      --ink3:      rgba(10,10,10,0.55);
+      --ink4:      rgba(10,10,10,0.38);
+      --ink5:      rgba(10,10,10,0.14);
+      --sky:       #A8D8F0;
+      --skyD:      #4A90D9;
+      --coral:     #FF4545;
+      --peach:     #FAC8A8;
+      --mint:      #B8EDD0;
+      --lavender:  #D8CCFF;
+      --card:      #FFFFFF;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      padding: 40px 24px 80px;
+    }
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+    .wordmark {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      font-size: 44px;
+      letter-spacing: -1.5px;
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+    .wordmark .a, .wordmark .i { color: var(--sky); }
+    h1 {
+      font-weight: 700;
+      font-size: 22px;
+      margin-bottom: 8px;
+      color: var(--ink);
+    }
+    .lede {
+      font-size: 15px;
+      color: var(--ink2);
+      max-width: 620px;
+      margin: 0 auto;
+      line-height: 1.55;
+    }
+    .lede strong { font-weight: 700; color: var(--ink); }
+
+    .section-label {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      color: var(--ink3);
+      margin: 48px 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--ink5);
+    }
+    .section-note {
+      font-size: 14px;
+      color: var(--ink2);
+      margin-bottom: 28px;
+      line-height: 1.6;
+      max-width: 720px;
+    }
+    .section-note em { font-style: italic; color: var(--ink3); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 22px;
+      padding: 26px 22px 22px;
+      border: 1px solid var(--ink5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .card .label {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .card .desc {
+      font-size: 12.5px;
+      color: var(--ink3);
+      line-height: 1.5;
+      text-align: center;
+      margin-bottom: 22px;
+      min-height: 34px;
+    }
+
+    /* Icon rendering — the icon itself */
+    .icon {
+      border-radius: 22.5%; /* iOS masks to superellipse, but this approximates */
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 4px 24px rgba(10,10,10,0.10);
+    }
+    .icon.big   { width: 200px; height: 200px; }
+    .icon.mid   { width: 96px;  height: 96px; margin-top: 20px; }
+    .icon.small { width: 60px;  height: 60px; margin-top: 12px; }
+
+    .preview-sizes {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 4px;
+    }
+    .preview-sizes .size-caption {
+      display: block;
+      font-size: 10.5px;
+      color: var(--ink4);
+      text-align: center;
+      margin-top: 6px;
+      letter-spacing: 0.3px;
+    }
+
+    /* Icon 2A — "za" wordmark fragment */
+    .glyph-za {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.04em;
+    }
+    .glyph-za .a { color: var(--sky); }
+    .icon.big   .glyph-za { font-size: 128px; line-height: 1; }
+    .icon.mid   .glyph-za { font-size: 62px;  line-height: 1; }
+    .icon.small .glyph-za { font-size: 39px;  line-height: 1; }
+
+    /* Icon 2B — "za" with orb background */
+    .icon-2b .orbs {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+    .icon-2b .orb {
+      position: absolute;
+      border-radius: 50%;
+    }
+    .icon-2b .orb-peach { background: var(--peach); opacity: 0.55; }
+    .icon-2b .orb-mint  { background: var(--mint);  opacity: 0.6; }
+    .icon-2b .orb-lav   { background: var(--lavender); opacity: 0.5; }
+    /* Big */
+    .icon.big.icon-2b .orb-peach { width: 100px; height: 100px; top: -22px; right: -22px; }
+    .icon.big.icon-2b .orb-mint  { width: 80px;  height: 80px;  bottom: -14px; left: -14px; }
+    .icon.big.icon-2b .orb-lav   { width: 44px;  height: 44px;  top: 34px; left: 12px; }
+    /* Mid */
+    .icon.mid.icon-2b .orb-peach { width: 48px; height: 48px; top: -10px; right: -10px; }
+    .icon.mid.icon-2b .orb-mint  { width: 38px; height: 38px; bottom: -8px; left: -8px; }
+    .icon.mid.icon-2b .orb-lav   { width: 20px; height: 20px; top: 18px; left: 8px; }
+    /* Small */
+    .icon.small.icon-2b .orb-peach { width: 30px; height: 30px; top: -6px; right: -6px; }
+    .icon.small.icon-2b .orb-mint  { width: 24px; height: 24px; bottom: -6px; left: -6px; }
+    .icon.small.icon-2b .orb-lav   { width: 13px; height: 13px; top: 12px; left: 5px; }
+    .icon-2b .glyph-za { position: relative; z-index: 1; }
+
+    /* Icon 2C — Big "z" only + sky sparkle */
+    .glyph-z {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.04em;
+      position: relative;
+    }
+    .icon.big   .glyph-z { font-size: 156px; line-height: 1; }
+    .icon.mid   .glyph-z { font-size: 76px;  line-height: 1; }
+    .icon.small .glyph-z { font-size: 48px;  line-height: 1; }
+    .sparkle-corner {
+      position: absolute;
+      color: var(--sky);
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+    }
+    .icon.big   .sparkle-corner { font-size: 34px; top: 20px; right: 32px; }
+    .icon.mid   .sparkle-corner { font-size: 17px; top: 10px; right: 15px; }
+    .icon.small .sparkle-corner { font-size: 11px; top: 6px;  right: 9px; }
+
+    /* Icon 3A — Sky ✦ minimal */
+    .glyph-sparkle-big {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      color: var(--sky);
+    }
+    .icon.big   .glyph-sparkle-big { font-size: 210px; line-height: 1; }
+    .icon.mid   .glyph-sparkle-big { font-size: 100px; line-height: 1; }
+    .icon.small .glyph-sparkle-big { font-size: 62px;  line-height: 1; }
+
+    /* Icon 3B — Coral ✦ */
+    .glyph-sparkle-coral {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      color: var(--coral);
+    }
+    .icon.big   .glyph-sparkle-coral { font-size: 200px; line-height: 1; }
+    .icon.mid   .glyph-sparkle-coral { font-size: 96px;  line-height: 1; }
+    .icon.small .glyph-sparkle-coral { font-size: 60px;  line-height: 1; }
+
+    /* Icon 3C — Multi-orb + ✦ */
+    .icon-3c .orb-layer {
+      position: absolute;
+      inset: 0;
+    }
+    .icon-3c .o {
+      position: absolute;
+      border-radius: 50%;
+    }
+    .icon-3c .o-peach { background: var(--peach); }
+    .icon-3c .o-mint  { background: var(--mint); }
+    .icon-3c .o-sky   { background: var(--sky); }
+    .icon.big.icon-3c .o-peach { width: 90px; height: 90px; top: 22%; left: 18%; }
+    .icon.big.icon-3c .o-mint  { width: 90px; height: 90px; top: 22%; right: 18%; }
+    .icon.big.icon-3c .o-sky   { width: 90px; height: 90px; bottom: 12%; left: 50%; transform: translateX(-50%); }
+    .icon.mid.icon-3c .o-peach { width: 44px; height: 44px; top: 20%; left: 18%; }
+    .icon.mid.icon-3c .o-mint  { width: 44px; height: 44px; top: 20%; right: 18%; }
+    .icon.mid.icon-3c .o-sky   { width: 44px; height: 44px; bottom: 10%; left: 50%; transform: translateX(-50%); }
+    .icon.small.icon-3c .o-peach { width: 26px; height: 26px; top: 20%; left: 18%; }
+    .icon.small.icon-3c .o-mint  { width: 26px; height: 26px; top: 20%; right: 18%; }
+    .icon.small.icon-3c .o-sky   { width: 26px; height: 26px; bottom: 10%; left: 50%; transform: translateX(-50%); }
+    .icon-3c .center-glyph {
+      position: relative;
+      z-index: 1;
+      font-family: 'Poppins', sans-serif;
+      font-weight: 800;
+      color: var(--ink);
+    }
+    .icon.big.icon-3c   .center-glyph { font-size: 82px; line-height: 1; }
+    .icon.mid.icon-3c   .center-glyph { font-size: 40px; line-height: 1; }
+    .icon.small.icon-3c .center-glyph { font-size: 24px; line-height: 1; }
+
+    /* Home-screen preview strip */
+    .home-preview {
+      margin-top: 60px;
+      background: linear-gradient(180deg, #7fa9d8 0%, #4a6d9f 100%);
+      border-radius: 32px;
+      padding: 26px;
+      display: flex;
+      justify-content: center;
+      gap: 22px;
+      flex-wrap: wrap;
+    }
+    .home-icon-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .home-icon-cell .label-txt {
+      color: white;
+      font-size: 10px;
+      font-weight: 500;
+      max-width: 68px;
+      text-align: center;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    /* Fake sibling icons for context */
+    .fake-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 13.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+    }
+    .fake-messages { background: linear-gradient(180deg, #4dd668 0%, #34a853 100%); }
+    .fake-safari   { background: linear-gradient(180deg, #ffffff 0%, #d0e6ff 100%); border: 1px solid rgba(255,255,255,0.4); color: #007aff; font-weight: 700; }
+    .fake-photos   { background: white; color: #ff5678; font-weight: 700; }
+    .fake-camera   { background: linear-gradient(180deg, #666 0%, #333 100%); color: white; }
+    .fake-mail     { background: linear-gradient(180deg, #4dabf5 0%, #007aff 100%); color: white; }
+    .fake-notes    { background: linear-gradient(180deg, #ffe991 0%, #ffc700 100%); }
+
+    /* Small home-screen icon variant — 60px, matches iOS small size */
+    .home-icon-zaeli {
+      width: 60px;
+      height: 60px;
+      border-radius: 13.5px;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .preview-caption {
+      color: white;
+      text-align: center;
+      margin: 18px 0 22px;
+      font-size: 13px;
+      opacity: 0.8;
+    }
+
+    .footer-note {
+      margin-top: 60px;
+      padding: 26px 28px;
+      background: var(--card);
+      border-radius: 22px;
+      border: 1px solid var(--ink5);
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--ink2);
+    }
+    .footer-note h2 {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--ink);
+      margin-bottom: 12px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    .footer-note ul {
+      padding-left: 22px;
+      margin-top: 8px;
+    }
+    .footer-note li { margin-bottom: 6px; }
+    .footer-note code {
+      font-family: 'SF Mono', ui-monospace, monospace;
+      background: var(--ink5);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 12.5px;
+    }
+    .rec-badge {
+      display: inline-block;
+      background: var(--mint);
+      color: #1e5b3d;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    @media (max-width: 780px) {
+      .grid { grid-template-columns: 1fr; }
+      .icon.big { width: 160px; height: 160px; }
+      .icon.big .glyph-za, .icon.big .glyph-z { font-size: 100px; }
+      .icon.big .glyph-sparkle-big, .icon.big .glyph-sparkle-coral { font-size: 168px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="wordmark">z<span class="a">a</span>el<span class="i">i</span></div>
+      <h1>App Icon — Design Options</h1>
+      <p class="lede">
+        Six options across two themes, all pulling from the splash entry-page palette
+        (<strong>warm bg</strong>, <strong>sky-blue accent</strong>, <strong>orbs</strong>).
+        Each icon is shown at three sizes — 200px, 96px (iPad), and 60px (iPhone home screen) —
+        so you can check legibility before picking. iOS applies its own rounded mask on top,
+        so backgrounds are drawn as solid squares in the final PNG.
+      </p>
+    </header>
+
+    <!-- OPTION 2: Wordmark fragment -->
+    <div class="section-label">Theme 2 · Wordmark fragment (letterform)</div>
+    <p class="section-note">
+      Distils the Zaeli identity to two glyphs. Instantly recognisable to anyone who's seen the
+      wordmark — the sky-blue <em>a</em> is the strongest identity move in the brand. Reads
+      cleanly at every size.
+    </p>
+
+    <div class="grid">
+      <!-- 2A: "za" clean -->
+      <div class="card">
+        <div class="label">2A · za (clean) <span class="rec-badge">Recommended</span></div>
+        <div class="desc">Distilled wordmark. Poppins ExtraBold. Warm bg, sky <em>a</em>. Zero clutter.</div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon big">
+              <div class="glyph-za">z<span class="a">a</span></div>
+            </div>
+            <div class="size-caption">1024×1024 (App Store)</div>
+          </div>
+        </div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon mid">
+              <div class="glyph-za">z<span class="a">a</span></div>
+            </div>
+            <div class="size-caption">iPad · 152px</div>
+          </div>
+          <div>
+            <div class="icon small">
+              <div class="glyph-za">z<span class="a">a</span></div>
+            </div>
+            <div class="size-caption">iPhone · 60px</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2B: "za" with orbs -->
+      <div class="card">
+        <div class="label">2B · za + orbs</div>
+        <div class="desc">Same letterform but with subtle peach/mint/lavender orbs behind — echoes the splash.</div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon big icon-2b">
+              <div class="orbs">
+                <div class="orb orb-peach"></div>
+                <div class="orb orb-mint"></div>
+                <div class="orb orb-lav"></div>
+              </div>
+              <div class="glyph-za">z<span class="a">a</span></div>
+            </div>
+            <div class="size-caption">1024×1024 (App Store)</div>
+          </div>
+        </div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon mid icon-2b">
+              <div class="orbs">
+                <div class="orb orb-peach"></div>
+                <div class="orb orb-mint"></div>
+                <div class="orb orb-lav"></div>
+              </div>
+              <div class="glyph-za">z<span class="a">a</span></div>
+            </div>
+            <div class="size-caption">iPad · 152px</div>
+          </div>
+          <div>
+            <div class="icon small icon-2b">
+              <div class="orbs">
+                <div class="orb orb-peach"></div>
+                <div class="orb orb-mint"></div>
+                <div class="orb orb-lav"></div>
+              </div>
+              <div class="glyph-za">z<span class="a">a</span></div>
+            </div>
+            <div class="size-caption">iPhone · 60px</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2C: Big "z" only + sparkle -->
+      <div class="card">
+        <div class="label">2C · z + sparkle</div>
+        <div class="desc">Solo <em>z</em> centred with a small sky ✦ in the corner. Punchy at all sizes.</div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon big">
+              <span class="glyph-z">z</span>
+              <span class="sparkle-corner">✦</span>
+            </div>
+            <div class="size-caption">1024×1024 (App Store)</div>
+          </div>
+        </div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon mid">
+              <span class="glyph-z">z</span>
+              <span class="sparkle-corner">✦</span>
+            </div>
+            <div class="size-caption">iPad · 152px</div>
+          </div>
+          <div>
+            <div class="icon small">
+              <span class="glyph-z">z</span>
+              <span class="sparkle-corner">✦</span>
+            </div>
+            <div class="size-caption">iPhone · 60px</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OPTION 3: Sparkle motif -->
+    <div class="section-label">Theme 3 · Sparkle motif (abstract)</div>
+    <p class="section-note">
+      Leads with the ✦ symbol Zaeli already uses across the app (active dot, chip separators,
+      splash tagline). Colour choice signals the personality — <em>sky</em> reads calm and warm,
+      <em>coral</em> reads bold and alive. Least "app-like" at small sizes — worth checking on
+      your home screen.
+    </p>
+
+    <div class="grid">
+      <!-- 3A: Sky ✦ minimal -->
+      <div class="card">
+        <div class="label">3A · sky ✦</div>
+        <div class="desc">Just the sparkle. Sky blue on warm bg. Calm, patient, brand-consistent.</div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon big">
+              <span class="glyph-sparkle-big">✦</span>
+            </div>
+            <div class="size-caption">1024×1024 (App Store)</div>
+          </div>
+        </div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon mid">
+              <span class="glyph-sparkle-big">✦</span>
+            </div>
+            <div class="size-caption">iPad · 152px</div>
+          </div>
+          <div>
+            <div class="icon small">
+              <span class="glyph-sparkle-big">✦</span>
+            </div>
+            <div class="size-caption">iPhone · 60px</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3B: Coral ✦ -->
+      <div class="card">
+        <div class="label">3B · coral ✦</div>
+        <div class="desc">Same shape, coral instead. Bolder, more alive — echoes "Less chaos" red.</div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon big">
+              <span class="glyph-sparkle-coral">✦</span>
+            </div>
+            <div class="size-caption">1024×1024 (App Store)</div>
+          </div>
+        </div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon mid">
+              <span class="glyph-sparkle-coral">✦</span>
+            </div>
+            <div class="size-caption">iPad · 152px</div>
+          </div>
+          <div>
+            <div class="icon small">
+              <span class="glyph-sparkle-coral">✦</span>
+            </div>
+            <div class="size-caption">iPhone · 60px</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3C: Orbs + z -->
+      <div class="card">
+        <div class="label">3C · orbs + z</div>
+        <div class="desc">Three palette orbs with a tiny <em>z</em> centred. Most "designed" — closest to a family/community motif.</div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon big icon-3c">
+              <div class="orb-layer">
+                <div class="o o-peach"></div>
+                <div class="o o-mint"></div>
+                <div class="o o-sky"></div>
+              </div>
+              <span class="center-glyph">z</span>
+            </div>
+            <div class="size-caption">1024×1024 (App Store)</div>
+          </div>
+        </div>
+        <div class="preview-sizes">
+          <div>
+            <div class="icon mid icon-3c">
+              <div class="orb-layer">
+                <div class="o o-peach"></div>
+                <div class="o o-mint"></div>
+                <div class="o o-sky"></div>
+              </div>
+              <span class="center-glyph">z</span>
+            </div>
+            <div class="size-caption">iPad · 152px</div>
+          </div>
+          <div>
+            <div class="icon small icon-3c">
+              <div class="orb-layer">
+                <div class="o o-peach"></div>
+                <div class="o o-mint"></div>
+                <div class="o o-sky"></div>
+              </div>
+              <span class="center-glyph">z</span>
+            </div>
+            <div class="size-caption">iPhone · 60px</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Home-screen context -->
+    <div class="section-label">On the home screen — 2A recommended alongside typical siblings</div>
+    <p class="preview-caption" style="color: var(--ink3); text-align: left; margin-bottom: 14px;">
+      This is how the recommended <strong>2A</strong> lands next to Messages, Photos, Safari, Mail, Camera, Notes — the icons everyone has.
+      Warm-bg <em>za</em> stands out because most icons use gradient/dark backgrounds.
+    </p>
+    <div class="home-preview">
+      <div class="home-icon-cell">
+        <div class="fake-icon fake-messages">💬</div>
+        <span class="label-txt">Messages</span>
+      </div>
+      <div class="home-icon-cell">
+        <div class="fake-icon fake-safari">S</div>
+        <span class="label-txt">Safari</span>
+      </div>
+      <div class="home-icon-cell">
+        <div class="home-icon-zaeli">
+          <div class="glyph-za" style="font-size: 39px; line-height: 1;">z<span class="a" style="color: var(--sky);">a</span></div>
+        </div>
+        <span class="label-txt">Zaeli</span>
+      </div>
+      <div class="home-icon-cell">
+        <div class="fake-icon fake-photos">📷</div>
+        <span class="label-txt">Photos</span>
+      </div>
+      <div class="home-icon-cell">
+        <div class="fake-icon fake-mail">✉︎</div>
+        <span class="label-txt">Mail</span>
+      </div>
+      <div class="home-icon-cell">
+        <div class="fake-icon fake-notes">📝</div>
+        <span class="label-txt">Notes</span>
+      </div>
+    </div>
+
+    <!-- Spec footer -->
+    <div class="footer-note">
+      <h2>Apple's icon rules — what the PNG must be</h2>
+      <ul>
+        <li><strong>1024×1024 PNG</strong> for App Store + <strong>2048×2048 PNG</strong> for the splash / launch screen.</li>
+        <li><strong>No alpha channel</strong>, <strong>no transparency</strong>, <strong>no rounded corners</strong> — iOS applies its own mask on top. Draw a solid square background in the exported PNG.</li>
+        <li>Background colour must be <code>#FAF8F5</code> (warm bg). No gradients — flat colour reads best at small sizes.</li>
+        <li>All glyphs / accents must be embedded pixels — no reliance on OS fonts.</li>
+        <li>Expo consumes it as <code>assets/icon.png</code> (referenced in <code>app.json</code>). Adaptive Android icon is a separate deal but not blocking iOS TestFlight.</li>
+      </ul>
+
+      <h2 style="margin-top: 22px;">If you pick 2A</h2>
+      <ul>
+        <li>Once you say the word I'll write an exact SVG spec of 2A that a friend / designer can open in any vector tool and export to 1024×1024 PNG.</li>
+        <li>The SVG will encode exact colours (<code>#FAF8F5</code> bg, <code>#0A0A0A</code> z, <code>#A8D8F0</code> a), exact letter-spacing, exact glyph sizing — nothing to eyeball.</li>
+        <li>Time to ship: ~15 min from PNG in hand → dropped into <code>assets/icon.png</code> → next EAS build carries it.</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zaeli Icon Generator — 2B (za + orbs)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #FAF8F5;
+      --ink: #0A0A0A;
+      --ink2: rgba(10,10,10,0.72);
+      --ink3: rgba(10,10,10,0.55);
+      --ink5: rgba(10,10,10,0.14);
+      --sky: #A8D8F0;
+      --peach: #FAC8A8;
+      --mint: #B8EDD0;
+      --lavender: #D8CCFF;
+      --coral: #FF4545;
+      --card: #FFFFFF;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      padding: 40px 24px 80px;
+    }
+    .page { max-width: 920px; margin: 0 auto; }
+    header { text-align: center; margin-bottom: 40px; }
+    .wordmark {
+      font-weight: 800;
+      font-size: 44px;
+      letter-spacing: -1.5px;
+      line-height: 1;
+      margin-bottom: 14px;
+    }
+    .wordmark .a, .wordmark .i { color: var(--sky); }
+    h1 {
+      font-weight: 700;
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+    .lede {
+      font-size: 15px;
+      color: var(--ink2);
+      max-width: 620px;
+      margin: 0 auto;
+      line-height: 1.55;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 22px;
+      padding: 32px;
+      border: 1px solid var(--ink5);
+      margin-bottom: 24px;
+    }
+    .card h2 {
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--ink3);
+      margin-bottom: 20px;
+    }
+
+    .previews {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+      align-items: flex-end;
+    }
+    .preview-cell { text-align: center; }
+    .preview-cell canvas {
+      border-radius: 22.5%;
+      background: var(--bg);
+      box-shadow: 0 4px 24px rgba(10,10,10,0.10);
+    }
+    .preview-cell .cap {
+      display: block;
+      font-size: 11px;
+      color: var(--ink3);
+      margin-top: 10px;
+      letter-spacing: 0.3px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    button {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 14px 24px;
+      border-radius: 14px;
+      border: none;
+      background: var(--ink);
+      color: white;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+    button.secondary {
+      background: var(--card);
+      color: var(--ink);
+      border: 1.5px solid var(--ink5);
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .status {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--ink3);
+      min-height: 20px;
+    }
+    .status.ok { color: #2D7A52; }
+
+    .instructions {
+      background: var(--card);
+      padding: 26px 30px;
+      border-radius: 22px;
+      border: 1px solid var(--ink5);
+      font-size: 14.5px;
+      line-height: 1.7;
+      color: var(--ink2);
+    }
+    .instructions h3 {
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--ink);
+      margin-bottom: 12px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    .instructions ol {
+      padding-left: 22px;
+      margin-top: 8px;
+    }
+    .instructions li {
+      margin-bottom: 10px;
+    }
+    .instructions code {
+      font-family: 'SF Mono', ui-monospace, monospace;
+      background: var(--ink5);
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-size: 13px;
+    }
+
+    .homerow {
+      background: linear-gradient(180deg, #7fa9d8 0%, #4a6d9f 100%);
+      border-radius: 32px;
+      padding: 30px;
+      display: flex;
+      justify-content: center;
+      gap: 22px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .homerow .cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .homerow .label {
+      color: white;
+      font-size: 10px;
+      max-width: 68px;
+      text-align: center;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .homerow .fake {
+      width: 60px;
+      height: 60px;
+      border-radius: 13.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+    }
+    .fake-messages { background: linear-gradient(180deg, #4dd668 0%, #34a853 100%); }
+    .fake-safari   { background: white; color: #007aff; font-weight: 700; }
+    .fake-mail     { background: linear-gradient(180deg, #4dabf5 0%, #007aff 100%); color: white; }
+    .fake-notes    { background: linear-gradient(180deg, #ffe991 0%, #ffc700 100%); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="wordmark">z<span class="a">a</span>el<span class="i">i</span></div>
+      <h1>App Icon Generator</h1>
+      <p class="lede">
+        Design <strong>2B · za + orbs</strong> rendered at true iOS export sizes.
+        Preview below, then click the buttons to download real PNGs — no third-party tools, no font conversion, no fiddling.
+      </p>
+    </header>
+
+    <!-- Preview card -->
+    <div class="card">
+      <h2>Preview</h2>
+      <div class="previews">
+        <div class="preview-cell">
+          <canvas id="preview1024" width="1024" height="1024" style="width: 240px; height: 240px;"></canvas>
+          <span class="cap">Rendered at 1024 · shown at 240</span>
+        </div>
+        <div class="preview-cell">
+          <canvas id="preview152" width="152" height="152" style="width: 120px; height: 120px;"></canvas>
+          <span class="cap">iPad · 152px</span>
+        </div>
+        <div class="preview-cell">
+          <canvas id="preview60" width="60" height="60" style="width: 60px; height: 60px;"></canvas>
+          <span class="cap">iPhone · 60px</span>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="btnIcon" disabled>Download icon.png (1024×1024)</button>
+        <button id="btnSplash" class="secondary" disabled>Download splash-icon.png (2048×2048)</button>
+      </div>
+      <div class="status" id="status">Loading Poppins font…</div>
+    </div>
+
+    <!-- Home-screen context -->
+    <div class="card">
+      <h2>On the home screen</h2>
+      <div class="homerow">
+        <div class="cell">
+          <div class="fake fake-messages">💬</div>
+          <span class="label">Messages</span>
+        </div>
+        <div class="cell">
+          <div class="fake fake-safari">S</div>
+          <span class="label">Safari</span>
+        </div>
+        <div class="cell">
+          <canvas id="previewHome" width="60" height="60" style="width: 60px; height: 60px; border-radius: 13.5px;"></canvas>
+          <span class="label">Zaeli</span>
+        </div>
+        <div class="cell">
+          <div class="fake fake-mail">✉︎</div>
+          <span class="label">Mail</span>
+        </div>
+        <div class="cell">
+          <div class="fake fake-notes">📝</div>
+          <span class="label">Notes</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="instructions">
+      <h3>What to do with the PNGs</h3>
+      <ol>
+        <li>Click <strong>Download icon.png</strong> — saves to your Downloads folder.</li>
+        <li>Click <strong>Download splash-icon.png</strong> — same, but 2048×2048 for the launch screen.</li>
+        <li>
+          Copy both into the app's <code>assets/images/</code> folder, overwriting the Expo-default placeholders:
+          <br>
+          <code>Copy-Item "$env:USERPROFILE\Downloads\icon.png" "C:\Users\richa\zaeli\assets\images\icon.png" -Force</code>
+          <br>
+          <code>Copy-Item "$env:USERPROFILE\Downloads\splash-icon.png" "C:\Users\richa\zaeli\assets\images\splash-icon.png" -Force</code>
+        </li>
+        <li>
+          <code>app.json</code> already points to <code>./assets/images/icon.png</code> (line 7) and
+          <code>./assets/images/splash-icon.png</code> (line 45), so no config change needed.
+          The Android adaptive icon PNGs stay as-is — iOS-first, Android is a later concern.
+        </li>
+        <li>
+          Kick off a new EAS build to bake them into the app:
+          <br>
+          <code>eas build --platform ios --profile preview</code>
+          <br>
+          (Icon + splash are native assets, so a fresh build is required.)
+        </li>
+      </ol>
+      <p style="margin-top: 16px; font-size: 13.5px; color: var(--ink3);">
+        <strong>iOS rules</strong> — the exported PNGs are opaque (no alpha), have no rounded corners
+        (iOS applies its own superellipse mask on top), and use a flat <code>#FAF8F5</code> background.
+        All three boxes checked. Design tokens exactly match the app.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // ── Icon rendering logic ─────────────────────────────────────────────
+    // Draws design 2B (za + peach/mint/lavender orbs) into any canvas at
+    // any size. Uses ctx.letterSpacing which is well-supported in Chrome.
+
+    async function drawIcon(canvas, size) {
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, size, size);
+
+      const s = size / 1024; // scale factor from 1024 reference grid
+
+      // 1. Warm background
+      ctx.fillStyle = '#FAF8F5';
+      ctx.fillRect(0, 0, size, size);
+
+      // 2. Peach orb — top-right, bleeding off corner
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#FAC8A8';
+      ctx.beginPath();
+      ctx.arc(890 * s, 145 * s, 265 * s, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 3. Mint orb — bottom-left, bleeding off corner
+      ctx.globalAlpha = 0.60;
+      ctx.fillStyle = '#B8EDD0';
+      ctx.beginPath();
+      ctx.arc(140 * s, 890 * s, 215 * s, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 4. Lavender orb — smaller accent, upper-left
+      ctx.globalAlpha = 0.50;
+      ctx.fillStyle = '#D8CCFF';
+      ctx.beginPath();
+      ctx.arc(180 * s, 295 * s, 115 * s, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = 1;
+
+      // 5. "za" glyph — z in ink, a in sky
+      const fontSize = 640 * s;
+      ctx.font = `800 ${fontSize}px Poppins, sans-serif`;
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'left';
+
+      // Measure widths so we can center "za" as a unit
+      const zWidth = ctx.measureText('z').width;
+      const aWidth = ctx.measureText('a').width;
+      const kerning = fontSize * -0.03; // approx -0.03em compression
+      const totalWidth = zWidth + aWidth + kerning;
+
+      // Vertical position: baseline placed so "za" sits centred-ish.
+      // Poppins lowercase x-height is ~0.54 of em size.
+      const xHeight = fontSize * 0.54;
+      const baselineY = (size / 2) + (xHeight / 2);
+
+      const startX = (size - totalWidth) / 2;
+
+      ctx.fillStyle = '#0A0A0A';
+      ctx.fillText('z', startX, baselineY);
+
+      ctx.fillStyle = '#A8D8F0';
+      ctx.fillText('a', startX + zWidth + kerning, baselineY);
+    }
+
+    // ── Downloads ─────────────────────────────────────────────────────────
+    async function downloadAt(size, filename) {
+      const canvas = document.createElement('canvas');
+      await drawIcon(canvas, size);
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setStatus(`Downloaded ${filename}`, true);
+      }, 'image/png');
+    }
+
+    function setStatus(msg, ok) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = 'status' + (ok ? ' ok' : '');
+    }
+
+    // ── Boot ──────────────────────────────────────────────────────────────
+    async function boot() {
+      try {
+        // Wait for Poppins to actually load in the browser before drawing.
+        await document.fonts.load(`800 400px Poppins`);
+        await document.fonts.ready;
+
+        // Render previews at various sizes
+        await drawIcon(document.getElementById('preview1024'), 1024);
+        await drawIcon(document.getElementById('preview152'), 152);
+        await drawIcon(document.getElementById('preview60'), 60);
+        await drawIcon(document.getElementById('previewHome'), 60);
+
+        // Enable buttons
+        document.getElementById('btnIcon').disabled = false;
+        document.getElementById('btnSplash').disabled = false;
+        setStatus('Ready — click a button to download.', false);
+      } catch (e) {
+        setStatus('Error loading font: ' + e.message, false);
+        console.error(e);
+      }
+    }
+
+    document.getElementById('btnIcon').addEventListener('click', () => {
+      downloadAt(1024, 'icon.png');
+    });
+    document.getElementById('btnSplash').addEventListener('click', () => {
+      downloadAt(2048, 'splash-icon.png');
+    });
+
+    boot();
+  </script>
+</body>
+</html>

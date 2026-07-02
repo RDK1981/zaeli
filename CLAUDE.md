@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 1 July 2026 (late evening) — Session 26 ✅ · BRIEF QUALITY DEEP-DIVE + STRATEGIC PRICING PIVOT · Brief prompt v1 (competence-first, stop nudging on empty data) + v2 (invisible-domain rule — remove empty-state signals from context entirely) · zaeli_briefs table finally created (had never been run since Session 16 — briefs were silently uncached) + proper RLS policies · **Pricing reduced: A$9.99 family / A$7.99 tutor per child inc GST** (was A$14.99 / A$9.99 — competitive positioning in a tight economy) · 3-hour bucket refresh so briefs stay time-of-day-current (5:33pm brief → fresh 10:47pm brief with "day's done, bins already out, tomorrow's shape" framing) · Auto-dismiss earlier same-window briefs on refire · Prior Session 25 (Universal Links LIVE, EAS Build, Cloudflare/Netlify hosting, Stripe scaffolding) still current — remaining: Anna's phone (Phase 2e), Stripe activation (external ~25 min), Phase 4b TestFlight*
+*Last updated: 2 July 2026 (early hours) — Session 27 ✅ · APP ICON SHIPPED + EAS PREVIEW INFRASTRUCTURE + BRIEF SYSTEM FINAL POLISH · **Icon 2B ("za" wordmark fragment + peach/mint/lavender orbs on warm bg)** designed via HTML mockup, exported via browser Canvas tool (zaeli-icon-generator.html), dropped into `assets/images/icon.png` + `splash-icon.png` · **First iOS preview build** (standalone, no Metro) — was crashing on boot because EAS cloud builds don't inherit local `.env`; fixed by adding `EXPO_PUBLIC_*` API keys to EAS Environment Variables as "Sensitive" (can't be "Secret" — Expo enforces this because these vars bake into the JS bundle) · **Brief bucket-check bug fixed** — Session 26 code parsed `last.ts` display string ("9:31 pm") as a Date, silently failed, refs never restored, every kill+reopen fired fresh brief; now parses trailing millis from message id · **Brief dedup on restore** — 7 stacked briefs from tonight's iterations were flashing in the feed on cold restart, now filtered to just the latest per window; feed self-heals via save effect · **Splash Option C** — first install ever fires splash regardless of time (AsyncStorage flag `splash_first_install_seen_v1`), then respects the 6-9am/12-2pm/5-8pm windows · Prior Session 26 (brief v1/v2, pricing pivot, bucket refresh) + Session 25 (Universal Links LIVE, Cloudflare/Netlify, Stripe scaffolding) still current — remaining: fresh preview build to verify dev-client-specific flashes gone, Anna's phone (Phase 2e), Stripe activation (external ~25 min), Phase 4b TestFlight, **move Anthropic/OpenAI keys server-side before public launch (Phase 5 — client-bundled keys are extractable)***
 
 ---
 
@@ -2088,6 +2088,132 @@ Nothing to do with the brief system tonight — v2 + bucket refresh + auto-dismi
 
 ---
 
+## ══════════════════════════════════
+## SESSION 27 — APP ICON · EAS PREVIEW INFRASTRUCTURE · BRIEF POLISH (2 July 2026, early hours) ✅
+## ══════════════════════════════════
+
+Continuation of Session 26's late-evening work that ran into the early morning. Two headline deliverables: **app icon shipped** and **first working iOS preview build**. Also cleared up brief-system bugs that were still lurking after Session 26's dedup fix.
+
+### A. App icon designed + shipped
+
+Icon needed for TestFlight — Apple requires a proper 1024×1024 asset before you can submit. Approach was to mockup options rather than commissioning a designer.
+
+**Design mockup**: `zaeli-icon-options.html` — 6 options across 2 themes (letterform + sparkle) rendered at three sizes each (1024/152/60) plus a fake iPhone home-screen strip showing how the recommended option lands next to Messages / Safari / Mail / Notes.
+
+**Themes:**
+- Theme 2 (wordmark fragment): 2A `za` clean, 2B `za` + orbs, 2C `z` + sparkle corner
+- Theme 3 (sparkle motif): 3A sky ✦, 3B coral ✦, 3C multi-orb + `z`
+
+**Pick: 2B (za + orbs)** — instantly recognisable to anyone who's seen the wordmark (sky-blue `a` is the strongest identity move), plus the peach/mint/lavender orbs echo the splash design. Distinctive against the gradient icons everyone else uses.
+
+**Generator tool**: `zaeli-icon-generator.html` — browser-based Canvas renderer that draws the exact design at 1024 and 2048, then triggers a PNG download. No third-party tools, no SVG-to-PNG conversion, no font path conversion. Uses `ctx.letterSpacing` + measured widths to position `z` and `a` glyphs pixel-perfectly. Also renders a home-screen preview for context.
+
+**Assets shipped:**
+- `assets/images/icon.png` (1024×1024, opaque, no alpha, warm bg — Apple requires all three)
+- `assets/images/splash-icon.png` (2048×2048, same design)
+- `app.json` already pointed to these paths (Expo defaults), so no config change
+
+### B. EAS preview build unblocked
+
+**First attempt**: `eas build --platform ios --profile preview` completed, install link generated, install-in-place on iPhone (same bundle ID `com.zaeli.app` = update the existing app). Native splash + icon rendered fine. Then **crashed immediately** as JS bundle started.
+
+**Diagnosis** (via crash pattern "splash briefly shows → crash"): the crash happened after native boot but before RN could render, meaning JS-side. `eas.json` had no environment variables configured. EAS cloud builds don't inherit the local `.env` file — they only see what's set in EAS Secrets / Environment Variables. So `EXPO_PUBLIC_SUPABASE_URL` etc. were `undefined` at boot, `createClient(undefined, undefined)` in `lib/supabase.ts` threw immediately on module load, whole JS bundle failed.
+
+**Fix**: added 4 env vars via the expo.dev web UI → Environment Variables:
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `EXPO_PUBLIC_ANTHROPIC_API_KEY`
+- `EXPO_PUBLIC_OPENAI_API_KEY`
+
+All scoped to Preview + Production environments.
+
+**Important gotcha**: Expo refuses to let you mark `EXPO_PUBLIC_*` variables as "Secret" visibility. Message: *"Variables prefixed with EXPO_PUBLIC_ can't have Secret visibility."* Correct reason: these variables get **baked into the JavaScript bundle at build time** — anyone who inspects the app can read them. So Expo won't let you lie by calling them secret.
+
+**Pick "Sensitive" instead** (middle option). Values hidden in EAS UI but still bundled into the app. Both `Plain text` and `Sensitive` bake into the bundle the same way; the difference is only about who can see them in the EAS dashboard.
+
+**Result**: second preview build (with env vars) boots cleanly. Universal Links working. Chat loads. Everything functional.
+
+### C. Security implication — Phase 5 note
+
+`EXPO_PUBLIC_*` variables live in the compiled app. A determined user can extract the Anthropic + OpenAI keys from the app bundle and use them on Richard's bill. This is the same category of risk that exists in every "direct API call from mobile" pattern.
+
+**Fine for TestFlight dogfooding** with people Richard trusts (Anna, tester friends). **Not fine for public App Store launch.**
+
+**Phase 5 work (deferred)**: route Anthropic + OpenAI calls through Supabase Edge Functions (same pattern as the Stripe portal Edge Function already scaffolded). Keys live server-side, JWT-authenticated. Client never sees them.
+
+Supabase URL + anon key are safe to bundle either way — anon key is designed to be client-side, security enforced by Row Level Security (which has been the pattern since Phase 2a).
+
+### D. Brief bucket-check bug (real fix)
+
+Session 26 added a bucket-check to the persistence-restore path that gated "already fired" ref restoration on `sameBucket`. Idea: if the persisted brief's bucket matches now, mark as fired; if not, allow fresh fire. This was the bug: `last.ts` is a display string (`"9:31 pm"`), not an ISO timestamp. `new Date("9:31 pm")` returns Invalid Date. The `try/catch` swallowed the failure silently. `persistedBucket` stayed `null`, `sameBucket` was always `false`, refs were never restored → every kill+reopen fired a fresh Sonnet brief.
+
+Diagnostic logging (`[brief-restore]`) surfaced the problem in one round: log showed `persistedBucket: null` when it should have been 7 (bucket 7 = 21:00-23:59).
+
+**Fix**: parse the millis timestamp from the message id (`brief-<win>-<YYYY-MM-DD>-<millis>`). tryFireBrief already constructs the id with `Date.now()`, so the info is right there. Regex `/-(\d{13})$/` captures the trailing 13-digit millis, then `new Date(persistedMs).getHours() / 3` gives the bucket.
+
+Commit `e78efa3`. Verified working via same diagnostic logging.
+
+### E. Brief dedup on restore — the ACTUAL cause of the "brief re-firing"
+
+After the bucket fix, logs still showed `fire: false, reason: "already-fired-this-window"` — i.e., no new briefs generated. But the chat feed still showed multiple briefs stacked. Log revealed `briefOnlyCount: 7` — the persistence file had accumulated **7 briefs** from tonight's iterations (v1 prompt tests, v2 prompt tests, bucket refresh tests, auto-dismiss tests). Each iteration left behind a persisted brief that never got dismissed.
+
+**Fix**: on persistence restore, from the today+current-window brief set, keep only the LATEST (highest millis in id). Older briefs in the same window are stale time-of-day content. Setting `messages` to just the latest also means the save effect writes back a clean single-brief array, so accumulation is self-healing across future cycles.
+
+Commit `ac04038`. Post-fix: feed shows exactly one brief per window per day. Kill+reopen keeps it clean.
+
+### F. Splash — Option C (first install ever + time windows)
+
+Richard was expecting splash to fire at any time, but Session 15 locked splash to 6-9am / 12-2pm / 5-8pm windows only. That's correct behaviour for a daily-use app (splash is a "moment", not every-open friction) BUT on a fresh install, a first-time user should meet Zaeli's brand before hitting Chat cold.
+
+**Fix**: AsyncStorage flag `splash_first_install_seen_v1`. If unset, splash fires regardless of time + flag is set. Subsequent launches respect the original time windows.
+
+Commit `ac04038` (same as dedup). Both flowed together.
+
+### G. Cosmetic flashes (dev-client-specific, deferred)
+
+After all the above shipped, Richard reported two visual glitches on kill+reopen:
+
+1. Brief flash of "old stacked briefs" before the feed rendered cleanly — most likely the persistence file save-debounce (500ms in `useChatPersistence`) hadn't fired before a rapid swipe-kill, so the file still held the pre-dedup state. First cold-open reads it, dedup runs, saves clean state. Should self-resolve after 2-3 clean cycles.
+2. "Flat bright blue page" flash — likely dev-client Metro bundle-fetching artifact. Standalone preview/production builds have the bundle baked in and boot straight into the app. Not reproducible outside dev-client.
+
+**Both deferred to verify in a fresh preview build the next day.** If they persist in the standalone build, they're real; if they vanish, they were dev-client artifacts. No code change tonight.
+
+### Locked decisions Session 27
+
+- **App icon = 2B "za + orbs"** — sky-blue `a` fragment of the wordmark + peach/mint/lavender orbs on warm bg. Never plain letterform or dark background — the warm-bg + sky-blue-`a` combination IS the brand identity moment.
+- **Icon exports**: 1024×1024 for `icon.png`, 2048×2048 for `splash-icon.png`. Opaque. No alpha. No rounded corners (iOS applies its own mask). No gradients. Flat warm bg `#FAF8F5`. Any redesign must follow the same rules.
+- **`EXPO_PUBLIC_*` env vars go in EAS Environment Variables as "Sensitive"** — Expo blocks "Secret" for `EXPO_PUBLIC_*` because they bake into the bundle. Sensitive hides them in the EAS UI but still bundles them. All 4 (SUPABASE URL + ANON, ANTHROPIC, OPENAI) required for standalone builds to boot.
+- **Anthropic + OpenAI keys are extractable from the client bundle** — acceptable for TestFlight dogfood, NOT for public launch. Phase 5 must migrate these calls to Supabase Edge Functions.
+- **Brief bucket-check must parse from message id, NEVER from `ts`** — the `ts` field is a locale-formatted display string. Millis are in the id's trailing 13 digits.
+- **Brief dedup on restore keeps only the LATEST brief per window** — older briefs in the same window are stale time-of-day content. Self-healing via save effect.
+- **Splash Option C** — first install ever fires splash regardless of time (AsyncStorage flag), then respects 6-9am / 12-2pm / 5-8pm windows. Do NOT change to "fire every open" — that gets annoying fast.
+- **Dev-client rendering artifacts don't predict standalone behaviour** — Metro bundle-fetch flashes, hot-reload glitches, and other dev-client oddities are NOT reliable signals for production UX. Always verify cosmetic concerns in a standalone preview build.
+
+### Files touched Session 27
+
+**NEW:**
+- `zaeli-icon-options.html` — 6-option design mockup
+- `zaeli-icon-generator.html` — browser-based Canvas PNG generator
+- `assets/images/icon.png` — 1024×1024 exported (overwrote Expo placeholder)
+- `assets/images/splash-icon.png` — 2048×2048 exported (overwrote Expo placeholder)
+
+**MODIFIED:**
+- `app/(tabs)/index.tsx` — bucket-check id parsing (Session 26 bug fix) + dedup-on-restore + diagnostic logging added-then-removed
+- `app/(tabs)/swipe-world.tsx` — splash Option C (first-install AsyncStorage override)
+
+**EAS DASHBOARD (not in git):**
+- 4 environment variables added: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_ANTHROPIC_API_KEY`, `EXPO_PUBLIC_OPENAI_API_KEY` (all Sensitive visibility, scoped to Preview + Production)
+
+### What's next
+
+- **Fresh preview build** to verify the two cosmetic flashes are dev-client artifacts (very likely) — `eas build --platform ios --profile preview`.
+- **Phase 2e Anna's phone** — Universal Link path is production-ready.
+- **Phase 3b Stripe activation** — ~25 min external (products, Portal, Price IDs, webhook).
+- **Phase 4b TestFlight submission** — `eas submit --platform ios` after preview build passes verification.
+- **Phase 5 (BEFORE PUBLIC LAUNCH — new addition)**: migrate Anthropic + OpenAI API calls to Supabase Edge Functions. Keys must not live in the compiled app bundle for public distribution.
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -2219,6 +2345,13 @@ Phase 56: Brief v2 — invisible-domain rule ⭐ ✅ Session 26 (1 July late eve
 Phase 57: Pricing pivot ⭐ ✅ Session 26 (1 July late evening) — commit 3220703. **A$9.99 family / A$7.99 tutor per child, inc GST** (from A$14.99 / A$9.99). Strategic reduction for competitive positioning in a tight economy. 5 production surfaces + 4 docs updated + STRIPE-SETUP.md gained critical tax-inclusive setup note (Stripe AU defaults to adding 10% on top). Memory saved in [[project-pricing-decision]].
 Phase 58: 3-hour bucket refresh ⭐ ✅ Session 26 (1 July late evening) — commit ab90557. Coarse hourBucket = Math.floor(hour / 3) added to FamilyContext + computeSignature. Persistence-restore of lastBriefWindowRef gated on bucket match — stale bucket means "already fired" signal is not carried forward, so shouldFireBrief refires fresh. Fixes 5pm brief still showing "get bins out after dinner" at 10:30pm.
 Phase 59: Auto-dismiss earlier same-window briefs ✅ Session 26 (1 July late evening) — commit 93c7065. tryFireBrief placeholder-swap step now walks messages and sets briefDismissed=true on any other same-window brief. Text stays as chat history, chips hide. Uses existing briefDismissed mechanism (Session 17) — no render path change.
+
+Phase 60: App icon 2B shipped ⭐ ✅ Session 27 (2 July early hours) — Icon 2B (za + peach/mint/lavender orbs on warm bg) designed via zaeli-icon-options.html (6 options) then generated as 1024×1024 + 2048×2048 PNGs via zaeli-icon-generator.html browser Canvas tool. Assets dropped into assets/images/icon.png + splash-icon.png. Opaque, no alpha, no rounded corners (iOS applies mask), flat warm bg #FAF8F5.
+Phase 61: EAS Environment Variables setup ⭐ ✅ Session 27 (2 July early hours) — first preview build crashed on boot because cloud builds don't inherit local .env. Fixed via expo.dev web UI: added EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, EXPO_PUBLIC_ANTHROPIC_API_KEY, EXPO_PUBLIC_OPENAI_API_KEY as "Sensitive" visibility (Expo blocks "Secret" for EXPO_PUBLIC_* because they bake into bundle). Scoped Preview + Production. Second build boots cleanly.
+Phase 62: Brief bucket-check bug fix ✅ Session 27 (2 July early hours) — commit e78efa3. Session 26's bucket-check parsed last.ts (display string like "9:31 pm") as a Date → Invalid Date → sameBucket always false → refs never restored → every kill+reopen fired a fresh Sonnet brief. Fix: parse the trailing 13-digit millis from the message id (brief-<win>-<date>-<millis>). Diagnostic logging in 403f781 surfaced the bug in one round; logging removed in ac04038.
+Phase 63: Brief dedup on restore ✅ Session 27 (2 July early hours) — commit ac04038. The "brief re-firing" symptom was actually 7 briefs stacked in the persistence file from tonight's iteration tests. Dedup on restore keeps only the LATEST brief per window (highest millis in id); older briefs are stale time-of-day content. Save effect writes back clean single-brief array; self-healing across future cycles.
+Phase 64: Splash Option C — first install override ✅ Session 27 (2 July early hours) — commit ac04038. Session 15 splash timing (6-9am/12-2pm/5-8pm windows only) was correct steady-state but hostile to first-time users. Added AsyncStorage flag splash_first_install_seen_v1: unset → fire regardless of time + set flag; set → respect original windows.
+Phase 65: First preview EAS build LIVE ✅ Session 27 (2 July early hours) — new dev-client + icon + env vars all working end-to-end. Universal Links continue to route. Same bundle ID = update-in-place install (no duplicate icon, session persisted). Blueprint reusable for TestFlight (Phase 4b): eas submit --platform ios once we're ready for Anna's TestFlight round.
 ```
 
 ---
@@ -2362,3 +2495,13 @@ Phase 59: Auto-dismiss earlier same-window briefs ✅ Session 26 (1 July late ev
 - **Cache table migrations depending on `current_family_id()` must use the Session 21 RLS pattern** (Session 26) — the `supabase-zaeli-briefs.sql` original was Session 16 pre-auth with `USING (true)` allow-all. Updated to standard 4 policies (SELECT / INSERT / UPDATE / DELETE) scoped by `family_id = public.current_family_id()`. Any future family-scoped cache table has to follow this exact pattern — copy from `supabase-zaeli-briefs.sql` as a template.
 - **Pricing anchor is A$9.99 family / A$7.99 tutor per child, inc GST** (Session 26 — locked in [[project-pricing-decision]] memory). Stripe products must be set to tax-inclusive (AU defaults to adding 10% on top). Any new feature that materially increases per-family API cost must be evaluated against A$9.99, not A$14.99. Tutor stays the single biggest revenue lever — a family with 3 kids on Tutor adds A$23.97/mo, more than 2x the base.
 - **Never rewrite historical cost calculations** (Session 26) — when pricing changes, update the LIVE reference lines in CLAUDE.md's Business section and any narrative that mentions old figures in current-truth framing. Leave old cost-analysis paragraphs from prior sessions (e.g. "18% of A$14.99 revenue") as historical point-in-time observations. Rewriting them scrambles the audit trail.
+- **App icon is 2B "za + orbs"** (Session 27) — sky-blue `a` letterform fragment of the wordmark + peach/mint/lavender orbs on warm bg `#FAF8F5`. Files: `assets/images/icon.png` (1024×1024) + `assets/images/splash-icon.png` (2048×2048). Both opaque, no alpha, no rounded corners (iOS applies its own mask), no gradients. If the icon needs a redesign or splash size tuning, regenerate from `zaeli-icon-generator.html` (browser Canvas tool) — do NOT hand-edit the PNGs.
+- **EAS cloud builds don't inherit local `.env`** (Session 27) — every `EXPO_PUBLIC_*` var used at runtime must be registered as an EAS Environment Variable (via the expo.dev web UI, scoped to Preview + Production). Missing vars → `undefined` at boot → `createClient(undefined, undefined)` → immediate crash of the whole JS bundle. Preview builds are standalone (no Metro fallback).
+- **`EXPO_PUBLIC_*` cannot have "Secret" visibility in EAS** (Session 27) — Expo blocks it because these variables bake into the JavaScript bundle at build time and can be extracted from the compiled app. Use **"Sensitive"** instead (values hidden in EAS UI, but same bundle behaviour). Both "Plain text" and "Sensitive" bake identically — the difference is only about who can see the value in EAS dashboards.
+- **Client-bundled API keys are extractable — Phase 5 must move them server-side before public launch** (Session 27) — `EXPO_PUBLIC_ANTHROPIC_API_KEY` and `EXPO_PUBLIC_OPENAI_API_KEY` are readable from the compiled bundle by any determined user. Fine for TestFlight dogfood (trusted testers). NOT fine for App Store distribution. Route those calls through Supabase Edge Functions before launch. Supabase URL + anon key are safe to bundle either way — RLS enforces security.
+- **Preview builds are standalone; dev-client uses Metro** (Session 27) — `eas build --profile preview` produces a standalone binary with the JS bundle baked in. Doesn't connect to Metro. `eas build --profile development` produces a dev-client that fetches JS from Metro. Same bundle ID = install-in-place, so switching between them on the same phone overwrites the previous. When testing, know which build you have on the phone before wondering why hot-reload doesn't work.
+- **Brief bucket-check parses from message id, NEVER from `ts`** (Session 27) — `ts` is a locale-formatted display string (`"9:31 pm"`), not an ISO timestamp. `new Date("9:31 pm")` returns Invalid Date. The 13-digit millis timestamp lives in the message id's trailing capture group (`brief-<win>-<YYYY-MM-DD>-<millis>`). Regex: `/-(\d{13})$/`. Apply the same rule to any future "when did this happen" comparison — parse from id, not from display strings.
+- **Brief dedup on restore keeps only the LATEST brief per window** (Session 27) — the persistence file can accumulate multiple briefs in the same window (bucket refires, hot-reload iterations, test cycles). On restore, filter to the newest millis in id. Setting `messages` to just that one also means the debounced save effect writes back a clean single-brief array, so accumulation is self-healing across future cycles.
+- **Splash Option C** (Session 27) — first install ever fires splash regardless of time (AsyncStorage flag `splash_first_install_seen_v1`), then respects the 6-9am / 12-2pm / 5-8pm windows. NEVER change to "fire on every open" — that gets annoying fast. If you're testing splash after first install, clear the AsyncStorage flag manually.
+- **Dev-client rendering artifacts don't predict standalone behaviour** (Session 27) — Metro bundle-fetch flashes, hot-reload glitches, and other dev-client oddities are NOT reliable signals for production UX. If a user reports a cosmetic issue during dev-client testing, verify in a fresh standalone preview build before spending time diagnosing. Real issues persist across build types; dev-client artifacts vanish.
+- **Same bundle ID = update-in-place on iOS** (Session 27 confirmation) — new EAS build with `com.zaeli.app` overwrites the previous install (dev-client or preview). Session state survives (AsyncStorage kept). No duplicate app icon. When you want to keep both a dev-client and a preview on the same phone for comparison, they'd need different bundle IDs — but so far one-at-a-time has been fine.
