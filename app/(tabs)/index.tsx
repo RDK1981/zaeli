@@ -3332,12 +3332,24 @@ function HomeScreen({
             }
           }
           const sameBucket = persistedBucket !== null && persistedBucket === currentBucket;
+          console.log('[brief-restore]', {
+            lastId: last.id,
+            lastBriefWindow: last.briefWindow,
+            briefOnlyCount: briefOnly.length,
+            currentBucket,
+            persistedBucket,
+            sameBucket,
+            today,
+            willRestoreRefs: sameBucket,
+          });
           if (sameBucket) {
             lastBriefWindowRef.current = last.briefWindow ?? null;
             lastBriefDateRef.current = today;
           }
           // else — leave refs as null so shouldFireBrief treats this like a
           // window-change / new-day and fires a fresh brief on next mount.
+        } else {
+          console.log('[brief-restore] briefOnly is empty — no refs to restore');
         }
       }
     }
