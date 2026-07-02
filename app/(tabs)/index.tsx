@@ -3316,16 +3316,21 @@ function HomeScreen({
         // as now. If it's older than that, treat as stale and allow refire
         // so time-of-day framing stays current (evening brief written at
         // 5:33pm shouldn't gate a fresh brief at 10:30pm).
+        //
+        // The persisted timestamp is embedded in the message id as trailing
+        // milliseconds — `brief-<win>-<YYYY-MM-DD>-<millis>`. We can't parse
+        // `last.ts` (that's a display string like "9:31 pm", not an ISO date).
         if (briefOnly.length > 0) {
           const last = briefOnly[briefOnly.length - 1];
           const currentBucket = getCurrentBucket();
           let persistedBucket: number | null = null;
-          try {
-            const persistedTs = last.ts ? new Date(last.ts) : null;
-            if (persistedTs && !isNaN(persistedTs.getTime())) {
-              persistedBucket = Math.floor(persistedTs.getHours() / 3);
+          const idMatch = last.id?.match(/-(\d{13})$/);
+          if (idMatch) {
+            const persistedMs = Number(idMatch[1]);
+            if (!isNaN(persistedMs)) {
+              persistedBucket = Math.floor(new Date(persistedMs).getHours() / 3);
             }
-          } catch {}
+          }
           const sameBucket = persistedBucket !== null && persistedBucket === currentBucket;
           if (sameBucket) {
             lastBriefWindowRef.current = last.briefWindow ?? null;
