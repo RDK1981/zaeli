@@ -62,15 +62,36 @@ export default function SwipeWorld() {
     return () => clearTimeout(t);
   }, []);
 
-  // Landing time-window check — only once per app session
+  // Landing splash — Option C (Session 27):
+  //   - First time ever (fresh install): always fire, mark seen.
+  //   - Subsequent launches: fire only during natural check-in windows
+  //     (6-9am / 12-2pm / 5-8pm) so it lands at the times the user is
+  //     actually opening to see "what's on".
+  // Also only once per app session — the module-level flag prevents re-fire
+  // on swipe-world re-mount within the same JS bundle lifetime.
   useEffect(() => {
     if (_splashShownThisSession) return;
     if (LANDING_TEST_MODE) { setShowLanding(true); _splashShownThisSession = true; return; }
-    const h = new Date().getHours();
-    if ((h >= 6 && h < 9) || (h >= 12 && h < 14) || (h >= 17 && h < 20)) {
-      setShowLanding(true);
-      _splashShownThisSession = true;
-    }
+    (async () => {
+      try {
+        const SEEN_KEY = 'splash_first_install_seen_v1';
+        const seen = await AsyncStorage.getItem(SEEN_KEY);
+        if (!seen) {
+          // First install ever — fire regardless of time so the user meets
+          // Zaeli's brand before hitting Chat.
+          setShowLanding(true);
+          _splashShownThisSession = true;
+          await AsyncStorage.setItem(SEEN_KEY, 'true');
+          return;
+        }
+      } catch {}
+      // Seen before — respect the time-of-day windows.
+      const h = new Date().getHours();
+      if ((h >= 6 && h < 9) || (h >= 12 && h < 14) || (h >= 17 && h < 20)) {
+        setShowLanding(true);
+        _splashShownThisSession = true;
+      }
+    })();
   }, []);
 
   // First-run swipe hint — show once ever. Triggers after a short delay so it

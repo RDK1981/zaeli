@@ -3303,13 +3303,24 @@ function HomeScreen({
         // (otherwise they're stale and we should fire a fresh brief)
         const today = localDateStr();
         const currentWin = getCurrentWindow();
-        const briefOnly = persistedMessages.filter(m => {
+        const allTodayBriefs = persistedMessages.filter(m => {
           if (!m.isBrief) return false;
           const dateMatch = m.id.match(/brief-[a-z]+-(\d{4}-\d{2}-\d{2})/);
           if (!dateMatch || dateMatch[1] !== today) return false;  // drop old-day briefs
           if (m.briefWindow !== currentWin) return false;           // drop other-window briefs
           return true;
         });
+        // A window can accumulate multiple briefs across the day (bucket refires
+        // at 3-hour boundaries — Session 26). Only keep the LATEST — older ones
+        // are stale time-of-day content. Prevents 7 identical briefs stacking
+        // up in the feed. Sort by trailing millis in the id.
+        const briefOnly = allTodayBriefs.length > 0
+          ? [allTodayBriefs.reduce((latest, m) => {
+              const latestMs = Number(latest.id?.match(/-(\d{13})$/)?.[1] ?? 0);
+              const currMs   = Number(m.id?.match(/-(\d{13})$/)?.[1] ?? 0);
+              return currMs > latestMs ? m : latest;
+            })]
+          : [];
         setMessages(briefOnly);
         // Sync refs from restored briefs (if any) so we don't double-fire —
         // BUT only if the persisted brief is still in the same 3-hour bucket
@@ -3332,24 +3343,12 @@ function HomeScreen({
             }
           }
           const sameBucket = persistedBucket !== null && persistedBucket === currentBucket;
-          console.log('[brief-restore]', {
-            lastId: last.id,
-            lastBriefWindow: last.briefWindow,
-            briefOnlyCount: briefOnly.length,
-            currentBucket,
-            persistedBucket,
-            sameBucket,
-            today,
-            willRestoreRefs: sameBucket,
-          });
           if (sameBucket) {
             lastBriefWindowRef.current = last.briefWindow ?? null;
             lastBriefDateRef.current = today;
           }
           // else — leave refs as null so shouldFireBrief treats this like a
           // window-change / new-day and fires a fresh brief on next mount.
-        } else {
-          console.log('[brief-restore] briefOnly is empty — no refs to restore');
         }
       }
     }
