@@ -16,10 +16,12 @@ import { requestNotificationPermission, scheduleBriefNotifications } from '../li
 
 SplashScreen.preventAutoHideAsync()
 // Set the RN root view background color to warm bg immediately at module
-// load — happens BEFORE any component renders. This kills the blue flash
-// between Expo splash hide and first render on iOS with newArchEnabled
-// (Fabric), where the UIWindow default color would otherwise show.
+// load — happens BEFORE any component renders. Belt-and-suspenders for
+// the SystemUI plugin config in app.json.
 SystemUI.setBackgroundColorAsync('#FAF8F5').catch(() => {})
+// Add a fade to the splash hide so any residual transition is smoothed
+// rather than being a hard cut that reveals the underlying UIWindow color.
+SplashScreen.setOptions({ fade: true, duration: 300 })
 
 export default function RootLayout() {
   const router = useRouter()
@@ -33,6 +35,10 @@ export default function RootLayout() {
 
   // Auth state — null until we've checked, then either authed or not.
   const [authed, setAuthed] = useState<boolean | null>(null)
+  // Track when the root View has actually laid out. Splash stays visible
+  // until this fires — bridges the "hideAsync returns success before first
+  // frame paints" gap on iOS Fabric that would otherwise flash blue.
+  const [hasLaidOut, setHasLaidOut] = useState(false)
 
   // ── Initial auth check on mount ─────────────────────────────────────
   useEffect(() => {
@@ -73,10 +79,15 @@ export default function RootLayout() {
     return () => { sub.subscription.unsubscribe() }
   }, [])
 
-  // ── Hide native splash when fonts + first auth check both done ───────
+  // ── Hide native splash when fonts + auth + FIRST LAYOUT all done ────
+  // The onLayout gate is critical on iOS with Fabric — hideAsync returns
+  // success before the first frame actually paints, so hiding on just
+  // (loaded && authed !== null) flashes the underlying UIWindow color.
+  // Waiting for the root View's onLayout ensures the tree is ready to
+  // paint before we drop the splash.
   useEffect(() => {
-    if (loaded && authed !== null) SplashScreen.hideAsync()
-  }, [loaded, authed])
+    if (loaded && authed !== null && hasLaidOut) SplashScreen.hideAsync()
+  }, [loaded, authed, hasLaidOut])
 
   // ── Deep link debug listener ────────────────────────────────────────
   // Logs every URL the OS hands us (initial cold-start URL + URLs while
@@ -138,15 +149,26 @@ export default function RootLayout() {
     }
   }, [authed, segments, loaded])
 
-  if (!loaded || authed === null) return <View style={{ flex: 1, backgroundColor: '#FAF8F5' }} />
+  if (!loaded || authed === null) return (
+    <View
+      style={{ flex: 1, backgroundColor: '#FAF8F5' }}
+      onLayout={() => setHasLaidOut(true)}
+    />
+  )
 
   // Warm-bg container + Stack contentStyle both set to #FAF8F5 to prevent
   // the brief blue flash between Expo splash hiding and first screen render.
   // Under React Native New Architecture (Fabric — newArchEnabled: true in
   // app.json), the Stack/react-native-screens default background is a system
   // blue rather than transparent, so we need to override it explicitly.
+  // The onLayout on the wrapper triggers the splash-hide gate (see auth
+  // useEffect above) — splash stays visible until this View is ready to
+  // paint, which prevents the blue frame between splash hide and paint.
   return (
-    <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
+    <View
+      style={{ flex: 1, backgroundColor: '#FAF8F5' }}
+      onLayout={() => setHasLaidOut(true)}
+    >
       <StatusBar style="light" />
       <Stack screenOptions={{
         headerShown: false,
