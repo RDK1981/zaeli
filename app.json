@@ -8,6 +8,11 @@
     "scheme": "zaeli",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF8F5"
+    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
