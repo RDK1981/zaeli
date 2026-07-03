@@ -1,25 +1,29 @@
 /**
- * lib/stripe.ts — Stripe subscription helpers (Phase 3b scaffolding).
+ * lib/stripe.ts — Stripe subscription helpers.
  *
- * SCAFFOLDING ONLY — no real Stripe wiring yet. When you create the Stripe
- * account + the server-side customer-portal endpoint, slot the real URL in
- * fetchCustomerPortalUrl() and you're done client-side. See
- * STRIPE-SETUP.md for the full setup steps.
+ * fetchCustomerPortalUrl() calls the Supabase Edge Function `stripe-portal`,
+ * which uses the Stripe secret key server-side to create a billing portal
+ * session and returns its URL. The client opens that URL via WebBrowser.
  *
  * Data shape lives on `profiles` (see supabase-stripe-fields.sql):
  *   - stripe_customer_id     — Stripe Customer ID, set after first signup
  *   - subscription_status    — trialing / active / past_due / cancelled / null=free
- *   - subscription_plan      — internal plan code, e.g. 'family' / 'family_tutor_1'
+ *   - subscription_plan      — internal plan code, e.g. 'family' / 'family_tutor'
  *   - subscription_renews_at — next billing date
  *   - trial_ends_at          — when the free trial ends
  *
- * Server endpoint to build:
- *   POST /api/stripe/portal { user_id } → { url }
- *     Uses Stripe secret key + stripe.billingPortal.sessions.create()
- *     See STRIPE-SETUP.md for the Supabase Edge Function template.
+ * Sandbox price IDs (Session 27):
+ *   Family Plan  A$9.99/mo → price_1Tp3x30kUsgPd6wFSSOUucBW
+ *   Tutor Add-on A$7.99/mo → price_1Tp3xn0kUsgPd6wF7zonHLyo
+ *   (Both tax-inclusive; live IDs will be added when we switch modes.)
  */
 
 import { getProfile } from './auth';
+import { supabase } from './supabase';
+
+// Stripe price IDs — used when building checkout flows. Sandbox for now.
+export const STRIPE_PRICE_FAMILY = 'price_1Tp3x30kUsgPd6wFSSOUucBW';
+export const STRIPE_PRICE_TUTOR  = 'price_1Tp3xn0kUsgPd6wF7zonHLyo';
 
 export type SubscriptionStatus =
   | 'trialing'
@@ -65,23 +69,45 @@ export function subscriptionLabel(s: SubscriptionState = getSubscription()): str
 /**
  * Fetch the Stripe Customer Portal URL for the signed-in user.
  *
- * SCAFFOLDING: returns null until the server endpoint is built. When it is,
- * implement the body to POST to /api/stripe/portal with the user id and
- * return the `url` from the response.
+ * Calls the Supabase Edge Function `stripe-portal` which:
+ *   - Verifies the user's JWT
+ *   - Looks up their profiles.stripe_customer_id
+ *   - Creates a Stripe billingPortal.sessions
+ *   - Returns { url }
+ *
+ * Returns null if:
+ *   - User isn't signed in
+ *   - User has no Stripe Customer yet (hasn't subscribed via checkout)
+ *   - The Edge Function errored
+ *
+ * Callers should handle null by either showing a friendly "subscribe first"
+ * prompt or directing the user to the pricing/checkout page.
  */
 export async function fetchCustomerPortalUrl(): Promise<string | null> {
-  // TODO (Stripe wiring):
-  //   const userId = getProfile()?.id;
-  //   if (!userId) return null;
-  //   const res = await fetch(STRIPE_PORTAL_ENDPOINT, {
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json' },
-  //     body: JSON.stringify({ user_id: userId }),
-  //   });
-  //   if (!res.ok) return null;
-  //   const data = await res.json();
-  //   return data.url ?? null;
-  return null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    if (!supabaseUrl) return null;
+
+    const res = await fetch(`${supabaseUrl}/functions/v1/stripe-portal`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!res.ok) {
+      console.warn('[stripe] portal fetch failed:', res.status);
+      return null;
+    }
+    const data = await res.json();
+    return data.url ?? null;
+  } catch (e) {
+    console.warn('[stripe] portal fetch error:', e);
+    return null;
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────

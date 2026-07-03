@@ -35,8 +35,12 @@ const supabaseAdmin = createClient(
 );
 
 // The URL Stripe redirects the user back to after they finish managing
-// their subscription. Uses the app's custom scheme so iOS opens Zaeli.
-const RETURN_URL = Deno.env.get('STRIPE_PORTAL_RETURN_URL') ?? 'zaeli://settings';
+// their subscription. Session 27 note: Stripe's dashboard-level default
+// return URL only accepts http(s), so we use zaeli.app here to match.
+// A follow-up polish (post-TestFlight) is to create a /return page on
+// Netlify that auto-redirects to zaeli://settings so iOS resolves back
+// into the Settings screen instead of the landing page.
+const RETURN_URL = Deno.env.get('STRIPE_PORTAL_RETURN_URL') ?? 'https://zaeli.app';
 
 // ── Handler ─────────────────────────────────────────────────────────────────
 Deno.serve(async (req) => {

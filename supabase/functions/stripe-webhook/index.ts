@@ -44,10 +44,12 @@ const supabaseAdmin = createClient(
 );
 
 // Map Stripe Price IDs → your internal plan codes.
-// Fill these in AFTER you create the products in Stripe (Stage 3 of Stripe setup).
+// Sandbox Price IDs (Session 27 — 2 July 2026, A$9.99 family + A$7.99 tutor inc GST).
+// When switching to live mode, add the live Price IDs alongside — the map
+// can hold both sandbox and live keys since they never collide.
 const PRICE_TO_PLAN: Record<string, string> = {
-  'price_XXX_family':      'family',
-  'price_XXX_tutor_child': 'family_tutor', // multiply by quantity in your app if needed
+  'price_1Tp3x30kUsgPd6wFSSOUucBW': 'family',        // Family Plan A$9.99/mo
+  'price_1Tp3xn0kUsgPd6wF7zonHLyo': 'family_tutor',  // Tutor Add-on A$7.99/child/mo
 };
 
 Deno.serve(async (req) => {
