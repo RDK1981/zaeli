@@ -11,7 +11,12 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FAF8F5"
+      "backgroundColor": "#FAF8F5",
+      "dark": {
+        "image": "./assets/images/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FAF8F5"
+      }
     },
     "ios": {
       "supportsTablet": true,
@@ -21,7 +26,19 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.zaeli.app",
-      "associatedDomains": ["applinks:zaeli.app"]
+      "associatedDomains": ["applinks:zaeli.app"],
+      "splash": {
+        "image": "./assets/images/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FAF8F5",
+        "tabletImage": "./assets/images/splash-icon.png",
+        "tabletBackgroundColor": "#FAF8F5",
+        "dark": {
+          "image": "./assets/images/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#FAF8F5"
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
