@@ -134,10 +134,18 @@ export default function RootLayout() {
 
   if (!loaded || authed === null) return <View style={{ flex: 1, backgroundColor: '#FAF8F5' }} />
 
+  // Warm-bg container + Stack contentStyle both set to #FAF8F5 to prevent
+  // the brief blue flash between Expo splash hiding and first screen render.
+  // Under React Native New Architecture (Fabric — newArchEnabled: true in
+  // app.json), the Stack/react-native-screens default background is a system
+  // blue rather than transparent, so we need to override it explicitly.
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
       <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false }} />
-    </>
+      <Stack screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: '#FAF8F5' },
+      }} />
+    </View>
   )
 }
