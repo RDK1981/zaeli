@@ -73,6 +73,12 @@
           }
         }
       ],
+      [
+        "expo-system-ui",
+        {
+          "backgroundColor": "#FAF8F5"
+        }
+      ],
       "expo-font",
       "@react-native-community/datetimepicker",
       [

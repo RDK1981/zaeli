@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar'
 import { useFonts, DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display'
 import { DMSans_300Light, DMSans_400Regular, DMSans_700Bold } from '@expo-google-fonts/dm-sans'
 import * as SplashScreen from 'expo-splash-screen'
+import * as SystemUI from 'expo-system-ui'
 import { getSession, loadProfile, onAuthChange, getProfile } from '../lib/auth'
 import { invalidateAccount } from '../lib/account-state'
 import { invalidateCache as invalidateTourCache } from '../lib/tour-state'
@@ -14,6 +15,11 @@ import { invalidateRosterCache } from '../lib/family-roster'
 import { requestNotificationPermission, scheduleBriefNotifications } from '../lib/notifications'
 
 SplashScreen.preventAutoHideAsync()
+// Set the RN root view background color to warm bg immediately at module
+// load — happens BEFORE any component renders. This kills the blue flash
+// between Expo splash hide and first render on iOS with newArchEnabled
+// (Fabric), where the UIWindow default color would otherwise show.
+SystemUI.setBackgroundColorAsync('#FAF8F5').catch(() => {})
 
 export default function RootLayout() {
   const router = useRouter()
