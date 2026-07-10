@@ -35,7 +35,7 @@ import {
 } from '../../lib/zaeli-memory';
 import { getFamilyId } from '../../lib/family';
 import { scheduleBriefNotifications } from '../../lib/notifications';
-import { getSubscription, subscriptionLabel, fetchCustomerPortalUrl } from '../../lib/stripe';
+import { getSubscription, subscriptionLabel, fetchCustomerPortalUrl, shouldPromptSubscribe, getCheckoutUrl } from '../../lib/stripe';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import MoreSheet from '../components/MoreSheet';
@@ -401,6 +401,24 @@ export default function SettingsScreen() {
               );
             }
           }}
+          onSubscribe={() => {
+            // Session 28 — opens Stripe Payment Link in browser. Configured
+            // in Stripe Dashboard on the Family Plan product, URL pasted into
+            // STRIPE_PAYMENT_LINK_FAMILY in lib/stripe.ts. Once the checkout
+            // completes, Stripe fires customer.subscription.created → webhook
+            // syncs profile → user returns from browser and sees Active state.
+            const url = getCheckoutUrl();
+            if (url) {
+              Linking.openURL(url).catch(() => {
+                Alert.alert("Couldn't open checkout", 'Try again in a moment.');
+              });
+            } else {
+              Alert.alert(
+                'Almost ready',
+                'Subscription checkout will open in your browser. The Payment Link is being wired up — hang tight for a moment.',
+              );
+            }
+          }}
         />
       )}
 
@@ -508,6 +526,7 @@ function MainView(p: {
   onOpenLatestInvite: () => void;
   onResetAccount: () => void;
   onManageSubscription: () => void;
+  onSubscribe: () => void;
 }) {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
@@ -534,25 +553,46 @@ function MainView(p: {
         );
       })()}
 
-      {/* Subscription — Phase 3b: reads real data from profile when present,
-          falls back to placeholder copy when Stripe isn't configured yet. */}
+      {/* Subscription — Phase 3b / Session 28 beta program:
+          - beta_end_date > now() → shows Beta state, prompts subscribe when
+            <14 days left
+          - null status → free/never subscribed, prompts subscribe
+          - active → shows Manage subscription
+          - cancelled → prompts re-subscribe */}
       <SecLabel>Subscription</SecLabel>
       {(() => {
         const sub = getSubscription();
         const label = subscriptionLabel(sub);
-        const planName = sub.plan === 'family_tutor_1' || sub.plan === 'family_tutor_2'
+        const planName = sub.plan === 'beta'
+          ? 'Beta · 3 months free'
+          : sub.plan === 'family_tutor_1' || sub.plan === 'family_tutor_2' || sub.plan === 'family_tutor'
           ? 'Family + Tutor'
           : sub.plan === 'family'
           ? 'Family'
-          : 'Free trial';
+          : sub.status === 'trialing'
+          ? 'Free trial'
+          : 'Free';
+        const showSubscribe = shouldPromptSubscribe(sub);
+        const showManage = !!sub.customerId && sub.status !== null && sub.plan !== 'beta';
         return (
           <View style={s.planCard}>
             <Text style={s.planLabel}>Current plan</Text>
             <Text style={s.planName}>{planName}</Text>
             <Text style={s.planPrice}>{label}</Text>
-            <TouchableOpacity style={s.planBtn} activeOpacity={0.85} onPress={p.onManageSubscription}>
-              <Text style={s.planBtnTxt}>Manage subscription</Text>
-            </TouchableOpacity>
+            {showSubscribe && (
+              <TouchableOpacity style={s.planBtn} activeOpacity={0.85} onPress={p.onSubscribe}>
+                <Text style={s.planBtnTxt}>{sub.plan === 'beta' ? 'Continue with Family Plan' : 'Subscribe · A$9.99/mo'}</Text>
+              </TouchableOpacity>
+            )}
+            {showManage && (
+              <TouchableOpacity
+                style={[s.planBtn, showSubscribe && { marginTop: 8, backgroundColor: 'rgba(10,10,10,0.06)' }]}
+                activeOpacity={0.85}
+                onPress={p.onManageSubscription}
+              >
+                <Text style={[s.planBtnTxt, showSubscribe && { color: 'rgba(10,10,10,0.72)' }]}>Manage subscription</Text>
+              </TouchableOpacity>
+            )}
           </View>
         );
       })()}

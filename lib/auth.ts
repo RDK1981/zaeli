@@ -35,6 +35,10 @@ export interface Profile {
   subscription_plan:      string | null;
   subscription_renews_at: string | null;
   trial_ends_at:          string | null;
+  // Session 28 — comp beta program for test families. When beta_end_date is
+  // in the future, lib/stripe.ts overrides subscription_status and returns
+  // 'trialing' with plan 'beta'. Once passed, real Stripe state takes over.
+  beta_end_date:          string | null;
   created_at: string;
   updated_at: string;
 }
