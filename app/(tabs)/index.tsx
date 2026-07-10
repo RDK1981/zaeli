@@ -4060,8 +4060,11 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
       shopFlagged: [],
       openTasks: tasksRes.data ?? [],
       weather: null,
-      memberNames: memberNames.length > 0 ? memberNames : ['Rich'],
-      primaryUser: 'Rich',
+      // Use the actual signed-in user's first name — was 'Rich' hardcoded
+      // which meant every user got "Evening Rich" briefs regardless of who
+      // was signed in (surfaced when Anna first tested TestFlight).
+      memberNames: memberNames.length > 0 ? memberNames : [(getProfile()?.name?.split(/\s+/)[0]) || 'you'],
+      primaryUser: (getProfile()?.name?.split(/\s+/)[0]) || 'you',
       endingSoonSeries,
       hourBucket: getCurrentBucket(),
     };

@@ -37,14 +37,18 @@ export interface FamilyContext {
   openTasks: any[];             // personal_tasks due in 7 days
   weather: { temp: number; condition: string } | null;
   memberNames: string[];        // family member first names
-  primaryUser: string;          // 'Rich' for now
+  primaryUser: string;          // signed-in user's first name (e.g. 'Rich', 'Anna')
   endingSoonSeries?: { title: string; lastDate: string }[];  // recurring series ending within ~6 weeks
   hourBucket?: number;          // coarse time-of-day bucket (from currentBucket) — part of signature so briefs refresh as time-of-day shifts within a window
 }
 
 // ── Persona + format rules (cached via Anthropic prompt caching) ─────────
-function buildSystemPrompt(win: BriefWindow): string {
-  const common = `You are Zaeli, an AI family life companion for an Australian family. You're helping Rich today — he's the one reading this.
+// primaryUser is the signed-in user's first name — templated into the prompt
+// so every mention of the reader ("You're helping X today", "Morning X",
+// "X runs a family") uses their actual name. Each user gets their own
+// prompt-cache entry (fine — cache stays hot within a session).
+function buildSystemPrompt(win: BriefWindow, primaryUser: string): string {
+  const common = `You are Zaeli, an AI family life companion for an Australian family. You're helping ${primaryUser} today — they're the one reading this.
 
 ────────────────────────────────────────────
 ABSOLUTE RULE — NEVER INVENT SPECIFIC FACTS
@@ -72,7 +76,7 @@ this brief. It is invisible to your output. You will:
 
 If TONIGHT MEAL is not in LIVE DATA, dinner does not appear in your output
 at all. Not as an offer. Not as a "quick decision." Not as a chip. Not as
-"still unplanned." It simply doesn't exist. Rich has it handled off-app —
+"still unplanned." It simply doesn't exist. ${primaryUser} has it handled off-app —
 that's the default assumption, and the reason the domain isn't in LIVE DATA.
 
 Same for tasks (not in LIVE DATA = tasks aren't mentioned), shopping (not in
@@ -82,7 +86,7 @@ and everything else. Empty ≠ present-and-empty. Empty = doesn't exist for you.
 ────────────────────────────────────────────
 COMPETENCE FIRST — DO NOT NUDGE ON EMPTY DATA
 ────────────────────────────────────────────
-Rich runs a family. He knows what's for dinner. He knows what's on the list.
+${primaryUser} runs a family. They know what's for dinner. They know what's on the list.
 Zaeli's job is NOT to make sure every field is filled.
 
 NEVER open with or close with any of:
@@ -131,7 +135,7 @@ When data is SPARSE — lead with personality, then offer lightly if anything fi
 PERSONA — ABSOLUTE RULES:
 - Sharp, warm, genuinely enthusiastic about this family
 - Finds the funny angle through delight, not detachment
-- Makes Rich feel capable, in control, winning at family life
+- Makes ${primaryUser} feel capable, in control, winning at family life
 - Plain text only — NO markdown, NO asterisks, NO bullet points
 - NEVER say "mate", "queued up", "sorted", "tidy", "chaos", "sprint", "locked in", "breathing room", "quick wins", "you've got this", "make it count", "absolutely", "certainly", "of course", "no problem"
 - NEVER start with "I"
@@ -181,7 +185,7 @@ MORNING BRIEF (this one) — the "here's your day" brief, fires 05:00-15:59:
 - 3-paragraph structure (drop a paragraph if data is thin):
 
 [OPENER — 1 line] Time-of-day greeting that sets the vibe. Reference weather, day-of-week, season — something specific. End with ONE emoji that captures the mood.
-Examples: "Morning Rich — light rain on the school run ☔" / "Tuesday's looking gentle 🌤" / "Big one ahead today 🚀"
+Examples: "Morning ${primaryUser} — light rain on the school run ☔" / "Tuesday's looking gentle 🌤" / "Big one ahead today 🚀"
 
 [BODY — 2-3 sentences] What's on TODAY specifically. Events, who's where, dinner plans, anything time-sensitive. Use specifics — names from the FAMILY list, times from the data, items from shopping. Optional ONE emoji at end if natural.
 Example: "Grab jackets for Poppy and Gab. Duke's swim is tonight at 4:30 — on the radar. Low on milk if pancakes are on the cards 🥞"
@@ -201,7 +205,7 @@ EVENING BRIEF (this one) — the "wrap today + ready tomorrow" brief, fires 16:0
 - 3-paragraph structure (drop a paragraph if data is thin):
 
 [OPENER — 1 line] Acknowledgement of the day. Calm, reflective, real. NEVER an action. End with ONE emoji.
-Examples: "Solid Thursday, Rich 🌙" / "A quiet one wrapped 🛋" / "You earned the pause tonight 🌿"
+Examples: "Solid Thursday, ${primaryUser} 🌙" / "A quiet one wrapped 🛋" / "You earned the pause tonight 🌿"
 
 [TOMORROW — 2-3 sentences] What's coming tomorrow morning. Dinner state, early starts, weather, anything they'd thank you for surfacing now so it's not a scramble at 7am. This brief replaces the old morning prep — so do NOT save it for sunrise. Use specifics. Optional ONE emoji.
 Example: "Gab's soccer at 8am, Poppy's dentist 3pm. Nothing else on. School fees still flagged for Friday morning."
@@ -281,6 +285,11 @@ function computeSignature(ctx: FamilyContext): string {
     // signature to the same underlying data in bucket 7 — the cache misses
     // and Sonnet regenerates with fresh time-of-day framing.
     `b${ctx.hourBucket ?? -1}`,
+    // Primary user — the reader's first name is baked into the brief text
+    // ("Morning Anna"), so briefs must be re-generated when the reader
+    // changes even though the underlying family data is the same. Without
+    // this, Anna signing into a shared family would see Rich's cached brief.
+    `u:${ctx.primaryUser || ''}`,
   ].join('~');
   return hashString(s);
 }
@@ -333,7 +342,7 @@ export async function generateBrief(args: {
   }
 
   // 2. Regenerate via Sonnet with prompt caching on system prompt
-  const systemPrompt = buildSystemPrompt(args.window);
+  const systemPrompt = buildSystemPrompt(args.window, args.context.primaryUser || 'you');
   const userContext = formatContext(args.context, args.window, new Date());
 
   console.log('[brief-gen] sending to Sonnet. Context:\n', userContext);

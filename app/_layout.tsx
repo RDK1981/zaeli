@@ -4,6 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useFonts, DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display'
 import { DMSans_300Light, DMSans_400Regular, DMSans_700Bold } from '@expo-google-fonts/dm-sans'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SplashScreen from 'expo-splash-screen'
 import * as SystemUI from 'expo-system-ui'
 import { getSession, loadProfile, onAuthChange, getProfile } from '../lib/auth'
@@ -135,6 +136,12 @@ export default function RootLayout() {
   // If authed=false and user isn't already on /(auth) or /invite/[token],
   // redirect to sign-in. /invite/[token] is allowed unauthed so receivers
   // can land there from an SMS link.
+  //
+  // If authed=true and it's an OWNER who hasn't completed onboarding, route
+  // to /onboarding first so first-time family owners get the orientation
+  // flow (name/family/rhythm/preferences + tour offer) instead of landing
+  // cold on Chat. Adult + kid invitees have their own inline onboarding
+  // inside /invite/[token] and skip this gate.
   useEffect(() => {
     if (authed === null || !loaded) return
     const seg0 = segments[0] as string | undefined
@@ -143,9 +150,39 @@ export default function RootLayout() {
     const inOnboarding = seg0 === 'onboarding'
     if (!authed && !inAuth && !inInvite && !inOnboarding) {
       router.replace('/(auth)/sign-in' as any)
-    } else if (authed && inAuth) {
-      // Just signed in while on the sign-in screen — bounce home
-      router.replace('/(tabs)/swipe-world' as any)
+      return
+    }
+    if (authed) {
+      // Check onboarding_complete AsyncStorage flag for OWNER accounts.
+      // Owners get the full onboarding sequence; adult/kid invitees do
+      // their orientation inside /invite/[token] so they skip this gate.
+      ;(async () => {
+        const profile = getProfile()
+        const isOwner = !profile || profile.kind === 'owner'
+        if (!isOwner) {
+          if (inAuth) router.replace('/(tabs)/swipe-world' as any)
+          return
+        }
+        const done = await AsyncStorage.getItem('onboarding_complete')
+        // Grandfather clause — profiles created before this gate existed
+        // never set the AsyncStorage flag, so we'd yank Rich (and any
+        // other pre-gate user) into onboarding on next reload. If the
+        // profile is more than 24h old, treat as completed and stamp
+        // the flag so this check is a no-op forever after.
+        let effectiveDone = done === 'true'
+        if (!effectiveDone && !inOnboarding && profile?.created_at) {
+          const ageMs = Date.now() - new Date(profile.created_at).getTime()
+          if (ageMs > 24 * 60 * 60 * 1000) {
+            effectiveDone = true
+            await AsyncStorage.setItem('onboarding_complete', 'true')
+          }
+        }
+        if (!effectiveDone && !inOnboarding) {
+          router.replace('/onboarding' as any)
+        } else if (effectiveDone && inAuth) {
+          router.replace('/(tabs)/swipe-world' as any)
+        }
+      })()
     }
   }, [authed, segments, loaded])
 
