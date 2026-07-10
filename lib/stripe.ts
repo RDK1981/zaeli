@@ -38,9 +38,12 @@ export const STRIPE_PRICE_FAMILY = 'price_1Tp3x30kUsgPd6wFSSOUucBW';
 export const STRIPE_PRICE_TUTOR  = 'price_1Tp3xn0kUsgPd6wF7zonHLyo';
 
 // Stripe Payment Link — Family Plan A$9.99/mo checkout. Set once in Stripe
-// Dashboard, pasted here. Update when switching sandbox → live.
-// TODO (Session 28): paste the sandbox Payment Link URL once Richard creates it.
-export const STRIPE_PAYMENT_LINK_FAMILY = '';
+// Dashboard, pasted here. The `test_` prefix confirms this is a sandbox URL;
+// swap for the live-mode URL before public launch. Users open this URL via
+// Linking.openURL() and complete checkout on Stripe's hosted page. On
+// success, Stripe fires customer.subscription.created → our webhook syncs
+// profile → user returns to app and sees Active state in Settings.
+export const STRIPE_PAYMENT_LINK_FAMILY = 'https://buy.stripe.com/test_9B6dR165ie276QY3ROdnW00';
 
 export type SubscriptionStatus =
   | 'trialing'
