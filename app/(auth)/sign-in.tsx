@@ -41,7 +41,11 @@ type Mode = 'sign-in' | 'sign-up' | 'check-email';
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>('sign-in');
+  // Default to sign-up: new users vastly outnumber returning users on this
+  // screen (returning users have sessions saved on device and bypass sign-in
+  // entirely). "Welcome back" for a first-time user is misleading; better to
+  // land them on sign-up and let returning users tap the "Sign in" toggle.
+  const [mode, setMode] = useState<Mode>('sign-up');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -126,7 +130,7 @@ export default function SignInScreen() {
               <Text style={s.sub}>
                 {mode === 'sign-in'
                   ? "Sign in to your family."
-                  : "Set up a brand new family. Anna and the kids can join via invite once you're in."}
+                  : "Set up your family — takes about a minute. You can invite the rest of the family once you're in."}
               </Text>
 
               {/* Form */}
