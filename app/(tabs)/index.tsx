@@ -1635,10 +1635,19 @@ async function executeTool(name: string, input: any): Promise<string> {
         } catch { endDt = localDt; }
       }
       // Default assignee = the signed-in user (was hardcoded old id '2').
-      const meId = (getMemberByName(getProfile()?.name || '') ?? getRoster().find(m => m.role === 'parent') ?? getRoster()[0])?.id;
+      const rosterSnapshot = getRoster();
+      const meId = (getMemberByName(getProfile()?.name || '') ?? rosterSnapshot.find(m => m.role === 'parent') ?? rosterSnapshot[0])?.id;
       let assigneeIds: string[] = meId ? [meId] : [];
       if (input.assignees && Array.isArray(input.assignees) && input.assignees.length > 0) {
-        const mapped = input.assignees.map((n:string) => resolveAssigneeId(n)).filter(Boolean) as string[];
+        const resolution = input.assignees.map((n:string) => ({ name: n, id: resolveAssigneeId(n) }));
+        console.log('[calendar-add] assignee resolution', {
+          rosterSize: rosterSnapshot.length,
+          rosterNames: rosterSnapshot.map(r => r.name),
+          requested: input.assignees,
+          resolved: resolution,
+          meIdFallback: meId,
+        });
+        const mapped = resolution.map(r => r.id).filter(Boolean) as string[];
         if (mapped.length > 0) assigneeIds = mapped;
       }
       const repeat = (input.repeat || 'none').toString().toLowerCase().trim();
@@ -1646,13 +1655,28 @@ async function executeTool(name: string, input: any): Promise<string> {
 
       if (!isRecurring) {
         const row: any = { family_id:getFamilyId(), title:input.title, date:dateOnly, start_time:localDt, end_time:endDt, notes:input.notes||'', timezone:'Australia/Brisbane', assignees:assigneeIds };
-        let { error } = await supabase.from('events').insert(row);
-        if (error && (error.message?.includes('assignees') || error.code==='42703')) {
+        console.log('[calendar-add]', { title: row.title, date: row.date, family_id: row.family_id, assignees: row.assignees, assigneeCount: assigneeIds.length });
+        // .select() returns the inserted row. If RLS silently blocks the
+        // write, data is null with no error — we treat that as TOOL_FAILED
+        // so Zaeli doesn't confidently confirm a phantom event.
+        let insertRes = await supabase.from('events').insert(row).select('id').maybeSingle();
+        if (insertRes.error && (insertRes.error.message?.includes('assignees') || insertRes.error.code==='42703')) {
+          console.warn('[calendar-add] assignees column error, retrying without:', insertRes.error.message);
           const { assignees:_a, ...slim } = row;
-          const r2 = await supabase.from('events').insert(slim);
-          error = r2.error;
+          insertRes = await supabase.from('events').insert(slim).select('id').maybeSingle();
         }
-        if (error) return `TOOL_FAILED: Couldn't save "${input.title}" — ${error.message}`;
+        if (insertRes.error) {
+          console.error('[calendar-add] insert failed:', insertRes.error);
+          return `TOOL_FAILED: Couldn't save "${input.title}" — ${insertRes.error.message}`;
+        }
+        if (!insertRes.data?.id) {
+          // Insert returned no row — RLS silently filtered the write. This
+          // was the "phantom event" bug: tool used to return success here
+          // and Zaeli would confidently say "added" with nothing in the DB.
+          console.error('[calendar-add] insert returned no row — RLS may be blocking. family_id=', row.family_id);
+          return `TOOL_FAILED: Couldn't save "${input.title}" — the write didn't take (permissions or family context issue). Ask the user to try again in a moment.`;
+        }
+        console.log('[calendar-add] inserted OK:', insertRes.data.id);
         return `✅ "${input.title}" added on ${dateOnly} at ${localDt.split('T')[1]?.slice(0,5) ?? 'the time you specified'}.`;
       }
 
@@ -1668,16 +1692,29 @@ async function executeTool(name: string, input: any): Promise<string> {
         notes: input.notes || '', timezone: 'Australia/Brisbane',
         assignees: assigneeIds, repeat_rule: repeatRule, repeat_group_id: groupId,
       }));
+      let totalInserted = 0;
       for (let i=0; i<rows.length; i+=20) {
         const batch = rows.slice(i, i+20);
-        let { error } = await supabase.from('events').insert(batch);
-        if (error && (error.message?.includes('assignees') || error.message?.includes('repeat_rule') || error.message?.includes('repeat_group_id') || error.code==='42703')) {
+        let batchRes = await supabase.from('events').insert(batch).select('id');
+        if (batchRes.error && (batchRes.error.message?.includes('assignees') || batchRes.error.message?.includes('repeat_rule') || batchRes.error.message?.includes('repeat_group_id') || batchRes.error.code==='42703')) {
+          console.warn('[calendar-add:recurring] column error, retrying slim:', batchRes.error.message);
           const slim = batch.map(({ assignees:_a, repeat_rule:_r, repeat_group_id:_g, ...rest }) => rest);
-          const r2 = await supabase.from('events').insert(slim);
-          error = r2.error;
+          batchRes = await supabase.from('events').insert(slim).select('id');
         }
-        if (error) return `TOOL_FAILED: Couldn't save the recurring "${input.title}" — ${error.message}`;
+        if (batchRes.error) {
+          console.error('[calendar-add:recurring] batch failed:', batchRes.error);
+          return `TOOL_FAILED: Couldn't save the recurring "${input.title}" — ${batchRes.error.message}`;
+        }
+        const returned = Array.isArray(batchRes.data) ? batchRes.data.length : 0;
+        if (returned === 0) {
+          // Same silent-RLS trap as single insert. Batch went through
+          // technically but nothing landed in the DB.
+          console.error('[calendar-add:recurring] batch returned no rows — RLS may be blocking. family_id=', batch[0]?.family_id);
+          return `TOOL_FAILED: Couldn't save the recurring "${input.title}" — write didn't take (permissions or family context issue).`;
+        }
+        totalInserted += returned;
       }
+      console.log('[calendar-add:recurring] inserted', totalInserted, 'of', rows.length, 'planned rows');
       const daysLabel = Array.isArray(input.repeat_days) && input.repeat_days.length
         ? input.repeat_days.join(', ')
         : repeat;
