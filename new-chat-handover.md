@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*2 July 2026 (early hours) — Session 27 ✅ · APP ICON SHIPPED + EAS PREVIEW BUILD LIVE + BRIEF SYSTEM FINAL POLISH · **Icon 2B ("za" + peach/mint/lavender orbs on warm bg)** designed via HTML mockup, exported via browser Canvas tool, dropped into `assets/images/icon.png` + `splash-icon.png` · **First standalone iOS preview build** unblocked — was crashing on boot because EAS cloud builds don't inherit local `.env`; fixed by adding EXPO_PUBLIC_* keys to EAS Environment Variables as "Sensitive" · **Brief bucket-check bug fixed** (Session 26's fix parsed display string as Date, silently failed, refs never restored) · **Brief dedup on restore** — 7 stacked briefs from tonight's iterations were flashing; now filtered to just the latest per window, self-healing · **Splash Option C** — first install ever fires regardless of time (AsyncStorage flag), then respects windows · Prior Session 26 (brief v1/v2, pricing pivot A$9.99/A$7.99 inc GST, bucket refresh) + Session 25 (Universal Links LIVE, EAS Build proven, Cloudflare/Netlify hosting, Stripe scaffolded) still current · **NEXT: fresh preview build to verify dev-client-specific flashes are gone, 2e Anna's phone, 3b Stripe activation (external ~25 min tax-inclusive setup), Phase 4b TestFlight, Phase 5 (NEW) — move Anthropic/OpenAI keys server-side before public launch***
+*10 July 2026 — Session 28 ✅ · STRIPE PHASE 3b LIVE END-TO-END + CALENDAR PHANTOM-EVENT FIX + SPLASH FLASH SAGA · **Stripe integration proven end-to-end in sandbox** — external activation done (products A$9.99 family + A$7.99 tutor tax-inclusive, Customer Portal, both Edge Functions deployed with secrets, webhook registered with 6 events subscribed, test customer + metadata + subscription verified syncing to profile). Manage subscription button in Settings opens real Stripe Customer Portal showing active plan + payment method + Cancel button · **Calendar phantom-event bug fixed** — Zaeli was confidently confirming events that never landed in DB (silent RLS block returned `{error:null, data:null}` and old tool code treated as success). Fix: `.insert().select('id').maybeSingle()` verification pattern + diagnostic logging. Verified working on device · **Splash blue flash saga** — 5 fix attempts today reduced the cosmetic flash from clearly visible (~500ms) to barely visible (<100ms flicker). The mostly-fix was onLayout-gated `SplashScreen.hideAsync()` — waiting for root View to lay out before dropping the splash. Full elimination parked (needs WSL for storyboard inspection) · **Small polish** — Stripe webhook `current_period_end` items-level fallback (newer API), MoreSheet Settings icon viewBox padding · Prior Session 27 (app icon 2B, first preview build, brief bucket-check + dedup) + Session 26 (brief v1/v2, pricing pivot A$9.99/A$7.99 inc GST) + Session 25 (Universal Links LIVE, Cloudflare/Netlify hosting) all still current · **NEXT: build checkout flow (Payment Link fastest for beta), Phase 2e Anna's phone, Phase 4b TestFlight submission, Phase 5 (pre-launch) — move Anthropic/OpenAI keys server-side***
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,12 +10,109 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 27 continued Session 26's late-evening work into the early morning. Two headline deliverables: **app icon shipped** and **first standalone iOS preview build working**. Also cleared brief-system bugs still lurking after Session 26's dedup fix. All verified working on device end-to-end.
+Session 28 was the day Stripe finally went live. Full external activation completed end-to-end and verified on device. Also fixed a real UX bug where Zaeli was hallucinating calendar event confirmations, and made 5 attempts at a cosmetic splash blue flash that reduced but didn't fully eliminate it.
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — ALL WORKING ✅ (Session 27)
+## CURRENT STATE — ALL WORKING ✅ (Session 28)
+## ══════════════════════════════════
+
+### NEW THIS SESSION (Session 28 — Stripe live + calendar fix + splash saga, 10 July)
+
+**A. Stripe Phase 3b — proven live end-to-end** ⭐. The external activation Richard was queuing since Session 25. Full walkthrough in the conversation (~2 hour block). Everything wired both directions.
+
+**External work Richard did**:
+- Stripe sandbox account (Australia)
+- **"I'll do it"** on global sales (not Managed Payments — 3.5% add-on doesn't scan for AU-only)
+- Stripe Tax activation deferred (sandbox doesn't need it; pre-launch chore for automated AU GST)
+- Two products with **tax-inclusive** pricing:
+  - `Zaeli Family Plan` — A$9.99/month, price_id `price_1Tp3x30kUsgPd6wFSSOUucBW`
+  - `Zaeli Tutor Add-on (per child)` — A$7.99/month, price_id `price_1Tp3xn0kUsgPd6wF7zonHLyo`
+- Customer Portal configured — return URL `https://zaeli.app` (Stripe rejects `zaeli://` custom scheme at dashboard-level config)
+
+**Supabase CLI + Edge Functions**:
+- `npm install -g supabase` + `supabase login` + `supabase link --project-ref rsvbzakyyrftezthlhtd`
+- `supabase secrets set STRIPE_SECRET_KEY=sk_test_...`
+- `supabase functions deploy stripe-portal`
+- `supabase functions deploy stripe-webhook --no-verify-jwt` (the `--no-verify-jwt` flag is required — Stripe uses signature auth, not JWT)
+- Webhook registered in Stripe: `https://rsvbzakyyrftezthlhtd.supabase.co/functions/v1/stripe-webhook` subscribed to `customer.subscription.created/updated/deleted`, `invoice.payment_succeeded/failed`, `customer.created`
+- `supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...`
+
+**End-to-end smoke test**:
+- Created test customer (initially without metadata — learning moment: `customer.created` webhook needs `supabase_user_id` metadata to auto-link; without it, manual paste of `stripe_customer_id` into profile row is required)
+- Attached subscription with test card `4242 4242 4242 4242`
+- Timing gotcha: `customer.subscription.created` fired BEFORE profile had `stripe_customer_id` set → sync matched 0 rows. Fix: **resend event from Stripe Dashboard → Developers → Events → Resend button.**
+- Bug found + fixed: `subscription_renews_at` stayed NULL. Stripe moved `current_period_end` from Subscription to items level around API 2024-06-20. Commit `5f0f622` reads items-level as fallback. Redeploy + resend → correct.
+- **Result verified on device**: Settings shows `Family · Active · next bill 10 Aug`, Manage subscription opens real Stripe Customer Portal with active plan + Visa •••• 4242 + Cancel button.
+
+**Client wiring done just before external activation (commit `0a250f3`)**:
+- `lib/stripe.ts` — real `fetchCustomerPortalUrl` implementation (JWT via `session.access_token` to Edge Function). `STRIPE_PRICE_FAMILY` + `STRIPE_PRICE_TUTOR` exports.
+- `supabase/functions/stripe-webhook/index.ts` — `PRICE_TO_PLAN` map populated with sandbox Price IDs.
+- `supabase/functions/stripe-portal/index.ts` — `RETURN_URL` swap `zaeli://settings` → `https://zaeli.app`.
+
+**B. Calendar phantom-event bug** ⭐ (commit `b5a06fa`). Richard shared 5 screenshots from the previous session showing a real bug: Zaeli confidently said "Added Duke's Soccer Carnival for Saturday 18 July..." 3 times, none of which landed in DB. On the 4th attempt, the row finally appeared.
+
+Root cause diagnosis:
+- `add_calendar_event` tool used `let { error } = await supabase.from('events').insert(row); if (error) return TOOL_FAILED;`
+- Supabase RLS silent block returns `{ error: null, data: null }` — no error, no row, no signal
+- Tool returned "✅ added" from `if (!error)` → tool_result was `✅` → Zaeli reported success in good faith
+- Zaeli wasn't lying — the tool was
+
+Fix:
+- `.insert(row).select('id').maybeSingle()` — pulls inserted row's ID back
+- Check `data?.id`. If null → `TOOL_FAILED` with honest message ("write didn't take — permissions or family context issue")
+- Same treatment for recurring batch case (uses `.select('id')` and counts rows)
+- Added diagnostic logging: `[calendar-add]` with input params + assignee resolution (roster snapshot, requested vs resolved) + inserted OK/failed
+
+Verified working on device — next event added cleanly first try.
+
+**C. Splash blue flash saga — 5 attempts, mostly fixed**. Session 27's icon + preview build shipped, but user testing showed a bright blue frame between warm-bg splash and app render. Order: warm → blue → app.
+
+Five fix attempts today:
+1. `df9e445` — top-level `splash` config in app.json (to update iOS LaunchScreen storyboard) — no help
+2. `c10ae4c` — Fabric Stack wrapper + `contentStyle` (theory: react-native-screens default blue under newArchEnabled) — no help
+3. `2553c3e` — explicit `ios.splash` block + dark variants — no help
+4. `1b5fa48` — expo-system-ui plugin + `SystemUI.setBackgroundColorAsync` (theory: raw iOS UIWindow color) — no help
+5. `ba638a4` ⭐ — **onLayout-gated hideAsync + fade** — the mostly-fix. Reduced from clearly visible (~500ms) to barely visible (<100ms flicker). Gated `SplashScreen.hideAsync()` on root View's `onLayout` (waits for tree to be laid out and about to paint before dropping splash) plus `SplashScreen.setOptions({ fade: true, duration: 300 })`.
+
+**Key learning: splash blue flash is a timing issue, not a colour issue.** All colour-config attempts failed; the timing fix worked. Full elimination would need WSL to inspect the generated `SplashScreen.storyboard`. Parked as cosmetic.
+
+**D. Small polish**:
+- Stripe webhook `current_period_end` fix (`5f0f622`) — items-level fallback for newer Stripe API
+- MoreSheet Settings icon viewBox padding (`3ea23d4`) — gear teeth strokes were clipping at tile edge; `viewBox="-1 -1 26 26"` adds 1 unit padding each side
+
+### Key decisions Session 28
+
+- **Supabase INSERT + `.select('id').maybeSingle()`** — always verify writes actually landed. Silent RLS blocks were the calendar phantom bug's root cause. Apply this pattern wherever silent failure would mislead the user.
+- **Stripe `current_period_end` moved to items level in newer API** — read subscription-level first, fall back to `items.data[0].current_period_end`.
+- **Stripe Customer Portal default return URL requires http(s)** — no custom schemes. Use `https://zaeli.app`; pre-launch polish is a Netlify `/return` route that redirects to `zaeli://settings`.
+- **Stripe customer metadata (`supabase_user_id`) MUST be set at customer CREATION** — otherwise webhook can't auto-link. Manual paste into profile row is the fallback.
+- **Webhook events fire in real-time; resend if timing was off** — Stripe Dashboard → Developers → Events → Resend button. Idempotent.
+- **Splash blue flash is timing, not colour** — 5 colour-config attempts failed; timing fix (onLayout gate) worked.
+- **Splash flashes verified in preview builds ONLY, never dev-client** — Metro bundle-fetch artifacts don't reflect standalone behaviour.
+- **`--no-verify-jwt` required on Stripe webhook deploy** — Stripe uses signature auth, not JWT. Portal endpoint uses JWT (client session) so no flag there.
+- **Stripe transactional emails auto-fire** — receipts, cancellations, failed payments handled by Stripe. Product-side welcome email is our job later.
+- **Stripe Tax activation deferred to pre-launch** — sandbox doesn't need it. Live mode gets it at 0.5%/transaction for automated AU GST.
+
+### What's NEXT
+
+- **Checkout flow build** — currently users have no path to become Stripe customer from within the app. Options: (a) Stripe Payment Link (no code, hosted — fastest for TestFlight beta), (b) Stripe Checkout via WebBrowser (still hosted, more control), (c) custom Payment Sheet (most code, best UX). Recommend (a).
+- **Phase 2e Anna's phone** — Universal Link ready. Waiting on device availability.
+- **Phase 4b TestFlight** — `eas build --profile preview` → `eas submit --platform ios`.
+- **Phase 5 pre-launch API keys server-side** — Anthropic + OpenAI to Supabase Edge Functions before public launch.
+- **Splash flash full elimination** — WSL setup + storyboard inspection. Deferred until it bothers real users.
+- **Product-side welcome email** — Supabase Edge Function on `auth.users` insert. Deferred until real users.
+- **Stripe live-mode activation** — repeat sandbox setup in live mode. Enable Stripe Tax before flipping.
+
+### Session 27 (still current — historical, 2 July early hours)
+
+App icon 2B ("za" + orbs) shipped, first iOS preview build proven, brief bucket-check bug fixed, brief dedup on restore, splash Option C first-install override. Commits: `18f38d5`, `be2fc90`, `5e19e54`, `3220703`, `ab90557`, `93c7065`, `e78efa3`, `403f781`, `ac04038`, `4714710`.
+
+---
+
+## ══════════════════════════════════
+## PRIOR STATE — SESSION 27 REFERENCE (historical)
 ## ══════════════════════════════════
 
 ### NEW THIS SESSION (Session 27 — app icon + EAS preview + brief polish, 2 July early hours)
