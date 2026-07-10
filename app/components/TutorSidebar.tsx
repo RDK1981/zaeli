@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { isFamilyInBeta } from '../../lib/stripe';
 
 // ── Constants ─────────────────────────────────────────────────
 const FAMILY_ID = '00000000-0000-0000-0000-000000000001';
@@ -146,7 +147,9 @@ export default function TutorSidebar({
         <Text style={s.sectionLbl}>Children</Text>
         {children.map(child => {
           const isActive = child.name === childName;
-          const isLocked = !child.tutor_active;
+          // Session 28 — beta override: while family is in comp beta, all
+          // kids have Tutor access regardless of the DB tutor_active flag.
+          const isLocked = !child.tutor_active && !isFamilyInBeta();
           return (
             <TouchableOpacity
               key={child.id}

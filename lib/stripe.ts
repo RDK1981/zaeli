@@ -109,6 +109,22 @@ export function subscriptionLabel(s: SubscriptionState = getSubscription()): str
 }
 
 /**
+ * Is the current family inside the comp beta window?
+ *
+ * Session 28: while beta_end_date > now(), test families get FULL product
+ * access — including Tutor for all kids — without paying. When beta ends,
+ * they auto-convert to paid Family Plan (base A$9.99) but Tutor add-ons
+ * do NOT auto-enable. Users who genuinely love Tutor add it themselves
+ * later — real conversion signal rather than default enrollment.
+ *
+ * Wired into: family-roster.ts (overrides tutorActive for children),
+ * TutorSidebar.tsx (overrides isLocked check).
+ */
+export function isFamilyInBeta(): boolean {
+  return getSubscription().plan === 'beta';
+}
+
+/**
  * Does the user need to see a "Subscribe now" prompt?
  *
  * Returns true when:

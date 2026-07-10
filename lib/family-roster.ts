@@ -23,6 +23,7 @@
 
 import { supabase } from './supabase';
 import { getProfile } from './auth';
+import { isFamilyInBeta } from './stripe';
 
 export interface RosterMember {
   id: string;
@@ -99,11 +100,23 @@ export async function loadRoster(familyId: string): Promise<RosterMember[]> {
 }
 
 export function getRoster(): RosterMember[] {
+  // Session 28 — beta override: while the family is inside the comp beta
+  // window, force tutorActive=true for all CHILDREN. Adults never get Tutor
+  // (it's a per-child add-on). When beta ends, this override disappears and
+  // the raw DB tutorActive values take over — which are false unless the
+  // parent has explicitly enabled Tutor for that child (real conversion
+  // signal instead of default enrollment).
+  if (isFamilyInBeta()) {
+    return _roster.map(m => (m.role === 'child' && !m.tutorActive
+      ? { ...m, tutorActive: true }
+      : m));
+  }
   return _roster;
 }
 
 export function getMemberById(id: string): RosterMember | undefined {
-  return _roster.find(m => m.id === id);
+  // Route through getRoster() so beta override is applied consistently.
+  return getRoster().find(m => m.id === id);
 }
 
 export function getMemberByName(name: string): RosterMember | undefined {
