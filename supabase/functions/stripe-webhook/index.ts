@@ -123,8 +123,14 @@ async function syncSubscription(sub: Stripe.Subscription) {
   const plan = priceId ? (PRICE_TO_PLAN[priceId] ?? null) : null;
 
   const status  = sub.status; // 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | ...
-  const renews  = sub.current_period_end
-    ? new Date(sub.current_period_end * 1000).toISOString()
+  // Stripe moved current_period_end from the Subscription level to individual
+  // items around API 2024-06-20. Read subscription-level first (older subs),
+  // fall back to the first item's period_end (newer subs).
+  const periodEnd = sub.current_period_end
+    ?? (sub.items.data[0] as any)?.current_period_end
+    ?? null;
+  const renews  = periodEnd
+    ? new Date(periodEnd * 1000).toISOString()
     : null;
   const trialEnds = sub.trial_end
     ? new Date(sub.trial_end * 1000).toISOString()
