@@ -387,17 +387,21 @@ export default function SettingsScreen() {
             Alert.alert('Reset', 'Switched back to the owner account (Rich).');
           }}
           onManageSubscription={async () => {
-            // Phase 3b — opens Stripe Customer Portal in a WebView once the
-            // server endpoint is built. Until then, friendly placeholder.
+            // Phase 3b — opens Stripe Customer Portal in the browser.
+            // Session 28: fully wired, real portal fetch via Edge Function.
             const url = await fetchCustomerPortalUrl();
             if (url) {
               Linking.openURL(url).catch(() => {
                 Alert.alert("Couldn't open portal", 'Try again in a moment.');
               });
             } else {
+              // fetch returned null — either the profile has no
+              // stripe_customer_id yet (never subscribed via checkout) OR the
+              // Edge Function errored. Honest message, not the old
+              // "not wired up yet" placeholder.
               Alert.alert(
-                'Coming soon',
-                'Subscription management opens in your browser. Stripe isn’t wired up yet — see STRIPE-SETUP.md.',
+                'Portal unavailable',
+                "Couldn't open subscription portal right now. Try again in a moment. If this persists, tap Subscribe to set up your subscription first.",
               );
             }
           }}
