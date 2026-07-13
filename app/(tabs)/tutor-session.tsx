@@ -160,6 +160,31 @@ ABSOLUTE RULES:
 - Always end with a question or prompt that moves the child forward.
 - Use Australian contexts: AUD currency, Australian geography, Australian cultural references.
 
+MATH VERIFICATION — CRITICAL, NEVER VIOLATE:
+- When you present a question with a numerical answer, INTERNALLY commit to the correct answer BEFORE the child responds. Compute it slowly, digit by digit.
+- When the child provides a numerical answer, re-do the calculation yourself digit by digit. Do NOT trust first-glance impressions.
+- NEVER mark a correct answer as wrong. Common trap: saying "not quite" or "close but check again" for an exact answer. If your instinct would reject the child's answer, PAUSE — re-do the arithmetic slowly before responding.
+- If you present "84 ÷ 7", the answer is 12. Do not say 12 is wrong. If you present "15 × 24", the answer is 360. Do not say 360 is wrong.
+
+EXPECTED-ANSWER MARKER (INVISIBLE TO CHILD — critical):
+- Every time you present a question with a definite numerical answer, END your response with a hidden marker: <expected>THE_ANSWER</expected>
+- The app strips this marker automatically. The child will NEVER see it.
+- Use it for ALL arithmetic, multiplication, division, fractions, percentages, and any question with a single correct numerical answer.
+- Skip the marker only when the "answer" is subjective (creative writing, opinion, comprehension inferences) or for read-aloud.
+- Examples of correct usage:
+  - "What is 84 divided by 7? <expected>12</expected>"
+  - "Multiply 15 by 24. Show your working. <expected>360</expected>"
+  - "A shop makes \$60 over 5 days. How much per day? <expected>12</expected>"
+- If the child's previous message referenced a stored expected answer (shown to you in system context as LAST_EXPECTED_ANSWER), compare the child's answer to it FIRST before your own re-derivation. That stored value is your ground truth.
+
+ANTI-SYCOPHANCY — NEVER VIOLATE:
+- If the child pushes back on your evaluation ("no, I'm right", "I checked with a calculator", "you're wrong"), do NOT reflexively agree.
+- Also do NOT reflexively defend your original position.
+- INSTEAD: re-do the calculation from scratch, slowly, step by step, in your head.
+- If YOU made the error, admit it plainly: "You're right — 15 × 24 is 360, sorry ${childName}, my mistake. Well done for checking."
+- If the CHILD made the error, hold your ground with warmth: "Let's check together — 15 × 24. First, 15 × 20 = 300. Then 15 × 4 = 60. Add: 360. Hmm, actually you were right! Sorry, let me try that again."
+- The math is the truth. Never capitulate to social pressure without re-checking. Never defend a wrong answer to save face.
+
 ${DIFFICULTY_RULES}
 
 ${HINT_RULES}`;
@@ -297,6 +322,12 @@ export default function TutorSessionScreen() {
   const [difficultyBand, setDifficultyBand] = useState<'foundation' | 'core' | 'extension'>('foundation');
   const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
   const [consecutiveWrong, setConsecutiveWrong] = useState(0);
+  // Ground-truth answer for the current numerical question. Extracted from
+  // Sonnet's <expected>...</expected> marker when she presents a question,
+  // then injected back into the system prompt on the next turn so she has
+  // a stable reference to compare against instead of re-deriving from scratch
+  // (which is where the 12/360 rejection bugs came from).
+  const [lastExpectedAnswer, setLastExpectedAnswer] = useState<string | null>(null);
   const [timer, setTimer] = useState(0);
   const [conversationHistory, setConversationHistory] = useState<{ role: string; content: string }[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -712,6 +743,19 @@ BAND RULES — apply these to question difficulty:
         systemBlocks.push({ type: 'text', text: difficultyState });
       }
 
+      // Ground-truth injection — if the previous turn stored an expected
+      // answer (from the <expected>...</expected> marker), tell Sonnet what
+      // it was so evaluation compares against a stable reference instead of
+      // re-deriving. This is the primary fix for the "12 is wrong for 84÷7"
+      // and "360 is wrong for 15×24" class of bug.
+      if (lastExpectedAnswer !== null) {
+        systemBlocks.push({
+          type: 'text',
+          text: `LAST_EXPECTED_ANSWER: ${lastExpectedAnswer}
+The child's previous question had this stored correct answer. When evaluating their reply, compare their input to this stored value FIRST. If it matches (allowing for reasonable formatting like "$12" vs "12"), confirm warmly. If it doesn't match, guide them without capitulating. This value is your ground truth — trust it over any re-derivation.`,
+        });
+      }
+
       const response = await callClaude({
         feature: pillar === 'practice' ? 'tutor_practice' : pillar === 'comprehension' ? 'tutor_practice' : 'tutor_session',
         familyId: getFamilyId(),
@@ -731,6 +775,17 @@ BAND RULES — apply these to question difficulty:
       // Track question number from Sonnet's response
       if (parsed.detectedQuestion > 0 && isStructured) {
         setQuestionNum(parsed.detectedQuestion);
+      }
+
+      // Update expected-answer ground truth. If Sonnet included a new
+      // <expected>...</expected> marker, that's the answer to the question
+      // she just presented — store it. If she didn't include one (evaluation
+      // turn, follow-up chat, hint response), keep the previous value so it
+      // persists across the whole child ↔ Zaeli exchange on one question.
+      // When the child moves to the next question, Sonnet will emit a fresh
+      // marker and this value will be overwritten.
+      if (parsed.expectedAnswer !== null) {
+        setLastExpectedAnswer(parsed.expectedAnswer);
       }
 
       // ── Detect correct/wrong from Sonnet's response and update band ──
@@ -836,15 +891,27 @@ BAND RULES — apply these to question difficulty:
     mcOptions: MCOption[];
     techniqueCard: { label: string; content: string; caption?: string } | null;
     detectedQuestion: number;
+    expectedAnswer: string | null;
   } {
     const mcOptions: MCOption[] = [];
     const chips: string[] = [];
     let cleanText = text;
     let techniqueCard = null;
     let detectedQuestion = 0;
+    let expectedAnswer: string | null = null;
+
+    // Extract the hidden expected-answer marker Sonnet writes at the end of
+    // a question with a definite numerical answer. Strip it from cleanText
+    // so the child never sees it — the value flows into state and comes
+    // back on the next turn as ground truth for evaluation.
+    const expMatch = text.match(/<expected>\s*([^<]+?)\s*<\/expected>/i);
+    if (expMatch) {
+      expectedAnswer = expMatch[1].trim();
+      cleanText = cleanText.replace(/<expected>\s*[^<]+?\s*<\/expected>/gi, '').trim();
+    }
 
     // Detect question number: "Question 3." or "Q3." or "Topic 2."
-    const qMatch = text.match(/(?:Question|Q|Topic)\s*(\d+)/i);
+    const qMatch = cleanText.match(/(?:Question|Q|Topic)\s*(\d+)/i);
     if (qMatch) {
       detectedQuestion = parseInt(qMatch[1], 10);
     }
@@ -852,17 +919,17 @@ BAND RULES — apply these to question difficulty:
     // Extract MC options: A) ... B) ... C) ... D) ...
     const mcRegex = /^([A-D])\)\s*(.+)$/gm;
     let match;
-    while ((match = mcRegex.exec(text)) !== null) {
+    while ((match = mcRegex.exec(cleanText)) !== null) {
       mcOptions.push({ label: match[1], text: match[2].trim() });
     }
     if (mcOptions.length >= 2) {
       // Remove the MC lines from the display text
-      cleanText = text.replace(/^[A-D]\)\s*.+$/gm, '').trim();
+      cleanText = cleanText.replace(/^[A-D]\)\s*.+$/gm, '').trim();
       // Remove double blank lines
       cleanText = cleanText.replace(/\n{3,}/g, '\n\n');
     }
 
-    return { text: cleanText, chips, mcOptions, techniqueCard, detectedQuestion };
+    return { text: cleanText, chips, mcOptions, techniqueCard, detectedQuestion, expectedAnswer };
   }
 
   // ── Hint button ──
@@ -890,9 +957,10 @@ BAND RULES — apply these to question difficulty:
 
     setHintLevel(0);
     setConsecutiveWrong(0); // Reset wrong counter for new question
+    setLastExpectedAnswer(null); // Clear ground truth — new question will emit a fresh <expected> marker
     const nextQ = questionNum + 1;
     setQuestionNum(nextQ);
-    generateAIResponse(`The child is ready for the next question. This will be Question ${nextQ} of ${totalQuestions}. Generate the next question at the current difficulty band. Remember to start with "[${difficultyBand.charAt(0).toUpperCase() + difficultyBand.slice(1)}] Question ${nextQ}."${nextQ >= totalQuestions ? ' This is the last question — after they answer, give a warm session summary.' : ''}`);
+    generateAIResponse(`The child is ready for the next question. This will be Question ${nextQ} of ${totalQuestions}. Generate the next question at the current difficulty band. Remember to start with "[${difficultyBand.charAt(0).toUpperCase() + difficultyBand.slice(1)}] Question ${nextQ}." and END with the invisible <expected>ANSWER</expected> marker if it's a numerical question.${nextQ >= totalQuestions ? ' This is the last question — after they answer, give a warm session summary.' : ''}`);
   }
 
   // ── Chip tap ──
@@ -985,6 +1053,13 @@ BAND RULES — apply these to question difficulty:
 
       const text = response?.content?.[0]?.text ?? 'I had trouble reading that image. Could you try again?';
       const parsed = parseZaeliResponse(text);
+
+      // Keep ground-truth in sync on the vision path too — if Sonnet identified
+      // a specific numerical question from the photo and emitted a marker,
+      // store it so subsequent text turns evaluate against that value.
+      if (parsed.expectedAnswer !== null) {
+        setLastExpectedAnswer(parsed.expectedAnswer);
+      }
 
       const zaeliMsg: Message = {
         id: nextMsgId(),

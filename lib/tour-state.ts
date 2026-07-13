@@ -227,7 +227,7 @@ export const STOPS: TourStop[] = [
     pageSub: 'Your zone. Just you. Family stuff is everywhere else.',
     cardTitle: 'My Space',
     cardSub: 'Personal notes & tasks · goals · fitness ring · stretch · zen sessions · daily Wordle. Word of the Day.',
-    trySaying: '"Take me to my space" or just swipe to the My Space tile',
+    trySaying: '"Take me to my space" or tap ☰ then the My Space tile',
     features: ['Notes', 'Goals', 'Fitness', 'Wordle', 'Zen'],
     ctaLabel: 'Open My Space →',
     ctaTarget: { kind: 'route', path: '/(tabs)/my-space' },

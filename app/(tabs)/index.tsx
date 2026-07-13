@@ -3118,6 +3118,13 @@ function HomeScreen({
   const pantryAddNameRef     = useRef<TextInput>(null);
   const [shopScanPickerOpen, setShopScanPickerOpen] = useState(false);
   const [shopScanMode,       setShopScanMode]       = useState<'receipt'|'pantry'>('receipt');
+  // In-sheet scan progress + result banner (Session 29 — Anna beta feedback).
+  // Previously scanFromSheet navigated to Chat, which was disorienting when
+  // uploading receipts from the Spend tab. Now the sheet stays open and this
+  // banner shows the progress + final summary inline.
+  const [shopScanBusy,       setShopScanBusy]       = useState(false);
+  const [shopScanBusyLabel,  setShopScanBusyLabel]  = useState<string>('');
+  const [shopScanResult,     setShopScanResult]     = useState<{ok:boolean; text:string} | null>(null);
 
   // ── Meal Planner sheet state ──────────────────────────────────────────────
   const [mealSheetOpen,      setMealSheetOpen]      = useState(false);
@@ -3439,7 +3446,7 @@ function HomeScreen({
           const welcome: Msg = {
             id: uid(),
             role: 'zaeli',
-            text: `Hey ${firstName} 👋 Welcome in. Family stuff is already wired up — you'll get your first proper brief tomorrow morning. Until then, ask me anything.`,
+            text: `Hey ${firstName} 👋 Welcome! Family stuff is already wired up — you'll get your first proper brief tomorrow morning. Until then, ask me anything.`,
             ts: nowTs(),
           };
           setMessages(prev => [...prev, welcome]);
@@ -3829,16 +3836,25 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         { data: events },
         { count: todoCount },
         { data: meals },
+        { data: pantryItems },
       ] = await Promise.all([
         supabase.from('shopping_items').select('*',{count:'exact',head:true}).eq('family_id',getFamilyId()).eq('checked',false),
         supabase.from('shopping_items').select('name').eq('family_id',getFamilyId()).eq('checked',false).limit(50),
         supabase.from('events').select('title,date,start_time').eq('family_id',getFamilyId()).gte('date',td).lte('date', localDateStr(new Date(Date.now() + 7*24*60*60*1000))).order('date').order('start_time').limit(20),
         supabase.from('todos').select('*',{count:'exact',head:true}).eq('family_id',getFamilyId()).eq('done',false),
         supabase.from('meal_plans').select('meal_name,planned_date,day_key').eq('family_id',getFamilyId()).gte('planned_date',td).limit(7),
+        // Pantry — needed so Zaeli can answer "have we got maple syrup?" or
+        // "when did we last buy X?" instead of confabulating "not in pantry".
+        // Cap at 200 items with newest last_bought first so long lists stay
+        // token-affordable while keeping the most-recently-used items visible.
+        supabase.from('pantry_items').select('name,last_bought').eq('family_id',getFamilyId()).order('last_bought',{ascending:false,nullsFirst:false}).limit(200),
       ]);
       const shopNames = shopItems?.map((i:any) => i.name).join(', ') || '';
       const shopStr   = shopCount ? `${shopCount} items — ${shopNames}` : 'list is clear';
       const evStr     = events?.length ? events.map((e:any) => `${e.title} (${naturalDate(e.date,td)}${e.start_time?' at '+fmtTime(e.start_time):''})`).join(', ') : 'nothing on the calendar';
+      const pantryStr = pantryItems?.length
+        ? pantryItems.map((p:any) => p.last_bought ? `${p.name} (last bought ${p.last_bought})` : p.name).join(', ')
+        : 'pantry is empty (or not tracked yet)';
       const mealToday = meals?.find((m:any) => m.planned_date===td || m.day_key===td)?.meal_name ?? null;
       const dinnerRule = h < 19
         ? mealToday ? `Dinner sorted — ${mealToday} tonight.` : "Dinner tonight isn't planned — mention warmly if relevant."
@@ -3859,6 +3875,7 @@ LIVE DATA:
 - Dates: ${datesCtx}
 - Calendar: ${evStr}
 - Shopping list: ${shopStr}
+- Pantry (what's in stock, most recently used first): ${pantryStr}
 - To-dos: ${todoCount??0} open tasks
 - ${dinnerRule}
 
@@ -3869,6 +3886,13 @@ SHOPPING RULES:
 - The tool checks for duplicates automatically. If it returns DUPLICATE or PANTRY, relay that to Rich naturally and ask what to do.
 - After adding items, confirm each item clearly by name and quantity. Keep it brief.
 - NEVER write quick reply suggestions as text in your response. The app handles chips automatically. Just write your confirmation message.
+
+PANTRY RULES:
+- The Pantry line in LIVE DATA above is the authoritative record of what's in the house. When asked "have we got X?", "when did we last buy X?", "do we still have X?", check that list FIRST.
+- If X appears in the Pantry line, confirm it's there and share the last_bought date if provided. Never say "we don't have any" for an item that is listed.
+- Match names fuzzily — "maple syrup" matches "Maple Syrup" or "Pure Maple Syrup 250ml", "milk" matches "Full Cream Milk 2L", etc.
+- If X is NOT in the Pantry line, say so honestly: "no maple syrup in the pantry — want me to add it to the shopping list?"
+- Never confabulate pantry contents. If unsure, say "not seeing it in the pantry — want to double-check?"
 
 FORMAT: 2–4 sentences. Natural prose. No bullet points, no lists, no asterisks. Never start with "I". Never say "mate". Never say "Of course!" or any hollow affirmation.
 CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
@@ -5767,74 +5791,96 @@ Only include events directly relevant to the question. Max 5 events.`;
     });
   }
   // ── Dedicated scan pipeline — single Sonnet call, local cross-checking ──
+  // Session 29 changes (Anna beta feedback):
+  //   - Multi-photo support (up to 4 pages of the same receipt / pantry area)
+  //   - All photos batched into ONE Sonnet call so a 3-page receipt returns
+  //     one aggregated result instead of 3 separate $0 rows
+  //   - Stays in the Shopping sheet — no nav to Chat. Progress + result show
+  //     in a floating banner at the bottom of the sheet.
   async function scanFromSheet(mode: 'receipt' | 'pantry', source: 'camera' | 'library') {
+    const MAX_PHOTOS = 4;
     try {
-      // 1. Get image
-      let uri: string | undefined;
+      // 1. Collect image URIs (camera = 1 photo, library = up to MAX_PHOTOS)
+      let uris: string[] = [];
       if (source === 'camera') {
         const { granted } = await ImagePicker.requestCameraPermissionsAsync();
         if (!granted) return;
         const r = await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
         if (r.canceled || !r.assets?.[0]) return;
-        uri = r.assets[0].uri;
+        uris = [r.assets[0].uri];
       } else {
         const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!granted) return;
-        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.85 });
-        if (r.canceled || !r.assets?.[0]) return;
-        uri = r.assets[0].uri;
+        const r = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+          allowsMultipleSelection: true,
+          selectionLimit: MAX_PHOTOS,
+        });
+        if (r.canceled || !r.assets?.length) return;
+        uris = r.assets.slice(0, MAX_PHOTOS).map(a => a.uri);
       }
-      if (!uri) return;
-      console.log('[scan] Got image, mode =', mode);
+      if (!uris.length) return;
+      console.log('[scan] Got', uris.length, 'image(s), mode =', mode);
 
-      // 2. Close sheet, show in chat
-      setShopSheetOpen(false);
-      setScreen('chat');
-      chatOpacity.setValue(1);
-      entryOpacity.setValue(0);
+      // 2. Stay in the sheet — flip on inline busy banner, clear prior result
+      setShopScanResult(null);
+      setShopScanBusy(true);
+      setShopScanBusyLabel(uris.length > 1
+        ? `Scanning ${uris.length} ${mode === 'receipt' ? 'receipt pages' : 'pantry photos'}…`
+        : (mode === 'receipt' ? 'Scanning receipt…' : 'Scanning pantry items…'));
 
-      // Show user message with image
-      const userMsg: Msg = { id:uid(), role:'user', text: mode === 'receipt' ? 'Scanning receipt...' : 'Scanning pantry items...', imageUri:uri, ts:nowTs() };
-      setMessages(prev => [...prev, userMsg]);
-      const replyId = addMsg({ role:'zaeli', text:'', isLoading:true });
-      setLoading(true);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 100);
+      // 3. Resize + convert each to JPEG (handles HEIC, keeps API payload sane)
+      const base64s: string[] = [];
+      for (const uri of uris) {
+        const resized = await manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.7, format: SaveFormat.JPEG });
+        const b64 = await FileSystem.readAsStringAsync(resized.uri, { encoding: 'base64' as any });
+        base64s.push(b64);
+      }
+      console.log('[scan] Resized', base64s.length, 'images, total base64 length:', base64s.reduce((s, b) => s + b.length, 0));
 
-      // 3. Resize + convert to JPEG (keeps file small for API, handles HEIC)
-      const resized = await manipulateAsync(uri, [{ resize: { width: 1200 } }], { compress: 0.7, format: SaveFormat.JPEG });
-      const imageBase64 = await FileSystem.readAsStringAsync(resized.uri, { encoding:'base64' as any });
-      console.log('[scan] Image resized, base64 length:', imageBase64.length);
-
-      // 4. Single Sonnet call — extract structured data
+      // 4. Single Sonnet call with ALL images batched — treated as one receipt/pantry
       const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
-      if (!claudeKey) { updateMsg(replyId, { text:'No API key configured.', isLoading:false }); setLoading(false); return; }
+      if (!claudeKey) {
+        setShopScanBusy(false);
+        setShopScanResult({ ok: false, text: 'No API key configured.' });
+        return;
+      }
+
+      const multiPhotoNote = uris.length > 1
+        ? `You are being given ${uris.length} photos. Treat them as ${mode === 'receipt' ? 'consecutive pages of the SAME receipt' : 'multiple views of the same pantry/fridge'}. Aggregate all items across every photo into a single result. Do NOT return separate results per photo.`
+        : '';
 
       const scanPrompt = mode === 'receipt'
-        ? `You are scanning a shopping receipt for an Australian family. Extract ALL items from this receipt.
+        ? `You are scanning a shopping receipt for an Australian family. ${multiPhotoNote} Extract ALL items across every page.
 Return ONLY valid JSON — no markdown, no backticks:
 {"store":"store name","date":"YYYY-MM-DD","items":[{"name":"Item Name","qty":"quantity or empty string","price":0.00}],"total":0.00}
 Rules:
 - CRITICAL: Find the actual purchase date printed on the receipt. Look for date formats like DD/MM/YYYY, DD MMM YYYY, or similar near the top of the receipt. The date is NOT today — read it from the receipt image. Only use ${localDateStr()} as absolute last resort if no date is visible at all.
 - Use Australian dollars (A$). Never £ or US$.
 - Capitalise item names naturally (e.g. "Bananas" not "BANANAS"). Use the readable product name, not internal codes or abbreviations.
-- Include ALL line items. Omit subtotals/tax/bag fees.`
-        : `You are scanning pantry/fridge items for an Australian family. Identify ALL food items visible.
+- Include ALL line items across every photo. Deduplicate if the same line appears on two pages.
+- The TOTAL is the grand total printed at the end of the receipt (usually on the last page). If multiple totals appear, prefer the largest / final one. Omit subtotals/tax/bag fees.`
+        : `You are scanning pantry/fridge items for an Australian family. ${multiPhotoNote} Identify ALL food items visible across every photo.
 Return ONLY valid JSON — no markdown, no backticks:
 {"items":[{"name":"Item Name","qty":"estimated quantity or empty string"}]}
 Rules:
 - Capitalise item names naturally.
 - Be specific: "Full Cream Milk 2L" not just "Milk".
-- Include ALL visible items.`;
+- Include ALL visible items across all photos. Deduplicate if the same item appears in multiple photos.`;
+
+      const content: any[] = base64s.map(b => ({
+        type: 'image',
+        source: { type: 'base64', media_type: 'image/jpeg', data: b },
+      }));
+      content.push({ type: 'text', text: scanPrompt });
 
       const scanRes = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
         body:JSON.stringify({
           model:'claude-sonnet-4-6', max_tokens:2000,
-          messages:[{ role:'user', content:[
-            { type:'image', source:{ type:'base64', media_type:'image/jpeg', data:imageBase64 } },
-            { type:'text', text:scanPrompt },
-          ]}],
+          messages:[{ role:'user', content }],
         }),
       });
       const scanJson = await scanRes.json();
@@ -5845,8 +5891,8 @@ Rules:
       console.log('[scan] API status:', scanRes.status, 'error:', scanJson?.error?.message || 'none');
       if (scanJson?.error) {
         console.error('[scan] API error:', JSON.stringify(scanJson.error));
-        updateMsg(replyId, { text:"Scan failed \u2014 " + (scanJson.error.message || 'try again?'), isLoading:false, quickReplies:['Back to Full List'] });
-        setLoading(false);
+        setShopScanBusy(false);
+        setShopScanResult({ ok: false, text: 'Scan failed \u2014 ' + (scanJson.error.message || 'try again?') });
         return;
       }
       const rawText = scanJson?.content?.[0]?.text || '';
@@ -5866,15 +5912,15 @@ Rules:
         parsed = JSON.parse(cleaned);
       } catch (parseErr) {
         console.error('[scan] JSON parse failed:', parseErr, 'raw:', rawText.slice(0, 300));
-        updateMsg(replyId, { text:"Couldn't read that image clearly. Try a clearer photo?", isLoading:false, quickReplies:['Back to Full List'] });
-        setLoading(false);
+        setShopScanBusy(false);
+        setShopScanResult({ ok: false, text: "Couldn't read those images clearly. Try clearer photos?" });
         return;
       }
 
       const items: any[] = parsed.items || [];
       if (items.length === 0) {
-        updateMsg(replyId, { text:"Couldn't find any items in that image. Try a different angle?", isLoading:false, quickReplies:['Back to Full List'] });
-        setLoading(false);
+        setShopScanBusy(false);
+        setShopScanResult({ ok: false, text: "Couldn't find any items in those images. Try a different angle?" });
         return;
       }
 
@@ -5953,7 +5999,8 @@ Rules:
           parts.push(`Total: A$${total.toFixed(2)}.`);
         }
 
-        updateMsg(replyId, { text: parts.join('\n'), isLoading:false, quickReplies:['Back to Full List'] });
+        setShopScanBusy(false);
+        setShopScanResult({ ok: true, text: parts.join(' ') });
         refreshShopList();
         // Refresh pantry + spend data so tabs show updated info
         try {
@@ -6009,15 +6056,14 @@ Rules:
         if (updated > 0) parts.push(`${updated} existing items refreshed.`);
         if (added > 0) parts.push(`${added} new items added.`);
 
-        updateMsg(replyId, { text: parts.join('\n'), isLoading:false, quickReplies:['Back to Full List'] });
+        setShopScanBusy(false);
+        setShopScanResult({ ok: true, text: parts.join(' ') });
       }
-
-      setLoading(false);
-      setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 200);
 
     } catch (e: any) {
       console.error('[scan] Error:', e?.message || e);
-      setLoading(false);
+      setShopScanBusy(false);
+      setShopScanResult({ ok: false, text: e?.message || 'Something went wrong scanning.' });
     }
   }
 
@@ -6390,7 +6436,6 @@ Rules:
 
           {!msg.isLoading && !msg.isBrief && !hasCalendarInline && (
             <View style={s.zaeliIconRow}>
-              <TouchableOpacity style={s.iconBtn} activeOpacity={0.6}><IcoPlay color={T.ink3}/></TouchableOpacity>
               <TouchableOpacity style={s.iconBtn} onPress={() => handleCopy(msg.text)} activeOpacity={0.6}><IcoCopy color={T.ink3}/></TouchableOpacity>
               <TouchableOpacity style={s.iconBtn} onPress={() => handleForward(msg.text)} activeOpacity={0.6}><IcoForward color={T.ink3}/></TouchableOpacity>
               <TouchableOpacity style={s.iconBtn} onPress={() => handleThumb(msg.id,'up')} activeOpacity={0.6}><IcoThumbUp color={thumbState==='up' ? HOME_AI : T.ink3}/></TouchableOpacity>
@@ -7430,12 +7475,21 @@ Rules:
 
                     function fmtLastBought(dateStr: string | null): string {
                       if (!dateStr) return 'Not recorded';
-                      const d = new Date(dateStr + 'T00:00:00');
-                      const diff = Math.round((Date.now() - d.getTime()) / 86400000);
-                      if (diff === 0) return 'Today';
+                      // Normalise BOTH dates to midnight local so the diff is an
+                      // integer number of calendar days. The previous version used
+                      // Math.round on the raw ms diff, which mis-reported any item
+                      // added 12+ hours ago same-day as "Yesterday" — the bug Rich
+                      // reported where fresh scans all read as "yesterday".
+                      const [y, mo, d] = dateStr.split('-').map(n => parseInt(n, 10));
+                      if (!y || !mo || !d) return 'Not recorded';
+                      const stored = new Date(y, mo - 1, d);
+                      const now = new Date();
+                      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                      const diff = Math.round((today.getTime() - stored.getTime()) / 86400000);
+                      if (diff <= 0) return 'Today';
                       if (diff === 1) return 'Yesterday';
-                      if (diff < 7)  return `${diff} days ago`;
-                      return d.toLocaleDateString('en-AU', { day:'numeric', month:'short' });
+                      if (diff < 7)   return `${diff} days ago`;
+                      return stored.toLocaleDateString('en-AU', { day:'numeric', month:'short' });
                     }
 
                     function renderPantryItem(item: any) {
@@ -7762,6 +7816,43 @@ Rules:
                 </View>{/* end tab content */}
 
                 {/* Scan source picker overlay */}
+                {/* ── Scan progress + result banner (Session 29 — keep in sheet, don't nav to chat) ── */}
+                {(shopScanBusy || shopScanResult) && (
+                  <View pointerEvents="box-none" style={{ position:'absolute', left:0, right:0, bottom: 20, alignItems:'center', zIndex:98 }}>
+                    <View style={{
+                      backgroundColor: shopScanBusy ? '#FFFFFF' : (shopScanResult?.ok ? '#E6F7EF' : '#FDECEA'),
+                      borderRadius: 14,
+                      borderWidth: 1,
+                      borderColor: shopScanBusy ? 'rgba(0,0,0,0.10)' : (shopScanResult?.ok ? '#B8EDD0' : '#F4B7B0'),
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      marginHorizontal: 20,
+                      maxWidth: '92%',
+                      shadowColor: '#000',
+                      shadowOpacity: 0.12,
+                      shadowRadius: 12,
+                      shadowOffset: { width: 0, height: 4 },
+                      elevation: 6,
+                    }}>
+                      <View style={{ flexDirection:'row', alignItems:'flex-start', gap: 10 }}>
+                        <Text style={{ fontSize: 18 }}>
+                          {shopScanBusy ? '📷' : (shopScanResult?.ok ? '✅' : '⚠️')}
+                        </Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize: 14, color:'#0A0A0A', lineHeight: 20 }}>
+                            {shopScanBusy ? shopScanBusyLabel : shopScanResult?.text}
+                          </Text>
+                        </View>
+                        {!shopScanBusy && (
+                          <TouchableOpacity onPress={() => setShopScanResult(null)} hitSlop={{top:10,bottom:10,left:10,right:10}}>
+                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 14, color:'rgba(0,0,0,0.42)' }}>✕</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                )}
+
                 {shopScanPickerOpen && (
                   <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.35)', justifyContent:'flex-end', zIndex:99 }}>
                     <TouchableOpacity style={{ flex:1 }} onPress={() => setShopScanPickerOpen(false)} activeOpacity={1}/>
@@ -7788,7 +7879,7 @@ Rules:
                         <Text style={{ fontSize:22 }}>🖼️</Text>
                         <View>
                           <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'#0A0A0A' }}>Choose from library</Text>
-                          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.40)' }}>Upload an existing photo</Text>
+                          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.40)' }}>Pick 1-4 photos (multi-page receipts OK)</Text>
                         </View>
                       </TouchableOpacity>
                       <TouchableOpacity

@@ -1316,15 +1316,19 @@ export default function DashboardScreen({ onNavigateChat, onNavigateMySpace, isA
           />
         </Animated.View>
 
-        {/* Row 2 — Meal Planner */}
+        {/* Row 2 — Shopping (full width) */}
         <Animated.View style={{ opacity:cardAnims[1].opacity, transform:[{translateY:cardAnims[1].translateY}] }}>
-          <DinnerCard
-            meals={cardData.meals}
-            showTomorrow={showDinnerTomorrow}
-            expanded={expandedCard === 'dinner'}
-            onToggleExpand={() => toggleCard('dinner')}
-            onPlanMeals={() => { setPendingChatContext({ type:'meals_sheet' as any, returnTo:'dashboard' }); onContextTrigger?.(); onNavigateChat?.(); }}
-            onEditMeal={goToEditMeal}
+          <ShoppingCard
+            items={cardData.shopItems}
+            count={cardData.shopCount}
+            expanded={expandedCard === 'shopping'}
+            onToggleExpand={() => toggleCard('shopping')}
+            onAdd={goToAddShopping}
+            onOpenSheet={() => {
+              setPendingChatContext({ type:'shopping_sheet' as any, returnTo:'dashboard' });
+              onContextTrigger?.();
+              onNavigateChat?.();
+            }}
           />
         </Animated.View>
 
@@ -1349,24 +1353,8 @@ export default function DashboardScreen({ onNavigateChat, onNavigateMySpace, isA
           </View>
         </Animated.View>
 
-        {/* Row 4 — Shopping (full width) */}
+        {/* Row 4 — On the Radar (full width) */}
         <Animated.View style={{ opacity:cardAnims[3].opacity, transform:[{translateY:cardAnims[3].translateY}] }}>
-          <ShoppingCard
-            items={cardData.shopItems}
-            count={cardData.shopCount}
-            expanded={expandedCard === 'shopping'}
-            onToggleExpand={() => toggleCard('shopping')}
-            onAdd={goToAddShopping}
-            onOpenSheet={() => {
-              setPendingChatContext({ type:'shopping_sheet' as any, returnTo:'dashboard' });
-              onContextTrigger?.();
-              onNavigateChat?.();
-            }}
-          />
-        </Animated.View>
-
-        {/* Row 5 — On the Radar (full width) */}
-        <Animated.View style={{ opacity:cardAnims[4].opacity, transform:[{translateY:cardAnims[4].translateY}] }}>
           <OnTheRadarCard
             expanded={expandedCard === 'actions'}
             onToggleExpand={() => toggleCard('actions')}
@@ -1375,6 +1363,18 @@ export default function DashboardScreen({ onNavigateChat, onNavigateMySpace, isA
               onContextTrigger?.();
               onNavigateMySpace?.();
             }}
+          />
+        </Animated.View>
+
+        {/* Row 5 — Meal Planner (full width) */}
+        <Animated.View style={{ opacity:cardAnims[4].opacity, transform:[{translateY:cardAnims[4].translateY}] }}>
+          <DinnerCard
+            meals={cardData.meals}
+            showTomorrow={showDinnerTomorrow}
+            expanded={expandedCard === 'dinner'}
+            onToggleExpand={() => toggleCard('dinner')}
+            onPlanMeals={() => { setPendingChatContext({ type:'meals_sheet' as any, returnTo:'dashboard' }); onContextTrigger?.(); onNavigateChat?.(); }}
+            onEditMeal={goToEditMeal}
           />
         </Animated.View>
 
