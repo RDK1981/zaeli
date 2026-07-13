@@ -4830,17 +4830,44 @@ Only include events directly relevant to the question. Max 5 events.`;
         });
 
         console.log('[send] Tool API call, messages count:', apiMessages.length, 'hasImage:', apiMessages.some((m:any) => Array.isArray(m.content)));
+        // Session 29: add prompt caching to the Sonnet tool-calling path.
+        // System prompt is ~2-6K tokens (LIVE DATA + memory + capabilities +
+        // pantry) and was being re-processed every call, driving home_chat
+        // to A$0.02-0.04 per call in beta testing. cache_control on the
+        // system block caches BOTH tools and system (tools render first, so
+        // the marker on system covers the whole prefix). ~90% discount on
+        // subsequent calls within the 5-min TTL.
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method:'POST',
-          headers:{ 'Content-Type':'application/json', 'x-api-key':anthropicKey, 'anthropic-version':'2023-06-01' },
-          body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:800, system:toolSys, tools:TOOLS, messages:apiMessages }),
+          headers:{
+            'Content-Type':'application/json',
+            'x-api-key':anthropicKey,
+            'anthropic-version':'2023-06-01',
+            'anthropic-beta':'prompt-caching-2024-07-31',
+          },
+          body:JSON.stringify({
+            model:'claude-sonnet-4-6',
+            max_tokens:800,
+            system:[{ type:'text', text:toolSys, cache_control:{ type:'ephemeral' } }],
+            tools:TOOLS,
+            messages:apiMessages,
+          }),
         });
         const data = await response.json();
         console.log('[send] Tool API response status:', response.status, 'error:', data?.error?.message || 'none', 'stop:', data?.stop_reason);
-        const inTok = data?.usage?.input_tokens ?? 0;
-        const outTok = data?.usage?.output_tokens ?? 0;
-        const claudeCost = (inTok/1_000_000*CLAUDE_IN_PER_M) + (outTok/1_000_000*CLAUDE_OUT_PER_M);
-        logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:claudeCost });
+        const inTok       = data?.usage?.input_tokens ?? 0;
+        const outTok      = data?.usage?.output_tokens ?? 0;
+        const cacheRead   = data?.usage?.cache_read_input_tokens ?? 0;
+        const cacheWrite  = data?.usage?.cache_creation_input_tokens ?? 0;
+        // Cache-aware cost math (matches lib/api-logger.ts after Session 29 fix):
+        // input_tokens is the uncached portion, cache_read is 10% of full, cache_write is 125%.
+        const claudeCost =
+            (inTok      / 1_000_000 * CLAUDE_IN_PER_M)
+          + (cacheRead  / 1_000_000 * CLAUDE_IN_PER_M * 0.10)
+          + (cacheWrite / 1_000_000 * CLAUDE_IN_PER_M * 1.25)
+          + (outTok     / 1_000_000 * CLAUDE_OUT_PER_M);
+        if (cacheRead > 0) console.log('[send] Cache hit:', cacheRead, 'read,', inTok, 'uncached,', cacheWrite, 'written');
+        logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:inTok + cacheRead + cacheWrite, output_tokens:outTok, cost_usd:claudeCost });
 
         const toolUses = (data.content||[]).filter((b:any) => b.type==='tool_use');
         if (toolUses.length > 0) {
@@ -4852,12 +4879,37 @@ Only include events directly relevant to the question. Max 5 events.`;
           const toolResultContent = toolUses.map((tu:any, i:number) => ({
             type:'tool_result', tool_use_id:tu.id, content:toolResults[i]
           }));
+          // Session 29: same cache_control as the initial tool call. This is
+          // the same prefix (tools + toolSys) so hits the same cache entry
+          // written seconds earlier — near-guaranteed cache read.
           const followUp = await fetch('https://api.anthropic.com/v1/messages', {
             method:'POST',
-            headers:{ 'Content-Type':'application/json', 'x-api-key':anthropicKey, 'anthropic-version':'2023-06-01' },
-            body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:500, system:toolSys, tools:TOOLS, messages:[...apiMessages, { role:'assistant', content:data.content }, { role:'user', content:toolResultContent }] }),
+            headers:{
+              'Content-Type':'application/json',
+              'x-api-key':anthropicKey,
+              'anthropic-version':'2023-06-01',
+              'anthropic-beta':'prompt-caching-2024-07-31',
+            },
+            body:JSON.stringify({
+              model:'claude-sonnet-4-6',
+              max_tokens:500,
+              system:[{ type:'text', text:toolSys, cache_control:{ type:'ephemeral' } }],
+              tools:TOOLS,
+              messages:[...apiMessages, { role:'assistant', content:data.content }, { role:'user', content:toolResultContent }],
+            }),
           });
           const followData = await followUp.json();
+          // Log the follow-up call too (was previously unlogged — undercounted cost)
+          const fInTok      = followData?.usage?.input_tokens ?? 0;
+          const fOutTok     = followData?.usage?.output_tokens ?? 0;
+          const fCacheRead  = followData?.usage?.cache_read_input_tokens ?? 0;
+          const fCacheWrite = followData?.usage?.cache_creation_input_tokens ?? 0;
+          const followCost =
+              (fInTok      / 1_000_000 * CLAUDE_IN_PER_M)
+            + (fCacheRead  / 1_000_000 * CLAUDE_IN_PER_M * 0.10)
+            + (fCacheWrite / 1_000_000 * CLAUDE_IN_PER_M * 1.25)
+            + (fOutTok     / 1_000_000 * CLAUDE_OUT_PER_M);
+          logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:fInTok + fCacheRead + fCacheWrite, output_tokens:fOutTok, cost_usd:followCost });
           const followText = followData.content?.find((b:any) => b.type==='text')?.text ?? toolResults.join('\n');
 
           // For add_calendar_event — fetch the newly created event and inject as inline card

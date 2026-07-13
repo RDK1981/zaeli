@@ -7,10 +7,16 @@
 
 import { supabase } from './supabase';
 
-// ── Pricing per model ─────────────────────────────────────────
+// ── Pricing per model — USD per token (Session 29 audit) ─────
+// Verified 13 Jul 2026 against Anthropic's pricing docs. Haiku 4.5 was
+// previously listed at $0.25/$1.25 which was 4× too low — real pricing
+// is $1.00/$5.00 per M tokens.
 const PRICING: Record<string, { input: number; output: number }> = {
-  'claude-sonnet-4-6':  { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
-  'claude-haiku-4-5-20251001': { input: 0.25 / 1_000_000, output:  1.25 / 1_000_000 },
+  'claude-sonnet-4-6':          { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
+  'claude-sonnet-5':            { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },  // intro pricing $2/$10 through Aug 2026
+  'claude-haiku-4-5-20251001':  { input: 1.00 / 1_000_000, output:  5.00 / 1_000_000 },
+  'claude-haiku-4-5':           { input: 1.00 / 1_000_000, output:  5.00 / 1_000_000 },
+  'claude-opus-4-8':            { input: 5.00 / 1_000_000, output: 25.00 / 1_000_000 },
 };
 const DEFAULT_PRICING = PRICING['claude-sonnet-4-6'];
 
@@ -165,21 +171,29 @@ function logUsage({
   const outputTokens = data?.usage?.output_tokens ?? 0;
   const pricing = PRICING[model || ''] || DEFAULT_PRICING;
 
-  // Anthropic prompt caching: cache_read_input_tokens are 90% cheaper,
-  // cache_creation_input_tokens are 25% more expensive (one-time write)
-  const cacheRead = cacheData?.cache_read_input_tokens ?? 0;
+  // Anthropic's `usage` returns THREE DISJOINT input token fields:
+  //   input_tokens: uncached portion, billed at full price
+  //   cache_read_input_tokens: served from cache, billed at 10% of full price
+  //   cache_creation_input_tokens: written to cache (5-min TTL), billed at 125%
+  //
+  // Session 29 bug fix: the old code did `input_tokens - cacheRead - cacheWrite`,
+  // treating input_tokens as the TOTAL. It's not — it's already the uncached
+  // portion. That subtraction produced negative uncachedInput values (e.g.
+  // input=100, cacheRead=800 → -700), which propagated to negative cost_usd
+  // rows across the tutor Sonnet-cached calls. Correct math: sum them.
+  const cacheRead  = cacheData?.cache_read_input_tokens ?? 0;
   const cacheWrite = cacheData?.cache_creation_input_tokens ?? 0;
-  const uncachedInput = inputTokens - cacheRead - cacheWrite;
 
-  const costUsd = cacheRead > 0 || cacheWrite > 0
-    ? (uncachedInput * pricing.input)
-      + (cacheRead * pricing.input * 0.1)      // 90% discount on cache reads
-      + (cacheWrite * pricing.input * 1.25)     // 25% surcharge on cache writes
-      + (outputTokens * pricing.output)
-    : (inputTokens * pricing.input) + (outputTokens * pricing.output);
+  const costUsd =
+      (inputTokens * pricing.input)         // full-price uncached portion
+    + (cacheRead  * pricing.input * 0.10)   // 90% discount on cache reads
+    + (cacheWrite * pricing.input * 1.25)   // 25% surcharge on cache writes
+    + (outputTokens * pricing.output);
 
   if (cacheRead > 0) {
-    console.log(`[api-logger] Cache hit: ${cacheRead} tokens cached, ${uncachedInput} uncached, saved ~${((cacheRead * pricing.input * 0.9) * 100).toFixed(1)} cents`);
+    // Saving vs paying full price on the cache-read chunk (dollars, not cents)
+    const savedUsd = cacheRead * pricing.input * 0.9;
+    console.log(`[api-logger] Cache hit: ${cacheRead} cached, ${inputTokens} uncached, ${cacheWrite} written, saved $${savedUsd.toFixed(5)}`);
   }
 
   supabase.from('api_logs').insert({
