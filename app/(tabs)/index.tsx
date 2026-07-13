@@ -3128,7 +3128,11 @@ function HomeScreen({
 
   // ── Meal Planner sheet state ──────────────────────────────────────────────
   const [mealSheetOpen,      setMealSheetOpen]      = useState(false);
-  const [mealSheetTab,       setMealSheetTab]       = useState<'meals'|'recipes'|'favourites'>('meals');
+  // Session 29 — reordered to Recipes → Regulars → Plan. Meals-as-planner
+  // is what a busy family won't sustain; recipes + favourites is the real
+  // value. Internal keys stay stable ('meals' internally == "Plan" in UI,
+  // 'favourites' internally == "Regulars" in UI) so we don't ripple.
+  const [mealSheetTab,       setMealSheetTab]       = useState<'meals'|'recipes'|'favourites'>('recipes');
   const [mealSheetPlans,     setMealSheetPlans]     = useState<any[]>([]);
   const [mealSheetRecipes,   setMealSheetRecipes]   = useState<any[]>([]);
   const [mealSwapDay,        setMealSwapDay]        = useState<{dayKey:string;dayLabel:string;mealId?:string;mealName?:string}|null>(null);
@@ -3837,6 +3841,7 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         { count: todoCount },
         { data: meals },
         { data: pantryItems },
+        { data: familyRegulars },
       ] = await Promise.all([
         supabase.from('shopping_items').select('*',{count:'exact',head:true}).eq('family_id',getFamilyId()).eq('checked',false),
         supabase.from('shopping_items').select('name').eq('family_id',getFamilyId()).eq('checked',false).limit(50),
@@ -3848,6 +3853,12 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         // Cap at 200 items with newest last_bought first so long lists stay
         // token-affordable while keeping the most-recently-used items visible.
         supabase.from('pantry_items').select('name,last_bought').eq('family_id',getFamilyId()).order('last_bought',{ascending:false,nullsFirst:false}).limit(200),
+        // Session 29 — family regulars (hearted recipes). Lets Zaeli suggest
+        // meals the family actually eats when asked "quick dinner idea?" or
+        // "what should we have tonight?" — pulling from THEIR recipes, not
+        // generic ideas. Matches the Session 29 pivot: meal planner is
+        // friction; recipes + regulars is where the value lives.
+        supabase.from('recipes').select('title,prep_mins,notes,tags').eq('family_id',getFamilyId()).contains('tags',['favourite']).limit(12),
       ]);
       const shopNames = shopItems?.map((i:any) => i.name).join(', ') || '';
       const shopStr   = shopCount ? `${shopCount} items — ${shopNames}` : 'list is clear';
@@ -3855,9 +3866,15 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
       const pantryStr = pantryItems?.length
         ? pantryItems.map((p:any) => p.last_bought ? `${p.name} (last bought ${p.last_bought})` : p.name).join(', ')
         : 'pantry is empty (or not tracked yet)';
+      const regularsStr = familyRegulars?.length
+        ? familyRegulars.map((r:any) => r.prep_mins ? `${r.title} (${r.prep_mins} min)` : r.title).join(', ')
+        : 'none saved yet';
       const mealToday = meals?.find((m:any) => m.planned_date===td || m.day_key===td)?.meal_name ?? null;
+      // Session 29 pivot — meal planner is friction; regulars fill the gap.
+      // Don't nudge to plan dinner on quiet days. Only mention meals if the
+      // user asks OR if there's a real planned meal to acknowledge.
       const dinnerRule = h < 19
-        ? mealToday ? `Dinner sorted — ${mealToday} tonight.` : "Dinner tonight isn't planned — mention warmly if relevant."
+        ? mealToday ? `Dinner sorted — ${mealToday} tonight.` : "No dinner planned — that's fine. Do NOT nudge to plan. If asked for ideas, suggest from Family regulars first."
         : "Don't mention dinner.";
       const nextDays: Record<string,string> = {};
       for (let i = 0; i <= 7; i++) {
@@ -3876,6 +3893,7 @@ LIVE DATA:
 - Calendar: ${evStr}
 - Shopping list: ${shopStr}
 - Pantry (what's in stock, most recently used first): ${pantryStr}
+- Family regulars (hearted recipes — meals the family actually cooks): ${regularsStr}
 - To-dos: ${todoCount??0} open tasks
 - ${dinnerRule}
 
@@ -3886,6 +3904,12 @@ SHOPPING RULES:
 - The tool checks for duplicates automatically. If it returns DUPLICATE or PANTRY, relay that to Rich naturally and ask what to do.
 - After adding items, confirm each item clearly by name and quantity. Keep it brief.
 - NEVER write quick reply suggestions as text in your response. The app handles chips automatically. Just write your confirmation message.
+
+MEAL IDEAS RULES:
+- When asked "what's for dinner?", "quick dinner idea?", "what should we cook tonight?", or anything similar — reach for the Family regulars line FIRST. These are meals THIS family actually cooks and likes.
+- Suggest 1-2 regulars by name. Cross-check against Pantry — mention which ingredients they've got and what they'd need to grab. Example: "Poppy's pasta works — pantry's got the basics, just need parsley. 15 min. Want the recipe?"
+- Only suggest generic ideas (things not in Family regulars) if the family has NO regulars saved yet, or if they explicitly ask for something new. Even then, keep it grounded in what's in the pantry.
+- Never nudge them to plan the week or fill in the meal planner. That's friction.
 
 PANTRY RULES:
 - The Pantry line in LIVE DATA above is the authoritative record of what's in the house. When asked "have we got X?", "when did we last buy X?", "do we still have X?", check that list FIRST.
@@ -4847,7 +4871,13 @@ Only include events directly relevant to the question. Max 5 events.`;
           },
           body:JSON.stringify({
             model:'claude-sonnet-4-6',
-            max_tokens:800,
+            // Session 29: bumped 800 → 2000 after Anna's 13 July batch cut off the
+            // 10th event ("Last day of school term - 18 Sept"). Each add_calendar_event
+            // tool_use block is ~80 output tokens; a 10-event bulk paste at 800 max
+            // truncated the last one mid-JSON, silently dropped by the client parser.
+            // 2000 gives room for ~20-25 tool_use blocks per turn — covers any
+            // realistic bulk paste. Output tokens only bill on what's actually generated.
+            max_tokens:2000,
             system:[{ type:'text', text:toolSys, cache_control:{ type:'ephemeral' } }],
             tools:TOOLS,
             messages:apiMessages,
@@ -4892,7 +4922,12 @@ Only include events directly relevant to the question. Max 5 events.`;
             },
             body:JSON.stringify({
               model:'claude-sonnet-4-6',
-              max_tokens:500,
+              // Session 29: bumped 500 → 1500 to match the initial call's headroom.
+              // Followup fires after tool results and typically writes a short
+              // confirmation ("Added 10 events to your calendar."), but if Sonnet
+              // wants to emit ADDITIONAL tool_use blocks after seeing results
+              // (e.g. move a clashing event she noticed) she now has room.
+              max_tokens:1500,
               system:[{ type:'text', text:toolSys, cache_control:{ type:'ephemeral' } }],
               tools:TOOLS,
               messages:[...apiMessages, { role:'assistant', content:data.content }, { role:'user', content:toolResultContent }],
@@ -8032,14 +8067,14 @@ Rules:
                 {/* Tab switcher — dark pill, matching shopping */}
                 {!mealCookPicker && !mealRecipeDetail && mealAddRecipeMode === 'closed' && !mealSendToList && (
                   <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:22, padding:4, marginHorizontal:14, marginTop:0, marginBottom:8, flexShrink:0 }}>
-                    {(['meals','recipes','favourites'] as const).map(tab => (
+                    {(['recipes','favourites','meals'] as const).map(tab => (
                       <TouchableOpacity
                         key={tab}
                         style={{ flex:1, alignItems:'center', paddingVertical:13, borderRadius:19, backgroundColor: mealSheetTab===tab ? '#0A0A0A' : 'transparent' }}
                         onPress={() => { setMealSheetTab(tab); setMealSwapDay(null); if (tab !== 'recipes') setMealPendingRecipeDay(null); }} activeOpacity={0.75}
                       >
-                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color: mealSheetTab===tab ? '#fff' : 'rgba(0,0,0,0.40)', textTransform:'capitalize' }}>
-                          {tab === 'meals' ? 'Meals' : tab === 'recipes' ? 'Recipes' : 'Favourites'}
+                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:15, color: mealSheetTab===tab ? '#fff' : 'rgba(0,0,0,0.40)' }}>
+                          {tab === 'recipes' ? 'Recipes' : tab === 'favourites' ? 'Regulars' : 'Plan'}
                         </Text>
                       </TouchableOpacity>
                     ))}

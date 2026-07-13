@@ -570,7 +570,7 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
       onPress={onToggleExpand}
       activeOpacity={0.92}
     >
-      <Text style={[cS.cardLabel, { color:'#2D7A52' }]}>MEAL PLANNER</Text>
+      <Text style={[cS.cardLabel, { color:'#2D7A52' }]}>TONIGHT'S MEALS</Text>
       <View style={cS.cardHeader}>
         <Text style={cS.headlineDk}>{headline}</Text>
       </View>
@@ -578,7 +578,7 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
         tonightMeal
           ? <Text style={[cS.cardSub, { color:'#2D7A52' }]}>Tap to see the week →</Text>
           : <TouchableOpacity onPress={onPlanMeals} activeOpacity={0.75} style={{ marginTop:4 }}>
-              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#2D7A52' }}>Plan it →</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#2D7A52' }}>See family regulars →</Text>
             </TouchableOpacity>
       )}
       {expanded && (
@@ -642,7 +642,7 @@ function DinnerCard({ meals, showTomorrow, expanded, onToggleExpand, onPlanMeals
             );
           })}
           <TouchableOpacity onPress={onPlanMeals} activeOpacity={0.78} style={dinS.openPlanner}>
-            <Text style={dinS.openPlannerTxt}>Open Meal Planner →</Text>
+            <Text style={dinS.openPlannerTxt}>Recipes & regulars →</Text>
           </TouchableOpacity>
         </View>
       )}
