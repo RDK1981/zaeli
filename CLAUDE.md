@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 10 July 2026 — Session 28 ✅ · STRIPE PHASE 3b LIVE END-TO-END + CALENDAR PHANTOM-EVENT FIX + SPLASH SAGA · **Stripe integration proven in sandbox** — external account activated, two products with tax-inclusive pricing shipped (A$9.99 family + A$7.99 tutor), Customer Portal configured (return URL `https://zaeli.app`), Supabase CLI installed + linked, two Edge Functions deployed (stripe-portal + stripe-webhook) with STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET secrets set, webhook endpoint registered in Stripe with 6 events subscribed, test customer + metadata linked to Supabase profile, test subscription attached via card 4242, webhook loop verified end-to-end (profile shows `subscription_status: active, subscription_plan: family, subscription_renews_at: 2026-08-10T01:13:42+00`), Manage subscription button in Settings opens real Stripe Customer Portal · **Calendar phantom-event bug fixed** — Session 24 `add_calendar_event` tool returned "✅ added" as long as Supabase `.insert()` didn't throw, but silent RLS blocks return `{error: null, data: null}` and were silently swallowed; Zaeli confidently confirmed events that never landed in the DB. Fix uses `.insert().select('id').maybeSingle()` and treats no returned row as TOOL_FAILED · **Splash blue flash saga** — 5 attempts across the day (top-level splash config, Fabric Stack wrapper, explicit ios.splash, expo-system-ui plugin, onLayout-gated hideAsync + fade) reduced the flash from clearly visible to barely visible sub-100ms flicker; full elimination would need WSL for native storyboard inspection, parked as cosmetic · **Small polish** — Stripe webhook current_period_end moved to items level in newer API, MoreSheet Settings icon viewBox expanded to prevent gear-teeth clipping · Prior Session 27 (app icon 2B, first preview build, brief bucket-check + dedup fixes) + Session 26 (brief v1/v2, pricing pivot) + Session 25 (Universal Links LIVE, Cloudflare/Netlify) all still current — remaining: checkout flow (Payment Link fastest), Anna's phone (Phase 2e), Phase 4b TestFlight submission, **Phase 5 (BEFORE PUBLIC LAUNCH) — move Anthropic/OpenAI keys server-side (client-bundled keys extractable)***
+*Last updated: 13 July 2026 — Session 29 ✅ · ANNA BETA ROUND 1 + API COST FIX + MEAL PLANNER PIVOT + ADMIN CONSOLE REFRESH · **Anna beta round 1 shipped** (commit `92a35d4`) — Tutor math accuracy via three-layer defence (anti-sycophancy prompt rules + hidden `<expected>N</expected>` marker Sonnet emits + LAST_EXPECTED_ANSWER injection on next call — fixes "12 is wrong for 84÷7" and "360 is wrong for 15×24"), pantry data injected into chat context + PANTRY RULES prompt block (Zaeli stops saying "not in pantry" for items IN pantry), pantry "yesterday" date bug fixed (midnight-normalise both dates before diffing), multi-photo receipt scan (up to 4 photos batched into ONE Sonnet call), in-sheet scan UX (progress banner + result toast — no more nav-to-Chat handoff), Dashboard reshuffled Calendar → Shopping → Bento → Radar → Meals (honest usage priority), "Welcome In" → "Welcome!" · **Onboarding gate + polish** — route guard bounces new owner accounts to /onboarding via AsyncStorage `onboarding_complete` flag, grandfather clause skips profiles >24h old (Rich pre-gate signup safe), sign-in defaults to sign-up mode (new users vastly outnumber returning), Stripe "Coming soon" alert cleared on Manage subscription (commit `916f2ab`), dynamic user name in brief prompts via `${primaryUser}` template replacing 7 hardcoded "Rich" spots, computeSignature includes primaryUser so cached briefs don't leak names across family members · **API cost fix** (commit `0b65420`) — negative-cost bug in `lib/api-logger.ts` (was subtracting cache_read + cache_write from input_tokens which is ALREADY the uncached portion), Haiku 4.5 pricing corrected $0.25/$1.25 → $1.00/$5.00 (4× too low), Sonnet 5 + Opus 4.8 pricing added for future migrations, prompt caching wired onto Sonnet tool-calling path in `send()` (both initial call AND previously-unlogged follow-up call — real cost was 2× what api_logs showed), expected impact home_chat A$0.02-0.04 → A$0.005-0.01 per repeat-turn call — at ~250 chats/mo/family that's A$3.30 → ~A$0.50/family/mo (loss-making → 60% margin) · **Meal planner pivot (uncommitted)** — Anna feedback: meal planning daily is friction no busy family sustains; recipes + regulars is where the real value lives. DinnerCard label "MEAL PLANNER" → "TONIGHT'S MEALS", empty-state CTA "See family regulars →" (not "Plan it →"), tab order Meals/Recipes/Favourites → Recipes/Regulars/Plan (default opens Recipes). buildContext queries recipes WHERE 'favourite' IN tags → adds "Family regulars" line to chat LIVE DATA (12 hearted recipes). New MEAL IDEAS RULES prompt block: Zaeli reaches for regulars FIRST on "quick dinner?" queries · **Calendar max_tokens bump (uncommitted)** — Anna's 10-event paste dropped the last event; api_logs showed `output_tokens: 800` exactly (the ceiling), each add_calendar_event tool_use block ~80 tokens, 10 × 80 + preamble ≈ 800 → truncated mid-block → malformed JSON silently dropped. Fix: max_tokens 800→2000 (initial) and 500→1500 (followup) · **Admin console Session 29 refresh** — moved source-of-truth from Downloads to `app/(tabs)/zaeli-admin/index.html`. Wordmark accent yellow → sky blue #A8D8F0, model ID claude-sonnet-4-20250514 → claude-sonnet-4-6, price sliders A$9.99/A$7.99, per-family margin card replaces nonsensical break-even, real subscription state in Accounts table (beta_end_date + subscription_status), memory system health card, double-$ display bug fixed (13 rows) · **Stripe beta grant infrastructure** — profiles.beta_end_date column, lib/stripe.ts helpers (getSubscription with beta override, isFamilyInBeta), family-roster.ts beta override (kids get tutor_active=true while family in beta), TutorSidebar uses isFamilyInBeta to unlock locked children · Prior Session 28 (Stripe end-to-end + calendar phantom fix + splash saga) + Session 27 (app icon 2B, first preview build, brief bucket-check + dedup fixes) + Session 25 (Universal Links LIVE) all still current — remaining: build #15 (holding to bundle more Anna feedback), Sonnet 5 migration (intro pricing $2/$10 through Aug 2026 makes it CHEAPER than 4.6), per-user brief cache when scaling past 100 families, TestFlight submission, **Phase 5 (BEFORE PUBLIC LAUNCH) — move Anthropic/OpenAI keys server-side (client-bundled keys extractable)***
 
 ---
 
@@ -2338,6 +2338,231 @@ Full elimination would require inspecting the actual generated `SplashScreen.sto
 
 ---
 
+## ══════════════════════════════════
+## SESSION 29 — ANNA BETA ROUND 1 + API COST FIX + MEAL PLANNER PIVOT (13 July 2026) ✅
+## ══════════════════════════════════
+
+Anna beta is running. Feedback landed as a substantial iteration: Tutor accuracy fixes, chat context corrections, receipt UX overhaul, Dashboard reshuffle, onboarding gate, brief personalisation, plus a real-money API cost fix and a strategic meal-planner pivot. Five commits landed and three more sit in the working tree.
+
+### A. Anna beta round 1 (commit `92a35d4`)
+
+Anna surfaced six issues across a weekend of use. All fixed in one commit.
+
+**Tutor math accuracy — three-layer defence** ([app/(tabs)/tutor-session.tsx](app/(tabs)/tutor-session.tsx)):
+- Gab did 84÷7 and said "12" — Zaeli said "correct". Then 15×24 → "360" → "correct". Classic sycophancy pattern where the model is more likely to agree than double-check its own arithmetic. Three layers of defence:
+  1. **Anti-sycophancy rules** added to the tutor system prompt — explicit "verify the answer yourself before agreeing" + "if the user's answer is wrong, tell them warmly and let them try again"
+  2. **Hidden `<expected>N</expected>` marker** — Sonnet is instructed to emit the correct answer inside this marker after every question. Rendered invisible to the user (stripped by the display layer).
+  3. **`lastExpectedAnswer` state** — extracted per turn, injected as `LAST_EXPECTED_ANSWER: N` into the system prompt on the next call. Sonnet now has ground truth from its own previous turn rather than re-computing.
+- Belt-and-braces. Rules alone fight the training bias; marker alone can drift; state injection alone doesn't cover freshly-generated questions. Three layers together = accuracy.
+
+**Pantry "yesterday" bug** ([app/(tabs)/index.tsx](app/(tabs)/index.tsx) `fmtLastBought`):
+- Item bought at 6pm today displayed as "yesterday" three hours later. Root cause: `Math.round(msDiff / (24*60*60*1000))` — sub-24h differences rounded up to 1 = "yesterday".
+- Fix: normalise BOTH dates to midnight local before diffing. Now compares day-buckets, not raw millis. "today" until midnight, "yesterday" from midnight onwards.
+
+**Pantry context injection**:
+- Anna said "we have maple syrup" and Zaeli said "not in your pantry" — but it WAS in her pantry. `buildContext` wasn't reading pantry rows.
+- Fix: pantry query added to `buildContext`, top ~40 items formatted into a "PANTRY" line block. New PANTRY RULES prompt block ("check pantry before saying we don't have X"). Zaeli stops fabricating absence.
+
+**Multi-photo receipt scan + in-sheet UX**:
+- Anna scanned a Coles receipt that spanned 3 photos; had to scan each one separately, each one navigated her out of Shopping into Chat, disorienting.
+- Fix in `scanFromSheet`: `allowsMultipleSelection: true` (up to 4 photos), all photos batched into ONE Sonnet call with an updated prompt that expects multi-page aggregation ("this is a multi-page receipt — combine all pages before extracting"). Response format unchanged.
+- UX: no more `router.navigate('/(tabs)')` after scan starts. New state `shopScanBusy` + `shopScanBusyLabel` drives an in-sheet progress banner ("Reading page 2 of 3…"). New state `shopScanResult` drives a post-scan toast ("Added 12 items, updated 3 pantry entries"). User stays inside Shopping the whole time.
+
+**Dashboard reshuffle** ([app/(tabs)/dashboard.tsx](app/(tabs)/dashboard.tsx)):
+- Old order: Calendar, Meal Planner, Bento, Shopping, On the Radar. Meals second slot was aspirational — Anna said "I never plan meals in advance so this card is mostly noise up top".
+- New order: **Calendar → Shopping → Bento (Weather + Zaeli Noticed) → On the Radar → Meal Planner**. Reflects the honest priority order: calendar is glance-frequency #1, shopping second most used, meals bottom because least frequently used in a busy family.
+
+**Welcome copy**:
+- "Welcome In" felt to Anna like a truncated phrase ("welcome in what?"). Simplified to "Welcome!" — pure warm greeting, no ambiguity.
+
+### B. Onboarding gate + sign-in polish (commits `c02bba0`, `15529b8`, `916f2ab`)
+
+Three small commits that clean up the pre-chat user experience.
+
+**Owner onboarding gate** ([app/_layout.tsx](app/_layout.tsx), commit `c02bba0`):
+- New route guard checks `AsyncStorage.getItem('onboarding_complete')` for OWNER accounts (kind === 'owner'). If unset → `router.replace('/onboarding')`.
+- Adult/kid invitees skip this — they have their own inline onboarding via `/invite/[token]`.
+- **Grandfather clause**: profiles where `created_at` is >24h old auto-stamp the `onboarding_complete` flag on load. Rich (pre-gate signup) doesn't get bounced to onboarding on his next open.
+- Fixes the previous state where a fresh owner signup landed straight in an empty chat with no context.
+
+**Dynamic user name in briefs** ([lib/brief-generator.ts](lib/brief-generator.ts), part of commit `c02bba0`):
+- Brief prompts hardcoded "Rich" in 7 spots ("helping Rich today", "Rich has it handled", "Rich runs a family", "Makes Rich feel capable", "Morning Rich" example, "Solid Thursday, Rich" example, and one more in the winning mantra section).
+- Fix: `buildBriefContext` reads `getProfile()?.name?.split(/\s+/)[0]` as `primaryUser` (first name only). `buildSystemPrompt` templates `${primaryUser}` at every hardcoded spot.
+- **Cache invalidation gotcha**: `computeSignature` now includes `primaryUser` so cached briefs don't leak names across users in the same family. Consequence: 2-adult family = ~240 briefs/month cache calls (was 120 for cache-shared). Documented under Session 29 investigations — real fix at scale is per-user brief cache (unique constraint change on `zaeli_briefs`).
+
+**Sign-in default flip** (commit `15529b8`):
+- `app/(auth)/sign-in.tsx` default mode changed from `'sign-in'` to `'sign-up'`. Reasoning: at this stage of the product, new users vastly outnumber returning users on the sign-in screen. Force-clicking "Create account" every time was friction for the majority.
+- Sub copy genericized to work for both modes without switching per state.
+
+**Stripe alert cleared** (commit `916f2ab`):
+- Settings → Manage subscription button previously fired a friendly "Coming soon — Stripe integration is being wired up" alert. Session 28 wired Stripe end-to-end; the alert was now lying.
+- Alert removed. Button opens the real Stripe Customer Portal via `fetchCustomerPortalUrl()`.
+
+### C. API cost fix — negative-cost bug + Sonnet caching on chat (commit `0b65420`) ⭐
+
+Big cost win. Two coupled bugs that were silently costing real money on Anna's beta.
+
+**Negative-cost bug** ([lib/api-logger.ts:172](lib/api-logger.ts)):
+- Cost formula was `input_tokens - cache_read - cache_write` treating the three fields as overlapping. They are **disjoint** — Anthropic's API already returns `input_tokens` as the UNCACHED portion. Subtracting made the number negative on cached turns, breaking every downstream chart in the admin console.
+- Fix: just sum. `total_uncached_input * priceInput + cache_read * priceCacheRead + cache_write * priceCacheWrite + output * priceOutput`.
+
+**Pricing corrections and additions**:
+- Haiku 4.5 was in the PRICING table at $0.25 / $1.25 per M tokens. Correct number is $1.00 / $5.00 — my table was 4× too low. Ripple effect: any cost calc that used Haiku pricing was undercounting by 4×.
+- Added Sonnet 5 ($3/$15 with $2/$10 intro through Aug 2026) and Opus 4.8 ($5/$25) to PRICING for future migrations. Intro pricing on Sonnet 5 means it's actually CHEAPER per token than Sonnet 4.6 until Aug 2026.
+
+**Prompt caching on Sonnet tool-calling path** ([app/(tabs)/index.tsx](app/(tabs)/index.tsx) `send()`):
+- Sonnet was called on the tool-calling path in `send()` (calendar tools, view queries with cards, etc.) with NO caching. Chat used Sonnet for the initial + follow-up call. Real cost was uncached input on every message.
+- Fix: added `cache_control: { type: 'ephemeral' }` to the system-prompt block on BOTH the initial call AND the follow-up call, plus the `anthropic-beta: prompt-caching-2024-07-31` header. Also **NEWLY LOGS the follow-up call** which was previously unlogged — real chat cost was 2× what api_logs showed.
+- Cache-aware cost math applied on both call sites.
+
+**Expected impact**:
+- home_chat cost drops from A$0.02-0.04/call (uncached) to A$0.005-0.01/call (cached repeat turns) — 60-80% reduction on turn 2+.
+- At real family usage (~250 chats/mo per Anna's data): A$3.30 → ~A$0.50/family/mo.
+- Difference between loss-making and 60% margin at A$9.99 revenue.
+
+### D. Stripe beta grant infrastructure
+
+Anna's beta needs Tutor unlocked without her paying for the add-on. Rather than paper over it with a hardcoded flag, built a real beta-grant path so future beta grants work the same way.
+
+- **NEW `profiles.beta_end_date` column** — nullable timestamp. When set + `NOW() < beta_end_date`, family is in beta.
+- **`lib/stripe.ts`** — `getSubscription()` now checks beta_end_date. If beta is active, returns `{ status: 'active', plan: 'family' }` regardless of actual Stripe state. New helper `isFamilyInBeta()` — sync read from profile.
+- **`lib/family-roster.ts`** — when `isFamilyInBeta()` is true, kids get `tutor_active: true` in the roster override. Otherwise falls through to their real DB value.
+- **TutorSidebar** — uses `isFamilyInBeta()` to unlock the "child locked" tile so Anna can pick any kid without paying.
+- **Design**: beta doesn't create fake Stripe state (no phantom subscriptions). It's a parallel truthful signal. When beta ends, the profile's real Stripe state takes over cleanly.
+
+### E. Meal planner pivot (working tree, not yet committed) ⭐
+
+Anna feedback distilled: "I open the meal planner, see 'nothing planned', feel bad, close it." Same category of problem as the Session 26 brief "downer" pattern. Real families don't plan dinner in advance — they cook what's on hand from a small rotation. **Recipes + regulars is where the value lives.** Planning is where the friction lives.
+
+**Dashboard DinnerCard**:
+- Label "MEAL PLANNER" → "TONIGHT'S MEALS" (focus on tonight, not on the future)
+- Empty-state CTA "Plan it →" → "See family regulars →" (invites recognition, not commitment)
+- Bottom button "Open Meal Planner →" → "Recipes & regulars →"
+
+**Meal sheet tab reorder**:
+- Old order: Meals · Recipes · Favourites (planning first, browsing second)
+- New order: **Recipes · Regulars · Plan** (browsing first, planning last-and-optional). Sheet defaults to Recipes on open.
+- Label changes: "Favourites" → "Regulars" (acknowledges busy-family reality — favourites sounds aspirational, regulars sounds honest), "Meals" → "Plan".
+- Internal state keys unchanged for backwards compat (still `activeMealTab: 'meals' | 'recipes' | 'favourites'`) — only the display label + order changed.
+
+**Family regulars in chat LIVE DATA**:
+- `buildContext` now queries `recipes` WHERE `'favourite'` IN tags → adds a "Family regulars" line to LIVE DATA with 12 hearted recipes (name + prep_mins).
+- New MEAL IDEAS RULES prompt block: when asked "quick dinner?" / "what's for dinner?" / "any ideas?" → reach for Family regulars FIRST, cross-check pantry to filter to what's actually doable tonight, never nudge to plan.
+- `dinnerRule` softened: if no meal planned, "Do NOT nudge to plan. If asked for ideas, suggest from Family regulars first."
+
+**Design rationale**:
+- Recipes + regulars is a repeated-value surface (the same 12 meals will be relevant to the same family every week for years). Planning is a one-shot surface (needed only when someone wants a specific new decision).
+- Weighting the app around the repeated surface reduces the empty-state problem to zero — Recipes tab always has content, Regulars tab always has content.
+
+### F. Calendar bulk-paste max_tokens bump (working tree, not yet committed)
+
+Anna pasted a school newsletter with 10 events on 8 July at 7:48pm. Nine landed. The 10th ("Last day of school term - 18 Sept") never appeared in the DB under any variant title.
+
+**Diagnosis** (via api_logs query):
+- The 7:48pm home_chat call showed `output_tokens: 800` — **exactly the max_tokens ceiling** for that path.
+- Each `add_calendar_event` tool_use block is ~80 output tokens (JSON schema for date/title/assignees/etc).
+- 10 events × 80 tokens + preamble ≈ 800 tokens.
+- Sonnet was truncated mid-way through the 10th `add_calendar_event` block. Truncated tool_use block was malformed JSON. Client parser silently dropped the malformed block. It never became a DB insert.
+- Zaeli reported "Added 9 events" (correctly — that's what the tool results said) but the user thought 10 was the goal.
+
+**Fix** ([app/(tabs)/index.tsx](app/(tabs)/index.tsx)):
+- Initial call `max_tokens: 800` → `2000`.
+- Follow-up call `max_tokens: 500` → `1500`.
+- Zero cost impact unless Sonnet actually uses the extra ceiling (output tokens are metered only when emitted).
+- Now handles up to ~20 events in one paste without truncation.
+
+### G. Admin console Session 29 refresh
+
+The admin console at [app/(tabs)/zaeli-admin/index.html](app/(tabs)/zaeli-admin/index.html) had drifted badly. Multiple issues surfaced at once.
+
+**Source-of-truth moved from Downloads to the repo**:
+- Prior sessions edited a Downloads copy that got moved/deleted. The Downloads copy today is the original untouched file — my earlier edits are gone. Going forward, source of truth is INSIDE the repo (`app/(tabs)/zaeli-admin/index.html`) and edits to Downloads are ignored.
+
+**Visual + model fixes**:
+- Wordmark accent yellow → sky blue `#A8D8F0` (matches app identity)
+- Setup banner Sonnet model ID `claude-sonnet-4-20250514` → `claude-sonnet-4-6`
+- Price sliders default: A$9.99 family / A$7.99 tutor (was 14.99 / 9.99). Slider ID rename `sl-hw-price` → `sl-tutor-price`. Variable `hwPrice` → `tutorPrice`.
+
+**Cost model corrections**:
+- `COST_BRIEF` constant `0.00065` → `0.0050` (reflects Sonnet, was assuming GPT briefs when we were actually running Sonnet — the same underlying gap that Session 26's zaeli_briefs table backfill exposed)
+- **Break-even card replaced with per-family margin card** — old math was nonsense ("2 families for A$0.26 margin" made no sense at A$9.99 revenue). Per-family margin is the metric that actually matters during beta.
+- Slider defaults reset to Anna's real usage from api_logs: briefs 420 → 240 (2-adult family × bucket refresh reality), chat 300 → 250, scans 90 → 15.
+
+**Real subscription state in Accounts table**:
+- Was showing hardcoded "Trial" pill for every account. Now queries `profiles.beta_end_date` + `subscription_status` → renders correctly as "Beta · ends 15 Oct", "Family · Active", "Past due", etc.
+- Owner name + email + member count added.
+
+**Memory system health card** (Usage view):
+- Queries `family_insights` + `family_milestones` + `conversation_memory` counts per family.
+- Warning banner if `conversation_memory > 0` but `family_insights = 0` — surfaces the case where chats are being captured but the extraction Sonnet call is failing silently.
+
+**Feature badge fixes**:
+- Colour maps + labels updated with tutor_practice, tutor_session, tutor_vision, zaeli_chat (grouped by product surface).
+- Cost breakdown labels: Chat "GPT-5.4 mini" → "GPT-5.4 mini + Sonnet 4.6 for tool calls" (chat has TWO paths). Briefs "GPT-5.4 mini" → "Sonnet 4.6, prompt caching". Homework → Tutor.
+
+**Double-$ display bug fix**:
+- All `A$$${...}` template literal patterns → `A$${...}` — 13 rows across the Financial Model tab. The extra `$` was rendering as a literal dollar sign next to the number.
+
+**SQL snippet in Settings**:
+- Ready-to-copy SQL for enabling anon SELECT policies (with a security caveat that anon SELECT is a broad grant, only for internal admin console use).
+
+### H. Session 29 investigations
+
+Verified in this session:
+- **home_chat runs on BOTH models** — Sonnet on the tool-calling path (calendar tools, view-query cards) via `callSonnet` and GPT-5.4 mini on the general chat path via `callGPT`. CLAUDE.md was right for pure-chat model routing but home_chat log entries are a mix. Cost breakdown labels in admin console updated to reflect this.
+- **Brief cache invalidates between family members** — with `primaryUser` in the signature, Rich and Anna get separate cache entries. For a 2-adult family: ~240 briefs/month cache calls (not 120). Fix at scale: per-user brief cache with unique constraint change on `zaeli_briefs`. Queued for post-100-families.
+- **Sonnet 4.6 → Sonnet 5 migration path** — intro pricing $2/$10 through Aug 2026 makes Sonnet 5 CHEAPER than Sonnet 4.6 today. Better instruction following would compound today's anti-sycophancy fixes. Queued for after Anna beta settles (don't migrate during active user testing).
+- **Rejected GPT-5.4 mini for briefs** — persona quality matters most here, and Sonnet with prompt caching is now CHEAPER than GPT-mini on input ($0.30/M cache read vs GPT $0.75/M). No reason to downshift.
+
+### Locked decisions Session 29
+
+- **Meal planner pivot: recipes-first + regulars-in-context is the design.** Plan tab kept for the ~5% of families who plan. Never revert to planning-first — Anna's beta feedback is the anchor.
+- **Family regulars = recipes with `'favourite'` tag** — injected into chat LIVE DATA via `buildContext` (top ~12). Zaeli reaches for regulars FIRST on any "what's for dinner?" query. MEAL IDEAS RULES prompt block enforces.
+- **`max_tokens` ceiling for bulk operations**: 2000 initial, 1500 follow-up. Prevents multi-event paste from cutting off mid-block. Zero cost unless actually consumed.
+- **Sonnet stays on briefs** — persona quality trumps small cost delta now that caching is applied. Do NOT switch briefs to GPT-mini.
+- **Admin console lives at `app/(tabs)/zaeli-admin/index.html`** — NOT Downloads. Source of truth is INSIDE the repo. Downloads copy will always drift.
+- **Beta grants use `profiles.beta_end_date`, NEVER phantom Stripe state.** `getSubscription()` returns the beta signal transparently; when beta ends, real Stripe state takes over cleanly. No cleanup dance.
+- **Investment order**: (1) polish Anna's beta iteration, (2) migrate to Sonnet 5, (3) per-user brief cache when scaling past 100 families.
+- **Per-family margin is the metric to watch during beta**, not break-even. Break-even math is nonsense at small user counts.
+- **Anti-sycophancy = three layers** (prompt rules + hidden marker + ground-truth injection). Any future accuracy-sensitive AI surface (tutor, memory extraction, factual chat) should follow the same defence pattern — training bias fights any single-layer fix.
+- **Cost math with prompt caching**: input_tokens is ALREADY the uncached portion; cache_read + cache_write are separate. Sum, don't subtract. Any future logger touching Anthropic's usage fields must respect the disjoint-fields rule.
+- **Onboarding gate + grandfather clause** — new owner accounts route to onboarding via AsyncStorage flag. Profiles >24h old auto-stamp the flag to avoid bouncing pre-gate users. Adult/kid invitees skip entirely (they have inline onboarding).
+- **Dynamic user name in briefs** — always template `${primaryUser}` from `getProfile()?.name?.split(/\s+/)[0]`. Never hardcode "Rich" (or any name) in AI-facing prompts. `computeSignature` MUST include `primaryUser` so cached briefs don't leak names across users.
+- **Pantry data in chat context is mandatory** — Zaeli must never say "not in pantry" for items that ARE in pantry. PANTRY RULES prompt block enforces the check.
+- **Multi-photo receipt scan = ONE Sonnet call, up to 4 photos.** Multi-page aggregation prompt asks Sonnet to combine before extracting. Response format unchanged.
+- **In-sheet scan UX** — receipt/pantry scans never navigate the user out of Shopping. Progress banner + result toast keep them where they are.
+
+### Files touched Session 29
+
+**MODIFIED (committed):**
+- `app/(tabs)/tutor-session.tsx` — anti-sycophancy rules + `<expected>` marker + `lastExpectedAnswer` state + LAST_EXPECTED_ANSWER injection (commit `92a35d4`)
+- `app/(tabs)/index.tsx` — pantry `fmtLastBought` midnight normalise, pantry context injection + PANTRY RULES prompt block, `scanFromSheet` multi-photo + in-sheet progress/result state, `send()` Sonnet caching (initial + follow-up + newly logged follow-up + anthropic-beta header + cache-aware cost math), calendar bulk-paste max_tokens 800→2000/500→1500 (working tree — uncommitted), meal planner pivot (working tree — uncommitted) (commit `92a35d4` + `0b65420` + working tree)
+- `app/(tabs)/dashboard.tsx` — card reshuffle Calendar→Shopping→Bento→Radar→Meals, DinnerCard label + CTA changes (commit `92a35d4` + working tree)
+- `app/(tabs)/settings.tsx` — Stripe "Coming soon" alert removed on Manage subscription (commit `916f2ab`)
+- `app/(auth)/sign-in.tsx` — default mode 'sign-in' → 'sign-up', generic sub copy (commit `15529b8`)
+- `app/_layout.tsx` — owner onboarding gate + grandfather clause (commit `c02bba0`)
+- `lib/brief-generator.ts` — dynamic `${primaryUser}` template (7 spots), computeSignature includes primaryUser (commit `c02bba0`)
+- `lib/api-logger.ts` — negative-cost bug fix (input_tokens is already uncached), Haiku 4.5 pricing correction $0.25/$1.25 → $1.00/$5.00, Sonnet 5 + Opus 4.8 pricing added (commit `0b65420`)
+- `lib/stripe.ts` — `getSubscription` beta override + `isFamilyInBeta` helper
+- `lib/family-roster.ts` — beta override so kids get `tutor_active: true` while family in beta
+- `app/(tabs)/tutor.tsx` — TutorSidebar uses `isFamilyInBeta` to unlock locked children
+- `app/(tabs)/zaeli-admin/index.html` — comprehensive refresh (wordmark colour, model IDs, price sliders, COST_BRIEF, per-family margin card, real subscription state in Accounts, memory health card, cost breakdown labels, double-$ display bug fix, slider defaults, SQL snippet for anon SELECT)
+
+**NEW SQL (external, applied to dev DB):**
+- `profiles.beta_end_date` column added (nullable timestamp)
+
+### What's next
+
+- **Build #15 holding** — meal pivot + max_tokens bump + already-committed API cost fix + calendar phantom bundled up, but sitting on the working tree until more Anna feedback arrives. Last free build this month; want to spend it well.
+- **Sonnet 5 migration** — queued for after Anna beta settles. Intro pricing makes it cheaper than 4.6. Better instruction following would compound today's accuracy fixes.
+- **Per-user brief cache** — DB migration queued for scale past 100 families. Current family-scoped cache means each family member triggers a new cache miss.
+- **Multi-photo chat upload** — still deferred (would benefit from the same multi-photo pattern used in receipt scan).
+- **ElevenLabs voice** — still deferred to after backend pass polish.
+- **Phase 5 API keys server-side** — Anthropic + OpenAI to Supabase Edge Functions before public launch. Unchanged from Session 27.
+- **Live-mode Stripe + Stripe Tax activation** — pre-launch chores, unchanged.
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -2483,6 +2708,22 @@ Phase 68: Stripe webhook current_period_end fix ✅ Session 28 (10 July) — com
 Phase 69: Calendar phantom-event fix ⭐ ✅ Session 28 (10 July) — commit b5a06fa. Supabase .insert() returns { error: null, data: null } on silent RLS block (e.g. current_family_id() momentarily null during auth race). Old code checked only `if (error)` → false-positive success → Zaeli confidently confirmed events that never landed in DB. Fix: .insert(row).select('id').maybeSingle() and check data?.id. TOOL_FAILED with honest message if no ID returned. Same treatment for recurring batch case. Diagnostic logging added: [calendar-add] input params + assignee resolution + inserted OK/failed. Verified working on device.
 Phase 70: Splash blue flash reduction saga ✅ Session 28 (10 July) — five attempts: df9e445 (top-level splash config), c10ae4c (Fabric Stack contentStyle wrapper), 2553c3e (explicit ios.splash + dark variants), 1b5fa48 (expo-system-ui plugin + SystemUI.setBackgroundColorAsync), ba638a4 (onLayout-gated hideAsync + fade — THE mostly-fix). Reduced flash from clearly visible ~500ms to barely visible <100ms flicker. Full elimination would need WSL for storyboard inspection. Parked as cosmetic.
 Phase 71: MoreSheet Settings icon clip fix ✅ Session 28 (10 July) — commit 3ea23d4. IcoSettings gear teeth strokes were touching viewBox 24x24 edges with strokeWidth 1.7, half-stroke rendering outside canvas caused subtle clip at bottom-right tile. Fix: viewBox="-1 -1 26 26" for 1 unit padding on each side. Icon same visual size, no clipping.
+
+Phase 72: Tutor math accuracy — three-layer defence ⭐ ✅ Session 29 (13 July) — commit 92a35d4 (part). tutor-session.tsx. Layer 1: anti-sycophancy prompt rules ("verify the answer yourself before agreeing"). Layer 2: hidden `<expected>N</expected>` marker Sonnet emits after every question, stripped from user-visible display. Layer 3: lastExpectedAnswer state extracted per turn, LAST_EXPECTED_ANSWER injected into system prompt on next call. Fixes "12 is correct for 84÷7" and "360 is correct for 15×24" bugs. Single-layer fixes fight training bias; three layers together give accuracy.
+Phase 73: Pantry data + "yesterday" fix ✅ Session 29 (13 July) — commit 92a35d4 (part). Pantry rows added to buildContext (top ~40 items). New PANTRY RULES prompt block ("check pantry before saying we don't have X"). Zaeli stops fabricating absence. Plus fmtLastBought bug: Math.round on ms diff misread sub-24h difference as "1 day = yesterday". Fix normalises both dates to midnight local before diffing.
+Phase 74: Multi-photo receipt scan + in-sheet UX ✅ Session 29 (13 July) — commit 92a35d4 (part). scanFromSheet — allowsMultipleSelection true (up to 4 photos), all batched into ONE Sonnet call with multi-page aggregation prompt. UX no longer navigates to Chat: new state shopScanBusy + shopScanBusyLabel + shopScanResult drives in-sheet progress banner + result toast. User stays in Shopping.
+Phase 75: Dashboard reshuffle + welcome copy ✅ Session 29 (13 July) — commit 92a35d4 (part). Card order: Calendar → Shopping → Bento (Weather+Noticed) → On the Radar → Meal Planner (was Calendar/Meals/Bento/Shopping/Radar). Reflects honest priority — Meals bottom because least frequently used in a busy family. "Welcome In" → "Welcome!" resolves Anna's confusion feedback.
+Phase 76: Owner onboarding gate ✅ Session 29 (13 July) — commit c02bba0 (part). app/_layout.tsx route guard checks AsyncStorage.getItem('onboarding_complete') for owner accounts, routes to /onboarding if unset. Adult/kid invitees skip (they have inline onboarding via /invite/[token]). Grandfather clause: profiles >24h old auto-stamp the flag so pre-gate users don't get bounced.
+Phase 77: Dynamic user name in briefs ✅ Session 29 (13 July) — commit c02bba0 (part). buildBriefContext reads getProfile()?.name?.split(/\s+/)[0] as primaryUser. buildSystemPrompt templates ${primaryUser} where "Rich" was hardcoded (7 spots — "helping X today", "X has it handled", "X runs a family", "Makes X feel capable", morning/evening examples, winning mantra). computeSignature includes primaryUser so cached briefs don't leak names across users. NOTE: creates cache invalidation between family members — 2 adults = ~240 briefs/month not 120. Real fix at scale: per-user brief cache (Phase 85).
+Phase 78: Sign-in default flip ✅ Session 29 (13 July) — commit 15529b8. Default mode 'sign-in' → 'sign-up' (new users vastly outnumber returning users on that screen). Sub copy genericized for both modes.
+Phase 79: Stripe alert cleared ✅ Session 29 (13 July) — commit 916f2ab. Settings Manage subscription "Coming soon — Stripe integration is being wired up" alert removed now that Session 28's Stripe is live. Real Customer Portal opens via fetchCustomerPortalUrl.
+Phase 80: Beta grant infrastructure ✅ Session 29 (13 July) — profiles.beta_end_date column added (nullable timestamp). lib/stripe.ts getSubscription checks beta first; isFamilyInBeta helper (sync). lib/family-roster.ts beta override — kids get tutor_active=true while family in beta. TutorSidebar uses isFamilyInBeta to unlock locked children. No phantom Stripe state — beta is a parallel truthful signal. When beta ends, real Stripe state takes over cleanly.
+Phase 81: API cost fix — negative-cost bug + Sonnet caching on chat ⭐ ✅ Session 29 (13 July) — commit 0b65420. lib/api-logger.ts: input_tokens - cache_read - cache_write was wrong because input_tokens is ALREADY the uncached portion (three fields are disjoint). Fix: just sum. Haiku 4.5 pricing corrected $0.25/$1.25 → $1.00/$5.00 (4× too low). Added Sonnet 5 ($3/$15 with $2/$10 intro through Aug 2026) and Opus 4.8 ($5/$25) to PRICING for future migrations. index.tsx send(): added cache_control ephemeral to Sonnet tool-calling path (initial + previously-unlogged follow-up call, anthropic-beta prompt-caching-2024-07-31 header, cache-aware cost math both calls). Expected impact: home_chat A$0.02-0.04/call uncached → A$0.005-0.01/call cached repeat turns. At ~250 chats/mo/family: A$3.30 → ~A$0.50/family/mo. Difference between loss-making and 60% margin.
+Phase 82: Meal planner pivot (working tree, uncommitted) 🔨 Session 29 (13 July) — Anna feedback: meal planning daily is friction no busy family sustains. Same category as brief "downer" pattern. DinnerCard label MEAL PLANNER → TONIGHT'S MEALS, empty-state CTA "Plan it →" → "See family regulars →", bottom button "Open Meal Planner →" → "Recipes & regulars →". Meal sheet tab order Meals/Recipes/Favourites → Recipes/Regulars/Plan (default opens Recipes). Label changes: Favourites → Regulars (honest not aspirational), Meals → Plan. Internal state keys unchanged for backwards compat. buildContext queries recipes WHERE 'favourite' IN tags → adds Family regulars line to LIVE DATA (12 hearted recipes with prep_mins). New MEAL IDEAS RULES prompt block: reach for regulars FIRST on "quick dinner?" queries, cross-check pantry, never nudge to plan. dinnerRule softened.
+Phase 83: Calendar bulk-paste max_tokens bump (working tree, uncommitted) 🔨 Session 29 (13 July) — Anna's 10-event newsletter paste dropped the 10th event. Diagnosis: api_logs showed output_tokens exactly 800 (the ceiling). Each add_calendar_event tool_use block ~80 tokens; 10 × 80 + preamble ≈ 800 → truncated mid-10th block → malformed JSON silently dropped by client parser → never became a DB insert. Fix: max_tokens 800→2000 (initial) and 500→1500 (follow-up). Zero cost impact unless Sonnet uses the extra ceiling. Now handles ~20 events in one paste.
+Phase 84: Admin console Session 29 refresh ✅ Session 29 (13 July) — source-of-truth moved to app/(tabs)/zaeli-admin/index.html (Downloads copy will always drift). Comprehensive fixes: wordmark accent yellow → sky #A8D8F0, Sonnet model ID claude-sonnet-4-20250514 → claude-sonnet-4-6, price sliders default A$9.99/A$7.99 (was 14.99/9.99, slider ID sl-hw-price → sl-tutor-price), COST_BRIEF 0.00065 → 0.0050 (Sonnet not GPT), break-even card replaced with per-family margin (old math was nonsense at small user counts), real subscription state in Accounts table (reads profiles.beta_end_date + subscription_status), owner name + email + member count, memory system health card (queries family_insights + family_milestones + conversation_memory counts, warns if conversations > 0 but insights = 0), SQL snippet in Settings for enabling anon SELECT policies (with caveat), double-$ display bug fix (13 rows: A$$${...} → A$${...}), cost breakdown labels (Chat "GPT-5.4 mini + Sonnet 4.6 for tool calls" reflects both paths, Briefs "Sonnet 4.6, prompt caching", Homework → Tutor), slider defaults reset to Anna's real usage (briefs 420→240, chat 300→250, scans 90→15).
+Phase 85: Per-user brief cache 🅿️ QUEUED — scale trigger: past 100 families. DB migration on zaeli_briefs (currently unique on family_id+date+window+data_signature; add user_id to unique constraint). Would eliminate the Session 29 cross-user cache invalidation caused by primaryUser in signature. Deferred because at current scale the additional Sonnet calls are still cheap with prompt caching.
+Phase 86: Sonnet 5 migration 🅿️ QUEUED — intro pricing $2/$10 through Aug 2026 makes Sonnet 5 CHEAPER than Sonnet 4.6. Better instruction following would compound today's anti-sycophancy fixes (Phase 72). Deferred until Anna beta settles — don't migrate during active user testing.
 ```
 
 ---

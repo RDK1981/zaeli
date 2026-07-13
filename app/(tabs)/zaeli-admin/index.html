@@ -28,7 +28,7 @@
   .logo-row{display:flex;align-items:center;gap:10px;}
   .logo-mark{width:34px;height:34px;background:rgba(255,255,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;flex-shrink:0;}
   .wordmark{font-family:'DM Serif Display',serif;font-size:22px;color:#fff;letter-spacing:-0.5px;line-height:1;}
-  .wordmark .a{color:#FFE500;}
+  .wordmark .a{color:#A8D8F0;} /* sky blue — matches app's Chat/Home identity (Session 15) */
   .admin-tag{font-size:9px;color:rgba(255,255,255,0.35);font-family:'DM Mono',monospace;letter-spacing:1.8px;margin-top:4px;text-transform:uppercase;padding-left:44px;}
   .sidebar-nav{padding:16px 12px;flex:1;display:flex;flex-direction:column;gap:2px;}
   .nav-section-label{font-size:9px;font-weight:600;letter-spacing:1.8px;color:rgba(255,255,255,0.25);text-transform:uppercase;padding:10px 8px 6px;font-family:'DM Mono',monospace;}
@@ -275,7 +275,7 @@
     <div class="setup-banner" id="setup-banner">
       <h3>⚠️ api_logs table not found</h3>
       <p>Run this SQL in your Supabase SQL editor, then refresh:<br><br>
-      <code>create table if not exists api_logs (id uuid default gen_random_uuid() primary key, family_id uuid not null, account_id integer, feature text not null, model text not null default 'claude-sonnet-4-20250514', input_tokens integer not null default 0, output_tokens integer not null default 0, cost_usd numeric(10,6) not null default 0, created_at timestamptz not null default now());</code></p>
+      <code>create table if not exists api_logs (id uuid default gen_random_uuid() primary key, family_id uuid not null, account_id integer, feature text not null, model text not null default 'claude-sonnet-4-6', input_tokens integer not null default 0, output_tokens integer not null default 0, cost_usd numeric(10,6) not null default 0, created_at timestamptz not null default now());</code></p>
     </div>
 
     <!-- ═══ ACCOUNTS ═══ -->
@@ -350,6 +350,31 @@
           <div class="stat-value" id="u-output-tokens">—</div>
           <div class="stat-sub">Responses received</div>
         </div>
+      </div>
+
+      <!-- ── Memory system health (Session 29 addition) ── -->
+      <div class="table-card" style="padding:16px 20px;margin-bottom:14px;background:linear-gradient(135deg,var(--blueL) 0%,#F0F7FF 100%);border-color:var(--blueB);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <div style="font-family:'DM Serif Display',serif;font-size:15px;color:var(--ink);margin-bottom:4px">🧠 Memory system health</div>
+            <div style="font-size:11px;color:var(--ink3)">Philosophy B — cross-conversation learning. Reads from family_insights, family_milestones, conversation_memory.</div>
+          </div>
+          <div style="display:flex;gap:24px" id="memory-health-stats">
+            <div style="text-align:right">
+              <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:2px">Insights</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink)" id="mem-insights">—</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:2px">Milestones</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink)" id="mem-milestones">—</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:2px">Conversations</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:22px;color:var(--ink)" id="mem-conversations">—</div>
+            </div>
+          </div>
+        </div>
+        <div id="memory-health-note" style="display:none;margin-top:10px;padding:10px 12px;background:rgba(255,140,0,0.08);border:1px solid rgba(255,140,0,0.25);border-radius:8px;font-size:12px;color:var(--ink2);line-height:1.5"></div>
       </div>
 
       <div class="usage-grid">
@@ -501,6 +526,33 @@
             </div>
           </div>
         </div>
+
+        <!-- ── Admin visibility SQL (Session 29) ── -->
+        <div class="table-card" style="padding:20px 24px;margin-top:14px">
+          <div style="font-family:'DM Serif Display',serif;font-size:17px;margin-bottom:8px">Admin visibility SQL</div>
+          <div style="font-size:12px;color:var(--ink3);line-height:1.6;margin-bottom:12px">
+            The admin console uses the anon key, so RLS-protected tables (profiles, family_insights, family_milestones, conversation_memory) are hidden by default. To surface them here, run this in Supabase SQL editor. <strong>This makes profile data readable by anyone with the anon key</strong> — only run if the admin URL isn't shared publicly.
+          </div>
+          <pre style="background:#F8F7F2;border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'DM Mono',monospace;font-size:11px;color:var(--ink);line-height:1.6;overflow-x:auto;white-space:pre-wrap;margin:0"><code>-- Read-only anon policies for admin console visibility
+-- (Session 29 admin refresh — added when Option B was shipped)
+CREATE POLICY IF NOT EXISTS "admin_anon_read" ON profiles
+  FOR SELECT TO anon USING (true);
+CREATE POLICY IF NOT EXISTS "admin_anon_read" ON family_insights
+  FOR SELECT TO anon USING (true);
+CREATE POLICY IF NOT EXISTS "admin_anon_read" ON family_milestones
+  FOR SELECT TO anon USING (true);
+CREATE POLICY IF NOT EXISTS "admin_anon_read" ON conversation_memory
+  FOR SELECT TO anon USING (true);
+
+-- Undo (revoke visibility)
+-- DROP POLICY "admin_anon_read" ON profiles;
+-- DROP POLICY "admin_anon_read" ON family_insights;
+-- DROP POLICY "admin_anon_read" ON family_milestones;
+-- DROP POLICY "admin_anon_read" ON conversation_memory;
+
+-- Better path (Phase 5 pre-launch): move admin console to a backend
+-- with the service_role key instead of adding anon read policies.</code></pre>
+        </div>
       </div>
     </div>
 
@@ -521,13 +573,13 @@
           <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin-bottom:8px">PRICING (AUD)</div>
           <div class="slider-row">
             <span class="slider-label">Family plan price</span>
-            <div class="slider-wrap"><input type="range" min="9.99" max="39.99" step="1" value="14.99" oninput="updateModel()" id="sl-family-price"></div>
-            <span class="slider-val" id="v-family-price">$15 AUD</span>
+            <div class="slider-wrap"><input type="range" min="6.99" max="19.99" step="1" value="9.99" oninput="updateModel()" id="sl-family-price"></div>
+            <span class="slider-val" id="v-family-price">A$9.99 inc GST</span>
           </div>
           <div class="slider-row">
-            <span class="slider-label">Homework per child</span>
-            <div class="slider-wrap"><input type="range" min="4.99" max="19.99" step="1" value="9.99" oninput="updateModel()" id="sl-hw-price"></div>
-            <span class="slider-val" id="v-hw-price">$10 AUD</span>
+            <span class="slider-label">Tutor per child</span>
+            <div class="slider-wrap"><input type="range" min="4.99" max="14.99" step="1" value="7.99" oninput="updateModel()" id="sl-tutor-price"></div>
+            <span class="slider-val" id="v-tutor-price">A$7.99 inc GST</span>
           </div>
           <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin:16px 0 8px">FAMILY MIX</div>
           <div class="slider-row">
@@ -548,7 +600,7 @@
           <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin:16px 0 8px">API USAGE (after cost fixes)</div>
           <div class="slider-row">
             <span class="slider-label">Chat messages/month</span>
-            <div class="slider-wrap"><input type="range" min="100" max="1000" step="50" value="300" oninput="updateModel()" id="sl-chat"></div>
+            <div class="slider-wrap"><input type="range" min="50" max="1000" step="25" value="250" oninput="updateModel()" id="sl-chat"></div>
             <span class="slider-val" id="v-chat">300</span>
           </div>
           <div class="slider-row">
@@ -558,12 +610,12 @@
           </div>
           <div class="slider-row">
             <span class="slider-label">Briefs/month</span>
-            <div class="slider-wrap"><input type="range" min="100" max="600" step="50" value="420" oninput="updateModel()" id="sl-briefs"></div>
+            <div class="slider-wrap"><input type="range" min="30" max="600" step="10" value="240" oninput="updateModel()" id="sl-briefs"></div>
             <span class="slider-val" id="v-briefs">420</span>
           </div>
           <div class="slider-row">
             <span class="slider-label">Photo scans/month</span>
-            <div class="slider-wrap"><input type="range" min="0" max="200" step="10" value="90" oninput="updateModel()" id="sl-scans"></div>
+            <div class="slider-wrap"><input type="range" min="0" max="100" step="5" value="15" oninput="updateModel()" id="sl-scans"></div>
             <span class="slider-val" id="v-scans">90</span>
           </div>
           <div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;color:var(--ink3);margin:16px 0 8px">FEATURES</div>
@@ -654,7 +706,7 @@ function fmt$(n, isAUD=false) {
 }
 function fmtNum(n) { return n?.toLocaleString() || '0'; }
 function fmtDate(d) { return d ? new Date(d).toLocaleString('en-AU', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hour12:true}) : '—'; }
-function thisMonthStart() { const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),1).toISOString(); }
+function thisMonthStart() { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-01T00:00:00`; }
 function showError(msg) {
   const b = document.getElementById('error-banner');
   b.textContent = '⚠ ' + msg; b.style.display = 'block';
@@ -674,13 +726,24 @@ async function loadAllData() {
   if (!db) return;
   document.getElementById('loading').style.display = 'flex';
   try {
-    // Fetch api_logs for this month
-    const { data: logs, error: logsErr } = await db
-      .from('api_logs')
-      .select('*')
-      .gte('created_at', thisMonthStart())
-      .order('created_at', { ascending: false })
-      .limit(2000);
+    // Fetch api_logs for this month — paginate to bypass Supabase 1000 row cap
+    let allLogsRaw = [];
+    let logsErr = null;
+    let from = 0;
+    const pageSize = 1000;
+    while (true) {
+      const { data: page, error: pageErr } = await db
+        .from('api_logs')
+        .select('*')
+        .gte('created_at', thisMonthStart())
+        .order('created_at', { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (pageErr) { logsErr = pageErr; break; }
+      if (!page || page.length === 0) break;
+      allLogsRaw = allLogsRaw.concat(page);
+      if (page.length < pageSize) break; // last page
+      from += pageSize;
+    }
 
     if (logsErr) {
       if (logsErr.message?.includes('relation') || logsErr.code === '42P01') {
@@ -691,7 +754,7 @@ async function loadAllData() {
       }
       allLogs = [];
     } else {
-      allLogs = logs || [];
+      allLogs = allLogsRaw;
       updateApiLogsCheck(true);
     }
 
@@ -702,13 +765,59 @@ async function loadAllData() {
       .select('cost_usd, created_at')
       .gte('created_at', sixMonthsAgo.toISOString());
 
-    // Derive unique families from logs
-    allFamilies = [...new Set((allLogs).map(l => l.family_id))].map(fid => ({
-      family_id: fid,
-      calls: allLogs.filter(l => l.family_id === fid).length,
-      cost: allLogs.filter(l => l.family_id === fid).reduce((s,l) => s + Number(l.cost_usd), 0),
-      last_call: allLogs.filter(l => l.family_id === fid).sort((a,b) => b.created_at > a.created_at ? 1 : -1)[0]?.created_at,
-    }));
+    // ── Session 29: profiles for subscription state + memory health ─────
+    // These tables are RLS-scoped by family_id via current_family_id() (per
+    // Session 21). With the anon key we'll only see rows the anon role has
+    // been granted read on — for the admin console we need explicit
+    // permissive policies OR a SECURITY DEFINER RPC. If reads fail, we
+    // degrade gracefully: subscription column shows "—" and memory health
+    // shows "Not readable — see setup".
+    let allProfiles = [];
+    let memoryCounts = { insights: null, milestones: null, conversations: null };
+    let profilesReadable = false;
+    let memoryReadable   = false;
+    try {
+      const { data: p, error: pErr } = await db
+        .from('profiles')
+        .select('id, family_id, name, email, kind, subscription_status, subscription_plan, subscription_renews_at, trial_ends_at, beta_end_date, created_at');
+      if (!pErr && p) { allProfiles = p; profilesReadable = true; }
+    } catch { /* silent — RLS blocks */ }
+    try {
+      const [{ count: iC }, { count: mC }, { count: cC }] = await Promise.all([
+        db.from('family_insights').select('*', { count: 'exact', head: true }),
+        db.from('family_milestones').select('*', { count: 'exact', head: true }),
+        db.from('conversation_memory').select('*', { count: 'exact', head: true }),
+      ]);
+      memoryCounts = { insights: iC ?? 0, milestones: mC ?? 0, conversations: cC ?? 0 };
+      memoryReadable = true;
+    } catch { /* silent — RLS blocks */ }
+
+    // Derive unique families from logs + join to profiles when possible
+    const ownerByFamily = {};
+    allProfiles.filter(p => p.kind === 'owner').forEach(p => { ownerByFamily[p.family_id] = p; });
+
+    allFamilies = [...new Set((allLogs).map(l => l.family_id))].map(fid => {
+      const owner = ownerByFamily[fid] || null;
+      const familyMembers = allProfiles.filter(p => p.family_id === fid);
+      return {
+        family_id: fid,
+        calls: allLogs.filter(l => l.family_id === fid).length,
+        cost: allLogs.filter(l => l.family_id === fid).reduce((s,l) => s + Number(l.cost_usd), 0),
+        last_call: allLogs.filter(l => l.family_id === fid).sort((a,b) => b.created_at > a.created_at ? 1 : -1)[0]?.created_at,
+        owner_name: owner?.name || null,
+        owner_email: owner?.email || null,
+        member_count: familyMembers.length,
+        subscription_status: owner?.subscription_status ?? null,
+        subscription_plan: owner?.subscription_plan ?? null,
+        beta_end_date: owner?.beta_end_date ?? null,
+        renews_at: owner?.subscription_renews_at ?? null,
+      };
+    });
+
+    // Store on window for the render fns
+    window._memoryCounts   = memoryCounts;
+    window._memoryReadable = memoryReadable;
+    window._profilesReadable = profilesReadable;
 
     renderAccounts();
     renderUsage(trendLogs || []);
@@ -745,19 +854,40 @@ function renderAccounts() {
 
   tbody.innerHTML = allFamilies.map(f => {
     const shortId = f.family_id.substring(0,8) + '…';
-    const isTestAcct = f.family_id === '00000000-0000-0000-0000-000000000001';
     const costClass = f.cost > HIGH_THRESHOLD ? 'cost-high' : f.cost > WARN_THRESHOLD ? 'cost-warn' : 'cost-ok';
+    // Prefer real owner name/email from profiles; fall back gracefully if RLS
+    // blocks or the family has no logged owner profile.
+    const displayName = f.owner_name || 'Unknown owner';
+    const displayEmail = f.owner_email || (window._profilesReadable ? '' : 'profiles not readable');
+    const memberCount = f.member_count > 0 ? `${f.member_count} member${f.member_count === 1 ? '' : 's'}` : '';
+    // Compute a real subscription pill from beta_end_date / subscription_status.
+    // Mirrors lib/stripe.ts getSubscription() beta override + subscriptionLabel().
+    const now = new Date();
+    let planLabel = 'Free';
+    let planClass = 'plan-trial'; // reuse existing plan-trial CSS class
+    if (f.beta_end_date && new Date(f.beta_end_date) > now) {
+      const d = new Date(f.beta_end_date).toLocaleDateString('en-AU',{day:'numeric',month:'short'});
+      planLabel = `Beta · ends ${d}`;
+    } else if (f.subscription_status === 'active' || f.subscription_status === 'trialing') {
+      const plan = (f.subscription_plan || 'family').charAt(0).toUpperCase() + (f.subscription_plan || 'family').slice(1);
+      planLabel = `${plan} · Active`;
+    } else if (f.subscription_status === 'past_due') {
+      planLabel = 'Past due ⚠';
+    } else if (f.subscription_status === 'cancelled' || f.subscription_status === 'incomplete') {
+      planLabel = f.subscription_status === 'cancelled' ? 'Cancelled' : 'Incomplete';
+    }
     return `<tr>
       <td>
         <div style="display:flex;align-items:center;gap:10px">
-          <span class="acct-num">${isTestAcct ? '100001' : '—'}</span>
+          <span class="acct-num">${f.owner_email ? f.owner_email.split('@')[0].substring(0,10) : '—'}</span>
           <div>
-            <div class="acct-name">${isTestAcct ? 'Anna De Kretser' : 'Family Account'}</div>
+            <div class="acct-name">${displayName}</div>
+            <div style="font-size:11px;color:var(--ink3)">${displayEmail}${memberCount ? ' · ' + memberCount : ''}</div>
           </div>
         </div>
       </td>
       <td><span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3)">${shortId}</span></td>
-      <td><span class="plan-badge plan-trial">Trial</span></td>
+      <td><span class="plan-badge ${planClass}">${planLabel}</span></td>
       <td><span style="font-family:'DM Mono',monospace;font-size:13px">${fmtNum(f.calls)}</span></td>
       <td><span class="cost-cell ${costClass}">${fmt$(f.cost)}</span></td>
       <td><span style="font-size:12px;color:var(--ink3)">${fmtDate(f.last_call)}</span></td>
@@ -780,6 +910,27 @@ function renderUsage(trendLogs) {
   document.getElementById('u-input-tokens').textContent  = fmtNum(totalInput);
   document.getElementById('u-output-tokens').textContent = fmtNum(totalOutput);
 
+  // ── Memory health (Session 29) ──
+  const mc = window._memoryCounts || {};
+  const memNote = document.getElementById('memory-health-note');
+  if (window._memoryReadable) {
+    document.getElementById('mem-insights').textContent     = fmtNum(mc.insights ?? 0);
+    document.getElementById('mem-milestones').textContent   = fmtNum(mc.milestones ?? 0);
+    document.getElementById('mem-conversations').textContent = fmtNum(mc.conversations ?? 0);
+    if ((mc.insights ?? 0) === 0 && (mc.conversations ?? 0) > 0) {
+      memNote.style.display = 'block';
+      memNote.innerHTML = `⚠️ <strong>${fmtNum(mc.conversations)} conversation turns saved but 0 insights extracted.</strong> Memory extraction may not be firing — check the 6-exchange auto-trigger in <code>captureMemory()</code> or run the dev row "🧠 Run memory extraction now" in Settings.`;
+    } else {
+      memNote.style.display = 'none';
+    }
+  } else {
+    ['mem-insights','mem-milestones','mem-conversations'].forEach(id => {
+      document.getElementById(id).textContent = '—';
+    });
+    memNote.style.display = 'block';
+    memNote.innerHTML = `Memory tables are RLS-protected (Session 21). To surface counts here, add a permissive anon SELECT policy OR create a SECURITY DEFINER RPC. See Settings tab for the SQL snippet.`;
+  }
+
   // Feature breakdown
   const byFeature = {};
   allLogs.forEach(l => {
@@ -790,7 +941,33 @@ function renderUsage(trendLogs) {
 
   const featuresSorted = Object.entries(byFeature).sort((a,b) => b[1].cost - a[1].cost);
   const maxCalls = Math.max(...featuresSorted.map(f => f[1].calls), 1);
-  const colors = { zaeli_chat:'var(--blue)', recipe_photo:'var(--orange)', menu_photo:'var(--mag)', pantry_scan:'var(--green)', receipt_scan:'var(--gold)', home_brief:'var(--blue)', calendar_brief:'var(--mag)', shopping_brief:'var(--blue)', chat_greeting:'var(--green)', shopping_category:'var(--ink3)' };
+  // Feature colours grouped by product surface (Session 29 refresh — added
+  // tutor_practice / tutor_session / tutor_vision + zaeli_chat; older names
+  // kept as legacy for historical logs)
+  const colors = {
+    // Zaeli's core AI surfaces
+    home_brief:           'var(--blue)',      // Sonnet — 2/day briefs
+    zaeli_chat:           'var(--blue)',      // GPT-5.4 mini — general chat
+    chat_response:        'var(--blue)',      // (legacy alias for zaeli_chat)
+    chat_vision:          'var(--mag)',       // Sonnet vision — chat photo attachments
+    chat_greeting:        'var(--blue)',      // Zaeli persona-only greeting
+    whisper_transcription:'var(--orange)',    // Whisper — voice → text
+    // Tutor pillars (Session 14+)
+    tutor_practice:       'var(--purple)',    // Sonnet — practice questions
+    tutor_session:        'var(--purple)',    // Sonnet — homework/read-aloud/write-review/comprehension/money-life
+    tutor_vision:         'var(--purple)',    // Sonnet vision — worksheet photo
+    // Shopping — receipt + pantry scan
+    receipt_scan:         'var(--gold)',      // Sonnet vision — receipt (Spend tab)
+    pantry_scan:          'var(--green)',     // Sonnet vision — pantry photos
+    // Legacy / rarely used
+    calendar_chat:        'var(--green)',
+    calendar_brief:       'var(--green)',
+    shopping_brief:       'var(--gold)',
+    shopping_chat:        'var(--gold)',
+    recipe_photo:         'var(--orange)',
+    menu_photo:           'var(--mag)',
+    shopping_category:    'var(--ink3)',
+  };
 
   const featEl = document.getElementById('feature-breakdown');
   if (featuresSorted.length === 0) {
@@ -837,10 +1014,35 @@ function renderUsage(trendLogs) {
       <div class="proj-sub">Based on current avg of ${fmt$(avgPerFamily)}/family/mo</div>
     </div>
     <div class="proj-card proj-green" style="margin-top:10px">
-      <div class="proj-label" style="color:var(--green)">BREAK-EVEN AT $9.99/MONTH PLAN</div>
-      <div class="proj-value">${avgPerFamily > 0 ? Math.ceil(9.99/avgPerFamily*1) : '—'} <span style="font-size:14px;color:var(--ink3)">paying families needed</span></div>
-      <div class="proj-sub">API costs covered from that point</div>
+      <div class="proj-label" style="color:${(9.99 - avgPerFamily*USD_TO_AUD) >= 0 ? 'var(--green)' : 'var(--red)'}">PER-FAMILY MARGIN (A$9.99 BASE PLAN, API ONLY)</div>
+      <div class="proj-value" style="color:${(9.99 - avgPerFamily*USD_TO_AUD) >= 0 ? 'var(--ink)' : 'var(--red)'}">A$${(9.99 - avgPerFamily*USD_TO_AUD).toFixed(2)} <span style="font-size:14px;color:var(--ink3)">/ family / mo</span></div>
+      <div class="proj-sub">Revenue A$9.99 minus API cost A$${(avgPerFamily*USD_TO_AUD).toFixed(2)}. Excludes Stripe (~A$0.77), infra (~A$0.05), support estimate (~A$1.54). Tutor at A$7.99/child adds to this margin per adoption %.</div>
     </div>`;
+
+  // Feature badge colour map for calls log — mirrors the colours map above
+  const featureBadge = {
+    // Zaeli's core AI surfaces
+    home_brief:           { bg:'var(--blueL)',    color:'var(--blue)'   },
+    zaeli_chat:           { bg:'var(--blueL)',    color:'var(--blue)'   },
+    chat_response:        { bg:'var(--blueL)',    color:'var(--blue)'   },
+    chat_vision:          { bg:'var(--magL)',     color:'var(--mag)'    },
+    chat_greeting:        { bg:'var(--blueL)',    color:'var(--blue)'   },
+    whisper_transcription:{ bg:'var(--orangeL)',  color:'var(--orange)' },
+    // Tutor pillars (Session 14+)
+    tutor_practice:       { bg:'var(--purpleL)',  color:'var(--purple)' },
+    tutor_session:        { bg:'var(--purpleL)',  color:'var(--purple)' },
+    tutor_vision:         { bg:'var(--purpleL)',  color:'var(--purple)' },
+    // Shopping — receipt + pantry scan
+    receipt_scan:         { bg:'var(--goldL)',    color:'var(--gold)'   },
+    pantry_scan:          { bg:'var(--greenL)',   color:'#0A7A3A'       },
+    // Legacy
+    calendar_chat:        { bg:'var(--greenL)',   color:'#0A7A3A'       },
+    calendar_brief:       { bg:'var(--greenL)',   color:'#0A7A3A'       },
+    shopping_brief:       { bg:'var(--goldL)',    color:'var(--gold)'   },
+    shopping_chat:        { bg:'var(--goldL)',    color:'var(--gold)'   },
+    recipe_photo:         { bg:'var(--orangeL)',  color:'var(--orange)' },
+  };
+  const getBadge = (feat) => featureBadge[feat] || { bg:'var(--blueL)', color:'var(--blue)' };
 
   // Logs table
   const logsTbody = document.getElementById('logs-tbody');
@@ -848,15 +1050,18 @@ function renderUsage(trendLogs) {
   if (allLogs.length === 0) {
     logsTbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="ico">📭</div><p>No logs yet — use the app first.</p></div></td></tr>`;
   } else {
-    logsTbody.innerHTML = allLogs.slice(0,100).map(l => `
+    logsTbody.innerHTML = allLogs.slice(0,100).map(l => {
+      const badge = getBadge(l.feature);
+      return `
       <tr>
         <td style="font-size:12px;color:var(--ink3)">${fmtDate(l.created_at)}</td>
-        <td><span style="background:var(--blueL);color:var(--blue);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600">${l.feature}</span></td>
+        <td><span style="background:${badge.bg};color:${badge.color};padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600">${l.feature}</span></td>
         <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--ink3)">${l.family_id?.substring(0,8)}…</td>
         <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtNum(l.input_tokens)}</td>
         <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtNum(l.output_tokens)}</td>
         <td><span class="cost-cell cost-ok">${fmt$(l.cost_usd)}</span></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
 }
 
@@ -968,18 +1173,23 @@ document.getElementById('settings-status').textContent = SUPABASE_URL === 'https
 // FINANCIAL MODEL
 // ─────────────────────────────────────────────────────────────────
 let finScale = 1000;
-const AUD_TO_USD = 0.65;
 const APP_STORE_CUT = 0.15;
 const STRIPE_PCT = 0.029;
 const STRIPE_FIXED = 0.30;
 
-// Per-message costs in USD
-const COST_CHAT_MSG    = 0.00195; // GPT-5.4 mini ($0.75/$4.50 per 1M, ~250 in/750 out avg = $0.00195 USD)
-const COST_BRIEF       = 0.00065; // GPT-5.4 mini (shorter, ~100 in/200 out = $0.00065 USD)
-const COST_HW_SONNET   = 0.0140;  // Claude Sonnet (70% of homework)
-const COST_HW_HAIKU    = 0.0008;  // Claude Haiku (30% of homework)
-const COST_HW_MSG      = COST_HW_SONNET * 0.7 + COST_HW_HAIKU * 0.3; // blended = $0.010 USD
-const COST_SCAN        = 0.019;   // Claude Sonnet vision
+// Per-message costs in USD (updated Session 29 with Session 28 model routing)
+// Chat: GPT-5.4 mini @ $0.75/$4.50 per M tok, ~250 in/750 out avg = $0.00195
+const COST_CHAT_MSG    = 0.00195;
+// Brief: Claude Sonnet 4.6 @ $3/$15 per M tok, ~1500 in/300 out with 90% prompt caching
+// discount on input = (1500 * 0.1 * $3 + 300 * $15) / 1M = ~$0.0050. Was $0.00065
+// (assumed GPT briefs) — briefs now run on Sonnet per Session 9 decision.
+const COST_BRIEF       = 0.0050;
+// Tutor: Claude Sonnet 4.6 @ $3/$15, ~2000 in/500 out with 90% caching = ~$0.0083/msg
+const COST_TUTOR_SONNET = 0.0083;
+const COST_TUTOR_HAIKU  = 0.0016;  // Claude Haiku 4.5 @ $1/$5 (not currently used — kept for future blend)
+const COST_HW_MSG      = COST_TUTOR_SONNET; // 100% Sonnet on Tutor currently
+// Scan: Claude Sonnet vision (receipt or pantry) with resized 1200px image
+const COST_SCAN        = 0.019;
 
 function setScale(n, btn) {
   finScale = n;
@@ -991,7 +1201,7 @@ function setScale(n, btn) {
 
 function updateModel() {
   const famPrice    = parseFloat(document.getElementById('sl-family-price').value);
-  const hwPrice     = parseFloat(document.getElementById('sl-hw-price').value);
+  const tutorPrice  = parseFloat(document.getElementById('sl-tutor-price').value);
   const avgKids     = parseFloat(document.getElementById('sl-kids').value);
   const hwPct       = parseFloat(document.getElementById('sl-hw-pct').value) / 100;
   const webPct      = parseFloat(document.getElementById('sl-web-pct').value) / 100;
@@ -1002,8 +1212,8 @@ function updateModel() {
   const voiceCost   = parseFloat(document.getElementById('sl-voice').value);
 
   // Update labels
-  document.getElementById('v-family-price').textContent = '$' + famPrice.toFixed(2) + ' AUD';
-  document.getElementById('v-hw-price').textContent = '$' + hwPrice.toFixed(2) + ' AUD';
+  document.getElementById('v-family-price').textContent = 'A$' + famPrice.toFixed(2) + ' inc GST';
+  document.getElementById('v-tutor-price').textContent = 'A$' + tutorPrice.toFixed(2) + ' inc GST';
   document.getElementById('v-kids').textContent = avgKids.toFixed(1) + ' kids';
   document.getElementById('v-hw-pct').textContent = (hwPct*100).toFixed(0) + '%';
   document.getElementById('v-web-pct').textContent = (webPct*100).toFixed(0) + '%';
@@ -1022,7 +1232,7 @@ function updateModel() {
 
   // Revenue per family (USD)
   const famRevenueAUD = famPrice;
-  const hwRevenueAUD  = hwPrice * avgKids * hwPct;
+  const hwRevenueAUD  = tutorPrice * avgKids * hwPct;
   const totalRevenueAUD = famRevenueAUD + hwRevenueAUD;
   const totalRevenueUSD = totalRevenueAUD * AUD_TO_USD;
 
@@ -1041,9 +1251,9 @@ function updateModel() {
   // ── Render cost breakdown ──
   document.getElementById('cost-breakdown').innerHTML = `
     <tr><th>Item</th><th>Per family/mo</th><th>Notes</th></tr>
-    <tr><td>Chat (GPT-5.4 mini)</td><td>${fmt$(apiChat)}</td><td>${chatMsgs} msgs × A$${(COST_CHAT_MSG*USD_TO_AUD).toFixed(4)}</td></tr>
-    <tr><td>Homework (Sonnet 70%/Haiku 30%)</td><td>${fmt$(apiHw)}</td><td>${hwMsgs} msgs × ${avgKids.toFixed(1)} kids × ${(hwPct*100).toFixed(0)}%</td></tr>
-    <tr><td>Briefs (GPT-5.4 mini)</td><td>${fmt$(apiBrief)}</td><td>${briefs} briefs × A$${(COST_BRIEF*USD_TO_AUD).toFixed(4)}</td></tr>
+    <tr><td>Chat (GPT-5.4 mini + Sonnet 4.6 for tool calls)</td><td>${fmt$(apiChat)}</td><td>${chatMsgs} msgs × A$${(COST_CHAT_MSG*USD_TO_AUD).toFixed(4)} (mixed model)</td></tr>
+    <tr><td>Tutor (Sonnet 4.6, prompt caching)</td><td>${fmt$(apiHw)}</td><td>${hwMsgs} msgs × ${avgKids.toFixed(1)} kids × ${(hwPct*100).toFixed(0)}%</td></tr>
+    <tr><td>Briefs (Sonnet 4.6, prompt caching)</td><td>${fmt$(apiBrief)}</td><td>${briefs} briefs × A$${(COST_BRIEF*USD_TO_AUD).toFixed(4)}</td></tr>
     <tr><td>Photo scans (Sonnet vision)</td><td>${fmt$(apiScan)}</td><td>${scans} scans × A$${(COST_SCAN*USD_TO_AUD).toFixed(3)}</td></tr>
     ${voiceCost > 0 ? `<tr><td>Voice (ElevenLabs)</td><td>${fmt$(voiceCost)}</td><td>Monthly voice usage</td></tr>` : ''}
     <tr><td>App Store / Google</td><td>${fmt$(appStoreCutUSD)}</td><td>${(100-webPct*100).toFixed(0)}% via app × 15%</td></tr>
@@ -1056,11 +1266,11 @@ function updateModel() {
   // ── Render revenue breakdown ──
   document.getElementById('rev-breakdown').innerHTML = `
     <tr><th>Item</th><th>Per family/mo (AUD)</th><th>Notes</th></tr>
-    <tr><td>Family plan</td><td>A$$${famRevenueAUD.toFixed(2)}</td><td>Base subscription</td></tr>
-    <tr><td>Homework add-on</td><td>A$$${hwRevenueAUD.toFixed(2)}</td><td>${avgKids.toFixed(1)} kids × ${(hwPct*100).toFixed(0)}% uptake</td></tr>
-    <tr class="total-row"><td>Total revenue</td><td>A$$${totalRevenueAUD.toFixed(2)}</td><td>(${(totalRevenueUSD).toFixed(2)} USD)</td></tr>
-    <tr><td style="color:var(--ink3)">After App Store + Stripe</td><td>A$$${(netRevenueUSD*USD_TO_AUD).toFixed(2)}</td><td></td></tr>
-    <tr class="total-row" style="color:${marginUSD >= 0 ? 'var(--green)' : 'var(--red)'}"><td>Net margin</td><td>A$$${(marginUSD*USD_TO_AUD).toFixed(2)} (${marginPct.toFixed(0)}%)</td><td>${marginUSD >= 0 ? '✓ Profitable' : '✗ Loss-making'}</td></tr>
+    <tr><td>Family plan</td><td>A$${famRevenueAUD.toFixed(2)}</td><td>Base subscription</td></tr>
+    <tr><td>Homework add-on</td><td>A$${hwRevenueAUD.toFixed(2)}</td><td>${avgKids.toFixed(1)} kids × ${(hwPct*100).toFixed(0)}% uptake</td></tr>
+    <tr class="total-row"><td>Total revenue</td><td>A$${totalRevenueAUD.toFixed(2)}</td><td>(${(totalRevenueUSD).toFixed(2)} USD)</td></tr>
+    <tr><td style="color:var(--ink3)">After App Store + Stripe</td><td>A$${(netRevenueUSD*USD_TO_AUD).toFixed(2)}</td><td></td></tr>
+    <tr class="total-row" style="color:${marginUSD >= 0 ? 'var(--green)' : 'var(--red)'}"><td>Net margin</td><td>A$${(marginUSD*USD_TO_AUD).toFixed(2)} (${marginPct.toFixed(0)}%)</td><td>${marginUSD >= 0 ? '✓ Profitable' : '✗ Loss-making'}</td></tr>
   `;
 
   // ── Scale scenarios ──
@@ -1103,18 +1313,18 @@ function updateModel() {
   document.getElementById('fin-results').innerHTML = `
     <div class="result-card ${scaledProfit >= 0 ? 'profit' : 'loss'}">
       <div class="result-label" style="color:${scaledProfit>=0?'var(--green)':'var(--red)'}">${scaledProfit>=0?'MONTHLY PROFIT':'MONTHLY LOSS'}</div>
-      <div class="result-value">${scaledProfit>=0?'+':'-'}A$$${Math.abs(scaledProfitAUD/1000).toFixed(0)}k</div>
+      <div class="result-value">${scaledProfit>=0?'+':'-'}A$${Math.abs(scaledProfitAUD/1000).toFixed(0)}k</div>
       <div class="result-sub" style="color:${scaledProfit>=0?'var(--green)':'var(--red)'}">${finScale.toLocaleString()} families · ${marginPct.toFixed(0)}% margin</div>
     </div>
     <div class="result-card neutral">
       <div class="result-label" style="color:var(--blue)">MONTHLY REVENUE</div>
-      <div class="result-value">A$$${(scaledRevAUD/1000).toFixed(0)}k</div>
-      <div class="result-sub" style="color:var(--blue)">A$$${(totalRevenueAUD).toFixed(2)} avg per family</div>
+      <div class="result-value">A$${(scaledRevAUD/1000).toFixed(0)}k</div>
+      <div class="result-sub" style="color:var(--blue)">A$${(totalRevenueAUD).toFixed(2)} avg per family</div>
     </div>
     <div class="result-card warn">
       <div class="result-label" style="color:var(--orange)">API BILL (AUD)</div>
-      <div class="result-value">A$$${(scaledApiAUD/1000).toFixed(1)}k</div>
-      <div class="result-sub" style="color:var(--orange)">A$$${(apiTotal*USD_TO_AUD).toFixed(3)} per family/mo</div>
+      <div class="result-value">A$${(scaledApiAUD/1000).toFixed(1)}k</div>
+      <div class="result-sub" style="color:var(--orange)">A$${(apiTotal*USD_TO_AUD).toFixed(3)} per family/mo</div>
     </div>
     <div class="result-card neutral">
       <div class="result-label" style="color:var(--blue)">BREAK-EVEN AT</div>
@@ -1128,9 +1338,9 @@ function updateModel() {
   const beSimple = marginUSD > 0 ? Math.ceil(totalCostUSD / netRevenueUSD) : null;
   document.getElementById('breakeven-text').innerHTML = beSimple
     ? `At current settings, you need <strong>${beSimple.toLocaleString()} paying families</strong> to cover all costs. 
-       Each family generates <strong>A$$${(netRevenueUSD*USD_TO_AUD).toFixed(2)} net revenue</strong> after App Store and Stripe fees, 
-       against <strong>A$$${(totalCostUSD*USD_TO_AUD).toFixed(2)} total cost</strong> — leaving <strong style="color:${marginUSD>=0?'var(--green)':'var(--red)'}">A$$${(marginUSD*USD_TO_AUD).toFixed(2)} margin</strong> per family.
-       At ${finScale.toLocaleString()} families: <strong style="color:${scaledProfit>=0?'var(--green)':'var(--red)'}">${scaledProfit>=0?'profitable at':'losing'} A$$${Math.abs(scaledProfitAUD/1000).toFixed(1)}k/month</strong>.`
+       Each family generates <strong>A$${(netRevenueUSD*USD_TO_AUD).toFixed(2)} net revenue</strong> after App Store and Stripe fees, 
+       against <strong>A$${(totalCostUSD*USD_TO_AUD).toFixed(2)} total cost</strong> — leaving <strong style="color:${marginUSD>=0?'var(--green)':'var(--red)'}">A$${(marginUSD*USD_TO_AUD).toFixed(2)} margin</strong> per family.
+       At ${finScale.toLocaleString()} families: <strong style="color:${scaledProfit>=0?'var(--green)':'var(--red)'}">${scaledProfit>=0?'profitable at':'losing'} A$${Math.abs(scaledProfitAUD/1000).toFixed(1)}k/month</strong>.`
     : `At current pricing, costs exceed revenue per family. Raise the family plan price or reduce usage assumptions.`;
   const fillPct = beSimple ? Math.min(100, (finScale / (beSimple * 2)) * 100) : 0;
   document.getElementById('viability-fill').style.width = fillPct + '%';

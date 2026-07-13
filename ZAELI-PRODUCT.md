@@ -1,5 +1,5 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 10 July 2026 — Session 28 ✅ · STRIPE PHASE 3b LIVE END-TO-END + CALENDAR PHANTOM-EVENT FIX + SPLASH SAGA · **Stripe integration end-to-end proven in sandbox** — external Stripe activation completed (products A$9.99 family + A$7.99 tutor with tax-inclusive prices, Customer Portal, two Edge Functions deployed with secrets, webhook registered with 6 events, test customer + subscription verified syncing to profile). Manage subscription button in Settings opens real Stripe Customer Portal · **Calendar phantom-event bug fixed** — Zaeli was confidently confirming events that never landed in DB. Root cause: `.insert()` silent RLS block returns `{error:null, data:null}` and old tool code treated it as success. Fix: `.insert().select('id').maybeSingle()` verification. Diagnostic logging added · **Splash blue flash reduced** — 5 fix attempts today reduced the flash from clearly visible to barely visible sub-100ms flicker. Full elimination parked (needs WSL for storyboard inspection) · **Small polish** — Stripe webhook current_period_end fix (items-level fallback for newer API), MoreSheet Settings icon viewBox padding · Prior Session 27 (app icon 2B, first preview build, brief bucket-check + dedup fixes) + Session 26 (brief v1/v2, pricing pivot) + Session 25 (Universal Links LIVE, Cloudflare/Netlify hosting) all still current · Remaining: checkout flow (Payment Link fastest for beta), Anna's phone (Phase 2e), Phase 4b TestFlight submission, Phase 5 pre-launch (move Anthropic/OpenAI keys server-side)*
+*Last updated: 13 July 2026 — Session 29 ✅ · MEAL PLANNER PIVOT + ANNA BETA FIXES + COST ECONOMICS + ADMIN CONSOLE REFRESH · **Meal planner pivots recipes-first** — Anna's second beta round surfaced a strategic insight: daily meal planning is friction, not helpfulness. "No busy family will sustain it." Reshuffle from "Planner + Recipes + Favourites" to "Recipes → Regulars → Plan". Favourites renamed **Regulars** (acknowledges reality, not aspiration). Dashboard "Meal Planner" card → "Tonight's Meals" with "See family regulars" CTA. Zaeli's chat context now includes family regulars — when asked "quick dinner?", she picks from THEIR saved recipes and cross-checks pantry. Same Philosophy B shape as Session 26 brief pivot and Session 17 budget pivot: Zaeli becomes MORE useful by asking users to DO LESS · **Anna beta round 1+2 fixes** — Tutor math accuracy (three-layer fix: prompt hardening + hidden `<expected>` marker + ground-truth injection on next call — make-or-break for Tutor's A$7.99/child revenue), pantry visibility in chat context (was confabulating "not in pantry" for items clearly there), multi-photo receipt batching (was creating 2×$0 + 1 summary), in-sheet Spend UX (was navigating away mid-flow), Dashboard reshuffle per Anna's ordering (Calendar → Shopping → Bento → Radar → Meal Planner), onboarding gate wired (new owners now actually get the flow), dynamic user name in briefs (Anna sees "Morning Anna", not "Morning Rich") · **Cost economics deep-dive** — Anna's real api_logs revealed home_chat costing ~A$3.30/family/mo, 3× modeled. Sonnet tool-calling path was uncached. Added prompt caching to both initial + followup calls. Projection: A$3.30 → A$0.50/family/mo — the difference between unit-loss-making and healthy 60% margin. Also fixed negative-cost bug in api-logger (was double-subtracting cache_read) and corrected Haiku 4.5 pricing (4× too low) · **Calendar bulk-paste truncation fix** — Anna's 10-school-events paste dropped the 10th. Diagnosis via api_logs: output_tokens=800 (max_tokens ceiling), 10th tool_use cut mid-JSON. Fix: max_tokens 800→2000 initial, 500→1500 followup · **Admin console refresh** — fixed double-$ template bugs, reset slider defaults to Anna's real usage, break-even card → per-family margin card, corrected stale "Briefs on GPT" label (they've been Sonnet since Session 9), real subscription state in Accounts table, memory system health card. Locked: admin console source of truth is inside repo · Prior Session 28 (Stripe end-to-end, calendar phantom fix, splash saga) + Session 27 (icon 2B, preview build) + Session 26 (brief invisible-domain rule, pricing pivot) + Session 25 (Universal Links LIVE) all still current · Remaining: checkout flow, Anna's phone (Phase 2e), TestFlight submission, Phase 5 API keys server-side*
 
 ---
 
@@ -316,6 +316,42 @@ Three tabs: **Meals · Recipes · Favourites**
 ---
 
 ## ══════════════════════════════════
+## MEAL PLANNER v2 — RECIPES-FIRST (LOCKED Session 29 ✅)
+## ══════════════════════════════════
+
+### The Anna insight
+
+Session 29 was Anna's second round of beta testing. One line of feedback shifted the whole module: *"meal planning daily is too much effort — no busy family will sustain it."*
+
+Same shape as the Session 26 brief pivot. Something that presents as helpfulness (a 7-day meal planner) is actually friction. Busy families don't have the time or headspace to plan every meal every week. They rely on 15-20 dinners they know how to cook, rotating with what's in the pantry. The old Meals-first design pretended otherwise.
+
+### The pivot
+
+**Old orientation:** Meals tab first · Recipes middle · Favourites last. Meals tab was a 7-day planner asking families to make daily decisions.
+
+**New orientation:** **Recipes tab first · Regulars middle · Meals demoted to "Plan" mode.** Zaeli asks about tonight's dinner and suggests from the family's saved recipes — cross-checking pantry — instead of pushing users into a planning UI.
+
+**Rename: "Favourites" → "Regulars".** Same underlying `is_favourite` flag, but the label reframes what the tab is for. "Favourites" is aspirational (the meals I love in theory). "Regulars" is honest (the meals we actually cook). Busy families have a rotation, not a wishlist.
+
+**Dashboard card: "Meal Planner" → "Tonight's Meals"** with a "See family regulars" CTA. Same shift — from planning surface to suggestion surface. The Session 9 spec called this card "Meal Planner"; Session 29 supersedes that name.
+
+### Zaeli's new job
+
+Regulars are wired into Zaeli's chat context. When Rich asks "quick dinner suggestion?", she picks from THEIR saved recipes, factors in what's in the pantry, and proposes 2-3 options with a one-line rationale each. No planning UI required. She works with the family's real rotation instead of asking them to invent one.
+
+The Meals (Plan) tab is retained — families who *want* to plan a week ahead can — but it's no longer the entry point. Discovery starts with recipes; commitment happens through Zaeli asking, not through the user pushing.
+
+### Why this is a Philosophy B win
+
+Same discipline as the invisible-domain rule for briefs (Session 26). Same discipline as Our Budget's pure-planner pivot (Session 17). **Zaeli becomes MORE useful by asking families to DO LESS.**
+
+The counterfactual is common in productivity apps: teams add features, force users to enter more data, then wonder why engagement drops. Every "less is more" call we've made — dropping midday brief, invisible domains, pure planner budget, regulars-first meals — has strengthened the product's core value proposition (Zaeli notices, suggests, remembers) at the expense of features that felt like value but were actually friction.
+
+Locked. Never reintroduce the "7-day planner as home" surface for Meals.
+
+---
+
+## ══════════════════════════════════
 ## OUR BUDGET — PURE PLANNER (LOCKED Session 17 ✅)
 ## ══════════════════════════════════
 
@@ -551,6 +587,47 @@ Calendar · Shopping · Meal Planner · Notes & Tasks · Travel
 85. ✅ **Calendar phantom-event bug fixed** ⭐ — Session 28 (10 July) — commit `b5a06fa`. Diagnosis from 5 screenshots Richard shared: Zaeli was confidently saying "Added Duke's Soccer Carnival for Saturday 18 July..." on 3 attempts, none of which actually landed in the DB. Root cause: `.insert(row)` returns `{ error: null, data: null }` on silent RLS block (WITH CHECK evaluated null due to auth race), old code only checked `if (error)` → false-positive success → Zaeli reported success from tool_result in good faith. Fix: `.insert(row).select('id').maybeSingle()` and `if (!res.data?.id) return TOOL_FAILED`. Same treatment for recurring batch case. Added `[calendar-add]` diagnostic logging: input params, assignee resolution (roster snapshot + requested vs resolved names), inserted OK / failed. Verified working on device — next event added cleanly on first try.
 86. ✅ **Splash blue flash reduction (5 attempts, mostly fixed, parked)** — Session 28 (10 July) — Session 27 shipped icon + preview build. During testing Richard captured screenshots showing warm-bg splash → bright blue frame → app. Five fix attempts: (1) `df9e445` top-level splash config — no help; (2) `c10ae4c` Fabric Stack wrapper + contentStyle — no help; (3) `2553c3e` explicit ios.splash + dark variants — no help; (4) `1b5fa48` expo-system-ui plugin + `SystemUI.setBackgroundColorAsync` — no help; (5) `ba638a4` **onLayout-gated `hideAsync` + fade** — the mostly-fix. Reduced flash from clearly visible (~500ms) to barely visible (<100ms flicker). Full elimination would need WSL for iOS storyboard inspection. **Key learning: splash blue flash is a timing issue, not a colour issue** — all colour-config attempts failed; the timing fix (wait for root View to lay out before hiding splash) was what worked. Parked as cosmetic.
 87. ✅ **MoreSheet Settings icon clip fix** — Session 28 (10 July) — commit `3ea23d4`. IcoSettings gear teeth strokes were touching viewBox 24x24 edges with strokeWidth 1.7 causing half-stroke clip at tile corner. Fix: `viewBox="-1 -1 26 26"` for 1 unit padding on each side. Same visual size, no clipping. Reusable pattern for any SVG icon with edge-hugging strokes.
+
+88. ✅ **Meal planner pivots recipes-first** ⭐ — Session 29 (13 July) — Anna's second beta round surfaced a strategic insight: daily meal planning is friction, not helpfulness. "No busy family will sustain it." Reshuffle: Meals tab demoted to "Plan" mode (still available), Recipes tab promoted to entry point, Favourites renamed to **Regulars** (acknowledges busy-family reality, not aspiration). Dashboard card "Meal Planner" → "Tonight's Meals" with "See family regulars" CTA. Zaeli's chat context now includes family regulars — when asked "quick dinner suggestion?", she picks from THEIR saved recipes and cross-checks against pantry. Zero data-entry pressure, all suggestion-forward. Same Philosophy B shape as Session 26 brief pivot and Session 17 budget pivot: Zaeli becomes MORE useful by asking users to DO LESS. New locked spec section: "MEAL PLANNER v2 — RECIPES-FIRST (LOCKED Session 29)".
+
+89. ✅ **Anna beta round 1+2 fixes** — Session 29 (13 July) — real usage informing real fixes, none visible in solo development:
+    - **Tutor math accuracy** — Anna reported Zaeli wrongly rejecting correct answers to 84÷7 and 15×24. Make-or-break bug for Tutor's A$7.99/child revenue: a tutor that marks correct answers wrong loses the parent's trust in one session. Three-layer fix: (1) prompt hardening around arithmetic verification, (2) hidden `<expected>` marker Sonnet emits before scoring, (3) ground-truth injection on next call so state carries forward.
+    - **Pantry visibility** — Zaeli was saying "not in pantry" for maple syrup that was clearly there. Pantry data added to chat context with a PANTRY RULES block forcing her to check first before confabulating.
+    - **Multi-photo receipt scan** — Anna's multi-page receipts were creating 2×$0 rows + 1 correct summary (three separate Sonnet calls, first two failing to see the total). Now batches into a single Sonnet call with all pages.
+    - **In-sheet Spend UX** — receipt upload was navigating away from the Shopping sheet to Chat mid-flow. Fixed to stay in-sheet with inline progress.
+    - **Dashboard reshuffle** — reordered per Anna's stated priority: Calendar → Shopping → Bento (weather + Noticed) → Radar → Meal Planner. Was arbitrary before.
+    - **Onboarding gate wired** — new owners now actually get the onboarding flow (was silently skipped on Anna's first test — she landed straight in cold chat).
+    - **Dynamic user name in briefs** — hardcoded "Rich" in brief prompts replaced with templated `getProfile().name`. Anna sees "Morning Anna", not "Morning Rich". Small change, big trust implications.
+
+90. ✅ **Cost economics deep-dive** ⭐ — Session 29 (13 July) — analysis of Anna's real `api_logs` revealed home_chat was costing ~A$3.30/family/mo, over 3× the modeled estimate. Root cause: the Sonnet tool-calling path (65% of chat calls) was running uncached at $3/M input while briefs and tutor already used prompt caching. Fix: added prompt caching to both the initial and followup Sonnet tool calls (beta header + `cache_control` marker on system block). Also: the followup call was previously silent in `api_logs` — real cost was 2× what the logs showed. Now logged. **Projection: A$3.30 → ~A$0.50/family/mo** — the difference between unit-loss-making and a healthy 60% margin at A$9.99. Also fixed a negative-cost bug in `lib/api-logger.ts` (was subtracting `cache_read` from `input_tokens`, but the three token fields are disjoint per Anthropic docs) and corrected Haiku 4.5 pricing which was 4× too low. Discovered separately: brief cache invalidates between adults (each adult's primaryUser signature triggers a new Sonnet call) — at a 2-adult family = ~240 briefs/mo. Per-user brief cache queued as a future scale optimization.
+
+91. ✅ **Calendar bulk-paste `max_tokens` fix** — Session 29 (13 July) — Anna pasted a screenshot of 10 school events; Zaeli reported adding all but "Last day of school term — 18 Sept". Investigation via `api_logs` showed the 07:48pm home_chat call had `output_tokens=800` — exactly the max_tokens ceiling. Root cause: 10 tool_use blocks × ~80 output tokens each + preamble ≈ 800 = truncated mid-10th block. The malformed final JSON block was silently dropped by the client parser. Fix: raised `max_tokens` 800 → 2000 (initial call), 500 → 1500 (followup). Zero cost impact unless Sonnet actually uses the ceiling. Prevents multi-event pastes from cutting off silently — a critical fix for the "school newsletter dump" use case that Zaeli should handle in one shot.
+
+92. ✅ **Admin console Session 29 refresh** — Session 29 (13 July) — the internal admin dashboard at `app/(tabs)/zaeli-admin/index.html`. Fixed double-$ template literal bugs (A$$$X.XX rendering), reset slider defaults to match real usage from Anna's api_logs (briefs 420→240/mo, scans 90→15/mo). Break-even card replaced with per-family margin card (old math was nonsense). Feature labels corrected (Briefs run on Sonnet, NOT GPT — the label was stale from pre-Session-9 era when routing was still being debated). Real subscription state in Accounts table (reads `beta_end_date` + `subscription_status`). Memory system health card added to Usage view. Also relocated: session started on a stale copy in Downloads before realising the source of truth lives inside the repo. **Locked:** admin console source of truth is `app/(tabs)/zaeli-admin/`, not scratchpads or Downloads.
+
+### Session 29 strategic reflection
+
+Anna's beta round surfaced a class of issue only real usage reveals:
+
+- **Quality bugs** (Zaeli getting math wrong) that would kill Tutor conversion
+- **UX friction** (meal planner ask) that busy families quietly abandon
+- **Cost overruns** (uncached chat) that would make the business model unviable at scale
+- **Silent truncation** (calendar bulk paste dropping the 10th event) that erodes trust one screenshot at a time
+
+None of these were visible in solo development. All are the kind of thing that only lands when someone else is using the product to run their actual family.
+
+Post-Session-29 economics per family (with caching applied, realistic volumes): ~A$3-5/mo API cost = 30-50% of A$9.99 revenue. Healthy. Add Tutor at 30% adoption = 50-60% margin overall. Tutor stays the biggest lever.
+
+The meal planner pivot is the most important product decision of the session. It joins a pattern: Session 17 (budget = planner, not tracker), Session 26 (brief = quiet on empty domains), Session 29 (meals = suggest from regulars, not push planning). Every one of these calls made Zaeli more useful by asking families to do less. That's the shape of Philosophy B in practice — not a feature list, a discipline.
+
+### Session 29 locked decisions
+
+- **Meal planner UX = recipes-first, regulars-in-context.** Meals tab retained but demoted. Never reintroduce the "7-day planner as home" surface.
+- **max_tokens ceiling for bulk operations = 2000 initial / 1500 followup.** Prevents silent tool_use truncation.
+- **Sonnet stays on briefs.** Persona quality > small cost difference now that caching is applied.
+- **Sonnet 5 migration queued for after Anna beta settles.** Intro pricing $2/$10 through Aug 2026 makes it CHEAPER than 4.6 — free perf upgrade if we time the swap right.
+- **Per-family MARGIN (not break-even)** is the metric to watch during beta. Admin console updated to reflect this.
+- **Admin console source of truth = in-repo** (`app/(tabs)/zaeli-admin/`), never Downloads or scratchpads.
 
 ### Phase B — Make it testable
 31. 🔨 Real authentication (replace DUMMY_FAMILY_ID + replace `account-state` AsyncStorage)
