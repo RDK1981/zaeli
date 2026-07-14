@@ -409,6 +409,63 @@ export async function registerPushToken(): Promise<string | null> {
   }
 }
 
+// Session 29 — verbose diagnostic. Returns every relevant piece of state
+// so the on-device Alert can show the actual failure reason (userId present?
+// permission granted? projectId resolved? did the token API throw? did the
+// DB write fail?). Doesn't swallow errors like registerPushToken() does.
+export async function debugPushToken(): Promise<{
+  ok: boolean;
+  step: string;
+  detail: string;
+  userId?: string | null;
+  permission?: string;
+  projectId?: string;
+  token?: string;
+  dbWriteOk?: boolean;
+}> {
+  const userId = getCurrentUserId();
+  if (!userId) return { ok: false, step: 'auth', detail: 'No signed-in user (getCurrentUserId returned null)', userId: null };
+
+  let permission: string = 'unknown';
+  try {
+    const p = await Notifications.getPermissionsAsync();
+    permission = p.status;
+  } catch (e: any) {
+    return { ok: false, step: 'permissions', detail: `getPermissionsAsync threw: ${e?.message ?? e}`, userId };
+  }
+  if (permission !== 'granted') {
+    return { ok: false, step: 'permissions', detail: `status='${permission}' (not granted)`, userId, permission };
+  }
+
+  const projectId =
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    (Constants as any)?.easConfig?.projectId ??
+    undefined;
+
+  let token: string;
+  try {
+    const tokenResult = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+    token = tokenResult.data;
+  } catch (e: any) {
+    return {
+      ok: false,
+      step: 'getExpoPushTokenAsync',
+      detail: `THREW: ${e?.message ?? e}${e?.code ? ` (code: ${e.code})` : ''}`,
+      userId, permission, projectId,
+    };
+  }
+
+  if (!token || !token.startsWith('ExponentPushToken[')) {
+    return { ok: false, step: 'token-format', detail: `Unexpected token format: ${token ?? 'null'}`, userId, permission, projectId, token };
+  }
+
+  const { error: writeErr } = await supabase.from('profiles').update({ expo_push_token: token }).eq('id', userId);
+  if (writeErr) {
+    return { ok: false, step: 'db-write', detail: `Supabase update failed: ${writeErr.message}`, userId, permission, projectId, token, dbWriteOk: false };
+  }
+  return { ok: true, step: 'done', detail: 'Token registered + DB write confirmed', userId, permission, projectId, token, dbWriteOk: true };
+}
+
 // Clear this device's push token on sign-out so pushes don't keep landing
 // after the user has left the account.
 export async function unregisterPushToken(): Promise<void> {

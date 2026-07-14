@@ -34,7 +34,7 @@ import {
   clearAllMemory, type InsightRow, type MilestoneRow,
 } from '../../lib/zaeli-memory';
 import { getFamilyId } from '../../lib/family';
-import { scheduleBriefNotifications, registerPushToken } from '../../lib/notifications';
+import { scheduleBriefNotifications, registerPushToken, debugPushToken } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
 import { getSubscription, subscriptionLabel, fetchCustomerPortalUrl, shouldPromptSubscribe, getCheckoutUrl } from '../../lib/stripe';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -445,27 +445,23 @@ export default function SettingsScreen() {
             }
           }}
           onRegisterPushToken={async () => {
-            // Session 29 — on-device push token diagnostic. Manually invokes
-            // registerPushToken() and surfaces the result via Alert. Also
-            // re-reads the profile row so we can confirm the DB write landed.
+            // Session 29 — verbose on-device diagnostic. debugPushToken()
+            // returns structured info about every step so the Alert shows
+            // exactly WHERE it fails (auth / permissions / getExpoPushTokenAsync
+            // throwing / DB write) with the actual error message.
             try {
-              const token = await registerPushToken();
-              if (!token) {
-                Alert.alert(
-                  'No token registered',
-                  'registerPushToken returned null. Common causes:\n\n• Notifications permission denied in iOS Settings\n• App missing aps-environment entitlement (expo-notifications plugin)\n• Expo project missing APNs push credentials\n\nCheck iOS Settings → Zaeli → Notifications is ON, then try again.',
-                );
-                return;
-              }
-              // Verify the DB write landed
-              const { data: prof } = await supabase.from('profiles').select('expo_push_token').eq('id', (await supabase.auth.getUser()).data.user?.id ?? '').maybeSingle();
-              const dbHasIt = prof?.expo_push_token === token;
-              Alert.alert(
-                dbHasIt ? '✅ Push token registered' : '⚠ Token generated but DB write missing',
-                `Token: ${token.slice(0, 30)}...\n\nDB write: ${dbHasIt ? 'confirmed' : 'not found — check RLS / logs'}`,
-              );
+              const r = await debugPushToken();
+              const lines: string[] = [];
+              lines.push(`Step: ${r.step}`);
+              lines.push(`Detail: ${r.detail}`);
+              if (r.userId !== undefined) lines.push(`userId: ${r.userId ? r.userId.slice(0, 8) + '…' : 'null'}`);
+              if (r.permission) lines.push(`permission: ${r.permission}`);
+              if (r.projectId) lines.push(`projectId: ${r.projectId.slice(0, 8)}…`);
+              if (r.token) lines.push(`token: ${r.token.slice(0, 30)}…`);
+              if (r.dbWriteOk !== undefined) lines.push(`dbWrite: ${r.dbWriteOk ? 'OK' : 'FAILED'}`);
+              Alert.alert(r.ok ? '✅ Push token registered' : `⚠ Failed at: ${r.step}`, lines.join('\n'));
             } catch (e: any) {
-              Alert.alert('Push registration threw', e?.message ?? String(e));
+              Alert.alert('debugPushToken threw', e?.message ?? String(e));
             }
           }}
         />
