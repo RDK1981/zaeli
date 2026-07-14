@@ -1,5 +1,5 @@
 # CLAUDE.md — Zaeli Project Context
-*Last updated: 13 July 2026 — Session 29 ✅ · ANNA BETA ROUND 1 + API COST FIX + MEAL PLANNER PIVOT + ADMIN CONSOLE REFRESH · **Anna beta round 1 shipped** (commit `92a35d4`) — Tutor math accuracy via three-layer defence (anti-sycophancy prompt rules + hidden `<expected>N</expected>` marker Sonnet emits + LAST_EXPECTED_ANSWER injection on next call — fixes "12 is wrong for 84÷7" and "360 is wrong for 15×24"), pantry data injected into chat context + PANTRY RULES prompt block (Zaeli stops saying "not in pantry" for items IN pantry), pantry "yesterday" date bug fixed (midnight-normalise both dates before diffing), multi-photo receipt scan (up to 4 photos batched into ONE Sonnet call), in-sheet scan UX (progress banner + result toast — no more nav-to-Chat handoff), Dashboard reshuffled Calendar → Shopping → Bento → Radar → Meals (honest usage priority), "Welcome In" → "Welcome!" · **Onboarding gate + polish** — route guard bounces new owner accounts to /onboarding via AsyncStorage `onboarding_complete` flag, grandfather clause skips profiles >24h old (Rich pre-gate signup safe), sign-in defaults to sign-up mode (new users vastly outnumber returning), Stripe "Coming soon" alert cleared on Manage subscription (commit `916f2ab`), dynamic user name in brief prompts via `${primaryUser}` template replacing 7 hardcoded "Rich" spots, computeSignature includes primaryUser so cached briefs don't leak names across family members · **API cost fix** (commit `0b65420`) — negative-cost bug in `lib/api-logger.ts` (was subtracting cache_read + cache_write from input_tokens which is ALREADY the uncached portion), Haiku 4.5 pricing corrected $0.25/$1.25 → $1.00/$5.00 (4× too low), Sonnet 5 + Opus 4.8 pricing added for future migrations, prompt caching wired onto Sonnet tool-calling path in `send()` (both initial call AND previously-unlogged follow-up call — real cost was 2× what api_logs showed), expected impact home_chat A$0.02-0.04 → A$0.005-0.01 per repeat-turn call — at ~250 chats/mo/family that's A$3.30 → ~A$0.50/family/mo (loss-making → 60% margin) · **Meal planner pivot (uncommitted)** — Anna feedback: meal planning daily is friction no busy family sustains; recipes + regulars is where the real value lives. DinnerCard label "MEAL PLANNER" → "TONIGHT'S MEALS", empty-state CTA "See family regulars →" (not "Plan it →"), tab order Meals/Recipes/Favourites → Recipes/Regulars/Plan (default opens Recipes). buildContext queries recipes WHERE 'favourite' IN tags → adds "Family regulars" line to chat LIVE DATA (12 hearted recipes). New MEAL IDEAS RULES prompt block: Zaeli reaches for regulars FIRST on "quick dinner?" queries · **Calendar max_tokens bump (uncommitted)** — Anna's 10-event paste dropped the last event; api_logs showed `output_tokens: 800` exactly (the ceiling), each add_calendar_event tool_use block ~80 tokens, 10 × 80 + preamble ≈ 800 → truncated mid-block → malformed JSON silently dropped. Fix: max_tokens 800→2000 (initial) and 500→1500 (followup) · **Admin console Session 29 refresh** — moved source-of-truth from Downloads to `app/(tabs)/zaeli-admin/index.html`. Wordmark accent yellow → sky blue #A8D8F0, model ID claude-sonnet-4-20250514 → claude-sonnet-4-6, price sliders A$9.99/A$7.99, per-family margin card replaces nonsensical break-even, real subscription state in Accounts table (beta_end_date + subscription_status), memory system health card, double-$ display bug fixed (13 rows) · **Stripe beta grant infrastructure** — profiles.beta_end_date column, lib/stripe.ts helpers (getSubscription with beta override, isFamilyInBeta), family-roster.ts beta override (kids get tutor_active=true while family in beta), TutorSidebar uses isFamilyInBeta to unlock locked children · Prior Session 28 (Stripe end-to-end + calendar phantom fix + splash saga) + Session 27 (app icon 2B, first preview build, brief bucket-check + dedup fixes) + Session 25 (Universal Links LIVE) all still current — remaining: build #15 (holding to bundle more Anna feedback), Sonnet 5 migration (intro pricing $2/$10 through Aug 2026 makes it CHEAPER than 4.6), per-user brief cache when scaling past 100 families, TestFlight submission, **Phase 5 (BEFORE PUBLIC LAUNCH) — move Anthropic/OpenAI keys server-side (client-bundled keys extractable)***
+*Last updated: 14 July 2026 — Session 30 ✅ · FAMILY PUSH NOTIFICATIONS + MULTI-PHOTO CHAT + TRIVIA GUARD + SPLASH LATENCY + EXPO-NOTIFICATIONS PLUGIN DISCOVERY · **Family push infra shipped** (commit `8bbf7e3`) — `supabase-push-tokens.sql` adds `profiles.expo_push_token`, Edge Function `supabase/functions/family-notify/index.ts` (JWT-verified, family-boundary-enforced, batches to Expo push API), `lib/notifications.ts` `registerPushToken`/`unregisterPushToken`/`notifyFamily`, `_layout.tsx` fire-and-forget register after auth, `index.tsx` Notify chip on calendar confirm cards + `send_family_message` tool with fuzzy name matching + "family"/"everyone" shortcuts. Plus Spend Processing overlay (full-screen dark backdrop + ActivityIndicator + "Processing..." status label, silent success, Alert on error) + tutor Play icon removed (matches home chat) · **Multi-photo chat + Stripe testability + foreground refresh** (commit `e6c8ea6`) — `pendingImage: string | null` → `pendingImages: string[]` with `MAX_CHAT_PHOTOS = 4` cap, additive Camera/Photos pickers, horizontal thumbnail strip with per-photo ✕, `send(text?, overrideImages?: string[])`, ONE Sonnet call for ALL images with multi-photo aggregation prompt, `Msg.imageUris?: string[]` alongside legacy `imageUri`, horizontal grid render for 2+ photos (110×110). Stripe: Developer row "💳 Test Stripe checkout" force-opens Payment Link even when beta grant hides Subscribe button. Foreground refresh: `_layout.tsx` AppState listener reloads profile on background→active transition (Stripe checkout return path — user completes payment in Safari, returns to app, subscription card auto-updates) · **Trivia answer-in-question guard + cold-start splash latency fix** (commit `34b57eb`) — Duke saw "Which sport is played with a round ball and goals, and is called soccer in many countries?" answer "Soccer". Three-layer defence: prompt rule with BAD/GOOD examples + client-side word-boundary regex filter (4+ char answers, drops self-revealing). Splash: 3s splash on foreground return after iOS jetsammed app. Root cause: `await loadProfile()` blocking `setAuthed` in cold-start useEffect (Supabase network 1-2s decent, 3s+ flaky). Fix: setAuthed immediately once session verified (fast AsyncStorage), kick loadProfile background. Route guard already tolerates null profile. Cuts splash ~2s · **⭐ CRITICAL DISCOVERY: `expo-notifications` plugin was missing from `app.json` plugins array** (commit `6eab45a`) — without it, iOS never gets `aps-environment` entitlement → `getExpoPushTokenAsync` throws at boot → the `.catch(() => {})` in `_layout.tsx` swallowed silently → `profiles.expo_push_token` stayed null forever. Local scheduled notifications (briefs) still worked because they don't need APNs — that's what confused diagnosis. Fixes: added expo-notifications plugin, replaced silent catch with `.catch(e => console.log(...))`, added Developer row "🔔 Register push token now" that manually triggers + shows result via Alert · **Verbose push diagnostic** (commit `dcb263b`) — `debugPushToken()` returns structured state (step name, detail, userId, permission, projectId, token snippet, dbWrite outcome) so on-device Alert shows exactly where the failure is · **EAS Starter plan upgrade** (14 iOS builds/month) — free tier build cap hit mid-session. `eas build` and `eas submit` are separate commands (confused Rich twice) · **GIPHY key discovery** — Kids Hub rewards GIFs failing in standalone because `EXPO_PUBLIC_GIPHY_API_KEY` in local `.env` never added to EAS Environment Variables (same Session 27 pattern) · Prior Session 29 (Anna beta round 1 + API cost fix + meal pivot) + Session 28 (Stripe end-to-end) + Session 25 (Universal Links LIVE) all still current — remaining: verbose diagnostic build to nail push failure step, GIPHY EAS env var, website v5 rewrite (parked), Anna beta round 2 (awaiting successful push build), Sonnet 5 migration (still queued), per-user brief cache (still queued), **Phase 5 (BEFORE PUBLIC LAUNCH) — move Anthropic/OpenAI keys server-side (client-bundled keys extractable)*** (commit `92a35d4`) — Tutor math accuracy via three-layer defence (anti-sycophancy prompt rules + hidden `<expected>N</expected>` marker Sonnet emits + LAST_EXPECTED_ANSWER injection on next call — fixes "12 is wrong for 84÷7" and "360 is wrong for 15×24"), pantry data injected into chat context + PANTRY RULES prompt block (Zaeli stops saying "not in pantry" for items IN pantry), pantry "yesterday" date bug fixed (midnight-normalise both dates before diffing), multi-photo receipt scan (up to 4 photos batched into ONE Sonnet call), in-sheet scan UX (progress banner + result toast — no more nav-to-Chat handoff), Dashboard reshuffled Calendar → Shopping → Bento → Radar → Meals (honest usage priority), "Welcome In" → "Welcome!" · **Onboarding gate + polish** — route guard bounces new owner accounts to /onboarding via AsyncStorage `onboarding_complete` flag, grandfather clause skips profiles >24h old (Rich pre-gate signup safe), sign-in defaults to sign-up mode (new users vastly outnumber returning), Stripe "Coming soon" alert cleared on Manage subscription (commit `916f2ab`), dynamic user name in brief prompts via `${primaryUser}` template replacing 7 hardcoded "Rich" spots, computeSignature includes primaryUser so cached briefs don't leak names across family members · **API cost fix** (commit `0b65420`) — negative-cost bug in `lib/api-logger.ts` (was subtracting cache_read + cache_write from input_tokens which is ALREADY the uncached portion), Haiku 4.5 pricing corrected $0.25/$1.25 → $1.00/$5.00 (4× too low), Sonnet 5 + Opus 4.8 pricing added for future migrations, prompt caching wired onto Sonnet tool-calling path in `send()` (both initial call AND previously-unlogged follow-up call — real cost was 2× what api_logs showed), expected impact home_chat A$0.02-0.04 → A$0.005-0.01 per repeat-turn call — at ~250 chats/mo/family that's A$3.30 → ~A$0.50/family/mo (loss-making → 60% margin) · **Meal planner pivot (uncommitted)** — Anna feedback: meal planning daily is friction no busy family sustains; recipes + regulars is where the real value lives. DinnerCard label "MEAL PLANNER" → "TONIGHT'S MEALS", empty-state CTA "See family regulars →" (not "Plan it →"), tab order Meals/Recipes/Favourites → Recipes/Regulars/Plan (default opens Recipes). buildContext queries recipes WHERE 'favourite' IN tags → adds "Family regulars" line to chat LIVE DATA (12 hearted recipes). New MEAL IDEAS RULES prompt block: Zaeli reaches for regulars FIRST on "quick dinner?" queries · **Calendar max_tokens bump (uncommitted)** — Anna's 10-event paste dropped the last event; api_logs showed `output_tokens: 800` exactly (the ceiling), each add_calendar_event tool_use block ~80 tokens, 10 × 80 + preamble ≈ 800 → truncated mid-block → malformed JSON silently dropped. Fix: max_tokens 800→2000 (initial) and 500→1500 (followup) · **Admin console Session 29 refresh** — moved source-of-truth from Downloads to `app/(tabs)/zaeli-admin/index.html`. Wordmark accent yellow → sky blue #A8D8F0, model ID claude-sonnet-4-20250514 → claude-sonnet-4-6, price sliders A$9.99/A$7.99, per-family margin card replaces nonsensical break-even, real subscription state in Accounts table (beta_end_date + subscription_status), memory system health card, double-$ display bug fixed (13 rows) · **Stripe beta grant infrastructure** — profiles.beta_end_date column, lib/stripe.ts helpers (getSubscription with beta override, isFamilyInBeta), family-roster.ts beta override (kids get tutor_active=true while family in beta), TutorSidebar uses isFamilyInBeta to unlock locked children · Prior Session 28 (Stripe end-to-end + calendar phantom fix + splash saga) + Session 27 (app icon 2B, first preview build, brief bucket-check + dedup fixes) + Session 25 (Universal Links LIVE) all still current — remaining: build #15 (holding to bundle more Anna feedback), Sonnet 5 migration (intro pricing $2/$10 through Aug 2026 makes it CHEAPER than 4.6), per-user brief cache when scaling past 100 families, TestFlight submission, **Phase 5 (BEFORE PUBLIC LAUNCH) — move Anthropic/OpenAI keys server-side (client-bundled keys extractable)***
 
 ---
 
@@ -2563,6 +2563,193 @@ Verified in this session:
 
 ---
 
+## ══════════════════════════════════
+## SESSION 30 — FAMILY PUSH + MULTI-PHOTO CHAT + TRIVIA GUARD + SPLASH FIX + PLUGIN DISCOVERY (14 July 2026) ✅
+## ══════════════════════════════════
+
+Five commits pushed. Headline: family push notification infrastructure shipped end-to-end (with a critical discovery about a missing Expo plugin that had been silently breaking it), multi-photo chat upload delivered (matching Session 29's receipt-scan pattern), Kids Trivia answer-in-question guard fixed Anna feedback, and a cold-start splash latency fix that cuts ~2s off foreground return. Substantial infrastructure round on top of a stalled iteration cycle — EAS free tier hit mid-session, Rich upgraded to Starter plan.
+
+### A. Family push notification infrastructure (commit `8bbf7e3`) ⭐
+
+The headline Session 30 build. Full push infra shipped: someone can now say "tell Anna soccer's moved to Sunday" in chat and Anna gets a real push notification on her phone.
+
+**NEW SQL: `supabase-push-tokens.sql`**
+- Adds `profiles.expo_push_token TEXT` column (nullable, indexed).
+- No new RLS needed — profiles already has the right policies. Client can only read/write its own profile row.
+
+**NEW Edge Function: `supabase/functions/family-notify/index.ts`**
+- JWT-verified via `Authorization: Bearer <session.access_token>` header.
+- Enforces family boundary: sender's `family_id` MUST match every recipient's `family_id` — otherwise 403. No cross-family push leakage even if the client sends malformed UIDs.
+- Reads recipient `expo_push_token` values from `profiles`, batches to Expo push API (`https://exp.host/--/api/v2/push/send`), returns per-token result array.
+- Silent-skips recipients with no token (invitees who never registered).
+- Deploy: `supabase functions deploy family-notify` (no `--no-verify-jwt` — this ONE uses JWT).
+
+**`lib/notifications.ts` additions:**
+- `registerPushToken()` — calls `getExpoPushTokenAsync({ projectId })` + upserts to `profiles.expo_push_token`. Wraps in try/catch, logs failure.
+- `unregisterPushToken()` — nulls out the profile column on sign-out.
+- `notifyFamily({ userIds, title, body, data })` — calls the Edge Function with JWT.
+- `debugPushToken()` — added later (commit `dcb263b`), returns structured diagnostic state.
+
+**`app/_layout.tsx` wiring:**
+- After auth completes, fire-and-forget `registerPushToken()`. Initially wrapped in `.catch(() => {})` — silent (fix in commit `6eab45a` below).
+
+**`app/(tabs)/index.tsx` chat integration:**
+- Calendar confirm inline cards gained a **Notify** chip that offers to push the new event to selected family members ("Want me to let Anna know?").
+- NEW `send_family_message` tool — Sonnet can call it with `{ recipientNames: string[], title, body }`. Fuzzy name matching via `resolveAssigneeId` roster helper. Shortcuts: "family" or "everyone" expands to all family members except the sender.
+- CAPABILITY_RULES updated so Zaeli knows when to reach for it ("if user asks to tell/notify/let someone know...").
+
+### B. Spend Processing overlay (part of commit `8bbf7e3`)
+
+Follow-on to Session 29's in-sheet scan UX. When a receipt scan is running, Shopping Spend tab now shows a **full-screen dark-backdrop overlay** with `ActivityIndicator` + "Processing..." + status label ("Reading receipt", "Updating pantry", "Saving to spend"). Silent on success — the receipt just appears in the list. Errors surface via `Alert.alert`. No more silent multi-second wait during scan.
+
+### C. Tutor Play icon removed (part of commit `8bbf7e3`)
+
+Small consistency polish — Play icon removed from Zaeli action row in tutor-session, matching home chat where the equivalent was already removed. Both surfaces now match.
+
+### D. Multi-photo chat upload (commit `e6c8ea6`) ⭐
+
+Session 29 shipped multi-photo receipt scan (up to 4 photos, one Sonnet call). Same pattern now applied to the main chat bar. Rich can attach up to 4 photos in a single message.
+
+**State change** ([app/(tabs)/index.tsx](app/(tabs)/index.tsx)):
+- `pendingImage: string | null` → `pendingImages: string[]`
+- New `MAX_CHAT_PHOTOS = 4` constant. Camera and Photos pickers are ADDITIVE (adds to existing array, respects cap).
+- Horizontal thumbnail strip above the chat bar shows each pending photo with per-photo ✕ dismiss.
+- `send(text?, overrideImages?: string[])` — accepts optional image array override. Existing `send('')` for photo-only still works.
+- ONE Sonnet call attaches ALL image parts (both tool path and pure-vision path). Prompt updated with multi-photo aggregation language.
+- `Msg.imageUris?: string[]` field added alongside legacy `imageUri` for backwards compat with older persisted messages. Render logic prefers `imageUris` if present.
+- Chat feed renders horizontal grid for 2+ photos (110×110 each with 6px gaps). Single photo still uses the original 180×120 layout.
+
+### E. Stripe checkout testability (part of commit `e6c8ea6`)
+
+New Developer row in Settings: **"💳 Test Stripe checkout"**. Force-opens the Stripe Payment Link in Safari even when the beta grant hides the Subscribe button. Everything else was already wired in Session 28 — this is testing infrastructure so Rich can exercise the full checkout return path (Safari → payment complete → back to app → Session 30 foreground refresh reloads profile → subscription card updates).
+
+### F. Foreground profile refresh (part of commit `e6c8ea6`) ⭐
+
+`app/_layout.tsx` gained an `AppState.addEventListener('change', ...)` handler. On background→active transition for any signed-in user, calls `loadProfile()`. Critical for the Stripe checkout return path — otherwise the user completes payment in Safari, returns to the app, and the Settings subscription card is stale until they force-restart. Generalisable pattern for any per-user state that can change out-of-app.
+
+### G. Kids Trivia answer-in-question guard (commit `34b57eb`) ⭐
+
+Anna feedback: Duke saw "Which sport is played with a round ball and goals, and is called soccer in many countries?" — answer "Soccer". The AI-generated question literally revealed the answer inline. Classic prompt-only failure — the model wanted to be helpful and defined the term while asking about it.
+
+**Three-layer defence** (same pattern as Session 29 tutor math accuracy):
+1. **Prompt rule** — explicit instruction in the trivia system prompt: "Never include the answer, or a paraphrase of the answer, anywhere in the question text."
+2. **BAD/GOOD examples** inline in prompt — showing "Which sport... called soccer" (BAD) vs "Which sport is played with a round ball and goals?" (GOOD) so the model has a concrete pattern to avoid.
+3. **Client-side filter** — after the model returns, word-boundary regex checks each 4+ character word in the answer against the question text. If any answer word appears in the question, the question is dropped and the next one is generated. Threshold of 4 chars avoids false positives on articles/prepositions.
+
+### H. Cold-start splash latency fix (part of commit `34b57eb`) ⭐
+
+Anna feedback: 3s+ splash on foreground return after iOS jetsammed the app in background.
+
+**Root cause** ([app/_layout.tsx](app/_layout.tsx)) — cold-start `useEffect` was `await loadProfile()` BEFORE `setAuthed(true)`. Session verification from AsyncStorage is fast (~50ms), but `loadProfile()` is a Supabase network query — 1-2s on decent reception, 3s+ on flaky.
+
+**Fix** — restructured cold-start flow:
+- Verify session (fast AsyncStorage read) → `setAuthed(true)` IMMEDIATELY → app renders.
+- Kick `loadProfile()` in the background (fire-and-forget).
+- Route guard already tolerates null profile (treats as owner default — the exact fallback pattern from Session 21).
+- Expected cut: ~2s off foreground-return splash time.
+
+### I. ⭐ CRITICAL DISCOVERY: `expo-notifications` plugin missing from app.json (commit `6eab45a`)
+
+Session 29's `registerPushToken()` was wired correctly. Anna wasn't getting push notifications on her preview build. Diagnosis went through several suspects before landing:
+
+1. Suspected Anna on old build — ruled out (both on 1.0.0 build 6).
+2. Suspected permission denied — ruled out (brief notifications were firing, so permission granted).
+3. Suspected `auth.uid()` NULL in SQL editor — was actually right, needed a different query.
+4. **Actual root cause**: `app.json` `plugins` array had no `expo-notifications` entry.
+
+Without the plugin, iOS never gets the `aps-environment` entitlement at build time → `getExpoPushTokenAsync` throws at boot → the `.catch(() => {})` in `_layout.tsx` swallowed the exception silently → `profiles.expo_push_token` stayed null forever. **Local scheduled notifications (briefs) still worked because they don't need APNs** — that's what threw the diagnosis off. Briefs use expo-notifications' local trigger path which doesn't require the entitlement; push tokens do.
+
+**Fixes shipped in `6eab45a`:**
+- Added `"expo-notifications"` to `app.json` plugins array (with `icon` + `color` config).
+- Replaced silent `.catch(() => {})` in `_layout.tsx` with `.then(...).catch(e => console.log('[push] register threw:', e?.message))` so future failures surface in Metro/EAS logs.
+- Added Developer row "🔔 Register push token now" — manually triggers `registerPushToken()` and shows result via `Alert.alert` so Rich can verify on-device without a rebuild cycle.
+
+### J. Verbose push token diagnostic (commit `dcb263b`)
+
+Post-`6eab45a` on-device test still failed. Previous "returned null" Alert was too coarse — didn't say WHICH step. New `debugPushToken()` returns structured state:
+
+```
+{
+  step: 'auth' | 'permissions' | 'getExpoPushTokenAsync' | 'db-write' | 'done',
+  detail: string,
+  userId: string | null,
+  permission: 'granted' | 'denied' | 'undetermined',
+  projectId: string | null,
+  token: string | null,  // first 20 chars for privacy
+  dbWrite: 'ok' | 'error' | 'skipped',
+  error: string | null,
+}
+```
+
+Developer row Alert now shows the full state block so the actual failure step surfaces without another guess-and-rebuild cycle.
+
+### K. External infrastructure work (non-code, this session)
+
+**EAS Starter plan upgrade** — free tier build cap (15 iOS/month) hit mid-session with rapid push diagnostic iteration. Rich upgraded to Starter (14 iOS builds/month tier). Cost implication: shipping cycle no longer bottlenecked by build quota during active testing rounds.
+
+**`eas build` vs `eas submit` are separate commands** — confused Rich twice this session:
+- `eas build --profile preview` → creates .ipa, gives internal install link (not TestFlight). Only for internal distribution.
+- `eas build --profile production` → creates .ipa AND auto-increments `buildNumber` in expo.dev. Still doesn't push to Apple.
+- **`eas submit --platform ios --latest` is the SEPARATE command** that uploads the latest build to App Store Connect → TestFlight. Both preview and production builds require this to appear in TestFlight; only production builds are App-Store-distributable.
+
+**APNs push credentials** — already auto-provisioned by `eas credentials` (Push Key set up for zaeli / com.zaeli.app during first EAS build). Not the missing piece — the plugin was.
+
+**GIPHY key discovery** — Kids Hub rewards GIFs failing in standalone builds because `EXPO_PUBLIC_GIPHY_API_KEY` sits in local `.env` but was never added to EAS Environment Variables. Same Session 27 pattern as the other 4 `EXPO_PUBLIC_*` keys. Rich needs to add via expo.dev UI as Sensitive visibility for Preview + Production before Kids Hub GIFs render on standalone builds.
+
+**Website v5 rewrite** — parked but 4-round plan drafted (correctness pass with new pricing → beta framing → chat mockup refresh → new sections). Deploy to zaeli.app (replacing current orb splash). ~1 day of work total.
+
+**Outlook/Gmail calendar sync** — discussed and agreed not urgent right now. Revisit if Anna asks twice.
+
+### Locked decisions Session 30
+
+- **`expo-notifications` plugin is REQUIRED in `app.json` plugins array** — without it, iOS never gets the `aps-environment` entitlement and push tokens silently fail. Local notifications (briefs) work either way — that's what makes diagnosis tricky. NEVER remove the plugin entry. If it's ever missing, push token registration will fail invisibly.
+- **Never use `.catch(() => {})` for async fire-and-forget** — swallows errors invisibly. ALWAYS use `.catch(e => console.log('[surface] threw:', e?.message))` at minimum so failures surface in build logs. The silent catch is what cost this session ~2 diagnostic cycles on the missing plugin.
+- **Sensitive silent-failure paths deserve verbose on-device diagnostic** — when a feature depends on OS/API interactions that can fail invisibly in production (push tokens, image picker permissions, background modes), add a Developer row that surfaces structured state via `Alert.alert`. Saves guess-and-rebuild cycles when the failure only reproduces on real devices. Pattern: `debug<Feature>()` returns a state object, Developer row calls it + shows JSON.stringify in Alert.
+- **`eas build` and `eas submit` are separate commands** — build creates the .ipa. Submit uploads to App Store Connect → TestFlight. Preview profile can't be App-Store-submitted (internal distribution only). Only production profile is App-Store-distributable. Both preview and production require `eas submit --platform ios --latest` to appear in TestFlight.
+- **EAS Starter plan** — 14 iOS builds/month, worth the upgrade once beta is active with multiple testers or during rapid diagnostic iteration. Below that, free tier's 15/mo is fine.
+- **Foreground profile refresh pattern** — `_layout.tsx` `AppState.addEventListener('change', ...)` reloads profile on `background → active` transition for any signed-in user. Critical for Stripe checkout return path. Any future per-user state that can change out-of-app (subscription, tier, family members) should hook into this pattern via `_layout.tsx`.
+- **Chat photo attachments cap = 4** — `MAX_CHAT_PHOTOS` constant. Matches receipt scan cap (Session 29). Larger caps would blow up API payloads, latency, and cost per Sonnet vision call. Never raise without cost modelling.
+- **Trivia questions never contain the answer** — three-layer defence pattern (prompt rule + BAD/GOOD examples + client-side word-boundary regex filter, 4+ char threshold). Same pattern as Session 29 tutor math accuracy. Any AI-generated content surface where factual correctness matters should follow this pattern — training bias fights any single-layer fix.
+- **Family push = JWT + family-boundary-enforced Edge Function** — `supabase/functions/family-notify/index.ts` validates that sender's `family_id` MATCHES every recipient's `family_id`. Otherwise 403. Never trust client-supplied recipient UIDs directly; always cross-check family membership server-side.
+- **Cold-start `useEffect` never blocks `setAuthed` on network calls** — verify session (fast AsyncStorage) → `setAuthed(true)` → kick network work in background. Route guards must tolerate null profile (treat as owner default) so the fast path always renders first. Anna's 3s splash was caused by breaking this rule.
+- **Any new `EXPO_PUBLIC_*` env var must be added to BOTH local `.env` AND EAS Environment Variables** (Sensitive visibility, Preview + Production scopes). Local `.env` alone works for dev-client + Metro but silently missing from standalone builds. Same Session 27 lesson keeps biting — every new key = check EAS.
+
+### Files touched Session 30
+
+**NEW SQL:**
+- `supabase-push-tokens.sql` — adds `profiles.expo_push_token`
+
+**NEW Edge Function:**
+- `supabase/functions/family-notify/index.ts` — JWT-verified, family-boundary-enforced, batches to Expo push API
+
+**NEW app.json plugin entry:**
+- `expo-notifications` (with icon + color config)
+
+**MODIFIED:**
+- `lib/notifications.ts` — `registerPushToken` / `unregisterPushToken` / `notifyFamily` / `debugPushToken`
+- `app/_layout.tsx` — fire-and-forget `registerPushToken()` after auth (non-silent catch), AppState listener for foreground profile refresh, cold-start splash latency fix (setAuthed before loadProfile network call)
+- `app/(tabs)/index.tsx` — Notify chip on calendar confirm cards, `send_family_message` tool + CAPABILITY_RULES update, multi-photo state (`pendingImages: string[]` + `MAX_CHAT_PHOTOS = 4`), horizontal thumbnail strip, `send(text?, overrideImages?: string[])` signature, `Msg.imageUris?: string[]` field + horizontal grid render for 2+ photos, tool-path multi-imagePart attachment
+- `app/(tabs)/tutor-session.tsx` — Play icon removed from Zaeli action row (matches home chat)
+- `app/(tabs)/kids-games-data.ts` (or trivia prompt location) — three-layer defence: prompt rule with BAD/GOOD examples + client-side word-boundary regex filter
+- Shopping Spend tab (in `app/(tabs)/index.tsx`) — Processing overlay with ActivityIndicator + status label + Alert on error
+- `app/(tabs)/settings.tsx` — Developer rows: "💳 Test Stripe checkout" (force-opens Payment Link), "🔔 Register push token now" (manual trigger with structured Alert)
+
+**EXTERNAL (not in git):**
+- EAS Starter plan upgrade (14 iOS builds/month)
+
+### What's next
+
+- **Rich builds + submits again tomorrow** to get the verbose diagnostic (`dcb263b`) on-device. Then taps "🔔 Register push token now" — the Alert will show exactly which step is failing (auth / permissions / getExpoPushTokenAsync / db-write) with the actual exception message. That's the final unlock for family push.
+- **GIPHY EAS env var still not added** — Kids Hub GIFs will keep showing 🎉 placeholder until Rich adds `EXPO_PUBLIC_GIPHY_API_KEY = g7MhCcPu2yT62HvslNpnEoG4LxwC7Lga` at expo.dev → Environment Variables (Sensitive visibility, Preview + Production).
+- **Website v5 rewrite** — parked but 4-round plan drafted. Deploy to zaeli.app (replacing current orb splash). ~1 day total.
+- **Outlook/Gmail calendar sync** — parked. Revisit if Anna asks twice.
+- **Anna beta round 2 testing** — awaiting successful build #16 (or #17 if push works first-try on diagnostic build) so she can test family push + multi-photo chat + trivia guard + splash fix.
+- **Sonnet 5 migration** — still queued for after Anna beta settles.
+- **Per-user brief cache** — still queued for scale past 100 families.
+- **Phase 5 API keys server-side** — still critical before public launch (Anthropic + OpenAI to Supabase Edge Functions).
+
+---
+
 ## Build Phase Plan
 ```
 Phase 1: ZaeliFAB              ✅
@@ -2724,6 +2911,21 @@ Phase 83: Calendar bulk-paste max_tokens bump (working tree, uncommitted) 🔨 S
 Phase 84: Admin console Session 29 refresh ✅ Session 29 (13 July) — source-of-truth moved to app/(tabs)/zaeli-admin/index.html (Downloads copy will always drift). Comprehensive fixes: wordmark accent yellow → sky #A8D8F0, Sonnet model ID claude-sonnet-4-20250514 → claude-sonnet-4-6, price sliders default A$9.99/A$7.99 (was 14.99/9.99, slider ID sl-hw-price → sl-tutor-price), COST_BRIEF 0.00065 → 0.0050 (Sonnet not GPT), break-even card replaced with per-family margin (old math was nonsense at small user counts), real subscription state in Accounts table (reads profiles.beta_end_date + subscription_status), owner name + email + member count, memory system health card (queries family_insights + family_milestones + conversation_memory counts, warns if conversations > 0 but insights = 0), SQL snippet in Settings for enabling anon SELECT policies (with caveat), double-$ display bug fix (13 rows: A$$${...} → A$${...}), cost breakdown labels (Chat "GPT-5.4 mini + Sonnet 4.6 for tool calls" reflects both paths, Briefs "Sonnet 4.6, prompt caching", Homework → Tutor), slider defaults reset to Anna's real usage (briefs 420→240, chat 300→250, scans 90→15).
 Phase 85: Per-user brief cache 🅿️ QUEUED — scale trigger: past 100 families. DB migration on zaeli_briefs (currently unique on family_id+date+window+data_signature; add user_id to unique constraint). Would eliminate the Session 29 cross-user cache invalidation caused by primaryUser in signature. Deferred because at current scale the additional Sonnet calls are still cheap with prompt caching.
 Phase 86: Sonnet 5 migration 🅿️ QUEUED — intro pricing $2/$10 through Aug 2026 makes Sonnet 5 CHEAPER than Sonnet 4.6. Better instruction following would compound today's anti-sycophancy fixes (Phase 72). Deferred until Anna beta settles — don't migrate during active user testing.
+
+Phase 87: Family push notification infrastructure ⭐ ✅ Session 30 (14 July) — commit 8bbf7e3. supabase-push-tokens.sql (profiles.expo_push_token nullable indexed). Edge Function supabase/functions/family-notify/index.ts (JWT-verified, family-boundary-enforced — sender's family_id MUST match every recipient's family_id else 403, batches to Expo push API https://exp.host/--/api/v2/push/send, silent-skips recipients without token). lib/notifications.ts registerPushToken/unregisterPushToken/notifyFamily. app/_layout.tsx fire-and-forget register after auth. index.tsx: Notify chip on calendar confirm inline cards + send_family_message tool (fuzzy roster name matching via resolveAssigneeId, "family"/"everyone" shortcuts, CAPABILITY_RULES updated).
+Phase 88: Spend Processing overlay ✅ Session 30 (14 July) — part of commit 8bbf7e3. Follow-on to Session 29 in-sheet scan UX. Full-screen dark backdrop overlay in Shopping Spend tab with ActivityIndicator + "Processing..." + rotating status label ("Reading receipt", "Updating pantry", "Saving to spend"). Silent success (receipt appears in list). Errors via Alert.alert.
+Phase 89: Tutor Play icon removed ✅ Session 30 (14 July) — part of commit 8bbf7e3. Play icon removed from Zaeli action row in tutor-session (matches home chat where already removed). Small consistency polish.
+Phase 90: Multi-photo chat upload ⭐ ✅ Session 30 (14 July) — commit e6c8ea6. pendingImage: string | null → pendingImages: string[] with MAX_CHAT_PHOTOS = 4 cap. Additive Camera/Photos pickers. Horizontal thumbnail strip above chat bar with per-photo ✕. send(text?, overrideImages?: string[]) signature. ONE Sonnet call for ALL images with multi-photo aggregation prompt (both tool path and pure-vision path attach all imageParts). Msg.imageUris?: string[] added alongside legacy imageUri (backwards compat with persisted messages). Chat feed renders horizontal grid for 2+ photos (110×110, 6px gaps). Same pattern as Session 29 receipt scan.
+Phase 91: Stripe checkout testability ✅ Session 30 (14 July) — part of commit e6c8ea6. New Developer row "💳 Test Stripe checkout" force-opens Payment Link even when beta grant hides Subscribe button. Rich testing infrastructure — everything else was already wired Session 28. Lets Rich exercise full checkout return path (Safari → payment → back to app → foreground refresh reloads profile → subscription card updates).
+Phase 92: Foreground profile refresh ⭐ ✅ Session 30 (14 July) — part of commit e6c8ea6. _layout.tsx AppState.addEventListener('change', ...) reloads profile on background→active transition for any signed-in user. Critical for Stripe checkout return path — otherwise subscription card is stale until force-restart. Generalisable pattern for any per-user state that can change out-of-app.
+Phase 93: Kids Trivia answer-in-question guard ⭐ ✅ Session 30 (14 July) — commit 34b57eb. Duke saw "Which sport is played with a round ball and goals, and is called soccer in many countries?" answer "Soccer". Three-layer defence (same pattern as Session 29 tutor math): (1) prompt rule "never include the answer or a paraphrase in the question", (2) BAD/GOOD examples inline in prompt, (3) client-side word-boundary regex filter checks 4+ char answer words against question text, drops self-revealing questions.
+Phase 94: Cold-start splash latency fix ⭐ ✅ Session 30 (14 July) — part of commit 34b57eb. Anna feedback: 3s+ splash on foreground return after iOS jetsammed app. Root cause: await loadProfile() blocking setAuthed in cold-start useEffect (Supabase network 1-2s decent, 3s+ flaky). Fix: setAuthed IMMEDIATELY once session verified (fast AsyncStorage read), kick loadProfile in background. Route guard already tolerates null profile (owner default from Session 21). Cuts splash ~2s.
+Phase 95: expo-notifications plugin discovery ⭐ ✅ Session 30 (14 July) — commit 6eab45a. CRITICAL DISCOVERY. Root cause: app.json plugins array had no expo-notifications entry. Without it, iOS never gets aps-environment entitlement → getExpoPushTokenAsync throws at boot → the .catch(() => {}) in _layout.tsx swallows silently → profiles.expo_push_token stays null forever. Local scheduled notifications (briefs) still worked because they don't need APNs — that's what confused diagnosis. Fixes: added expo-notifications plugin with icon+color config, replaced silent catch with .catch(e => console.log('[push] register threw:', e?.message)) so future failures surface in logs, added Developer row "🔔 Register push token now" that manually triggers + shows result via Alert.
+Phase 96: Verbose push token diagnostic ✅ Session 30 (14 July) — commit dcb263b. Previous "returned null" Alert was too coarse. New debugPushToken() returns structured state: { step: 'auth'|'permissions'|'getExpoPushTokenAsync'|'db-write'|'done', detail, userId, permission, projectId, token (first 20 chars for privacy), dbWrite: 'ok'|'error'|'skipped', error }. Developer row Alert shows the full state block so actual failure step surfaces without another guess-and-rebuild cycle.
+Phase 97: EAS Starter plan upgrade ✅ Session 30 (14 July) — external (Rich upgraded mid-session). Free tier build cap (15 iOS/mo) hit during rapid push diagnostic iteration. Starter = 14 iOS builds/mo tier. Cost implication: shipping cycle no longer bottlenecked by build quota during active beta testing rounds. Documented: eas build (creates .ipa) and eas submit --platform ios --latest (uploads to App Store Connect → TestFlight) are SEPARATE commands. Preview profile = internal distribution only. Only production profile is App-Store-distributable.
+Phase 98: GIPHY EAS env var 🔨 NEXT — Kids Hub rewards GIFs failing in standalone builds because EXPO_PUBLIC_GIPHY_API_KEY sits in local .env but never added to EAS Environment Variables. Same Session 27 pattern as the other 4 EXPO_PUBLIC_* keys. Rich needs to add via expo.dev UI as Sensitive visibility for Preview + Production before Kids Hub GIFs render on standalone builds.
+Phase 99: Website v5 rewrite 🅿️ PARKED — 4-round plan drafted (correctness pass with new pricing → beta framing → chat mockup refresh → new sections). Deploy to zaeli.app (replacing current orb splash). ~1 day of work total.
+Phase 100: Outlook/Gmail calendar sync 🅿️ PARKED — discussed and agreed not urgent right now. Revisit if Anna asks twice.
 ```
 
 ---
@@ -2889,3 +3091,16 @@ Phase 86: Sonnet 5 migration 🅿️ QUEUED — intro pricing $2/$10 through Aug
 - **Stripe Tax activation deferred to pre-launch** (Session 28) — not required for sandbox testing. Tax-inclusive pricing at the Price level is what matters for A$ figure accuracy in sandbox. Stripe Tax adds automated AU GST calculation + reporting on top, 0.5% per transaction in live mode. Enable via Stripe Dashboard → Settings → Tax → Get started before flipping to live mode.
 - **SVG icon clipping fix — expand viewBox by 1 unit each side** (Session 28) — for icons with strokes at the viewBox extremes and reasonable strokeWidth (1.5-2), half the stroke will render outside the SVG canvas. Symptom: subtle clip at container edge. Fix: `viewBox="-1 -1 26 26"` instead of `viewBox="0 0 24 24"`. Icon renders at same visual size (same width/height on Svg element), just more breathing room around the paths. Applied to IcoSettings gear in MoreSheet.
 - **Diagnostic logging in silent-failure tool paths** (Session 28) — when a tool can silently return false success (calendar phantom event), add console.log for input params, resolution steps (roster/assignees), and outcome (id inserted or error). Metro logs are the only surface for diagnosing this class of bug on device. Keep logs terse but structured so future reproductions surface the failure layer in one round.
+- **`expo-notifications` plugin is REQUIRED in `app.json` plugins array** (Session 30) — without it, iOS never gets the `aps-environment` entitlement at build time. `getExpoPushTokenAsync` then throws at boot with an entitlement error, silently failing every push token registration. Local scheduled notifications (briefs) DO still work because they don't need APNs — that's what makes diagnosis tricky. NEVER remove the plugin entry from `app.json`. If added later, requires a fresh EAS build (native entitlement change).
+- **Never use `.catch(() => {})` for async fire-and-forget** (Session 30) — swallows errors invisibly and cost this project ~2 diagnostic cycles on the missing expo-notifications plugin. ALWAYS use `.catch(e => console.log('[surface] threw:', e?.message))` at minimum so failures surface in Metro/EAS logs. Silent catches are a class of bug that only surface when someone spends hours wondering why the feature doesn't work.
+- **Sensitive silent-failure paths deserve verbose on-device diagnostic** (Session 30) — when a feature depends on OS/API interactions that can fail invisibly in production (push tokens, image picker permissions, background modes, HealthKit access), add a Developer row that surfaces structured state via `Alert.alert`. Saves guess-and-rebuild cycles when the failure only reproduces on real devices. Pattern: `debug<Feature>()` returns a state object with named steps + errors, Developer row calls it + shows `JSON.stringify` in the Alert body.
+- **`eas build` and `eas submit` are SEPARATE commands** (Session 30) — build creates the .ipa (preview = internal distribution install link, production = auto-increments buildNumber). `eas submit --platform ios --latest` is the SEPARATE command that uploads to App Store Connect → TestFlight. Preview builds cannot be App-Store-submitted (internal-only). Only production builds are App-Store-distributable. Both preview and production require `eas submit` to appear in TestFlight — build alone does NOT push to Apple.
+- **EAS Starter plan is worth it during active beta** (Session 30) — 14 iOS builds/month. Rapid diagnostic iteration (push token debugging, entitlement changes, prompt tuning) can eat the free tier's 15/mo quota fast. Upgrade when beta is active with multiple testers or during high-iteration diagnostic rounds. Below that, free tier is fine.
+- **Foreground profile refresh pattern** (Session 30) — `_layout.tsx` uses `AppState.addEventListener('change', ...)` to reload profile on `background → active` transition for any signed-in user. Critical for Stripe checkout return path (user completes payment in Safari, returns to app, subscription card must be fresh). Generalisable to any per-user state that can change out-of-app (subscription, tier, family members added by another device). Any new per-user state lib that can change outside the app should hook into this pattern.
+- **Cold-start `useEffect` never blocks `setAuthed` on network calls** (Session 30) — verify session (fast AsyncStorage) → `setAuthed(true)` IMMEDIATELY → kick network work (`loadProfile`, roster hydrate, brief context, etc) in the background as fire-and-forget. Route guards MUST tolerate null profile (treat as owner default from Session 21) so the fast path always renders first. Anna's 3s+ splash on foreground return was caused by breaking this rule with `await loadProfile()` before `setAuthed`.
+- **Chat photo attachments cap = 4** (Session 30) — `MAX_CHAT_PHOTOS` constant in `app/(tabs)/index.tsx`. Matches receipt scan cap (Session 29). Larger caps would blow up API payloads, latency, and cost per Sonnet vision call. Never raise without cost modelling.
+- **Multi-photo state shape**: `pendingImages: string[]` + `MAX_CHAT_PHOTOS` cap + additive Camera/Photos pickers (Session 30) — not `pendingImage: string | null`. `send(text?, overrideImages?: string[])` signature accepts optional array override. `Msg.imageUris?: string[]` field added alongside legacy `Msg.imageUri` for backwards compat with persisted messages. Render logic prefers `imageUris` if present (horizontal grid for 2+, single layout for 1).
+- **AI-generated content: correctness needs three-layer defence** (Session 30 — Kids Trivia guard, matches Session 29 tutor math pattern) — prompt rule + BAD/GOOD examples inline in prompt + client-side validation filter. Single-layer fixes fight training bias and drift. For trivia: word-boundary regex checks 4+ char answer words against question text, drops self-revealing questions. Any AI-generated surface where factual correctness matters should follow this pattern.
+- **Family push = JWT + family-boundary-enforced Edge Function** (Session 30) — `supabase/functions/family-notify/index.ts` validates that sender's `family_id` MATCHES every recipient's `family_id`. Otherwise returns 403. Never trust client-supplied recipient UIDs directly; always cross-check family membership server-side. Same principle applies to any future cross-user Edge Function.
+- **Any new `EXPO_PUBLIC_*` env var must be added to BOTH local `.env` AND EAS Environment Variables** (Session 30 reinforcement of Session 27) — as Sensitive visibility, scoped to Preview + Production. Local `.env` alone works for dev-client + Metro but is silently missing from standalone builds. Every new key added to `.env` = check EAS immediately. Kids Hub GIPHY key kept failing in standalone until Rich added it via expo.dev UI.
+- **`eas credentials` auto-provisions APNs Push Key on first iOS build** (Session 30 confirmation) — no manual Apple Developer Portal work needed for push. If push tokens are failing, the credentials are almost certainly fine; check the `expo-notifications` plugin entry first, then permission grants, then `getExpoPushTokenAsync` exception.
