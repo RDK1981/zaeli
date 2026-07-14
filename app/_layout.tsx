@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { View, Linking } from 'react-native'
+import { useEffect, useState, useRef } from 'react'
+import { View, Linking, AppState, AppStateStatus } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useFonts, DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display'
@@ -89,6 +89,25 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded && authed !== null && hasLaidOut) SplashScreen.hideAsync()
   }, [loaded, authed, hasLaidOut])
+
+  // ── AppState foreground refresh ─────────────────────────────────────
+  // Session 29 — after returning from Stripe checkout (Safari → back to app),
+  // reload the profile so the new subscription state shows immediately.
+  // Also useful for any other out-of-app changes: beta grant flipped by
+  // admin, webhook-triggered plan change, etc. Fires only on the transition
+  // TO 'active' from a non-active state (background/inactive), so navigating
+  // between apps within iOS doesn't hammer supabase.
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (next) => {
+      const prev = appStateRef.current
+      appStateRef.current = next
+      if (next === 'active' && prev !== 'active' && authed) {
+        try { await loadProfile() } catch (e: any) { console.log('[foreground] profile refresh failed:', e?.message) }
+      }
+    })
+    return () => sub.remove()
+  }, [authed])
 
   // ── Deep link debug listener ────────────────────────────────────────
   // Logs every URL the OS hands us (initial cold-start URL + URLs while

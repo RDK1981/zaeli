@@ -192,11 +192,15 @@ interface InlineData {
   dateLabelOverride?: string;          // calendar — header label for events beyond tomorrow
 }
 
+// Session 29 — chat photo attachments cap (multi-photo upload)
+const MAX_CHAT_PHOTOS = 4;
+
 interface Msg {
   id: string;
   role: 'zaeli' | 'user';
   text: string;
-  imageUri?: string;
+  imageUri?: string;          // Legacy single-image field (persisted history compat)
+  imageUris?: string[];       // Session 29 — multi-photo (preferred; renders as strip)
   ts: string;
   isLoading?: boolean;
   isBrief?: boolean;
@@ -3108,7 +3112,9 @@ function HomeScreen({
   const briefFireInFlightRef = useRef(false);
   const heldBriefCheckTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showAddSheet,    setShowAddSheet]    = useState(false);
-  const [pendingImage,    setPendingImage]    = useState<string | null>(null);
+  // Session 29 — multi-photo chat upload (up to 4). Additive: Camera / Photos taps
+  // append to this array rather than replacing. Cap prevents API payload blow-up.
+  const [pendingImages,   setPendingImages]   = useState<string[]>([]);
   const [thumbs,          setThumbs]          = useState<Record<string, 'up'|'down'|null>>({});
   const [keyboardOpen,    setKeyboardOpen]    = useState(false);
   const [liveCamera,      setLiveCamera]      = useState(false);
@@ -4777,16 +4783,27 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
   }
 
   // ── Send ───────────────────────────────────────────────────────────────────
-  async function send(overrideText?: string, overrideImage?: string) {
+  // Session 29: `overrideImages` accepts an array so callers (chat bar send +
+  // programmatic sends) can pass 1-4 photos through the same path. Falls back
+  // to the pending strip when not passed.
+  async function send(overrideText?: string, overrideImages?: string[]) {
     const text = (overrideText ?? input).trim();
-    const imageUri = overrideImage || pendingImage || undefined;
-    if ((!text && !imageUri) || loading) return;
-    const sendKey = `${text}|${imageUri||''}|${Date.now().toString().slice(0,-3)}`;
+    const imageUris: string[] = (overrideImages && overrideImages.length ? overrideImages : pendingImages) ?? [];
+    if ((!text && imageUris.length === 0) || loading) return;
+    const sendKey = `${text}|${imageUris.join(',')}|${Date.now().toString().slice(0,-3)}`;
     if (lastSendRef.current === sendKey) return;
     lastSendRef.current = sendKey;
-    const uMsg: Msg = { id:uid(), role:'user', text:text||'', imageUri, ts:nowTs() };
+    // Store first image on legacy imageUri for backwards-compat renders; full array on imageUris
+    const uMsg: Msg = {
+      id: uid(),
+      role: 'user',
+      text: text || '',
+      imageUri: imageUris[0],
+      imageUris: imageUris.length > 0 ? imageUris : undefined,
+      ts: nowTs(),
+    };
     const history = [...messages, uMsg];
-    setMessages(history); setInput(''); setPendingImage(null);
+    setMessages(history); setInput(''); setPendingImages([]);
     lastMessageAtRef.current = Date.now(); // track for brief-firing inactivity check
     if (returnToDashboard) setReturnToDashboard(false);
     isAtBottom.current = true; // force scroll-to-bottom tracking
@@ -4801,45 +4818,51 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
     try {
       const { system, td } = await buildContext();
 
-      // Read image
-      let imageBase64 = '';
-      let imageMimeType = 'image/jpeg';
-      if (imageUri) {
+      // ── Read images (Session 29: supports up to MAX_CHAT_PHOTOS in one send) ──
+      // Each entry is { base64, mimeType }. HEIC/HEIF converted to JPEG first.
+      // Anthropic vision accepts image/jpeg + image/png; HEIC would 400.
+      type ImagePart = { base64: string; mimeType: string };
+      const imageParts: ImagePart[] = [];
+      for (const uri of imageUris) {
         try {
-          let readUri = imageUri;
-          const ext = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
-          console.log('[send] Reading image:', imageUri.slice(-40), 'ext:', ext);
-          // Convert HEIC/HEIF to JPEG — Anthropic API doesn't support HEIC
+          let readUri = uri;
+          const ext = uri.split('.').pop()?.toLowerCase() || 'jpg';
           if (ext === 'heic' || ext === 'heif') {
-            console.log('[send] Converting HEIC to JPEG...');
-            const converted = await manipulateAsync(imageUri, [], { compress: 0.85, format: SaveFormat.JPEG });
+            const converted = await manipulateAsync(uri, [], { compress: 0.85, format: SaveFormat.JPEG });
             readUri = converted.uri;
-            console.log('[send] Converted to:', readUri.slice(-40));
           }
-          imageBase64 = await FileSystem.readAsStringAsync(readUri, { encoding:'base64' as any });
-          imageMimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
-          console.log('[send] Image read OK, base64 length:', imageBase64.length, 'mime:', imageMimeType);
-        } catch(e) { console.error('[send] Image read FAILED:', e); }
+          const b64 = await FileSystem.readAsStringAsync(readUri, { encoding: 'base64' as any });
+          const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+          imageParts.push({ base64: b64, mimeType: mime });
+        } catch (e) { console.error('[send] Image read FAILED:', e); }
       }
+      console.log('[send] Read', imageParts.length, 'image(s) of', imageUris.length, 'requested');
 
-      // Vision describe
+      // Vision describe — one Sonnet call for ALL images together (matches
+      // Session 29 receipt-scan pattern: aggregation is better than N separate
+      // calls both for cost and coherence).
       let imageDescription = '';
-      if (imageUri && imageBase64) {
+      if (imageParts.length > 0) {
         try {
           const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+          const multiNote = imageParts.length > 1
+            ? `You are being given ${imageParts.length} photos from a single message. Describe them together as a set (not one at a time). `
+            : '';
+          const content: any[] = imageParts.map(p => ({
+            type: 'image',
+            source: { type: 'base64', media_type: p.mimeType, data: p.base64 },
+          }));
+          content.push({ type: 'text', text: `${multiNote}Describe ${imageParts.length > 1 ? 'these images' : 'this image'} in 2-3 sentences${imageParts.length > 1 ? ' total across all of them' : ''}. If they show a receipt, list the store name and all item names with prices. If they show food/pantry items, list each item visible. Otherwise focus on any text, dates, times, or event names visible.` });
           const descRes = await fetch('https://api.anthropic.com/v1/messages', {
             method:'POST',
             headers:{ 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
             body:JSON.stringify({
-              model:'claude-sonnet-4-6', max_tokens:600,
-              messages:[{ role:'user', content:[
-                { type:'image', source:{ type:'base64', media_type:imageMimeType, data:imageBase64 } },
-                { type:'text', text:'Describe this image in 2-3 sentences. If it is a receipt, list the store name and all item names with prices. If it shows food/pantry items, list each item visible. Otherwise focus on any text, dates, times, or event names visible.' },
-              ]}],
+              model:'claude-sonnet-4-6', max_tokens:800,
+              messages:[{ role:'user', content }],
             }),
           });
           const descJson = await descRes.json();
-          console.log('[send] Vision describe status:', descRes.status, 'error:', descJson?.error?.message || 'none');
+          console.log('[send] Vision describe status:', descRes.status, 'imgs:', imageParts.length, 'error:', descJson?.error?.message || 'none');
           imageDescription = descJson?.content?.[0]?.text || '';
           lastImageDesc.current = imageDescription;
           console.log('[send] Vision description:', imageDescription.slice(0, 100));
@@ -4848,6 +4871,10 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
       } else if (lastImageDesc.current) {
         imageDescription = lastImageDesc.current;
       }
+
+      // Preserve old single-variable references for downstream code (imageUri
+      // guards etc). imageUri = first photo when at least one exists.
+      const imageUri = imageUris[0];
 
       const imgCtx = imageDescription ? `\nIMAGE CONTEXT: ${imageDescription}` : '';
 
@@ -5003,11 +5030,17 @@ Only include events directly relevant to the question. Max 5 events.`;
         const apiMessages: any[] = [];
         history.slice(-6).forEach(m => {
           if (m.role === 'user') {
-            if (m.imageUri && imageBase64 && m.id === uMsg.id) {
-              apiMessages.push({ role:'user', content:[
-                { type:'image', source:{ type:'base64', media_type:imageMimeType, data:imageBase64 } },
-                { type:'text', text:m.text || 'Please help with this image.' },
-              ]});
+            // Session 29: attach ALL images from the current-send message. imageParts
+            // was populated above from imageUris. For older history messages we can't
+            // re-attach images (base64 not persisted) — text-only reference is fine
+            // for context since imgCtx already carries the vision description.
+            if (m.id === uMsg.id && imageParts.length > 0) {
+              const content: any[] = imageParts.map(p => ({
+                type: 'image',
+                source: { type: 'base64', media_type: p.mimeType, data: p.base64 },
+              }));
+              content.push({ type: 'text', text: m.text || (imageParts.length > 1 ? 'Please help with these photos.' : 'Please help with this photo.') });
+              apiMessages.push({ role: 'user', content });
             } else {
               apiMessages.push({ role:'user', content:m.text || '(no text)' });
             }
@@ -6351,21 +6384,42 @@ Rules:
     }
   }
 
+  // Session 29 — multi-photo: additive, capped at MAX_CHAT_PHOTOS. Camera adds 1;
+  // Photos supports multi-select up to the remaining slots.
   async function openCamera() {
+    if (pendingImages.length >= MAX_CHAT_PHOTOS) {
+      Alert.alert('Photo limit reached', `You can attach up to ${MAX_CHAT_PHOTOS} photos per message.`);
+      return;
+    }
     closeSheet(async () => {
       try {
         const { granted } = await ImagePicker.requestCameraPermissionsAsync(); if (!granted) return;
         const r = await ImagePicker.launchCameraAsync({ mediaTypes:ImagePicker.MediaTypeOptions.Images, quality:0.85 });
-        if (!r.canceled && r.assets?.[0]) setPendingImage(r.assets[0].uri);
+        if (!r.canceled && r.assets?.[0]) {
+          setPendingImages(prev => [...prev, r.assets![0].uri].slice(0, MAX_CHAT_PHOTOS));
+        }
       } catch {}
     });
   }
   async function openPhotos() {
+    if (pendingImages.length >= MAX_CHAT_PHOTOS) {
+      Alert.alert('Photo limit reached', `You can attach up to ${MAX_CHAT_PHOTOS} photos per message.`);
+      return;
+    }
+    const remaining = MAX_CHAT_PHOTOS - pendingImages.length;
     closeSheet(async () => {
       try {
         const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync(); if (!granted) return;
-        const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes:ImagePicker.MediaTypeOptions.Images, quality:0.85 });
-        if (!r.canceled && r.assets?.[0]) setPendingImage(r.assets[0].uri);
+        const r = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 0.85,
+          allowsMultipleSelection: remaining > 1,
+          selectionLimit: remaining,
+        });
+        if (!r.canceled && r.assets?.length) {
+          const picked = r.assets.slice(0, remaining).map(a => a.uri);
+          setPendingImages(prev => [...prev, ...picked].slice(0, MAX_CHAT_PHOTOS));
+        }
       } catch {}
     });
   }
@@ -6517,7 +6571,22 @@ Rules:
                 <Text style={[s.voiceLabelTxt, { color:T.ink3 }]}>Voice message</Text>
               </View>
             )}
-            {msg.imageUri && <Image source={{ uri:msg.imageUri }} style={s.msgImage} resizeMode="cover"/>}
+            {/* Session 29: multi-photo user message — render each attachment right-aligned above the text bubble */}
+            {msg.imageUris && msg.imageUris.length > 0 ? (
+              <View style={{ alignSelf:'flex-end', maxWidth:'86%', marginBottom: 6 }}>
+                {msg.imageUris.length === 1 ? (
+                  <Image source={{ uri: msg.imageUris[0] }} style={s.msgImage} resizeMode="cover"/>
+                ) : (
+                  <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, justifyContent:'flex-end' }}>
+                    {msg.imageUris.map((uri, i) => (
+                      <Image key={`${uri}-${i}`} source={{ uri }} style={{ width: 110, height: 110, borderRadius: 12 }} resizeMode="cover"/>
+                    ))}
+                  </View>
+                )}
+              </View>
+            ) : msg.imageUri ? (
+              <Image source={{ uri: msg.imageUri }} style={s.msgImage} resizeMode="cover"/>
+            ) : null}
             {!!msg.text && (
               <View style={[s.userBubble, { backgroundColor:T.userBubble }]}>
                 <Text style={[s.userMsgText, { color:T.userText }]}>{msg.text}</Text>
@@ -6993,21 +7062,33 @@ Rules:
 
             {/* ── BAR — single pill (Tutor style), taller: [Mic | TextInput | Camera | Send] ── */}
             <View style={s.barFloat}>
-              {/* Pending photo preview — shows above the bar after camera/photos pick */}
-              {pendingImage && (
-                <View style={{ flexDirection:'row', alignItems:'center', marginBottom:8, paddingHorizontal:4 }}>
-                  <View style={{ position:'relative' }}>
-                    <Image source={{ uri: pendingImage }} style={{ width:64, height:64, borderRadius:12, borderWidth:1.5, borderColor:'rgba(10,10,10,0.10)' }}/>
-                    <TouchableOpacity
-                      onPress={() => setPendingImage(null)}
-                      style={{ position:'absolute', top:-6, right:-6, width:22, height:22, borderRadius:11, backgroundColor:'#0A0A0A', alignItems:'center', justifyContent:'center', borderWidth:2, borderColor:'#FAF8F5' }}
-                      activeOpacity={0.75}
-                      hitSlop={{ top:8, right:8, bottom:8, left:8 }}
-                    >
-                      <Text style={{ fontSize:11, color:'#fff', fontFamily:'Poppins_700Bold' }}>✕</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={{ marginLeft:10, fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(10,10,10,0.55)' }}>Photo ready — tap send</Text>
+              {/* Pending photo preview — horizontal strip, up to MAX_CHAT_PHOTOS (Session 29) */}
+              {pendingImages.length > 0 && (
+                <View style={{ marginBottom:8, paddingHorizontal:4 }}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={{ gap:10, alignItems:'center', paddingRight:8 }}
+                  >
+                    {pendingImages.map((uri, idx) => (
+                      <View key={`${uri}-${idx}`} style={{ position:'relative' }}>
+                        <Image source={{ uri }} style={{ width:64, height:64, borderRadius:12, borderWidth:1.5, borderColor:'rgba(10,10,10,0.10)' }}/>
+                        <TouchableOpacity
+                          onPress={() => setPendingImages(prev => prev.filter((_, i) => i !== idx))}
+                          style={{ position:'absolute', top:-6, right:-6, width:22, height:22, borderRadius:11, backgroundColor:'#0A0A0A', alignItems:'center', justifyContent:'center', borderWidth:2, borderColor:'#FAF8F5' }}
+                          activeOpacity={0.75}
+                          hitSlop={{ top:8, right:8, bottom:8, left:8 }}
+                        >
+                          <Text style={{ fontSize:11, color:'#fff', fontFamily:'Poppins_700Bold' }}>✕</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                  <Text style={{ marginTop:6, marginLeft:2, fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(10,10,10,0.55)' }}>
+                    {pendingImages.length === 1 ? 'Photo ready — tap send' : `${pendingImages.length} photos ready — tap send`}
+                    {pendingImages.length < MAX_CHAT_PHOTOS ? '  ·  tap 📷 to add more' : ''}
+                  </Text>
                 </View>
               )}
               <View style={s.barPillV2}>
@@ -7052,12 +7133,12 @@ Rules:
                     <Circle cx="12" cy="13" r="4"/>
                   </Svg>
                 </TouchableOpacity>
-                {/* Send — onTouchStart preserved. Allows photo-only sends. */}
+                {/* Send — onTouchStart preserved. Allows photo-only sends (single or multi). */}
                 <View
-                  style={[s.barSendV2, !input.trim() && !pendingImage && { opacity:0.3 }]}
+                  style={[s.barSendV2, !input.trim() && pendingImages.length === 0 && { opacity:0.3 }]}
                   onTouchStart={() => {
                     const t = input;
-                    if (t.trim() || pendingImage) {
+                    if (t.trim() || pendingImages.length > 0) {
                       setInput('');
                       inputRef.current?.clear();
                       send(t.trim() ? t : '');

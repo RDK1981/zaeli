@@ -410,7 +410,8 @@ export default function SettingsScreen() {
             // in Stripe Dashboard on the Family Plan product, URL pasted into
             // STRIPE_PAYMENT_LINK_FAMILY in lib/stripe.ts. Once the checkout
             // completes, Stripe fires customer.subscription.created → webhook
-            // syncs profile → user returns from browser and sees Active state.
+            // syncs profile → user returns from browser and sees Active state
+            // (profile is refreshed on foreground — see _layout.tsx).
             const url = getCheckoutUrl();
             if (url) {
               Linking.openURL(url).catch(() => {
@@ -421,6 +422,25 @@ export default function SettingsScreen() {
                 'Almost ready',
                 'Subscription checkout will open in your browser. The Payment Link is being wired up — hang tight for a moment.',
               );
+            }
+          }}
+          onTestCheckout={() => {
+            // Session 29 — dev-only. Force-open Stripe checkout even when
+            // beta grant hides the Subscribe button. Rich uses this to
+            // validate the checkout path end-to-end without needing to
+            // remove his beta_end_date first.
+            const url = getCheckoutUrl();
+            if (url) {
+              Alert.alert(
+                'Sandbox checkout',
+                'Opens Stripe Payment Link in Safari. Use test card 4242 4242 4242 4242, any future date, any CVC. Return to the app and your profile will refresh.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Open', onPress: () => Linking.openURL(url).catch(() => {}) },
+                ],
+              );
+            } else {
+              Alert.alert('Checkout URL missing', 'STRIPE_PAYMENT_LINK_FAMILY is not configured in lib/stripe.ts.');
             }
           }}
         />
@@ -531,6 +551,7 @@ function MainView(p: {
   onResetAccount: () => void;
   onManageSubscription: () => void;
   onSubscribe: () => void;
+  onTestCheckout: () => void;
 }) {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
@@ -658,7 +679,12 @@ function MainView(p: {
         <Row icon="↩️" iconBg="rgba(10,10,10,0.05)" iconFg="#0A0A0A"
              title="Reset to owner account"
              sub="Switch back to Rich after testing as kid/adult invitee"
-             onPress={p.onResetAccount} last/>
+             onPress={p.onResetAccount}/>
+        {/* Session 29 — force-open Stripe checkout even if beta hides the Subscribe button */}
+        <Row icon="💳" iconBg="#EDE8FF" iconFg="#6B35D9"
+             title="Test Stripe checkout"
+             sub="Opens Payment Link (sandbox, use 4242 4242 4242 4242)"
+             onPress={p.onTestCheckout} last/>
       </View>
 
       {/* About */}
