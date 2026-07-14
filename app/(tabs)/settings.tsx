@@ -34,7 +34,8 @@ import {
   clearAllMemory, type InsightRow, type MilestoneRow,
 } from '../../lib/zaeli-memory';
 import { getFamilyId } from '../../lib/family';
-import { scheduleBriefNotifications } from '../../lib/notifications';
+import { scheduleBriefNotifications, registerPushToken } from '../../lib/notifications';
+import { supabase } from '../../lib/supabase';
 import { getSubscription, subscriptionLabel, fetchCustomerPortalUrl, shouldPromptSubscribe, getCheckoutUrl } from '../../lib/stripe';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
@@ -443,6 +444,30 @@ export default function SettingsScreen() {
               Alert.alert('Checkout URL missing', 'STRIPE_PAYMENT_LINK_FAMILY is not configured in lib/stripe.ts.');
             }
           }}
+          onRegisterPushToken={async () => {
+            // Session 29 — on-device push token diagnostic. Manually invokes
+            // registerPushToken() and surfaces the result via Alert. Also
+            // re-reads the profile row so we can confirm the DB write landed.
+            try {
+              const token = await registerPushToken();
+              if (!token) {
+                Alert.alert(
+                  'No token registered',
+                  'registerPushToken returned null. Common causes:\n\n• Notifications permission denied in iOS Settings\n• App missing aps-environment entitlement (expo-notifications plugin)\n• Expo project missing APNs push credentials\n\nCheck iOS Settings → Zaeli → Notifications is ON, then try again.',
+                );
+                return;
+              }
+              // Verify the DB write landed
+              const { data: prof } = await supabase.from('profiles').select('expo_push_token').eq('id', (await supabase.auth.getUser()).data.user?.id ?? '').maybeSingle();
+              const dbHasIt = prof?.expo_push_token === token;
+              Alert.alert(
+                dbHasIt ? '✅ Push token registered' : '⚠ Token generated but DB write missing',
+                `Token: ${token.slice(0, 30)}...\n\nDB write: ${dbHasIt ? 'confirmed' : 'not found — check RLS / logs'}`,
+              );
+            } catch (e: any) {
+              Alert.alert('Push registration threw', e?.message ?? String(e));
+            }
+          }}
         />
       )}
 
@@ -552,6 +577,7 @@ function MainView(p: {
   onManageSubscription: () => void;
   onSubscribe: () => void;
   onTestCheckout: () => void;
+  onRegisterPushToken: () => void;
 }) {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
@@ -684,7 +710,12 @@ function MainView(p: {
         <Row icon="💳" iconBg="#EDE8FF" iconFg="#6B35D9"
              title="Test Stripe checkout"
              sub="Opens Payment Link (sandbox, use 4242 4242 4242 4242)"
-             onPress={p.onTestCheckout} last/>
+             onPress={p.onTestCheckout}/>
+        {/* Session 29 — on-device push token diagnostic (no Metro needed) */}
+        <Row icon="🔔" iconBg="#FFE4E0" iconFg="#B83333"
+             title="Register push token now"
+             sub="Manually trigger + show result in an Alert"
+             onPress={p.onRegisterPushToken} last/>
       </View>
 
       {/* About */}

@@ -159,8 +159,11 @@ export default function RootLayout() {
           eveningOn:   prefs.briefEveningOn,
         })
         // Session 29 — register Expo push token for family push notifications
-        // (fire-and-forget; failures logged internally, don't block briefs).
-        registerPushToken().catch(() => {})
+        // (fire-and-forget; log failures so we can spot missing entitlements
+        // or credentials in production build logs).
+        registerPushToken()
+          .then(token => console.log('[push] registerPushToken result:', token ? 'OK' : 'null'))
+          .catch(e => console.log('[push] registerPushToken threw:', e?.message ?? e))
       } catch (e: any) {
         console.log('[notifications] init error:', e?.message)
       }

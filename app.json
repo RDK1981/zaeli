@@ -87,6 +87,12 @@
           "photosPermission": "Zaeli can add items from photos in your library.",
           "cameraPermission": "Zaeli uses your camera to scan products and receipts."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0057FF"
+        }
       ]
     ],
     "experiments": {
