@@ -13,7 +13,7 @@ import { invalidateCache as invalidateTourCache } from '../lib/tour-state'
 import { invalidateCache as invalidatePrefsCache, loadPrefs } from '../lib/user-prefs'
 import { resetCache as invalidateInvitesCache } from '../lib/invite-state'
 import { invalidateRosterCache } from '../lib/family-roster'
-import { requestNotificationPermission, scheduleBriefNotifications } from '../lib/notifications'
+import { requestNotificationPermission, scheduleBriefNotifications, registerPushToken } from '../lib/notifications'
 
 SplashScreen.preventAutoHideAsync()
 // Set the RN root view background color to warm bg immediately at module
@@ -126,6 +126,9 @@ export default function RootLayout() {
           morningOn:   prefs.briefMorningOn,
           eveningOn:   prefs.briefEveningOn,
         })
+        // Session 29 — register Expo push token for family push notifications
+        // (fire-and-forget; failures logged internally, don't block briefs).
+        registerPushToken().catch(() => {})
       } catch (e: any) {
         console.log('[notifications] init error:', e?.message)
       }

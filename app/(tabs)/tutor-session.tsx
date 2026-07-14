@@ -1340,9 +1340,8 @@ The child's previous question had this stored correct answer. When evaluating th
                     </View>
                   )}
 
-                  {/* Zaeli action icons: Play · Copy · Forward · ThumbUp · ThumbDown */}
+                  {/* Zaeli action icons: Copy · Forward (Play removed Session 29 — voice deferred) */}
                   <View style={st.zaeliIconRow}>
-                    <TouchableOpacity style={st.iconBtn} activeOpacity={0.6}><IcoPlay color={INK3}/></TouchableOpacity>
                     <TouchableOpacity style={st.iconBtn} onPress={() => { try { require('react-native').Clipboard.setString(msg.content); } catch {} }} activeOpacity={0.6}><IcoCopy color={INK3}/></TouchableOpacity>
                     <TouchableOpacity style={st.iconBtn} onPress={() => { try { require('react-native').Share.share({ message: msg.content }); } catch {} }} activeOpacity={0.6}><IcoForward color={INK3}/></TouchableOpacity>
                   </View>

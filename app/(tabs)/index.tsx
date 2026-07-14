@@ -20,7 +20,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Animated, Easing, TextInput, KeyboardAvoidingView,
   Platform, Modal, Pressable, Image, Share, Clipboard, Keyboard,
-  PanResponder, StatusBar, Alert,
+  PanResponder, StatusBar, Alert, ActivityIndicator,
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,6 +38,7 @@ import { loadInvites as loadInviteState, recentlyAcceptedInvites, clearJustAccep
 import { getProfile } from '../../lib/auth';
 import { buildMemoryContext, saveConversation, detectInsightsFromConversations } from '../../lib/zaeli-memory';
 import { loadPrefs } from '../../lib/user-prefs';
+import { notifyFamily } from '../../lib/notifications';
 import { getRoster, loadRoster, getMemberByName, resolveAssigneeId, defaultAssigneeIds } from '../../lib/family-roster';
 import MoreSheet from '../components/MoreSheet';
 import TourBanner from '../components/TourBanner';
@@ -207,6 +208,17 @@ interface Msg {
   briefChips?: { label: string; primary?: boolean; dismiss?: boolean }[];
   briefDividerLabel?: string;
   briefDismissed?: boolean;
+  // ── Session 29 — Family push notifications ──
+  // When a Notify chip is present on this message, this payload carries
+  // the recipient user IDs + the notification title/body. Populated on
+  // the calendar confirm card after add_calendar_event succeeds.
+  notifyPayload?: {
+    recipientUserIds: string[];
+    title: string;
+    body: string;
+    data?: Record<string, any>;
+  };
+  notifyState?: 'idle' | 'sending' | 'sent' | 'failed';
 }
 
 interface CardData {
@@ -1608,6 +1620,7 @@ const TOOLS = [
   { name:'delete_shopping_item', description:'Remove an item from the shopping list', input_schema:{ type:'object', properties:{ search_name:{type:'string',description:'Item name to search for'} }, required:['search_name'] } },
   { name:'update_meal', description:'Update a planned meal (change meal name, move to different date)', input_schema:{ type:'object', properties:{ search_meal:{type:'string',description:'Current meal name to search for'}, search_date:{type:'string',description:'Date of the meal YYYY-MM-DD'}, new_meal_name:{type:'string'}, new_date:{type:'string'}, new_prep_mins:{type:'number'} }, required:['search_meal'] } },
   { name:'delete_meal', description:'Remove a meal from the planner', input_schema:{ type:'object', properties:{ search_meal:{type:'string',description:'Meal name to search for'}, date:{type:'string',description:'Date of the meal YYYY-MM-DD'} }, required:['search_meal'] } },
+  { name:'send_family_message', description:'Send a push notification with a custom message to one or more family members. Use when the user says "text Anna to X", "let Anna know Y", "tell the family Z", or similar messaging intent. NOT for scheduling — for that use add_calendar_event and let the caller tap the Notify chip on the confirm card.', input_schema:{ type:'object', properties:{ recipient_names:{type:'array',items:{type:'string'},description:'Family member first names, e.g. ["Anna"] or ["Anna","Rich"]. Use "family" as a shorthand for all other adults in the family.'}, message:{type:'string',description:'The exact text to send — will appear as the notification body. Keep concise (under 300 chars).'} }, required:['recipient_names','message'] } },
   { name:'add_goal', description:'Add a personal goal', input_schema:{ type:'object', properties:{ title:{type:'string',description:'Goal title e.g. Run a half marathon'}, target_date:{type:'string',description:'Target date YYYY-MM-DD'}, detail:{type:'string',description:'Description of the goal and how to measure it'} }, required:['title'] } },
   { name:'update_goal', description:'Update a goal (progress, title, target date)', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Current goal title to search for'}, new_title:{type:'string'}, new_target_date:{type:'string'}, new_progress:{type:'number',description:'Progress percentage 0-100'}, new_detail:{type:'string'} }, required:['search_title'] } },
   { name:'delete_goal', description:'Delete a goal', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Goal title to search for'} }, required:['search_title'] } },
@@ -2028,6 +2041,87 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (error) throw error;
       return `\u2705 **${data[0].title}** removed from your goals.`;
     }
+    if (name === 'send_family_message') {
+      // Session 29 \u2014 Zaeli's "text a family member" flow. Resolves first names
+      // to profile IDs, filters to those with push tokens, dispatches via the
+      // family-notify Edge Function (which enforces the family boundary again
+      // server-side using JWT). Returns a compact status back to Sonnet so she
+      // can confirm naturally in chat.
+      const requested = Array.isArray(input.recipient_names) ? input.recipient_names : [];
+      const message = typeof input.message === 'string' ? input.message.trim() : '';
+      if (!message) return `TOOL_FAILED: send_family_message needs a non-empty message.`;
+      if (message.length > 500) return `TOOL_FAILED: message too long (${message.length} chars, max 500).`;
+      if (requested.length === 0) return `TOOL_FAILED: send_family_message needs at least one recipient name (or "family").`;
+
+      const myProfile = getProfile();
+      const myId = myProfile?.id;
+      const myFirstName = (myProfile?.name ?? '').split(/\s+/)[0] || 'Someone';
+
+      // Fetch all adult profiles in the family with push tokens.
+      const { data: adults } = await supabase
+        .from('profiles')
+        .select('id, name')
+        .eq('family_id', getFamilyId())
+        .in('kind', ['owner', 'adult'])
+        .not('expo_push_token', 'is', null);
+      const eligible = (adults ?? []).filter((p:any) => p.id !== myId);
+
+      if (eligible.length === 0) {
+        return `Couldn't send \u2014 nobody else in the family has notifications turned on yet. Once Anna (or whoever) opens the app on the latest build, her push token registers automatically.`;
+      }
+
+      // Resolve recipient names \u2192 profile IDs. "family" / "everyone" / "them"
+      // fan out to all eligible adults. Otherwise fuzzy-match first names.
+      const wantsAll = requested.some((n:string) => {
+        const low = (n ?? '').toLowerCase().trim();
+        return low === 'family' || low === 'everyone' || low === 'them' || low === 'all';
+      });
+
+      let recipients: any[];
+      if (wantsAll) {
+        recipients = eligible;
+      } else {
+        recipients = requested.flatMap((rawName:string) => {
+          const q = (rawName ?? '').toLowerCase().trim();
+          if (!q) return [];
+          return eligible.filter((p:any) => {
+            const first = (p.name ?? '').split(/\s+/)[0].toLowerCase();
+            return first === q || first.startsWith(q) || q.startsWith(first);
+          });
+        });
+        // Dedupe by id in case a name matched two entries
+        const seen = new Set<string>();
+        recipients = recipients.filter(p => {
+          if (seen.has(p.id)) return false;
+          seen.add(p.id);
+          return true;
+        });
+      }
+
+      if (recipients.length === 0) {
+        const eligibleNames = eligible.map((p:any) => (p.name ?? '').split(/\s+/)[0]).filter(Boolean).join(', ');
+        return `Couldn't find a family member matching "${requested.join(', ')}". Available: ${eligibleNames || 'nobody yet'}.`;
+      }
+
+      const result = await notifyFamily({
+        recipientUserIds: recipients.map((p:any) => p.id),
+        title:            `\ud83d\udcac ${myFirstName}`,
+        body:             message,
+        data:             { type: 'family_message', from_user: myId ?? null },
+      });
+
+      const recipientLabel = recipients.length === 1
+        ? (recipients[0].name ?? '').split(/\s+/)[0]
+        : recipients.map((p:any) => (p.name ?? '').split(/\s+/)[0]).filter(Boolean).join(' + ');
+
+      if (result.sent > 0 && result.failed === 0) {
+        return `\u2705 Sent to ${recipientLabel}: "${message}"`;
+      }
+      if (result.sent > 0 && result.failed > 0) {
+        return `\u26a0 Sent to ${result.sent} of ${recipients.length} \u2014 ${result.failed} recipient(s) don't have notifications on yet.`;
+      }
+      return `TOOL_FAILED: Couldn't deliver \u2014 ${result.error ?? 'no push tokens available'}.`;
+    }
     return `Tool ${name} not yet implemented.`;
   } catch (e: any) {
     return `TOOL_FAILED: Something went wrong with ${name} — ${e?.message ?? 'unknown error'}`;
@@ -2056,7 +2150,18 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - CRITICAL: When confirming, use the EXACT day/date the user specified. If they said "Saturday", confirm "Saturday" — never substitute a different day. Double-check dates against the day-of-week before confirming.
 - add_goal: use when the user wants to set a personal goal. Ask for a title and optionally a target date and detail. After creating, offer a chip "Open Goals" to view it.
 - update_goal: use to update progress, title, target date, or detail of an existing goal. When user says "I ran 5km today" and has a running goal, update the progress.
-- delete_goal: use when the user wants to remove a goal entirely.`;
+- delete_goal: use when the user wants to remove a goal entirely.
+- send_family_message: use when the user asks to text / message / notify / ping / let-know a specific family member with a custom message. Examples that map to this tool:
+    * "text Anna to pick up milk on the way home" → recipient_names:["Anna"], message:"pick up milk on the way home"
+    * "let Anna know I'll be 15 mins late" → recipient_names:["Anna"], message:"running 15 mins late"
+    * "tell the family dinner's at 6" → recipient_names:["family"], message:"dinner's at 6"
+    * "message Anna and Poppy I'll pick them up at school" → recipient_names:["Anna","Poppy"], message:"picking you up at school"
+  Rules:
+    * Extract the message text literally from the user's request — keep it conversational, first-person, don't add "Rich says:" or paraphrase heavily.
+    * Use ["family"] as a shorthand when the user says "everyone" / "the family" / "them" (fans out to all other adults with notifications on).
+    * Do NOT use this tool for calendar events — for scheduling use add_calendar_event, then the user gets a "Notify [Name]" chip on the confirm card.
+    * Do NOT use this to remind yourself of something — use add_todo instead.
+  After the tool returns, confirm warmly in one short line — e.g. "Sent to Anna ✓" or "Told Anna and Poppy — done ✓". If the tool returns "Couldn't send", relay honestly.`;
 
 // ── CalSheetEventCard ─────────────────────────────────────────────────────
 // White card with left-border family colour, used in sheet day/month views
@@ -3124,7 +3229,6 @@ function HomeScreen({
   // banner shows the progress + final summary inline.
   const [shopScanBusy,       setShopScanBusy]       = useState(false);
   const [shopScanBusyLabel,  setShopScanBusyLabel]  = useState<string>('');
-  const [shopScanResult,     setShopScanResult]     = useState<{ok:boolean; text:string} | null>(null);
 
   // ── Meal Planner sheet state ──────────────────────────────────────────────
   const [mealSheetOpen,      setMealSheetOpen]      = useState(false);
@@ -4539,6 +4643,65 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
   }, [pendingMicText, isActive]);
 
   function handleQuickReply(chip: string) {
+    // ── Session 29 — Notify family chip ──────────────────────────
+    // Chip label starts with "Notify " (e.g. "Notify Anna" / "Notify family").
+    // We look up the source message by matching its quickReplies, read its
+    // notifyPayload, fire the push, and update chip state for user feedback.
+    if (chip.startsWith('Notify ') && chip !== 'Notify family failed — retry?') {
+      const sourceMsg = messages.find(m => m.quickReplies?.includes(chip) && m.notifyPayload);
+      if (!sourceMsg?.notifyPayload) return;
+      const payload = sourceMsg.notifyPayload;
+      // Mark sending immediately for optimistic UI
+      setMessages(prev => prev.map(m =>
+        m.id === sourceMsg.id
+          ? { ...m, notifyState: 'sending', quickReplies: ['Sending…'] }
+          : m
+      ));
+      (async () => {
+        const result = await notifyFamily({
+          recipientUserIds: payload.recipientUserIds,
+          title: payload.title,
+          body:  payload.body,
+          data:  payload.data,
+        });
+        const ok = result.sent > 0 && result.failed === 0;
+        const partial = result.sent > 0 && result.failed > 0;
+        setMessages(prev => prev.map(m =>
+          m.id === sourceMsg.id
+            ? {
+                ...m,
+                notifyState: ok || partial ? 'sent' : 'failed',
+                quickReplies: ok ? [`✓ Notified`]
+                            : partial ? [`⚠ Partly sent (${result.sent}/${result.sent + result.failed})`]
+                            : ['Notify failed — tap to retry'],
+                // On failure, keep the payload so retry works
+                notifyPayload: ok || partial ? undefined : m.notifyPayload,
+              }
+            : m
+        ));
+      })();
+      return;
+    }
+    if (chip === 'Notify failed — tap to retry') {
+      // Rebuild the original chip label from the payload's recipient count to
+      // re-trigger the sending flow above.
+      const sourceMsg = messages.find(m => m.quickReplies?.includes(chip) && m.notifyPayload);
+      if (!sourceMsg?.notifyPayload) return;
+      const label = sourceMsg.notifyPayload.recipientUserIds.length === 1 ? 'Notify family' : 'Notify family';
+      setMessages(prev => prev.map(m => m.id === sourceMsg.id ? { ...m, quickReplies: [label], notifyState: 'idle' } : m));
+      setTimeout(() => handleQuickReply(label), 50);
+      return;
+    }
+    if (chip === '✓ Notified' || chip.startsWith('⚠ Partly sent') || chip === 'Sending…') {
+      // No-op — user tapped a status-only chip. Just remove the chips.
+      setMessages(prev => prev.map(m => m.quickReplies?.includes(chip) ? { ...m, quickReplies: [] } : m));
+      return;
+    }
+    if (chip === 'All good') {
+      // Confirmation dismissal — hide chips on the message that carries this chip
+      setMessages(prev => prev.map(m => m.quickReplies?.includes('All good') ? { ...m, quickReplies: [] } : m));
+      return;
+    }
     if (chip === '🧭 Take the tour') {
       // Strip the offer's chips so they don't reappear when user comes back
       setMessages(prev => prev.map(m => m.quickReplies?.includes('🧭 Take the tour') ? { ...m, quickReplies: [] } : m));
@@ -4974,9 +5137,49 @@ Only include events directly relevant to the question. Max 5 events.`;
                   : { type: 'calendar', items: [ev0], tomorrowItems: [],
                       dateLabelOverride: new Date(ev0.date + 'T00:00:00')
                         .toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase() };
+                // ── Session 29: Notify chip — look up other adults in the family
+                // with push tokens (excluding the caller). If any exist, attach a
+                // notify payload + quickReply chip so Rich can ping Anna directly
+                // from the confirm card. Falls back silently if nobody's registered
+                // (fresh install, sim, permission denied) — no chip shown.
+                let notifyChip: string | null = null;
+                let notifyPayload: Msg['notifyPayload'] | undefined = undefined;
+                try {
+                  const myProfile = getProfile();
+                  const myId = myProfile?.id;
+                  const myFirstName = (myProfile?.name ?? '').split(/\s+/)[0] || 'Someone';
+                  const { data: others } = await supabase
+                    .from('profiles')
+                    .select('id, name')
+                    .eq('family_id', getFamilyId())
+                    .in('kind', ['owner', 'adult'])
+                    .not('expo_push_token', 'is', null);
+                  const recipients = (others ?? []).filter((p:any) => p.id !== myId);
+                  if (recipients.length > 0) {
+                    // Chip label: single recipient → "Notify Anna"; multiple → "Notify family"
+                    const recipientFirstNames = recipients.map((r:any) => (r.name ?? '').split(/\s+/)[0]).filter(Boolean);
+                    notifyChip = recipients.length === 1 && recipientFirstNames[0]
+                      ? `Notify ${recipientFirstNames[0]}`
+                      : 'Notify family';
+                    // Notification content — short summary readable in the OS banner
+                    const evTitle = ev0.title || 'New event';
+                    const dateLabel = ev0.date === today ? 'today' : ev0.date === tomorrowStr ? 'tomorrow'
+                      : new Date(ev0.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+                    const timeLabel = ev0.start_time ? ' at ' + fmtTime(ev0.start_time) : '';
+                    notifyPayload = {
+                      recipientUserIds: recipients.map((r:any) => r.id),
+                      title: `🗓 ${myFirstName} added: ${evTitle}`,
+                      body:  `${dateLabel}${timeLabel}. Tap to see the details.`,
+                      data:  { type: 'calendar_add', event_id: ev0.id, event_date: ev0.date },
+                    };
+                  }
+                } catch { /* silent — Notify is optional polish, don't block the confirm card */ }
                 const confirmCard: Msg = {
                   id: uid(), role: 'zaeli', text: '', ts: nowTs(),
                   inlineData: confirmInline,
+                  quickReplies: notifyChip ? [notifyChip, 'All good'] : undefined,
+                  notifyPayload,
+                  notifyState: notifyPayload ? 'idle' : undefined,
                 };
                 setMessages(prev => {
                   // Replace the loading reply with confirmation card + text
@@ -5910,8 +6113,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       if (!uris.length) return;
       console.log('[scan] Got', uris.length, 'image(s), mode =', mode);
 
-      // 2. Stay in the sheet — flip on inline busy banner, clear prior result
-      setShopScanResult(null);
+      // 2. Stay in the sheet — flip on full-screen Processing overlay (Session 29)
       setShopScanBusy(true);
       setShopScanBusyLabel(uris.length > 1
         ? `Scanning ${uris.length} ${mode === 'receipt' ? 'receipt pages' : 'pantry photos'}…`
@@ -5930,7 +6132,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
       if (!claudeKey) {
         setShopScanBusy(false);
-        setShopScanResult({ ok: false, text: 'No API key configured.' });
+        Alert.alert('Scan failed', 'No API key configured.');
         return;
       }
 
@@ -5979,7 +6181,7 @@ Rules:
       if (scanJson?.error) {
         console.error('[scan] API error:', JSON.stringify(scanJson.error));
         setShopScanBusy(false);
-        setShopScanResult({ ok: false, text: 'Scan failed \u2014 ' + (scanJson.error.message || 'try again?') });
+        Alert.alert('Scan failed', scanJson.error.message || 'Try again?');
         return;
       }
       const rawText = scanJson?.content?.[0]?.text || '';
@@ -6000,14 +6202,14 @@ Rules:
       } catch (parseErr) {
         console.error('[scan] JSON parse failed:', parseErr, 'raw:', rawText.slice(0, 300));
         setShopScanBusy(false);
-        setShopScanResult({ ok: false, text: "Couldn't read those images clearly. Try clearer photos?" });
+        Alert.alert('Scan failed', "Couldn't read those images clearly. Try clearer photos?");
         return;
       }
 
       const items: any[] = parsed.items || [];
       if (items.length === 0) {
         setShopScanBusy(false);
-        setShopScanResult({ ok: false, text: "Couldn't find any items in those images. Try a different angle?" });
+        Alert.alert('Nothing found', "Couldn't find any items in those images. Try a different angle?");
         return;
       }
 
@@ -6086,8 +6288,8 @@ Rules:
           parts.push(`Total: A$${total.toFixed(2)}.`);
         }
 
+        // Silent completion (Session 29) — user sees the new receipt appear in Spend list
         setShopScanBusy(false);
-        setShopScanResult({ ok: true, text: parts.join(' ') });
         refreshShopList();
         // Refresh pantry + spend data so tabs show updated info
         try {
@@ -6138,19 +6340,14 @@ Rules:
           setShopSheetPantry(data ?? []);
         } catch { /* silent */ }
 
-        const parts: string[] = [];
-        parts.push(`Found ${items.length} items in your pantry.`);
-        if (updated > 0) parts.push(`${updated} existing items refreshed.`);
-        if (added > 0) parts.push(`${added} new items added.`);
-
+        // Silent completion (Session 29) — user sees the pantry list refreshed
         setShopScanBusy(false);
-        setShopScanResult({ ok: true, text: parts.join(' ') });
       }
 
     } catch (e: any) {
       console.error('[scan] Error:', e?.message || e);
       setShopScanBusy(false);
-      setShopScanResult({ ok: false, text: e?.message || 'Something went wrong scanning.' });
+      Alert.alert('Scan failed', e?.message || 'Something went wrong scanning.');
     }
   }
 
@@ -7902,40 +8099,32 @@ Rules:
 
                 </View>{/* end tab content */}
 
-                {/* Scan source picker overlay */}
-                {/* ── Scan progress + result banner (Session 29 — keep in sheet, don't nav to chat) ── */}
-                {(shopScanBusy || shopScanResult) && (
-                  <View pointerEvents="box-none" style={{ position:'absolute', left:0, right:0, bottom: 20, alignItems:'center', zIndex:98 }}>
+                {/* ── Full-screen Processing overlay (Session 29 — Rich feedback: simpler UX) ── */}
+                {shopScanBusy && (
+                  <View style={{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(10,10,10,0.55)', alignItems:'center', justifyContent:'center', zIndex:200 }}>
                     <View style={{
-                      backgroundColor: shopScanBusy ? '#FFFFFF' : (shopScanResult?.ok ? '#E6F7EF' : '#FDECEA'),
-                      borderRadius: 14,
-                      borderWidth: 1,
-                      borderColor: shopScanBusy ? 'rgba(0,0,0,0.10)' : (shopScanResult?.ok ? '#B8EDD0' : '#F4B7B0'),
-                      paddingHorizontal: 16,
-                      paddingVertical: 12,
-                      marginHorizontal: 20,
-                      maxWidth: '92%',
-                      shadowColor: '#000',
-                      shadowOpacity: 0.12,
-                      shadowRadius: 12,
-                      shadowOffset: { width: 0, height: 4 },
-                      elevation: 6,
+                      backgroundColor:'#FFFFFF',
+                      borderRadius: 22,
+                      paddingHorizontal: 28,
+                      paddingVertical: 26,
+                      minWidth: 240,
+                      maxWidth: '78%',
+                      alignItems:'center',
+                      shadowColor:'#000',
+                      shadowOpacity: 0.22,
+                      shadowRadius: 20,
+                      shadowOffset: { width: 0, height: 8 },
+                      elevation: 12,
                     }}>
-                      <View style={{ flexDirection:'row', alignItems:'flex-start', gap: 10 }}>
-                        <Text style={{ fontSize: 18 }}>
-                          {shopScanBusy ? '📷' : (shopScanResult?.ok ? '✅' : '⚠️')}
+                      <ActivityIndicator size="large" color="#FF4545" />
+                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 17, color:'#0A0A0A', marginTop: 16, textAlign:'center' }}>
+                        Processing…
+                      </Text>
+                      {!!shopScanBusyLabel && (
+                        <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 13, color:'rgba(10,10,10,0.55)', marginTop: 6, textAlign:'center', lineHeight: 19 }}>
+                          {shopScanBusyLabel}
                         </Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize: 14, color:'#0A0A0A', lineHeight: 20 }}>
-                            {shopScanBusy ? shopScanBusyLabel : shopScanResult?.text}
-                          </Text>
-                        </View>
-                        {!shopScanBusy && (
-                          <TouchableOpacity onPress={() => setShopScanResult(null)} hitSlop={{top:10,bottom:10,left:10,right:10}}>
-                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 14, color:'rgba(0,0,0,0.42)' }}>✕</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
+                      )}
                     </View>
                   </View>
                 )}
