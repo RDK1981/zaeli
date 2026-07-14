@@ -423,6 +423,13 @@ Age tier: ${tierDesc}.
 Generate exactly 10 multiple-choice questions. Mix of: Australian facts, world geography, science, history, animals, nature, sport, space, food, culture.
 Each question has exactly 4 options with 1 correct answer.
 Make questions fun, surprising, and educational. Vary the difficulty within the tier.
+
+CRITICAL — NEVER give the answer away in the question:
+- The correct answer text (or any close variant) MUST NOT appear anywhere in the question.
+- BAD: "Which sport is called soccer in many countries?" answer "Soccer" ← the word "soccer" is in the question
+- BAD: "What colour is the Sydney Harbour Bridge, often called the Coathanger, painted grey?" answer "Grey" ← "grey" appears twice
+- GOOD: "Which sport is played with a round ball and two goals?" answer "Soccer" ← neutral description, answer not in question
+- If your question includes the answer word, rewrite the question with a neutral description instead.
 ${recentTopics}
 
 Respond with ONLY a JSON array, no other text. Format:
@@ -461,10 +468,27 @@ where "correct" is the 0-based index of the right answer.`;
     const parsed = JSON.parse(cleaned);
     if (!Array.isArray(parsed) || parsed.length === 0) throw new Error('Invalid trivia format');
 
-    // Validate structure
-    return parsed.filter((q: any) =>
-      q.question && Array.isArray(q.options) && q.options.length === 4 && typeof q.correct === 'number' && q.correct >= 0 && q.correct <= 3
-    ).map((q: any) => ({
+    // Validate structure + guard against GPT giving the answer away in the question.
+    // Even with the prompt rule, models occasionally slip (e.g. "Which sport is
+    // called soccer in many countries?" answer "Soccer"). Drop those questions
+    // rather than serve a broken one to a kid.
+    return parsed.filter((q: any) => {
+      if (!q.question || !Array.isArray(q.options) || q.options.length !== 4) return false;
+      if (typeof q.correct !== 'number' || q.correct < 0 || q.correct > 3) return false;
+      const answer = String(q.options[q.correct] ?? '').trim().toLowerCase();
+      const question = String(q.question).toLowerCase();
+      if (!answer) return false;
+      // Skip short/common answers (numbers, single letters, tiny words) — false positives too likely.
+      // E.g. "How many wheels does a car have?" answer "4" — "4" isn't in the question anyway.
+      if (answer.length < 4) return true;
+      // Word-boundary match so "soccer" in "soccer" fires but "or" in "orange" doesn't.
+      const re = new RegExp(`\\b${answer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (re.test(question)) {
+        console.log('[trivia] dropping self-revealing question:', q.question, '→ answer:', answer);
+        return false;
+      }
+      return true;
+    }).map((q: any) => ({
       question: q.question,
       options: q.options,
       correct: q.correct,

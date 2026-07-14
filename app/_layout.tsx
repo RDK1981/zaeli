@@ -42,12 +42,25 @@ export default function RootLayout() {
   const [hasLaidOut, setHasLaidOut] = useState(false)
 
   // ── Initial auth check on mount ─────────────────────────────────────
+  // Session 29 — splash-hide latency fix. Previously we awaited loadProfile()
+  // before setting authed, which on cold-start (iOS jetsams the app after a
+  // few minutes in background) meant the splash sat for the full duration of
+  // the Supabase profile query — 1–2s on decent reception, 3s+ on flaky.
+  //
+  // Now we setAuthed as soon as we know a session exists (fast AsyncStorage
+  // read), and kick off loadProfile in the background. The route guard already
+  // tolerates a null profile (treats it as owner). Downstream screens that
+  // need profile fields read via getProfile() which returns null briefly, then
+  // populates once loadProfile resolves.
   useEffect(() => {
     (async () => {
       const session = await getSession()
       if (session) {
-        await loadProfile()
-        setAuthed(!!getProfile())
+        // Flip authed immediately — splash can hide now
+        setAuthed(true)
+        // Hydrate profile in the background; onAuthChange listener also
+        // reloads on any explicit sign-in event.
+        loadProfile().catch(e => console.log('[auth] background profile load failed:', e?.message))
       } else {
         setAuthed(false)
       }
