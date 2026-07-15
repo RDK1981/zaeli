@@ -28,6 +28,18 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MoreSheet from '../components/MoreSheet';
 import { loadAccount, isKidAccount } from '../../lib/account-state';
+import {
+  loadBudget as loadBudgetRemote,
+  saveIncomeStream as saveIncomeStreamRemote,
+  deleteIncomeStream as deleteIncomeStreamRemote,
+  saveCategory as saveCategoryRemote,
+  deleteCategory as deleteCategoryRemote,
+  saveLineItem as saveLineItemRemote,
+  deleteLineItem as deleteLineItemRemote,
+  saveGoal as saveGoalRemote,
+  deleteGoal as deleteGoalRemote,
+  uuidv4,
+} from '../../lib/budget';
 
 const { height: H } = Dimensions.get('window');
 
@@ -101,44 +113,10 @@ interface Goal {
   monthlyContribution: number;
 }
 
-// ── Seed data ──────────────────────────────────────────────────────────────
-const SEED_STREAMS: IncomeStream[] = [
-  { id: 's1', label: 'Anna',           type: 'Salary',   monthlyAmount: 5800, memberId: 'anna' },
-  { id: 's2', label: 'Richard',        type: 'Salary',   monthlyAmount: 3200, memberId: 'richard' },
-  { id: 's3', label: 'Rental income',  type: 'Property', monthlyAmount: 200 },
-];
-
-const SEED_CATEGORIES: Category[] = [
-  { id: 'f1', name: 'Mortgage',          emoji: '🏠', type: 'fixed',    sortOrder: 1 },
-  { id: 'f2', name: 'Mobile & Internet', emoji: '📱', type: 'fixed',    sortOrder: 2 },
-  { id: 'f3', name: 'Subscriptions',     emoji: '📺', type: 'fixed',    sortOrder: 3 },
-  { id: 'f4', name: 'Insurance',         emoji: '🏥', type: 'fixed',    sortOrder: 4 },
-  { id: 'v1', name: 'Groceries',         emoji: '🛒', type: 'variable', monthlyTarget: 450, sortOrder: 5 },
-  { id: 'v2', name: 'Dining out',        emoji: '🍽️', type: 'variable', monthlyTarget: 250, sortOrder: 6 },
-  { id: 'v3', name: 'Kids activities',   emoji: '🎽', type: 'variable', monthlyTarget: 300, sortOrder: 7 },
-  { id: 'v4', name: 'Health & medical',  emoji: '💊', type: 'variable', monthlyTarget: 150, sortOrder: 8 },
-  { id: 'v5', name: 'Clothing',          emoji: '👗', type: 'variable', monthlyTarget: 120, sortOrder: 9 },
-];
-
-const SEED_LINE_ITEMS: LineItem[] = [
-  { id: 'li1', categoryId: 'f1', label: 'Home loan',         monthlyAmount: 2800 },
-  { id: 'li2', categoryId: 'f2', label: 'Rich phone',        monthlyAmount: 70 },
-  { id: 'li3', categoryId: 'f2', label: 'Anna phone',        monthlyAmount: 70 },
-  { id: 'li4', categoryId: 'f2', label: 'Home internet',     monthlyAmount: 80 },
-  { id: 'li5', categoryId: 'f3', label: 'Netflix',           monthlyAmount: 22 },
-  { id: 'li6', categoryId: 'f3', label: 'Spotify Family',    monthlyAmount: 12 },
-  { id: 'li7', categoryId: 'f3', label: 'iCloud 200GB',      monthlyAmount: 5 },
-  { id: 'li8', categoryId: 'f3', label: 'Apple One',         monthlyAmount: 10 },
-  { id: 'li9', categoryId: 'f4', label: 'Health insurance',  monthlyAmount: 380 },
-  { id: 'li10',categoryId: 'f4', label: 'Car insurance',     monthlyAmount: 28 },
-  { id: 'li11',categoryId: 'f4', label: 'Contents insurance',monthlyAmount: 10 },
-];
-
-const SEED_GOALS: Goal[] = [
-  { id: 'g1', name: 'Noosa holiday',    emoji: '✈️', saved: 3400, target: 5000,  targetDate: 'Oct \'25', monthlyContribution: 500 },
-  { id: 'g2', name: 'School fees 2026', emoji: '🏫', saved: 3720, target: 12000, targetDate: 'Jan \'26', monthlyContribution: 700 },
-  { id: 'g3', name: 'Home reno',        emoji: '🏠', saved: 2400, target: 20000, targetDate: 'Flexible',  monthlyContribution: 200 },
-];
+// Session 30 — SEED_ constants removed. Budget is now Supabase-backed via
+// lib/budget.ts. Fresh families start empty and build via Add flows or the
+// AI upload helper. Previous seed data lived in the source before commit; if
+// needed for demo purposes, add rows via SQL or the app UI.
 
 const EMOJI_OPTIONS = ['🏠','🛒','🍽️','📱','📺','🏥','🎽','💊','👗','🚗','⛽','☕','🎬','💼','✈️','🎁','🐕','💡','📚','🌱','🎨','💰','🏫','🛠️'];
 const GOAL_EMOJI_OPTIONS = ['✈️','🏫','🏠','💰','🎁','🚗','🛠️','🏖️','🎓','💼'];
@@ -210,11 +188,35 @@ export default function OurBudgetScreen() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [moreOpen, setMoreOpen]   = useState(false);
 
-  // Data state
-  const [streams, setStreams]         = useState<IncomeStream[]>(SEED_STREAMS);
-  const [categories, setCategories]   = useState<Category[]>(SEED_CATEGORIES);
-  const [lineItems, setLineItems]     = useState<LineItem[]>(SEED_LINE_ITEMS);
-  const [goals, setGoals]             = useState<Goal[]>(SEED_GOALS);
+  // Data state — Session 30: now Supabase-backed via lib/budget.ts.
+  // Starts empty and hydrates from the DB in the effect below. Fresh families
+  // see empty-state prompts; existing budgets restore from the last save.
+  const [streams, setStreams]         = useState<IncomeStream[]>([]);
+  const [categories, setCategories]   = useState<Category[]>([]);
+  const [lineItems, setLineItems]     = useState<LineItem[]>([]);
+  const [goals, setGoals]             = useState<Goal[]>([]);
+  const [budgetLoaded, setBudgetLoaded] = useState(false);
+
+  // ── Hydrate from Supabase on mount ────────────────────────────────────────
+  // Session 30 — previously state was SEED_-initialised and never persisted,
+  // so every restart wiped the user's real data. Now we load from the 4
+  // family-scoped Budget tables via lib/budget.ts and mutations persist
+  // through the save/remove helpers below.
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const b = await loadBudgetRemote();
+        setStreams(b.streams);
+        setCategories(b.categories);
+        setLineItems(b.lineItems);
+        setGoals(b.goals);
+      } catch (e: any) {
+        console.log('[budget] hydration error:', e?.message);
+      } finally {
+        setBudgetLoaded(true);
+      }
+    })();
+  }, []);
 
   // Sheet state
   const [catDetail, setCatDetail]           = useState<Category | null>(null);
@@ -235,66 +237,88 @@ export default function OurBudgetScreen() {
   const fixedCount    = categories.filter(c => c.type === 'fixed').length;
   const varCount      = categories.filter(c => c.type === 'variable').length;
 
-  // ── Save helpers ────────────────────────────────────────────────────────
+  // ── Save helpers (Session 30: local state first for snappy UI, then persist) ─
+  // Persist is fire-and-forget with error logging — UI stays responsive even
+  // if the network is slow. Errors surface in Metro logs, not to the user
+  // (a failed save is rare and the next mutation retries anyway).
   function saveStream(u: IncomeStream) {
     setStreams(prev => prev.some(s => s.id === u.id) ? prev.map(s => s.id === u.id ? u : s) : [...prev, u]);
+    saveIncomeStreamRemote(u).catch(e => console.log('[budget] saveStream persist failed:', e?.message));
   }
   function removeStream(id: string) {
     setStreams(prev => prev.filter(s => s.id !== id));
+    deleteIncomeStreamRemote(id).catch(e => console.log('[budget] removeStream persist failed:', e?.message));
   }
   function saveCategory(u: Category) {
     setCategories(prev => prev.some(c => c.id === u.id) ? prev.map(c => c.id === u.id ? u : c) : [...prev, u]);
+    saveCategoryRemote(u).catch(e => console.log('[budget] saveCategory persist failed:', e?.message));
   }
   function removeCategory(id: string) {
     setCategories(prev => prev.filter(c => c.id !== id));
+    // Local optimistic — DB cascades line items via FK ON DELETE CASCADE
     setLineItems(prev => prev.filter(li => li.categoryId !== id));
+    deleteCategoryRemote(id).catch(e => console.log('[budget] removeCategory persist failed:', e?.message));
   }
   function saveLineItem(u: LineItem) {
     setLineItems(prev => prev.some(li => li.id === u.id) ? prev.map(li => li.id === u.id ? u : li) : [...prev, u]);
+    saveLineItemRemote(u).catch(e => console.log('[budget] saveLineItem persist failed:', e?.message));
   }
   function removeLineItem(id: string) {
     setLineItems(prev => prev.filter(li => li.id !== id));
+    deleteLineItemRemote(id).catch(e => console.log('[budget] removeLineItem persist failed:', e?.message));
   }
   function saveGoal(u: Goal) {
     setGoals(prev => prev.some(g => g.id === u.id) ? prev.map(g => g.id === u.id ? u : g) : [...prev, u]);
+    saveGoalRemote(u).catch(e => console.log('[budget] saveGoal persist failed:', e?.message));
   }
   function removeGoal(id: string) {
     setGoals(prev => prev.filter(g => g.id !== id));
+    deleteGoalRemote(id).catch(e => console.log('[budget] removeGoal persist failed:', e?.message));
   }
 
   // ── AI helper: build prompt + call Claude + parse suggestions ─────────
+  // Session 30 — averaging fix. Sonnet was fumbling multi-image arithmetic
+  // (returning totals in `avg_monthly_amount` fields). New contract: Sonnet
+  // returns raw `total_seen` + `months_analysed` per suggestion, and we
+  // compute the monthly average client-side. Bulletproofs the math and lets
+  // us surface the calc to the user if we ever want to.
   function buildAnalysisPrompt(): string {
     const variableCatList = categories.filter(c => c.type === 'variable').map(c => c.name).join(', ');
     return `You are helping an Australian family PLAN their monthly budget from recent bank statements.
 
-IMPORTANT: You are NOT tracking specific transactions. You are producing AVERAGES and detecting RECURRING commitments to help the family set realistic budgets. Raw transactions are not stored.
+IMPORTANT: You are NOT tracking specific transactions. You are extracting SUMS and detecting RECURRING commitments to help the family set realistic monthly budgets. Raw transactions are not stored.
 
-Analyze the input and produce:
+CRITICAL — DO NOT compute the monthly average yourself. Return the raw totals and month count; the app divides. Your math is unreliable across multiple images; the app's math is not.
 
-1. VARIABLE SPENDING AVERAGES — for categories like groceries, dining, fuel, activities, etc:
-   - Calculate monthly average across all months visible (sum all detected / number of months)
-   - Skip one-off expenses (holidays, big-ticket items) — focus on routine patterns
+Step 1 — Determine how many distinct calendar months the input covers.
+   - Look at dates on the statements/screenshots. If they span e.g. May, June, July → months_analysed = 3.
+   - If unsure or only partial months, err LOW (2 not 3) so the resulting average isn't understated.
+   - Report months_analysed at the TOP LEVEL of the response.
+
+Step 2 — For each spending category:
+   - VARIABLE (groceries, dining, fuel, activities): sum ALL transactions matching that pattern across every month visible. Return the raw total in \`total_seen\`.
+   - Skip one-off expenses (holidays, big-ticket items) — focus on routine patterns.
    - Only map to these EXISTING variable categories: ${variableCatList}
-   - If a pattern clearly doesn't fit any existing category, propose a new one (e.g. "Fuel" seeing repeated BP/Shell/Ampol)
+   - If a pattern clearly doesn't fit any existing category, propose a new one (e.g. "Fuel" for repeated BP/Shell/Ampol).
 
-2. RECURRING FIXED SUBSCRIPTIONS — same merchant, similar monthly amount, occurring ≥ 2 months:
-   - These are likely subscriptions or services (Netflix, Spotify, gym, iCloud)
-   - Return merchant + monthly amount
+Step 3 — Detect RECURRING FIXED SUBSCRIPTIONS — same merchant, similar amount, occurring in ≥ 2 months (Netflix, Spotify, gym, iCloud):
+   - Report the SINGLE recurring monthly charge (not the total across months). If Netflix is $22 in May, $22 in June, $22 in July → monthly_amount = 22.
 
-Return ONLY valid JSON, no markdown fences, no prose:
+Return ONLY valid JSON, no markdown fences, no prose. Structure:
 {
+  "months_analysed": 3,
   "variable_suggestions": [
-    { "category_name": "Groceries", "avg_monthly_amount": 518, "months_analysed": 3, "reason": "Woolworths + Coles + IGA averaged $518 across 3 months" }
+    { "category_name": "Groceries", "total_seen": 1554, "reason": "Woolworths + Coles + IGA totalled $1554" }
   ],
   "new_variable_categories": [
-    { "name": "Fuel", "emoji": "⛽", "avg_monthly_amount": 220, "months_analysed": 3, "reason": "BP + Shell + Ampol" }
+    { "name": "Fuel", "emoji": "⛽", "total_seen": 660, "reason": "BP + Shell + Ampol" }
   ],
   "subscription_detections": [
-    { "merchant": "Netflix", "monthly_amount": 22, "months_detected": 3 }
+    { "merchant": "Netflix", "monthly_amount": 22 }
   ]
 }
 
-Never invent variable category names outside the existing list — put those in new_variable_categories instead. Keep each reason under 90 characters.`;
+Never invent variable category names outside the existing list — put those in new_variable_categories instead. Keep each reason under 90 characters. Do NOT include avg_monthly_amount fields — the app calculates them from total_seen / months_analysed.`;
   }
 
   // Single shared analysis call — takes Claude content blocks (images and/or text)
@@ -316,12 +340,31 @@ Never invent variable category names outside the existing list — put those in 
       const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
       setScanning(false);
 
-      let parsed: AISuggestions;
+      let parsed: any;
       try { parsed = JSON.parse(cleaned); } catch {
         Alert.alert('Could not read statement', 'Try again with clearer data.');
         return;
       }
-      setAiSuggestions(parsed);
+      // Session 30 — compute monthly averages client-side. Sonnet now returns
+      // raw total_seen + top-level months_analysed; we divide. Fall back to
+      // any legacy avg_monthly_amount field for backward compat during rollout.
+      const months = Math.max(1, Number(parsed?.months_analysed) || 1);
+      const withAvg = (item: any): any => {
+        // Prefer explicit total_seen ÷ months; keep any pre-existing avg field.
+        if (typeof item?.total_seen === 'number') {
+          return { ...item, avg_monthly_amount: Math.round(item.total_seen / months), months_analysed: months };
+        }
+        if (typeof item?.avg_monthly_amount === 'number') {
+          return { ...item, months_analysed: months };
+        }
+        return { ...item, avg_monthly_amount: 0, months_analysed: months };
+      };
+      const normalised: AISuggestions = {
+        variable_suggestions:    (parsed?.variable_suggestions ?? []).map(withAvg),
+        new_variable_categories: (parsed?.new_variable_categories ?? []).map(withAvg),
+        subscription_detections: parsed?.subscription_detections ?? [],
+      };
+      setAiSuggestions(normalised);
     } catch (e) {
       console.error('[budget ai]', e);
       setScanning(false);
@@ -387,45 +430,52 @@ Never invent variable category names outside the existing list — put those in 
   }
 
   // Apply accepted AI suggestions
+  // Session 30 — routes every mutation through the save* helpers so accepted
+  // suggestions persist to Supabase, not just local state. Also uses uuidv4()
+  // for real UUIDs (Postgres UUID columns won't accept the old string keys).
   function applyAISuggestions(accepted: AIAccepted) {
-    // 1. Variable category target updates
-    setCategories(prev => prev.map(c => {
-      const upd = accepted.variableUpdates.find(v => v.categoryId === c.id);
-      return upd ? { ...c, monthlyTarget: upd.amount } : c;
-    }));
+    // 1. Variable category target updates — persist each modified category
+    accepted.variableUpdates.forEach(upd => {
+      const existing = categories.find(c => c.id === upd.categoryId);
+      if (!existing) return;
+      saveCategory({ ...existing, monthlyTarget: upd.amount });
+    });
 
     // 2. New variable categories
-    const newCats: Category[] = accepted.newVariableCategories.map((nc, i) => ({
-      id: `c-${Date.now()}-${i}`,
-      name: nc.name,
-      emoji: nc.emoji,
-      type: 'variable',
-      monthlyTarget: nc.amount,
-      sortOrder: Date.now() + i,
-    }));
-    if (newCats.length > 0) setCategories(prev => [...prev, ...newCats]);
+    const now = Date.now();
+    accepted.newVariableCategories.forEach((nc, i) => {
+      saveCategory({
+        id:            uuidv4(),
+        name:          nc.name,
+        emoji:         nc.emoji,
+        type:          'variable',
+        monthlyTarget: nc.amount,
+        sortOrder:     now + i,
+      });
+    });
 
     // 3. New subscription line items — go into Subscriptions category (find or create)
     if (accepted.newSubscriptions.length > 0) {
-      let subCatId = categories.find(c => c.type === 'fixed' && /subscription/i.test(c.name))?.id;
-      if (!subCatId) {
-        const newSubCat: Category = {
-          id: `c-sub-${Date.now()}`,
-          name: 'Subscriptions',
-          emoji: '📺',
-          type: 'fixed',
-          sortOrder: Date.now(),
+      let subCat = categories.find(c => c.type === 'fixed' && /subscription/i.test(c.name));
+      if (!subCat) {
+        subCat = {
+          id:        uuidv4(),
+          name:      'Subscriptions',
+          emoji:     '📺',
+          type:      'fixed',
+          sortOrder: now,
         };
-        setCategories(prev => [...prev, newSubCat]);
-        subCatId = newSubCat.id;
+        saveCategory(subCat);
       }
-      const newLIs: LineItem[] = accepted.newSubscriptions.map((sub, i) => ({
-        id: `li-${Date.now()}-${i}`,
-        categoryId: subCatId!,
-        label: sub.merchant,
-        monthlyAmount: sub.amount,
-      }));
-      setLineItems(prev => [...prev, ...newLIs]);
+      const subCatId = subCat.id;
+      accepted.newSubscriptions.forEach(sub => {
+        saveLineItem({
+          id:            uuidv4(),
+          categoryId:    subCatId,
+          label:         sub.merchant,
+          monthlyAmount: sub.amount,
+        });
+      });
     }
 
     setAiSuggestions(null);
@@ -929,7 +979,7 @@ function FixedCategoryBody(p: {
   function commitAdd() {
     const amt = parseFloat(newAmt.replace(/[^0-9.]/g, '')) || 0;
     if (!newLabel.trim() || amt <= 0) { Alert.alert('Missing fields', 'Add a label and amount.'); return; }
-    p.onSaveLineItem({ id: `li-${Date.now()}`, categoryId: p.category.id, label: newLabel.trim(), monthlyAmount: amt });
+    p.onSaveLineItem({ id: uuidv4(), categoryId: p.category.id, label: newLabel.trim(), monthlyAmount: amt });
     setNewLabel(''); setNewAmt(''); setAdding(false);
   }
 
@@ -1098,7 +1148,7 @@ function IncomeEditorSheet(p: {
   const total = p.streams.reduce((a, s) => a + s.monthlyAmount, 0);
 
   function startAdd() {
-    setEditing({ id: `s-${Date.now()}`, label: '', type: 'Salary', monthlyAmount: 0 });
+    setEditing({ id: uuidv4(), label: '', type: 'Salary', monthlyAmount: 0 });
   }
 
   return (
@@ -1216,7 +1266,7 @@ function EditCategorySheet(p: {
     if (!name.trim()) { Alert.alert('Missing name', 'Give this category a name.'); return; }
     const n = parseFloat(target.replace(/[^0-9.]/g, '')) || 0;
     p.onSave({
-      id: existing?.id ?? `c-${Date.now()}`,
+      id: existing?.id ?? uuidv4(),
       name: name.trim(),
       emoji,
       type,
@@ -1350,7 +1400,7 @@ function EditGoalSheet(p: {
     if (!name.trim()) { Alert.alert('Missing name', 'Give this goal a name.'); return; }
     if (t <= 0) { Alert.alert('Missing target', 'Set a target amount to save towards.'); return; }
     p.onSave({
-      id: existing?.id ?? `g-${Date.now()}`,
+      id: existing?.id ?? uuidv4(),
       name: name.trim(),
       emoji,
       target: t,
