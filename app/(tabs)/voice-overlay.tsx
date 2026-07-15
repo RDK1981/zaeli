@@ -168,7 +168,7 @@ export default function VoiceOverlayScreen() {
       const form = new FormData();
       form.append('file', { uri, type: 'audio/m4a', name: 'voice.m4a' } as any);
       form.append('model', 'whisper-1');
-      form.append('language', 'en');
+      form.append('language', 'en');  // Session 30 — force English (Whisper can hallucinate other languages)
       const res  = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}` },

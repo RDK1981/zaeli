@@ -1136,6 +1136,7 @@ The child's previous question had this stored correct answer. When evaluating th
       const form = new FormData();
       form.append('file', { uri, type: 'audio/m4a', name: 'audio.m4a' } as any);
       form.append('model', 'whisper-1');
+      form.append('language', 'en');  // Session 30 — force English (Whisper can hallucinate other languages)
       const resp = await fetch(WHISPER_URL, { method: 'POST', headers: { Authorization: `Bearer ${OPENAI_KEY}` }, body: form });
       const data = await resp.json();
       const rawTranscript = data?.text?.trim() ?? '';

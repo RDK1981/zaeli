@@ -135,6 +135,7 @@ export default function TutorReadingScreen() {
       const form = new FormData();
       form.append('file', { uri, type:'audio/m4a', name:'reading.m4a' } as any);
       form.append('model', 'whisper-1');
+      form.append('language', 'en');  // Session 30 — force English (Whisper can hallucinate other languages)
       const t0 = Date.now();
       const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method:'POST', headers:{ Authorization:`Bearer ${OPENAI_KEY}` }, body:form,

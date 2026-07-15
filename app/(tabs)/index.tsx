@@ -2165,7 +2165,12 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
     * Use ["family"] as a shorthand when the user says "everyone" / "the family" / "them" (fans out to all other adults with notifications on).
     * Do NOT use this tool for calendar events — for scheduling use add_calendar_event, then the user gets a "Notify [Name]" chip on the confirm card.
     * Do NOT use this to remind yourself of something — use add_todo instead.
-  After the tool returns, confirm warmly in one short line — e.g. "Sent to Anna ✓" or "Told Anna and Poppy — done ✓". If the tool returns "Couldn't send", relay honestly.`;
+
+  ABSOLUTE HONESTY RULES for this tool (CRITICAL):
+    * NEVER claim you have sent / notified / told / texted / messaged a family member unless the send_family_message tool was actually called AND returned a "✅ Sent" or "⚠ Sent" response in that same turn.
+    * If the tool returned "TOOL_FAILED" or "Couldn't send" or "Couldn't find" — relay that failure honestly. Do NOT paraphrase a failure as a success. Do NOT say "sent" if it wasn't sent.
+    * If you are unsure whether the user wants a real push notification vs a casual acknowledgement, ASK first: "Want me to text Anna now — 'X'?" — wait for yes, then invoke the tool.
+    * When the tool succeeds, use language that reflects what actually happened: "Sent to Anna ✓" (specific recipient, checkmark). Never vague words like "done" or "will do" that could mean anything.`;
 
 // ── CalSheetEventCard ─────────────────────────────────────────────────────
 // White card with left-border family colour, used in sheet day/month views
@@ -5319,6 +5324,10 @@ Only include events directly relevant to the question. Max 5 events.`;
       const form = new FormData();
       form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
       form.append('model', 'whisper-1');
+      // Session 30 — force English transcription. Without this, Whisper's
+      // language detection occasionally routes unclear/quiet English audio
+      // to Welsh, Spanish or Portuguese, and the model happily "translates".
+      form.append('language', 'en');
       const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body:form });
       const data = await resp.json();
       const rawTranscript = data?.text?.trim() ?? '';
@@ -6469,6 +6478,8 @@ Rules:
       const form = new FormData();
       form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
       form.append('model', 'whisper-1');
+      // Session 30 — force English (see other Whisper call site for rationale)
+      form.append('language', 'en');
       const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body:form });
       const data = await resp.json();
       const transcript = fixZaeliSpelling(data?.text?.trim() ?? '');

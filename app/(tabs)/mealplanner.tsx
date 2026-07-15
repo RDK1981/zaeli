@@ -1987,6 +1987,7 @@ CHIPS: End every reply with [chips: chip1 | chip2 | chip3] — 2-3 short action 
       const form = new FormData();
       form.append('file', { uri, type: 'audio/m4a', name: 'audio.m4a' } as any);
       form.append('model', 'whisper-1');
+      form.append('language', 'en');  // Session 30 — force English (Whisper can hallucinate other languages)
       const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form });
       const d = await resp.json();
       const transcript = d?.text?.trim() ?? '';
