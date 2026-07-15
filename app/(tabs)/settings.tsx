@@ -454,6 +454,7 @@ export default function SettingsScreen() {
               const lines: string[] = [];
               lines.push(`Step: ${r.step}`);
               lines.push(`Detail: ${r.detail}`);
+              if (r.notifTypes) lines.push(`notifTypes: ${r.notifTypes}`);
               if (r.userId !== undefined) lines.push(`userId: ${r.userId ? r.userId.slice(0, 8) + '…' : 'null'}`);
               if (r.permission) lines.push(`permission: ${r.permission}`);
               if (r.projectId) lines.push(`projectId: ${r.projectId.slice(0, 8)}…`);

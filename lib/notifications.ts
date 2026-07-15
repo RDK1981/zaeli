@@ -346,7 +346,7 @@ export async function registerPushToken(): Promise<string | null> {
     // Note: simulators return valid-format Expo tokens but pushes to them
     // silently fail server-side (Expo returns DeviceNotRegistered). We skip
     // adding expo-device dependency and rely on that silent-failure model.
-    const userId = getCurrentUserId();
+    const userId = await getCurrentUserId();
     if (!userId) {
       console.log('[push] No signed-in user, skipping');
       return null;
@@ -409,10 +409,10 @@ export async function registerPushToken(): Promise<string | null> {
   }
 }
 
-// Session 29 — verbose diagnostic. Returns every relevant piece of state
-// so the on-device Alert can show the actual failure reason (userId present?
-// permission granted? projectId resolved? did the token API throw? did the
-// DB write fail?). Doesn't swallow errors like registerPushToken() does.
+// Session 29/30 — verbose diagnostic. Wraps EVERY external call in its own
+// try/catch and captures typeof checks on the Notifications module so we
+// can pinpoint whether the failure is auth, expo-notifications module link,
+// APNs entitlement, or the DB write.
 export async function debugPushToken(): Promise<{
   ok: boolean;
   step: string;
@@ -422,48 +422,75 @@ export async function debugPushToken(): Promise<{
   projectId?: string;
   token?: string;
   dbWriteOk?: boolean;
+  notifTypes?: string;
 }> {
-  const userId = getCurrentUserId();
-  if (!userId) return { ok: false, step: 'auth', detail: 'No signed-in user (getCurrentUserId returned null)', userId: null };
+  // Step 0 — sanity check that expo-notifications module actually linked at native level
+  const notifTypes = `getPermissionsAsync=${typeof Notifications.getPermissionsAsync}, getExpoPushTokenAsync=${typeof Notifications.getExpoPushTokenAsync}`;
+  if (typeof Notifications.getExpoPushTokenAsync !== 'function') {
+    return { ok: false, step: 'module', detail: `expo-notifications module not linked: ${notifTypes}`, notifTypes };
+  }
 
+  // Step 1 — auth (fixed: getCurrentUserId is async, must await)
+  let userId: string | null = null;
+  try {
+    userId = await getCurrentUserId();
+  } catch (e: any) {
+    return { ok: false, step: 'auth', detail: `getCurrentUserId threw: ${e?.message ?? e}`, notifTypes };
+  }
+  if (!userId) return { ok: false, step: 'auth', detail: 'getCurrentUserId returned null (no signed-in user)', userId: null, notifTypes };
+
+  // Step 2 — permission
   let permission: string = 'unknown';
   try {
     const p = await Notifications.getPermissionsAsync();
     permission = p.status;
   } catch (e: any) {
-    return { ok: false, step: 'permissions', detail: `getPermissionsAsync threw: ${e?.message ?? e}`, userId };
+    return { ok: false, step: 'permissions', detail: `getPermissionsAsync threw: ${e?.message ?? e}`, userId, notifTypes };
   }
   if (permission !== 'granted') {
-    return { ok: false, step: 'permissions', detail: `status='${permission}' (not granted)`, userId, permission };
+    return { ok: false, step: 'permissions', detail: `status='${permission}' (not granted)`, userId, permission, notifTypes };
   }
 
+  // Step 3 — projectId
   const projectId =
     Constants.expoConfig?.extra?.eas?.projectId ??
     (Constants as any)?.easConfig?.projectId ??
     undefined;
+  if (!projectId) {
+    return { ok: false, step: 'projectId', detail: 'No projectId in Constants.expoConfig.extra.eas.projectId or Constants.easConfig.projectId', userId, permission, notifTypes };
+  }
 
+  // Step 4 — request token from Expo/APNs
   let token: string;
   try {
-    const tokenResult = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
-    token = tokenResult.data;
+    const tokenResult = await Notifications.getExpoPushTokenAsync({ projectId });
+    token = tokenResult?.data;
   } catch (e: any) {
     return {
       ok: false,
       step: 'getExpoPushTokenAsync',
       detail: `THREW: ${e?.message ?? e}${e?.code ? ` (code: ${e.code})` : ''}`,
-      userId, permission, projectId,
+      userId, permission, projectId, notifTypes,
     };
   }
 
-  if (!token || !token.startsWith('ExponentPushToken[')) {
-    return { ok: false, step: 'token-format', detail: `Unexpected token format: ${token ?? 'null'}`, userId, permission, projectId, token };
+  if (!token) {
+    return { ok: false, step: 'token-format', detail: 'getExpoPushTokenAsync returned null/undefined data', userId, permission, projectId, notifTypes };
+  }
+  if (!token.startsWith('ExponentPushToken[')) {
+    return { ok: false, step: 'token-format', detail: `Unexpected format: ${token}`, userId, permission, projectId, token, notifTypes };
   }
 
-  const { error: writeErr } = await supabase.from('profiles').update({ expo_push_token: token }).eq('id', userId);
-  if (writeErr) {
-    return { ok: false, step: 'db-write', detail: `Supabase update failed: ${writeErr.message}`, userId, permission, projectId, token, dbWriteOk: false };
+  // Step 5 — DB write
+  try {
+    const { error: writeErr } = await supabase.from('profiles').update({ expo_push_token: token }).eq('id', userId);
+    if (writeErr) {
+      return { ok: false, step: 'db-write', detail: `Supabase update failed: ${writeErr.message}`, userId, permission, projectId, token, dbWriteOk: false, notifTypes };
+    }
+  } catch (e: any) {
+    return { ok: false, step: 'db-write', detail: `Supabase update threw: ${e?.message ?? e}`, userId, permission, projectId, token, dbWriteOk: false, notifTypes };
   }
-  return { ok: true, step: 'done', detail: 'Token registered + DB write confirmed', userId, permission, projectId, token, dbWriteOk: true };
+  return { ok: true, step: 'done', detail: 'Token registered + DB write confirmed', userId, permission, projectId, token, dbWriteOk: true, notifTypes };
 }
 
 // Clear this device's push token on sign-out so pushes don't keep landing
