@@ -681,10 +681,15 @@ function MainView(p: {
              onPress={() => p.onPlaceholder('Clear chat history')}/>
         <Row icon="🛡️" iconBg="#FFE4E0" iconFg="#B83333"
              title="Privacy policy"
-             onPress={() => p.onPlaceholder('Privacy policy')} last/>
+             onPress={() => Linking.openURL('https://zaeli.app/privacy.html').catch(() => {})} last/>
       </View>
 
-      {/* Developer — remove before launch */}
+      {/* Developer — Session 30: gated to Rich's email only. Anna and other
+          testers/users don't see this section at all. Rich sees it whether
+          running dev-client or an installed TestFlight/production build,
+          so he keeps his on-device diagnostics (push token, Stripe test). */}
+      {p.profile?.email === 'richarddekretser@gmail.com' && (
+      <>
       <SecLabel>Developer</SecLabel>
       <View style={s.group}>
         <Row icon="🧪" iconBg="#E8F4FD" iconFg="#0A4A6A"
@@ -714,6 +719,8 @@ function MainView(p: {
              sub="Manually trigger + show result in an Alert"
              onPress={p.onRegisterPushToken} last/>
       </View>
+      </>
+      )}
 
       {/* About */}
       <SecLabel>About</SecLabel>
@@ -726,7 +733,7 @@ function MainView(p: {
              onPress={() => p.onPlaceholder('Rate Zaeli')}/>
         <Row icon="📜" iconBg="rgba(10,10,10,0.06)" iconFg={INK}
              title="Terms of service"
-             onPress={() => p.onPlaceholder('Terms of service')}/>
+             onPress={() => Linking.openURL('https://zaeli.app/terms.html').catch(() => {})}/>
         <Row icon="ℹ️" iconBg="rgba(10,10,10,0.06)" iconFg={INK}
              title="Version" value="1.0.0 (build 156)" last/>
       </View>
