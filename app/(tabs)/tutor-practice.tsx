@@ -25,6 +25,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import { callClaude } from '../../lib/api-logger';
+import { callOpenAI, callWhisper } from '../../lib/ai-proxy';
 
 // ── Constants ─────────────────────────────────────────────────
 const FAMILY_ID  = '00000000-0000-0000-0000-000000000001';
@@ -46,7 +47,7 @@ const SUBJECTS   = ['Maths', 'English', 'Science', 'HASS'];
 const GPT_MODEL  = 'gpt-5.4-mini';
 const { height: SCREEN_H } = Dimensions.get('window');
 
-function getOpenAIKey() { return process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''; }
+// Session 30 Phase 5 — OpenAI + Whisper now via lib/ai-proxy Edge Functions
 function isSenior(y: number) { return y >= 7; }
 function getTierBadge(y: number) {
   if (y <= 2) return '🌟 Little Learner';
@@ -84,13 +85,9 @@ async function logGpt(feature: string, usage: any) {
 
 async function callGPT(messages: { role: string; content: string }[], maxTokens = 600): Promise<string> {
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getOpenAIKey()}` },
-      body: JSON.stringify({ model: GPT_MODEL, max_completion_tokens: maxTokens, messages }),
-    });
-    const json = await res.json();
-    if (!res.ok) { console.error('GPT error:', res.status, json?.error?.message); return ''; }
+    // Session 30 Phase 5 — routed through openai-proxy Edge Function
+    const json = await callOpenAI({ model: GPT_MODEL, max_completion_tokens: maxTokens, messages });
+    if (json?.error) { console.error('GPT error:', json.error.message); return ''; }
     logGpt('tutor_practice', json.usage);
     return json.choices?.[0]?.message?.content ?? '';
   } catch (e) { console.error('GPT fetch:', e); return ''; }
@@ -479,10 +476,8 @@ Focus on teaching the METHOD so they can apply it next time.` }, 800]);
       form.append('file', { uri, type: 'audio/m4a', name: 'audio.m4a' } as any);
       form.append('model', 'whisper-1');
       form.append('language', 'en');  // Session 30 — force English (Whisper can hallucinate other languages)
-      const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST', headers: { Authorization: `Bearer ${getOpenAIKey()}` }, body: form,
-      });
-      const json = await res.json();
+      // Session 30 Phase 5 — routed through whisper-proxy Edge Function
+      const json = await callWhisper(form);
       if (json.text?.trim()) setChatInput(json.text.trim());
     } catch (e) { console.error('Whisper:', e); }
     setChatSending(false);

@@ -32,6 +32,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
+import { callAnthropic, callOpenAI, callWhisper } from '../../lib/ai-proxy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadTourState, isInProgress as tourInProgress, getCurrentStop as tourCurrentStop, TOTAL_STOPS as TOUR_TOTAL, replayFromStart as tourReplayFromStart, shouldShowResumePrompt as tourShouldResume, markResumePromptShown as tourMarkResumePrompt, getStopById as tourGetStop, completeTour as tourCompleteTour, getEffectiveStops as tourEffectiveStops, getEffectiveTotal as tourEffectiveTotal } from '../../lib/tour-state';
 import { loadInvites as loadInviteState, recentlyAcceptedInvites, clearJustAcceptedFlag } from '../../lib/invite-state';
@@ -160,8 +161,10 @@ function getItemEmoji(name: string): string {
 // (module-level helpers + in-render). The component bumps a version state
 // after loadRoster() so render picks up the DB rows.
 
-const OPENAI_URL  = 'https://api.openai.com/v1/chat/completions';
-const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
+// Session 30 Phase 5 — vendor URLs no longer referenced from this file.
+// All Anthropic/OpenAI/Whisper calls route through lib/ai-proxy.ts helpers,
+// which post to the anthropic-proxy / openai-proxy / whisper-proxy Edge
+// Functions. API keys live server-side as Supabase secrets.
 
 const ALL_SCREENS = [
   { key: 'calendar', label: 'Calendar',   emoji: '📅', route: '/(tabs)/calendar' },
@@ -691,14 +694,12 @@ async function callGPT(
   maxTokens = 400,
   feature = 'chat_response'
 ): Promise<string> {
-  const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
-  if (!key) throw new Error('No OpenAI key');
-  const res = await fetch(OPENAI_URL, {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', Authorization:`Bearer ${key}` },
-    body: JSON.stringify({ model:'gpt-5.4-mini', max_completion_tokens:maxTokens, messages:[{ role:'system', content:system }, ...msgs] }),
+  // Session 30 Phase 5 — routed through openai-proxy Edge Function
+  const json = await callOpenAI({
+    model: 'gpt-5.4-mini',
+    max_completion_tokens: maxTokens,
+    messages: [{ role: 'system', content: system }, ...msgs],
   });
-  const json = await res.json();
   const text = json?.choices?.[0]?.message?.content?.trim();
   if (!text) throw new Error(`GPT empty: ${JSON.stringify(json)}`);
   const pt = json?.usage?.prompt_tokens ?? 0;
@@ -4850,7 +4851,6 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
       let imageDescription = '';
       if (imageParts.length > 0) {
         try {
-          const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
           const multiNote = imageParts.length > 1
             ? `You are being given ${imageParts.length} photos from a single message. Describe them together as a set (not one at a time). `
             : '';
@@ -4859,16 +4859,13 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
             source: { type: 'base64', media_type: p.mimeType, data: p.base64 },
           }));
           content.push({ type: 'text', text: `${multiNote}Describe ${imageParts.length > 1 ? 'these images' : 'this image'} in 2-3 sentences${imageParts.length > 1 ? ' total across all of them' : ''}. If they show a receipt, list the store name and all item names with prices. If they show food/pantry items, list each item visible. Otherwise focus on any text, dates, times, or event names visible.` });
-          const descRes = await fetch('https://api.anthropic.com/v1/messages', {
-            method:'POST',
-            headers:{ 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
-            body:JSON.stringify({
-              model:'claude-sonnet-4-6', max_tokens:800,
-              messages:[{ role:'user', content }],
-            }),
+          // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
+          const descJson = await callAnthropic({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 800,
+            messages: [{ role: 'user', content }],
           });
-          const descJson = await descRes.json();
-          console.log('[send] Vision describe status:', descRes.status, 'imgs:', imageParts.length, 'error:', descJson?.error?.message || 'none');
+          console.log('[send] Vision describe imgs:', imageParts.length, 'error:', descJson?.error?.message || 'none');
           imageDescription = descJson?.content?.[0]?.text || '';
           lastImageDesc.current = imageDescription;
           console.log('[send] Vision description:', imageDescription.slice(0, 100));
@@ -5029,8 +5026,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       const isShoppingContext = (hasShoppingCardInChat || hasShoppingChips) && !isCalendarQuery(text) && !!text;
       if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext) {
         pendingCalendarAdd.current = false; // clear flag — one-shot
-        const anthropicKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
-        if (!anthropicKey) { updateMsg(replyId, { text:'No API key configured.', isLoading:false }); setLoading(false); return; }
+        // Session 30 Phase 5 — key lives server-side; no client-side check needed
 
         const toolSys = `${system}${imgCtx}\n\n${CAPABILITY_RULES}`;
         const apiMessages: any[] = [];
@@ -5063,30 +5059,22 @@ Only include events directly relevant to the question. Max 5 events.`;
         // system block caches BOTH tools and system (tools render first, so
         // the marker on system covers the whole prefix). ~90% discount on
         // subsequent calls within the 5-min TTL.
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method:'POST',
-          headers:{
-            'Content-Type':'application/json',
-            'x-api-key':anthropicKey,
-            'anthropic-version':'2023-06-01',
-            'anthropic-beta':'prompt-caching-2024-07-31',
-          },
-          body:JSON.stringify({
-            model:'claude-sonnet-4-6',
-            // Session 29: bumped 800 → 2000 after Anna's 13 July batch cut off the
-            // 10th event ("Last day of school term - 18 Sept"). Each add_calendar_event
-            // tool_use block is ~80 output tokens; a 10-event bulk paste at 800 max
-            // truncated the last one mid-JSON, silently dropped by the client parser.
-            // 2000 gives room for ~20-25 tool_use blocks per turn — covers any
-            // realistic bulk paste. Output tokens only bill on what's actually generated.
-            max_tokens:2000,
-            system:[{ type:'text', text:toolSys, cache_control:{ type:'ephemeral' } }],
-            tools:TOOLS,
-            messages:apiMessages,
-          }),
-        });
-        const data = await response.json();
-        console.log('[send] Tool API response status:', response.status, 'error:', data?.error?.message || 'none', 'stop:', data?.stop_reason);
+        // Session 30 Phase 5 — routed through anthropic-proxy Edge Function.
+        // betaHeaders forwards the prompt-caching header server-side.
+        const data = await callAnthropic({
+          model: 'claude-sonnet-4-6',
+          // Session 29: bumped 800 → 2000 after Anna's 13 July batch cut off the
+          // 10th event ("Last day of school term - 18 Sept"). Each add_calendar_event
+          // tool_use block is ~80 output tokens; a 10-event bulk paste at 800 max
+          // truncated the last one mid-JSON, silently dropped by the client parser.
+          // 2000 gives room for ~20-25 tool_use blocks per turn — covers any
+          // realistic bulk paste. Output tokens only bill on what's actually generated.
+          max_tokens: 2000,
+          system: [{ type: 'text', text: toolSys, cache_control: { type: 'ephemeral' } }],
+          tools: TOOLS,
+          messages: apiMessages,
+        }, { betaHeaders: ['prompt-caching-2024-07-31'] });
+        console.log('[send] Tool API response error:', data?.error?.message || 'none', 'stop:', data?.stop_reason);
         const inTok       = data?.usage?.input_tokens ?? 0;
         const outTok      = data?.usage?.output_tokens ?? 0;
         const cacheRead   = data?.usage?.cache_read_input_tokens ?? 0;
@@ -5114,28 +5102,19 @@ Only include events directly relevant to the question. Max 5 events.`;
           // Session 29: same cache_control as the initial tool call. This is
           // the same prefix (tools + toolSys) so hits the same cache entry
           // written seconds earlier — near-guaranteed cache read.
-          const followUp = await fetch('https://api.anthropic.com/v1/messages', {
-            method:'POST',
-            headers:{
-              'Content-Type':'application/json',
-              'x-api-key':anthropicKey,
-              'anthropic-version':'2023-06-01',
-              'anthropic-beta':'prompt-caching-2024-07-31',
-            },
-            body:JSON.stringify({
-              model:'claude-sonnet-4-6',
-              // Session 29: bumped 500 → 1500 to match the initial call's headroom.
-              // Followup fires after tool results and typically writes a short
-              // confirmation ("Added 10 events to your calendar."), but if Sonnet
-              // wants to emit ADDITIONAL tool_use blocks after seeing results
-              // (e.g. move a clashing event she noticed) she now has room.
-              max_tokens:1500,
-              system:[{ type:'text', text:toolSys, cache_control:{ type:'ephemeral' } }],
-              tools:TOOLS,
-              messages:[...apiMessages, { role:'assistant', content:data.content }, { role:'user', content:toolResultContent }],
-            }),
-          });
-          const followData = await followUp.json();
+          // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
+          const followData = await callAnthropic({
+            model: 'claude-sonnet-4-6',
+            // Session 29: bumped 500 → 1500 to match the initial call's headroom.
+            // Followup fires after tool results and typically writes a short
+            // confirmation ("Added 10 events to your calendar."), but if Sonnet
+            // wants to emit ADDITIONAL tool_use blocks after seeing results
+            // (e.g. move a clashing event she noticed) she now has room.
+            max_tokens: 1500,
+            system: [{ type: 'text', text: toolSys, cache_control: { type: 'ephemeral' } }],
+            tools: TOOLS,
+            messages: [...apiMessages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResultContent }],
+          }, { betaHeaders: ['prompt-caching-2024-07-31'] });
           // Log the follow-up call too (was previously unlogged — undercounted cost)
           const fInTok      = followData?.usage?.input_tokens ?? 0;
           const fOutTok     = followData?.usage?.output_tokens ?? 0;
@@ -5319,8 +5298,6 @@ Only include events directly relevant to the question. Max 5 events.`;
       setMessages(prev => [...prev, { id:voiceThinkId, role:'zaeli', text:'', isLoading:true, ts:nowTs() }]);
       isAtBottom.current = true;
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated:false }), 50);
-      const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
-      if (!key) { setMessages(prev => prev.filter(m => m.id !== voiceThinkId)); return; }
       logWhisper(durationSec);
       const form = new FormData();
       form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
@@ -5329,8 +5306,8 @@ Only include events directly relevant to the question. Max 5 events.`;
       // language detection occasionally routes unclear/quiet English audio
       // to Welsh, Spanish or Portuguese, and the model happily "translates".
       form.append('language', 'en');
-      const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body:form });
-      const data = await resp.json();
+      // Session 30 Phase 5 — routed through whisper-proxy Edge Function
+      const data = await callWhisper(form);
       const rawTranscript = data?.text?.trim() ?? '';
       const transcript = fixZaeliSpelling(rawTranscript);
       // Remove the voice thinking dots
@@ -5882,20 +5859,15 @@ Only include events directly relevant to the question. Max 5 events.`;
         const imageBase64 = await FileSystem.readAsStringAsync(resized.uri, { encoding:'base64' as any });
         imageContents.push({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:imageBase64 } });
       }
-      const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
-      if (!claudeKey) { setMealAddRecipeMode('form'); return; }
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
-        body:JSON.stringify({
-          model:'claude-sonnet-4-6', max_tokens:1500,
-          messages:[{ role:'user', content:[
-            ...imageContents,
-            { type:'text', text:`Extract the recipe from ${uris.length > 1 ? 'these images (they may be different pages of the same recipe)' : 'this image'}. Combine all information into one recipe. Return ONLY valid JSON, no markdown:\n{"name":"","cook_time":"","ingredients":"ingredient1\\ningredient2\\n...","method":"step1. step2. ..."}` },
-          ]}],
-        }),
+      // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
+      const json = await callAnthropic({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: [
+          ...imageContents,
+          { type: 'text', text: `Extract the recipe from ${uris.length > 1 ? 'these images (they may be different pages of the same recipe)' : 'this image'}. Combine all information into one recipe. Return ONLY valid JSON, no markdown:\n{"name":"","cook_time":"","ingredients":"ingredient1\\ningredient2\\n...","method":"step1. step2. ..."}` },
+        ]}],
       });
-      const json = await res.json();
       const rawText = json?.content?.[0]?.text || '';
       let cleaned = rawText.replace(/```json\s*/g, '').replace(/```/g, '').trim();
       const jsonStart = cleaned.search(/[\[{]/);
@@ -6172,12 +6144,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       console.log('[scan] Resized', base64s.length, 'images, total base64 length:', base64s.reduce((s, b) => s + b.length, 0));
 
       // 4. Single Sonnet call with ALL images batched — treated as one receipt/pantry
-      const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
-      if (!claudeKey) {
-        setShopScanBusy(false);
-        Alert.alert('Scan failed', 'No API key configured.');
-        return;
-      }
+      // Session 30 Phase 5 — key lives server-side, no client-side check
 
       const multiPhotoNote = uris.length > 1
         ? `You are being given ${uris.length} photos. Treat them as ${mode === 'receipt' ? 'consecutive pages of the SAME receipt' : 'multiple views of the same pantry/fridge'}. Aggregate all items across every photo into a single result. Do NOT return separate results per photo.`
@@ -6207,15 +6174,12 @@ Rules:
       }));
       content.push({ type: 'text', text: scanPrompt });
 
-      const scanRes = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', 'x-api-key':claudeKey, 'anthropic-version':'2023-06-01' },
-        body:JSON.stringify({
-          model:'claude-sonnet-4-6', max_tokens:2000,
-          messages:[{ role:'user', content }],
-        }),
+      // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
+      const scanJson = await callAnthropic({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content }],
       });
-      const scanJson = await scanRes.json();
       const inTok = scanJson?.usage?.input_tokens ?? 0;
       const outTok = scanJson?.usage?.output_tokens ?? 0;
       logApiCall({ family_id:getFamilyId(), feature: mode === 'receipt' ? 'receipt_scan' : 'pantry_scan', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:(inTok/1_000_000*3)+(outTok/1_000_000*15) });
@@ -6473,16 +6437,14 @@ Rules:
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
       if (!uri) { _finishEntry(); return; }
-      const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
-      if (!key) { _finishEntry(); return; }
       logWhisper(durationSec);
       const form = new FormData();
       form.append('file', { uri, type:'audio/m4a', name:'audio.m4a' } as any);
       form.append('model', 'whisper-1');
       // Session 30 — force English (see other Whisper call site for rationale)
       form.append('language', 'en');
-      const resp = await fetch(WHISPER_URL, { method:'POST', headers:{ Authorization:`Bearer ${key}` }, body:form });
-      const data = await resp.json();
+      // Session 30 Phase 5 — routed through whisper-proxy Edge Function
+      const data = await callWhisper(form);
       const transcript = fixZaeliSpelling(data?.text?.trim() ?? '');
       _finishEntry(transcript);
     } catch (e) { console.error('entry mic stop:', e); _finishEntry(); }
@@ -9368,7 +9330,8 @@ const LANDING_GREETING: Record<LandingWindow, string> = {
 };
 
 const LANDING_TEST_WINDOW: LandingWindow = 'morning';
-const OPENAI_BRIEF_URL = 'https://api.openai.com/v1/chat/completions';
+// Session 30 Phase 5 — OPENAI_BRIEF_URL constant removed; LandingOverlay
+// now uses callOpenAI() from lib/ai-proxy.ts (see Generate brief effect).
 
 async function writeLandingDismiss(win: LandingWindow) {
   try {
@@ -9397,8 +9360,7 @@ function LandingOverlay({ onDismiss }: { onDismiss: () => void }) {
   React.useEffect(() => {
     async function generate() {
       try {
-        const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
-        if (!key) { setBriefText('Morning. Here\'s the day ahead.'); setLoading(false); return; }
+        // Session 30 Phase 5 — routes through openai-proxy Edge Function (no client key)
         const today = localDateStr();
         const [evRes, tdRes, mlRes] = await Promise.all([
           supabase.from('events').select('title,date,start_time').eq('family_id', getFamilyId()).eq('date', today).order('start_time').limit(4),
@@ -9421,12 +9383,11 @@ Rules: Don't open with name. Wrap key facts in [square brackets]. Never start wi
 Banned: "sorted", "chaos", "locked in", "quick wins", "you've got this", "make it count"
 Context: ${ctx.join(' ')}`;
 
-        const res = await fetch(OPENAI_BRIEF_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-          body: JSON.stringify({ model: 'gpt-5.4-mini', max_completion_tokens: 200, messages: [{ role: 'system', content: system }, { role: 'user', content: 'Generate.' }] }),
+        const json = await callOpenAI({
+          model: 'gpt-5.4-mini',
+          max_completion_tokens: 200,
+          messages: [{ role: 'system', content: system }, { role: 'user', content: 'Generate.' }],
         });
-        const json = await res.json();
         const text = json?.choices?.[0]?.message?.content?.trim() ?? '';
         setBriefText(text || 'Here\'s the day.');
         Animated.timing(briefAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();

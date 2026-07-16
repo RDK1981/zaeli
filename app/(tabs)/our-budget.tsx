@@ -40,6 +40,7 @@ import {
   deleteGoal as deleteGoalRemote,
   uuidv4,
 } from '../../lib/budget';
+import { callAnthropic } from '../../lib/ai-proxy';
 
 const { height: H } = Dimensions.get('window');
 
@@ -325,17 +326,12 @@ Never invent variable category names outside the existing list — put those in 
   async function analyseStatement(contentBlocks: any[]) {
     try {
       setScanning(true);
-      const claudeKey = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': claudeKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 3000,
-          messages: [{ role: 'user', content: contentBlocks }],
-        }),
+      // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
+      const data = await callAnthropic({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 3000,
+        messages: [{ role: 'user', content: contentBlocks }],
       });
-      const data = await res.json();
       const raw = (Array.isArray(data?.content) ? data.content.find((b: any) => b?.type === 'text')?.text : '') || '';
       const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
       setScanning(false);

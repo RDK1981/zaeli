@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
+import { callAnthropic, callWhisper } from '../../lib/ai-proxy';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
 import { getFamilyId } from '../../lib/family';
 import { getRoster, loadRoster, resolveAssigneeId, defaultAssigneeIds } from '../../lib/family-roster';
@@ -1501,15 +1502,13 @@ export default function CalendarScreen() {
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
       if (!uri || cancel) return;
-      const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
-      if (!key) return;
       logWhisper(durationSec);
       const form = new FormData();
       form.append('file', { uri, type: 'audio/m4a', name: 'audio.m4a' } as any);
       form.append('model', 'whisper-1');
       form.append('language', 'en');  // Session 30 — force English (Whisper can hallucinate other languages)
-      const resp = await fetch(WHISPER_URL, { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: form });
-      const data = await resp.json();
+      // Session 30 Phase 5 — routed through whisper-proxy Edge Function
+      const data = await callWhisper(form);
       const transcript = data?.text?.trim() ?? '';
       if (transcript) sendMessage(transcript);
     } catch (e) { console.error('stopRecording:', e); }
@@ -1555,7 +1554,7 @@ export default function CalendarScreen() {
     setChatLoading(true);
 
     try {
-      const anthropicKey  = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
+      // Session 30 Phase 5 — key lives server-side, no client check
       const selectedLabel = selectedDate.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
 
       const upcomingCtx = events
@@ -1631,15 +1630,14 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
         { role: 'user' as const, content: msgContent },
       ];
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6', max_tokens: 1024,
-          system: systemPrompt, tools: TOOLS, messages: apiMessages,
-        }),
+      // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
+      const data = await callAnthropic({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: TOOLS,
+        messages: apiMessages,
       });
-      const data = await res.json();
 
       if (data.stop_reason === 'tool_use') {
         const toolUses = data.content.filter((b: any) => b.type === 'tool_use');
@@ -1651,15 +1649,14 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
         const toolResultContent = toolUses.map((tu: any, i: number) => ({
           type: 'tool_result', tool_use_id: tu.id, content: toolResults[i],
         }));
-        const followUp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6', max_tokens: 300, system: systemPrompt, tools: TOOLS,
-            messages: [...apiMessages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResultContent }],
-          }),
+        // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
+        const followData = await callAnthropic({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 300,
+          system: systemPrompt,
+          tools: TOOLS,
+          messages: [...apiMessages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResultContent }],
         });
-        const followData = await followUp.json();
         const followText = followData.content?.find((b: any) => b.type === 'text')?.text ?? toolResults.join('\n');
         setMessages(prev => prev.map(m => m.id === replyId ? { ...m, text: followText, isLoading: false } : m));
       } else {

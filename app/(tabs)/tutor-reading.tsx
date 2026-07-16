@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
 import { logApiCall } from '../../lib/api-logger';
+import { callAnthropic, callOpenAI, callWhisper } from '../../lib/ai-proxy';
 
 // ── Constants ─────────────────────────────────────────────────
 const FAMILY_ID  = '00000000-0000-0000-0000-000000000001';
@@ -32,7 +33,7 @@ const BORDER     = 'rgba(0,0,0,0.07)';
 const BG         = '#F7F7F7';
 const CARD       = '#FFFFFF';
 const GPT_MODEL  = 'gpt-5.4-mini';
-const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+// Session 30 Phase 5 — OpenAI + Whisper + Anthropic now via lib/ai-proxy Edge Functions
 
 type Step = 'photo' | 'read' | 'feedback';
 
@@ -90,17 +91,16 @@ export default function TutorReadingScreen() {
       setPagePhoto(asset.uri);
       setDetectingPage(true);
       try {
-      const ANTHROPIC_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
       const t0 = Date.now();
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', 'x-api-key':ANTHROPIC_KEY, 'anthropic-version':'2023-06-01' },
-        body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:500, messages:[{ role:'user', content:[
-          { type:'image', source:{ type:'base64', media_type:asset.mimeType??'image/jpeg', data:asset.base64??'' }},
-          { type:'text',  text:'Return JSON only (no markdown): {"title":"book title and chapter if visible, else Unknown book","text":"full text on the page transcribed accurately word for word"}' },
-        ]}]}),
+      // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
+      const json = await callAnthropic({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: [
+          { type: 'image', source: { type: 'base64', media_type: asset.mimeType ?? 'image/jpeg', data: asset.base64 ?? '' } },
+          { type: 'text',  text: 'Return JSON only (no markdown): {"title":"book title and chapter if visible, else Unknown book","text":"full text on the page transcribed accurately word for word"}' },
+        ]}],
       });
-      const json = await res.json();
       await logApiCall({ family_id:FAMILY_ID, call_type:'tutor_vision', model:'claude-sonnet-4-6', provider:'anthropic',
         prompt_tokens:json.usage?.input_tokens??0, completion_tokens:json.usage?.output_tokens??0, duration_ms:Date.now()-t0 });
       const parsed = JSON.parse(json.content?.[0]?.text?.replace(/```json|```/g,'').trim() ?? '{}');
@@ -137,10 +137,8 @@ export default function TutorReadingScreen() {
       form.append('model', 'whisper-1');
       form.append('language', 'en');  // Session 30 — force English (Whisper can hallucinate other languages)
       const t0 = Date.now();
-      const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method:'POST', headers:{ Authorization:`Bearer ${OPENAI_KEY}` }, body:form,
-      });
-      const json = await res.json();
+      // Session 30 Phase 5 — routed through whisper-proxy Edge Function
+      const json = await callWhisper(form);
       await logApiCall({ family_id:FAMILY_ID, call_type:'whisper_transcription', model:'whisper-1', provider:'openai',
         prompt_tokens:0, completion_tokens:0, duration_ms:Date.now()-t0 });
       if (json.text?.trim()) await generateFeedback(json.text.trim());
@@ -158,11 +156,12 @@ pacing: exactly one of "Slow", "Good", "Fast"
 confidence: exactly one of "↑ Up", "→ Same", "↓ Down"`;
     try {
       const t0 = Date.now();
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method:'POST', headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${OPENAI_KEY}` },
-        body: JSON.stringify({ model:GPT_MODEL, max_completion_tokens:400, messages:[{ role:'user', content:prompt }] }),
+      // Session 30 Phase 5 — routed through openai-proxy Edge Function
+      const json = await callOpenAI({
+        model: GPT_MODEL,
+        max_completion_tokens: 400,
+        messages: [{ role: 'user', content: prompt }],
       });
-      const json = await res.json();
       const raw = json.choices?.[0]?.message?.content ?? '';
       await logApiCall({ family_id:FAMILY_ID, call_type:'tutor_session', model:GPT_MODEL, provider:'openai',
         prompt_tokens:json.usage?.prompt_tokens??0, completion_tokens:json.usage?.completion_tokens??0, duration_ms:Date.now()-t0 });

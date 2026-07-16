@@ -13,6 +13,7 @@
 
 import { supabase } from './supabase';
 import { DUMMY_FAMILY_ID } from './family';
+import { callAnthropic } from './ai-proxy';
 
 // DUMMY_FAMILY_ID kept as the default-parameter fallback so callers without
 // auth context (legacy / dev flows) still work. Authenticated callers should
@@ -243,30 +244,19 @@ export async function detectAndSavePatterns(
 
     if (!events || events.length < 5) return; // Not enough data yet
 
-    // Ask Claude to identify patterns
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type':                          'application/json',
-        'x-api-key':                             process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '',
-        'anthropic-version':                     '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model:      'claude-sonnet-4-6',
-        max_tokens: 500,
-        system: `You are analysing a family's activity log to find meaningful patterns.
+    // Ask Claude to identify patterns — Session 30 Phase 5 via anthropic-proxy
+    const d = await callAnthropic({
+      model:      'claude-sonnet-4-6',
+      max_tokens: 500,
+      system: `You are analysing a family's activity log to find meaningful patterns.
 Return a JSON array of insights. Each insight has:
 { "category": "routine|pattern|preference", "subject": "person or 'family'", "insight": "one clear sentence" }
 Only include confident patterns that repeat at least 3 times. Max 5 insights. Return ONLY valid JSON, no other text.`,
-        messages: [{
-          role:    'user',
-          content: `Activity log (last 30 days): ${JSON.stringify(events)}`,
-        }],
-      }),
+      messages: [{
+        role:    'user',
+        content: `Activity log (last 30 days): ${JSON.stringify(events)}`,
+      }],
     });
-
-    const d = await res.json();
     const text = d.content?.[0]?.text || '[]';
 
     let newInsights: Array<{category:string;subject:string;insight:string}> = [];
@@ -352,32 +342,23 @@ export async function detectInsightsFromConversations(
       .map(c => `${c.role}: ${c.content}`)
       .join('\n');
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type':                              'application/json',
-        'x-api-key':                                 process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '',
-        'anthropic-version':                         '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model:      'claude-sonnet-4-6',
-        max_tokens: 400,
-        system: `You analyse a family's chat with their assistant to extract DURABLE facts worth remembering long-term.
+    // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
+    const d = await callAnthropic({
+      model:      'claude-sonnet-4-6',
+      max_tokens: 400,
+      system: `You analyse a family's chat with their assistant to extract DURABLE facts worth remembering long-term.
 Return a JSON array. Each item: { "category": "routine|preference", "subject": "person's name or 'family'", "insight": "one clear sentence" }
 ONLY include durable facts: recurring routines (e.g. "Soccer training Tuesdays"), stable likes/dislikes/allergies, standing commitments.
 NEVER include one-off events, questions, scheduling for a single date, or transient chit-chat.
 Max 5 items. If nothing durable, return []. Return ONLY valid JSON, no markdown, no other text.`,
-        messages: [{ role: 'user', content: `Recent chat:\n${transcript}` }],
-      }),
+      messages: [{ role: 'user', content: `Recent chat:\n${transcript}` }],
     });
 
-    if (!res.ok) {
-      console.log('[memory] detectInsightsFromConversations API error:', res.status);
+    if (d?.error) {
+      console.log('[memory] detectInsightsFromConversations API error:', d.error.message);
       return;
     }
 
-    const d = await res.json();
     const raw = (d.content?.[0]?.text || '[]').replace(/```json|```/g, '').trim();
     let insights: Array<{ category: string; subject: string; insight: string }> = [];
     try {

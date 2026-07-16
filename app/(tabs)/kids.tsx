@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, { Polyline } from 'react-native-svg';
 import { supabase } from '../../lib/supabase';
+import { callOpenAI } from '../../lib/ai-proxy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loadAccount, isKidAccount, getAccount } from '../../lib/account-state';
 import {
@@ -388,14 +389,11 @@ export default function KidsHubScreen() {
     setActiveGame('wordle');
   }
 
-  // ── AI Trivia Generation ──
-  const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+  // ── AI Trivia Generation (Session 30 Phase 5 — routed via openai-proxy) ──
   const GPT_IN_PER_M = 0.15;
   const GPT_OUT_PER_M = 0.60;
 
   async function generateTrivia(childName: string, tier: AgeTier): Promise<TriviaQuestion[]> {
-    const key = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
-    if (!key) throw new Error('No OpenAI key');
 
     // Fetch recent question history to avoid repeats
     let recentTopics = '';
@@ -436,16 +434,12 @@ Respond with ONLY a JSON array, no other text. Format:
 [{"question":"...","options":["A","B","C","D"],"correct":0}]
 where "correct" is the 0-based index of the right answer.`;
 
-    const res = await fetch(OPENAI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: 'gpt-5.4-mini',
-        max_completion_tokens: 1200,
-        messages: [{ role: 'system', content: system }, { role: 'user', content: 'Generate 10 trivia questions now.' }],
-      }),
+    // Session 30 Phase 5 — routed through openai-proxy Edge Function
+    const json = await callOpenAI({
+      model: 'gpt-5.4-mini',
+      max_completion_tokens: 1200,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: 'Generate 10 trivia questions now.' }],
     });
-    const json = await res.json();
     const text = json?.choices?.[0]?.message?.content?.trim();
     if (!text) throw new Error('Empty GPT response');
 

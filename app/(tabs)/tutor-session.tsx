@@ -29,6 +29,7 @@ import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../../lib/supabase';
 import { callClaude } from '../../lib/api-logger';
+import { callWhisper } from '../../lib/ai-proxy';
 import { getCurriculumPrompt, getMoneyLevelPrompt, getTopicChips, DIFFICULTY_RULES, HINT_RULES } from './tutor-curriculum';
 import { generateSessionSummary } from '../../lib/tutor-summaries';
 import { getFamilyId } from '../../lib/family';
@@ -36,9 +37,10 @@ import { getFamilyId } from '../../lib/family';
 // ── Constants ─────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 const SONNET = 'claude-sonnet-4-6';
-const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
-const ANTHROPIC_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY ?? '';
-const OPENAI_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+// Session 30 Phase 5 — vendor URL + key constants removed. Anthropic calls
+// go through callClaude() (which routes via anthropic-proxy). Whisper calls
+// go through callWhisper() from lib/ai-proxy (which routes via whisper-proxy).
+// Both use server-side keys.
 const { width: W, height: H } = Dimensions.get('window');
 
 // Palette
@@ -1131,14 +1133,12 @@ The child's previous question had this stored correct answer. When evaluating th
       // Show thinking indicator
       setSending(true);
 
-      // Whisper transcription
-      if (!OPENAI_KEY) { setSending(false); return; }
+      // Whisper transcription — Session 30 Phase 5 routes via whisper-proxy
       const form = new FormData();
       form.append('file', { uri, type: 'audio/m4a', name: 'audio.m4a' } as any);
       form.append('model', 'whisper-1');
       form.append('language', 'en');  // Session 30 — force English (Whisper can hallucinate other languages)
-      const resp = await fetch(WHISPER_URL, { method: 'POST', headers: { Authorization: `Bearer ${OPENAI_KEY}` }, body: form });
-      const data = await resp.json();
+      const data = await callWhisper(form);
       const rawTranscript = data?.text?.trim() ?? '';
       const transcript = fixZaeliSpelling(rawTranscript);
 

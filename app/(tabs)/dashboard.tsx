@@ -25,6 +25,7 @@ import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { supabase } from '../../lib/supabase';
+import { callOpenAI } from '../../lib/ai-proxy';
 import MoreSheet from '../components/MoreSheet';
 import { setPendingChatContext } from '../../lib/navigation-store';
 import Svg, { Polygon, Line, Path, Circle, Polyline } from 'react-native-svg';
@@ -35,7 +36,7 @@ import { getRoster, loadRoster } from '../../lib/family-roster';
 const WEATHER_LAT = -26.39;
 const WEATHER_LON = 153.03;
 const GPT_MINI    = 'gpt-4o-mini';
-const OPENAI_KEY  = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
+// Session 30 Phase 5 — OpenAI calls route via callOpenAI() (openai-proxy Edge Function)
 
 // FAMILY_MEMBERS roster now comes from lib/family-roster (Session 23) — DB-backed.
 
@@ -373,17 +374,13 @@ async function generateNotices(data: CardData): Promise<Notice[]> {
   const ctx = `Today: ${localDateStr()}. Events today: ${todayEvts}. Tomorrow: ${tomEvts}. Todos: ${todos}. Shopping: ${shop}. Weather: ${weather}. Meals: ${meals}. Family: Rich (dad), Anna (mum), Poppy (girl 12), Gab (boy 10), Duke (boy 8).`;
   const system = `You are Zaeli, a sharp warm AI for an Australian family. Generate 2-3 short notices about things worth attention right now. Each under 12 words, plain text, no emoji, specific to the data. Never start with I. End with a period. Return ONLY a JSON array, no markdown. Format: [{"text":"...","tag":"Anna","color":"#FF7B6B"}]. Tag/color pairs: Rich #4D8BFF, Anna #FF7B6B, Poppy #A855F7, Gab #22C55E, Duke #F59E0B, Weather #A8D8F0, Shopping #D8CCFF, Calendar #3A3D4A, Meals #E8601A, Todos #C9A820.`;
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${OPENAI_KEY}` },
-      body: JSON.stringify({
-        model: GPT_MINI,
-        max_completion_tokens: 200,
-        messages: [{ role:'system', content:system }, { role:'user', content:ctx }],
-      }),
+    // Session 30 Phase 5 — routed through openai-proxy Edge Function
+    const json = await callOpenAI({
+      model: GPT_MINI,
+      max_completion_tokens: 200,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: ctx }],
     });
-    const json    = await res.json();
-    const raw     = json.choices?.[0]?.message?.content ?? '';
+    const raw = json.choices?.[0]?.message?.content ?? '';
     const cleaned = raw.replace(/```json|```/g, '').trim();
     const parsed  = JSON.parse(cleaned);
     if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(0, 3);
@@ -404,12 +401,12 @@ async function generateDashBrief(data: CardData): Promise<string> {
   const ctx = `Today: ${localDateStr()}. Time: ${timeWord}. Events today: ${todayEvts}. Tomorrow: ${tomEvts}. Todos: ${todos}. Shopping: ${shop}. Meals: ${meals}. Family: Rich (dad), Anna (mum), Poppy (girl 12), Gab (boy 10), Duke (boy 8).`;
   const system = `You are Zaeli, a sharp warm AI co-pilot for an Australian family. Write exactly 2 sentences summarising the most important thing right now. Sentence 1: name the person + most time-sensitive item. Sentence 2: one reassuring or forward-looking note. Max 20 words per sentence. Never start with "I". Never say mate. Plain text only. Wrap 1-2 key phrases in **bold**. Return ONLY the 2 sentences, no JSON.`;
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${OPENAI_KEY}` },
-      body: JSON.stringify({ model: GPT_MINI, max_completion_tokens: 100, messages: [{ role:'system', content:system }, { role:'user', content:ctx }] }),
+    // Session 30 Phase 5 — routed through openai-proxy Edge Function
+    const json = await callOpenAI({
+      model: GPT_MINI,
+      max_completion_tokens: 100,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: ctx }],
     });
-    const json = await res.json();
     return json.choices?.[0]?.message?.content?.trim() ?? '';
   } catch { return ''; }
 }

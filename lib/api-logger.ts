@@ -6,6 +6,7 @@
  */
 
 import { supabase } from './supabase';
+import { callAnthropic } from './ai-proxy';
 
 // ── Pricing per model — USD per token (Session 29 audit) ─────
 // Verified 13 Jul 2026 against Anthropic's pricing docs. Haiku 4.5 was
@@ -20,8 +21,11 @@ const PRICING: Record<string, { input: number; output: number }> = {
 };
 const DEFAULT_PRICING = PRICING['claude-sonnet-4-6'];
 
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
-const API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY || '';
+// Session 30 Phase 5 — Anthropic key is NO LONGER bundled in the client.
+// callClaude routes through lib/ai-proxy.callAnthropic() which posts to the
+// anthropic-proxy Supabase Edge Function; the API key lives server-side as
+// a Supabase secret. This closes the "bundled key extractable from binary"
+// security hole before public launch.
 
 // ── Feature type — all tracked call sites ─────────────────────
 export type ZaeliFeature =
@@ -63,28 +67,20 @@ export async function callClaude({
   // Check if body.system is an array (structured prompt with cache_control)
   const usePromptCaching = Array.isArray(body.system) && body.system.some((b: any) => b.cache_control);
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-api-key': API_KEY,
-    'anthropic-version': '2023-06-01',
-    'anthropic-dangerous-direct-browser-access': 'true',
-  };
-  if (usePromptCaching) {
-    headers['anthropic-beta'] = 'prompt-caching-2024-07-31';
-  }
-
-  const res = await fetch(ANTHROPIC_API_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
+  // Session 30 Phase 5 — route through anthropic-proxy Edge Function
+  // (JWT-authed, server-side API key). betaHeaders is forwarded server-side
+  // as the anthropic-beta HTTP header.
+  const data = await callAnthropic(body as any, {
+    betaHeaders: usePromptCaching ? ['prompt-caching-2024-07-31'] : undefined,
   });
-
-  const data = await res.json();
 
   logUsage({ feature, familyId, accountId, data, model: body.model, cacheData: data?.usage });
 
-  if (!res.ok) {
-    throw new Error(`Anthropic API ${res.status}: ${data?.error?.message || 'unknown error'}`);
+  // The proxy returns whatever Anthropic returns — including error shapes.
+  // Preserve the old throw behaviour so callers don't need to check for
+  // error shape in the response body.
+  if (data?.error) {
+    throw new Error(`Anthropic API: ${data.error.message || 'unknown error'}`);
   }
 
   return data;
