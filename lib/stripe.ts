@@ -33,17 +33,22 @@
 import { getProfile } from './auth';
 import { supabase } from './supabase';
 
-// Stripe price IDs — used when building checkout flows. Sandbox for now.
-export const STRIPE_PRICE_FAMILY = 'price_1Tp3x30kUsgPd6wFSSOUucBW';
-export const STRIPE_PRICE_TUTOR  = 'price_1Tp3xn0kUsgPd6wF7zonHLyo';
+// Stripe price IDs — LIVE (Session 30 Phase 5).
+// Migrated from sandbox on 17 July 2026 when Rich flipped Stripe live-mode.
+// Sandbox IDs (reference only, do not use):
+//   Family: price_1Tp3x30kUsgPd6wFSSOUucBW
+//   Tutor:  price_1Tp3xn0kUsgPd6wF7zonHLyo
+export const STRIPE_PRICE_FAMILY = 'price_1Ttl54P6r3YzpJLXj3nySAYA';
+export const STRIPE_PRICE_TUTOR  = 'price_1Ttl54P6r3YzpJLX4SUE4mnn';
 
-// Stripe Payment Link — Family Plan A$9.99/mo checkout. Set once in Stripe
-// Dashboard, pasted here. The `test_` prefix confirms this is a sandbox URL;
-// swap for the live-mode URL before public launch. Users open this URL via
-// Linking.openURL() and complete checkout on Stripe's hosted page. On
-// success, Stripe fires customer.subscription.created → our webhook syncs
-// profile → user returns to app and sees Active state in Settings.
-export const STRIPE_PAYMENT_LINK_FAMILY = 'https://buy.stripe.com/test_9B6dR165ie276QY3ROdnW00';
+// Stripe Payment Link — Family Plan LIVE. 14-day free trial (card required
+// upfront), then A$9.99/mo tax-inclusive. Users open this URL via
+// Linking.openURL() from the Subscribe button in Settings. On success,
+// Stripe fires customer.subscription.created (status='trialing') → our
+// webhook syncs profile → user returns to app → foreground refresh in
+// _layout.tsx re-reads profile → Subscription card shows the trial state.
+// Sandbox URL (reference): https://buy.stripe.com/test_9B6dR165ie276QY3ROdnW00
+export const STRIPE_PAYMENT_LINK_FAMILY = 'https://buy.stripe.com/fZubJ36EM1QR2z6eBl83C01';
 
 export type SubscriptionStatus =
   | 'trialing'

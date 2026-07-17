@@ -629,7 +629,7 @@ function MainView(p: {
             <Text style={s.planPrice}>{label}</Text>
             {showSubscribe && (
               <TouchableOpacity style={s.planBtn} activeOpacity={0.85} onPress={p.onSubscribe}>
-                <Text style={s.planBtnTxt}>{sub.plan === 'beta' ? 'Continue with Family Plan' : 'Subscribe · A$9.99/mo'}</Text>
+                <Text style={s.planBtnTxt}>{sub.plan === 'beta' ? 'Continue with Family Plan' : 'Start free 14-day trial'}</Text>
               </TouchableOpacity>
             )}
             {showManage && (

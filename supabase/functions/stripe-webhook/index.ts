@@ -48,8 +48,12 @@ const supabaseAdmin = createClient(
 // When switching to live mode, add the live Price IDs alongside — the map
 // can hold both sandbox and live keys since they never collide.
 const PRICE_TO_PLAN: Record<string, string> = {
-  'price_1Tp3x30kUsgPd6wFSSOUucBW': 'family',        // Family Plan A$9.99/mo
-  'price_1Tp3xn0kUsgPd6wF7zonHLyo': 'family_tutor',  // Tutor Add-on A$7.99/child/mo
+  // LIVE Price IDs (Session 30 Phase 5, 17 July 2026)
+  'price_1Ttl54P6r3YzpJLXj3nySAYA': 'family',        // Family Plan A$9.99/mo (14-day trial)
+  'price_1Ttl54P6r3YzpJLX4SUE4mnn': 'family_tutor',  // Tutor Add-on A$7.99/child/mo
+  // Sandbox Price IDs kept for backwards compat if we ever fall back to test mode
+  'price_1Tp3x30kUsgPd6wFSSOUucBW': 'family',        // sandbox Family
+  'price_1Tp3xn0kUsgPd6wF7zonHLyo': 'family_tutor',  // sandbox Tutor
 };
 
 Deno.serve(async (req) => {
