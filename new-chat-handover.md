@@ -1,5 +1,5 @@
 # Zaeli — New Chat Handover
-*14 July 2026 — Session 30 ✅ · PUSH NOTIFICATION SAGA + MULTI-PHOTO CHAT + STRIPE TESTABILITY + KIDS TRIVIA GUARD + COLD-START SPLASH FIX · **Push tokens still not registering on TestFlight build 1.0.0(6)** — SQL shows both Rich + Anna with `has_token = false` on `profiles.expo_push_token` after installing today's build. Multi-round diagnose ruled out theory after theory (Anna's old build, iOS permission denial, missing SQL column, missing APNs credentials) before landing on `expo-notifications` plugin was missing from app.json plugins array (fixed `6eab45a`, in current build). Tokens STILL don't register even after that fix — so verbose `debugPushToken()` diagnostic (`dcb263b`) pushed but NOT yet on-phone. Rich fires a diagnostic production build tomorrow morning → on-device Alert reveals exact failure step (auth / permissions / getExpoPushTokenAsync / db-write) with exception message · **5 commits shipped this session (all pushed to origin/main)** — `8bbf7e3` family push notification infrastructure + Spend Processing overlay + tutor Play icon removed · `e6c8ea6` multi-photo chat upload (3-4 photos batched into one Sonnet call) + Stripe checkout testability + foreground profile refresh · `34b57eb` Kids Trivia answer-in-question guard + cold-start splash latency ~3s → ~1s · `6eab45a` expo-notifications plugin native entitlement fix · `dcb263b` verbose debugPushToken diagnostic · **EAS Starter plan upgrade** — hit free tier build cap partway through, upgraded to 14 iOS builds/month to unblock shipping cadence · **Blocked until push fixed** — Notify chip on calendar events, "text Anna" custom family messages, all family push notification surfaces · **Untested on build 1.0.0(6)** — multi-photo chat upload, Spend overlay, Stripe test checkout, Trivia guard, splash latency, foreground refresh (Rich to verify tomorrow after diagnostic build) · **Pre-build TODO tomorrow**: add `EXPO_PUBLIC_GIPHY_API_KEY = g7MhCcPu2yT62HvslNpnEoG4LxwC7Lga` to expo.dev as Sensitive Preview+Production (only affects Kids Hub GIFs) · Prior Session 29 (Anna beta round 1 shipped, meal planner pivot, tutor math three-layer defence, Sonnet chat caching) + Session 28 (Stripe end-to-end + calendar phantom fix) all still current · **NEXT: Rich builds diagnostic tomorrow → Alert shows exact push failure → fix from there → test the untested features → Anna beta round 2 feedback session · Website v5 rewrite parked (4-round plan drafted) · Sonnet 5 migration + per-user brief cache + Phase 5 API keys server-side still queued***
+*17 July 2026 — Session 30 continuation ✅ · **PHASE 5 API KEYS SERVER-SIDE + STRIPE LIVE + BUDGET BACKEND + WHISPER ENGLISH LOCK + HONESTY RULES + GDPR PAGES + ANNA ROUND 2 FIXES** · Three-day continuation of Session 30 has landed the largest single ship in the project's history — 9 commits pushed on top of 14 July's Session 30 base (all on origin/main). Headlines: **`e84a091` Phase 5 Anthropic + OpenAI + Whisper keys moved server-side via 3 Edge Functions** (client-bundled keys physically removed from the app — closes the pre-public-launch security hole flagged Session 27); **`3101f65` Stripe LIVE mode activated end-to-end** (Rich completed KYC, live products created A$9.99 + A$7.99 tax-inclusive, Payment Link with 14-day free trial live at buy.stripe.com/fZubJ36EM1QR2z6eBl83C01, live webhook registered + secrets set); **`f2974e4` Our Budget Supabase persistence** (4-table migration + `lib/budget.ts` swap, plus AI averaging fix); **`ff5bfd6` Whisper English lock** on all 9 voice-transcribe call sites (fixes Anna's Welsh transcription bug); **`c8db27f` + `c8ef80c`** honesty rules on `send_family_message` + calendar tools so Zaeli stops fabricating "message sent" / "event added" confirmations, plus Anna round 2 fixes (multi-event photo add prompt rewrite, `**markdown**` stripped from chat display); **`96e485d` GDPR + Terms pages** (privacy.html + terms.html deployed live to zaeli.app + dev row gated to Rich's email so Anna doesn't see it) · **Everything untested until the final build tomorrow** — Rich is queueing ONE `eas build --platform ios --profile production --auto-submit` with all 9 commits in it. Test path: push tokens (finally), multi-photo chat, Spend overlay, Stripe LIVE checkout with 14-day trial (REAL card required — test card 4242 doesn't work in live mode), Budget persistence + cross-device with Anna, AI budget averaging, multi-event calendar photo add, no `**markdown**` in chat, no Welsh from Whisper, Dev section hidden from Anna, "Start free 14-day trial" Subscribe button label · **Parked / deferred**: Sonnet 5 migration (queued for post-beta, intro pricing $2/$10 through Aug 2026 makes it cheaper than 4.6), per-user brief cache (queued past 100 families), Website v5 refresh (4-round plan drafted, ~1 day), Outlook/Gmail calendar sync (revisit if Anna asks twice), ElevenLabs voice, splash blue-flash full elimination (WSL needed, cosmetic parked) · **Prior Session 30 (14 July)** — push notification infrastructure, multi-photo chat, Kids Trivia guard, cold-start splash latency fix, expo-notifications plugin discovery, EAS Starter upgrade — all context, still applicable*
 *Copy this entire message to start a new chat.*
 
 ---
@@ -10,99 +10,104 @@ Zaeli is an iOS-first AI family life platform built in React Native / Expo.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 30 was a multi-round push-notification debugging saga alongside a substantial ship of feature work. Five commits landed (all pushed to origin/main), Rich completed two full production build + submit + install cycles (both users on TestFlight build 1.0.0(6)), and EAS was upgraded to Starter to unblock cadence. Push tokens are still not registering after the plugin fix — landed on a verbose on-device `debugPushToken()` diagnostic that Rich fires as tomorrow morning's production build. The Alert output will point at the exact failure step (auth / permissions / getExpoPushTokenAsync / db-write) so the fix is one round away. Meanwhile: multi-photo chat, Spend overlay, Stripe test row, Trivia guard, and splash latency all shipped and await Rich's testing tomorrow.
+Session 30 continuation (15–17 July) is the biggest single production hardening block in the project's history. Nine commits landed on top of the 14 July Session 30 base — Phase 5 API keys server-side, Stripe LIVE mode end-to-end, Our Budget backend, Whisper English lock, honesty rules on Zaeli's tools, GDPR + Terms pages, and Anna beta round 2 fixes. All the code + all the external activations are done. Everything is untested pending tomorrow's final production build (Rich firing ONE `eas build ... --auto-submit`). The next session is validation-heavy — walk Rich through the test path, triage any failures, then Anna beta round 2 feedback session once the build lands cleanly.
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — SESSION 30 · PUSH DIAGNOSTIC PREPPED, MULTI-STRAND SHIP ✅
+## CURRENT STATE — SESSION 30 CONTINUATION · PRODUCTION HARDENING BLOCK ✅
 ## ══════════════════════════════════
 
-### NEW THIS SESSION (Session 30 — push notification saga + multi-photo chat + Stripe testability + Trivia guard + splash latency, 14 July)
+### NEW THIS BLOCK (Session 30 continuation — 15–17 July, 9 commits on origin/main)
 
-**A. Push notification saga — 5 commits, still unresolved, verbose diagnostic prepped for tomorrow** ⭐. The headline. Rich completed two full production build + submit + install cycles today (1.0.0(5) → 1.0.0(6)), but SQL still shows both Rich + Anna with `has_token = false` on `profiles.expo_push_token`. Multi-round diagnose-fix cycles ruled out theory after theory:
-- Theory 1: Anna on old build → confirmed she updated → not it
-- Theory 2: iOS permissions denied silently → checked, granted → not it
-- Theory 3: SQL migration not run → confirmed `expo_push_token` column exists → not it
-- Theory 4 (landed): `expo-notifications` plugin was missing from app.json plugins array. Local notifications work without the plugin (**this is the misleading part**), but push token registration silently fails. Fixed in `6eab45a`, included in current build 1.0.0(6) on both phones.
-- **Tokens STILL don't register** after the plugin fix. Landed on the right approach: verbose on-device diagnostic (`dcb263b`) — a `debugPushToken()` function called by a new "🔔 Register push token now" Developer row that logs every step of the registration path (auth → permissions → `getExpoPushTokenAsync` → db-write) and surfaces the exact failure step + exception message via `Alert.alert`. Diagnostic pushed but NOT yet in the on-phone build.
+**A. Phase 5 — Anthropic + OpenAI + Whisper API keys moved server-side** ⭐⭐⭐ (commit `e84a091`). The pre-public-launch blocker flagged Session 27 is now closed. Three new Supabase Edge Functions (`anthropic-proxy`, `openai-proxy`, `whisper-proxy`) with matching Supabase secrets (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) set via CLI. New `lib/ai-proxy.ts` provides `callAnthropic()` / `callOpenAI()` / `callWhisper()` — JWT-authed via `session.access_token`, same call signatures as before so migrating ~15 call sites was mechanical. **`EXPO_PUBLIC_ANTHROPIC_API_KEY` and `EXPO_PUBLIC_OPENAI_API_KEY` removed from local `.env` AND from EAS Environment Variables** — Metro inlines `process.env.EXPO_PUBLIC_*` at build time, so removing them means the values become `undefined` in the compiled bundle and the keys physically leave the app. Kept in EAS: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_GIPHY_API_KEY` (all safe to bundle). Public App Store launch is no longer blocked by client-bundled secrets.
 
-**B. Multi-photo chat upload shipped** (commit `e6c8ea6`). 3-4 photos batched into ONE Sonnet vision call with an aggregation prompt. Same pattern as the Session 29 multi-photo receipt scan (`92a35d4`), now generalised to chat. Untested on device — Rich to test tomorrow.
+**B. Stripe LIVE mode — activated end-to-end** ⭐⭐ (commit `3101f65` + external activation). Rich completed the Stripe KYC path today (ABN, business address, ID verification, banking, phone verification, business URL `https://zaeli.app`, business type "Sole trader", description "AI-powered family life management app for Australian families"). Live products copied from sandbox (tax settings preserved — critical, Stripe AU otherwise adds 10% on top): `Zaeli Family Plan` A$9.99/mo tax-inclusive + `Zaeli Tutor Add-on` A$7.99/mo tax-inclusive. **Live Payment Link at `https://buy.stripe.com/fZubJ36EM1QR2z6eBl83C01` with 14-day free trial (card required upfront, auto-charges on day 15)** — Rich hit a gotcha where the copied-from-sandbox Link was API-created and couldn't be edited in the UI, so had to Duplicate + configure trial + deactivate original. Live webhook "Zaeli subscription sync (live)" registered against the Supabase Edge Function (6 events: `customer.subscription.created/updated/deleted`, `invoice.payment_succeeded/failed`, `customer.created`). Live secrets `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` set via CLI. Live Customer Portal activated (return URL `https://zaeli.app`). Subscribe button in the app now says **"Start free 14-day trial"**. Also shipped: `STRIPE-LIVE-SETUP.md` walkthrough (commit `582870b`) for reproducibility.
 
-**C. Stripe checkout testability** (commit `e6c8ea6`). New Developer row 💳 Test Stripe checkout for validating the checkout flow end-to-end without needing a real customer flow. Plus foreground profile refresh so returning from Stripe checkout auto-refreshes subscription state in Settings.
+**C. Our Budget backend — 4-table migration + persistence** ⭐ (commit `f2974e4`). `supabase-budget-tables.sql` (ran, live in DB): `income_streams` + `budget_categories` + `category_line_items` + `savings_goals` — all family-scoped, all RLS-locked to `current_family_id()` following the Session 21 pattern. New `lib/budget.ts` wraps the CRUD. `our-budget.tsx` migrated off local React state. **Data now persists across kills, and Rich + Anna share the same family Budget cross-device.** Same commit also fixes the AI averaging bug — when Rich uploaded 6 monthly statement screenshots, the AI was averaging within a single month instead of across months. Prompt rewritten to explicitly ask for cross-month monthly averages when multiple statements are attached.
 
-**D. Kids Trivia answer-in-question guard** (commit `34b57eb`). Sonnet was occasionally emitting trivia questions that leaked the answer inside the question text ("What colour is a red apple?"). Added a validation guard that catches the pattern and re-generates.
+**D. Whisper English lock** ⭐ (commit `ff5bfd6`). Anna reported voice input transcribing as Welsh. Root cause: OpenAI Whisper's `language` param defaults to auto-detect, which routes accented / brief / unclear English to Welsh, Spanish, or Portuguese with distressing frequency. **Fix: `language: 'en'` added on all 9 call sites in the codebase** (chat mic, tutor mic, receipt scan mic, pantry scan, notes voice-add, kids voice, etc). One-line fix per site, applied uniformly. Also in the same commit: honesty rules on `send_family_message` — Zaeli must NEVER claim she texted / notified / messaged someone unless the tool was actually called this turn AND returned ✅. If unsure, ask first.
 
-**E. Cold-start splash latency fix** (commit `34b57eb`). Kill app 5+ minutes → reopen was taking ~3 seconds to render. Reduced to ~1 second. Untested — Rich to verify tomorrow.
+**E. Removed stale "CANNOT send messages" contradiction** (commit `c8db27f`). Old prompt rule from before family push existed said "you cannot send messages on the user's behalf" — directly contradicted the new `send_family_message` tool + honesty rules. Removed cleanly.
 
-**F. Family push notification infrastructure** (commit `8bbf7e3`). Notify chip on calendar events, "text Anna" custom family messages — all wired up but BLOCKED behind the push token registration issue. Also Spend Processing overlay (full-screen during receipt scan, silent auto-complete) and Tutor Play icon removed as small polish.
+**F. Anna round 2 fixes** (commit `c8ef80c`). Two Anna beta feedback items:
+- **Multi-event photo add** — Anna photographed a school newsletter with 8 events. Sonnet's multi-image vision prompt was using summary language ("2-3 sentences total") which collapsed 8 events into "eight events for the kids" — useless for downstream tool calls. Rewrote the prompt to demand enumeration language: numbered per-event breakdown, no summarising, one `add_calendar_event` tool call per event. Also added calendar honesty rule (matches send_family_message pattern) — never claim an event was added unless the tool was called this turn AND returned ✅.
+- **Strip `**markdown**` from chat display** — Sonnet was emitting `**bold**` in confirmation text on shopping/todo adds, rendering as literal asterisks in the chat feed. Added a stripping pass on all Zaeli text output.
 
-**G. EAS Starter plan upgrade** (non-code, external). Hit free tier build cap partway through the day. Upgraded to Starter plan (14 iOS builds/month) to unblock shipping cadence. Cost is justified — build velocity was the blocker for iteration.
+**G. GDPR + Terms + dev row gate + welcome email doc** (commit `96e485d`). `privacy.html` + `terms.html` written + pushed to the `zaeli-app-links` GitHub repo — Netlify auto-deployed to `https://zaeli.app/privacy.html` + `/terms.html` (both verified live). Signup screen + Settings now link to these real URLs. Settings Developer section now gated to Rich's email only (`richarddekretser@gmail.com`) so Anna doesn't see the raw dev testing surface. Also shipped: a doc for the future welcome email workflow.
 
-### Key decisions / learnings Session 30
+**H. Supabase auth email templates re-branded** (external, this session). Rich updated the "Confirm signup" + "Reset password" templates in Supabase dashboard with Zaeli-branded HTML. So the first-touch surface (email confirmation for new signups) now feels like Zaeli, not a raw Supabase template.
 
-- **Diagnose from data, not theory.** The SQL that showed `has_token = false` for BOTH users pointed straight at plugin miss — not the Anna-old-build theory we spent early rounds chasing. Multiple "it must be X" hypotheses evaporated once we looked at the DB.
-- **`expo-notifications` plugin MUST be in app.json plugins array** or push tokens silently fail. Local notifications still work without it — **this is what makes it silent and misleading**. Add to CLAUDE.md rules.
-- **`.catch(() => {})` swallows errors invisibly** — always log outcomes for async fire-and-forget. Applies broadly beyond notifications.
-- **Sensitive silent-failure paths (push, camera, background) deserve verbose on-device Developer rows with structured `Alert.alert` output.** Console.log is useless when you can't reach Metro logs from a TestFlight device. The `debugPushToken()` pattern is the template for future silent-failure debugging.
-- **`eas build` and `eas submit` are separate.** Build creates .ipa; submit uploads to App Store Connect. Two commands, two waits.
-- **Preview builds (`--profile preview`) use internal distribution** (install link, can't submit to TestFlight). **Production builds (`--profile production`) are App Store distributable.** For TestFlight, always production profile.
-- **Same bundle ID = update-in-place on iOS**, no duplicate icon — reconfirmed today across two build cycles.
+### Key decisions / learnings this block
 
-### Pre-build TODO tomorrow morning (Rich, in order)
+- **Removing an `EXPO_PUBLIC_*` env var from EAS Environment Variables physically removes the value from the compiled bundle.** Metro inlines `process.env.EXPO_PUBLIC_*` at build time. This is how Phase 5 API-keys-server-side actually closes the security hole — not by adding a layer, but by literally deleting the secret from the build.
+- **Every AI tool that Sonnet can fabricate success for needs an ABSOLUTE honesty rule.** Pattern: "NEVER claim X unless tool call was made this turn AND returned ✅. If unsure, ASK first." Applied to `send_family_message` + calendar today. Apply to any future tool with the same shape (memory writes, budget writes, etc). Sonnet's helpful-assistant training bias otherwise makes it hallucinate confirmations.
+- **Whisper `language: 'en'` on every call site** — auto-detect routes unclear English to Welsh / Spanish / Portuguese too often. Applied uniformly to all 9 call sites. Any new Whisper integration must include this param.
+- **Multi-image Sonnet vision prompts need enumeration language, not summary language.** "2-3 sentences total" collapses 8 events into "eight events for the kids". Must explicitly ask for numbered per-item breakdown when downstream tool calls depend on per-item extraction. Applied to calendar photo add today.
+- **PowerShell cmd.exe quoting for supabase secrets** — always wrap `supabase secrets set KEY=VALUE` in double quotes (`supabase secrets set "KEY=VALUE"`). Prevents cmd.exe interpreting special chars in the secret value. Rich hit this twice today.
+- **Stripe 2026 UI**: sandboxes are separate workspaces now, not a test-mode toggle. Top-right button says "Switch to live account" / "Switch to sandboxes". Sandbox has a dark-blue banner; live has no banner. Sandboxes are copyable to live — preserves products, tax settings, and Payment Links (with caveats — API-created Payment Links can't be edited in the UI, must Duplicate + configure).
+- **Stripe trial with card upfront = 14-day free + Stripe holds card + auto-charges on day 15.** Industry standard for consumer SaaS. Test card `4242 4242 4242 4242` does NOT work in live mode — testing the live checkout requires a real card, which gets charged A$0 during the trial period, cancellable + refundable via the Stripe dashboard within the trial.
+- **Removing a stale prompt rule is as important as adding a new one.** The "CANNOT send messages" rule sat there for months after family push shipped, silently contradicting the new tool. Whenever a new capability lands, grep the prompt for the anti-rule and remove it.
 
-1. ✅ `supabase-push-tokens.sql` migration ran — `profiles.expo_push_token` column confirmed via SQL
-2. ✅ `family-notify` Edge Function deployed (assumed — status unconfirmed but tools returned meaningful responses during today's tests)
-3. ✅ APNs push credentials auto-provisioned via `eas credentials` (Push Key set up)
-4. ✅ `expo-notifications` plugin in app.json (added `6eab45a`, in build 1.0.0(6))
-5. 🔨 **GIPHY env var — NOT YET ADDED to expo.dev.** Add `EXPO_PUBLIC_GIPHY_API_KEY = g7MhCcPu2yT62HvslNpnEoG4LxwC7Lga` as **Sensitive** visibility, scoped Preview + Production. Only affects Kids Hub GIFs. Add BEFORE firing tomorrow's build.
+### Rich's build + test path tomorrow (in order)
 
-### Tomorrow morning steps (Rich)
-
-1. `eas build --platform ios --profile production` — builds the diagnostic commit `dcb263b`
-2. `eas submit --platform ios --latest` — pushes to TestFlight
+1. `eas build --platform ios --profile production --auto-submit` — one build, everything in it (all 9 commits on top of the current TestFlight build)
+2. Wait ~30–45 min for build + Apple processing
 3. Update in TestFlight (Rich + Anna both)
-4. Open app → Settings → Developer → 🔔 **Register push token now** → the Alert shows exactly WHICH step failed (auth / permissions / `getExpoPushTokenAsync` / db-write) with the actual exception message
-5. Fix based on the Alert output. Could be anything from "no session" (auth timing) to "permission denied" (didn't grant) to "getExpoPushTokenAsync threw <specific error>" (native module or credentials issue) to "insert returned no rows" (RLS). Whatever the Alert says, fix from there.
+4. **Test path (in this rough order)**:
+   - 🔔 Register push token now dev row → **should now succeed** (Phase 5 + honest catch + expo-notifications plugin + APNs all in place — this build is the moment of truth for the multi-round push saga)
+   - Add calendar event → tap Notify chip → **Anna gets push** (finally)
+   - Multi-event photo add → all events land + honest count reported (Anna's 8-event newsletter case)
+   - Budget: add income + categories + line items + goals → force-quit → reopen → **data persists**
+   - Budget on Anna's phone: **she sees Rich's changes** (cross-device via `family_id` RLS)
+   - AI budget upload with 6 statement screenshots → **sensible monthly averages** (not within-single-month averaging)
+   - Voice chat: "What's on today?" → **English response, not Welsh**
+   - Voice chat: "Text Anna to say home in 20" → **Zaeli actually sends** (send_family_message honesty rule shouldn't block a real send)
+   - Chat any shopping / todo add → **no `**bold**` visible** in the feed
+   - Settings for Anna: **NO Developer section visible**
+   - Settings for Rich: **Developer section visible**
+   - Subscribe button label reads **"Start free 14-day trial"**
+   - Stripe LIVE checkout: complete with REAL card → payment succeeds (A$0 during trial) → webhook fires → `profiles.subscription_status = 'trialing'` → Settings subscription card refreshes on foreground return
 
-### Blocked until push works
+### External activations Rich completed today (not in git, documented for audit trail)
 
-- Notify chip on calendar events (in the code, waiting for push to fire)
-- "text Anna" custom family push notifications
-- Any other family push notification surface
+- Deployed 3 Edge Functions: `anthropic-proxy`, `openai-proxy`, `whisper-proxy`
+- Set Supabase secrets: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (Phase 5), `STRIPE_SECRET_KEY` (live), `STRIPE_WEBHOOK_SECRET` (live)
+- Removed from EAS Environment Variables: `EXPO_PUBLIC_ANTHROPIC_API_KEY`, `EXPO_PUBLIC_OPENAI_API_KEY`. Kept: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GIPHY_API_KEY`
+- Removed same two AI keys from local `.env`
+- Stripe live account KYC submitted + activated
+- Stripe live products created + Payment Link + webhook + Customer Portal all configured
+- Ran `supabase-budget-tables.sql` migration (4 tables live with RLS)
+- Pushed `privacy.html` + `terms.html` to zaeli-app-links repo, Netlify auto-deployed to zaeli.app
+- Updated Supabase auth email templates (Confirm signup + Reset password) with Zaeli-branded HTML
 
-### Untested features on current build 1.0.0(6) — Rich to test tomorrow after diagnostic build
+### Parked / deferred (unchanged from Session 30 base + still current)
 
-- **Multi-photo chat upload** — send 3-4 photos in one chat message, aggregated Sonnet call
-- **Spend Processing overlay** — full-screen during receipt scan, should auto-dismiss silently on complete (no nav)
-- **Stripe test checkout** — Developer row 💳 Test Stripe checkout
-- **Kids Trivia answer-in-question guard** — Kids Hub → World Trivia, watch for questions that leak the answer
-- **Cold-start splash latency** — kill app for 5+ min → reopen, should be ~1s not 3s
-- **Foreground profile refresh** — return from Stripe checkout in Safari, subscription state should refresh in Settings without manual reload
-
-### Parked / deferred (queued after push fix + Anna round 2 feedback)
-
-- **Website v5 rewrite** — 4-round plan drafted: (1) correctness pass with new pricing, (2) beta framing, (3) chat mockup refresh, (4) new sections + deploy to zaeli.app.
-- **Outlook/Gmail calendar sync** — agreed not urgent right now; revisit only if Anna asks twice.
-- **Anna beta round 2 feedback session** — waiting on push-fix build so we don't send her into more broken flows.
-- **Sonnet 5 migration** — queued. Intro pricing $2/$10 through Aug 2026 makes it CHEAPER than 4.6 with same/better quality. Could piggyback on next build after push fix.
-- **Per-user brief cache DB migration** — queued for scale past 100 families.
-- **Phase 5 — Anthropic + OpenAI API keys server-side** (Supabase Edge Functions, same pattern as Stripe portal). Critical before public launch — keys currently extractable from client bundle.
-- **Checkout flow build** — no in-app path to become a Stripe customer yet (test row is Developer-only). Payment Link (no code, hosted) recommended for beta expansion.
+- **Sonnet 5 migration** — queued for after Anna beta settles. Intro pricing $2/$10 through Aug 2026 makes it CHEAPER than Sonnet 4.6. Better instruction following would compound today's honesty-rule fixes. Could piggyback on the next post-testing build.
+- **Per-user brief cache DB migration** — queued for scale past 100 families. Currently briefs are family-scoped so 2 adults invalidate each other's cache (~240 briefs/family/mo).
+- **Website v5 rewrite** — 4-round plan drafted (correctness pass with new pricing → beta framing → chat mockup refresh → new sections + deploy to zaeli.app). ~1 day of work total. Currently zaeli.app runs the orb splash landing.
+- **Outlook/Gmail calendar sync** — parked, revisit only if Anna asks twice.
+- **ElevenLabs voice** — still parked. Post-beta, post-first-public-launch. Only exception would be brief-only voice.
+- **Splash blue flash full elimination** — WSL needed for storyboard inspection. Cosmetic, parked.
+- **Checkout flow polish** — Payment Link works (external URL) but a native in-app checkout sheet is a v2 polish item. Payment Link is fine for beta expansion.
 
 ### What's NEXT
 
-1. **Rich fires diagnostic production build tomorrow morning**, gets Alert output, we fix push based on the exact error step
-2. **Rich tests the 6 untested features** on the fresh diagnostic build — bundle any bugs into the next commit
-3. **Anna beta round 2 feedback session** once push works + untested features validated
-4. **Bundle Anna round 2 feedback + push fix + any tested-feature fixes into next TestFlight build**
-5. **Sonnet 5 model swap** could piggyback on the next build if Anna round 2 doesn't surface anything urgent
-6. **Website v5 rewrite** when priorities align — 4-round plan already drafted, ready to execute
-7. **Phase 5 API keys server-side** — blocker for public App Store launch; don't defer past first public launch decision
+1. **Rich fires the production build tomorrow morning** with `--auto-submit` — one shot, all 9 commits + the earlier Session 30 base
+2. **Walk Rich through the test path above** — if push tokens finally register, most of the untested surface should light up green in one pass
+3. **Triage any test failures** — most likely candidates: Stripe live checkout (real card + first live customer link-back), Budget cross-device RLS edge case, Whisper English lock coverage on any missed call sites
+4. **Anna beta round 2 feedback session** once the build lands cleanly — she's been patient through the push saga
+5. **Sonnet 5 model swap** on the next build if Anna round 2 doesn't surface anything urgent (intro pricing window through Aug 2026)
+6. **Website v5 rewrite** when priorities align — 4-round plan drafted, ready to execute
+7. **First public launch decision** — no launch blockers remain from a code/infra standpoint. Phase 5 shipped. Stripe live. GDPR pages live. Auth flows real. Push (pending validation). Awaiting Anna beta round 2 signal on product-market fit before pulling the launch trigger.
+
+### Session 30 base (14 July — still current context)
+
+Push notification infrastructure shipped (`supabase-push-tokens.sql` + `family-notify` Edge Function + `lib/notifications.ts` + Notify chip on calendar cards + `send_family_message` tool). Multi-photo chat upload (up to 4 photos batched into one Sonnet vision call, horizontal thumbnail strip). Kids Trivia answer-in-question guard (three-layer defence). Cold-start splash latency fix (setAuthed before loadProfile). **⭐ CRITICAL DISCOVERY: `expo-notifications` plugin was missing from app.json plugins array** — local notifications worked without it (misleading), but push token registration silently failed. Fixed in `6eab45a` + verbose `debugPushToken()` diagnostic in `dcb263b`. EAS upgraded to Starter plan (14 iOS builds/month). Commits: `8bbf7e3`, `e6c8ea6`, `34b57eb`, `6eab45a`, `dcb263b`, `250aa87`. The 14 July push validation was blocked at that point — this block's Phase 5 + honest catch + expo-notifications plugin work should collectively finally deliver working push in tomorrow's build.
 
 ### Session 29 (still current — historical, 13 July)
 
-Anna beta round 1 shipped and installed on TestFlight build #14 (`annalrutledge@gmail.com`, joined Rich's family, `beta_end_date` set +3 months). Meal planner pivot to recipes-first (Dashboard "Meal Planner" → "Tonight's Meals", tab reshuffle to Recipes → Regulars → Plan, family regulars in chat context). Tutor math accuracy three-layer defence (anti-sycophancy rules + hidden `<expected>N</expected>` marker + `LAST_EXPECTED_ANSWER` injection). Sonnet prompt caching on chat tool-calling path (~60% cost reduction on biggest single driver). Bulk-paste truncation fix (max_tokens 800→2000 / 500→1500). API logger negative-cost bug fixed. Admin console refresh at `app/(tabs)/zaeli-admin/index.html`. Commits: `92a35d4`, `c02bba0`, `15529b8`, `916f2ab`, `0b65420`.
+Anna beta round 1 shipped and installed on TestFlight (`annalrutledge@gmail.com`, joined Rich's family, `beta_end_date` set +3 months). Meal planner pivot to recipes-first (Dashboard "Meal Planner" → "Tonight's Meals", tab reshuffle to Recipes → Regulars → Plan, family regulars in chat context). Tutor math accuracy three-layer defence (anti-sycophancy rules + hidden `<expected>N</expected>` marker + `LAST_EXPECTED_ANSWER` injection). Sonnet prompt caching on chat tool-calling path (~60% cost reduction on biggest single driver). Bulk-paste truncation fix (max_tokens 800→2000 / 500→1500). API logger negative-cost bug fixed. Admin console refresh at `app/(tabs)/zaeli-admin/index.html`. Commits: `92a35d4`, `c02bba0`, `15529b8`, `916f2ab`, `0b65420`.
 
 ---
 
