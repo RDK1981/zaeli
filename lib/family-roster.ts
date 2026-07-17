@@ -131,22 +131,39 @@ export function isRosterLoaded(): boolean {
 // Resolve a name Zaeli passes ("Rich", "Gabriel", "gab") to a real member id.
 // Fuzzy: exact → name-prefix → query-prefix. Replaces the old hardcoded
 // NAME_TO_ID maps so calendar assignees use real family_members UUIDs.
+//
+// Session 30 fix: NEVER return a DEFAULT_ROSTER `seed-*` id. If a caller
+// hits this before loadRoster has completed (race window on cold start),
+// the id would otherwise be `seed-rich`/`seed-anna` etc. — a placeholder
+// that gets persisted to events.assignees where it can never resolve back
+// to a real family_members row. Rich hit this via Anna's multi-photo
+// parent-teacher upload — 4 events landed with seed-* ids and lost their
+// avatars in every subsequent view. Now: seed IDs return undefined; caller
+// (Sonnet's add_calendar_event tool path) will omit that assignee rather
+// than persist a broken reference.
 export function resolveAssigneeId(n: string): string | undefined {
   const q = (n || '').toLowerCase().trim();
   if (!q) return undefined;
-  return (
+  const found = (
     _roster.find(m => m.name.toLowerCase() === q) ||
     _roster.find(m => m.name.toLowerCase().startsWith(q)) ||
     _roster.find(m => q.startsWith(m.name.toLowerCase()))
-  )?.id;
+  );
+  if (!found) return undefined;
+  if (found.id.startsWith('seed-')) return undefined; // Session 30 fix
+  return found.id;
 }
 
 // Default assignee for a new event = the signed-in user (was hardcoded '2').
+// Session 30: same seed-* guard as resolveAssigneeId — never persist a
+// DEFAULT_ROSTER placeholder id.
 export function defaultAssigneeIds(): string[] {
   const me = getMemberByName(getProfile()?.name || '')
     ?? _roster.find(m => m.role === 'parent')
     ?? _roster[0];
-  return me ? [me.id] : [];
+  if (!me) return [];
+  if (me.id.startsWith('seed-')) return []; // Session 30 fix
+  return [me.id];
 }
 
 export function invalidateRosterCache(): void {

@@ -27,17 +27,18 @@ import { setFamilyFromSettings } from '../../lib/navigation-store';
 import { STOPS as TOUR_STOPS, TOTAL_STOPS as TOUR_TOTAL, replayFromStart, replayStop, loadTourState, isCompleted as tourIsCompleted, getState as getTourState, getEffectiveStops as tourEffectiveStops, getEffectiveTotal as tourEffectiveTotal } from '../../lib/tour-state';
 import { loadInvites, getPendingInvites, markAccepted } from '../../lib/invite-state';
 import { resetToOwner } from '../../lib/account-state';
-import { signOut, loadProfile, getProfile, type Profile } from '../../lib/auth';
+import { signOut, loadProfile, getProfile, getCurrentUserId, type Profile } from '../../lib/auth';
 import { loadPrefs, updatePref as persistUpdatePref, DEFAULT_PREFS, type Prefs } from '../../lib/user-prefs';
 import {
   fetchInsightsByCategory, fetchMilestones, deleteInsight, deleteMilestone,
   clearAllMemory, type InsightRow, type MilestoneRow,
 } from '../../lib/zaeli-memory';
 import { getFamilyId } from '../../lib/family';
-import { scheduleBriefNotifications, registerPushToken, debugPushToken } from '../../lib/notifications';
+import { scheduleBriefNotifications, registerPushToken, debugPushToken, notifyFamily } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
 import { getSubscription, subscriptionLabel, fetchCustomerPortalUrl, shouldPromptSubscribe, getCheckoutUrl } from '../../lib/stripe';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import Constants from 'expo-constants';
 import Svg, { Path } from 'react-native-svg';
 import MoreSheet from '../components/MoreSheet';
 
@@ -465,6 +466,53 @@ export default function SettingsScreen() {
               Alert.alert('debugPushToken threw', e?.message ?? String(e));
             }
           }}
+          onDirectPushTest={async () => {
+            // Session 30 — bypass Sonnet entirely. Call notifyFamily with the
+            // first eligible family member (owner/adult in same family, has a
+            // push token, not the sender). This tells us definitively whether
+            // the failure lives in Sonnet's tool invocation OR in the Edge
+            // Function → Expo → APNs pipeline.
+            try {
+              const me = await getCurrentUserId();
+              if (!me) { Alert.alert('Not signed in', 'Sign in first.'); return; }
+              const fid = getFamilyId();
+              if (!fid) { Alert.alert('No family_id', 'Profile not loaded yet.'); return; }
+              const { data: candidates, error: qErr } = await supabase
+                .from('profiles')
+                .select('id, name, expo_push_token, kind')
+                .eq('family_id', fid)
+                .in('kind', ['owner', 'adult'])
+                .neq('id', me)
+                .not('expo_push_token', 'is', null);
+              if (qErr) { Alert.alert('Query failed', qErr.message); return; }
+              if (!candidates || candidates.length === 0) {
+                Alert.alert('No eligible recipients',
+                  'No other family adult has a push token registered.\n\n' +
+                  'Get them to tap "Register push token now" first.');
+                return;
+              }
+              const target = candidates[0];
+              const tokenPreview = (target.expo_push_token || '').slice(0, 22);
+              const res = await notifyFamily({
+                recipientUserIds: [target.id],
+                title: 'Zaeli test',
+                body: `Direct push test to ${target.name} · ${new Date().toLocaleTimeString()}`,
+                data: { source: 'direct-test' },
+              });
+              const lines: string[] = [];
+              lines.push(`Recipient: ${target.name}`);
+              lines.push(`Token: ${tokenPreview}…`);
+              lines.push(`Sent: ${res.sent ?? 0}`);
+              lines.push(`Failed: ${res.failed ?? 0}`);
+              if (res.error) lines.push(`Error: ${res.error}`);
+              Alert.alert(
+                (res.sent ?? 0) > 0 ? '✅ Handed to Expo' : '⚠ Push dispatch failed',
+                lines.join('\n'),
+              );
+            } catch (e: any) {
+              Alert.alert('Direct test threw', e?.message ?? String(e));
+            }
+          }}
         />
       )}
 
@@ -575,6 +623,7 @@ function MainView(p: {
   onSubscribe: () => void;
   onTestCheckout: () => void;
   onRegisterPushToken: () => void;
+  onDirectPushTest: () => void;
 }) {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
@@ -717,7 +766,13 @@ function MainView(p: {
         <Row icon="🔔" iconBg="#FFE4E0" iconFg="#B83333"
              title="Register push token now"
              sub="Manually trigger + show result in an Alert"
-             onPress={p.onRegisterPushToken} last/>
+             onPress={p.onRegisterPushToken}/>
+        {/* Session 30 — direct family-notify test bypassing Sonnet, to isolate
+            whether push failure is Sonnet tool-invocation OR Edge Function/APNs delivery */}
+        <Row icon="🧪" iconBg="#E6F7EF" iconFg="#2D7A52"
+             title="Test family push (direct)"
+             sub="Bypasses Sonnet — hits Edge Function directly"
+             onPress={p.onDirectPushTest} last/>
       </View>
       </>
       )}
@@ -735,7 +790,14 @@ function MainView(p: {
              title="Terms of service"
              onPress={() => Linking.openURL('https://zaeli.app/terms.html').catch(() => {})}/>
         <Row icon="ℹ️" iconBg="rgba(10,10,10,0.06)" iconFg={INK}
-             title="Version" value="1.0.0 (build 156)" last/>
+             title="Version" value={(() => {
+               // Session 30 — read from Expo config so the number matches
+               // whatever EAS baked in at build time (autoIncrement bumps
+               // ios.buildNumber on every production build).
+               const v = Constants.expoConfig?.version ?? '1.0.0';
+               const b = Constants.expoConfig?.ios?.buildNumber ?? '';
+               return b ? `${v} (${b})` : v;
+             })()} last/>
       </View>
 
       {/* Danger */}
