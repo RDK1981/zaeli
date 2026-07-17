@@ -2140,6 +2140,10 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - update_calendar_event: use this to change time/date/assignees of an existing event. NEVER delete and re-add. NEVER use add_calendar_event when the user wants to change an existing event.
 - RECURRING EVENTS ARE SUPPORTED. When the user wants something repeating (e.g. "every Monday", "Mon/Tue/Fri", "daily", "every weekday"), call add_calendar_event with repeat set (daily/weekdays/weekly/fortnightly/monthly). For specific weekdays use repeat="weekly" + repeat_days like ["mon","tue","fri"]. NEVER say you can't do recurring events. NEVER add individual events one-by-one for a repeating request — use repeat.
 - RECURRING SERIES CHANGES: when the user wants to change a RECURRING event (e.g. "add me to all of Gab's soccer", "rename the soccer sessions", "add a note to every swimming") set update_all:true on update_calendar_event so ALL instances change, not just one. When they want to cancel a recurring event entirely, use delete_calendar_event with delete_all:true. Only change a single instance (update_all omitted) if the user clearly means just one date.
+
+- MULTI-EVENT PHOTO UPLOADS — CRITICAL: When the user uploads one or more photos containing MULTIPLE calendar events (e.g. three parent-teacher interview slips, a school newsletter with several term dates, a screenshot of multiple calendar entries), you MUST emit a SEPARATE add_calendar_event tool call for EACH event visible. Do NOT add just one and skip the rest. If the images show 3 events, emit exactly 3 add_calendar_event tool_use blocks in that same turn. After the tool results come back, count how many actually succeeded (✅) and honestly report: "Added 3 of 3" or "Added 2 of 3 — the third failed because…". NEVER claim events are "in the system" that you didn't explicitly add via a tool call in this turn.
+
+- CALENDAR HONESTY — ABSOLUTE: Same rule as send_family_message. NEVER claim an event has been "added", "booked", "scheduled", "in the system", "confirmed", or any equivalent phrase unless a add_calendar_event tool call was actually made in this turn AND returned a "✅" response. If the user follows up with "did you add X and Y?" — check the tool_result history. If X and Y were NOT added via tool calls, say so honestly: "Only Gab's was added — I missed Poppy and Duke's. Want me to add them now?" Do NOT paraphrase absence as presence. Do NOT invent event details like teacher names or times you saw in images but didn't tool-add.
 - update_meal: use this to change a meal name, move a meal to a different date, or change prep time. NEVER use add_meal when the user wants to change or move an existing meal.
 - update_todo: use this to change title, priority, due date, or mark a todo as done. When the user says "mark X as done/complete/finished", use update_todo with mark_done:true.
 - update_shopping_item: use this to rename or change quantity/category of an existing shopping item.
@@ -4858,11 +4862,29 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
             type: 'image',
             source: { type: 'base64', media_type: p.mimeType, data: p.base64 },
           }));
-          content.push({ type: 'text', text: `${multiNote}Describe ${imageParts.length > 1 ? 'these images' : 'this image'} in 2-3 sentences${imageParts.length > 1 ? ' total across all of them' : ''}. If they show a receipt, list the store name and all item names with prices. If they show food/pantry items, list each item visible. Otherwise focus on any text, dates, times, or event names visible.` });
-          // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
+          // Session 30 — vision prompt rewrite. Previous "2-3 sentences total"
+          // was fine for a single event but catastrophic for multi-event photos
+          // (e.g. three parent-teacher slips): Sonnet would summarise "three
+          // parent-teacher interviews for the kids" and the tool path had no
+          // per-event detail to work with, so only the first event got added.
+          // Now: enumerate every event/item found, one per line, with full
+          // detail so the downstream tool path can emit a tool_use per event.
+          content.push({ type: 'text', text: `${multiNote}Look carefully at ${imageParts.length > 1 ? 'these images' : 'this image'} and describe EVERYTHING you see:
+
+If it's a RECEIPT: list the store name and every item with its price.
+
+If it shows FOOD / PANTRY items: list every item visible, one per line.
+
+If it shows CALENDAR ENTRIES, EVENT DETAILS, SCHOOL NOTICES, INVITATIONS, or BOOKINGS — enumerate EVERY event separately. For each event include: title, date (with year if visible), time, location or teacher/contact name, and which person it's for (child's name). Format as a numbered list, one event per number. Do NOT summarise ("three interviews for the kids") — the downstream code needs FULL detail on EACH event to add them individually. If you see 3 events, list all 3 with details. If you see 8 events, list all 8.
+
+Otherwise focus on any text, dates, times, names, or event details visible. Prefer completeness over brevity.` });
+          // Session 30 Phase 5 — routed through anthropic-proxy Edge Function.
+          // Session 30 — bumped 800 → 1500 so multi-event enumeration doesn't
+          // truncate (e.g. 8-event school newsletter needs ~50-80 tokens per
+          // event × 8 = ~500 + header/spacing, safely under 1500).
           const descJson = await callAnthropic({
             model: 'claude-sonnet-4-6',
-            max_tokens: 800,
+            max_tokens: 1500,
             messages: [{ role: 'user', content }],
           });
           console.log('[send] Vision describe imgs:', imageParts.length, 'error:', descJson?.error?.message || 'none');
@@ -6581,10 +6603,16 @@ Rules:
       const hasCalendarInline = !msg.isLoading && msg.inlineData?.type === 'calendar';
       const hasShoppingInline = !msg.isLoading && msg.inlineData?.type === 'shopping';
       const hasOtherInline = !msg.isLoading && msg.inlineData?.type && msg.inlineData.type !== 'calendar' && msg.inlineData.type !== 'shopping' && ((msg.inlineData.items?.length ?? 0) > 0 || !!msg.inlineData.showPortalPill);
-      const cleanText = msg.text ? msg.text.replace(/\[([^\]]+)\]/g, '$1') : '';
+      // Session 30 — strip `**bold**` markdown too (tool return strings + Sonnet
+      // sometimes emit it; RN Text renders it literally as **word** which reads badly).
+      const cleanText = msg.text
+        ? msg.text.replace(/\[([^\]]+)\]/g, '$1').replace(/\*\*(.+?)\*\*/g, '$1')
+        : '';
       const paragraphs = cleanText ? cleanText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean) : [];
-      const introText = msg.inlineData?.intro ?? '';
-      const followUpText = msg.inlineData?.followUp ?? '';
+      // Session 30 — same markdown strip as cleanText (see above)
+      const stripMd = (s: string) => s.replace(/\[([^\]]+)\]/g, '$1').replace(/\*\*(.+?)\*\*/g, '$1');
+      const introText = msg.inlineData?.intro ? stripMd(msg.inlineData.intro) : '';
+      const followUpText = msg.inlineData?.followUp ? stripMd(msg.inlineData.followUp) : '';
       const introParagraphs = introText ? introText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean) : [];
       const followUpParagraphs = followUpText ? followUpText.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean) : [];
 
