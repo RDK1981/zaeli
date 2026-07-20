@@ -542,7 +542,10 @@ const CALENDAR_KEYWORDS = [
   "calendar", "schedule",
   "anything on", "any events", "anything scheduled", "anything coming up",
   "what have we got", "what do we have", "what's happening",
-  "when is", "when does", "when's",
+  // Session 30 — "when is X" removed from CALENDAR_KEYWORDS. Those are
+  // specific-item lookups that need find_calendar_events (searches months
+  // ahead), not the today/tomorrow intercept card. Falling through to the
+  // Sonnet tool path lets Zaeli actually search the calendar.
   "coming up", "upcoming",
   "remind me",
   "week ahead", "day ahead",
@@ -572,6 +575,20 @@ const ACTION_KEYWORDS = [
 function isActionQuery(text: string): boolean {
   const lower = text.toLowerCase();
   return ACTION_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+// Session 30 — detect "text / message / notify / tell <family member>" intent
+// so we can (a) force-route to the Sonnet tool path (where send_family_message
+// exists — GPT chat path has no tools at all, that's why fabrications kept
+// slipping through) and (b) force tool_choice on send_family_message so
+// Sonnet can't skip the tool and paraphrase "sent".
+const MESSAGE_VERBS = ['text ', 'txt ', 'message ', 'msg ', 'notify ', 'ping ', 'tell ', 'let ', 'send ', 'shoot '];
+const FAMILY_NAME_TOKENS = ['anna', 'rich', 'richard', 'poppy', 'gab', 'gabriel', 'duke', 'family', 'everyone', 'them all', 'the kids'];
+function isMessageIntent(text: string): boolean {
+  const lower = ' ' + text.toLowerCase() + ' ';
+  const hasVerb = MESSAGE_VERBS.some(v => lower.includes(v));
+  if (!hasVerb) return false;
+  return FAMILY_NAME_TOKENS.some(n => lower.includes(' ' + n + ' ') || lower.includes(' ' + n + ',') || lower.includes(' ' + n + "'") || lower.endsWith(' ' + n));
 }
 function isCalendarQuery(text: string): boolean {
   const lower = text.toLowerCase();
@@ -1740,6 +1757,15 @@ async function executeTool(name: string, input: any): Promise<string> {
       return `✅ "${input.title}" set up — ${dates.length} sessions (${daysLabel}) at ${timeStr.slice(0,5)}, from ${dates[0]}.`;
     }
     if (name === 'update_calendar_event') {
+      // Session 30 — if the caller wants to change assignees, guarantee the
+      // roster is hydrated first. Otherwise resolveAssigneeId sees only the
+      // seed-* placeholders in DEFAULT_ROSTER, gets stripped by the seed
+      // guard, returns undefined for every name, and the update silently
+      // reports "Nothing to update across the series". Race window on cold
+      // start burned Rich this evening on the recurring-events retag.
+      if (input.new_assignees && Array.isArray(input.new_assignees) && input.new_assignees.length > 0) {
+        try { await loadRoster(getFamilyId()); } catch {}
+      }
       let updateQuery = supabase.from('events').select('id,title,date,start_time,end_time,assignees,repeat_group_id').eq('family_id', getFamilyId()).ilike('title', `%${input.search_title}%`);
       if (input.search_date) updateQuery = (updateQuery as any).eq('date', input.search_date);
       // Prefer a future/today instance so "add me to Gab's soccer" matches the series, not a past one
@@ -1759,14 +1785,23 @@ async function executeTool(name: string, input: any): Promise<string> {
         const uAll: any = {};
         if (input.new_title) uAll.title = input.new_title;
         if (input.new_notes) uAll.notes = input.new_notes;
+        let unresolvedNames: string[] = [];
         if (input.new_assignees && Array.isArray(input.new_assignees)) {
-          const mapped = input.new_assignees.map((n:string) => resolveAssigneeId(n)).filter(Boolean) as string[];
+          const resolved = input.new_assignees.map((n:string) => ({ name: n, id: resolveAssigneeId(n) }));
+          unresolvedNames = resolved.filter(r => !r.id).map(r => r.name);
+          const mapped = resolved.map(r => r.id).filter(Boolean) as string[];
           if (mapped.length > 0) {
             const existing: string[] = Array.isArray(t.assignees) ? t.assignees : [];
             uAll.assignees = Array.from(new Set([...existing, ...mapped]));
           }
         }
-        if (Object.keys(uAll).length === 0) return `TOOL_FAILED: Nothing to update across the series.`;
+        if (Object.keys(uAll).length === 0) {
+          if (unresolvedNames.length > 0) {
+            const rosterNames = getRoster().map(m => m.name).join(', ');
+            return `TOOL_FAILED: Couldn't match ${unresolvedNames.join(', ')} to any family member. Family roster: ${rosterNames}.`;
+          }
+          return `TOOL_FAILED: Nothing to update across the series (no new title/notes/assignees supplied).`;
+        }
         const today = localDateStr();
         let idsQuery: any = supabase.from('events').select('id').eq('family_id', getFamilyId()).gte('date', today);
         if (t.repeat_group_id) idsQuery = idsQuery.eq('repeat_group_id', t.repeat_group_id);
@@ -5086,7 +5121,9 @@ Only include events directly relevant to the question. Max 5 events.`;
       const lastZaeli = [...messages].reverse().find(m => m.role === 'zaeli' && !m.isLoading);
       const hasShoppingChips = lastZaeli?.quickReplies?.some((c: string) => c === 'Back to Full List' || c === 'Add more items') ?? false;
       const isShoppingContext = (hasShoppingCardInChat || hasShoppingChips) && !isCalendarQuery(text) && !!text;
-      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext) {
+      // Session 30 — message-intent forces tool path so send_family_message is reachable.
+      const messageIntent = isMessageIntent(text);
+      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext || messageIntent) {
         pendingCalendarAdd.current = false; // clear flag — one-shot
         // Session 30 Phase 5 — key lives server-side; no client-side check needed
 
@@ -5134,6 +5171,12 @@ Only include events directly relevant to the question. Max 5 events.`;
           max_tokens: 2000,
           system: [{ type: 'text', text: toolSys, cache_control: { type: 'ephemeral' } }],
           tools: TOOLS,
+          // Session 30 — when the user's phrasing clearly means "text/notify
+          // <family member>", FORCE Sonnet to call send_family_message. Prompt
+          // rules alone kept losing to the model's helpful-summariser bias
+          // (fabricated "sent" without any tool call — Edge Function showed
+          // zero invocations). tool_choice removes the choice.
+          ...(messageIntent ? { tool_choice: { type: 'tool', name: 'send_family_message' } } : {}),
           messages: apiMessages,
         }, { betaHeaders: ['prompt-caching-2024-07-31'] });
         console.log('[send] Tool API response error:', data?.error?.message || 'none', 'stop:', data?.stop_reason);
