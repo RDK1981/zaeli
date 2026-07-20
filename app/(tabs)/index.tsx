@@ -539,7 +539,10 @@ function fmtDayLabel(dateStr: string): string {
 // query). An intent verb/phrase must be present.
 const CALENDAR_KEYWORDS = [
   "what's on", "whats on", "what is on",
-  "calendar", "schedule",
+  // Session 30 — bare "calendar" and "schedule" removed. Too broad — any query
+  // containing "in our calendar" was hijacking the intercept before Sonnet
+  // could call find_calendar_events. Specific phrases like "show me the
+  // calendar" / "open calendar" (kept below) still route to intercept.
   "anything on", "any events", "anything scheduled", "anything coming up",
   "what have we got", "what do we have", "what's happening",
   // Session 30 — "when is X" removed from CALENDAR_KEYWORDS. Those are
