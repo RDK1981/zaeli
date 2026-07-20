@@ -1616,8 +1616,9 @@ const TOOLS = [
   { name:'update_calendar_event', description:'Update an existing event. Set update_all:true to apply title/notes/assignees changes to a whole recurring series.', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, search_date:{type:'string'}, new_title:{type:'string'}, new_start_time:{type:'string'}, new_end_time:{type:'string'}, new_date:{type:'string'}, new_notes:{type:'string'}, new_assignees:{type:'array',items:{type:'string'},description:'Family member first names to add, e.g. ["Rich","Gab"].'}, update_all:{type:'boolean',description:'true = apply to ALL instances of a recurring series (e.g. "add me to all of Gab\'s soccer"). Use for assignee/title/notes changes on recurring events.'} }, required:['search_title'] } },
   { name:'delete_calendar_event', description:'Delete a calendar event. Set delete_all:true to remove a whole recurring series.', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, date:{type:'string'}, delete_all:{type:'boolean',description:'true = delete all upcoming events with this title (the whole recurring series)'} }, required:['search_title'] } },
   { name:'extend_recurring_event', description:'Roll a recurring event series on by another ~12 months from where it currently ends. Use when a series is running out or the user asks to extend/keep it going.', input_schema:{ type:'object', properties:{ search_title:{type:'string'} }, required:['search_title'] } },
+  { name:'find_calendar_events', description:'Search the calendar for events by title keyword and/or date range. USE THIS WHEN the user asks about anything not in the LIVE DATA today/tomorrow window — "when is X?", "what\'s on next month?", "are we away in September?", "what did we have planned for Poppy\'s birthday?". Returns up to 20 matching events with date + time. Prefer this over saying "not in the calendar" — the calendar data goes months ahead but only today+tomorrow are pre-loaded.', input_schema:{ type:'object', properties:{ title_contains:{type:'string',description:'Case-insensitive keyword in the event title, e.g. "broken head" or "soccer" or "birthday". Optional if from_date/to_date narrow enough.'}, from_date:{type:'string',description:'Start of date window, YYYY-MM-DD. Defaults to today if omitted.'}, to_date:{type:'string',description:'End of date window, YYYY-MM-DD. Defaults to +365 days if omitted.'} } } },
   { name:'add_todo', description:'Add a todo item', input_schema:{ type:'object', properties:{ title:{type:'string'}, priority:{type:'string',enum:['low','normal','high','urgent']}, due_date:{type:'string'} }, required:['title'] } },
-  { name:'add_shopping_item', description:'Add item to shopping list', input_schema:{ type:'object', properties:{ name:{type:'string'}, category:{type:'string'}, quantity:{type:'string'} }, required:['name'] } },
+  { name:'add_shopping_item', description:'Add item to shopping list. Pass force:true to bypass the pantry-stocked check when the user has explicitly confirmed they want to add anyway (e.g. "yes, add them", "add anyway", "override").', input_schema:{ type:'object', properties:{ name:{type:'string'}, category:{type:'string'}, quantity:{type:'string'}, force:{type:'boolean', description:'Bypass the pantry-stocked check. Set true ONLY when the user has explicitly confirmed after a PANTRY: warning.'} }, required:['name'] } },
   { name:'add_meal', description:'Add a meal to the weekly meal planner', input_schema:{ type:'object', properties:{ meal_name:{type:'string',description:'Name of the meal e.g. Spaghetti Bolognese'}, date:{type:'string',description:'Date in YYYY-MM-DD format'}, day_label:{type:'string',description:'Day abbreviation e.g. Mon, Tue, Wed'}, prep_mins:{type:'number',description:'Estimated prep time in minutes'} }, required:['meal_name','date'] } },
   { name:'update_todo', description:'Update a todo item (title, priority, due date, or mark done)', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Current title to search for'}, new_title:{type:'string'}, new_priority:{type:'string',enum:['low','normal','high','urgent']}, new_due_date:{type:'string'}, mark_done:{type:'boolean'} }, required:['search_title'] } },
   { name:'delete_todo', description:'Delete a todo item', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Title to search for'} }, required:['search_title'] } },
@@ -1891,6 +1892,38 @@ async function executeTool(name: string, input: any): Promise<string> {
       }
       return `✅ Rolled "${last.title}" on another ${dates.length} sessions, through ${dates[dates.length-1]}.`;
     }
+    if (name === 'find_calendar_events') {
+      // Session 30 — calendar lookup for anything outside the today/tomorrow
+      // LIVE DATA window. Sonnet reaches for this on "when is X?" / "what's on
+      // in Sept?" / "are we away that weekend?" queries.
+      const from = (input.from_date && /^\d{4}-\d{2}-\d{2}$/.test(input.from_date)) ? input.from_date : localDateStr();
+      const to = (input.to_date && /^\d{4}-\d{2}-\d{2}$/.test(input.to_date)) ? input.to_date : (() => {
+        const d = new Date(); d.setDate(d.getDate()+365);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      })();
+      let q = supabase.from('events')
+        .select('id,title,date,start_time,end_time,assignees,notes')
+        .eq('family_id', getFamilyId())
+        .gte('date', from)
+        .lte('date', to)
+        .order('date', { ascending: true })
+        .limit(20);
+      if (input.title_contains && String(input.title_contains).trim()) {
+        q = q.ilike('title', `%${String(input.title_contains).trim()}%`);
+      }
+      const { data, error } = await q;
+      if (error) return `TOOL_FAILED: calendar search failed — ${error.message}`;
+      if (!data || data.length === 0) {
+        return `No events found${input.title_contains ? ` matching "${input.title_contains}"` : ''} between ${from} and ${to}.`;
+      }
+      const roster = getRoster();
+      const lines = data.map((e:any) => {
+        const time = (e.start_time || '').split('T')[1]?.slice(0,5) || '';
+        const names = (e.assignees || []).map((id:string) => roster.find(m => m.id === id)?.name).filter(Boolean).join(', ');
+        return `${e.date}${time ? ' ' + time : ''} — ${e.title}${names ? ' (' + names + ')' : ''}`;
+      }).join('\n');
+      return `Found ${data.length} event${data.length===1?'':'s'}:\n${lines}`;
+    }
     if (name === 'add_todo') {
       const now = new Date();
       const { error } = await supabase.from('todos').insert({
@@ -1910,14 +1943,18 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (listDup) {
         return `DUPLICATE: **${itemName}** is already on the shopping list. Want to update the quantity, or skip it?`;
       }
-      // Check pantry for well-stocked items
-      try {
-        const { data: pantryItems } = await supabase.from('pantry_items').select('id,name,stock').eq('family_id',getFamilyId());
-        const pantryMatch = pantryItems?.find((i:any) => (i.name||'').toLowerCase() === lowerName);
-        if (pantryMatch && (pantryMatch.stock === 'good' || pantryMatch.stock === 'medium')) {
-          return `PANTRY: **${itemName}** looks ${pantryMatch.stock === 'good' ? 'well stocked' : 'okay'} in the pantry. Still want to add it to the list?`;
-        }
-      } catch { /* pantry table may not exist yet — skip check */ }
+      // Check pantry for well-stocked items — SKIP when force=true (user has
+      // explicitly overridden the warning). Fixes the loop where Zaeli would
+      // keep saying "the tool won't let me force this through" — she now can.
+      if (!input.force) {
+        try {
+          const { data: pantryItems } = await supabase.from('pantry_items').select('id,name,stock').eq('family_id',getFamilyId());
+          const pantryMatch = pantryItems?.find((i:any) => (i.name||'').toLowerCase() === lowerName);
+          if (pantryMatch && (pantryMatch.stock === 'good' || pantryMatch.stock === 'medium')) {
+            return `PANTRY: **${itemName}** looks ${pantryMatch.stock === 'good' ? 'well stocked' : 'okay'} in the pantry. Still want to add it to the list? (If user confirms, call add_shopping_item again with force:true.)`;
+          }
+        } catch { /* pantry table may not exist yet — skip check */ }
+      }
       const { error } = await supabase.from('shopping_items').insert({
         family_id:getFamilyId(), name:itemName,
         item:itemName, category:input.category||guessCategory(itemName),
@@ -2144,6 +2181,8 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - MULTI-EVENT PHOTO UPLOADS — CRITICAL: When the user uploads one or more photos containing MULTIPLE calendar events (e.g. three parent-teacher interview slips, a school newsletter with several term dates, a screenshot of multiple calendar entries), you MUST emit a SEPARATE add_calendar_event tool call for EACH event visible. Do NOT add just one and skip the rest. If the images show 3 events, emit exactly 3 add_calendar_event tool_use blocks in that same turn. After the tool results come back, count how many actually succeeded (✅) and honestly report: "Added 3 of 3" or "Added 2 of 3 — the third failed because…". NEVER claim events are "in the system" that you didn't explicitly add via a tool call in this turn.
 
 - CALENDAR HONESTY — ABSOLUTE: Same rule as send_family_message. NEVER claim an event has been "added", "booked", "scheduled", "in the system", "confirmed", or any equivalent phrase unless a add_calendar_event tool call was actually made in this turn AND returned a "✅" response. If the user follows up with "did you add X and Y?" — check the tool_result history. If X and Y were NOT added via tool calls, say so honestly: "Only Gab's was added — I missed Poppy and Duke's. Want me to add them now?" Do NOT paraphrase absence as presence. Do NOT invent event details like teacher names or times you saw in images but didn't tool-add.
+
+- CALENDAR LOOKUP — the LIVE DATA block only pre-loads today + tomorrow's events. The calendar itself holds events for months ahead. If the user asks about anything OUTSIDE the today/tomorrow window ("when is Broken Head?", "what's on in September?", "are we away that weekend?", "is Poppy's dance troop still going?"), CALL find_calendar_events IMMEDIATELY with a title keyword and/or date range. NEVER say "not showing in the calendar" or "not in the data I have" until you've actually searched via the tool. Only after find_calendar_events returns zero rows can you honestly say the event isn't there.
 - update_meal: use this to change a meal name, move a meal to a different date, or change prep time. NEVER use add_meal when the user wants to change or move an existing meal.
 - update_todo: use this to change title, priority, due date, or mark a todo as done. When the user says "mark X as done/complete/finished", use update_todo with mark_done:true.
 - update_shopping_item: use this to rename or change quantity/category of an existing shopping item.
@@ -4022,7 +4061,8 @@ CAPABILITIES: Add/update/delete calendar events, shopping items, todos DIRECTLY 
 
 SHOPPING RULES:
 - When asked to add multiple items, call add_shopping_item ONCE PER ITEM — never combine items into one call.
-- The tool checks for duplicates automatically. If it returns DUPLICATE or PANTRY, relay that to Rich naturally and ask what to do.
+- The tool checks for duplicates automatically. If it returns DUPLICATE or PANTRY, relay that to the user naturally and ask what to do.
+- PANTRY OVERRIDE — if the user's next reply confirms they want it added anyway ("yes", "add anyway", "add them please", "override", "just add it", "yes add"), IMMEDIATELY call add_shopping_item again with the SAME name AND force:true. Do NOT say "the tool won't let me" or "add it manually" — force:true bypasses the pantry check. Never refuse an explicit override.
 - After adding items, confirm each item clearly by name and quantity. Keep it brief.
 - NEVER write quick reply suggestions as text in your response. The app handles chips automatically. Just write your confirmation message.
 
@@ -6206,7 +6246,7 @@ Rules:
       const outTok = scanJson?.usage?.output_tokens ?? 0;
       logApiCall({ family_id:getFamilyId(), feature: mode === 'receipt' ? 'receipt_scan' : 'pantry_scan', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:(inTok/1_000_000*3)+(outTok/1_000_000*15) });
 
-      console.log('[scan] API status:', scanRes.status, 'error:', scanJson?.error?.message || 'none');
+      console.log('[scan] error:', scanJson?.error?.message || 'none');
       if (scanJson?.error) {
         console.error('[scan] API error:', JSON.stringify(scanJson.error));
         setShopScanBusy(false);
