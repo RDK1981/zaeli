@@ -1685,18 +1685,24 @@ async function executeTool(name: string, input: any): Promise<string> {
           endDt = `${e.getFullYear()}-${pad(e.getMonth()+1)}-${pad(e.getDate())}T${pad(e.getHours())}:${pad(e.getMinutes())}:00`;
         } catch { endDt = localDt; }
       }
-      // Session 30 — guarantee roster is hydrated BEFORE resolving assignees.
-      // Without this, cold-start race → resolveAssigneeId returns undefined
-      // for every name (seed-* guard strips DEFAULT_ROSTER placeholders) →
-      // silent fallback to Rich for every event. Rich hit this with the 6
-      // Duke soccer fixtures: Sonnet passed ["Duke","Anna"], all failed to
-      // resolve, event tagged to Rich instead.
-      if (input.assignees && Array.isArray(input.assignees) && input.assignees.length > 0) {
-        try { await loadRoster(getFamilyId()); } catch {}
-      }
+      // Session 30 — guarantee roster is hydrated BEFORE ANY assignee
+      // resolution, always (not just when Sonnet passed assignees). Rich
+      // hit a second, worse form of the race: cold-start meaning meId
+      // itself resolved to "seed-rich" (a DEFAULT_ROSTER placeholder
+      // string, not a real UUID). Then it got INSERTed as literal
+      // ["seed-rich"] into events.assignees — which never renders an
+      // avatar because no real member row has that ID. The SQL trail
+      // showed six Duke Soccer fixtures with `["seed-rich"]` in the DB.
+      try { await loadRoster(getFamilyId()); } catch {}
       // Default assignee = the signed-in user (was hardcoded old id '2').
       const rosterSnapshot = getRoster();
-      const meId = (getMemberByName(getProfile()?.name || '') ?? rosterSnapshot.find(m => m.role === 'parent') ?? rosterSnapshot[0])?.id;
+      const rawMeId = (getMemberByName(getProfile()?.name || '') ?? rosterSnapshot.find(m => m.role === 'parent') ?? rosterSnapshot[0])?.id;
+      // NEVER let a `seed-*` placeholder into a write path. If the roster
+      // load didn't produce real UUIDs (offline, dev DB, migration hiccup),
+      // fall back to empty assignees so the event lands untagged — an
+      // avatarless event Rich can retag manually is infinitely better
+      // than one silently owned by a phantom "seed-rich" reference.
+      const meId = (rawMeId && !rawMeId.startsWith('seed-')) ? rawMeId : undefined;
       let assigneeIds: string[] = meId ? [meId] : [];
       if (input.assignees && Array.isArray(input.assignees) && input.assignees.length > 0) {
         const resolution = input.assignees.map((n:string) => ({ name: n, id: resolveAssigneeId(n) }));
