@@ -573,6 +573,18 @@ const ACTION_KEYWORDS = [
   'add gab', 'add duke', 'assign ', 'invite ',
   'mark ', 'complete', 'done', 'finish', 'tick ', 'check off',
   'swap ', 'replace ', 'set ', 'plan ', 'goal',
+  // Session 30 — correction phrases. Rich hit this on the Duke soccer
+  // fixtures: after Zaeli mis-tagged them, his replies "they should be
+  // tagged for Duke and Anna, not me" and "still tagged to me??" didn't
+  // hit any action keyword, so the router sent them to the GPT chat path
+  // — which has NO tools. Sonnet then fabricated "fixed" three times.
+  // These keywords route them to the Sonnet tool path where update_
+  // calendar_event actually exists.
+  'should be', 'meant to be', 'meant for', 'supposed to', 'not me',
+  'not rich', 'not anna', 'not poppy', 'not gab', 'not duke',
+  'wrong', 'fix it', 'fix them', 'fix that', 'fix those', 're-tag', 'retag',
+  'still tagged', 'still shows', 'still on', 'still under',
+  'take me off', 'take rich off', 'remove me from', 'take off',
 ];
 
 function isActionQuery(text: string): boolean {
@@ -1673,6 +1685,15 @@ async function executeTool(name: string, input: any): Promise<string> {
           endDt = `${e.getFullYear()}-${pad(e.getMonth()+1)}-${pad(e.getDate())}T${pad(e.getHours())}:${pad(e.getMinutes())}:00`;
         } catch { endDt = localDt; }
       }
+      // Session 30 — guarantee roster is hydrated BEFORE resolving assignees.
+      // Without this, cold-start race → resolveAssigneeId returns undefined
+      // for every name (seed-* guard strips DEFAULT_ROSTER placeholders) →
+      // silent fallback to Rich for every event. Rich hit this with the 6
+      // Duke soccer fixtures: Sonnet passed ["Duke","Anna"], all failed to
+      // resolve, event tagged to Rich instead.
+      if (input.assignees && Array.isArray(input.assignees) && input.assignees.length > 0) {
+        try { await loadRoster(getFamilyId()); } catch {}
+      }
       // Default assignee = the signed-in user (was hardcoded old id '2').
       const rosterSnapshot = getRoster();
       const meId = (getMemberByName(getProfile()?.name || '') ?? rosterSnapshot.find(m => m.role === 'parent') ?? rosterSnapshot[0])?.id;
@@ -1687,7 +1708,17 @@ async function executeTool(name: string, input: any): Promise<string> {
           meIdFallback: meId,
         });
         const mapped = resolution.map(r => r.id).filter(Boolean) as string[];
-        if (mapped.length > 0) assigneeIds = mapped;
+        if (mapped.length > 0) {
+          assigneeIds = mapped;
+        } else {
+          // Session 30 — Sonnet ASKED for specific assignees but NONE resolved.
+          // Fail loudly with a diagnostic message instead of silently tagging
+          // Rich. Sonnet can then retry with roster-aware names or explain
+          // the mismatch to the user.
+          const unresolvedNames = resolution.filter(r => !r.id).map(r => r.name).join(', ');
+          const rosterNames = rosterSnapshot.map(m => m.name).join(', ');
+          return `TOOL_FAILED: "${input.title}" not added — couldn't match assignees (${unresolvedNames}) to any family member. Family roster: ${rosterNames}. Please retry with names exactly as they appear in the roster.`;
+        }
       }
       const repeat = (input.repeat || 'none').toString().toLowerCase().trim();
       const isRecurring = repeat !== 'none' && repeat !== '';
