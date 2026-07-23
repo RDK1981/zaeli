@@ -606,6 +606,23 @@ function isMessageIntent(text: string): boolean {
   return FAMILY_NAME_TOKENS.some(n => lower.includes(' ' + n + ' ') || lower.includes(' ' + n + ',') || lower.includes(' ' + n + "'") || lower.endsWith(' ' + n));
 }
 
+// Session 30 — calendar-ADD intent. Detects "add/put/create/book/schedule
+// a calendar entry / event / appointment [for X] [at time]" patterns.
+// Forces tool_choice on add_calendar_event so Sonnet can't fabricate
+// "Yep — added" without actually calling the tool (same fabrication
+// pattern that broke send_family_message before we forced tool_choice
+// there). Rich hit three fabrications in a row today on "put in a
+// calendar entry for Anna at 1pm tomorrow" — Sonnet claimed done, DB
+// had zero rows added.
+const CALENDAR_ADD_VERBS = ['add ', 'put ', 'create ', 'book ', 'schedule ', 'pop ', 'stick ', 'chuck ', 'drop ', 'put in ', 'add in ', 'set up '];
+const CALENDAR_ADD_NOUNS = ['calendar entry', 'calendar event', 'calendar item', 'calendar appointment', 'diary entry', 'event on', 'event to', 'event for', 'appointment for', 'appointment on', 'entry for', 'entry on', 'entry in', 'to the calendar', 'to my calendar', 'to our calendar', 'in the calendar', 'in my calendar', 'in our calendar', 'on the calendar', 'on my calendar', 'on our calendar'];
+function isCalendarAddIntent(text: string): boolean {
+  const lower = ' ' + text.toLowerCase() + ' ';
+  const hasVerb = CALENDAR_ADD_VERBS.some(v => lower.includes(v));
+  if (!hasVerb) return false;
+  return CALENDAR_ADD_NOUNS.some(n => lower.includes(n));
+}
+
 // Session 30 — calendar-lookup queries that need find_calendar_events, NOT
 // the today/tomorrow intercept card. "When is X in the calendar?" / "do we
 // have anything called Y?" / "is Poppy's dance still going in September?"
@@ -2316,6 +2333,7 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - add_goal: use when the user wants to set a personal goal. Ask for a title and optionally a target date and detail. After creating, offer a chip "Open Goals" to view it.
 - update_goal: use to update progress, title, target date, or detail of an existing goal. When user says "I ran 5km today" and has a running goal, update the progress.
 - delete_goal: use when the user wants to remove a goal entirely.
+- ⛔ CALENDAR vs MESSAGE DISAMBIGUATION — READ CAREFULLY: If the user says any of "calendar entry", "calendar event", "add to calendar", "in the calendar", "event", "appointment", "on the schedule", "book in", or gives a specific date/time to happen (e.g. "at 1pm tomorrow", "next Tuesday 9am"), that is ALWAYS add_calendar_event — even if a family member's name is in the sentence. "Put in a calendar entry for Anna at 1pm" = add_calendar_event with assignees=["Anna"], NOT send_family_message. The phrase "for Anna" here means the event is ON Anna's calendar, not a text TO Anna. send_family_message is ONLY for verbatim SMS-style content the user wants pushed to another family member's phone right now (e.g. "text Anna I'm running late", "let Anna know dinner's at 6").
 - send_family_message: use when the user asks to text / message / notify / ping / let-know a specific family member with a custom message. Examples that map to this tool:
     * "text Anna to pick up milk on the way home" → recipient_names:["Anna"], message:"pick up milk on the way home"
     * "let Anna know I'll be 15 mins late" → recipient_names:["Anna"], message:"running 15 mins late"
@@ -5244,7 +5262,10 @@ Only include events directly relevant to the question. Max 5 events.`;
       const messageIntent = isMessageIntent(text);
       // Session 30 — calendar-lookup intent forces tool path so find_calendar_events is reachable.
       const calendarLookupIntent = isCalendarLookupIntent(text);
-      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext || messageIntent || calendarLookupIntent) {
+      // Session 30 — calendar-add intent forces tool_choice add_calendar_event so
+      // Sonnet can't fabricate "Yep — added" without actually invoking the tool.
+      const calendarAddIntent = isCalendarAddIntent(text);
+      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext || messageIntent || calendarLookupIntent || calendarAddIntent) {
         pendingCalendarAdd.current = false; // clear flag — one-shot
         // Session 30 Phase 5 — key lives server-side; no client-side check needed
 
@@ -5297,7 +5318,14 @@ Only include events directly relevant to the question. Max 5 events.`;
           // rules alone kept losing to the model's helpful-summariser bias
           // (fabricated "sent" without any tool call — Edge Function showed
           // zero invocations). tool_choice removes the choice.
-          ...(messageIntent ? { tool_choice: { type: 'tool', name: 'send_family_message' } } : {}),
+          // Priority order matters: calendarAddIntent wins over messageIntent
+          // when both fire (e.g. "add calendar entry for Anna" — that's a
+          // calendar add, not a message).
+          ...(calendarAddIntent
+            ? { tool_choice: { type: 'tool', name: 'add_calendar_event' } }
+            : messageIntent
+            ? { tool_choice: { type: 'tool', name: 'send_family_message' } }
+            : {}),
           messages: apiMessages,
         }, { betaHeaders: ['prompt-caching-2024-07-31'] });
         console.log('[send] Tool API response error:', data?.error?.message || 'none', 'stop:', data?.stop_reason);
