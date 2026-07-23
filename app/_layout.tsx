@@ -12,7 +12,8 @@ import { invalidateAccount } from '../lib/account-state'
 import { invalidateCache as invalidateTourCache } from '../lib/tour-state'
 import { invalidateCache as invalidatePrefsCache, loadPrefs } from '../lib/user-prefs'
 import { resetCache as invalidateInvitesCache } from '../lib/invite-state'
-import { invalidateRosterCache } from '../lib/family-roster'
+import { invalidateRosterCache, loadRoster } from '../lib/family-roster'
+import { getCurrentFamilyId } from '../lib/auth'
 import { requestNotificationPermission, scheduleBriefNotifications, registerPushToken } from '../lib/notifications'
 
 SplashScreen.preventAutoHideAsync()
@@ -60,7 +61,17 @@ export default function RootLayout() {
         setAuthed(true)
         // Hydrate profile in the background; onAuthChange listener also
         // reloads on any explicit sign-in event.
-        loadProfile().catch(e => console.log('[auth] background profile load failed:', e?.message))
+        // Session 30 — chain roster load after profile so getFamilyId is
+        // available. Without this, calendar sheets that open in the first
+        // 2s of the session render with DEFAULT_ROSTER (seed-* IDs) and
+        // no avatars show until the parent re-renders — feels like tags
+        // "went missing" for a couple minutes.
+        loadProfile()
+          .then(() => {
+            const fid = getCurrentFamilyId()
+            if (fid) return loadRoster(fid)
+          })
+          .catch(e => console.log('[auth] background profile/roster load failed:', e?.message))
       } else {
         setAuthed(false)
       }
@@ -80,6 +91,12 @@ export default function RootLayout() {
         invalidateInvitesCache().catch(() => {})
         invalidateRosterCache()
         await loadProfile()
+        // Session 30 — chain roster load after profile so signed-in users
+        // get real member UUIDs cached before any calendar sheet renders.
+        try {
+          const fid = getCurrentFamilyId()
+          if (fid) await loadRoster(fid)
+        } catch (e: any) { console.log('[auth] roster load on sign-in failed:', e?.message) }
         setAuthed(!!getProfile())
       } else if (event === 'SIGNED_OUT') {
         invalidateAccount()

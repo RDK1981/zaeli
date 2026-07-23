@@ -605,6 +605,28 @@ function isMessageIntent(text: string): boolean {
   if (!hasVerb) return false;
   return FAMILY_NAME_TOKENS.some(n => lower.includes(' ' + n + ' ') || lower.includes(' ' + n + ',') || lower.includes(' ' + n + "'") || lower.endsWith(' ' + n));
 }
+
+// Session 30 — calendar-lookup queries that need find_calendar_events, NOT
+// the today/tomorrow intercept card. "When is X in the calendar?" / "do we
+// have anything called Y?" / "is Poppy's dance still going in September?"
+// These are pure information lookups over the whole calendar span — they
+// need Sonnet tool path where find_calendar_events lives. Without this
+// detector they fall to GPT chat (no tools) and Zaeli chats blindly.
+const CALENDAR_LOOKUP_NOUNS = ['calendar', 'event', 'appointment', 'booking', 'holiday', 'trip', 'game', 'match', 'session', 'meeting'];
+const CALENDAR_LOOKUP_VERBS = ['when is', 'when does', "when's", 'when are', 'when do', 'is there', 'do we have', 'have we got', 'find ', 'look up', 'search for', 'what date', 'which date', 'what day', 'which day'];
+function isCalendarLookupIntent(text: string): boolean {
+  const lower = ' ' + text.toLowerCase() + ' ';
+  const hasVerb = CALENDAR_LOOKUP_VERBS.some(v => lower.includes(v));
+  const hasNoun = CALENDAR_LOOKUP_NOUNS.some(n => lower.includes(' ' + n + ' ') || lower.includes(' ' + n + 's ') || lower.includes(' ' + n + '?'));
+  // Verb alone with a title-shaped phrase counts too — "when is broken head"
+  // has "when is" verb without an explicit calendar noun. Long enough tail
+  // after the verb (>2 chars) implies a specific item lookup.
+  if (hasVerb && hasNoun) return true;
+  const verbMatch = CALENDAR_LOOKUP_VERBS.find(v => lower.includes(v));
+  if (!verbMatch) return false;
+  const tail = lower.slice(lower.indexOf(verbMatch) + verbMatch.length).trim();
+  return tail.length > 2;
+}
 function isCalendarQuery(text: string): boolean {
   const lower = text.toLowerCase();
   if (isActionQuery(lower)) return false;
@@ -5163,7 +5185,9 @@ Only include events directly relevant to the question. Max 5 events.`;
       const isShoppingContext = (hasShoppingCardInChat || hasShoppingChips) && !isCalendarQuery(text) && !!text;
       // Session 30 — message-intent forces tool path so send_family_message is reachable.
       const messageIntent = isMessageIntent(text);
-      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext || messageIntent) {
+      // Session 30 — calendar-lookup intent forces tool path so find_calendar_events is reachable.
+      const calendarLookupIntent = isCalendarLookupIntent(text);
+      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext || messageIntent || calendarLookupIntent) {
         pendingCalendarAdd.current = false; // clear flag — one-shot
         // Session 30 Phase 5 — key lives server-side; no client-side check needed
 
