@@ -1998,28 +1998,47 @@ async function executeTool(name: string, input: any): Promise<string> {
         const d = new Date(); d.setDate(d.getDate()+365);
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       })();
-      let q = supabase.from('events')
+      // Session 30 — fetch broader set (up to 200 events in date range) and
+      // filter client-side with normalization. Raw substring ilike misses
+      // things like "brokenhead" vs "Broken Head" (space breaks the match)
+      // and "dance troop" vs "Dance Troupe" (spelling variant). The perf
+      // cost of pulling ~50-200 rows once is trivial; the UX cost of
+      // silently missing an event that IS in the calendar is huge.
+      const raw = String(input.title_contains || '').trim();
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const q = raw ? norm(raw) : '';
+      const words = raw ? raw.toLowerCase().split(/\s+/).filter(w => w.length >= 3).map(norm).filter(Boolean) : [];
+      const { data: allInRange, error } = await supabase.from('events')
         .select('id,title,date,start_time,end_time,assignees,notes')
         .eq('family_id', getFamilyId())
         .gte('date', from)
         .lte('date', to)
         .order('date', { ascending: true })
-        .limit(20);
-      if (input.title_contains && String(input.title_contains).trim()) {
-        q = q.ilike('title', `%${String(input.title_contains).trim()}%`);
-      }
-      const { data, error } = await q;
+        .limit(200);
       if (error) return `TOOL_FAILED: calendar search failed — ${error.message}`;
-      if (!data || data.length === 0) {
-        return `No events found${input.title_contains ? ` matching "${input.title_contains}"` : ''} between ${from} and ${to}.`;
+      let matches = allInRange ?? [];
+      if (q) {
+        matches = matches.filter((e:any) => {
+          const t = norm(e.title || '');
+          // Match #1: normalized substring — handles space/punct variance.
+          if (t.includes(q)) return true;
+          // Match #2: every significant word from query appears in title.
+          if (words.length > 0 && words.every(w => t.includes(w))) return true;
+          return false;
+        });
+      }
+      const capped = matches.slice(0, 20);
+      if (capped.length === 0) {
+        return `No events found${raw ? ` matching "${raw}"` : ''} between ${from} and ${to}.`;
       }
       const roster = getRoster();
-      const lines = data.map((e:any) => {
+      const lines = capped.map((e:any) => {
         const time = (e.start_time || '').split('T')[1]?.slice(0,5) || '';
         const names = (e.assignees || []).map((id:string) => roster.find(m => m.id === id)?.name).filter(Boolean).join(', ');
         return `${e.date}${time ? ' ' + time : ''} — ${e.title}${names ? ' (' + names + ')' : ''}`;
       }).join('\n');
-      return `Found ${data.length} event${data.length===1?'':'s'}:\n${lines}`;
+      const more = matches.length > capped.length ? ` (${matches.length - capped.length} more not shown)` : '';
+      return `Found ${capped.length} event${capped.length===1?'':'s'}${more}:\n${lines}`;
     }
     if (name === 'add_todo') {
       const now = new Date();
