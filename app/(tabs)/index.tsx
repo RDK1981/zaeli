@@ -5402,11 +5402,17 @@ Only include events directly relevant to the question. Max 5 events.`;
                 // → tomorrow tab; beyond → real-date label override.
                 const ev0 = newEvData[0];
                 const tomorrowStr = localDatePlusDays(1);
+                // showPortalPill true → the chip render at line 6975 activates,
+                // which is what shows quickReplies (Notify family / All good)
+                // alongside "Open Calendar →". Without this flag the chips
+                // silently don't render (line 6998's general path skips messages
+                // that have inline calendar data). Rich hit this today: chip
+                // was set correctly but never appeared visually.
                 const confirmInline: InlineData = ev0.date === today
-                  ? { type: 'calendar', items: [ev0], tomorrowItems: [] }
+                  ? { type: 'calendar', items: [ev0], tomorrowItems: [], showPortalPill: true }
                   : ev0.date === tomorrowStr
-                  ? { type: 'calendar', items: [], tomorrowItems: [ev0], initialTab: 'tomorrow' }
-                  : { type: 'calendar', items: [ev0], tomorrowItems: [],
+                  ? { type: 'calendar', items: [], tomorrowItems: [ev0], initialTab: 'tomorrow', showPortalPill: true }
+                  : { type: 'calendar', items: [ev0], tomorrowItems: [], showPortalPill: true,
                       dateLabelOverride: new Date(ev0.date + 'T00:00:00')
                         .toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase() };
                 // Session 30 — always show a Notify chip on new-event confirm cards.
