@@ -4831,8 +4831,46 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
           : m
       ));
       (async () => {
+        // Session 30 — empty recipientUserIds signals "resolve on tap".
+        // Old pre-query at confirmCard build time silently failed on any race
+        // (getFamilyId returning DUMMY, RLS glitch, missed profile hydration),
+        // leaving the chip absent with no signal to the user. Now we query
+        // fresh at tap time and surface any empty-recipient case honestly.
+        let recipientUserIds = payload.recipientUserIds;
+        if (!recipientUserIds || recipientUserIds.length === 0) {
+          const myId = getProfile()?.id;
+          const { data: others, error: qErr } = await supabase
+            .from('profiles')
+            .select('id, name')
+            .eq('family_id', getFamilyId())
+            .in('kind', ['owner', 'adult'])
+            .not('expo_push_token', 'is', null);
+          if (qErr) {
+            setMessages(prev => prev.map(m =>
+              m.id === sourceMsg.id
+                ? { ...m, notifyState: 'failed', quickReplies: ['Notify failed — tap to retry'] }
+                : m,
+            ));
+            Alert.alert('Notify failed', `Couldn't look up recipients: ${qErr.message}`);
+            return;
+          }
+          const eligible = (others ?? []).filter((p: any) => p.id !== myId);
+          if (eligible.length === 0) {
+            setMessages(prev => prev.map(m =>
+              m.id === sourceMsg.id
+                ? { ...m, notifyState: 'sent', quickReplies: [] }
+                : m,
+            ));
+            Alert.alert(
+              'Nobody to notify yet',
+              'No other family adult has notifications turned on. Ask them to open Zaeli — their push token registers automatically on sign-in.',
+            );
+            return;
+          }
+          recipientUserIds = eligible.map((p: any) => p.id);
+        }
         const result = await notifyFamily({
-          recipientUserIds: payload.recipientUserIds,
+          recipientUserIds,
           title: payload.title,
           body:  payload.body,
           data:  payload.data,
@@ -5343,49 +5381,35 @@ Only include events directly relevant to the question. Max 5 events.`;
                   : { type: 'calendar', items: [ev0], tomorrowItems: [],
                       dateLabelOverride: new Date(ev0.date + 'T00:00:00')
                         .toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase() };
-                // ── Session 29: Notify chip — look up other adults in the family
-                // with push tokens (excluding the caller). If any exist, attach a
-                // notify payload + quickReply chip so Rich can ping Anna directly
-                // from the confirm card. Falls back silently if nobody's registered
-                // (fresh install, sim, permission denied) — no chip shown.
-                let notifyChip: string | null = null;
-                let notifyPayload: Msg['notifyPayload'] | undefined = undefined;
-                try {
-                  const myProfile = getProfile();
-                  const myId = myProfile?.id;
-                  const myFirstName = (myProfile?.name ?? '').split(/\s+/)[0] || 'Someone';
-                  const { data: others } = await supabase
-                    .from('profiles')
-                    .select('id, name')
-                    .eq('family_id', getFamilyId())
-                    .in('kind', ['owner', 'adult'])
-                    .not('expo_push_token', 'is', null);
-                  const recipients = (others ?? []).filter((p:any) => p.id !== myId);
-                  if (recipients.length > 0) {
-                    // Chip label: single recipient → "Notify Anna"; multiple → "Notify family"
-                    const recipientFirstNames = recipients.map((r:any) => (r.name ?? '').split(/\s+/)[0]).filter(Boolean);
-                    notifyChip = recipients.length === 1 && recipientFirstNames[0]
-                      ? `Notify ${recipientFirstNames[0]}`
-                      : 'Notify family';
-                    // Notification content — short summary readable in the OS banner
-                    const evTitle = ev0.title || 'New event';
-                    const dateLabel = ev0.date === today ? 'today' : ev0.date === tomorrowStr ? 'tomorrow'
-                      : new Date(ev0.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
-                    const timeLabel = ev0.start_time ? ' at ' + fmtTime(ev0.start_time) : '';
-                    notifyPayload = {
-                      recipientUserIds: recipients.map((r:any) => r.id),
-                      title: `🗓 ${myFirstName} added: ${evTitle}`,
-                      body:  `${dateLabel}${timeLabel}. Tap to see the details.`,
-                      data:  { type: 'calendar_add', event_id: ev0.id, event_date: ev0.date },
-                    };
-                  }
-                } catch { /* silent — Notify is optional polish, don't block the confirm card */ }
+                // Session 30 — always show a Notify chip on new-event confirm cards.
+                // Previous version pre-queried recipients at render time and silently
+                // hid the chip if the query failed OR returned 0 recipients. Two
+                // consecutive misses in Rich's testing (self-event + Anna's Pick Up
+                // Shopping, both with Anna's token confirmed in DB) meant the chip
+                // never surfaced. Now: chip always shows; the recipient query runs
+                // on tap; if nobody's registered we alert the user honestly instead
+                // of hiding the button.
+                const myFirstName = (getProfile()?.name ?? '').split(/\s+/)[0] || 'Someone';
+                const evTitle = ev0.title || 'New event';
+                const dateLabel = ev0.date === today ? 'today' : ev0.date === tomorrowStr ? 'tomorrow'
+                  : new Date(ev0.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+                const timeLabel = ev0.start_time ? ' at ' + fmtTime(ev0.start_time) : '';
+                const notifyPayload: Msg['notifyPayload'] = {
+                  // recipientUserIds intentionally empty — the tap handler resolves
+                  // recipients fresh (owner/adult in family, has push token, not
+                  // the sender). Empty here signals "query on tap".
+                  recipientUserIds: [],
+                  title: `🗓 ${myFirstName} added: ${evTitle}`,
+                  body:  `${dateLabel}${timeLabel}. Tap to see the details.`,
+                  data:  { type: 'calendar_add', event_id: ev0.id, event_date: ev0.date },
+                };
+                const notifyChip = 'Notify family';
                 const confirmCard: Msg = {
                   id: uid(), role: 'zaeli', text: '', ts: nowTs(),
                   inlineData: confirmInline,
-                  quickReplies: notifyChip ? [notifyChip, 'All good'] : undefined,
+                  quickReplies: [notifyChip, 'All good'],
                   notifyPayload,
-                  notifyState: notifyPayload ? 'idle' : undefined,
+                  notifyState: 'idle',
                 };
                 setMessages(prev => {
                   // Replace the loading reply with confirmation card + text
