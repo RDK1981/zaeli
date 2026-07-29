@@ -2,50 +2,1272 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Zaeli — Less chaos. More family.</title>
+  <meta name="description" content="The AI that runs your family week. Calendar, shopping, dinners, kids — all in one chat. Made in Australia for busy families.">
+  <meta property="og:title" content="Zaeli — Less chaos. More family.">
+  <meta property="og:description" content="The AI that runs your family week. Calendar, shopping, dinners, kids — all in one chat.">
+  <meta property="og:url" content="https://zaeli.app">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E✨%3C/text%3E%3C/svg%3E">
+
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ── Reset + base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #FAF8F5;
+      --ink:       #0A0A0A;
+      --ink2:      rgba(10,10,10,0.72);
+      --ink3:      rgba(10,10,10,0.48);
+      --line:      rgba(10,10,10,0.08);
+      --peach:     #FAC8A8;
+      --peach-tint:#FDF1E5;
+      --mint:      #B8EDD0;
+      --mint-tint: #E6F7EF;
+      --mint-deep: #2D7A52;
+      --lavender:  #D8CCFF;
+      --lav-tint:  #F0EBFF;
+      --sky:       #A8D8F0;
+      --sky-deep:  #0A5C80;
+      --sky-tint:  #E8F4FD;
+      --coral:     #FF4545;
+      --coral-tint:#FFE4E0;
+      --coral-deep:#B83333;
+      --slate:     #2D3748;
+      --gold:      #F0DC80;
+      --anna:      #FF7B6B;
+      --rich:      #4D8BFF;
+      --poppy:     #A855F7;
+      --gab:       #22C55E;
+      --duke:      #F59E0B;
+      --radius:    22px;
+    }
     html, body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #FAF8F5;
-      color: #0A0A0A;
-      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
     }
-    body {
+    body { overflow-x: hidden; }
+    img { max-width: 100%; display: block; }
+    a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
+
+    /* ── Layout ───────────────────────────────────────────────────── */
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+    }
+    section { position: relative; overflow: hidden; }
+    .section-inner {
+      padding: 96px 0;
+    }
+    @media (max-width: 720px) {
+      .section-inner { padding: 64px 0; }
+    }
+
+    /* ── Nav ──────────────────────────────────────────────────────── */
+    header.nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(250, 248, 245, 0.85);
+      backdrop-filter: saturate(1.4) blur(14px);
+      -webkit-backdrop-filter: saturate(1.4) blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    header.nav .wrap {
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .wordmark {
+      font-size: 32px; font-weight: 800; letter-spacing: -1.5px;
+      line-height: 1;
+      color: var(--ink);
+    }
+    .wordmark .a, .wordmark .i { color: var(--sky); }
+    .nav .cta {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--ink); color: #fff;
+      padding: 10px 20px; border-radius: 28px;
+      font-weight: 600; font-size: 15px;
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+    .nav .cta:hover { transform: translateY(-1px); opacity: 0.9; }
+
+    /* ── Hero ─────────────────────────────────────────────────────── */
+    .hero { padding-top: 24px; }
+    .hero .section-inner { padding: 80px 0 120px; }
+    .hero-orbs {
+      position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+    }
+    .orb {
+      position: absolute; border-radius: 50%; filter: blur(6px);
+    }
+    .orb-peach { width: 360px; height: 360px; background: var(--peach); opacity: 0.45; top: -80px; right: -100px; }
+    .orb-mint  { width: 320px; height: 320px; background: var(--mint);  opacity: 0.55; bottom: -60px; left: -80px; }
+    .orb-lav   { width: 220px; height: 220px; background: var(--lavender); opacity: 0.50; top: 200px; left: -30px; }
+    .orb-sky   { width: 200px; height: 200px; background: var(--sky);   opacity: 0.45; bottom: 180px; right: -20px; }
+
+    .hero .wrap { position: relative; z-index: 1; }
+    .hero-grid {
+      display: grid; grid-template-columns: 1.05fr 0.95fr;
+      gap: 56px; align-items: center;
+    }
+    @media (max-width: 900px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+    }
+    .hero-word {
+      font-size: 92px; font-weight: 800; letter-spacing: -3px;
+      line-height: 0.95; margin-bottom: 20px;
+    }
+    .hero-word .a, .hero-word .i { color: var(--sky); }
+    @media (max-width: 720px) { .hero-word { font-size: 68px; letter-spacing: -2px; } }
+
+    .hero-tag {
+      font-size: 44px; font-weight: 700; letter-spacing: -1.4px;
+      line-height: 1.1; margin-bottom: 20px;
+    }
+    .hero-tag .coral { color: var(--coral); }
+    @media (max-width: 720px) { .hero-tag { font-size: 34px; letter-spacing: -1px; } }
+
+    .hero-sub {
+      font-size: 19px; color: var(--ink2); max-width: 480px;
+      margin-bottom: 32px;
+    }
+    @media (max-width: 720px) { .hero-sub { font-size: 17px; } }
+
+    .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 15px 28px; border-radius: 30px;
+      font-weight: 600; font-size: 16px;
+      transition: transform 0.12s ease, opacity 0.12s ease, background 0.15s ease;
+      cursor: pointer; border: none;
+    }
+    .btn-primary { background: var(--ink); color: #fff; }
+    .btn-primary:hover { transform: translateY(-1px); opacity: 0.92; }
+    .btn-ghost {
+      background: transparent; color: var(--ink);
+      border: 1.5px solid rgba(10,10,10,0.14);
+    }
+    .btn-ghost:hover { background: rgba(10,10,10,0.04); }
+
+    .hero-note {
+      font-size: 14px; color: var(--ink3);
+    }
+    .hero-note .dot { display: inline-block; width: 6px; height: 6px; border-radius: 3px; background: var(--mint-deep); margin-right: 6px; vertical-align: middle; }
+
+    /* ── Phone mockup — the frame used across sections ────────────── */
+    .phone {
+      position: relative;
+      width: 320px; height: 654px;
+      background: var(--ink);
+      border-radius: 46px;
+      padding: 8px;
+      box-shadow:
+        0 60px 80px -30px rgba(10,10,10,0.35),
+        0 20px 40px -10px rgba(10,10,10,0.18),
+        0 0 0 1px rgba(10,10,10,0.08);
+      margin: 0 auto;
+    }
+    .phone .notch {
+      position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+      width: 108px; height: 24px; background: var(--ink);
+      border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;
+      z-index: 3;
+    }
+    .phone .screen {
+      background: var(--bg);
+      border-radius: 40px;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+    .phone.tilt-right { transform: rotate(3deg); }
+    .phone.tilt-left  { transform: rotate(-3deg); }
+
+    /* App bar inside phone */
+    .app-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 44px 18px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .app-bar .word {
+      font-size: 26px; font-weight: 800; letter-spacing: -1px;
+    }
+    .app-bar .word .a, .app-bar .word .i { color: var(--sky); }
+    .app-bar .right { display: flex; align-items: center; gap: 10px; }
+    .app-bar .label { font-size: 15px; font-weight: 700; color: var(--ink2); }
+    .app-bar .ham {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: rgba(10,10,10,0.05);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      gap: 4px;
+    }
+    .app-bar .ham span { display: block; width: 16px; height: 2px; background: var(--ink); border-radius: 1px; }
+
+    /* Message bubble styles */
+    .msg-user, .msg-zaeli {
+      max-width: 80%; padding: 11px 14px; border-radius: 18px;
+      font-size: 14px; line-height: 1.45;
+    }
+    .msg-user {
+      background: var(--sky-tint); color: var(--ink);
+      align-self: flex-end; border-bottom-right-radius: 6px;
+    }
+    .msg-zaeli {
+      background: rgba(10,10,10,0.05); color: var(--ink);
+      align-self: flex-start; border-bottom-left-radius: 6px;
+    }
+    .msg-brief-morning {
+      background: var(--peach-tint); color: var(--ink);
+      max-width: 92%; padding: 14px 16px; border-radius: 18px;
+      align-self: flex-start; border-bottom-left-radius: 6px;
+    }
+    .msg-brief-evening {
+      background: var(--lav-tint); color: var(--ink);
+      max-width: 92%; padding: 14px 16px; border-radius: 18px;
+      align-self: flex-start; border-bottom-left-radius: 6px;
+    }
+    .brief-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--peach); color: #8A3A00;
+      padding: 4px 10px; border-radius: 12px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+      margin-bottom: 8px;
+    }
+    .brief-pill.evening { background: var(--lavender); color: #4A1F80; }
+    .zaeli-eyebrow {
+      font-size: 11px; color: var(--ink3); margin-bottom: 6px;
+      letter-spacing: 0.2px;
+    }
+
+    /* Chat feed inside phone */
+    .chat-feed {
+      display: flex; flex-direction: column; gap: 12px;
+      padding: 16px 14px 20px;
+      height: calc(100% - 156px);
+      overflow: hidden;
+    }
+    .chat-bar {
+      position: absolute; bottom: 12px; left: 12px; right: 12px;
+      background: #fff; border: 1px solid rgba(210,210,210,0.6);
+      border-radius: 30px;
+      padding: 10px 12px;
+      display: flex; align-items: center; gap: 10px;
+      min-height: 56px;
+    }
+    .chat-bar .mic {
+      width: 34px; height: 34px; border-radius: 17px;
+      background: rgba(10,10,10,0.05);
       display: flex; align-items: center; justify-content: center;
-      padding: 24px; position: relative; overflow: hidden;
+      font-size: 15px;
     }
-    .orb { position: absolute; border-radius: 50%; z-index: 0; }
-    .orb-peach { width: 320px; height: 320px; background: #FAC8A8; opacity: .42; top: -100px; right: -100px; }
-    .orb-mint  { width: 280px; height: 280px; background: #B8EDD0; opacity: .50; bottom: -80px; left: -90px; }
-    .orb-lav   { width: 200px; height: 200px; background: #D8CCFF; opacity: .55; top: 140px; left: -60px; }
-    .orb-sky   { width: 180px; height: 180px; background: #A8D8F0; opacity: .42; bottom: 160px; right: -50px; }
-    .wrap { text-align: center; max-width: 480px; position: relative; z-index: 1; }
-    .logo {
-      font-size: 82px; font-weight: 800; letter-spacing: -3px;
-      margin-bottom: 24px; line-height: 1;
+    .chat-bar .sep { width: 1px; height: 22px; background: rgba(10,10,10,0.1); }
+    .chat-bar .field {
+      flex: 1; font-size: 14px; color: var(--ink3);
     }
-    .accent { color: #A8D8F0; }
-    .tagline { font-size: 26px; line-height: 1.3; margin-bottom: 40px; }
-    .coral { color: #FF4545; font-weight: 700; }
-    .cta {
-      display: inline-block; background: #0A0A0A; color: white;
-      padding: 16px 32px; border-radius: 30px;
-      text-decoration: none; font-weight: 600; font-size: 16px;
+    .chat-bar .send {
+      width: 34px; height: 34px; border-radius: 17px;
+      background: var(--coral); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
     }
-    .cta:hover { opacity: .85; }
+
+    /* Inline card in chat */
+    .inline-card {
+      background: var(--slate); color: #fff;
+      border-radius: 14px; padding: 14px;
+      align-self: stretch;
+    }
+    .inline-card .head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .inline-card .head .day {
+      font-size: 10px; font-weight: 700; letter-spacing: 1px;
+      color: rgba(255,255,255,0.65);
+    }
+    .inline-card .head .day::before { content: "📅  "; }
+    .inline-card .add-btn {
+      background: rgba(255,255,255,0.14); color: #fff;
+      padding: 5px 10px; border-radius: 10px;
+      font-size: 11px; font-weight: 600;
+    }
+    .inline-card .event-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 0;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .inline-card .event-row:first-of-type { border-top: none; }
+    .inline-card .time {
+      font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.75);
+      min-width: 52px;
+    }
+    .inline-card .dot-title {
+      display: flex; align-items: center; gap: 6px;
+      flex: 1; font-size: 13px; font-weight: 500;
+    }
+    .inline-card .dot {
+      width: 8px; height: 8px; border-radius: 4px;
+    }
+    .inline-card .avatar {
+      width: 22px; height: 22px; border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: #fff;
+    }
+    .chip-row {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
+    }
+    .chip {
+      display: inline-flex; align-items: center;
+      background: #fff; color: var(--ink);
+      border: 1px solid rgba(10,10,10,0.14);
+      padding: 7px 12px; border-radius: 999px;
+      font-size: 12px; font-weight: 500;
+    }
+    .chip.primary { background: var(--coral-tint); color: var(--coral-deep); border-color: rgba(255,69,69,0.28); font-weight: 600; }
+
+    /* ── Section titles ───────────────────────────────────────────── */
+    .eyebrow {
+      display: inline-block;
+      font-size: 12px; font-weight: 700; letter-spacing: 1.2px;
+      color: var(--ink3);
+      margin-bottom: 12px; text-transform: uppercase;
+    }
+    .h2 {
+      font-size: 44px; font-weight: 700; letter-spacing: -1.2px;
+      line-height: 1.1; margin-bottom: 18px;
+    }
+    @media (max-width: 720px) { .h2 { font-size: 34px; letter-spacing: -0.8px; } }
+    .lede {
+      font-size: 19px; color: var(--ink2); max-width: 540px;
+    }
+    @media (max-width: 720px) { .lede { font-size: 17px; } }
+
+    /* ── Feature section layout — text | phone ────────────────────── */
+    .feature-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
+    }
+    .feature-grid.reverse { grid-template-columns: 1fr 1fr; }
+    .feature-grid.reverse .feature-text { order: 2; }
+    .feature-grid.reverse .feature-visual { order: 1; }
+    @media (max-width: 900px) {
+      .feature-grid, .feature-grid.reverse { grid-template-columns: 1fr; gap: 48px; }
+      .feature-grid.reverse .feature-text { order: 1; }
+      .feature-grid.reverse .feature-visual { order: 2; }
+    }
+    .feature-list { list-style: none; margin-top: 22px; }
+    .feature-list li {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 12px 0; font-size: 16px; color: var(--ink2);
+      border-top: 1px solid var(--line);
+    }
+    .feature-list li:first-child { border-top: none; padding-top: 8px; }
+    .feature-list .tick {
+      flex-shrink: 0; margin-top: 3px;
+      width: 22px; height: 22px; border-radius: 11px;
+      background: var(--mint); color: var(--mint-deep);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+    }
+
+    /* ── Notifications section — side-by-side phones ──────────────── */
+    .notif-scene {
+      display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px;
+      align-items: center; justify-items: center;
+      max-width: 780px; margin: 0 auto;
+    }
+    .notif-arrow {
+      font-size: 40px; color: var(--sky-deep); font-weight: 300;
+    }
+    @media (max-width: 900px) {
+      .notif-scene { grid-template-columns: 1fr; gap: 36px; }
+      .notif-arrow { transform: rotate(90deg); font-size: 32px; }
+    }
+    .phone.compact { width: 280px; height: 574px; }
+    .phone.compact .app-bar { padding: 40px 16px 10px; }
+    .phone.compact .chat-feed { height: calc(100% - 148px); padding: 14px 12px 20px; }
+
+    /* Lockscreen (right phone in Notifications section) */
+    .lockscreen {
+      background: linear-gradient(180deg, #1a2540 0%, #34456e 60%, #6b8ab4 100%);
+      height: 100%; border-radius: 40px;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 60px 16px 24px;
+      position: relative;
+    }
+    .lockscreen .lock-time {
+      color: #fff; font-size: 62px; font-weight: 200; letter-spacing: -2px;
+      margin-bottom: 4px;
+    }
+    .lockscreen .lock-date {
+      color: rgba(255,255,255,0.85); font-size: 15px; font-weight: 500;
+      margin-bottom: 44px;
+    }
+    .push-notif {
+      background: rgba(255,255,255,0.94); backdrop-filter: blur(20px);
+      border-radius: 18px; padding: 12px 14px; width: 92%;
+      display: flex; gap: 10px; align-items: flex-start;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+    .push-notif .app-icon {
+      width: 38px; height: 38px; border-radius: 10px;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 800; letter-spacing: -0.5px;
+      flex-shrink: 0;
+    }
+    .push-notif .app-icon .a { color: var(--sky); }
+    .push-notif .body {
+      flex: 1; font-size: 13px; color: var(--ink);
+    }
+    .push-notif .body .row1 {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 2px;
+    }
+    .push-notif .body .app-name {
+      font-weight: 600; font-size: 12px; color: var(--ink);
+    }
+    .push-notif .body .time {
+      font-size: 11px; color: var(--ink3);
+    }
+    .push-notif .body .title {
+      font-weight: 600; margin-bottom: 2px; font-size: 13px;
+    }
+    .push-notif .body .msg {
+      font-size: 13px; color: var(--ink2); line-height: 1.35;
+    }
+
+    /* ── Calendar sheet mockup ────────────────────────────────────── */
+    .cal-sheet {
+      background: var(--bg); height: 100%;
+      border-radius: 40px; padding: 44px 14px 20px;
+      overflow: hidden;
+    }
+    .cal-sheet .cal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .cal-sheet .cal-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 20px; font-weight: 700;
+    }
+    .cal-sheet .cal-icon {
+      font-size: 20px;
+    }
+    .cal-sheet .cal-x {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: rgba(10,10,10,0.05);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: var(--ink2);
+    }
+    .cal-sheet .cal-tabs {
+      display: flex; background: rgba(10,10,10,0.05);
+      border-radius: 20px; padding: 4px; margin-bottom: 12px;
+    }
+    .cal-sheet .cal-tab {
+      flex: 1; text-align: center; padding: 8px; border-radius: 16px;
+      font-size: 13px; font-weight: 600; color: var(--ink2);
+    }
+    .cal-sheet .cal-tab.active { background: var(--ink); color: #fff; }
+    .cal-sheet .day-label {
+      font-size: 15px; font-weight: 700; margin-bottom: 12px;
+    }
+    .ev-card {
+      background: #fff; border-radius: 14px; padding: 10px 12px;
+      margin-bottom: 8px;
+      display: flex; align-items: center; gap: 10px;
+      border-left: 4px solid var(--rich);
+    }
+    .ev-card.p { border-left-color: var(--poppy); }
+    .ev-card.g { border-left-color: var(--gab); }
+    .ev-card.a { border-left-color: var(--anna); }
+    .ev-card .ev-time {
+      font-size: 11px; font-weight: 600; color: var(--ink3);
+      min-width: 44px;
+    }
+    .ev-card .ev-body { flex: 1; }
+    .ev-card .ev-title {
+      font-size: 13px; font-weight: 700; margin-bottom: 2px;
+    }
+    .ev-card .ev-meta {
+      font-size: 11px; color: var(--ink3);
+    }
+    .ev-card .avatars { display: flex; gap: -6px; }
+    .ev-card .avatar {
+      width: 22px; height: 22px; border-radius: 11px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: #fff;
+      border: 2px solid #fff;
+      margin-left: -6px;
+    }
+    .ev-card .avatar:first-child { margin-left: 0; }
+
+    /* ── Shopping list mockup ─────────────────────────────────────── */
+    .shop-sheet {
+      background: var(--bg); height: 100%;
+      border-radius: 40px; padding: 44px 14px 20px;
+      overflow: hidden;
+    }
+    .shop-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .shop-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 20px; font-weight: 700;
+    }
+    .shop-tabs {
+      display: flex; background: rgba(10,10,10,0.05);
+      border-radius: 20px; padding: 4px; margin-bottom: 14px;
+    }
+    .shop-tab {
+      flex: 1; text-align: center; padding: 8px; border-radius: 16px;
+      font-size: 13px; font-weight: 600; color: var(--ink2);
+    }
+    .shop-tab.active { background: var(--ink); color: #fff; }
+    .shop-item {
+      display: flex; align-items: center; gap: 10px;
+      background: #fff; border-radius: 12px;
+      padding: 12px; margin-bottom: 6px;
+    }
+    .shop-item .check {
+      width: 22px; height: 22px; border-radius: 11px;
+      border: 2px solid rgba(10,10,10,0.14);
+      flex-shrink: 0;
+    }
+    .shop-item.done .check {
+      background: var(--mint-deep); border-color: var(--mint-deep);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 12px; font-weight: 700;
+    }
+    .shop-item.done .check::before { content: "✓"; }
+    .shop-item.done .item-txt {
+      color: var(--ink3); text-decoration: line-through;
+    }
+    .shop-item .item-txt {
+      flex: 1; font-size: 14px; font-weight: 500;
+    }
+    .shop-item .cat {
+      font-size: 10px; color: var(--ink3); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.6px;
+    }
+    .pantry-chip {
+      display: inline-block; margin-top: 6px;
+      background: var(--mint-tint); color: var(--mint-deep);
+      padding: 3px 8px; border-radius: 10px;
+      font-size: 10px; font-weight: 600;
+    }
+
+    /* ── Dashboard mockup ─────────────────────────────────────────── */
+    .dash-scene {
+      background: var(--bg); height: 100%;
+      border-radius: 40px; padding: 44px 12px 20px;
+      overflow: hidden;
+    }
+    .dash-scene .dash-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px; padding: 0 4px;
+    }
+    .dash-scene .dash-title { font-size: 15px; font-weight: 700; color: var(--ink2); }
+    .dash-card {
+      background: var(--slate); color: #fff;
+      border-radius: 18px; padding: 14px;
+      margin-bottom: 10px;
+    }
+    .dash-card .card-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+      color: rgba(255,255,255,0.55); margin-bottom: 6px;
+    }
+    .dash-card .card-head { font-size: 17px; font-weight: 700; margin-bottom: 3px; }
+    .dash-card .card-sub { font-size: 12px; color: rgba(255,255,255,0.7); }
+    .dash-shop {
+      background: var(--lavender); color: #3D2A80;
+    }
+    .dash-shop .card-label { color: rgba(80,32,192,0.65); }
+    .dash-shop .card-sub { color: rgba(80,32,192,0.72); }
+    .dash-bento { display: grid; grid-template-columns: 35fr 65fr; gap: 10px; }
+    .dash-weather {
+      background: var(--sky-tint); color: var(--ink);
+      border-radius: 16px; padding: 12px;
+    }
+    .dash-weather .temp { font-size: 24px; font-weight: 700; }
+    .dash-weather .cond { font-size: 11px; color: var(--ink2); }
+    .dash-noticed {
+      background: var(--peach-tint); color: var(--ink);
+      border-radius: 16px; padding: 12px;
+    }
+    .dash-noticed .head-mini {
+      font-size: 10px; font-weight: 700; color: var(--ink3);
+      letter-spacing: 0.6px; margin-bottom: 4px;
+    }
+    .dash-noticed .body-mini { font-size: 12px; line-height: 1.4; }
+    .dash-radar {
+      background: var(--gold); color: #5A4800;
+    }
+    .dash-radar .card-label { color: rgba(90,72,0,0.65); }
+    .dash-radar .card-sub { color: rgba(90,72,0,0.75); }
+
+    /* ── Pricing ──────────────────────────────────────────────────── */
+    .pricing {
+      background: linear-gradient(180deg, transparent 0%, rgba(184,237,208,0.28) 100%);
+    }
+    .pricing .h2 { text-align: center; }
+    .pricing .lede { text-align: center; margin: 0 auto 44px; }
+    .price-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+      max-width: 780px; margin: 0 auto;
+    }
+    @media (max-width: 720px) { .price-grid { grid-template-columns: 1fr; } }
+    .price-card {
+      background: #fff; border-radius: 24px; padding: 32px 28px;
+      border: 1px solid var(--line);
+      display: flex; flex-direction: column;
+    }
+    .price-card.primary {
+      border: 2px solid var(--mint-deep);
+      background: linear-gradient(180deg, #fff 0%, var(--mint-tint) 100%);
+      position: relative;
+    }
+    .price-card .tier {
+      font-size: 13px; font-weight: 700; letter-spacing: 0.5px;
+      color: var(--ink2); text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .price-card .price {
+      font-size: 44px; font-weight: 800; letter-spacing: -1.5px;
+      line-height: 1; margin-bottom: 4px;
+    }
+    .price-card .price .cur { font-size: 22px; vertical-align: top; margin-right: 2px; }
+    .price-card .per { font-size: 15px; color: var(--ink2); margin-bottom: 20px; }
+    .price-card .tag {
+      position: absolute; top: -12px; right: 20px;
+      background: var(--mint-deep); color: #fff;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
+      padding: 5px 10px; border-radius: 10px;
+    }
+    .price-card ul {
+      list-style: none; margin: 0 0 24px; padding: 0;
+    }
+    .price-card li {
+      font-size: 14px; padding: 7px 0; color: var(--ink2);
+      display: flex; align-items: flex-start; gap: 8px;
+    }
+    .price-card li::before {
+      content: "✓"; color: var(--mint-deep); font-weight: 700;
+      flex-shrink: 0;
+    }
+    .price-card .btn { margin-top: auto; }
+
+    /* ── Beta signup form ─────────────────────────────────────────── */
+    .beta {
+      background: linear-gradient(180deg, rgba(184,237,208,0.28) 0%, transparent 100%);
+    }
+    .beta .wrap { max-width: 620px; text-align: center; }
+    .beta .h2 { text-align: center; }
+    .beta .lede { margin: 0 auto 28px; }
+    .beta-form {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      justify-content: center; margin-top: 8px;
+    }
+    .beta-form input[type=email] {
+      flex: 1; min-width: 260px;
+      padding: 15px 20px; border-radius: 30px;
+      border: 1.5px solid rgba(10,10,10,0.14);
+      background: #fff; font-size: 16px; color: var(--ink);
+      outline: none; transition: border-color 0.15s ease;
+    }
+    .beta-form input[type=email]:focus { border-color: var(--sky-deep); }
+    .beta-form button {
+      padding: 15px 32px; border-radius: 30px;
+      background: var(--ink); color: #fff;
+      font-size: 16px; font-weight: 600; border: none;
+      cursor: pointer;
+    }
+    .beta-form button:hover { opacity: 0.9; }
+    .beta-note {
+      font-size: 13px; color: var(--ink3); margin-top: 16px;
+    }
+    .beta-success {
+      display: none; margin-top: 20px;
+      background: var(--mint-tint); color: var(--mint-deep);
+      border-radius: 16px; padding: 16px 20px;
+      font-size: 15px; font-weight: 600;
+    }
+    .beta-success.show { display: block; }
+
+    /* ── Footer ───────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 40px 0 32px;
+      background: var(--bg);
+    }
+    footer .wrap {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 20px;
+    }
+    footer .word-mini {
+      font-size: 22px; font-weight: 800; letter-spacing: -1px;
+    }
+    footer .word-mini .a, .footer .word-mini .i { color: var(--sky); }
+    footer nav {
+      display: flex; gap: 24px; flex-wrap: wrap;
+    }
+    footer nav a {
+      font-size: 14px; color: var(--ink2);
+    }
+    footer nav a:hover { color: var(--ink); }
+    footer .made {
+      font-size: 13px; color: var(--ink3);
+    }
+
+    /* Utility */
+    .no-wrap { white-space: nowrap; }
+    .center { text-align: center; }
   </style>
 </head>
 <body>
-  <div class="orb orb-peach"></div>
-  <div class="orb orb-mint"></div>
-  <div class="orb orb-lav"></div>
-  <div class="orb orb-sky"></div>
-  <div class="wrap">
-    <div class="logo">z<span class="accent">a</span>el<span class="accent">i</span></div>
-    <p class="tagline">Less <span class="coral">chaos</span>.<br>More family.</p>
-    <a class="cta" href="https://zaeli.ai">Learn more →</a>
-  </div>
+
+  <!-- ── Nav ─────────────────────────────────────────────────────── -->
+  <header class="nav">
+    <div class="wrap">
+      <a href="#top" class="wordmark">z<span class="a">a</span>el<span class="i">i</span></a>
+      <a href="#beta" class="cta">Join the beta</a>
+    </div>
+  </header>
+
+  <!-- ── Hero ────────────────────────────────────────────────────── -->
+  <section class="hero" id="top">
+    <div class="hero-orbs">
+      <div class="orb orb-peach"></div>
+      <div class="orb orb-mint"></div>
+      <div class="orb orb-lav"></div>
+      <div class="orb orb-sky"></div>
+    </div>
+    <div class="section-inner">
+      <div class="wrap">
+        <div class="hero-grid">
+          <div>
+            <h1 class="hero-word">z<span class="a">a</span>el<span class="i">i</span></h1>
+            <p class="hero-tag">Less <span class="coral">chaos</span>.<br>More family.</p>
+            <p class="hero-sub">The AI that runs your family week — calendar, shopping, dinners, kids — all in one chat. Talk to her like a switched-on friend. She does the rest.</p>
+            <div class="hero-ctas">
+              <a href="#beta" class="btn btn-primary">Join the beta →</a>
+              <a href="#chat" class="btn btn-ghost">See how it works</a>
+            </div>
+            <p class="hero-note"><span class="dot"></span>Free for 14 days · A$9.99/month after · Made in Australia</p>
+          </div>
+
+          <!-- Hero phone mockup -->
+          <div>
+            <div class="phone tilt-right" aria-hidden="true">
+              <div class="notch"></div>
+              <div class="screen">
+                <div class="app-bar">
+                  <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                  <div class="right">
+                    <span class="label">Home</span>
+                    <div class="ham"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="chat-feed">
+                  <div class="msg-brief-morning">
+                    <div class="brief-pill">☀ MORNING</div>
+                    <div class="zaeli-eyebrow">Zaeli · 7:12 am</div>
+                    <div style="font-size:14px; line-height:1.5;">Thursday morning, Rich — Poppy has soccer at 3:30 and there's a school pickup at 2. 📅<br><br>Dinner's the only loose thread. Want me to plan something around Poppy's soccer? 🍽</div>
+                  </div>
+
+                  <div class="msg-user" style="align-self:flex-end;">Can you shift soccer to 4pm and text Anna?</div>
+
+                  <div class="msg-zaeli">Done. Poppy's soccer moved to 4pm, and Anna's been notified ✓</div>
+
+                  <div class="inline-card">
+                    <div class="head">
+                      <div class="day">TODAY · THU, 24 JUL</div>
+                      <div class="add-btn">+ Add</div>
+                    </div>
+                    <div class="event-row">
+                      <div class="time">2:00 pm</div>
+                      <div class="dot-title"><div class="dot" style="background:#4D8BFF"></div>School Pickup</div>
+                      <div class="avatar" style="background:#4D8BFF">R</div>
+                    </div>
+                    <div class="event-row">
+                      <div class="time">4:00 pm</div>
+                      <div class="dot-title"><div class="dot" style="background:#A855F7"></div>Poppy soccer</div>
+                      <div class="avatar" style="background:#A855F7">P</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="chat-bar">
+                  <div class="mic">🎙</div>
+                  <div class="sep"></div>
+                  <div class="field">Ask Zaeli anything…</div>
+                  <div class="send">↑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Chat is home ─────────────────────────────────────────────── -->
+  <section id="chat">
+    <div class="section-inner">
+      <div class="wrap">
+        <div class="feature-grid reverse">
+          <div class="feature-text">
+            <span class="eyebrow">The heart of it</span>
+            <h2 class="h2">Chat is home.</h2>
+            <p class="lede">Zaeli isn't buried in a menu. She's the first thing you see. Talk to her like a friend — voice, text, or a photo — and she gets on with it.</p>
+            <ul class="feature-list">
+              <li><span class="tick">✓</span><span>Morning and evening briefs that actually know your family — what's on today, what's tomorrow, what needs sorting.</span></li>
+              <li><span class="tick">✓</span><span>One chat handles calendar, shopping, meals, kids' bits and family messages. No app-hopping.</span></li>
+              <li><span class="tick">✓</span><span>Snap a school newsletter, receipt, or invitation. She reads it and files it.</span></li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="phone" aria-hidden="true">
+              <div class="notch"></div>
+              <div class="screen">
+                <div class="app-bar">
+                  <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                  <div class="right">
+                    <span class="label">Home</span>
+                    <div class="ham"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="chat-feed">
+                  <div class="msg-brief-evening">
+                    <div class="brief-pill evening">🌙 EVENING</div>
+                    <div class="zaeli-eyebrow">Zaeli · 9:05 pm</div>
+                    <div style="font-size:14px; line-height:1.5;">Wednesday done, Rich — and the bins are out 🌙<br><br>Tomorrow's soft: Gab has band at 8, Anna finishes early. Dinner's leftover pasta from Sunday, still in the fridge.<br><br>One thing — Duke's swim bag needs a repack in the morning 🎒</div>
+                    <div class="chip-row">
+                      <div class="chip">Chat with me</div>
+                      <div class="chip">Got it</div>
+                    </div>
+                  </div>
+
+                  <div class="msg-user" style="align-self:flex-end;">add "buy sunscreen" to shopping</div>
+                  <div class="msg-zaeli">Added — sunscreen's on the list. Anything else?</div>
+                </div>
+                <div class="chat-bar">
+                  <div class="mic">🎙</div>
+                  <div class="sep"></div>
+                  <div class="field">Ask Zaeli anything…</div>
+                  <div class="send">↑</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Notifications ⭐ NEW ─────────────────────────────────────── -->
+  <section style="background: linear-gradient(180deg, transparent, rgba(216,204,255,0.18), transparent);">
+    <div class="section-inner">
+      <div class="wrap">
+        <div class="center" style="margin-bottom: 56px;">
+          <span class="eyebrow" style="color: var(--sky-deep);">⭐ New</span>
+          <h2 class="h2">Nudge the family without leaving the chat.</h2>
+          <p class="lede" style="margin: 0 auto;">Say "text Anna I'm running late" or tap a Notify chip on any new event. A real push notification lands on their phone — no SMS, no group thread noise.</p>
+        </div>
+
+        <div class="notif-scene">
+          <!-- Left: Rich's chat -->
+          <div class="phone compact" aria-hidden="true">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="right">
+                  <span class="label">Home</span>
+                  <div class="ham"><span></span><span></span><span></span></div>
+                </div>
+              </div>
+              <div class="chat-feed">
+                <div class="msg-user" style="align-self:flex-end;">Text Anna I'll be home in 20.</div>
+                <div class="msg-zaeli">Sent to Anna ✓</div>
+                <div class="msg-user" style="align-self:flex-end;">and let her know I've grabbed milk on the way</div>
+                <div class="msg-zaeli">Second one just landed on her phone 🍼</div>
+              </div>
+              <div class="chat-bar">
+                <div class="mic">🎙</div>
+                <div class="sep"></div>
+                <div class="field">Ask Zaeli anything…</div>
+                <div class="send">↑</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="notif-arrow">→</div>
+
+          <!-- Right: Anna's lockscreen -->
+          <div class="phone compact" aria-hidden="true">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="lockscreen">
+                <div class="lock-time">4:52</div>
+                <div class="lock-date">Thursday, 24 July</div>
+                <div class="push-notif">
+                  <div class="app-icon">z<span class="a">a</span></div>
+                  <div class="body">
+                    <div class="row1">
+                      <div class="app-name">Zaeli</div>
+                      <div class="time">now</div>
+                    </div>
+                    <div class="title">💬 Rich</div>
+                    <div class="msg">I'll be home in 20.</div>
+                  </div>
+                </div>
+                <div class="push-notif" style="margin-top: 8px; opacity: 0.88;">
+                  <div class="app-icon">z<span class="a">a</span></div>
+                  <div class="body">
+                    <div class="row1">
+                      <div class="app-name">Zaeli</div>
+                      <div class="time">2m ago</div>
+                    </div>
+                    <div class="title">💬 Rich</div>
+                    <div class="msg">Grabbed the milk on the way.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Calendar ─────────────────────────────────────────────────── -->
+  <section id="calendar">
+    <div class="section-inner">
+      <div class="wrap">
+        <div class="feature-grid">
+          <div class="feature-text">
+            <span class="eyebrow">Family calendar</span>
+            <h2 class="h2">One calendar, colour-coded per person, that actually gets used.</h2>
+            <p class="lede">Add events by talking. Recurring soccer, dance troop, work rosters — Zaeli handles the series, the clashes, and the "who's picking up who" the whole family sees at a glance.</p>
+            <ul class="feature-list">
+              <li><span class="tick">✓</span><span>Every family member gets a colour. See at a glance whose day is stacked.</span></li>
+              <li><span class="tick">✓</span><span>Recurring events done properly — "every Mon/Tue/Fri", multi-week series, one-tap "roll it on another year".</span></li>
+              <li><span class="tick">✓</span><span>Clash awareness: Zaeli flags overlaps before they bite. "Poppy soccer and Duke dance both hit 4pm Thursday — want me to sort it?"</span></li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="phone tilt-left" aria-hidden="true">
+              <div class="notch"></div>
+              <div class="screen">
+                <div class="cal-sheet">
+                  <div class="cal-head">
+                    <div class="cal-title"><span class="cal-icon">📅</span> Calendar</div>
+                    <div class="cal-x">✕</div>
+                  </div>
+                  <div class="cal-tabs">
+                    <div class="cal-tab">Today</div>
+                    <div class="cal-tab active">Tomorrow</div>
+                    <div class="cal-tab">Month</div>
+                  </div>
+                  <div class="day-label">Friday 25 July 2026</div>
+                  <div class="ev-card p">
+                    <div class="ev-time">7:30 am</div>
+                    <div class="ev-body">
+                      <div class="ev-title">School Dance Troop</div>
+                      <div class="ev-meta">7:30 – 8:30 am</div>
+                    </div>
+                    <div class="avatars">
+                      <div class="avatar" style="background:#A855F7">P</div>
+                    </div>
+                  </div>
+                  <div class="ev-card a">
+                    <div class="ev-time">9:00 am</div>
+                    <div class="ev-body">
+                      <div class="ev-title">Room 7 Assembly</div>
+                      <div class="ev-meta">9:00 – 10:00 am</div>
+                    </div>
+                    <div class="avatars">
+                      <div class="avatar" style="background:#FF7B6B">A</div>
+                      <div class="avatar" style="background:#F59E0B">D</div>
+                    </div>
+                  </div>
+                  <div class="ev-card a">
+                    <div class="ev-time">1:00 pm</div>
+                    <div class="ev-body">
+                      <div class="ev-title">Pick Up Shopping</div>
+                      <div class="ev-meta">1:00 – 2:00 pm</div>
+                    </div>
+                    <div class="avatars">
+                      <div class="avatar" style="background:#FF7B6B">A</div>
+                    </div>
+                  </div>
+                  <div class="ev-card">
+                    <div class="ev-time">4:00 pm</div>
+                    <div class="ev-body">
+                      <div class="ev-title">Soccer Training</div>
+                      <div class="ev-meta">4:00 – 5:15 pm</div>
+                    </div>
+                    <div class="avatars">
+                      <div class="avatar" style="background:#4D8BFF">R</div>
+                      <div class="avatar" style="background:#22C55E">G</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Shopping ─────────────────────────────────────────────────── -->
+  <section style="background: linear-gradient(180deg, transparent, rgba(216,204,255,0.14), transparent);">
+    <div class="section-inner">
+      <div class="wrap">
+        <div class="feature-grid reverse">
+          <div class="feature-text">
+            <span class="eyebrow">Shopping + pantry</span>
+            <h2 class="h2">Scan a receipt. She takes it from there.</h2>
+            <p class="lede">Snap the whole receipt (multi-page fine). Zaeli reads it, ticks items off your list, updates the pantry, tracks the spend. She'll even flag things you've already got at home when you go to add them.</p>
+            <ul class="feature-list">
+              <li><span class="tick">✓</span><span>Voice, text, or camera — "add coffee beans and barista milk" and it's done in 3 seconds.</span></li>
+              <li><span class="tick">✓</span><span>Pantry-aware: "we've still got maple syrup, bought Tuesday — want to add it anyway?"</span></li>
+              <li><span class="tick">✓</span><span>Recipe → shopping. One tap sends every ingredient you don't already have straight to the list.</span></li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="phone tilt-right" aria-hidden="true">
+              <div class="notch"></div>
+              <div class="screen">
+                <div class="shop-sheet">
+                  <div class="shop-head">
+                    <div class="shop-title">🛒 Shopping</div>
+                    <div class="cal-x">✕</div>
+                  </div>
+                  <div class="shop-tabs">
+                    <div class="shop-tab active">List</div>
+                    <div class="shop-tab">Pantry</div>
+                    <div class="shop-tab">Spend</div>
+                  </div>
+                  <div class="shop-item">
+                    <div class="check"></div>
+                    <div style="flex:1;">
+                      <div class="item-txt">Sourdough loaf</div>
+                      <div class="cat">Bakery</div>
+                    </div>
+                  </div>
+                  <div class="shop-item">
+                    <div class="check"></div>
+                    <div style="flex:1;">
+                      <div class="item-txt">Coffee beans</div>
+                      <div class="cat">Pantry</div>
+                      <div class="pantry-chip">In pantry — bought 5 days ago</div>
+                    </div>
+                  </div>
+                  <div class="shop-item">
+                    <div class="check"></div>
+                    <div style="flex:1;">
+                      <div class="item-txt">Bananas × 6</div>
+                      <div class="cat">Fruit</div>
+                    </div>
+                  </div>
+                  <div class="shop-item done">
+                    <div class="check"></div>
+                    <div style="flex:1;">
+                      <div class="item-txt">Full cream milk 2L</div>
+                      <div class="cat">Dairy</div>
+                    </div>
+                  </div>
+                  <div class="shop-item done">
+                    <div class="check"></div>
+                    <div style="flex:1;">
+                      <div class="item-txt">Eggs — free range 12pk</div>
+                      <div class="cat">Dairy</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Dashboard ────────────────────────────────────────────────── -->
+  <section id="dashboard">
+    <div class="section-inner">
+      <div class="wrap">
+        <div class="feature-grid">
+          <div class="feature-text">
+            <span class="eyebrow">The glance</span>
+            <h2 class="h2">Everything at a glance. Nothing shouting.</h2>
+            <p class="lede">One swipe from chat gets you the dashboard — calendar, shopping, weather, and Zaeli's quiet observations from the week. Tap anything to open it. That's it.</p>
+            <ul class="feature-list">
+              <li><span class="tick">✓</span><span>Bento layout: Weather + Zaeli Noticed side-by-side, everything else full width.</span></li>
+              <li><span class="tick">✓</span><span>On the Radar surfaces overdue tasks + upcoming week, so nothing quietly slips.</span></li>
+              <li><span class="tick">✓</span><span>Zaeli Noticed watches for patterns — birthdays coming up, standing appointments, quiet nudges she's earned the right to make.</span></li>
+            </ul>
+          </div>
+          <div class="feature-visual">
+            <div class="phone" aria-hidden="true">
+              <div class="notch"></div>
+              <div class="screen">
+                <div class="dash-scene">
+                  <div class="dash-head">
+                    <div class="dash-title">Dashboard · Thursday</div>
+                  </div>
+
+                  <div class="dash-card">
+                    <div class="card-label">📅 CALENDAR</div>
+                    <div class="card-head">4 events today</div>
+                    <div class="card-sub">Next: School pickup at 2 pm — Rich</div>
+                  </div>
+
+                  <div class="dash-card dash-shop">
+                    <div class="card-label">🛒 SHOPPING</div>
+                    <div class="card-head">12 items on the list</div>
+                    <div class="card-sub">Tap to sort by aisle</div>
+                  </div>
+
+                  <div class="dash-bento">
+                    <div class="dash-weather">
+                      <div class="temp">22°</div>
+                      <div class="cond">Sunny · Brisbane</div>
+                    </div>
+                    <div class="dash-noticed">
+                      <div class="head-mini">✨ ZAELI NOTICED</div>
+                      <div class="body-mini">Poppy's birthday is in 3 weeks. Want to start jotting ideas?</div>
+                    </div>
+                  </div>
+
+                  <div class="dash-card dash-radar">
+                    <div class="card-label">🎯 ON THE RADAR</div>
+                    <div class="card-head">3 things this week</div>
+                    <div class="card-sub">Plumber Wed · Gab's excursion form · Rego renewal</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Pricing ──────────────────────────────────────────────────── -->
+  <section class="pricing" id="pricing">
+    <div class="section-inner">
+      <div class="wrap">
+        <div class="center">
+          <span class="eyebrow">Pricing</span>
+          <h2 class="h2">Family plan. One price. All of it.</h2>
+          <p class="lede">Everything above, for every adult and kid in your family. Prices in AUD, GST included. Cancel anytime.</p>
+        </div>
+        <div class="price-grid">
+          <div class="price-card primary">
+            <div class="tag">14-DAY FREE TRIAL</div>
+            <div class="tier">Zaeli Family Plan</div>
+            <div class="price"><span class="cur">A$</span>9.99</div>
+            <div class="per">per month · inc GST</div>
+            <ul>
+              <li>Unlimited chat with Zaeli — voice, text, photo</li>
+              <li>Family calendar, shopping, pantry, meals</li>
+              <li>Notes, tasks, budget planner</li>
+              <li>Push notifications between family members</li>
+              <li>Kids Hub — jobs, rewards, mini-games</li>
+            </ul>
+            <a href="#beta" class="btn btn-primary">Join the beta →</a>
+          </div>
+          <div class="price-card">
+            <div class="tier">Tutor Add-on</div>
+            <div class="price"><span class="cur">A$</span>7.99</div>
+            <div class="per">per child · per month · inc GST</div>
+            <ul>
+              <li>Curriculum-aligned tutoring (F–Year 12)</li>
+              <li>Maths, English, Science, HASS</li>
+              <li>Read Aloud with real-time feedback</li>
+              <li>Homework helper — Socratic, not answer-giver</li>
+              <li>Adapts to child's level automatically</li>
+            </ul>
+            <a href="#beta" class="btn btn-ghost">Add during signup</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Beta signup ──────────────────────────────────────────────── -->
+  <section class="beta" id="beta">
+    <div class="section-inner">
+      <div class="wrap">
+        <span class="eyebrow">Limited beta</span>
+        <h2 class="h2">Join the first families using Zaeli.</h2>
+        <p class="lede">We're inviting Australian families to shape Zaeli before public launch. Drop your email — you'll hear from us within a week.</p>
+
+        <!-- Netlify Forms integration: data-netlify="true" + hidden form-name.
+             Submissions land in the Netlify dashboard, and Netlify sends
+             email notifications to Rich for each signup. -->
+        <form name="beta-signup" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="beta-form" id="beta-form">
+          <input type="hidden" name="form-name" value="beta-signup">
+          <p style="display:none;"><label>Don't fill this out: <input name="bot-field"></label></p>
+          <input type="email" name="email" placeholder="your@email.com" required autocomplete="email">
+          <button type="submit">Get on the list →</button>
+        </form>
+        <p class="beta-note">No spam. No newsletter. Just a personal invite when your family's up.</p>
+        <div class="beta-success" id="beta-success">
+          ✓ You're on the list. We'll be in touch soon.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ───────────────────────────────────────────────────── -->
+  <footer>
+    <div class="wrap">
+      <div class="word-mini">z<span class="a" style="color:#A8D8F0">a</span>el<span class="i" style="color:#A8D8F0">i</span></div>
+      <nav>
+        <a href="/privacy.html">Privacy</a>
+        <a href="/terms.html">Terms</a>
+        <a href="mailto:hello@zaeli.ai">hello@zaeli.ai</a>
+      </nav>
+      <div class="made">Made in Australia 🇦🇺</div>
+    </div>
+  </footer>
+
+  <script>
+    // Progressive enhancement — intercept the form submit, POST via fetch,
+    // show inline success. Netlify still processes the form because we've
+    // encoded the payload the same way as a native submit.
+    (function () {
+      var form = document.getElementById('beta-form');
+      var success = document.getElementById('beta-success');
+      if (!form) return;
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var data = new FormData(form);
+        var encoded = new URLSearchParams();
+        data.forEach(function (v, k) { encoded.append(k, v); });
+        fetch('/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: encoded.toString(),
+        }).then(function () {
+          form.style.display = 'none';
+          success.classList.add('show');
+        }).catch(function () {
+          // Fallback: allow native submit if fetch fails
+          form.submit();
+        });
+      });
+    })();
+  </script>
+
 </body>
 </html>

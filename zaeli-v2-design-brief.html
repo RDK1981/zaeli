@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zaeli v2 — Design Brief</title>
+  <style>
+    /* ── Reset ────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #FAF8F5;
+      --ink:       #0A0A0A;
+      --ink2:      rgba(10,10,10,0.72);
+      --ink3:      rgba(10,10,10,0.48);
+      --ink4:      rgba(10,10,10,0.28);
+      --line:      rgba(10,10,10,0.08);
+      --peach:     #FAC8A8;
+      --peach-tint:#FDF1E5;
+      --mint:      #B8EDD0;
+      --mint-tint: #E6F7EF;
+      --mint-deep: #2D7A52;
+      --lavender:  #D8CCFF;
+      --lav-tint:  #F0EBFF;
+      --lav-deep:  #5020C0;
+      --sky:       #A8D8F0;
+      --sky-tint:  #E8F4FD;
+      --sky-deep:  #0A5C80;
+      --coral:     #FF4545;
+      --coral-tint:#FFE4E0;
+      --coral-deep:#B83333;
+      --slate:     #2D3748;
+      --gold:      #F0DC80;
+      --gold-tint: #FBF3D0;
+      --gold-deep: #5A4800;
+      --anna:      #FF7B6B;
+      --rich:      #4D8BFF;
+      --poppy:     #A855F7;
+      --gab:       #22C55E;
+      --duke:      #F59E0B;
+    }
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+    body { padding: 40px 20px 80px; }
+    a { color: var(--sky-deep); }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    .doc {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+    .cover {
+      background: linear-gradient(140deg, #FAF8F5 0%, #FDF1E5 50%, #E8F4FD 100%);
+      border-radius: 32px;
+      padding: 64px 48px;
+      margin-bottom: 60px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cover::before {
+      content: ""; position: absolute; width: 220px; height: 220px;
+      background: var(--peach); border-radius: 50%; opacity: 0.4;
+      top: -60px; right: -60px; filter: blur(4px);
+    }
+    .cover::after {
+      content: ""; position: absolute; width: 180px; height: 180px;
+      background: var(--mint); border-radius: 50%; opacity: 0.5;
+      bottom: -50px; left: -50px; filter: blur(4px);
+    }
+    .cover-inner { position: relative; z-index: 1; max-width: 720px; }
+    .brand {
+      font-size: 44px; font-weight: 800; letter-spacing: -1.6px;
+      line-height: 1; margin-bottom: 20px;
+    }
+    .brand .a, .brand .i { color: var(--sky); }
+    .brand .badge {
+      display: inline-block; font-size: 14px; font-weight: 700;
+      background: var(--ink); color: #fff;
+      padding: 4px 12px; border-radius: 8px;
+      margin-left: 12px; vertical-align: middle;
+      letter-spacing: 0.4px;
+    }
+    .cover h1 {
+      font-size: 44px; font-weight: 700; letter-spacing: -1.2px;
+      line-height: 1.1; margin-bottom: 16px;
+    }
+    .cover .sub {
+      font-size: 20px; color: var(--ink2); margin-bottom: 24px;
+    }
+    .meta {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px;
+    }
+    .meta .pill {
+      background: rgba(255,255,255,0.6); backdrop-filter: blur(8px);
+      padding: 8px 14px; border-radius: 999px;
+      font-size: 13px; font-weight: 600; color: var(--ink);
+      border: 1px solid rgba(10,10,10,0.06);
+    }
+
+    /* Section framing */
+    section.chapter { margin: 80px 0; }
+    .chapter-num {
+      font-size: 13px; font-weight: 700; letter-spacing: 1.4px;
+      color: var(--ink3); text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    h2.chapter-title {
+      font-size: 40px; font-weight: 700; letter-spacing: -1.2px;
+      line-height: 1.1; margin-bottom: 16px;
+    }
+    .chapter-lede {
+      font-size: 19px; color: var(--ink2); max-width: 720px;
+      margin-bottom: 40px;
+    }
+
+    /* Scene grid — phone + commentary */
+    .scene {
+      display: grid; grid-template-columns: 340px 1fr;
+      gap: 60px; align-items: start;
+      margin-bottom: 64px;
+    }
+    .scene.reverse { grid-template-columns: 1fr 340px; }
+    .scene.reverse .phone-wrap { order: 2; }
+    .scene.reverse .commentary { order: 1; }
+    @media (max-width: 900px) {
+      .scene, .scene.reverse { grid-template-columns: 1fr; gap: 32px; }
+      .scene.reverse .phone-wrap, .scene.reverse .commentary { order: unset; }
+      .phone-wrap { display: flex; justify-content: center; }
+    }
+
+    .commentary h3 {
+      font-size: 24px; font-weight: 700; letter-spacing: -0.5px;
+      margin-bottom: 12px;
+    }
+    .commentary p {
+      font-size: 16px; color: var(--ink2); margin-bottom: 12px;
+    }
+    .commentary p strong { color: var(--ink); font-weight: 700; }
+    .commentary ul {
+      list-style: none; margin-top: 8px;
+    }
+    .commentary ul li {
+      display: flex; gap: 10px; padding: 8px 0;
+      font-size: 15px; color: var(--ink2);
+      border-top: 1px solid var(--line);
+    }
+    .commentary ul li:first-child { border-top: none; }
+    .commentary ul li::before {
+      content: "→"; color: var(--sky-deep); font-weight: 700;
+      flex-shrink: 0;
+    }
+    .callout {
+      background: var(--sky-tint); border-left: 3px solid var(--sky-deep);
+      padding: 14px 16px; border-radius: 12px;
+      font-size: 14px; color: var(--ink);
+      margin: 16px 0;
+    }
+    .callout strong { color: var(--sky-deep); }
+    .callout-warn {
+      background: var(--peach-tint); border-left-color: #8A3A00;
+    }
+    .callout-warn strong { color: #8A3A00; }
+
+    /* ── Phone frame ──────────────────────────────────────────── */
+    .phone {
+      width: 320px; height: 654px;
+      background: var(--ink);
+      border-radius: 46px;
+      padding: 8px;
+      box-shadow:
+        0 40px 60px -25px rgba(10,10,10,0.35),
+        0 15px 30px -8px rgba(10,10,10,0.18),
+        0 0 0 1px rgba(10,10,10,0.08);
+      margin: 0 auto;
+      position: relative;
+    }
+    .phone .notch {
+      position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+      width: 108px; height: 24px; background: var(--ink);
+      border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;
+      z-index: 20;
+    }
+    .phone .screen {
+      background: var(--bg);
+      border-radius: 40px;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Standard app bar */
+    .app-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 46px 18px 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg);
+      position: relative; z-index: 5;
+    }
+    .app-bar .word {
+      font-size: 26px; font-weight: 800; letter-spacing: -1.2px;
+      line-height: 1;
+    }
+    .app-bar .word .a, .app-bar .word .i { color: var(--sky); }
+    .app-bar .right {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .app-bar .ham {
+      width: 34px; height: 34px; border-radius: 10px;
+      background: rgba(10,10,10,0.05);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      gap: 4px;
+    }
+    .app-bar .ham span { display: block; width: 16px; height: 2px; background: var(--ink); border-radius: 1px; }
+
+    /* Scrollable content area */
+    .body-scroll {
+      padding: 14px;
+      height: calc(100% - 82px);
+      overflow: hidden;
+    }
+
+    /* ── Bento tiles ──────────────────────────────────────────── */
+    .tile {
+      background: #fff;
+      border-radius: 18px;
+      padding: 14px;
+      margin-bottom: 10px;
+      border: 1px solid var(--line);
+    }
+    .tile-brief {
+      background: var(--peach-tint);
+      border-color: transparent;
+    }
+    .tile-brief.evening { background: var(--lav-tint); }
+    .brief-pill-mini {
+      display: inline-flex; align-items: center;
+      background: var(--peach); color: #8A3A00;
+      padding: 3px 8px; border-radius: 10px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.6px;
+      margin-bottom: 6px;
+    }
+    .brief-pill-mini.evening { background: var(--lavender); color: var(--lav-deep); }
+    .brief-txt {
+      font-size: 13px; line-height: 1.45; color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .brief-chips {
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .brief-chip {
+      background: rgba(255,255,255,0.7); color: var(--ink);
+      padding: 5px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+      border: 1px solid rgba(10,10,10,0.08);
+    }
+    .brief-chip.primary { background: #fff; }
+
+    .tile-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .tile-icon-title {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+      color: var(--ink3); text-transform: uppercase;
+    }
+    .tile-glance {
+      font-size: 16px; font-weight: 700; line-height: 1.3;
+      margin-bottom: 6px; color: var(--ink);
+    }
+    .tile-preview {
+      font-size: 12px; color: var(--ink3); line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    .quick-add {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg); border: 1px solid var(--line);
+      border-radius: 12px; padding: 9px 12px;
+      font-size: 13px; color: var(--ink3);
+    }
+    .quick-add .plus {
+      color: var(--coral); font-weight: 700; font-size: 15px;
+    }
+    .quick-add.active {
+      background: #fff; border-color: var(--sky-deep);
+      color: var(--ink);
+    }
+    .quick-add.active::after {
+      content: "▎"; color: var(--coral); animation: blink 1s steps(2) infinite;
+    }
+    @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* Bento pair */
+    .bento-pair {
+      display: grid; grid-template-columns: 40fr 60fr; gap: 10px;
+      margin-bottom: 10px;
+    }
+    .tile-mini {
+      background: var(--sky-tint);
+      border-radius: 18px; padding: 14px;
+      border: 1px solid transparent;
+    }
+    .tile-mini.weather .temp {
+      font-size: 24px; font-weight: 700; line-height: 1;
+    }
+    .tile-mini.weather .cond {
+      font-size: 11px; color: var(--ink2); margin-top: 4px;
+    }
+    .tile-mini.budget { background: var(--mint-tint); }
+    .tile-mini.budget .cur {
+      font-size: 22px; font-weight: 700; line-height: 1;
+      color: var(--mint-deep);
+    }
+    .tile-mini.budget .cur-sub {
+      font-size: 11px; color: var(--ink2); margin-top: 4px;
+    }
+
+    /* Chat tile */
+    .tile-chat {
+      background: linear-gradient(135deg, #fff 0%, var(--sky-tint) 100%);
+      border-color: transparent;
+    }
+    .tile-chat .last-msg {
+      font-size: 12px; color: var(--ink3); font-style: italic;
+      margin-bottom: 8px;
+    }
+    .tile-chat .cta-row {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .tile-chat .zaeli-dot {
+      display: inline-block; width: 8px; height: 8px;
+      background: var(--mint-deep); border-radius: 4px;
+      margin-right: 6px; vertical-align: middle;
+    }
+    .tile-chat .cta {
+      font-size: 12px; font-weight: 700; color: var(--sky-deep);
+    }
+
+    /* Row inside calendar tile */
+    .cal-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; padding: 4px 0;
+      color: var(--ink2);
+    }
+    .cal-row .t { font-weight: 600; color: var(--ink); min-width: 46px; }
+    .cal-row .dot {
+      width: 8px; height: 8px; border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .cal-row .avat {
+      width: 18px; height: 18px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 700; color: #fff;
+      margin-left: auto;
+    }
+
+    /* Row inside shopping tile */
+    .shop-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; padding: 3px 0;
+      color: var(--ink2);
+    }
+    .shop-row .bullet {
+      display: inline-block; width: 4px; height: 4px;
+      border-radius: 2px; background: var(--ink4);
+    }
+
+    /* ── FAB ──────────────────────────────────────────────────── */
+    .fab {
+      position: absolute; bottom: 20px; right: 20px;
+      width: 60px; height: 60px; border-radius: 30px;
+      background: var(--coral); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 10px 24px rgba(255,69,69,0.35), 0 4px 8px rgba(0,0,0,0.15);
+      z-index: 15;
+    }
+    .fab.recording {
+      background: var(--ink); color: var(--coral);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 10px 24px rgba(255,69,69,0.35), 0 4px 8px rgba(0,0,0,0.15); }
+      50%      { transform: scale(1.05); box-shadow: 0 12px 30px rgba(255,69,69,0.55), 0 4px 8px rgba(0,0,0,0.15); }
+    }
+
+    /* Voice recording overlay pill */
+    .voice-pill {
+      position: absolute; left: 20px; right: 90px; bottom: 30px;
+      background: #fff; border-radius: 30px;
+      padding: 10px 16px;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+      z-index: 14;
+    }
+    .voice-pill .waves {
+      display: flex; align-items: center; gap: 3px; flex: 1;
+    }
+    .voice-pill .wave {
+      width: 3px; background: var(--coral); border-radius: 2px;
+      animation: wavy 0.8s ease-in-out infinite;
+    }
+    .voice-pill .wave:nth-child(1) { height: 10px; animation-delay: 0.0s; }
+    .voice-pill .wave:nth-child(2) { height: 18px; animation-delay: 0.1s; }
+    .voice-pill .wave:nth-child(3) { height: 26px; animation-delay: 0.2s; }
+    .voice-pill .wave:nth-child(4) { height: 32px; animation-delay: 0.3s; }
+    .voice-pill .wave:nth-child(5) { height: 26px; animation-delay: 0.4s; }
+    .voice-pill .wave:nth-child(6) { height: 18px; animation-delay: 0.5s; }
+    .voice-pill .wave:nth-child(7) { height: 10px; animation-delay: 0.6s; }
+    @keyframes wavy {
+      0%, 100% { transform: scaleY(0.5); }
+      50%      { transform: scaleY(1.2); }
+    }
+    .voice-pill .label {
+      font-size: 12px; color: var(--ink3); font-weight: 500;
+    }
+
+    /* Confirm toast */
+    .toast {
+      position: absolute; top: 92px; left: 14px; right: 14px;
+      background: var(--ink); color: #fff;
+      border-radius: 12px; padding: 12px 14px;
+      display: flex; align-items: center; gap: 10px;
+      font-size: 13px;
+      z-index: 12;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+    .toast .check {
+      width: 20px; height: 20px; border-radius: 10px;
+      background: var(--mint-deep); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700;
+    }
+
+    /* ── Sheet overlay (chat sheet etc.) ──────────────────────── */
+    .sheet-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(10,10,10,0.35);
+      z-index: 30;
+    }
+    .sheet {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      height: 92%;
+      background: var(--bg);
+      border-top-left-radius: 24px; border-top-right-radius: 24px;
+      z-index: 31; overflow: hidden;
+    }
+    .sheet .handle {
+      width: 36px; height: 4px; background: rgba(10,10,10,0.14);
+      border-radius: 2px; margin: 12px auto;
+    }
+    .sheet .sheet-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 18px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .sheet .sheet-head .title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 18px; font-weight: 700;
+    }
+    .sheet .close-x {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: rgba(10,10,10,0.05);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: var(--ink2);
+    }
+
+    /* Chat feed inside sheet */
+    .chat-body {
+      padding: 14px 14px 20px;
+      height: calc(100% - 60px);
+      display: flex; flex-direction: column; gap: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    .msg-user, .msg-zaeli {
+      max-width: 82%; padding: 10px 13px; border-radius: 16px;
+      font-size: 13px; line-height: 1.4;
+    }
+    .msg-user {
+      background: var(--sky-tint); color: var(--ink);
+      align-self: flex-end; border-bottom-right-radius: 6px;
+    }
+    .msg-zaeli {
+      background: rgba(10,10,10,0.05); color: var(--ink);
+      align-self: flex-start; border-bottom-left-radius: 6px;
+    }
+    .msg-brief-in-chat {
+      background: var(--peach-tint);
+      padding: 12px 14px; border-radius: 16px;
+      align-self: flex-start; border-bottom-left-radius: 6px;
+      max-width: 92%;
+    }
+    .chat-bar {
+      position: absolute; left: 12px; right: 12px; bottom: 12px;
+      background: #fff; border: 1px solid rgba(210,210,210,0.6);
+      border-radius: 28px;
+      padding: 8px 10px;
+      display: flex; align-items: center; gap: 8px;
+      min-height: 52px;
+    }
+    .chat-bar .mic {
+      width: 32px; height: 32px; border-radius: 16px;
+      background: rgba(10,10,10,0.05);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .chat-bar .sep { width: 1px; height: 20px; background: rgba(10,10,10,0.1); }
+    .chat-bar .field {
+      flex: 1; font-size: 13px; color: var(--ink3);
+    }
+    .chat-bar .send {
+      width: 32px; height: 32px; border-radius: 16px;
+      background: var(--coral); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+
+    /* ── Sheet — calendar/shopping/budget interior ────────────── */
+    .sheet-tabs {
+      display: flex; background: rgba(10,10,10,0.05);
+      border-radius: 20px; padding: 4px; margin: 12px 14px 12px;
+    }
+    .sheet-tab {
+      flex: 1; text-align: center; padding: 8px; border-radius: 16px;
+      font-size: 13px; font-weight: 600; color: var(--ink2);
+    }
+    .sheet-tab.active { background: var(--ink); color: #fff; }
+    .sheet-list { padding: 0 14px; overflow: hidden; }
+
+    /* Shopping list rows in sheet */
+    .sheet-list .add-row {
+      display: flex; align-items: center; gap: 10px;
+      background: #fff; border-radius: 14px; padding: 12px;
+      margin-bottom: 8px;
+      border: 2px solid var(--sky);
+    }
+    .sheet-list .add-row .plus {
+      color: var(--coral); font-weight: 700; font-size: 16px;
+    }
+    .sheet-list .add-row .field {
+      flex: 1; font-size: 14px; color: var(--ink3);
+    }
+    .sheet-list .add-row .enter {
+      font-size: 11px; color: var(--ink3); font-weight: 500;
+      background: rgba(10,10,10,0.05); padding: 3px 8px; border-radius: 6px;
+    }
+    .list-item {
+      display: flex; align-items: center; gap: 10px;
+      background: #fff; border-radius: 12px;
+      padding: 11px 12px; margin-bottom: 6px;
+    }
+    .list-item .check {
+      width: 22px; height: 22px; border-radius: 11px;
+      border: 2px solid rgba(10,10,10,0.14);
+      flex-shrink: 0;
+    }
+    .list-item.done .check {
+      background: var(--mint-deep); border-color: var(--mint-deep);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 11px; font-weight: 700;
+    }
+    .list-item.done .check::before { content: "✓"; }
+    .list-item.done .name {
+      color: var(--ink3); text-decoration: line-through;
+    }
+    .list-item .name { flex: 1; font-size: 14px; font-weight: 500; }
+    .list-item .cat {
+      font-size: 10px; color: var(--ink3); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    /* Calendar day cards inside sheet */
+    .day-label {
+      font-size: 15px; font-weight: 700; padding: 4px 14px 10px;
+    }
+    .cal-day-card {
+      display: flex; align-items: center; gap: 10px;
+      background: #fff; border-radius: 12px;
+      padding: 10px 12px; margin: 0 14px 8px;
+      border-left: 4px solid var(--rich);
+    }
+    .cal-day-card.p { border-left-color: var(--poppy); }
+    .cal-day-card.g { border-left-color: var(--gab); }
+    .cal-day-card.a { border-left-color: var(--anna); }
+    .cal-day-card .ct { font-size: 11px; font-weight: 600; color: var(--ink3); min-width: 44px; }
+    .cal-day-card .cb { flex: 1; }
+    .cal-day-card .cn { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+    .cal-day-card .cm { font-size: 11px; color: var(--ink3); }
+    .cal-day-card .cav {
+      width: 22px; height: 22px; border-radius: 11px;
+      color: #fff; font-size: 10px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Budget interior */
+    .budget-hero {
+      background: linear-gradient(135deg, var(--mint-tint), #fff);
+      padding: 18px 14px; margin: 0 14px 12px;
+      border-radius: 16px;
+    }
+    .budget-hero .lbl {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+      color: var(--mint-deep); text-transform: uppercase;
+    }
+    .budget-hero .amount {
+      font-size: 34px; font-weight: 800; letter-spacing: -1px;
+      color: var(--ink); line-height: 1; margin-top: 6px;
+    }
+    .budget-hero .amount .cur {
+      font-size: 18px; vertical-align: top; margin-right: 3px;
+    }
+    .budget-hero .sub {
+      font-size: 12px; color: var(--ink3); margin-top: 4px;
+    }
+    .budget-cat {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #fff; border-radius: 12px;
+      padding: 12px; margin: 0 14px 6px;
+    }
+    .budget-cat .cn { font-size: 13px; font-weight: 600; }
+    .budget-cat .ca { font-size: 13px; color: var(--ink2); font-weight: 500; }
+    .budget-cat .bar {
+      height: 4px; background: rgba(10,10,10,0.06);
+      border-radius: 2px; margin-top: 6px;
+      position: relative;
+    }
+    .budget-cat .bar-fill {
+      position: absolute; left: 0; top: 0; bottom: 0;
+      background: var(--mint-deep); border-radius: 2px;
+    }
+    .budget-cat.warn .bar-fill { background: var(--peach); }
+
+    /* Settings sheet interior */
+    .settings-group {
+      background: #fff; border-radius: 14px;
+      margin: 8px 14px 14px; overflow: hidden;
+    }
+    .settings-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 13px 14px;
+      border-top: 1px solid var(--line);
+    }
+    .settings-row:first-child { border-top: none; }
+    .settings-row .icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .settings-row .body { flex: 1; }
+    .settings-row .body .title { font-size: 14px; font-weight: 500; }
+    .settings-row .body .sub { font-size: 12px; color: var(--ink3); }
+    .settings-row .value {
+      font-size: 13px; color: var(--ink3); font-weight: 500;
+    }
+    .settings-row .chev { color: var(--ink4); font-size: 12px; }
+    .settings-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+      color: var(--ink3); text-transform: uppercase;
+      padding: 20px 20px 4px;
+    }
+
+    /* Hero-account block in settings */
+    .account-hero {
+      background: linear-gradient(135deg, var(--slate) 0%, #4a5978 100%);
+      color: #fff; margin: 14px; border-radius: 18px;
+      padding: 20px; display: flex; align-items: center; gap: 14px;
+    }
+    .account-avatar {
+      width: 52px; height: 52px; border-radius: 26px;
+      background: var(--peach); color: #6B2E00;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800;
+    }
+    .account-name { font-size: 17px; font-weight: 700; }
+    .account-tag {
+      display: inline-block;
+      background: rgba(255,255,255,0.15); padding: 3px 8px;
+      border-radius: 6px; font-size: 10px; font-weight: 700;
+      letter-spacing: 0.5px; margin-top: 6px;
+    }
+
+    /* ── What's hidden section ─────────────────────────────── */
+    .hidden-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    @media (max-width: 720px) { .hidden-grid { grid-template-columns: 1fr; } }
+    .hidden-card {
+      background: #fff; border-radius: 16px;
+      padding: 20px; border: 1px solid var(--line);
+    }
+    .hidden-card h4 {
+      font-size: 16px; font-weight: 700; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .hidden-card .kbd {
+      background: rgba(10,10,10,0.05);
+      padding: 3px 8px; border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+    }
+    .hidden-card ul {
+      list-style: none; margin-top: 10px;
+    }
+    .hidden-card li {
+      font-size: 14px; padding: 6px 0; color: var(--ink2);
+      border-top: 1px solid var(--line);
+    }
+    .hidden-card li:first-child { border-top: none; }
+    .hidden-card li strong { color: var(--ink); }
+    .hidden-card.cut { background: linear-gradient(135deg, #fff, var(--peach-tint)); }
+    .hidden-card.hide { background: linear-gradient(135deg, #fff, var(--sky-tint)); }
+    .hidden-card.keep { background: linear-gradient(135deg, #fff, var(--mint-tint)); }
+    .status {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+      padding: 3px 8px; border-radius: 6px; text-transform: uppercase;
+    }
+    .status.cut  { background: #8A3A00; color: #fff; }
+    .status.hide { background: var(--sky-deep); color: #fff; }
+    .status.keep { background: var(--mint-deep); color: #fff; }
+
+    /* ── Migration plan ────────────────────────────────────────── */
+    .phase {
+      background: #fff; border-radius: 20px;
+      padding: 24px; margin-bottom: 16px;
+      border: 1px solid var(--line);
+      display: grid; grid-template-columns: 100px 1fr;
+      gap: 24px; align-items: start;
+    }
+    .phase .num {
+      font-size: 48px; font-weight: 800; letter-spacing: -2px;
+      color: var(--sky); line-height: 1;
+    }
+    .phase h4 {
+      font-size: 20px; font-weight: 700; margin-bottom: 8px;
+    }
+    .phase p { font-size: 15px; color: var(--ink2); margin-bottom: 10px; }
+    .phase .est {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+      color: var(--ink3); text-transform: uppercase;
+    }
+
+    footer {
+      margin-top: 80px; padding-top: 40px;
+      border-top: 1px solid var(--line);
+      text-align: center; color: var(--ink3);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="doc">
+
+    <!-- ══════════════════════════════════════════════════════════════
+         COVER
+    ══════════════════════════════════════════════════════════════ -->
+    <div class="cover">
+      <div class="cover-inner">
+        <div class="brand">z<span class="a">a</span>el<span class="i">i</span> <span class="badge">v2</span></div>
+        <h1>Less chaos. Less scope. More speed.</h1>
+        <p class="sub">Front-door reset. Bento dashboard. Voice-first mic FAB. Chat becomes a tool, not the whole app. Kids and Tutor and Travel and My Space step aside — hidden, not deleted.</p>
+        <div class="meta">
+          <span class="pill">📱 Front door: Bento Dashboard</span>
+          <span class="pill">🎙 FAB: mic only</span>
+          <span class="pill">💬 Chat: 92% sheet</span>
+          <span class="pill">👨‍👩‍👧‍👦 Parents-only v1</span>
+          <span class="pill">🗂 Hide, don't delete</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         01 — DESIGN PRINCIPLES
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">01 — Principles</div>
+      <h2 class="chapter-title">The four rules that drive every decision.</h2>
+      <p class="chapter-lede">These are the constraints. Every screen, every tap, every AI call gets measured against them. When something doesn't earn its place, it goes away.</p>
+
+      <div class="hidden-grid" style="grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div class="hidden-card">
+          <h4>🎯 Glance-first, not navigate-first</h4>
+          <p style="color: var(--ink2); font-size: 14px;">Users open a family app to check what's happening, not to travel to a section. The Home screen shows everything relevant in one view. Drill in only when you need more.</p>
+        </div>
+        <div class="hidden-card">
+          <h4>⚡ Speed beats AI for repeated actions</h4>
+          <p style="color: var(--ink2); font-size: 14px;">If iPhone Notes is faster than us for the daily add-a-thing task, we lose the user. Inline quick-add fields + voice FAB give parity or better on every atomic action.</p>
+        </div>
+        <div class="hidden-card">
+          <h4>🧠 AI shines on fuzzy + cross-cutting</h4>
+          <p style="color: var(--ink2); font-size: 14px;">"Plan Poppy's birthday", "cancel Friday's meal and rebudget", "add these 8 events from a school newsletter". Chat and vision earn their place here.</p>
+        </div>
+        <div class="hidden-card">
+          <h4>🗂 Hide, don't delete</h4>
+          <p style="color: var(--ink2); font-size: 14px;">Screens Anna and Rich don't use get moved to <span class="kbd">app/_hidden/</span> (Expo Router ignores underscore-prefixed routes). Code stays in git, ready to revive if the market signals demand later.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         02 — FRONT DOOR: BENTO DASHBOARD
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">02 — Front door</div>
+      <h2 class="chapter-title">Bento Dashboard.</h2>
+      <p class="chapter-lede">App opens here. Every core surface is a tile — glance the data, add inline, or tap to drill in. Nothing else fights for attention.</p>
+
+      <div class="scene">
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="right">
+                  <div class="ham"><span></span><span></span><span></span></div>
+                </div>
+              </div>
+              <div class="body-scroll">
+                <!-- Brief tile — NEW persona: past recall + real events + reminders + noticed -->
+                <div class="tile tile-brief">
+                  <div class="brief-pill-mini">☀ MORNING</div>
+                  <div class="brief-txt">Thursday morning, Rich — hope Poppy's soccer went well last night 🌱. School pickup at 2 and Poppy's dance at 3:30 today. One thing: <strong>pack Gab's library bag</strong> before you leave 🎒</div>
+                  <div class="brief-chips">
+                    <div class="brief-chip primary">Open chat</div>
+                    <div class="brief-chip">Got it</div>
+                  </div>
+                </div>
+
+                <!-- Calendar tile — dark slate (matches today's Dashboard) -->
+                <div class="tile" style="background: var(--slate); color: #fff; border-color: transparent;">
+                  <div class="tile-head">
+                    <div class="tile-icon-title" style="color: rgba(255,255,255,0.6);">📅 Today's calendar</div>
+                    <div style="font-size:10px; color:rgba(255,255,255,0.5);">4 events</div>
+                  </div>
+                  <div class="cal-row" style="color: rgba(255,255,255,0.85);">
+                    <span class="t" style="color: #fff;">2:00 pm</span>
+                    <span class="dot" style="background:#4D8BFF"></span>
+                    School Pickup
+                    <span class="avat" style="background:#4D8BFF">R</span>
+                  </div>
+                  <div class="cal-row" style="color: rgba(255,255,255,0.85);">
+                    <span class="t" style="color: #fff;">4:00 pm</span>
+                    <span class="dot" style="background:#A855F7"></span>
+                    Poppy soccer
+                    <span class="avat" style="background:#A855F7">P</span>
+                  </div>
+                  <div style="margin-top:10px;">
+                    <div class="quick-add" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.15); color: rgba(255,255,255,0.65);">
+                      <span class="plus">+</span>
+                      <span>Add event…</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Shopping tile — lavender (matches today's Dashboard) -->
+                <div class="tile" style="background: var(--lavender); border-color: transparent;">
+                  <div class="tile-head">
+                    <div class="tile-icon-title" style="color: var(--lav-deep);">🛒 Shopping</div>
+                    <div style="font-size:10px; color:var(--lav-deep); opacity:0.65;">12 items</div>
+                  </div>
+                  <div class="shop-row" style="color: var(--ink);"><span class="bullet" style="background: var(--lav-deep); opacity:0.5;"></span>Sourdough loaf</div>
+                  <div class="shop-row" style="color: var(--ink);"><span class="bullet" style="background: var(--lav-deep); opacity:0.5;"></span>Bananas × 6</div>
+                  <div class="shop-row" style="color: var(--ink);"><span class="bullet" style="background: var(--lav-deep); opacity:0.5;"></span>Coffee beans</div>
+                  <div style="margin-top:10px;">
+                    <div class="quick-add active" style="background: rgba(255,255,255,0.75); border-color: var(--lav-deep);">
+                      <span class="plus">+</span>
+                      <span>Butter</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bento pair -->
+                <div class="bento-pair">
+                  <div class="tile-mini weather">
+                    <div style="font-size:9px; color:var(--ink3); font-weight:700; letter-spacing:0.6px; text-transform:uppercase; margin-bottom:4px;">Weather</div>
+                    <div class="temp">22°</div>
+                    <div class="cond">Sunny · Brisbane</div>
+                  </div>
+                  <div class="tile-mini budget">
+                    <div style="font-size:9px; color:var(--mint-deep); font-weight:700; letter-spacing:0.6px; text-transform:uppercase; margin-bottom:4px;">💰 Budget</div>
+                    <div class="cur">A$847 left</div>
+                    <div class="cur-sub">Groceries 68% · Fuel 42%</div>
+                  </div>
+                </div>
+              </div>
+              <div class="fab">🎙</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="commentary">
+          <h3>What's on this screen</h3>
+          <p>Five tiles. That's it. Every one earns its place.</p>
+          <ul>
+            <li><strong>Brief tile</strong> — Zaeli's morning/evening brief lives on Home, not tucked in chat. Peach for morning, lavender for evening. Two chips: "Open chat" (expands into the conversation) or "Got it" (dismisses for the day).</li>
+            <li><strong>Calendar tile</strong> — today's events, colour-coded avatars. Quick-add field. Tap the tile to open the full Calendar sheet.</li>
+            <li><strong>Shopping tile</strong> — the Anna fix. Live count, top items, and the always-visible quick-add row at the bottom. Type + Enter = added. No AI in the fast path.</li>
+            <li><strong>Bento pair</strong> — Weather + Budget balance. Budget tile shows month-so-far. Tap for full breakdown.</li>
+            <li><strong>FAB (bottom-right)</strong> — coral mic. Tap from anywhere in the app. Voice command → Sonnet → tool call → done. Details in section 05.</li>
+          </ul>
+          <div class="callout"><strong>Design promise:</strong> The most common action a parent takes in a day — "add milk to shopping" — happens in less than 2 seconds either by tapping the quick-add row and typing, or by tapping the FAB and speaking.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         03 — SHOPPING SHEET (drilled in) — the Anna Fix
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">03 — The Anna fix</div>
+      <h2 class="chapter-title">Shopping sheet — every millisecond matters.</h2>
+      <p class="chapter-lede">Tap the Shopping tile → the full sheet slides up at 92%. The add row stays pinned to the top so it's always in reach. No AI, no routing, no wait.</p>
+
+      <div class="scene reverse">
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="sheet-backdrop" style="opacity: 0.15;"></div>
+              <div class="sheet">
+                <div class="handle"></div>
+                <div class="sheet-head">
+                  <div class="title">🛒 Shopping</div>
+                  <div class="close-x">✕</div>
+                </div>
+                <div class="sheet-tabs">
+                  <div class="sheet-tab active">List</div>
+                  <div class="sheet-tab">Pantry</div>
+                  <div class="sheet-tab">Spend</div>
+                </div>
+                <div class="sheet-list">
+                  <div class="add-row">
+                    <span class="plus">+</span>
+                    <span class="field">Type item and hit Enter…</span>
+                    <span class="enter">⏎</span>
+                  </div>
+                  <div class="list-item">
+                    <div class="check"></div>
+                    <div style="flex:1;">
+                      <div class="name">Sourdough loaf</div>
+                      <div class="cat">Bakery</div>
+                    </div>
+                  </div>
+                  <div class="list-item">
+                    <div class="check"></div>
+                    <div style="flex:1;">
+                      <div class="name">Bananas × 6</div>
+                      <div class="cat">Fruit</div>
+                    </div>
+                  </div>
+                  <div class="list-item">
+                    <div class="check"></div>
+                    <div style="flex:1;">
+                      <div class="name">Coffee beans</div>
+                      <div class="cat">Pantry</div>
+                    </div>
+                  </div>
+                  <div class="list-item done">
+                    <div class="check"></div>
+                    <div style="flex:1;">
+                      <div class="name">Full cream milk 2L</div>
+                      <div class="cat">Dairy</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="fab">🎙</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="commentary">
+          <h3>Speed parity with iPhone Notes</h3>
+          <p><strong>Before:</strong> Open Zaeli → tap chat → type "add butter to shopping" → wait for Sonnet routing → wait for tool call → confirmation. <strong>6–10 seconds per item.</strong></p>
+          <p><strong>Now:</strong> Open Zaeli → Shopping tile is right there → tap the pinned add row → type "butter" → Enter. <strong>2–3 seconds per item.</strong> Faster than Notes.</p>
+          <ul>
+            <li><strong>Add row pinned at top</strong> — always visible, always focused when you tap in.</li>
+            <li><strong>No AI in the write path</strong> — direct Supabase insert. Zero latency beyond the network.</li>
+            <li><strong>Category auto-detected</strong> from local heuristics (bakery/fruit/dairy/etc). Not a Sonnet call.</li>
+            <li><strong>Voice still works via FAB</strong> — "add butter and eggs and yeast" batches through Sonnet if you want multi-item.</li>
+            <li><strong>Pantry-aware chip</strong> retained — "you bought this 3 days ago, still add it?" — but on demand, not blocking every add.</li>
+          </ul>
+          <div class="callout"><strong>What changes structurally:</strong> The old chat-driven <code>add_shopping_item</code> tool stays available for voice/chat. But the primary path — Anna's daily add — is now the pinned form. AI is optional, not required.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         04 — CHAT AS 92% SHEET
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">04 — Chat re-cast</div>
+      <h2 class="chapter-title">Chat is a tool now, not the whole product.</h2>
+      <p class="chapter-lede">Same code, same personality, same features. Just moved from front door to a 92% sheet you open when you want a conversation. Below: the sheet in action.</p>
+
+      <div class="scene">
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <!-- Background hint of dashboard behind -->
+              <div class="app-bar" style="opacity: 0.35;">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="right">
+                  <div class="ham"><span></span><span></span><span></span></div>
+                </div>
+              </div>
+              <div class="body-scroll" style="opacity: 0.15;">
+                <div class="tile tile-brief">
+                  <div class="brief-pill-mini">☀ MORNING</div>
+                  <div class="brief-txt">Thursday morning, Rich…</div>
+                </div>
+                <div class="tile"><div class="tile-icon-title">📅 Today's calendar</div></div>
+              </div>
+              <div class="sheet-backdrop"></div>
+              <div class="sheet">
+                <div class="handle"></div>
+                <div class="sheet-head">
+                  <div class="title">💬 Chat with Zaeli</div>
+                  <div class="close-x">✕</div>
+                </div>
+                <div class="chat-body">
+                  <div class="msg-brief-in-chat">
+                    <div class="brief-pill-mini">☀ MORNING</div>
+                    <div style="font-size:12px; color:var(--ink3); margin-bottom:6px;">Zaeli · 7:12 am</div>
+                    <div style="font-size:13px; line-height:1.5;">Thursday morning, Rich — Poppy has soccer at 3:30 and there's a school pickup at 2. Dinner's the only loose thread. Want me to plan something around soccer? 🍽</div>
+                  </div>
+                  <div class="msg-user">Yeah, something quick. What's in the pantry?</div>
+                  <div class="msg-zaeli">You've got mince, tomatoes, and pasta. 15-min bolognese? Would use what's already open. 🍝</div>
+                  <div class="msg-user">Perfect. Add garlic bread to shopping.</div>
+                  <div class="msg-zaeli">Done — garlic bread's on the list ✓</div>
+                  <div class="chat-bar">
+                    <div class="mic">🎙</div>
+                    <div class="sep"></div>
+                    <div class="field">Ask Zaeli anything…</div>
+                    <div class="send">↑</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="commentary">
+          <h3>What Chat sheet is for</h3>
+          <p><strong>Fuzzy things Sonnet is uniquely good at.</strong> Cross-module reasoning, planning, brain dump, photo upload, brief interaction.</p>
+          <ul>
+            <li><strong>Brief lives here too</strong> — the same brief that shows as a Dashboard tile expands here when you tap "Open chat".</li>
+            <li><strong>Multi-tool actions</strong> — "We're eating out Friday, cancel that meal and add $80 to the eating out budget" — one Zaeli message, multiple tools called across meals + budget.</li>
+            <li><strong>Photo brain-dump</strong> — take a photo of the school newsletter, Zaeli reads and files 8 events.</li>
+            <li><strong>Recipe → shopping</strong> — "add ingredients for tonight's bolognese to shopping" — chat pulls recipe context and adds only what's missing from the pantry.</li>
+            <li><strong>The companion moments</strong> — "help me plan Poppy's birthday", "we've had a rough week, remind me what's going well". Zaeli's personality earns its place here.</li>
+          </ul>
+          <p><strong>Entry points:</strong> Chat tile on Dashboard · "Open chat" chip on brief · Sonnet-decides-when a voice command needs conversation (e.g. FAB voice "help me plan Poppy's birthday" opens the chat with the question pre-loaded).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         05 — FAB MIC STATES
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">05 — The mic FAB</div>
+      <h2 class="chapter-title">One tap. Speak. Done.</h2>
+      <p class="chapter-lede">The FAB has one job — voice input from anywhere in the app. No add/photo/upload options menu. No context switch. Say the thing, Zaeli routes it via <code>tool_choice</code>, you get a toast confirmation and back to your life.</p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 40px;">
+        <!-- Idle -->
+        <div>
+          <div class="phone" style="transform: scale(0.85); transform-origin: top center;">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="right"><div class="ham"><span></span><span></span><span></span></div></div>
+              </div>
+              <div class="body-scroll">
+                <div class="tile tile-brief">
+                  <div class="brief-pill-mini">☀ MORNING</div>
+                  <div class="brief-txt">Thursday morning, Rich…</div>
+                </div>
+                <div class="tile" style="padding:18px;">
+                  <div class="tile-icon-title">🛒 Shopping</div>
+                </div>
+              </div>
+              <div class="fab">🎙</div>
+            </div>
+          </div>
+          <div style="text-align:center; margin-top: -50px;">
+            <div style="font-size:13px; font-weight:700;">1. IDLE</div>
+            <div style="font-size:12px; color:var(--ink3); margin-top:4px;">Coral pill, sits bottom-right on every screen</div>
+          </div>
+        </div>
+
+        <!-- Recording -->
+        <div>
+          <div class="phone" style="transform: scale(0.85); transform-origin: top center;">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="right"><div class="ham"><span></span><span></span><span></span></div></div>
+              </div>
+              <div class="body-scroll" style="opacity: 0.4;">
+                <div class="tile tile-brief">
+                  <div class="brief-pill-mini">☀ MORNING</div>
+                  <div class="brief-txt">Thursday morning…</div>
+                </div>
+              </div>
+              <div class="voice-pill">
+                <div class="waves">
+                  <span class="wave"></span><span class="wave"></span><span class="wave"></span><span class="wave"></span><span class="wave"></span><span class="wave"></span><span class="wave"></span>
+                </div>
+                <div class="label">Listening…</div>
+              </div>
+              <div class="fab recording">🎙</div>
+            </div>
+          </div>
+          <div style="text-align:center; margin-top: -50px;">
+            <div style="font-size:13px; font-weight:700;">2. RECORDING</div>
+            <div style="font-size:12px; color:var(--ink3); margin-top:4px;">FAB pulses, waveform pill overlays the screen</div>
+          </div>
+        </div>
+
+        <!-- Confirmed -->
+        <div>
+          <div class="phone" style="transform: scale(0.85); transform-origin: top center;">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="right"><div class="ham"><span></span><span></span><span></span></div></div>
+              </div>
+              <div class="toast">
+                <div class="check">✓</div>
+                <div>Added <strong>butter</strong> to shopping</div>
+              </div>
+              <div class="body-scroll">
+                <div class="tile tile-brief">
+                  <div class="brief-pill-mini">☀ MORNING</div>
+                  <div class="brief-txt">Thursday morning…</div>
+                </div>
+                <div class="tile">
+                  <div class="tile-icon-title">🛒 Shopping</div>
+                  <div class="shop-row" style="color:var(--ink); font-weight:600;"><span class="bullet" style="background:var(--mint-deep)"></span>Butter <span style="font-size:9px; color:var(--mint-deep); font-weight:700; letter-spacing:0.5px; margin-left:auto;">JUST ADDED</span></div>
+                </div>
+              </div>
+              <div class="fab">🎙</div>
+            </div>
+          </div>
+          <div style="text-align:center; margin-top: -50px;">
+            <div style="font-size:13px; font-weight:700;">3. CONFIRMED</div>
+            <div style="font-size:12px; color:var(--ink3); margin-top:4px;">Toast + tile updates. No chat opens. Back to normal in 2 sec.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Behaviour by intent:</strong> The voice command is routed through Sonnet with the same <code>tool_choice</code> forcing pattern we already built for chat. "Add butter" → forces <code>add_shopping_item</code> → toast. "Text Anna I'm running late" → forces <code>send_family_message</code> → toast. "Help me plan Poppy's birthday" → detects it needs conversation → opens Chat sheet with the transcript pre-loaded and Zaeli's first response streaming.
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         06 — CALENDAR SHEET
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">06 — Calendar</div>
+      <h2 class="chapter-title">Calendar sheet.</h2>
+      <p class="chapter-lede">Tap the Calendar tile → sheet at 92%. Today/Tomorrow/Month views. Family colour-coded, quick add, tap event to edit or delete.</p>
+
+      <div class="scene">
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="sheet-backdrop" style="opacity: 0.15;"></div>
+              <div class="sheet">
+                <div class="handle"></div>
+                <div class="sheet-head">
+                  <div class="title">📅 Calendar</div>
+                  <div class="close-x">✕</div>
+                </div>
+                <div class="sheet-tabs">
+                  <div class="sheet-tab">Today</div>
+                  <div class="sheet-tab active">Tomorrow</div>
+                  <div class="sheet-tab">Month</div>
+                </div>
+                <div class="day-label">Friday 25 July 2026</div>
+                <div class="cal-day-card p">
+                  <div class="ct">7:30 am</div>
+                  <div class="cb">
+                    <div class="cn">School Dance Troop</div>
+                    <div class="cm">7:30 – 8:30 am</div>
+                  </div>
+                  <div class="cav" style="background:#A855F7">P</div>
+                </div>
+                <div class="cal-day-card a">
+                  <div class="ct">9:00 am</div>
+                  <div class="cb">
+                    <div class="cn">Room 7 Assembly</div>
+                    <div class="cm">9:00 – 10:00 am</div>
+                  </div>
+                  <div class="cav" style="background:#FF7B6B">A</div>
+                </div>
+                <div class="cal-day-card a">
+                  <div class="ct">1:00 pm</div>
+                  <div class="cb">
+                    <div class="cn">Pick Up Shopping</div>
+                    <div class="cm">1:00 – 2:00 pm · Woolies</div>
+                  </div>
+                  <div class="cav" style="background:#FF7B6B">A</div>
+                </div>
+                <div class="cal-day-card">
+                  <div class="ct">4:00 pm</div>
+                  <div class="cb">
+                    <div class="cn">Soccer Training</div>
+                    <div class="cm">4:00 – 5:15 pm · Field 2</div>
+                  </div>
+                  <div class="cav" style="background:#4D8BFF">R</div>
+                </div>
+              </div>
+              <div class="fab">🎙</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="commentary">
+          <h3>What's here (mostly what you already built)</h3>
+          <p>The Calendar sheet is <strong>essentially today's Calendar</strong>. The design is proven, the code is proven. What changes is entry — it's opened via the Dashboard tile now, not via MoreSheet.</p>
+          <ul>
+            <li>Today / Tomorrow / Month tabs (existing)</li>
+            <li>Family colour-coded cards + avatars (existing, with the roster-race fixes we've been shipping)</li>
+            <li>Recurring event support (existing)</li>
+            <li>Tap event to expand → Edit with Zaeli / Move time / Add someone / Delete (existing)</li>
+            <li><strong>New — inline "+ Add event" row at top</strong>, matching the Shopping fix pattern</li>
+            <li><strong>New — Notify chip</strong> on tap-to-edit view (your design ask from earlier)</li>
+          </ul>
+          <p>The FAB is still there — voice-add works from inside the sheet too. "Add soccer next Tuesday 4pm" → tool call → toast → sheet refreshes.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         07 — BUDGET SHEET
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">07 — Budget</div>
+      <h2 class="chapter-title">Budget sheet.</h2>
+      <p class="chapter-lede">Tap the Budget tile → sheet at 92%. Pure planner (no live tracking). Categories, savings goals, statement analyser via Chat when you want it.</p>
+
+      <div class="scene reverse">
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="sheet-backdrop" style="opacity: 0.15;"></div>
+              <div class="sheet">
+                <div class="handle"></div>
+                <div class="sheet-head">
+                  <div class="title">💰 Budget</div>
+                  <div class="close-x">✕</div>
+                </div>
+                <div class="sheet-tabs">
+                  <div class="sheet-tab active">Overview</div>
+                  <div class="sheet-tab">Categories</div>
+                  <div class="sheet-tab">Savings</div>
+                </div>
+                <div class="budget-hero">
+                  <div class="lbl">Surplus this month</div>
+                  <div class="amount"><span class="cur">A$</span>847</div>
+                  <div class="sub">Income A$6,800 · Planned A$5,953</div>
+                </div>
+                <div class="budget-cat">
+                  <div style="flex:1;">
+                    <div class="cn">Groceries</div>
+                    <div class="ca">A$820 of A$1,200</div>
+                    <div class="bar"><div class="bar-fill" style="width:68%;"></div></div>
+                  </div>
+                </div>
+                <div class="budget-cat">
+                  <div style="flex:1;">
+                    <div class="cn">Fuel</div>
+                    <div class="ca">A$168 of A$400</div>
+                    <div class="bar"><div class="bar-fill" style="width:42%;"></div></div>
+                  </div>
+                </div>
+                <div class="budget-cat warn">
+                  <div style="flex:1;">
+                    <div class="cn">Subscriptions</div>
+                    <div class="ca">A$284 of A$300</div>
+                    <div class="bar"><div class="bar-fill" style="width:95%;"></div></div>
+                  </div>
+                </div>
+                <div class="budget-cat">
+                  <div style="flex:1;">
+                    <div class="cn">Eating out</div>
+                    <div class="ca">A$92 of A$250</div>
+                    <div class="bar"><div class="bar-fill" style="width:36%;"></div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="fab">🎙</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="commentary">
+          <h3>What stays, what shifts</h3>
+          <p>Budget sheet reuses the v1 Pure Planner design — 3 tabs, income streams, fixed categories with line items, variable categories with monthly targets, savings goals.</p>
+          <ul>
+            <li>Overview tab = the surplus tile + category bars at a glance</li>
+            <li>Categories tab = full CRUD on fixed + variable categories</li>
+            <li>Savings tab = goals with target dates</li>
+            <li><strong>Statement scan</strong> stays as a Chat feature — upload a statement image, Zaeli extracts + averages + suggests category updates. Rich already fixed the AI averaging bug (Session 30). Solid.</li>
+          </ul>
+          <p><strong>Rename kept:</strong> Surplus (not Spare), Savings (not Goals). Mint accent throughout. Warn state peach.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         08 — SETTINGS SHEET (hamburger)
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">08 — Settings</div>
+      <h2 class="chapter-title">Header hamburger opens Settings.</h2>
+      <p class="chapter-lede">The only thing above Dashboard is the wordmark and a hamburger. Tap → sheet. Profile, subscription, notification prefs, sign out. Same code as v1, no MoreSheet middle-man.</p>
+
+      <div class="scene">
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="sheet-backdrop" style="opacity: 0.15;"></div>
+              <div class="sheet">
+                <div class="handle"></div>
+                <div class="sheet-head">
+                  <div class="title">⚙ Settings</div>
+                  <div class="close-x">✕</div>
+                </div>
+                <div class="account-hero">
+                  <div class="account-avatar">R</div>
+                  <div style="flex:1;">
+                    <div class="account-name">Richard de Kretser</div>
+                    <div style="font-size:12px; opacity:0.75; margin-top:2px;">richarddekretser@gmail.com</div>
+                    <div class="account-tag">Family · Active · next bill 10 Aug</div>
+                  </div>
+                </div>
+
+                <div class="settings-label">Household</div>
+                <div class="settings-group">
+                  <div class="settings-row">
+                    <div class="icon" style="background:#FCE7EF;color:#D4006A;">👥</div>
+                    <div class="body">
+                      <div class="title">Our family</div>
+                      <div class="sub">Rich · Anna · 3 kids</div>
+                    </div>
+                    <div class="chev">›</div>
+                  </div>
+                  <div class="settings-row">
+                    <div class="icon" style="background:var(--mint-tint);color:var(--mint-deep);">💰</div>
+                    <div class="body">
+                      <div class="title">Subscription</div>
+                      <div class="sub">Family · A$9.99/mo</div>
+                    </div>
+                    <div class="chev">›</div>
+                  </div>
+                </div>
+
+                <div class="settings-label">Preferences</div>
+                <div class="settings-group">
+                  <div class="settings-row">
+                    <div class="icon" style="background:var(--peach-tint);color:#8A3A00;">☀</div>
+                    <div class="body">
+                      <div class="title">Morning brief</div>
+                    </div>
+                    <div class="value">7:00 am</div>
+                    <div class="chev">›</div>
+                  </div>
+                  <div class="settings-row">
+                    <div class="icon" style="background:var(--lav-tint);color:var(--lav-deep);">🌙</div>
+                    <div class="body">
+                      <div class="title">Evening brief</div>
+                    </div>
+                    <div class="value">6:30 pm</div>
+                    <div class="chev">›</div>
+                  </div>
+                  <div class="settings-row">
+                    <div class="icon" style="background:var(--sky-tint);color:var(--sky-deep);">🔔</div>
+                    <div class="body">
+                      <div class="title">Notifications</div>
+                    </div>
+                    <div class="chev">›</div>
+                  </div>
+                </div>
+              </div>
+              <div class="fab">🎙</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="commentary">
+          <h3>What Settings holds</h3>
+          <ul>
+            <li><strong>Account hero</strong> — real profile (Session 24 fix). Live subscription state from Stripe (Session 28).</li>
+            <li><strong>Household</strong> — Our Family (add/edit members) · Subscription (Stripe portal link)</li>
+            <li><strong>Preferences</strong> — brief times · notification toggles · quiet hours</li>
+            <li><strong>About</strong> — Help · Rate Zaeli · Terms · Privacy · Version</li>
+            <li><strong>Danger</strong> — Sign out · Delete account</li>
+          </ul>
+          <p><strong>What's gone from here:</strong> Memory view stays as-is under a Preferences row. All the "coming soon" placeholders removed. Kid account management removed (parents only in v1).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         09 — THE BRIEF, REIMAGINED
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">09 — The brief, reimagined</div>
+      <h2 class="chapter-title">From weather report → friend who's paying attention.</h2>
+      <p class="chapter-lede">Anna's blunt verdict: today's brief is annoying noise. Says "clear day ahead" when the calendar isn't clear. Doesn't recall past events. Doesn't nudge things worth nudging. Just repeats what she can already see. We're rebuilding what a Zaeli brief actually is.</p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 40px;">
+        <!-- Before -->
+        <div>
+          <div style="font-size:12px; font-weight:700; letter-spacing:0.8px; color:var(--ink3); text-transform:uppercase; margin-bottom:10px;">Today (annoying)</div>
+          <div class="tile tile-brief" style="max-width:none; margin:0;">
+            <div class="brief-pill-mini">☀ MORNING</div>
+            <div class="brief-txt">Thursday morning, Rich — clear day ahead ☀️<br><br>Sometimes that's the whole gift.</div>
+          </div>
+          <div style="margin-top:12px; padding: 12px 16px; background: var(--peach-tint); border-left: 3px solid #8A3A00; border-radius: 12px;">
+            <div style="font-size:12px; color:#8A3A00; font-weight:700; letter-spacing:0.4px;">WHAT'S WRONG</div>
+            <ul style="list-style:none; margin-top:8px; font-size:13px; color:var(--ink2); line-height:1.6;">
+              <li>❌ Says "clear day" when there ARE events later</li>
+              <li>❌ Zero recall of yesterday or the past week</li>
+              <li>❌ No reminders surfaced</li>
+              <li>❌ No observations Zaeli should be earning</li>
+              <li>❌ Reads like a weather app, not a friend</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- After -->
+        <div>
+          <div style="font-size:12px; font-weight:700; letter-spacing:0.8px; color:var(--mint-deep); text-transform:uppercase; margin-bottom:10px;">v2 (valuable)</div>
+          <div class="tile tile-brief" style="max-width:none; margin:0;">
+            <div class="brief-pill-mini">☀ MORNING</div>
+            <div class="brief-txt">Thursday morning, Rich — hope Poppy's soccer went well last night 🌱<br><br>School pickup at 2, Poppy's dance at 3:30 today. <strong>One thing:</strong> pack Gab's library bag before you leave 🎒<br><br>Noticed the plumber's followed up twice this week — worth a reply?</div>
+          </div>
+          <div style="margin-top:12px; padding: 12px 16px; background: var(--mint-tint); border-left: 3px solid var(--mint-deep); border-radius: 12px;">
+            <div style="font-size:12px; color:var(--mint-deep); font-weight:700; letter-spacing:0.4px;">WHY THIS WORKS</div>
+            <ul style="list-style:none; margin-top:8px; font-size:13px; color:var(--ink2); line-height:1.6;">
+              <li>✅ Opens with past-recall — "hope soccer went well" — friend-mode</li>
+              <li>✅ Names specific events, doesn't invent quiet</li>
+              <li>✅ Surfaces the reminder Zaeli's been holding for this day</li>
+              <li>✅ Zaeli Noticed observation earns its place</li>
+              <li>✅ Reads like someone paying attention</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <div style="grid-column: 1 / -1;">
+          <h3 style="font-size:24px; font-weight:700; letter-spacing:-0.5px; margin-bottom:16px;">The four data inputs Zaeli needs to write a good brief</h3>
+          <p style="font-size:16px; color:var(--ink2); margin-bottom:24px;">Right now <code>buildBriefContext</code> gives Sonnet: today's events, tomorrow's events, tonight's meal, shopping count, open tasks, weather, family names. It's missing the ingredients that make a brief worth reading.</p>
+
+          <div class="hidden-grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="hidden-card">
+              <h4>1️⃣ Past-recall data <span class="status" style="background:var(--sky-deep);color:#fff;">New</span></h4>
+              <p style="color:var(--ink2); font-size:14px; margin-top:6px;">Query events where <code>date &gt;= today - 3</code> and <code>date &lt; today</code>. Give Sonnet the last 3 days' events so she can open with "hope X went well" or "how did Y go?" — when it's genuinely worth mentioning.</p>
+            </div>
+            <div class="hidden-card">
+              <h4>2️⃣ Today's reminders <span class="status" style="background:var(--sky-deep);color:#fff;">New</span></h4>
+              <p style="color:var(--ink2); font-size:14px; margin-top:6px;">Query <code>reminders</code> table where <code>remind_at::date = today</code>. Reminders that live nowhere else finally get surfaced. Zaeli's brief becomes the one place they land.</p>
+            </div>
+            <div class="hidden-card">
+              <h4>3️⃣ Family insights <span class="status keep">Wire up existing</span></h4>
+              <p style="color:var(--ink2); font-size:14px; margin-top:6px;">The <code>family_insights</code> table has Zaeli's learned observations (Session 23 wired the extraction — Session 24 warned about hallucination). Inject high-confidence insights into brief context, framed as "notice-worthy" not "reference-worthy".</p>
+            </div>
+            <div class="hidden-card">
+              <h4>4️⃣ Absolute event-visibility rule <span class="status" style="background:#8A3A00;color:#fff;">Prompt fix</span></h4>
+              <p style="color:var(--ink2); font-size:14px; margin-top:6px;">If TODAY EVENTS has anything, Zaeli is BANNED from saying "clear day / quiet day / nothing on / breathing room". Session 26's invisible-domain rule works in reverse: if events exist, they must be acknowledged. No exceptions.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout" style="margin-top: 32px;">
+        <strong>Persona shift:</strong> Zaeli isn't a Google Calendar summary. She's the friend who remembered Poppy had soccer last night, saw the calendar for today, checked what you asked her to remember, and noticed the plumber's still waiting on a reply. That's what a family app pays for — not a weather forecast of your own calendar.
+      </div>
+
+      <div class="callout callout-warn" style="margin-top: 16px;">
+        <strong>Cost implication:</strong> Adding past-events + reminders + insights adds ~500-1000 input tokens per brief. With prompt caching (Session 21) this costs maybe ~A$0.001 extra per brief. Two briefs a day × 30 days = ~A$0.06/family/mo. Negligible for the value.
+      </div>
+
+      <p style="font-size:16px; color:var(--ink2); margin-top:32px;"><strong>Implementation:</strong> Prompt rewrite in <code>lib/brief-generator.ts</code> + three additions to <code>buildBriefContext</code> in <code>index.tsx</code>. No new tables. No new UI. Just a smarter brief. Should be Phase 04-05 material — after Bento lands so we can see it working on the tile.</p>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         10 — WHAT SURVIVES / HIDES / DIES
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">10 — Feature triage</div>
+      <h2 class="chapter-title">What survives, what hides, what dies.</h2>
+      <p class="chapter-lede">Everything hidden goes to <span class="kbd">app/_hidden/</span> — underscore-prefix means Expo Router won't route it, but the code stays in git for potential revival. Only the actively-cluttering personal-utility cluster gets deleted from the codebase.</p>
+
+      <div class="hidden-grid">
+        <div class="hidden-card keep">
+          <h4>✅ Survives <span class="status keep">Keep + polish</span></h4>
+          <ul>
+            <li><strong>Chat</strong> — moved from front door to sheet</li>
+            <li><strong>Calendar</strong> — tile + sheet</li>
+            <li><strong>Shopping</strong> — tile + sheet + <em>inline quick-add</em> (biggest UX win)</li>
+            <li><strong>Budget</strong> — tile + sheet, keeps v1 Pure Planner</li>
+            <li><strong>Brief system</strong> — relocated to Dashboard tile + Chat sheet</li>
+            <li><strong>Notifications (family push)</strong> — no UI change, tool underneath</li>
+            <li><strong>Auth + Stripe + Universal Links</strong> — all untouched</li>
+            <li><strong>Settings + Roster</strong> — polished, parents-only</li>
+          </ul>
+        </div>
+
+        <div class="hidden-card hide">
+          <h4>🗂 Hides <span class="status hide">Move to _hidden/</span></h4>
+          <ul>
+            <li><strong>Kids Hub</strong> — untested at scale, needs kids on devices. Preserve for v2.</li>
+            <li><strong>Tutor</strong> — untested at scale, needs different families. Big revenue lever if it works.</li>
+            <li><strong>Travel</strong> — legitimately trip-only, wrong test window.</li>
+            <li><strong>Meals sheet</strong> — recipes stay in DB (queried by Chat), UI sheet hides.</li>
+            <li><strong>Kid account type + invite flow for kids</strong> — remove UI, keep code.</li>
+            <li><strong>Onboarding tour (11 stops)</strong> — full rewrite, old tour code preserved.</li>
+          </ul>
+        </div>
+
+        <div class="hidden-card cut">
+          <h4>❌ Dies <span class="status cut">Delete from code</span></h4>
+          <ul>
+            <li><strong>My Space</strong> — the whole personal-utility cluster</li>
+            <li><strong>Notes + Tasks</strong> — dedicated screens</li>
+            <li><strong>Zen + Stretch + Fitness + Wordle + Goals</strong> — deep My Space children</li>
+            <li><strong>MoreSheet</strong> — replaced by hamburger → Settings</li>
+            <li><strong>Swipe-world 2-page architecture</strong> — Dashboard is single front door</li>
+            <li><strong>Landing overlay</strong> — already killed, confirm gone</li>
+            <li><strong>Old FAB (ZaeliFAB)</strong> — replaced by pure-mic FAB (new)</li>
+          </ul>
+          <p style="margin-top: 12px; font-size: 13px; color: var(--ink3);"><em>Only cut what has zero chance of revival in a family productivity trio. Everything else hides.</em></p>
+        </div>
+
+        <div class="hidden-card">
+          <h4>🔄 Mutates <span class="status" style="background:var(--gold);color:var(--gold-deep);">Behaviour shifts</span></h4>
+          <ul>
+            <li><strong>Meals data → chat context</strong> — recipes queried when user asks "what's for dinner", but no standalone tab</li>
+            <li><strong>Family invite flow</strong> — adult-only, kid path retired for v1</li>
+            <li><strong>Dashboard = new front door</strong> — was optional swipe page, now the only home</li>
+            <li><strong>Chat = tool</strong> — same code, opens as sheet from tile / brief / FAB voice-that-needs-convo</li>
+            <li><strong>FAB = mic-only</strong> — no add/camera/photo options menu (old Session 14 kill was right for old scope)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         11 — MIGRATION PLAN
+    ══════════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">11 — Migration plan</div>
+      <h2 class="chapter-title">Getting from here to there — phased.</h2>
+      <p class="chapter-lede">Rich's reorder: Bento first, since it's the foundation everything else slots into. Shopping quick-add comes second (piggybacks on the tile pattern). Then progressive hiding, reminders wiring, brief rewrite, onboarding.</p>
+
+      <div class="phase">
+        <div class="num">01</div>
+        <div>
+          <h4>Bento Dashboard front door</h4>
+          <p>Rewrite <span class="kbd">app/(tabs)/index.tsx</span> as the bento dashboard. Kill <span class="kbd">swipe-world.tsx</span>. Chat becomes a sheet component (reuse existing chat code). Brief tile at top (still using v1 brief data — the persona rewrite comes later). Calendar/Shopping/Budget tiles with inline quick-add rows using today's palette (slate/lavender/mint). FAB with mic (voice command via Sonnet + tool_choice).</p>
+          <div class="est">Estimate: 2-3 sessions · foundation for everything · reuses ~85% of existing code</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="num">02</div>
+        <div>
+          <h4>Shopping quick-add (tile + sheet)</h4>
+          <p>Anchor the pinned add-row on both the Bento tile AND the drilled-in Shopping sheet. Direct Supabase insert, no chat routing. Anna's daily add drops from 6–10 sec to 2–3 sec. Category auto-detect stays local (guessCategory heuristics), no AI in the fast path.</p>
+          <div class="est">Estimate: 1 short session · Anna's #1 complaint solved</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="num">03</div>
+        <div>
+          <h4>Hide dead features</h4>
+          <p>Move Kids Hub, Tutor, Travel, Meals sheet, kid invite flow to <span class="kbd">app/_hidden/</span>. Delete My Space cluster + MoreSheet + ZaeliFAB. Update routing. Any active screens that import from hidden files get untangled or deleted. Codebase shrinks ~40%.</p>
+          <div class="est">Estimate: 1 careful session · zero visual change · massive simplification</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="num">04</div>
+        <div>
+          <h4>Reminders wired</h4>
+          <p>New <code>add_reminder</code> tool in chat + FAB voice. Uses existing <code>reminders</code> table (Session 6 schema). Optional local push scheduling via expo-notifications. No new UI — reminders surface exclusively in the brief + chat. Foundation for Phase 05.</p>
+          <div class="est">Estimate: 1 session · lightweight, high value</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="num">05</div>
+        <div>
+          <h4>Brief persona rewrite</h4>
+          <p>Chapter 09's brief redesign lands. <code>buildBriefContext</code> gets past-events, today's reminders, and family_insights injection. Prompt rewrite for persona (friend-mode, past-recall, absolute event-visibility). This is where Anna finally stops rolling her eyes at the brief.</p>
+          <div class="est">Estimate: 1-2 sessions · biggest single "aha" for existing users</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="num">06</div>
+        <div>
+          <h4>Onboarding rewrite</h4>
+          <p>Drop from 12 steps to 3-4. Sign up · sample family · brief times · done. New tour highlights the trio + FAB voice. Old onboarding files move to <span class="kbd">_hidden/</span>.</p>
+          <div class="est">Estimate: 2 sessions · marketing + product both benefit</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="num">07</div>
+        <div>
+          <h4>Website v2 (from the parked v1)</h4>
+          <p>Rewrite the landing page you saw last session to match the new positioning. "The Australian family app for calendar, shopping and budget — with an AI for the hard parts." New screenshots of the bento dashboard.</p>
+          <div class="est">Estimate: 1 session · lands post-app-rewrite</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="num">08</div>
+        <div>
+          <h4>Anna beta round 5</h4>
+          <p>Fresh build with the whole v2 lot. Anna uses it for a week. We measure: does she keep coming back for shopping? Does she use the FAB mic? Is the brief being read (not eye-rolled)? That's the go/no-go for public launch.</p>
+          <div class="est">Estimate: 1 week of real use · qualitative interview after</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         FOOTER
+    ══════════════════════════════════════════════════════════════ -->
+    <footer>
+      <p>Zaeli v2 design brief · drafted for Rich, drafted with Rich</p>
+      <p style="margin-top: 8px;">Written after Anna's honest verdict: "Notes was faster."</p>
+    </footer>
+
+  </div>
+</body>
+</html>
