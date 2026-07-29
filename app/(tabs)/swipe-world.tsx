@@ -43,7 +43,8 @@ export default function SwipeWorld() {
   const insets    = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
 
-  const [activePage,  setActivePage]  = useState(PAGE_CHAT);
+  // Session 31 v2 — Dashboard is the front door. Chat is one swipe away.
+  const [activePage,  setActivePage]  = useState(PAGE_DASHBOARD);
   const [showLanding, setShowLanding] = useState(false);
   const [pendingMicText, setPendingMicText] = useState<string|null>(null);
   const [contextTrigger, setContextTrigger] = useState(0);
@@ -54,10 +55,13 @@ export default function SwipeWorld() {
   const hintOpacity = useRef(new Animated.Value(0)).current;
   const hintArrowX  = useRef(new Animated.Value(0)).current;
 
-  // Open on Chat (page 0)
+  // Session 31 v2 — Open on Dashboard (front door). Chat is at page 0
+  // (leftmost in DOM order — swipe RIGHT with finger to reveal it), but
+  // we scroll immediately to page 1 (Dashboard) so it's what the user sees
+  // on app launch. DOM order kept as-is to avoid restructuring the ScrollView.
   useEffect(() => {
     const t = setTimeout(() => {
-      scrollRef.current?.scrollTo({ x: PAGE_CHAT * W, animated: false });
+      scrollRef.current?.scrollTo({ x: PAGE_DASHBOARD * W, animated: false });
     }, 80);
     return () => clearTimeout(t);
   }, []);
@@ -109,7 +113,8 @@ export default function SwipeWorld() {
           // Loop the chevron nudge horizontally
           Animated.loop(
             Animated.sequence([
-              Animated.timing(hintArrowX, { toValue: 6,  duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+              // Session 31 v2 — arrow now points left (toward Chat), so animate leftward
+              Animated.timing(hintArrowX, { toValue: -6, duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
               Animated.timing(hintArrowX, { toValue: 0,  duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
             ]),
           ).start();
@@ -138,7 +143,7 @@ export default function SwipeWorld() {
     if (page !== activePage) {
       setActivePage(page);
       // Dismiss the swipe hint on first real swipe — user discovered it
-      if (showSwipeHint && page === PAGE_DASHBOARD) dismissSwipeHint();
+      if (showSwipeHint && page === PAGE_CHAT) dismissSwipeHint();
     }
   }
 
@@ -204,19 +209,21 @@ export default function SwipeWorld() {
         </TouchableOpacity>
       </View>
 
-      {/* ── First-run swipe hint — one-shot, fades out on dismiss ── */}
-      {showSwipeHint && activePage === PAGE_CHAT && (
+      {/* ── First-run swipe hint — one-shot, fades out on dismiss ──
+          Session 31 v2: now fires from Dashboard (front door) to hint that
+          Chat is one swipe away. Arrow points ← toward Chat (page 0, DOM-left). */}
+      {showSwipeHint && activePage === PAGE_DASHBOARD && (
         <Animated.View
           pointerEvents="box-none"
           style={[s.hintWrap, { opacity: hintOpacity, bottom: insets.bottom + 130 }]}
         >
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={() => { scrollToPage(PAGE_DASHBOARD); dismissSwipeHint(); }}
+            onPress={() => { scrollToPage(PAGE_CHAT); dismissSwipeHint(); }}
             style={s.hintPill}
           >
-            <Text style={s.hintText}>Swipe for your Dashboard</Text>
-            <Animated.Text style={[s.hintArrow, { transform: [{ translateX: hintArrowX }] }]}>→</Animated.Text>
+            <Animated.Text style={[s.hintArrow, { transform: [{ translateX: hintArrowX }] }]}>←</Animated.Text>
+            <Text style={s.hintText}>Swipe for chat with Zaeli</Text>
           </TouchableOpacity>
         </Animated.View>
       )}

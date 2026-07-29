@@ -113,8 +113,20 @@ interface BriefRow {
   time_window: string;
 }
 
+// ── Props (optional — SwipeWorld passes navigation callbacks) ──────────
+interface DashboardProps {
+  onNavigateChat?: () => void;
+  onNavigateMySpace?: () => void;
+  isActive?: boolean;
+  onContextTrigger?: () => void;
+}
+
 // ── Component ────────────────────────────────────────────────────────────
-export default function DashboardScreen() {
+export default function DashboardScreen({
+  onNavigateChat,
+  isActive = true,
+  onContextTrigger,
+}: DashboardProps = {}) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
@@ -228,6 +240,13 @@ export default function DashboardScreen() {
     loadData();
   }, [loadData]));
 
+  // Session 31 — refetch when user swipes onto Dashboard (isActive transitions
+  // to true). useFocusEffect only fires at the tab-route level, but Dashboard
+  // is embedded inside swipe-world, so swiping between pages doesn't trigger it.
+  useEffect(() => {
+    if (isActive) loadData();
+  }, [isActive, loadData]);
+
   // ── Actions ────────────────────────────────────────────────────────────
   const handleShopSubmit = useCallback(async () => {
     const raw = shopQuickAdd.trim();
@@ -266,31 +285,42 @@ export default function DashboardScreen() {
   }, [shopQuickAdd]);
 
   const openCalendarSheet = useCallback(() => {
+    // Bumps swipe-world's contextTrigger so ChatScreen actually opens the
+    // sheet when we swipe to it — bypasses the isActive race.
     setPendingChatContext({ type: 'calendar_view', returnTo: 'dashboard' } as any);
+    onContextTrigger?.();
+    if (onNavigateChat) { onNavigateChat(); return; }
     router.navigate('/(tabs)');
-  }, [router]);
+  }, [router, onNavigateChat, onContextTrigger]);
 
   const openShoppingSheet = useCallback(() => {
     setPendingChatContext({ type: 'shopping_sheet', returnTo: 'dashboard' } as any);
+    onContextTrigger?.();
+    if (onNavigateChat) { onNavigateChat(); return; }
     router.navigate('/(tabs)');
-  }, [router]);
+  }, [router, onNavigateChat, onContextTrigger]);
 
   const openBudget = useCallback(() => {
     router.navigate('/(tabs)/our-budget');
   }, [router]);
 
   const openChat = useCallback(() => {
-    // Swipe-world lands on Chat by default — nav to root sends us there.
+    // In swipe-world context: call the prop to swipe to Chat page.
+    // Standalone context: route to /(tabs) — but with Dashboard as the
+    // front door now (Session 31), that just lands back here. Standalone
+    // route is only really for testing; day-to-day use is via swipe-world.
+    if (onNavigateChat) { onNavigateChat(); return; }
     router.navigate('/(tabs)');
-  }, [router]);
+  }, [router, onNavigateChat]);
 
   const openBriefInChat = useCallback(() => {
-    // For this pass, tapping "Open chat" from the brief just routes to Chat
-    // where the brief fires as normal. Real "expand-brief-in-sheet" wiring
-    // comes with the ChatSheet extraction (later phase).
+    // For this pass, "Open chat" from the brief just swipes to Chat where
+    // the brief re-fires per its own logic. Real "expand-brief-in-sheet"
+    // wiring comes with the ChatSheet extraction (later phase).
     setBriefDismissed(true);
+    if (onNavigateChat) { onNavigateChat(); return; }
     router.navigate('/(tabs)');
-  }, [router]);
+  }, [router, onNavigateChat]);
 
   const handleFabTap = useCallback(() => {
     Alert.alert(
