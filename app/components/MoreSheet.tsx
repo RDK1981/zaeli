@@ -310,32 +310,20 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
           </View>
 
           <ScrollView style={st.scroll} contentContainerStyle={st.scrollContent} showsVerticalScrollIndicator={false}>
-            <Text style={st.sectionLabel}>NAVIGATE</Text>
-            <View style={st.grid2}>
-              <Tile keyId="chat"/>
-              <Tile keyId="dashboard"/>
-            </View>
+            {/* Session 31 v2 — MoreSheet trimmed to the trio.
+                Hidden feature tiles (Travel / Meals / My Space / Notes /
+                Tutor / Kids / Radar / Chat / Dashboard tiles) removed —
+                those features either moved to app/_hidden/ or are now
+                the front door itself. MoreSheet is on borrowed time —
+                still referenced by index.tsx / family.tsx / our-budget.tsx
+                hamburgers, will be replaced by direct Settings nav in
+                Phase 04+. */}
 
-            <Text style={st.sectionLabel}>FAMILY CHANNELS</Text>
+            <Text style={st.sectionLabel}>QUICK NAV</Text>
             <View style={st.grid3}>
               <Tile keyId="calendar"/>
               <Tile keyId="shopping"/>
-              <Tile keyId="meals"/>
-              <Tile keyId="radar"/>
-              <Tile keyId="notes"/>
-              <Tile keyId="travel"/>
-            </View>
-
-            <Text style={st.sectionLabel}>PERSONAL</Text>
-            <View style={st.grid2}>
-              <Tile keyId="myspace"/>
               {!isKid && <Tile keyId="budget"/>}
-            </View>
-
-            <Text style={st.sectionLabel}>MODULES</Text>
-            <View style={st.grid2}>
-              <Tile keyId="tutor"/>
-              <Tile keyId="kids"/>
             </View>
 
             <Text style={st.sectionLabel}>ACCOUNT</Text>

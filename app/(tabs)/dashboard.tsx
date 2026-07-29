@@ -38,7 +38,11 @@ import { loadRoster, getRoster } from '../../lib/family-roster';
 import { loadBudget } from '../../lib/budget';
 import { currentWindow } from '../../lib/brief-firing';
 import { setPendingChatContext } from '../../lib/navigation-store';
-import MoreSheet from '../components/MoreSheet';
+// Session 31 v2 — MoreSheet no longer imported. Header hamburger routes
+// directly to Settings (the only destination the design brief now maps
+// to it). MoreSheet.tsx still lives in app/components/ for now — other
+// screens (index.tsx / family.tsx / our-budget.tsx) still reference it
+// via their own hamburgers; we'll purge those in Phase 04+.
 import Svg, { Path } from 'react-native-svg';
 
 // ── Design tokens (mirror v2 brief HTML) ─────────────────────────────────
@@ -159,9 +163,6 @@ export default function DashboardScreen({
 
   // Zaeli Noticed (kept, but simplified — reads from insights if present)
   const [noticed, setNoticed] = useState<string | null>(null);
-
-  // MoreSheet — hamburger destination (temporary until Phase 03)
-  const [moreOpen, setMoreOpen] = useState(false);
 
   // ── Data loaders ───────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -352,7 +353,7 @@ export default function DashboardScreen({
         </Text>
         <TouchableOpacity
           style={s.ham}
-          onPress={() => setMoreOpen(true)}
+          onPress={() => router.navigate('/(tabs)/settings')}
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
@@ -577,12 +578,6 @@ export default function DashboardScreen({
           />
         </Svg>
       </TouchableOpacity>
-
-      {/* MoreSheet — hamburger destination (temporary until Phase 03) */}
-      <MoreSheet
-        visible={moreOpen}
-        onClose={() => setMoreOpen(false)}
-      />
 
     </SafeAreaView>
   );

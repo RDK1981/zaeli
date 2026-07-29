@@ -37,24 +37,32 @@ export default function TabLayout() {
         tabBarStyle: { display: 'none' },
       }}
     >
-      <Tabs.Screen name="swipe-world"   options={{ href: null }} />
-      <Tabs.Screen name="index"        options={{ href: null }} />
-      <Tabs.Screen name="dashboard"    options={{ href: null }} />
-      <Tabs.Screen name="calendar"     options={{ href: null }} />
-      <Tabs.Screen name="shopping"     options={{ href: null }} />
-      <Tabs.Screen name="mealplanner"  options={{ href: null }} />
-      <Tabs.Screen name="chores"       options={{ href: null }} />
-      <Tabs.Screen name="more"         options={{ href: null }} />
-      <Tabs.Screen name="lists"        options={{ href: null }} />
-      <Tabs.Screen name="settings"     options={{ href: null }} />
-      <Tabs.Screen name="zaeli-chat"   options={{ href: null }} />
-      <Tabs.Screen name="family"       options={{ href: null }} />
-      <Tabs.Screen name="kids"         options={{ href: null }} />
-      <Tabs.Screen name="tutor"          options={{ href: null }} />
-      <Tabs.Screen name="tutor-child"    options={{ href: null }} />
-      <Tabs.Screen name="tutor-session"  options={{ href: null }} />
-      <Tabs.Screen name="tutor-practice" options={{ href: null }} />
-      <Tabs.Screen name="tutor-reading"  options={{ href: null }} />
+      {/* Session 31 v2 — routes cleaned to the trio + shared infra.
+          Hidden features (kids, tutor, travel, my-space + kids-games-data,
+          wordle-*, tutor-*) moved to app/_hidden/ — Expo Router ignores
+          underscore-prefixed folders so routes silently disappear but
+          files stay in git for potential revival.
+          Legacy shells (shopping, mealplanner, chores, more, lists,
+          zaeli-chat, todos, voice-overlay) remain in the folder as dead
+          code — no route hits them, and index.tsx contains the real
+          shopping/meals/etc sheets. Cleanup of those file stubs is a
+          later chore, no functional impact today. */}
+      <Tabs.Screen name="swipe-world" options={{ href: null }} />
+      <Tabs.Screen name="index"       options={{ href: null }} />
+      <Tabs.Screen name="dashboard"   options={{ href: null }} />
+      <Tabs.Screen name="calendar"    options={{ href: null }} />
+      <Tabs.Screen name="our-budget"  options={{ href: null }} />
+      <Tabs.Screen name="family"      options={{ href: null }} />
+      <Tabs.Screen name="settings"    options={{ href: null }} />
+      {/* Legacy shell routes kept hidden to prevent Expo Router auto-adding them */}
+      <Tabs.Screen name="shopping"    options={{ href: null }} />
+      <Tabs.Screen name="mealplanner" options={{ href: null }} />
+      <Tabs.Screen name="chores"      options={{ href: null }} />
+      <Tabs.Screen name="more"        options={{ href: null }} />
+      <Tabs.Screen name="lists"       options={{ href: null }} />
+      <Tabs.Screen name="todos"       options={{ href: null }} />
+      <Tabs.Screen name="voice-overlay" options={{ href: null }} />
+      <Tabs.Screen name="zaeli-chat"  options={{ href: null }} />
     </Tabs>
   );
 }
