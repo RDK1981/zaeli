@@ -1,26 +1,29 @@
 /**
- * dashboard.tsx — Zaeli Bento Dashboard (v2)
+ * dashboard.tsx — Zaeli Bento Dashboard v2 (Phase 04a)
  *
- * Session 31 — Front-door reset per Anna beta feedback + design brief.
- * Old dashboard (Calendar / Meal / Weather+Noticed / Shopping / Radar cards)
- * replaced with the Bento layout: Brief tile · Calendar tile (slate) ·
- * Shopping tile (lavender) with inline quick-add · Weather+Budget bento pair ·
- * Chat tile · coral mic FAB.
+ * Session 32 — v2 workshop results shipped.
  *
- * What still lives elsewhere for this pass:
- *   - swipe-world.tsx still routes / to Chat (index.tsx) — user swipes to
- *     Dashboard to see this. Flipping the default is Phase 02.
- *   - MoreSheet stays wired to the hamburger until Phase 03 (feature hide).
- *   - FAB shows a "voice coming soon" alert — real Sonnet routing is Phase 04.
+ * Changes from Phase 01 (Session 31):
+ *   - Brief tile REMOVED (moves to Chat sheet + server-side lockscreen push)
+ *   - Weather tile REMOVED (iOS has this natively)
+ *   - Zaeli Noticed tile REMOVED (data still fuels chat context, no dedicated tile)
+ *   - Chat tile REMOVED (universal chat bar at bottom replaces it)
+ *   - Coral mic FAB REMOVED (chat bar has mic now)
+ *   - Budget tile REDESIGNED — minimal, no financial numbers on the front door
+ *     per Rich's call ("A$0 left is a downer every open")
+ *   - UNIVERSAL CHAT BAR added at bottom — mic, text, camera, send. Any tap
+ *     navigates to Chat page (real mic/camera routing lands in Phase 04c)
+ *   - Font sizes bumped to match today's chat + dashboard (17px brief body
+ *     equivalents in chat, 15px event/shop rows, 13px eyebrows, 24px avatars)
  *
- * What's live and working:
- *   - Brief tile reads cached brief from zaeli_briefs (falls back gracefully).
- *   - Calendar tile shows next 3 events today.
- *   - Shopping tile shows first 3 unchecked items + INLINE QUICK-ADD row
- *     (direct Supabase insert, no chat, no AI — the Anna fix).
- *   - Budget tile shows month-to-date surplus.
- *   - Weather tile via wttr.in (unchanged).
- *   - Chat tile taps back to Chat home.
+ * What's NOT in this pass yet (later phases):
+ *   - Reminders tile (Phase 05 — needs new subsystem)
+ *   - Swipe-world page order swap + dots removed (Phase 04b, next commit)
+ *   - Chat bar mic actually starts recording (Phase 04c — for now, taps
+ *     navigate to Chat)
+ *   - Notify chip on every add (Phase 06)
+ *   - Server-side brief scheduler (Phase 07)
+ *   - Budget expense flat model (Phase 08)
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -35,17 +38,10 @@ import { supabase } from '../../lib/supabase';
 import { getFamilyId } from '../../lib/family';
 import { getProfile } from '../../lib/auth';
 import { loadRoster, getRoster } from '../../lib/family-roster';
-import { loadBudget } from '../../lib/budget';
-import { currentWindow } from '../../lib/brief-firing';
 import { setPendingChatContext } from '../../lib/navigation-store';
-// Session 31 v2 — MoreSheet no longer imported. Header hamburger routes
-// directly to Settings (the only destination the design brief now maps
-// to it). MoreSheet.tsx still lives in app/components/ for now — other
-// screens (index.tsx / family.tsx / our-budget.tsx) still reference it
-// via their own hamburgers; we'll purge those in Phase 04+.
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Rect, Circle, Line, Polyline } from 'react-native-svg';
 
-// ── Design tokens (mirror v2 brief HTML) ─────────────────────────────────
+// ── Design tokens ────────────────────────────────────────────────────────
 const T = {
   bg:        '#FAF8F5',
   ink:       '#0A0A0A',
@@ -66,18 +62,12 @@ const T = {
   skyDeep:   '#0A5C80',
   coral:     '#FF4545',
   slate:     '#2D3748',
-  peachBrown:'#8A3A00',
-  // family colours
   anna:      '#FF7B6B',
   rich:      '#4D8BFF',
   poppy:     '#A855F7',
   gab:       '#22C55E',
   duke:      '#F59E0B',
 };
-
-// ── Weather API config (unchanged from v1 dashboard) ────────────────────
-const WEATHER_LAT = -26.39;
-const WEATHER_LON = 153.03;
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 function pad(n: number): string { return String(n).padStart(2, '0'); }
@@ -94,9 +84,33 @@ function fmtTime(iso: string | null | undefined): string {
   const ampm = H >= 12 ? 'pm' : 'am';
   return `${hh12}:${m ?? '00'} ${ampm}`;
 }
-function firstName(full?: string | null): string {
-  if (!full) return 'you';
-  return full.split(/\s+/)[0] || 'you';
+
+// ── SVG icons — matching those in index.tsx for visual continuity ──────
+function IcoMic({ color = T.ink, size = 22 }: { color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 26" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <Rect x="9" y="2" width="6" height="11" rx="3"/>
+      <Path d="M5 10a7 7 0 0014 0"/>
+      <Line x1="12" y1="19" x2="12" y2="23"/>
+      <Line x1="8" y1="23" x2="16" y2="23"/>
+    </Svg>
+  );
+}
+function IcoCamera({ color = T.coral, size = 22 }: { color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+      <Circle cx="12" cy="13" r="4"/>
+    </Svg>
+  );
+}
+function IcoSend({ color = '#fff', size = 18 }: { color?: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <Line x1="12" y1="19" x2="12" y2="5"/>
+      <Polyline points="5 12 12 5 19 12"/>
+    </Svg>
+  );
 }
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -110,11 +124,6 @@ interface EventLite {
 interface ShopItem {
   id: string;
   name: string;
-}
-interface BriefRow {
-  brief_text: string;
-  chips: any[];
-  time_window: string;
 }
 
 // ── Props (optional — SwipeWorld passes navigation callbacks) ──────────
@@ -140,10 +149,6 @@ export default function DashboardScreen({
     loadRoster(getFamilyId()).then(() => setRosterVersion(v => v + 1));
   }, []);
 
-  // Brief (cached read from zaeli_briefs — no Sonnet call from this screen)
-  const [brief, setBrief] = useState<BriefRow | null>(null);
-  const [briefDismissed, setBriefDismissed] = useState(false);
-
   // Calendar
   const [todayEvents, setTodayEvents] = useState<EventLite[]>([]);
   const [eventCountToday, setEventCountToday] = useState(0);
@@ -154,23 +159,12 @@ export default function DashboardScreen({
   const [shopQuickAdd, setShopQuickAdd] = useState('');
   const [shopJustAdded, setShopJustAdded] = useState<string | null>(null);
 
-  // Budget
-  const [budgetSurplus, setBudgetSurplus] = useState<number | null>(null);
-  const [budgetCategoryLead, setBudgetCategoryLead] = useState<string>('');
-
-  // Weather
-  const [weather, setWeather] = useState<{ temp: number; cond: string } | null>(null);
-
-  // Zaeli Noticed (kept, but simplified — reads from insights if present)
-  const [noticed, setNoticed] = useState<string | null>(null);
-
-  // ── Data loaders ───────────────────────────────────────────────────────
+  // ── Data loaders — leaner than Phase 01, only what tiles need ─────────
   const loadData = useCallback(async () => {
     const today = localDateStr();
     const fid = getFamilyId();
 
-    // Parallel fetches
-    const [evRes, shopRes, briefRes, insightsRes] = await Promise.all([
+    const [evRes, shopRes] = await Promise.all([
       supabase.from('events')
         .select('id,title,date,start_time,assignees')
         .eq('family_id', fid).eq('date', today)
@@ -179,87 +173,28 @@ export default function DashboardScreen({
         .select('id,name')
         .eq('family_id', fid).neq('checked', true)
         .order('created_at', { ascending: false }).limit(50),
-      supabase.from('zaeli_briefs')
-        .select('brief_text,chips,time_window,generated_at')
-        .eq('family_id', fid).eq('date_key', today)
-        .eq('time_window', currentWindow(new Date()))
-        .order('generated_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('family_insights')
-        .select('insight')
-        .eq('family_id', fid)
-        .in('category', ['pattern', 'preference'])
-        .gte('confidence', 0.6)
-        .order('confidence', { ascending: false }).limit(1).maybeSingle(),
     ]);
 
     setTodayEvents((evRes.data ?? []).slice(0, 3));
     setEventCountToday((evRes.data ?? []).length);
     setShopItems((shopRes.data ?? []).slice(0, 3));
     setShopCount((shopRes.data ?? []).length);
-    if (briefRes.data) setBrief(briefRes.data as BriefRow);
-    if (insightsRes.data) setNoticed((insightsRes.data as any).insight);
-
-    // Budget — read Supabase, compute surplus
-    try {
-      const bud = await loadBudget(fid);
-      const income = (bud.incomeStreams || []).reduce((s: number, i: any) => s + (Number(i.amount) || 0), 0);
-      const catPlanned = (bud.categories || []).reduce((s: number, c: any) => {
-        if (c.type === 'variable') return s + (Number(c.monthly_target) || 0);
-        return s + (c.line_items || []).reduce((ls: number, li: any) => ls + (Number(li.monthly_amount) || 0), 0);
-      }, 0);
-      setBudgetSurplus(income - catPlanned);
-      // Pick the highest-target category name to show as a preview line
-      const topCat = (bud.categories || []).sort((a: any, b: any) => {
-        const at = a.type === 'variable' ? Number(a.monthly_target) || 0 : (a.line_items || []).reduce((s: number, li: any) => s + (Number(li.monthly_amount) || 0), 0);
-        const bt = b.type === 'variable' ? Number(b.monthly_target) || 0 : (b.line_items || []).reduce((s: number, li: any) => s + (Number(li.monthly_amount) || 0), 0);
-        return bt - at;
-      })[0];
-      if (topCat) setBudgetCategoryLead(topCat.name || '');
-    } catch { /* budget failure is non-fatal for the dashboard */ }
   }, []);
 
-  const loadWeather = useCallback(async () => {
-    try {
-      const res = await fetch(`https://wttr.in/${WEATHER_LAT},${WEATHER_LON}?format=j1`);
-      if (!res.ok) return;
-      const json = await res.json();
-      const now = json?.current_condition?.[0];
-      if (now) {
-        const temp = parseInt(now.temp_C, 10);
-        const cond = (now.weatherDesc?.[0]?.value || '').trim() || 'Clear';
-        if (!isNaN(temp)) setWeather({ temp, cond });
-      }
-    } catch { /* weather is optional */ }
-  }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+  useEffect(() => { if (isActive) loadData(); }, [isActive, loadData]);
 
-  useEffect(() => {
-    loadData();
-    loadWeather();
-  }, [loadData, loadWeather]);
-
-  useFocusEffect(useCallback(() => {
-    loadData();
-  }, [loadData]));
-
-  // Session 31 — refetch when user swipes onto Dashboard (isActive transitions
-  // to true). useFocusEffect only fires at the tab-route level, but Dashboard
-  // is embedded inside swipe-world, so swiping between pages doesn't trigger it.
-  useEffect(() => {
-    if (isActive) loadData();
-  }, [isActive, loadData]);
-
-  // ── Actions ────────────────────────────────────────────────────────────
+  // ── Shopping quick-add (unchanged from Phase 01) ──────────────────────
   const handleShopSubmit = useCallback(async () => {
     const raw = shopQuickAdd.trim();
     if (!raw) return;
     const itemName = raw.charAt(0).toUpperCase() + raw.slice(1);
     setShopQuickAdd('');
-    // Optimistic add
     const optimisticId = `tmp-${Date.now()}`;
     setShopItems(prev => [{ id: optimisticId, name: itemName }, ...prev].slice(0, 3));
     setShopCount(c => c + 1);
     setShopJustAdded(itemName);
-    // Real insert
     try {
       const { data, error } = await supabase.from('shopping_items').insert({
         family_id: getFamilyId(),
@@ -273,21 +208,18 @@ export default function DashboardScreen({
         Alert.alert('Add failed', error?.message ?? 'Try again?');
         return;
       }
-      // Replace optimistic id with real
       setShopItems(prev => prev.map(s => s.id === optimisticId ? { ...s, id: data.id! } : s));
     } catch (e: any) {
       setShopItems(prev => prev.filter(s => s.id !== optimisticId));
       setShopCount(c => Math.max(0, c - 1));
       Alert.alert('Add failed', e?.message ?? 'Something went wrong.');
     }
-    // Clear the "just added" flash after 2s
     setTimeout(() => setShopJustAdded(null), 2000);
     Keyboard.dismiss();
   }, [shopQuickAdd]);
 
+  // ── Navigation ─────────────────────────────────────────────────────────
   const openCalendarSheet = useCallback(() => {
-    // Bumps swipe-world's contextTrigger so ChatScreen actually opens the
-    // sheet when we swipe to it — bypasses the isActive race.
     setPendingChatContext({ type: 'calendar_view', returnTo: 'dashboard' } as any);
     onContextTrigger?.();
     if (onNavigateChat) { onNavigateChat(); return; }
@@ -306,47 +238,20 @@ export default function DashboardScreen({
   }, [router]);
 
   const openChat = useCallback(() => {
-    // In swipe-world context: call the prop to swipe to Chat page.
-    // Standalone context: route to /(tabs) — but with Dashboard as the
-    // front door now (Session 31), that just lands back here. Standalone
-    // route is only really for testing; day-to-day use is via swipe-world.
     if (onNavigateChat) { onNavigateChat(); return; }
     router.navigate('/(tabs)');
   }, [router, onNavigateChat]);
 
-  const openBriefInChat = useCallback(() => {
-    // For this pass, "Open chat" from the brief just swipes to Chat where
-    // the brief re-fires per its own logic. Real "expand-brief-in-sheet"
-    // wiring comes with the ChatSheet extraction (later phase).
-    setBriefDismissed(true);
-    if (onNavigateChat) { onNavigateChat(); return; }
-    router.navigate('/(tabs)');
-  }, [router, onNavigateChat]);
-
-  const handleFabTap = useCallback(() => {
-    Alert.alert(
-      'Voice coming soon',
-      'The mic FAB will let you add anything by voice. Wiring lands in a future build.',
-    );
-  }, []);
-
-  // ── Derived / display ──────────────────────────────────────────────────
+  // ── Derived ────────────────────────────────────────────────────────────
   const roster = getRoster();
   const memberById = (id: string) => roster.find(m => m.id === id);
-  const primaryName = firstName(getProfile()?.name);
-
-  const briefWindowLabel = brief?.time_window === 'evening' ? '🌙 EVENING' : '☀ MORNING';
-  const isBriefEvening = brief?.time_window === 'evening';
-  const briefPillBg = isBriefEvening ? T.lavender : T.peach;
-  const briefPillColor = isBriefEvening ? T.lavDeep : T.peachBrown;
-  const briefTileBg = isBriefEvening ? T.lavTint : T.peachTint;
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: T.bg }} edges={['top']}>
       <ExpoStatusBar style="dark"/>
 
-      {/* Header — wordmark + hamburger */}
+      {/* Header — wordmark + hamburger (Session 31 — directly to Settings) */}
       <View style={s.hdr}>
         <Text style={s.wordmark}>
           z<Text style={s.aa}>a</Text>el<Text style={s.aa}>i</Text>
@@ -375,49 +280,14 @@ export default function DashboardScreen({
           showsVerticalScrollIndicator={false}
         >
 
-          {/* ── BRIEF TILE ─────────────────────────────────────────────── */}
-          {brief && !briefDismissed && (
-            <View style={[s.tile, { backgroundColor: briefTileBg, borderColor: 'transparent' }]}>
-              <View style={[s.pill, { backgroundColor: briefPillBg }]}>
-                <Text style={[s.pillTxt, { color: briefPillColor }]}>{briefWindowLabel}</Text>
-              </View>
-              <Text style={s.briefTxt}>{brief.brief_text}</Text>
-              <View style={s.chipRow}>
-                <TouchableOpacity style={[s.chip, s.chipPrimary]} onPress={openBriefInChat} activeOpacity={0.7}>
-                  <Text style={s.chipTxt}>Open chat</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.chip} onPress={() => setBriefDismissed(true)} activeOpacity={0.7}>
-                  <Text style={s.chipTxt}>Got it</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {/* If no brief yet, show a warm placeholder rather than empty space */}
-          {!brief && !briefDismissed && (
-            <View style={[s.tile, { backgroundColor: T.peachTint, borderColor: 'transparent' }]}>
-              <View style={[s.pill, { backgroundColor: T.peach }]}>
-                <Text style={[s.pillTxt, { color: T.peachBrown }]}>☀ MORNING</Text>
-              </View>
-              <Text style={s.briefTxt}>
-                Morning {primaryName} — opening chat will kick off today's brief.
-              </Text>
-              <View style={s.chipRow}>
-                <TouchableOpacity style={[s.chip, s.chipPrimary]} onPress={openChat} activeOpacity={0.7}>
-                  <Text style={s.chipTxt}>Open chat</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
           {/* ── CALENDAR TILE (slate) ──────────────────────────────────── */}
           <TouchableOpacity
             style={[s.tile, { backgroundColor: T.slate, borderColor: 'transparent' }]}
             onPress={openCalendarSheet} activeOpacity={0.85}
           >
             <View style={s.tileHead}>
-              <Text style={[s.tileEyebrow, { color: 'rgba(255,255,255,0.6)' }]}>📅 TODAY'S CALENDAR</Text>
-              <Text style={[s.tileMeta, { color: 'rgba(255,255,255,0.5)' }]}>
+              <Text style={[s.tileEyebrow, { color: 'rgba(255,255,255,0.7)' }]}>📅 TODAY'S CALENDAR</Text>
+              <Text style={[s.tileMeta, { color: 'rgba(255,255,255,0.55)' }]}>
                 {eventCountToday === 0 ? 'nothing on' : `${eventCountToday} event${eventCountToday === 1 ? '' : 's'}`}
               </Text>
             </View>
@@ -432,7 +302,7 @@ export default function DashboardScreen({
                   <View key={ev.id} style={s.calRow}>
                     <Text style={[s.calTime, { color: '#fff' }]}>{fmtTime(ev.start_time) || 'all day'}</Text>
                     <View style={[s.calDot, { backgroundColor: c }]}/>
-                    <Text style={[s.calTitle, { color: 'rgba(255,255,255,0.9)' }]} numberOfLines={1}>{ev.title}</Text>
+                    <Text style={[s.calTitle, { color: 'rgba(255,255,255,0.92)' }]} numberOfLines={1}>{ev.title}</Text>
                     <View style={[s.avat, { backgroundColor: c }]}>
                       <Text style={s.avatTxt}>{initial}</Text>
                     </View>
@@ -440,13 +310,13 @@ export default function DashboardScreen({
                 );
               })
             )}
-            <View style={[s.quickAdd, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.15)' }]}>
+            <View style={[s.quickAdd, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.18)' }]}>
               <Text style={[s.quickPlus, { color: T.coral }]}>+</Text>
-              <Text style={[s.quickField, { color: 'rgba(255,255,255,0.65)' }]}>Add event…</Text>
+              <Text style={[s.quickField, { color: 'rgba(255,255,255,0.7)' }]}>Add event…</Text>
             </View>
           </TouchableOpacity>
 
-          {/* ── SHOPPING TILE (lavender) ─ THE ANNA FIX ───────────────── */}
+          {/* ── SHOPPING TILE (lavender) — Anna's speed fix ────────────── */}
           <TouchableOpacity
             style={[s.tile, { backgroundColor: T.lavender, borderColor: 'transparent' }]}
             onPress={openShoppingSheet} activeOpacity={0.85}
@@ -467,7 +337,6 @@ export default function DashboardScreen({
                 </View>
               ))
             )}
-            {/* Inline quick-add — the Anna fix. Direct Supabase insert, no AI. */}
             <View
               onStartShouldSetResponder={() => true}
               style={[s.quickAdd, { backgroundColor: '#fff', borderColor: T.lavDeep, borderWidth: 1.5 }]}
@@ -492,91 +361,50 @@ export default function DashboardScreen({
               ) : null}
             </View>
             {shopJustAdded && (
-              <Text style={{ fontSize: 11, color: T.mintDeep, fontWeight: '700', marginTop: 8, letterSpacing: 0.4 }}>
+              <Text style={{ fontSize: 12, color: T.mintDeep, fontWeight: '700', marginTop: 8, letterSpacing: 0.4 }}>
                 ✓ ADDED {shopJustAdded.toUpperCase()}
               </Text>
             )}
           </TouchableOpacity>
 
-          {/* ── BENTO PAIR — Weather + Budget ─────────────────────────── */}
-          <View style={s.bentoPair}>
-            {/* Weather */}
-            <View style={[s.tileMini, { backgroundColor: T.skyTint }]}>
-              <Text style={[s.miniEyebrow, { color: T.skyDeep }]}>WEATHER</Text>
-              {weather ? (
-                <>
-                  <Text style={[s.miniPrimary, { color: T.ink }]}>{weather.temp}°</Text>
-                  <Text style={[s.miniSub, { color: T.ink2 }]} numberOfLines={1}>{weather.cond}</Text>
-                </>
-              ) : (
-                <Text style={[s.miniSub, { color: T.ink3, marginTop: 8 }]}>loading…</Text>
-              )}
-            </View>
-            {/* Budget */}
-            <TouchableOpacity
-              style={[s.tileMini, { backgroundColor: T.mintTint, flex: 1.5 }]}
-              onPress={openBudget} activeOpacity={0.85}
-            >
-              <Text style={[s.miniEyebrow, { color: T.mintDeep }]}>💰 BUDGET</Text>
-              {budgetSurplus !== null ? (
-                <>
-                  <Text style={[s.miniPrimary, { color: T.mintDeep }]} numberOfLines={1}>
-                    A${Math.abs(Math.round(budgetSurplus)).toLocaleString('en-AU')} {budgetSurplus < 0 ? 'over' : 'left'}
-                  </Text>
-                  <Text style={[s.miniSub, { color: T.ink2 }]} numberOfLines={1}>
-                    {budgetCategoryLead ? `Top: ${budgetCategoryLead}` : 'This month'}
-                  </Text>
-                </>
-              ) : (
-                <Text style={[s.miniSub, { color: T.ink3, marginTop: 8 }]}>Tap to set up</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* ── ZAELI NOTICED (if we have an insight) ─────────────────── */}
-          {noticed && (
-            <View style={[s.tile, { backgroundColor: T.peachTint, borderColor: 'transparent' }]}>
-              <Text style={[s.tileEyebrow, { color: T.peachBrown }]}>✨ ZAELI NOTICED</Text>
-              <Text style={[s.briefTxt, { marginTop: 2 }]}>{noticed}</Text>
-            </View>
-          )}
-
-          {/* ── CHAT TILE ─────────────────────────────────────────────── */}
+          {/* ── BUDGET TILE — minimal, no numbers, tap-through ─────────── */}
           <TouchableOpacity
-            style={[s.tile, s.tileChat]}
-            onPress={openChat} activeOpacity={0.85}
+            style={[s.tile, { backgroundColor: T.mintTint, borderColor: 'transparent' }]}
+            onPress={openBudget} activeOpacity={0.85}
           >
-            <View style={s.tileHead}>
-              <Text style={[s.tileEyebrow, { color: T.skyDeep }]}>💬 CHAT WITH ZAELI</Text>
-            </View>
-            <Text style={[s.chatLast, { color: T.ink3 }]}>
-              Ask her anything — she remembers.
-            </Text>
-            <View style={s.chatCtaRow}>
-              <View style={s.chatDot}/>
-              <Text style={[s.chatCta, { color: T.skyDeep }]}>Open chat →</Text>
-            </View>
+            <Text style={[s.tileEyebrow, { color: T.mintDeep }]}>💰 OUR BUDGET</Text>
+            <Text style={s.budTitle}>Categories · Savings · Spending</Text>
+            <Text style={s.budSub}>Manage income, categories, savings goals.</Text>
+            <Text style={s.budCta}>Tap to open →</Text>
           </TouchableOpacity>
+
+          {/* NOTE — Reminders tile lands in Phase 05 as the 4th pillar */}
 
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* ── FAB (mic) — placeholder for Phase 04 voice wiring ─────────── */}
+      {/* ── UNIVERSAL CHAT BAR ─────────────────────────────────────────
+          Session 32 — replaces coral mic FAB. Sits at screen bottom,
+          inset 14px each side (matches tile width). Visual-only for
+          Phase 04a — any tap navigates to Chat page. Real per-icon
+          routing (mic → recording pill, camera → picker, text →
+          keyboard-focused chat) lands in Phase 04c. */}
       <TouchableOpacity
-        style={[s.fab, { bottom: 20 + Math.max(0, insets.bottom - 8) }]}
-        onPress={handleFabTap}
+        style={[s.chatbar, { bottom: 22 + Math.max(0, insets.bottom - 8) }]}
         activeOpacity={0.85}
+        onPress={openChat}
       >
-        <Svg width={26} height={26} viewBox="0 0 24 24">
-          <Path
-            d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z"
-            fill="#fff"
-          />
-          <Path
-            d="M19 11a1 1 0 00-2 0 5 5 0 01-10 0 1 1 0 00-2 0 7 7 0 006 6.93V21a1 1 0 002 0v-3.07A7 7 0 0019 11z"
-            fill="#fff"
-          />
-        </Svg>
+        <View style={s.cbBtn}>
+          <IcoMic color={T.ink}/>
+        </View>
+        <View style={s.cbSep}/>
+        <Text style={s.cbField}>Ask Zaeli anything…</Text>
+        <View style={s.cbBtn}>
+          <IcoCamera color={T.coral}/>
+        </View>
+        <View style={s.cbSend}>
+          <IcoSend/>
+        </View>
       </TouchableOpacity>
 
     </SafeAreaView>
@@ -614,66 +442,46 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: 8,
   },
+  // Session 32 — font bumps: eyebrow 11 → 13, meta 11 → 12
   tileEyebrow: {
-    fontFamily: 'Poppins_700Bold', fontSize: 11,
+    fontFamily: 'Poppins_700Bold', fontSize: 13,
     letterSpacing: 0.8, color: T.ink3,
   },
   tileMeta: {
-    fontFamily: 'Poppins_600SemiBold', fontSize: 11,
+    fontFamily: 'Poppins_600SemiBold', fontSize: 12,
     letterSpacing: 0.4, color: T.ink3,
   },
   emptyRow: {
-    fontSize: 14, color: T.ink3, marginTop: 6, marginBottom: 6,
+    fontSize: 15, color: T.ink3, marginTop: 6, marginBottom: 6,
   },
 
-  // Brief tile
-  pill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10, paddingVertical: 4,
-    borderRadius: 12, marginBottom: 10,
-  },
-  pillTxt: {
-    fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 0.8,
-  },
-  briefTxt: {
-    fontSize: 15, lineHeight: 22, color: T.ink,
-    marginBottom: 12,
-  },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    backgroundColor: 'rgba(255,255,255,0.7)', borderWidth: 1, borderColor: 'rgba(10,10,10,0.08)',
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-  },
-  chipPrimary: { backgroundColor: '#fff' },
-  chipTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: T.ink },
-
-  // Calendar rows
+  // Calendar rows — bumped 12/13 → 14/15, avatar 22/10 → 24/12
   calRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
   },
   calTime: {
-    fontFamily: 'Poppins_600SemiBold', fontSize: 12, minWidth: 62,
+    fontFamily: 'Poppins_600SemiBold', fontSize: 14, minWidth: 64,
   },
   calDot: { width: 8, height: 8, borderRadius: 4 },
-  calTitle: { flex: 1, fontSize: 13, fontWeight: '500' },
+  calTitle: { flex: 1, fontSize: 15, fontWeight: '500' },
   avat: {
-    width: 22, height: 22, borderRadius: 11,
+    width: 24, height: 24, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
   },
   avatTxt: {
-    fontFamily: 'Poppins_700Bold', fontSize: 10, color: '#fff',
+    fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#fff',
   },
 
-  // Shopping rows
+  // Shopping rows — bumped 13 → 15
   shopRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
   },
-  bullet: { width: 4, height: 4, borderRadius: 2 },
-  shopTxt: { fontSize: 13, flex: 1 },
+  bullet: { width: 5, height: 5, borderRadius: 3 },
+  shopTxt: { fontSize: 15, flex: 1 },
 
-  // Quick-add row
+  // Quick-add row — bumped 13 → 15 on input
   quickAdd: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: T.bg, borderWidth: 1, borderColor: T.line,
@@ -683,10 +491,10 @@ const s = StyleSheet.create({
   quickPlus: {
     fontFamily: 'Poppins_800ExtraBold', fontSize: 18, color: T.coral,
   },
-  quickField: { fontSize: 13, color: T.ink3, flex: 1 },
+  quickField: { fontSize: 15, color: T.ink3, flex: 1 },
   quickInput: {
-    flex: 1, fontSize: 14, color: T.ink,
-    paddingVertical: 0, // strip iOS default input padding
+    flex: 1, fontSize: 15, color: T.ink,
+    paddingVertical: 0,
     fontFamily: 'Poppins_400Regular',
   },
   enterKey: {
@@ -695,51 +503,46 @@ const s = StyleSheet.create({
   },
   enterTxt: { fontSize: 12, color: T.ink3, fontWeight: '600' },
 
-  // Bento pair
-  bentoPair: {
-    flexDirection: 'row', gap: 10, marginBottom: 12,
+  // Budget tile — minimal (Rich's call — no financial numbers)
+  budTitle: {
+    fontFamily: 'Poppins_700Bold', fontSize: 18, color: T.ink,
+    marginTop: 4,
   },
-  tileMini: {
-    flex: 1, backgroundColor: T.skyTint,
-    borderRadius: 18, padding: 14,
-    borderWidth: 1, borderColor: 'transparent',
+  budSub: {
+    fontSize: 14, color: T.ink2, marginTop: 4,
   },
-  miniEyebrow: {
-    fontFamily: 'Poppins_700Bold', fontSize: 10,
-    letterSpacing: 0.6, marginBottom: 6,
-  },
-  miniPrimary: {
-    fontFamily: 'Poppins_800ExtraBold', fontSize: 24, lineHeight: 26,
-  },
-  miniSub: { fontSize: 11, marginTop: 4 },
-
-  // Chat tile
-  tileChat: {
-    backgroundColor: T.skyTint,
-    borderColor: 'transparent',
-  },
-  chatLast: {
-    fontSize: 13, fontStyle: 'italic', marginBottom: 10,
-  },
-  chatCtaRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-  },
-  chatDot: {
-    width: 8, height: 8, borderRadius: 4, backgroundColor: T.mintDeep,
-  },
-  chatCta: {
-    fontFamily: 'Poppins_700Bold', fontSize: 13,
+  budCta: {
+    fontFamily: 'Poppins_700Bold', fontSize: 14, color: T.mintDeep,
+    marginTop: 12, textAlign: 'right',
   },
 
-  // FAB
-  fab: {
-    position: 'absolute', right: 20,
-    width: 60, height: 60, borderRadius: 30,
+  // Universal chat bar — Session 32
+  chatbar: {
+    position: 'absolute', left: 14, right: 14,
+    backgroundColor: '#fff',
+    borderWidth: 1, borderColor: 'rgba(210,210,210,0.55)',
+    borderRadius: 32, paddingHorizontal: 10, paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    minHeight: 60,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.10, shadowRadius: 20,
+    elevation: 8,
+  },
+  cbBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cbSep: {
+    width: 1, height: 24, backgroundColor: 'rgba(10,10,10,0.1)',
+  },
+  cbField: {
+    flex: 1, fontSize: 17, color: T.ink3, paddingHorizontal: 4,
+    fontFamily: 'Poppins_400Regular',
+  },
+  cbSend: {
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: T.coral,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: T.coral,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4, shadowRadius: 16,
-    elevation: 8,
   },
 });
