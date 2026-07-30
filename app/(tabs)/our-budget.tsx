@@ -38,6 +38,10 @@ import {
   deleteLineItem as deleteLineItemRemote,
   saveGoal as saveGoalRemote,
   deleteGoal as deleteGoalRemote,
+  loadExpenses as loadExpensesRemote,
+  saveExpense as saveExpenseRemote,
+  deleteExpense as deleteExpenseRemote,
+  type Expense,
   uuidv4,
 } from '../../lib/budget';
 import { callAnthropic } from '../../lib/ai-proxy';
@@ -196,7 +200,11 @@ export default function OurBudgetScreen() {
   const [categories, setCategories]   = useState<Category[]>([]);
   const [lineItems, setLineItems]     = useState<LineItem[]>([]);
   const [goals, setGoals]             = useState<Goal[]>([]);
+  const [expenses, setExpenses]       = useState<Expense[]>([]);
   const [budgetLoaded, setBudgetLoaded] = useState(false);
+
+  // Session 32 v2 Phase 08 UI — flat Expense sheet state
+  const [editExpensePayload, setEditExpensePayload] = useState<Expense | 'new-fixed' | 'new-variable' | null>(null);
 
   // ── Hydrate from Supabase on mount ────────────────────────────────────────
   // Session 30 — previously state was SEED_-initialised and never persisted,
@@ -206,11 +214,12 @@ export default function OurBudgetScreen() {
   React.useEffect(() => {
     (async () => {
       try {
-        const b = await loadBudgetRemote();
+        const [b, exps] = await Promise.all([loadBudgetRemote(), loadExpensesRemote()]);
         setStreams(b.streams);
         setCategories(b.categories);
         setLineItems(b.lineItems);
         setGoals(b.goals);
+        setExpenses(exps);
       } catch (e: any) {
         console.log('[budget] hydration error:', e?.message);
       } finally {
@@ -267,6 +276,15 @@ export default function OurBudgetScreen() {
   function removeLineItem(id: string) {
     setLineItems(prev => prev.filter(li => li.id !== id));
     deleteLineItemRemote(id).catch(e => console.log('[budget] removeLineItem persist failed:', e?.message));
+  }
+  // Session 32 v2 Phase 08 UI — flat Expense helpers
+  function saveExpense(u: Expense) {
+    setExpenses(prev => prev.some(e => e.id === u.id) ? prev.map(e => e.id === u.id ? u : e) : [...prev, u]);
+    saveExpenseRemote(u).catch(e => console.log('[budget] saveExpense persist failed:', e?.message));
+  }
+  function removeExpense(id: string) {
+    setExpenses(prev => prev.filter(e => e.id !== id));
+    deleteExpenseRemote(id).catch(e => console.log('[budget] removeExpense persist failed:', e?.message));
   }
   function saveGoal(u: Goal) {
     setGoals(prev => prev.some(g => g.id === u.id) ? prev.map(g => g.id === u.id ? u : g) : [...prev, u]);
@@ -524,13 +542,32 @@ Never invent variable category names outside the existing list — put those in 
         />
       )}
       {activeTab === 'categories' && (
-        <CategoriesTab
-          categories={categories}
-          lineItems={lineItems}
-          onOpenCategory={setCatDetail}
-          onAddFixed={() => setEditCatPayload('new-fixed')}
-          onAddVariable={() => setEditCatPayload('new-variable')}
-        />
+        <>
+          {/* Session 32 v2 Phase 08 UI — flat Expenses view (primary) */}
+          <ExpensesSection
+            expenses={expenses}
+            onAddFixed={() => setEditExpensePayload('new-fixed')}
+            onAddVariable={() => setEditExpensePayload('new-variable')}
+            onEdit={(e) => setEditExpensePayload(e)}
+            onRemove={removeExpense}
+          />
+          {/* Legacy nested categories — still shown if any exist */}
+          {categories.length > 0 && (
+            <View style={{ marginTop: 32, paddingHorizontal: 16 }}>
+              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: INK4, letterSpacing: 1, textTransform: 'uppercase' }}>Legacy categories</Text>
+              <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK5, marginTop: 4, marginBottom: 12 }}>
+                Older nested category setup — remove or migrate to the flat Expenses list above.
+              </Text>
+            </View>
+          )}
+          <CategoriesTab
+            categories={categories}
+            lineItems={lineItems}
+            onOpenCategory={setCatDetail}
+            onAddFixed={() => setEditCatPayload('new-fixed')}
+            onAddVariable={() => setEditCatPayload('new-variable')}
+          />
+        </>
       )}
       {activeTab === 'goals' && (
         <GoalsTab
@@ -564,6 +601,13 @@ Never invent variable category names outside the existing list — put those in 
         onClose={() => setEditCatPayload(null)}
         onSave={c => { saveCategory(c); setEditCatPayload(null); }}
         onRemove={id => { removeCategory(id); setEditCatPayload(null); }}
+      />
+      <EditExpenseSheet
+        visible={!!editExpensePayload}
+        payload={editExpensePayload}
+        onClose={() => setEditExpensePayload(null)}
+        onSave={e => { saveExpense(e); setEditExpensePayload(null); }}
+        onRemove={id => { removeExpense(id); setEditExpensePayload(null); }}
       />
       <EditGoalSheet
         visible={!!editGoalPayload}
@@ -1879,4 +1923,234 @@ const s = StyleSheet.create({
   scanCard: { backgroundColor: '#FFFFFF', borderRadius: 20, paddingVertical: 28, paddingHorizontal: 36, alignItems: 'center', minWidth: 240 },
   scanTxt: { fontFamily: 'Poppins_700Bold', fontSize: 16, color: INK, marginTop: 14 },
   scanSub: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK3, marginTop: 4, textAlign: 'center' },
+
+  // Session 32 v2 Phase 08 UI — flat Expenses styles
+  expSectionWrap: { paddingHorizontal: 16, paddingTop: 8 },
+  expSecLbl: { fontFamily: 'Poppins_700Bold', fontSize: 11, color: BUD_MID, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 },
+  expSecTotal: { fontFamily: 'Poppins_800ExtraBold', fontSize: 22, color: INK, letterSpacing: -0.4, marginBottom: 14 },
+  expRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 14, padding: 14, marginBottom: 8 },
+  expEmoji: { fontSize: 22, width: 30, textAlign: 'center' },
+  expName: { flex: 1, fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: INK },
+  expAmt: { fontFamily: 'Poppins_800ExtraBold', fontSize: 16, color: INK, letterSpacing: -0.2 },
+  expType: { fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 0.6, textTransform: 'uppercase', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginLeft: 6 },
+  expAddBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: BUD_CARD, borderWidth: 1, borderColor: BUD_LIGHT, borderRadius: 12, paddingVertical: 12, marginTop: 4, marginBottom: 8 },
+  expAddTxt: { fontFamily: 'Poppins_700Bold', fontSize: 14, color: BUD_DARK },
+  expEmptyCard: { backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 14, padding: 20, alignItems: 'center', marginBottom: 12 },
+  expEmptyTitle: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: INK, marginBottom: 4 },
+  expEmptySub: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK4, textAlign: 'center', lineHeight: 19 },
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// Session 32 v2 Phase 08 UI — ExpensesSection + EditExpenseSheet
+// ═══════════════════════════════════════════════════════════════════════
+function ExpensesSection(p: {
+  expenses: Expense[];
+  onAddFixed: () => void;
+  onAddVariable: () => void;
+  onEdit: (e: Expense) => void;
+  onRemove: (id: string) => void;
+}) {
+  const fixed = p.expenses.filter(e => e.type === 'fixed');
+  const variable = p.expenses.filter(e => e.type === 'variable');
+  const fixedTotal = fixed.reduce((a, e) => a + e.monthlyAmount, 0);
+  const varTotal = variable.reduce((a, e) => a + e.monthlyAmount, 0);
+
+  return (
+    <View style={{ paddingBottom: 8 }}>
+      {/* FIXED SECTION */}
+      <View style={s.expSectionWrap}>
+        <Text style={s.expSecLbl}>💰 Fixed expenses</Text>
+        <Text style={s.expSecTotal}>{fmtAud(fixedTotal)} / month</Text>
+        {fixed.length === 0 ? (
+          <View style={s.expEmptyCard}>
+            <Text style={s.expEmptyTitle}>Nothing fixed yet</Text>
+            <Text style={s.expEmptySub}>Mortgage, rent, subscriptions, insurance — bills that hit at the same amount every month.</Text>
+          </View>
+        ) : (
+          fixed.map(e => (
+            <TouchableOpacity key={e.id} style={s.expRow} onPress={() => p.onEdit(e)} activeOpacity={0.75}>
+              <Text style={s.expEmoji}>{e.emoji || '💰'}</Text>
+              <Text style={s.expName} numberOfLines={1}>{e.name}</Text>
+              <Text style={s.expAmt}>{fmtAud(e.monthlyAmount)}</Text>
+            </TouchableOpacity>
+          ))
+        )}
+        <TouchableOpacity style={s.expAddBtn} onPress={p.onAddFixed} activeOpacity={0.75}>
+          <IcoPlus color={BUD_DARK}/>
+          <Text style={s.expAddTxt}>Add fixed expense</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* VARIABLE SECTION */}
+      <View style={[s.expSectionWrap, { marginTop: 16 }]}>
+        <Text style={s.expSecLbl}>🛒 Variable expenses</Text>
+        <Text style={s.expSecTotal}>{fmtAud(varTotal)} / month</Text>
+        {variable.length === 0 ? (
+          <View style={s.expEmptyCard}>
+            <Text style={s.expEmptyTitle}>No variable targets yet</Text>
+            <Text style={s.expEmptySub}>Groceries, fuel, coffee — categories that vary but you want a monthly target for.</Text>
+          </View>
+        ) : (
+          variable.map(e => (
+            <TouchableOpacity key={e.id} style={s.expRow} onPress={() => p.onEdit(e)} activeOpacity={0.75}>
+              <Text style={s.expEmoji}>{e.emoji || '💰'}</Text>
+              <Text style={s.expName} numberOfLines={1}>{e.name}</Text>
+              <Text style={s.expAmt}>{fmtAud(e.monthlyAmount)}</Text>
+            </TouchableOpacity>
+          ))
+        )}
+        <TouchableOpacity style={s.expAddBtn} onPress={p.onAddVariable} activeOpacity={0.75}>
+          <IcoPlus color={BUD_DARK}/>
+          <Text style={s.expAddTxt}>Add variable expense</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function EditExpenseSheet(p: {
+  visible: boolean;
+  payload: Expense | 'new-fixed' | 'new-variable' | null;
+  onClose: () => void;
+  onSave: (e: Expense) => void;
+  onRemove: (id: string) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const isNew = p.payload === 'new-fixed' || p.payload === 'new-variable';
+  const initialType: 'fixed' | 'variable' = p.payload === 'new-fixed' ? 'fixed'
+    : p.payload === 'new-variable' ? 'variable'
+    : (p.payload as Expense | null)?.type ?? 'fixed';
+
+  const [name, setName]   = useState('');
+  const [emoji, setEmoji] = useState('💰');
+  const [type, setType]   = useState<'fixed'|'variable'>(initialType);
+  const [amount, setAmount] = useState('');
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  React.useEffect(() => {
+    if (!p.visible) return;
+    if (isNew) {
+      setName(''); setEmoji('💰'); setType(initialType); setAmount(''); setConfirmDel(false);
+    } else if (p.payload && typeof p.payload === 'object') {
+      const e = p.payload as Expense;
+      setName(e.name); setEmoji(e.emoji || '💰'); setType(e.type); setAmount(String(e.monthlyAmount || ''));
+      setConfirmDel(false);
+    }
+  }, [p.visible, p.payload]);
+
+  function commit() {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const amt = parseFloat(amount) || 0;
+    const existing = !isNew && p.payload && typeof p.payload === 'object' ? p.payload as Expense : null;
+    const next: Expense = {
+      id:            existing?.id ?? uuidv4(),
+      name:          trimmed,
+      emoji:         emoji || '💰',
+      type,
+      monthlyAmount: amt,
+      sortOrder:     existing?.sortOrder ?? 0,
+    };
+    p.onSave(next);
+  }
+
+  return (
+    <Modal visible={p.visible} transparent animationType="slide" onRequestClose={p.onClose}>
+      <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
+        <TouchableOpacity style={{ flex:1 }} onPress={p.onClose} activeOpacity={1}/>
+        <View style={{ backgroundColor:BG, borderTopLeftRadius:24, borderTopRightRadius:24, maxHeight:'92%' }}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginTop:10, marginBottom:6 }}/>
+            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12 }}>
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:20, color:INK, letterSpacing:-0.3 }}>
+                {isNew ? 'Add expense' : 'Edit expense'}
+              </Text>
+              <TouchableOpacity onPress={p.onClose} style={{ width:36, height:36, borderRadius:10, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }} activeOpacity={0.7}>
+                <Text style={{ fontSize:16, color:INK4 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingHorizontal:16, paddingBottom: 20 + Math.max(0, insets.bottom - 8) }} keyboardShouldPersistTaps="handled">
+              {/* Type toggle */}
+              <Text style={s.expSecLbl}>Type</Text>
+              <View style={{ flexDirection:'row', gap:8, marginBottom:16 }}>
+                {(['fixed','variable'] as const).map(t => (
+                  <TouchableOpacity
+                    key={t}
+                    onPress={() => setType(t)}
+                    style={{ flex:1, paddingVertical:12, borderRadius:12, borderWidth:1.5, borderColor: type===t ? BUD_DARK : BORDER, backgroundColor: type===t ? BUD_CARD : CARD, alignItems:'center' }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color: type===t ? BUD_DARK : INK4, textTransform:'capitalize' }}>{t}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Emoji + name */}
+              <Text style={s.expSecLbl}>Icon</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap:8, paddingBottom:12 }}>
+                {EMOJI_OPTIONS.map(em => (
+                  <TouchableOpacity
+                    key={em}
+                    onPress={() => setEmoji(em)}
+                    style={{ width:46, height:46, borderRadius:12, borderWidth:1.5, borderColor: emoji===em ? BUD_DARK : BORDER, backgroundColor: emoji===em ? BUD_CARD : CARD, alignItems:'center', justifyContent:'center' }}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={{ fontSize:22 }}>{em}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <Text style={s.expSecLbl}>Name</Text>
+              <TextInput
+                value={name} onChangeText={setName}
+                placeholder="e.g. Netflix, Mortgage, Groceries"
+                placeholderTextColor={INK5}
+                style={{ backgroundColor:CARD, borderWidth:1.5, borderColor:BORDER, borderRadius:12, paddingHorizontal:14, paddingVertical:12, fontFamily:'Poppins_500Medium', fontSize:16, color:INK, marginBottom:16 }}
+              />
+
+              <Text style={s.expSecLbl}>Monthly amount (A$)</Text>
+              <TextInput
+                value={amount} onChangeText={setAmount}
+                placeholder="0"
+                placeholderTextColor={INK5}
+                keyboardType="decimal-pad"
+                style={{ backgroundColor:CARD, borderWidth:1.5, borderColor:BORDER, borderRadius:12, paddingHorizontal:14, paddingVertical:12, fontFamily:'Poppins_700Bold', fontSize:18, color:INK, marginBottom:20 }}
+              />
+
+              <TouchableOpacity
+                onPress={commit}
+                disabled={!name.trim()}
+                style={{ backgroundColor: name.trim() ? BUD : 'rgba(10,10,10,0.12)', borderRadius:14, paddingVertical:15, alignItems:'center', marginBottom: isNew ? 12 : 8 }}
+                activeOpacity={0.85}
+              >
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color: name.trim() ? '#fff' : INK4 }}>
+                  {isNew ? 'Add expense' : 'Save'}
+                </Text>
+              </TouchableOpacity>
+
+              {!isNew && p.payload && typeof p.payload === 'object' && (
+                confirmDel ? (
+                  <TouchableOpacity
+                    onPress={() => p.onRemove((p.payload as Expense).id)}
+                    style={{ backgroundColor:'rgba(220,38,38,0.12)', borderWidth:1, borderColor:'rgba(220,38,38,0.35)', borderRadius:14, paddingVertical:13, alignItems:'center' }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'#DC2626' }}>Confirm delete</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setConfirmDel(true)}
+                    style={{ backgroundColor:'transparent', borderRadius:14, paddingVertical:13, alignItems:'center' }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:INK5 }}>Delete expense</Text>
+                  </TouchableOpacity>
+                )
+              )}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
