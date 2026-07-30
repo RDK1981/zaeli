@@ -46,7 +46,7 @@ import TourBanner from '../components/TourBanner';
 import { currentWindow as getCurrentWindow, currentBucket as getCurrentBucket, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
 import { generateBrief, FamilyContext } from '../../lib/brief-generator';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
-import { getPendingChatContext, clearPendingChatContext, setPendingChatContext } from '../../lib/navigation-store';
+import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, consumeChatIntent } from '../../lib/navigation-store';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
@@ -4668,6 +4668,28 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
     // Brief check on isActive — only fires if window has changed since last brief.
     // The duplicate guard + shouldFireBrief() will no-op if same window already fired.
     if (briefMountFiredRef.current) tryFireBrief({ appJustOpened: false });
+
+    // ── Chat intent from Dashboard chat bar (Session 32 v2 Phase 04c) ──
+    // Fast-lane: user tapped mic/camera/text on Dashboard, wants to land
+    // straight in that mode without extra taps.
+    const intent = consumeChatIntent();
+    if (intent) {
+      // Small delay so the swipe-to-Chat animation finishes cleanly first
+      setTimeout(() => {
+        if (intent.kind === 'mic') {
+          Keyboard.dismiss();
+          startRecording();
+        } else if (intent.kind === 'camera') {
+          openSheet();
+        } else if (intent.kind === 'focus') {
+          inputRef.current?.focus();
+        } else if (intent.kind === 'seed') {
+          setInput(intent.text);
+          setTimeout(() => inputRef.current?.focus(), 50);
+        }
+      }, 250);
+    }
+
     const ctx = getPendingChatContext();
     console.log('CHAT: pending context =', ctx.type);
     if (!ctx.type) return;

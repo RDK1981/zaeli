@@ -45,3 +45,26 @@ export function consumeFamilyFrom(): 'settings' | null {
   _familyFrom = null;
   return v;
 }
+
+// ── Chat intent (Session 32 v2) ──────────────────────────────────────────
+// Dashboard universal chat bar sets this before navigating to Chat.
+// Chat consumes on activation and acts:
+//   'mic'    → open recording pill immediately (Keyboard.dismiss + startRecording)
+//   'camera' → open Camera/Photos picker sheet
+//   'focus'  → focus TextInput, keyboard opens automatically
+//   'seed'   → same as focus + seed input with pre-typed text
+export type ChatIntent =
+  | { kind: 'mic' }
+  | { kind: 'camera' }
+  | { kind: 'focus' }
+  | { kind: 'seed'; text: string }
+  | null;
+
+let _chatIntent: ChatIntent = null;
+export function setChatIntent(intent: ChatIntent): void { _chatIntent = intent; }
+export function consumeChatIntent(): ChatIntent {
+  const v = _chatIntent;
+  _chatIntent = null;
+  return v;
+}
+export function hasChatIntent(): boolean { return _chatIntent !== null; }

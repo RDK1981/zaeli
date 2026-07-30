@@ -1,0 +1,1542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zaeli v2 — Final Design</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #FAF8F5;
+      --ink:       #0A0A0A;
+      --ink2:      rgba(10,10,10,0.72);
+      --ink3:      rgba(10,10,10,0.48);
+      --ink4:      rgba(10,10,10,0.28);
+      --line:      rgba(10,10,10,0.08);
+      --peach:     #FAC8A8;
+      --peachTint: #FDF1E5;
+      --peachBrown:#8A3A00;
+      --mint:      #B8EDD0;
+      --mintTint:  #E6F7EF;
+      --mintDeep:  #2D7A52;
+      --lavender:  #D8CCFF;
+      --lavTint:   #F0EBFF;
+      --lavDeep:   #5020C0;
+      --sky:       #A8D8F0;
+      --skyTint:   #E8F4FD;
+      --skyDeep:   #0A5C80;
+      --gold:      #F0DC80;
+      --goldTint:  #FBF3D0;
+      --goldDeep:  #5A4800;
+      --coral:     #FF4545;
+      --coralTint: #FFE4E0;
+      --coralDeep: #B83333;
+      --slate:     #2D3748;
+      --anna:      #FF7B6B;
+      --rich:      #4D8BFF;
+      --poppy:     #A855F7;
+      --gab:       #22C55E;
+      --duke:      #F59E0B;
+    }
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--ink);
+      -webkit-font-smoothing: antialiased; line-height: 1.5;
+    }
+    body { padding: 40px 20px 80px; }
+    .doc { max-width: 1180px; margin: 0 auto; }
+
+    /* Cover */
+    .cover {
+      background: linear-gradient(140deg, #FAF8F5, #FBF3D0 30%, #E8F4FD 70%, #F0EBFF);
+      border-radius: 32px; padding: 60px 48px; margin-bottom: 56px;
+      position: relative; overflow: hidden;
+    }
+    .cover::before, .cover::after {
+      content: ""; position: absolute; border-radius: 50%; filter: blur(4px);
+    }
+    .cover::before { width: 240px; height: 240px; background: var(--gold); opacity: 0.42; top: -70px; right: -70px; }
+    .cover::after  { width: 200px; height: 200px; background: var(--mint);  opacity: 0.5;  bottom: -60px; left: -60px; }
+    .cover .inner { position: relative; z-index: 1; max-width: 720px; }
+    .brand {
+      font-size: 44px; font-weight: 800; letter-spacing: -1.6px; line-height: 1;
+      margin-bottom: 20px;
+    }
+    .brand .a, .brand .i { color: var(--sky); }
+    .brand .badge {
+      display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: 0.4px;
+      background: var(--ink); color: #fff;
+      padding: 4px 12px; border-radius: 8px; margin-left: 12px; vertical-align: middle;
+    }
+    .cover h1 {
+      font-size: 40px; font-weight: 700; letter-spacing: -1.1px;
+      line-height: 1.1; margin-bottom: 16px;
+    }
+    .cover .sub { font-size: 19px; color: var(--ink2); }
+    .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+    .pill-badge {
+      background: rgba(255,255,255,0.7); backdrop-filter: blur(8px);
+      padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 600;
+      border: 1px solid rgba(10,10,10,0.06);
+    }
+
+    /* Sections */
+    section.chapter { margin: 76px 0; }
+    .chapter-num {
+      font-size: 13px; font-weight: 700; letter-spacing: 1.4px;
+      color: var(--ink3); text-transform: uppercase; margin-bottom: 8px;
+    }
+    h2.chapter-title {
+      font-size: 38px; font-weight: 700; letter-spacing: -1.1px;
+      line-height: 1.1; margin-bottom: 14px;
+    }
+    .chapter-lede {
+      font-size: 18px; color: var(--ink2); max-width: 720px; margin-bottom: 36px;
+    }
+    .scene {
+      display: grid; grid-template-columns: 340px 1fr;
+      gap: 56px; align-items: start;
+      margin-bottom: 60px;
+    }
+    .scene.reverse { grid-template-columns: 1fr 340px; }
+    .scene.reverse .visual { order: 2; }
+    .scene.reverse .body   { order: 1; }
+    @media (max-width: 900px) {
+      .scene, .scene.reverse { grid-template-columns: 1fr; gap: 32px; }
+      .scene.reverse .visual, .scene.reverse .body { order: unset; }
+      .visual { display: flex; justify-content: center; }
+    }
+    .body h3 {
+      font-size: 22px; font-weight: 700; letter-spacing: -0.4px; margin-bottom: 12px;
+    }
+    .body p { font-size: 16px; color: var(--ink2); margin-bottom: 10px; }
+    .body ul { list-style: none; margin-top: 6px; }
+    .body ul li {
+      display: flex; gap: 10px; padding: 8px 0;
+      font-size: 15px; color: var(--ink2);
+      border-top: 1px solid var(--line);
+    }
+    .body ul li:first-child { border-top: none; }
+    .body ul li::before {
+      content: "→"; color: var(--goldDeep); font-weight: 700; flex-shrink: 0;
+    }
+    .callout {
+      background: var(--skyTint); border-left: 3px solid var(--skyDeep);
+      padding: 14px 16px; border-radius: 12px;
+      font-size: 14px; color: var(--ink); margin: 16px 0;
+    }
+    .callout strong { color: var(--skyDeep); }
+    .callout.warn { background: var(--peachTint); border-left-color: var(--peachBrown); }
+    .callout.warn strong { color: var(--peachBrown); }
+    .callout.win { background: var(--mintTint); border-left-color: var(--mintDeep); }
+    .callout.win strong { color: var(--mintDeep); }
+    .callout.gold { background: var(--goldTint); border-left-color: var(--goldDeep); }
+    .callout.gold strong { color: var(--goldDeep); }
+
+    /* Phone frame */
+    .phone {
+      width: 320px; height: 654px;
+      background: var(--ink); border-radius: 46px; padding: 8px;
+      box-shadow:
+        0 40px 60px -25px rgba(10,10,10,0.35),
+        0 15px 30px -8px rgba(10,10,10,0.18),
+        0 0 0 1px rgba(10,10,10,0.08);
+      margin: 0 auto; position: relative;
+    }
+    .phone .notch {
+      position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+      width: 108px; height: 24px; background: var(--ink);
+      border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; z-index: 30;
+    }
+    .phone .screen {
+      background: var(--bg); border-radius: 40px;
+      height: 100%; overflow: hidden; position: relative;
+    }
+    .phone.compact { width: 280px; height: 574px; }
+
+    /* App bar */
+    .app-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 46px 20px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--bg); position: relative; z-index: 5;
+    }
+    .app-bar .word {
+      font-size: 32px; font-weight: 800; letter-spacing: -1.4px; line-height: 1;
+    }
+    .app-bar .word .a, .app-bar .word .i { color: var(--sky); }
+    .app-bar .ham {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: rgba(10,10,10,0.05);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    }
+    .app-bar .ham span {
+      display: block; width: 18px; height: 2.2px; background: var(--ink); border-radius: 1px;
+    }
+
+    /* Body scroll */
+    .body-scroll {
+      padding: 14px 14px 100px;
+      height: calc(100% - 82px);
+      overflow: hidden;
+    }
+
+    /* Tiles */
+    .tile {
+      background: #fff; border-radius: 22px; padding: 18px; margin-bottom: 12px;
+      border: 1px solid var(--line);
+    }
+    .tile-head {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+    }
+    .tile-eyebrow {
+      font-size: 13px; font-weight: 700; letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+    .tile-meta {
+      font-size: 12px; font-weight: 600;
+    }
+
+    /* Calendar tile (slate) */
+    .tile.cal {
+      background: var(--slate); color: #fff; border-color: transparent;
+    }
+    .tile.cal .tile-eyebrow { color: rgba(255,255,255,0.7); }
+    .tile.cal .tile-meta { color: rgba(255,255,255,0.6); }
+    .cal-row {
+      display: flex; align-items: center; gap: 10px; padding: 7px 0;
+    }
+    .cal-time {
+      font-size: 14px; font-weight: 600; color: #fff; min-width: 64px;
+    }
+    .cal-dot { width: 8px; height: 8px; border-radius: 4px; }
+    .cal-title {
+      flex: 1; font-size: 15px; color: rgba(255,255,255,0.9); font-weight: 500;
+    }
+    .avat {
+      width: 24px; height: 24px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 12px; font-weight: 700;
+    }
+
+    /* Shopping tile (lavender) */
+    .tile.shop { background: var(--lavender); border-color: transparent; }
+    .tile.shop .tile-eyebrow { color: var(--lavDeep); }
+    .tile.shop .tile-meta { color: var(--lavDeep); opacity: 0.65; }
+    .shop-row {
+      display: flex; align-items: center; gap: 8px; padding: 4px 0;
+    }
+    .shop-bullet {
+      width: 5px; height: 5px; border-radius: 3px; background: var(--lavDeep); opacity: 0.4;
+    }
+    .shop-txt { font-size: 15px; color: var(--ink); }
+
+    /* Reminders tile (gold) ★ NEW */
+    .tile.rem { background: var(--gold); border-color: transparent; }
+    .tile.rem .tile-eyebrow { color: var(--goldDeep); }
+    .tile.rem .tile-meta { color: var(--goldDeep); opacity: 0.7; }
+    .rem-row {
+      display: flex; align-items: center; gap: 8px; padding: 5px 0;
+    }
+    .rem-title {
+      flex: 1; font-size: 15px; color: var(--ink); font-weight: 500;
+    }
+    .rem-title .rec {
+      color: var(--goldDeep); font-weight: 700; margin-right: 4px;
+    }
+    .rem-when {
+      font-size: 12px; font-weight: 600; color: var(--goldDeep); opacity: 0.85;
+      background: rgba(255,255,255,0.5); padding: 3px 7px; border-radius: 8px;
+    }
+    .rem-when.overdue {
+      background: var(--coralTint); color: var(--coralDeep); opacity: 1;
+    }
+    .rem-when.timed {
+      background: rgba(255,255,255,0.7); color: var(--coralDeep);
+    }
+    .rem-when.timed::before { content: "🔔 "; }
+
+    /* Budget tile (mint, minimal — no numbers per Rich's call) */
+    .tile.bud { background: var(--mintTint); border-color: transparent; }
+    .tile.bud .tile-eyebrow { color: var(--mintDeep); }
+    .bud-title {
+      font-size: 18px; font-weight: 700; color: var(--ink); margin-top: 4px;
+    }
+    .bud-sub {
+      font-size: 13px; color: var(--ink2); margin-top: 4px;
+    }
+    .bud-cta {
+      font-size: 13px; font-weight: 700; color: var(--mintDeep);
+      margin-top: 12px; text-align: right;
+    }
+
+    /* Quick-add row */
+    .quick-add {
+      display: flex; align-items: center; gap: 10px;
+      background: rgba(255,255,255,0.8);
+      border: 1.5px solid var(--ink4);
+      border-radius: 14px; padding: 10px 12px; margin-top: 12px;
+    }
+    .quick-add .plus {
+      color: var(--coral); font-weight: 800; font-size: 18px;
+    }
+    .quick-add .field { flex: 1; font-size: 15px; color: var(--ink3); }
+    .quick-add .field.typing { color: var(--ink); }
+    .quick-add .enter {
+      background: rgba(10,10,10,0.06); padding: 4px 8px; border-radius: 6px;
+      font-size: 11px; color: var(--ink3); font-weight: 600;
+    }
+    .tile.cal .quick-add {
+      background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2);
+    }
+    .tile.cal .quick-add .field { color: rgba(255,255,255,0.7); }
+    .tile.shop .quick-add { border-color: var(--lavDeep); }
+    .tile.rem .quick-add { border-color: var(--goldDeep); background: rgba(255,255,255,0.85); }
+
+    /* ── UNIVERSAL CHAT BAR ── */
+    .chatbar {
+      position: absolute; left: 14px; right: 14px;
+      bottom: 22px;
+      background: #fff;
+      border: 1px solid rgba(210,210,210,0.55);
+      border-radius: 32px;
+      padding: 8px 10px;
+      display: flex; align-items: center; gap: 8px;
+      min-height: 60px;
+      box-shadow:
+        0 10px 24px rgba(10,10,10,0.10),
+        0 2px 6px rgba(10,10,10,0.05);
+      z-index: 40;
+    }
+    .cb-btn {
+      width: 44px; height: 44px; border-radius: 22px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--ink);
+    }
+    .cb-btn.icon-ink { color: var(--ink); }
+    .cb-btn.icon-coral { color: var(--coral); }
+    .cb-btn svg { width: 22px; height: 22px; }
+    .cb-sep {
+      width: 1px; height: 24px; background: rgba(10,10,10,0.1); flex-shrink: 0;
+    }
+    .cb-field {
+      flex: 1; font-size: 17px; color: var(--ink3);
+      padding: 0 4px;
+    }
+    .cb-send {
+      width: 44px; height: 44px; border-radius: 22px;
+      background: var(--coral); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cb-send svg { width: 18px; height: 18px; }
+
+    /* Sheets */
+    .sheet-backdrop {
+      position: absolute; inset: 0; background: rgba(10,10,10,0.35);
+      z-index: 20;
+    }
+    .sheet {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      background: var(--bg);
+      border-top-left-radius: 24px; border-top-right-radius: 24px;
+      z-index: 21; overflow: hidden;
+    }
+    .sheet.h92 { height: 92%; }
+    .sheet.h44 { height: 44%; }
+    .sheet .handle {
+      width: 40px; height: 4px; background: rgba(10,10,10,0.14);
+      border-radius: 2px; margin: 12px auto;
+    }
+    .sheet-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 18px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .sheet-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 18px; font-weight: 700;
+    }
+    .sheet-x {
+      width: 32px; height: 32px; border-radius: 10px;
+      background: rgba(10,10,10,0.06);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: var(--ink2);
+    }
+    .sheet-body {
+      padding: 14px; height: calc(100% - 60px); overflow: hidden;
+      position: relative;
+    }
+
+    /* Reminders sheet interior */
+    .rem-section-head {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.8px;
+      color: var(--ink3); text-transform: uppercase;
+      padding: 18px 4px 6px;
+    }
+    .rem-section-head.overdue { color: var(--coralDeep); }
+    .rem-section-head.today { color: var(--mintDeep); }
+    .rem-card {
+      background: #fff; border-radius: 14px;
+      padding: 12px 14px; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .rem-card-title {
+      flex: 1; font-size: 15px; font-weight: 500; color: var(--ink);
+    }
+    .rem-card-title .rec {
+      color: var(--goldDeep); margin-right: 4px;
+    }
+    .rem-card-title .by {
+      font-size: 11px; color: var(--ink3); font-weight: 500;
+    }
+
+    /* Chat sheet interior */
+    .chat-body {
+      padding: 14px; height: calc(100% - 60px);
+      display: flex; flex-direction: column; gap: 10px; position: relative;
+    }
+    .msg-brief-in-chat {
+      background: var(--peachTint);
+      padding: 12px 14px; border-radius: 18px; border-bottom-left-radius: 6px;
+      align-self: flex-start; max-width: 92%;
+    }
+    .msg-brief-in-chat.evening { background: var(--lavTint); }
+    .brief-pill {
+      display: inline-flex; align-items: center;
+      padding: 4px 10px; border-radius: 12px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+      margin-bottom: 8px;
+    }
+    .brief-pill.morning { background: var(--peach); color: var(--peachBrown); }
+    .brief-pill.evening { background: var(--lavender); color: var(--lavDeep); }
+    .msg-user, .msg-zaeli {
+      max-width: 82%; padding: 10px 13px; border-radius: 18px;
+      font-size: 15px; line-height: 22px;
+    }
+    .msg-user {
+      background: var(--skyTint); align-self: flex-end; border-bottom-right-radius: 6px;
+    }
+    .msg-zaeli {
+      background: rgba(10,10,10,0.05); align-self: flex-start; border-bottom-left-radius: 6px;
+    }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      background: rgba(255,255,255,0.75); border: 1px solid rgba(10,10,10,0.06);
+      padding: 8px 14px; border-radius: 999px;
+      font-size: 14px; font-weight: 600; color: var(--ink);
+    }
+    .chip.primary { background: #fff; }
+    .chip.notify {
+      background: var(--coralTint); color: var(--coralDeep);
+      border-color: rgba(255,69,69,0.28); font-weight: 700;
+    }
+    .sheet-chatbar {
+      position: absolute; left: 12px; right: 12px; bottom: 12px;
+      background: #fff;
+      border: 1px solid rgba(210,210,210,0.55);
+      border-radius: 32px;
+      padding: 8px 10px;
+      display: flex; align-items: center; gap: 8px; min-height: 60px;
+      box-shadow: 0 6px 16px rgba(10,10,10,0.08);
+    }
+
+    /* Lockscreen mockup (for push notification section) */
+    .lockscreen {
+      background: linear-gradient(180deg, #1a2540 0%, #34456e 60%, #6b8ab4 100%);
+      height: 100%; border-radius: 40px;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 50px 16px 24px;
+      position: relative;
+    }
+    .lock-time {
+      color: #fff; font-size: 74px; font-weight: 200; letter-spacing: -3px;
+      margin-bottom: 4px; line-height: 1;
+    }
+    .lock-date {
+      color: rgba(255,255,255,0.85); font-size: 16px; font-weight: 500;
+      margin-bottom: 40px;
+    }
+    .push-card {
+      background: rgba(255,255,255,0.96); backdrop-filter: blur(20px);
+      border-radius: 18px; padding: 14px 14px 16px; width: 96%;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    }
+    .push-head {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .push-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800; letter-spacing: -0.5px;
+    }
+    .push-icon .a { color: var(--sky); }
+    .push-app {
+      font-size: 13px; font-weight: 700; color: var(--ink);
+    }
+    .push-time {
+      margin-left: auto; font-size: 12px; color: var(--ink3);
+    }
+    .push-title {
+      font-size: 15px; font-weight: 700; color: var(--ink);
+      margin-bottom: 3px;
+    }
+    .push-body {
+      font-size: 15px; color: var(--ink2); line-height: 20px;
+    }
+
+    /* Confirm card in chat */
+    .confirm-card {
+      background: var(--slate); color: #fff;
+      border-radius: 16px; padding: 14px; margin-top: 4px;
+    }
+    .confirm-card .day {
+      font-size: 10px; font-weight: 700; letter-spacing: 1px;
+      color: rgba(255,255,255,0.65); margin-bottom: 8px;
+    }
+    .confirm-card .day::before { content: "📅  "; }
+    .confirm-card .event-row {
+      display: flex; align-items: center; gap: 10px; padding: 6px 0;
+    }
+    .confirm-card .ev-time {
+      font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.75); min-width: 52px;
+    }
+    .confirm-card .dot-title {
+      display: flex; align-items: center; gap: 6px; flex: 1;
+      font-size: 13px; font-weight: 500;
+    }
+    .confirm-card .dot { width: 8px; height: 8px; border-radius: 4px; }
+
+    /* Voice recording overlay */
+    .voice-pill {
+      position: absolute; left: 14px; right: 14px; bottom: 22px;
+      background: #fff; border-radius: 32px;
+      padding: 10px 14px;
+      display: flex; align-items: center; gap: 10px;
+      min-height: 60px;
+      box-shadow: 0 10px 24px rgba(10,10,10,0.14);
+      z-index: 45;
+    }
+    .voice-cancel {
+      width: 40px; height: 40px; border-radius: 20px;
+      background: rgba(10,10,10,0.06);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; color: var(--ink2);
+    }
+    .voice-waves {
+      display: flex; align-items: center; gap: 3px; flex: 1;
+      justify-content: center;
+    }
+    .voice-waves .wave {
+      width: 3px; background: var(--coral); border-radius: 2px;
+      animation: wavy 0.8s ease-in-out infinite;
+    }
+    .voice-waves .wave:nth-child(1) { height: 8px;  animation-delay: 0.0s; }
+    .voice-waves .wave:nth-child(2) { height: 16px; animation-delay: 0.1s; }
+    .voice-waves .wave:nth-child(3) { height: 24px; animation-delay: 0.2s; }
+    .voice-waves .wave:nth-child(4) { height: 32px; animation-delay: 0.3s; }
+    .voice-waves .wave:nth-child(5) { height: 24px; animation-delay: 0.4s; }
+    .voice-waves .wave:nth-child(6) { height: 16px; animation-delay: 0.5s; }
+    .voice-waves .wave:nth-child(7) { height: 8px;  animation-delay: 0.6s; }
+    @keyframes wavy {
+      0%, 100% { transform: scaleY(0.5); }
+      50%      { transform: scaleY(1.2); }
+    }
+    .voice-send {
+      width: 40px; height: 40px; border-radius: 20px;
+      background: var(--coral); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .voice-send svg { width: 16px; height: 16px; stroke: #fff; }
+
+    /* Camera picker */
+    .camera-pick { padding: 14px 20px; }
+    .camera-option {
+      background: #fff; border-radius: 16px; padding: 18px;
+      margin-bottom: 12px; border: 1px solid var(--line);
+      display: flex; align-items: center; gap: 14px;
+    }
+    .camera-option .icon-sq {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .camera-option .icon-sq.camera { background: var(--skyTint); color: var(--skyDeep); }
+    .camera-option .icon-sq.photos { background: var(--lavTint); color: var(--lavDeep); }
+    .camera-option .icon-sq svg { width: 22px; height: 22px; }
+    .camera-option .co-body { flex: 1; }
+    .camera-option .co-title { font-size: 16px; font-weight: 700; }
+    .camera-option .co-sub { font-size: 13px; color: var(--ink3); margin-top: 2px; }
+    .camera-option .chev { color: var(--ink4); font-size: 16px; }
+    .camera-preview {
+      position: absolute; inset: 0; background: #000;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 50;
+    }
+    .camera-viewport {
+      width: 90%; height: 70%; border-radius: 24px;
+      background: linear-gradient(180deg, #253045, #4a5978);
+      display: flex; align-items: center; justify-content: center;
+      color: rgba(255,255,255,0.5); font-size: 12px;
+    }
+    .camera-shutter {
+      position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+      width: 74px; height: 74px; border-radius: 37px;
+      background: rgba(255,255,255,0.15); border: 4px solid #fff;
+    }
+
+    /* Settings sheet interior */
+    .more-hero {
+      background: linear-gradient(135deg, var(--slate), #4a5978);
+      color: #fff; margin: 14px; border-radius: 18px;
+      padding: 18px; display: flex; align-items: center; gap: 14px;
+    }
+    .more-avatar {
+      width: 52px; height: 52px; border-radius: 26px;
+      background: var(--peach); color: #6B2E00;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 800;
+    }
+    .more-name { font-size: 17px; font-weight: 700; }
+    .more-email { font-size: 12px; opacity: 0.75; margin-top: 2px; }
+    .more-tag {
+      display: inline-block; background: rgba(255,255,255,0.15);
+      padding: 3px 8px; border-radius: 6px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.5px; margin-top: 6px;
+    }
+    .more-section {
+      background: #fff; border-radius: 14px; margin: 8px 14px 12px; overflow: hidden;
+    }
+    .more-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+      color: var(--ink3); text-transform: uppercase; padding: 16px 20px 4px;
+    }
+    .more-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 14px; border-top: 1px solid var(--line);
+    }
+    .more-row:first-child { border-top: none; }
+    .more-row .icon {
+      width: 32px; height: 32px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+    }
+    .more-row .body { flex: 1; }
+    .more-row .title { font-size: 15px; font-weight: 500; }
+    .more-row .sub { font-size: 12px; color: var(--ink3); margin-top: 1px; }
+    .more-row .value { font-size: 13px; color: var(--ink3); font-weight: 500; }
+    .more-row .chev { color: var(--ink4); font-size: 14px; }
+    .more-row.danger { color: var(--coralDeep); }
+
+    /* Flow row */
+    .flow-row {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px;
+      margin: 40px 0;
+    }
+    .flow-cell {
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .flow-label { margin-top: 24px; text-align: center; }
+    .flow-num {
+      display: inline-block;
+      background: var(--coral); color: #fff;
+      width: 24px; height: 24px; border-radius: 12px;
+      font-size: 13px; font-weight: 700; line-height: 24px;
+      margin-bottom: 6px;
+    }
+    .flow-title { font-size: 15px; font-weight: 700; }
+    .flow-sub { font-size: 13px; color: var(--ink3); margin-top: 4px; max-width: 260px; }
+    @media (max-width: 900px) {
+      .flow-row { grid-template-columns: 1fr; gap: 60px; }
+    }
+    .compact-scale { transform: scale(0.9); transform-origin: top center; }
+
+    /* Architecture diagram */
+    .arch {
+      background: #fff; border-radius: 20px; padding: 32px;
+      border: 1px solid var(--line);
+      margin: 24px 0;
+    }
+    .arch-flow {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+      align-items: stretch;
+    }
+    @media (max-width: 900px) {
+      .arch-flow { grid-template-columns: 1fr; }
+    }
+    .arch-node {
+      background: var(--bg); border-radius: 14px; padding: 14px 12px;
+      border: 1px solid var(--line);
+      text-align: center;
+    }
+    .arch-node.trigger { background: var(--goldTint); border-color: var(--goldDeep); }
+    .arch-node.compute { background: var(--skyTint); border-color: var(--skyDeep); }
+    .arch-node.store { background: var(--mintTint); border-color: var(--mintDeep); }
+    .arch-node.push { background: var(--peachTint); border-color: var(--peachBrown); }
+    .arch-node.client { background: var(--lavTint); border-color: var(--lavDeep); }
+    .arch-node .icon {
+      font-size: 24px; margin-bottom: 6px;
+    }
+    .arch-node .lbl {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.4px;
+    }
+    .arch-node .sub {
+      font-size: 11px; color: var(--ink2); margin-top: 4px;
+    }
+
+    /* States table */
+    .states {
+      background: #fff; border-radius: 20px; padding: 4px;
+      border: 1px solid var(--line); margin-top: 32px;
+      overflow: hidden;
+    }
+    .states-row {
+      display: grid; grid-template-columns: 200px 1fr 1fr;
+      gap: 20px; padding: 16px 20px;
+      border-top: 1px solid var(--line);
+    }
+    .states-row:first-child { border-top: none; background: var(--bg); }
+    .states-row.head {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.6px;
+      color: var(--ink3); text-transform: uppercase;
+    }
+    .states-row .k { font-weight: 700; font-size: 14px; }
+    .states-row .v { font-size: 14px; color: var(--ink2); }
+
+    footer {
+      margin-top: 80px; padding-top: 40px; text-align: center;
+      border-top: 1px solid var(--line); color: var(--ink3); font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="doc">
+
+    <!-- SVG icon defs -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <symbol id="ico-mic" viewBox="0 0 24 26">
+          <rect x="9" y="2" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M5 10a7 7 0 0014 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="8" y1="23" x2="16" y2="23" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </symbol>
+        <symbol id="ico-camera" viewBox="0 0 24 24">
+          <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        </symbol>
+        <symbol id="ico-photos" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <circle cx="8.5" cy="8.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <polyline points="21 15 16 10 5 21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+        <symbol id="ico-send" viewBox="0 0 24 24">
+          <line x1="12" y1="19" x2="12" y2="5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          <polyline points="5 12 12 5 19 12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </symbol>
+      </defs>
+    </svg>
+
+    <!-- COVER -->
+    <div class="cover">
+      <div class="inner">
+        <div class="brand">z<span class="a">a</span>el<span class="i">i</span> <span class="badge">v2 · FINAL</span></div>
+        <h1>Four tiles. One bar. Brief on your lockscreen.</h1>
+        <p class="sub">Brief removed from Dashboard. Reminders added as fourth pillar. Budget goes silent (no numbers on the tile). Weather + Zaeli Noticed retired. Server-side scheduled brief generation delivers rich lockscreen notifications so you don't need to open the app to get the day's summary.</p>
+        <div class="pills">
+          <span class="pill-badge">📅 Calendar</span>
+          <span class="pill-badge">🛒 Shopping</span>
+          <span class="pill-badge">⏰ Reminders (recurring supported)</span>
+          <span class="pill-badge">💰 Budget (numbers hidden)</span>
+          <span class="pill-badge">💬 Chat bar bottom</span>
+          <span class="pill-badge">📱 Brief pushes to lockscreen</span>
+          <span class="pill-badge">🔔 Notify chip on every add</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════
+         01 — BENTO AT REST (final)
+    ══════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">01 — Bento at rest</div>
+      <h2 class="chapter-title">The final Bento — four tiles, calm and honest.</h2>
+      <p class="chapter-lede">No brief on the front door (lives on lockscreen + in chat now). No weather (iOS handles that). No Zaeli Noticed (data still fuels chat, no tile). Four tiles: Calendar, Shopping, Reminders (new), Budget (silent). Chat bar bottom. Hamburger top-right for Settings.</p>
+
+      <div class="scene">
+        <div class="visual">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="ham"><span></span><span></span><span></span></div>
+              </div>
+              <div class="body-scroll">
+
+                <div class="tile cal">
+                  <div class="tile-head">
+                    <div class="tile-eyebrow">📅 TODAY'S CALENDAR</div>
+                    <div class="tile-meta">3 events</div>
+                  </div>
+                  <div class="cal-row">
+                    <div class="cal-time">2:00 pm</div>
+                    <div class="cal-dot" style="background: var(--rich);"></div>
+                    <div class="cal-title">School Pickup</div>
+                    <div class="avat" style="background: var(--rich);">R</div>
+                  </div>
+                  <div class="cal-row">
+                    <div class="cal-time">3:30 pm</div>
+                    <div class="cal-dot" style="background: var(--poppy);"></div>
+                    <div class="cal-title">Poppy dance</div>
+                    <div class="avat" style="background: var(--poppy);">P</div>
+                  </div>
+                  <div class="quick-add">
+                    <span class="plus">+</span>
+                    <span class="field">Add event…</span>
+                  </div>
+                </div>
+
+                <div class="tile shop">
+                  <div class="tile-head">
+                    <div class="tile-eyebrow">🛒 SHOPPING</div>
+                    <div class="tile-meta">4 items</div>
+                  </div>
+                  <div class="shop-row"><div class="shop-bullet"></div><div class="shop-txt">Sourdough loaf</div></div>
+                  <div class="shop-row"><div class="shop-bullet"></div><div class="shop-txt">Bananas × 6</div></div>
+                  <div class="shop-row"><div class="shop-bullet"></div><div class="shop-txt">Coffee beans</div></div>
+                  <div class="quick-add">
+                    <span class="plus">+</span>
+                    <span class="field">Add item… (tap Enter)</span>
+                  </div>
+                </div>
+
+                <!-- ⭐ NEW — Reminders tile in gold -->
+                <div class="tile rem">
+                  <div class="tile-head">
+                    <div class="tile-eyebrow">⏰ REMINDERS</div>
+                    <div class="tile-meta">3 due</div>
+                  </div>
+                  <div class="rem-row">
+                    <div class="rem-title">Call the plumber</div>
+                    <div class="rem-when overdue">2 days</div>
+                  </div>
+                  <div class="rem-row">
+                    <div class="rem-title">Duke swim bag</div>
+                    <div class="rem-when timed">7:15am</div>
+                  </div>
+                  <div class="rem-row">
+                    <div class="rem-title"><span class="rec">↻</span>Water plants</div>
+                    <div class="rem-when">Sun</div>
+                  </div>
+                  <div class="quick-add">
+                    <span class="plus">+</span>
+                    <span class="field">Set a reminder…</span>
+                  </div>
+                </div>
+
+                <!-- Budget tile — MINIMAL Option A (no numbers) -->
+                <div class="tile bud">
+                  <div class="tile-eyebrow">💰 OUR BUDGET</div>
+                  <div class="bud-title">Categories · Savings · Spending</div>
+                  <div class="bud-sub">Manage income, categories, savings goals — no numbers on the front door.</div>
+                  <div class="bud-cta">Tap to open →</div>
+                </div>
+
+              </div>
+
+              <div class="chatbar">
+                <div class="cb-btn icon-ink"><svg><use href="#ico-mic"/></svg></div>
+                <div class="cb-sep"></div>
+                <div class="cb-field">Ask Zaeli anything…</div>
+                <div class="cb-btn icon-coral"><svg><use href="#ico-camera"/></svg></div>
+                <div class="cb-send"><svg><use href="#ico-send"/></svg></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="body">
+          <h3>Five things about the final Bento</h3>
+          <ul>
+            <li><strong>4 core tiles, all full-width.</strong> No bento-pair, no data-lite hero. Calendar / Shopping / Reminders / Budget. Every tile earns its place.</li>
+            <li><strong>Brief tile gone.</strong> Redundant with tiles. Lives in chat + on lockscreen now.</li>
+            <li><strong>Reminders is the new fourth pillar.</strong> Gold accent, calls back to the "On the Radar" colour from the old Dashboard. Quick-add row. Recurring supported (12-month horizon like calendar events).</li>
+            <li><strong>Budget goes silent.</strong> No "$0 left" every open. Just a beautiful nameplate you tap when you want to check.</li>
+            <li><strong>Weather + Zaeli Noticed retired.</strong> iOS has weather. Zaeli Noticed data still fuels the brief and chat context — just no dedicated tile.</li>
+          </ul>
+          <div class="callout gold"><strong>The Reminders bet:</strong> unique in the family-app market. Google/Apple Reminders is personal. Cozi is calendar. AnyList is shopping. None do shared family reminders with recurring + AI parsing + selective push. This is the pillar that says "Zaeli remembers what you'd forget."</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════
+         02 — REMINDERS TILE DETAIL
+    ══════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">02 — ⏰ Reminders tile</div>
+      <h2 class="chapter-title">Three reminder shapes, one tile.</h2>
+      <p class="chapter-lede">Overdue (coral chip), timed (🔔 with time), date-only (day label), recurring (↻ prefix). Undated reminders live in the sheet only — they never surface on the tile so they don't push out time-sensitive ones.</p>
+
+      <div class="scene reverse">
+        <div class="visual">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="ham"><span></span><span></span><span></span></div>
+              </div>
+              <div class="body-scroll">
+                <div class="tile rem">
+                  <div class="tile-head">
+                    <div class="tile-eyebrow">⏰ REMINDERS</div>
+                    <div class="tile-meta">6 total · 3 due</div>
+                  </div>
+                  <div class="rem-row">
+                    <div class="rem-title">Call the plumber</div>
+                    <div class="rem-when overdue">2 days</div>
+                  </div>
+                  <div class="rem-row">
+                    <div class="rem-title">Duke swim bag</div>
+                    <div class="rem-when timed">7:15am</div>
+                  </div>
+                  <div class="rem-row">
+                    <div class="rem-title"><span class="rec">↻</span>Water plants</div>
+                    <div class="rem-when">Sun</div>
+                  </div>
+                  <div class="quick-add">
+                    <span class="plus">+</span>
+                    <span class="field typing">Take vitamins every day 8am</span>
+                    <span class="enter">⏎</span>
+                  </div>
+                </div>
+              </div>
+              <div class="chatbar">
+                <div class="cb-btn icon-ink"><svg><use href="#ico-mic"/></svg></div>
+                <div class="cb-sep"></div>
+                <div class="cb-field">Ask Zaeli anything…</div>
+                <div class="cb-btn icon-coral"><svg><use href="#ico-camera"/></svg></div>
+                <div class="cb-send"><svg><use href="#ico-send"/></svg></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="body">
+          <h3>The four reminder types</h3>
+          <ul>
+            <li><strong>OVERDUE</strong> (coral chip "2 days") — anything past its date but not done. Sorted first.</li>
+            <li><strong>TIMED</strong> (🔔 chip "7:15am") — has a specific time. Local push fires at that time to the CREATOR only.</li>
+            <li><strong>DATE-ONLY</strong> (day chip "Sun") — has a date but no time. Surfaces in morning brief on that day. No push.</li>
+            <li><strong>RECURRING</strong> (↻ prefix + next instance date) — repeating series. Tile shows the NEXT upcoming instance only.</li>
+            <li><strong>UNDATED</strong> — never on the tile. Only in the sheet's "No date" section. So mental-note reminders don't push out time-critical ones.</li>
+          </ul>
+          <p><strong>Quick-add parsing (local, no AI):</strong></p>
+          <ul>
+            <li>"Take vitamins every day 8am" → daily, 08:00, timed, recurring</li>
+            <li>"Pack Gab's bag Thursday" → date-only, Thursday</li>
+            <li>"Water plants" → undated</li>
+            <li>"Call plumber tomorrow 3pm" → tomorrow, 15:00, timed</li>
+          </ul>
+          <div class="callout gold"><strong>The Anna angle:</strong> quick-add row is the fast lane. Type "put bins out Monday nights" + Enter → recurring reminder saved. No AI overhead, no chat opens. Same speed principle as Shopping quick-add.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════
+         03 — REMINDERS SHEET (92%)
+    ══════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">03 — Reminders sheet at 92%</div>
+      <h2 class="chapter-title">All reminders, sectioned.</h2>
+      <p class="chapter-lede">Tap the Reminders tile → 92% sheet. Sections in order: Overdue · Today · This Week · Later · No date. Quick-add pinned at top. Tap any row to expand for Edit / Mark done / Delete / (for recurring) Change series.</p>
+
+      <div class="scene">
+        <div class="visual">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar" style="opacity: 0.4;">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="ham"><span></span><span></span><span></span></div>
+              </div>
+              <div class="body-scroll" style="opacity: 0.15;">
+                <div class="tile cal"><div class="tile-head"><div class="tile-eyebrow" style="color:rgba(255,255,255,0.7)">📅 TODAY'S CALENDAR</div></div></div>
+              </div>
+              <div class="sheet-backdrop"></div>
+              <div class="sheet h92">
+                <div class="handle"></div>
+                <div class="sheet-head">
+                  <div class="sheet-title">⏰ Reminders</div>
+                  <div class="sheet-x">✕</div>
+                </div>
+                <div class="sheet-body">
+                  <div class="quick-add" style="border-color: var(--goldDeep); background: var(--goldTint);">
+                    <span class="plus">+</span>
+                    <span class="field">Set a reminder…</span>
+                    <span class="enter">⏎</span>
+                  </div>
+
+                  <div class="rem-section-head overdue">Overdue</div>
+                  <div class="rem-card">
+                    <div class="rem-card-title">Call the plumber</div>
+                    <div class="rem-when overdue">2 days</div>
+                  </div>
+
+                  <div class="rem-section-head today">Today</div>
+                  <div class="rem-card">
+                    <div class="rem-card-title">Duke swim bag <span class="by">· Rich</span></div>
+                    <div class="rem-when timed">7:15am</div>
+                  </div>
+
+                  <div class="rem-section-head">This week</div>
+                  <div class="rem-card">
+                    <div class="rem-card-title">Pack Gab's library bag <span class="by">· Anna</span></div>
+                    <div class="rem-when">Thu</div>
+                  </div>
+                  <div class="rem-card">
+                    <div class="rem-card-title"><span class="rec">↻</span>Water plants</div>
+                    <div class="rem-when">Sun</div>
+                  </div>
+
+                  <div class="rem-section-head">Later</div>
+                  <div class="rem-card">
+                    <div class="rem-card-title">Rego renewal</div>
+                    <div class="rem-when">15 Aug</div>
+                  </div>
+
+                  <div class="rem-section-head">No date</div>
+                  <div class="rem-card">
+                    <div class="rem-card-title">Fix wobbly gate</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="body">
+          <h3>The sheet's five sections</h3>
+          <ul>
+            <li><strong>Overdue</strong> (coral header) — everything past due, not done. Top of the list, unmissable.</li>
+            <li><strong>Today</strong> (mint header) — due today (timed or date-only).</li>
+            <li><strong>This week</strong> — next 6 days, sorted by soonest.</li>
+            <li><strong>Later</strong> — future dates, grouped by soonest.</li>
+            <li><strong>No date</strong> (subtle grey) — undated reminders. "Fix the gate" energy.</li>
+          </ul>
+          <p><strong>Recurring visibility</strong> — recurring reminders show as their next upcoming instance in each section, with a ↻ prefix. Tap → expand → "Change series / Just this one" options like recurring calendar events.</p>
+          <p><strong>Attribution</strong> — small "· Anna" or "· Rich" tag next to reminders someone else created. Family-shared visibility, so you see who set what.</p>
+          <div class="callout"><strong>Tap-to-expand card actions:</strong> Edit title / Move date / Change time / Mark done / Delete / (recurring) End series after this one. Standard pattern from Calendar sheet.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════
+         04 — BRIEF ON LOCKSCREEN (new architecture)
+    ══════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">04 — Brief lives on the lockscreen</div>
+      <h2 class="chapter-title">Rich content on the notification, no app-open needed.</h2>
+      <p class="chapter-lede">The brief is generated server-side at each family's scheduled time and pushed to family members' phones with the full content baked in. You read the whole brief on the lockscreen. Tap to open chat with the brief expanded. Don't tap → still got the summary.</p>
+
+      <div class="scene reverse">
+        <div class="visual">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="lockscreen">
+                <div class="lock-time">7:03</div>
+                <div class="lock-date">Thursday, 24 July</div>
+                <div class="push-card">
+                  <div class="push-head">
+                    <div class="push-icon">z<span class="a">a</span></div>
+                    <div class="push-app">Zaeli</div>
+                    <div class="push-time">now</div>
+                  </div>
+                  <div class="push-title">Morning, Rich ☀</div>
+                  <div class="push-body">Hope Poppy's soccer went well last night 🌱. School pickup 2pm, Poppy dance 3:30. One thing: pack Gab's library bag 🎒</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="body">
+          <h3>The lockscreen push format</h3>
+          <p>iOS lockscreen shows title (bold, one line) + body (2-4 lines before truncation). Zaeli's brief is designed to fit without truncation:</p>
+          <ul>
+            <li><strong>Title:</strong> "Morning, Rich ☀" or "Evening, Rich 🌙" — ~20 chars max</li>
+            <li><strong>Body:</strong> 2-3 short sentences, ~150 chars — past-recall + today's key events + one thing. Emojis fine.</li>
+            <li><strong>App icon</strong> shows the Zaeli mark (z<span style="color:var(--sky)">a</span>).</li>
+            <li><strong>Tap notification</strong> → app opens to Chat sheet with the brief already visible in the feed.</li>
+            <li><strong>Don't tap</strong> → you still read the whole brief. That's the win.</li>
+          </ul>
+          <div class="callout win"><strong>The behavioural insight:</strong> you and Anna don't tap notifications because you're busy. So the brief needs to be USEFUL as-is on the lockscreen. Making it a summary-on-glance rather than a "tap to see more" changes everything.</div>
+          <div class="callout warn"><strong>Sonnet prompt constraint:</strong> the existing brief-generator prompt gets a tweak to enforce: 1 title line (~20 chars) + 1 body block (~150 chars). Same content quality, tighter shape.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════
+         05 — SERVER-SIDE BRIEF ARCHITECTURE
+    ══════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">05 — Server-side brief architecture</div>
+      <h2 class="chapter-title">The Sonnet call moves from client to cron.</h2>
+      <p class="chapter-lede">A new Supabase Edge Function runs every 15 min. It checks each family's scheduled brief time, generates the brief via Sonnet, caches it, and pushes to family members' phones with the full content. Client only reads cache when chat opens.</p>
+
+      <div class="arch">
+        <div class="arch-flow">
+          <div class="arch-node trigger">
+            <div class="icon">⏰</div>
+            <div class="lbl">pg_cron</div>
+            <div class="sub">every 15 min</div>
+          </div>
+          <div class="arch-node compute">
+            <div class="icon">🧠</div>
+            <div class="lbl">brief-scheduler</div>
+            <div class="sub">Edge Function<br>calls Sonnet</div>
+          </div>
+          <div class="arch-node store">
+            <div class="icon">💾</div>
+            <div class="lbl">zaeli_briefs</div>
+            <div class="sub">cache row<br>(existing table)</div>
+          </div>
+          <div class="arch-node push">
+            <div class="icon">📱</div>
+            <div class="lbl">family-notify</div>
+            <div class="sub">Expo push with<br>brief content</div>
+          </div>
+          <div class="arch-node client">
+            <div class="icon">💬</div>
+            <div class="lbl">Chat sheet</div>
+            <div class="sub">reads cache<br>on open</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <div class="body">
+          <h3>How it works</h3>
+          <ul>
+            <li><strong>pg_cron fires the scheduler every 15 min.</strong> It queries all families whose brief time falls in the last 15 min window AND haven't been generated today.</li>
+            <li><strong>For each qualifying family:</strong> gather context (events, meals, tasks, reminders, insights, memory), call Sonnet via anthropic-proxy, format for lockscreen (title + body).</li>
+            <li><strong>Cache to zaeli_briefs.</strong> Same table we use today. Client-side check on chat-open sees the cached brief and displays without another Sonnet call.</li>
+            <li><strong>Push to family adults via family-notify.</strong> Push payload includes the brief title + body. Lockscreen shows real content. Tap → chat opens with brief expanded.</li>
+            <li><strong>Client fallback:</strong> if user opens chat BEFORE the scheduled time (edge case), client fires the brief locally. Cache stops duplication.</li>
+          </ul>
+          <div class="callout"><strong>Cost math:</strong> ~2 briefs/family/day × ~A$0.008/brief = ~A$0.48/family/month. Same as today, but now guaranteed 2/day regardless of chat-opens (predictable, no runaway).</div>
+          <div class="callout warn"><strong>Optimisation for scale:</strong> only generate for families that have at least one push token registered AND have opened the app in the last 14 days. Cuts ~10-20% of Sonnet calls at scale (dormant families).</div>
+        </div>
+        <div class="visual">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar" style="opacity: 0.4;">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="ham"><span></span><span></span><span></span></div>
+              </div>
+              <div class="body-scroll" style="opacity: 0.15;">
+                <div class="tile cal">
+                  <div class="tile-head"><div class="tile-eyebrow" style="color:rgba(255,255,255,0.7)">📅 TODAY'S CALENDAR</div></div>
+                </div>
+              </div>
+              <div class="sheet-backdrop"></div>
+              <div class="sheet h92">
+                <div class="handle"></div>
+                <div class="sheet-head">
+                  <div class="sheet-title">💬 Chat with Zaeli</div>
+                  <div class="sheet-x">✕</div>
+                </div>
+                <div class="chat-body">
+                  <div class="msg-brief-in-chat">
+                    <div class="brief-pill morning">☀ MORNING</div>
+                    <div style="font-size:12px; color:var(--ink3); margin-bottom:6px;">Zaeli · 7:03 am</div>
+                    <div style="font-size:15px; line-height:22px;">Thursday morning, Rich — hope Poppy's soccer went well last night 🌱. School pickup 2pm, Poppy dance 3:30. One thing: pack Gab's library bag 🎒</div>
+                  </div>
+                  <div style="align-self:flex-start; margin-top: -2px;">
+                    <div class="chip-row">
+                      <div class="chip primary">Chat with me</div>
+                      <div class="chip">Got it</div>
+                    </div>
+                  </div>
+                  <div class="sheet-chatbar">
+                    <div class="cb-btn icon-ink"><svg><use href="#ico-mic"/></svg></div>
+                    <div class="cb-sep"></div>
+                    <div class="cb-field">Ask Zaeli anything…</div>
+                    <div class="cb-btn icon-coral"><svg><use href="#ico-camera"/></svg></div>
+                    <div class="cb-send"><svg><use href="#ico-send"/></svg></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════
+         06 — CHAT BAR FLOWS (unchanged from prior)
+    ══════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">06 — 🎙 📷 Chat bar flows</div>
+      <h2 class="chapter-title">Same UX as today's chat bar — just always available on Bento.</h2>
+      <p class="chapter-lede">Mic + camera in the chat bar behave EXACTLY like today's chat mic and camera. Only difference: from Bento, the result lands in a chat sheet that slides up — with a Notify chip for one-tap push to Anna.</p>
+
+      <div class="flow-row">
+        <div class="flow-cell">
+          <div class="phone compact-scale">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="ham"><span></span><span></span><span></span></div>
+              </div>
+              <div class="body-scroll" style="opacity: 0.4;">
+                <div class="tile rem">
+                  <div class="tile-head"><div class="tile-eyebrow">⏰ REMINDERS</div></div>
+                </div>
+              </div>
+              <div class="voice-pill">
+                <div class="voice-cancel">✕</div>
+                <div class="voice-waves">
+                  <span class="wave"></span><span class="wave"></span><span class="wave"></span><span class="wave"></span><span class="wave"></span><span class="wave"></span><span class="wave"></span>
+                </div>
+                <div class="voice-send"><svg><use href="#ico-send"/></svg></div>
+              </div>
+            </div>
+          </div>
+          <div class="flow-label">
+            <div class="flow-num">🎙</div>
+            <div class="flow-title">MIC</div>
+            <div class="flow-sub">Chat bar replaced by voice pill in place. Cancel / waves / Send. Sends → chat sheet with result + Notify chip.</div>
+          </div>
+        </div>
+
+        <div class="flow-cell">
+          <div class="phone compact-scale">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar" style="opacity: 0.4;">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="ham"><span></span><span></span><span></span></div>
+              </div>
+              <div class="sheet-backdrop"></div>
+              <div class="sheet h44">
+                <div class="handle"></div>
+                <div class="sheet-head">
+                  <div class="sheet-title">
+                    <svg width="20" height="20" style="color: var(--ink);"><use href="#ico-camera"/></svg>
+                    Add a photo
+                  </div>
+                  <div class="sheet-x">✕</div>
+                </div>
+                <div class="camera-pick">
+                  <div class="camera-option">
+                    <div class="icon-sq camera"><svg><use href="#ico-camera"/></svg></div>
+                    <div class="co-body">
+                      <div class="co-title">Take a photo</div>
+                      <div class="co-sub">Opens camera</div>
+                    </div>
+                    <div class="chev">›</div>
+                  </div>
+                  <div class="camera-option">
+                    <div class="icon-sq photos"><svg><use href="#ico-photos"/></svg></div>
+                    <div class="co-body">
+                      <div class="co-title">Choose from library</div>
+                      <div class="co-sub">Up to 4 photos</div>
+                    </div>
+                    <div class="chev">›</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flow-label">
+            <div class="flow-num">📷</div>
+            <div class="flow-title">CAMERA</div>
+            <div class="flow-sub">Same 44% picker as today's chat. Choose → capture → chat sheet with photo + Zaeli's interpretation.</div>
+          </div>
+        </div>
+
+        <div class="flow-cell">
+          <div class="phone compact-scale">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar" style="opacity: 0.4;">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="ham"><span></span><span></span><span></span></div>
+              </div>
+              <div class="sheet-backdrop"></div>
+              <div class="sheet h92">
+                <div class="handle"></div>
+                <div class="sheet-head">
+                  <div class="sheet-title">💬 Chat with Zaeli</div>
+                  <div class="sheet-x">✕</div>
+                </div>
+                <div class="chat-body">
+                  <div class="msg-user">add butter and eggs</div>
+                  <div class="msg-zaeli">Butter and eggs — on the list ✓</div>
+                  <div style="align-self:flex-start; margin-top: -2px;">
+                    <div class="chip-row">
+                      <div class="chip notify">🔔 Notify Anna</div>
+                      <div class="chip">All good</div>
+                    </div>
+                  </div>
+                  <div class="sheet-chatbar">
+                    <div class="cb-btn icon-ink"><svg><use href="#ico-mic"/></svg></div>
+                    <div class="cb-sep"></div>
+                    <div class="cb-field">Ask Zaeli anything…</div>
+                    <div class="cb-btn icon-coral"><svg><use href="#ico-camera"/></svg></div>
+                    <div class="cb-send"><svg><use href="#ico-send"/></svg></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flow-label">
+            <div class="flow-num">✅</div>
+            <div class="flow-title">RESULT</div>
+            <div class="flow-sub">Chat sheet with confirmation + <strong>Notify chip on every add</strong> (shopping/calendar/reminder/budget). One tap → push to Anna.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════
+         07 — HAMBURGER → SETTINGS
+    ══════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">07 — ☰ Hamburger → Settings sheet</div>
+      <h2 class="chapter-title">Profile · Household · Preferences · Sign out.</h2>
+      <p class="chapter-lede">Hamburger top-right of Bento → Settings sheet at 92%. Existing Settings content, wrapped in a Modal. No new UI to build — the current Settings screen just lives inside a sheet now.</p>
+
+      <div class="scene">
+        <div class="visual">
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="app-bar" style="opacity: 0.4;">
+                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                <div class="ham"><span></span><span></span><span></span></div>
+              </div>
+              <div class="body-scroll" style="opacity: 0.15;">
+                <div class="tile cal"><div class="tile-head"><div class="tile-eyebrow" style="color:rgba(255,255,255,0.7)">📅 TODAY'S CALENDAR</div></div></div>
+              </div>
+              <div class="sheet-backdrop"></div>
+              <div class="sheet h92">
+                <div class="handle"></div>
+                <div class="sheet-head">
+                  <div class="sheet-title">⚙ Settings</div>
+                  <div class="sheet-x">✕</div>
+                </div>
+
+                <div class="more-hero">
+                  <div class="more-avatar">R</div>
+                  <div style="flex:1;">
+                    <div class="more-name">Richard de Kretser</div>
+                    <div class="more-email">richarddekretser@gmail.com</div>
+                    <div class="more-tag">Family · A$9.99/mo · next bill 10 Aug</div>
+                  </div>
+                </div>
+
+                <div class="more-label">Household</div>
+                <div class="more-section">
+                  <div class="more-row">
+                    <div class="icon" style="background: #FCE7EF; color: #D4006A;">👥</div>
+                    <div class="body">
+                      <div class="title">Our family</div>
+                      <div class="sub">Rich · Anna · 3 kids</div>
+                    </div>
+                    <div class="chev">›</div>
+                  </div>
+                  <div class="more-row">
+                    <div class="icon" style="background: var(--mintTint); color: var(--mintDeep);">💰</div>
+                    <div class="body"><div class="title">Subscription</div></div>
+                    <div class="value">Manage</div>
+                    <div class="chev">›</div>
+                  </div>
+                </div>
+
+                <div class="more-label">Preferences</div>
+                <div class="more-section">
+                  <div class="more-row">
+                    <div class="icon" style="background: var(--peachTint); color: var(--peachBrown);">☀</div>
+                    <div class="body"><div class="title">Morning brief</div></div>
+                    <div class="value">7:00 am</div>
+                    <div class="chev">›</div>
+                  </div>
+                  <div class="more-row">
+                    <div class="icon" style="background: var(--lavTint); color: var(--lavDeep);">🌙</div>
+                    <div class="body"><div class="title">Evening brief</div></div>
+                    <div class="value">6:30 pm</div>
+                    <div class="chev">›</div>
+                  </div>
+                  <div class="more-row">
+                    <div class="icon" style="background: var(--skyTint); color: var(--skyDeep);">🔔</div>
+                    <div class="body"><div class="title">Notifications</div></div>
+                    <div class="chev">›</div>
+                  </div>
+                  <div class="more-row">
+                    <div class="icon" style="background: rgba(10,10,10,0.05); color: var(--ink);">🧠</div>
+                    <div class="body">
+                      <div class="title">Zaeli's memory</div>
+                      <div class="sub">What she remembers</div>
+                    </div>
+                    <div class="chev">›</div>
+                  </div>
+                </div>
+
+                <div class="more-label">Danger</div>
+                <div class="more-section">
+                  <div class="more-row danger">
+                    <div class="icon" style="background: var(--coralTint); color: var(--coralDeep);">↩</div>
+                    <div class="body"><div class="title" style="color: var(--coralDeep);">Sign out</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="body">
+          <h3>Nothing new here — just the Settings we already have</h3>
+          <ul>
+            <li><strong>Account hero</strong> — live signed-in profile + Stripe subscription state.</li>
+            <li><strong>Household</strong> — Our family (adult management) · Subscription (Stripe portal).</li>
+            <li><strong>Preferences</strong> — Morning + Evening brief times (drives the server-side scheduler) · Notifications · Zaeli's memory.</li>
+            <li><strong>Danger</strong> — Sign out.</li>
+          </ul>
+          <div class="callout"><strong>Existing settings.tsx</strong> becomes the sheet's content, wrapped in a Modal. Route stays at /(tabs)/settings for testing. Zero redesign work.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════
+         08 — BEHAVIOURS TABLE
+    ══════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">08 — Behaviours + rules</div>
+      <h2 class="chapter-title">Every interaction, one table.</h2>
+
+      <div class="states">
+        <div class="states-row head">
+          <div>SCENARIO</div>
+          <div>BEHAVIOUR</div>
+          <div>WHY</div>
+        </div>
+        <div class="states-row">
+          <div class="k">App opens on Bento</div>
+          <div class="v">4 tiles + chat bar visible</div>
+          <div class="v">Fast lane home base — glance and go</div>
+        </div>
+        <div class="states-row">
+          <div class="k">Tile quick-add (type + Enter)</div>
+          <div class="v">Direct Supabase insert, silent toast, no AI</div>
+          <div class="v">Anna's speed fix — beats iPhone Notes</div>
+        </div>
+        <div class="states-row">
+          <div class="k">Chat bar mic / camera / text / send</div>
+          <div class="v">Opens Chat sheet with result + Notify chip</div>
+          <div class="v">Chat sheet = Zaeli-with-personality zone</div>
+        </div>
+        <div class="states-row">
+          <div class="k">Tap any tile (Calendar / Shop / Rem / Budget)</div>
+          <div class="v">Opens that sheet at 92%. Chat bar hides behind.</div>
+          <div class="v">Focused workspace. Close to return.</div>
+        </div>
+        <div class="states-row">
+          <div class="k">Hamburger tap</div>
+          <div class="v">Settings sheet at 92%</div>
+          <div class="v">Consistent with other sheets. No MoreSheet.</div>
+        </div>
+        <div class="states-row">
+          <div class="k">Brief time hits (server)</div>
+          <div class="v">Sonnet generates, cache row written, push to family adults with rich content</div>
+          <div class="v">Zero client-side Sonnet call. Predictable cost.</div>
+        </div>
+        <div class="states-row">
+          <div class="k">User taps push notification</div>
+          <div class="v">App opens directly to Chat sheet with brief expanded</div>
+          <div class="v">Push → chat continuity</div>
+        </div>
+        <div class="states-row">
+          <div class="k">User opens chat WITHOUT tapping push</div>
+          <div class="v">Chat sheet reads latest cached brief from zaeli_briefs, displays</div>
+          <div class="v">No extra Sonnet call on chat-open</div>
+        </div>
+        <div class="states-row">
+          <div class="k">User opens chat BEFORE scheduled brief time</div>
+          <div class="v">Client fires brief locally as fallback (rare)</div>
+          <div class="v">Cache prevents duplicate later</div>
+        </div>
+        <div class="states-row">
+          <div class="k">Reminder due (timed)</div>
+          <div class="v">Local push to CREATOR only</div>
+          <div class="v">Family sees reminder on tile, but personal push doesn't spam Anna</div>
+        </div>
+        <div class="states-row">
+          <div class="k">Reminder added via chat</div>
+          <div class="v">Confirmation in chat + Notify chip → tap sends push to Anna</div>
+          <div class="v">Opt-in family broadcast for noteworthy reminders</div>
+        </div>
+        <div class="states-row">
+          <div class="k">Recurring reminder — user marks done</div>
+          <div class="v">This instance marked done. Next instance stays scheduled.</div>
+          <div class="v">Same pattern as recurring calendar events (Session 24)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════════════
+         09 — WHAT DIES / SURVIVES
+    ══════════════════════════════════════════════════════════ -->
+    <section class="chapter">
+      <div class="chapter-num">09 — Cleanup — what dies</div>
+      <h2 class="chapter-title">Final list of removals.</h2>
+
+      <ul style="list-style:none; max-width:720px;">
+        <li style="padding:14px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink);">
+          <strong>❌ Brief tile on Dashboard</strong> — moves to Chat sheet + lockscreen push. Bento gains real estate.
+        </li>
+        <li style="padding:14px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink);">
+          <strong>❌ Weather tile</strong> — iOS has this natively. Removed.
+        </li>
+        <li style="padding:14px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink);">
+          <strong>❌ Zaeli Noticed tile</strong> — data (family_insights) still fuels brief/chat context. No dedicated tile.
+        </li>
+        <li style="padding:14px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink);">
+          <strong>❌ Chat tile</strong> — chat bar is always visible one thumb below. Tile redundant.
+        </li>
+        <li style="padding:14px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink);">
+          <strong>❌ Coral mic FAB</strong> — mic is on the chat bar now.
+        </li>
+        <li style="padding:14px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink);">
+          <strong>❌ ActionBar concept</strong> — retired before it shipped. Chat bar covers all the same intents with tested code.
+        </li>
+        <li style="padding:14px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink);">
+          <strong>❌ MoreSheet component</strong> — hamburger goes directly to Settings sheet.
+        </li>
+        <li style="padding:14px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink);">
+          <strong>❌ Client-side brief firing on app-open</strong> — server-side scheduler handles it. Client reads cache.
+        </li>
+        <li style="padding:14px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink);">
+          <strong>❌ Budget financial numbers on tile</strong> — no more "A$0 left" anxiety. Tile is a minimal tap-through only.
+        </li>
+        <li style="padding:14px 0; border-top:1px solid var(--line); font-size:15px; color:var(--ink);">
+          <strong>❌ our-budget.tsx as full-page route</strong> — becomes a 92% sheet like Calendar/Shopping/Reminders.
+        </li>
+      </ul>
+
+      <div class="callout win" style="margin-top: 32px;"><strong>What's added:</strong> Reminders (data + tile + sheet + 92% + recurring) · Universal chat bar rendered on Bento · Hamburger back top-right · Server-side brief scheduler Edge Function · pg_cron trigger · Rich lockscreen push notifications · Notify chip on every tool confirmation.</div>
+      <div class="callout"><strong>Net direction:</strong> Bento is cleaner (4 tiles vs the old 5+). Chat is where Zaeli's personality genuinely lives. Brief is on the lockscreen where you can read it without opening the app. Reminders adds a real family-differentiator. Budget stops being an anxiety trigger. The whole v2 pattern reads as calm, honest, useful.</div>
+    </section>
+
+    <footer>
+      Zaeli v2 — Final Design. Written after: Anna's Notes-beats-Zaeli verdict, Rich's ActionBar-to-chat-bar pivot, Rich's reminders-as-fourth-pillar insight, Rich's budget-numbers-off-the-front-door call, and Rich's brief-belongs-on-the-lockscreen realisation. Every decision here came from real-use signal, not design speculation.
+    </footer>
+
+  </div>
+</body>
+</html>

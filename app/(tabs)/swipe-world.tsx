@@ -29,8 +29,10 @@ const SWIPE_HINT_KEY = 'swipe_hint_seen';
 // ── Constants ────────────────────────────────────────────────────────────────
 const { width: W } = Dimensions.get('window');
 
-const PAGE_CHAT      = 0;
-const PAGE_DASHBOARD = 1;
+// Session 32 v2 — Dashboard is at index 0 (DOM leftmost, opens by default).
+// Chat is at index 1 (right — user swipes LEFT with finger to reveal it).
+const PAGE_DASHBOARD = 0;
+const PAGE_CHAT      = 1;
 
 const LANDING_TEST_MODE = false; // Phase 4a — landing now fires only at time-window check (morning/midday/evening)
 
@@ -55,10 +57,10 @@ export default function SwipeWorld() {
   const hintOpacity = useRef(new Animated.Value(0)).current;
   const hintArrowX  = useRef(new Animated.Value(0)).current;
 
-  // Session 31 v2 — Open on Dashboard (front door). Chat is at page 0
-  // (leftmost in DOM order — swipe RIGHT with finger to reveal it), but
-  // we scroll immediately to page 1 (Dashboard) so it's what the user sees
-  // on app launch. DOM order kept as-is to avoid restructuring the ScrollView.
+  // Session 32 v2 — Dashboard is at DOM index 0 (leftmost). Initial scroll
+  // to x=0 lands users on Dashboard. Chat is at index 1 — user swipes LEFT
+  // with finger to reveal it on the right. Matches iOS convention (arrow
+  // points at content location: → for right-side content).
   useEffect(() => {
     const t = setTimeout(() => {
       scrollRef.current?.scrollTo({ x: PAGE_DASHBOARD * W, animated: false });
@@ -114,8 +116,8 @@ export default function SwipeWorld() {
           Animated.loop(
             Animated.sequence([
               // Session 31 v2 — arrow now points left (toward Chat), so animate leftward
-              Animated.timing(hintArrowX, { toValue: -6, duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-              Animated.timing(hintArrowX, { toValue: 0,  duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+              Animated.timing(hintArrowX, { toValue: 6, duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+              Animated.timing(hintArrowX, { toValue: 0, duration: 600, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
             ]),
           ).start();
           // Auto-dismiss after 6s
@@ -166,7 +168,17 @@ export default function SwipeWorld() {
         style={s.scroll}
         contentContainerStyle={{ flexGrow: 0 }}
       >
-        {/* Page 0 — Chat (opens here) */}
+        {/* Page 0 — Dashboard (front door, opens here) */}
+        <View style={s.page}>
+          <DashboardScreen
+            onNavigateChat={() => scrollToPage(PAGE_CHAT)}
+            onNavigateMySpace={() => router.navigate('/(tabs)/my-space' as any)}
+            isActive={activePage === PAGE_DASHBOARD}
+            onContextTrigger={() => setContextTrigger(c => c + 1)}
+          />
+        </View>
+
+        {/* Page 1 — Chat (swipe left with finger to reveal) */}
         <View style={s.page}>
           <ChatScreen
             isEmbedded={true}
@@ -177,41 +189,15 @@ export default function SwipeWorld() {
             onMicTextConsumed={() => setPendingMicText(null)}
           />
         </View>
-
-        {/* Page 1 — Dashboard */}
-        <View style={s.page}>
-          <DashboardScreen
-            onNavigateChat={() => scrollToPage(PAGE_CHAT)}
-            onNavigateMySpace={() => router.navigate('/(tabs)/my-space' as any)}
-            isActive={activePage === PAGE_DASHBOARD}
-            onContextTrigger={() => setContextTrigger(c => c + 1)}
-          />
-        </View>
       </ScrollView>
 
-      {/* ── Page dots — anchored INSIDE the header band, above the wordmark
-          (Session 25). Sit on top of the swipe container so they stay put
-          while pages swipe. Tappable — tap right dot to animate to Dashboard. */}
-      <View pointerEvents="box-none" style={[s.dotsWrap, { top: insets.top + 10 }]}>
-        <TouchableOpacity
-          accessibilityLabel="Go to Chat"
-          onPress={() => scrollToPage(PAGE_CHAT)}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <View style={[s.dot, activePage === PAGE_CHAT ? s.dotActive : s.dotIdle]} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          accessibilityLabel="Go to Dashboard"
-          onPress={() => scrollToPage(PAGE_DASHBOARD)}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <View style={[s.dot, activePage === PAGE_DASHBOARD ? s.dotActive : s.dotIdle]} />
-        </TouchableOpacity>
-      </View>
+      {/* Session 32 v2 — page dots removed per Rich's call. Cleaner header,
+          swipe hint teaches Chat exists on first install, users learn quickly. */}
 
       {/* ── First-run swipe hint — one-shot, fades out on dismiss ──
-          Session 31 v2: now fires from Dashboard (front door) to hint that
-          Chat is one swipe away. Arrow points ← toward Chat (page 0, DOM-left). */}
+          Session 32 v2: Chat is now at DOM index 1 (right side). Arrow
+          points → toward Chat. iOS convention (arrow shows content
+          location, not finger direction). */}
       {showSwipeHint && activePage === PAGE_DASHBOARD && (
         <Animated.View
           pointerEvents="box-none"
@@ -222,8 +208,8 @@ export default function SwipeWorld() {
             onPress={() => { scrollToPage(PAGE_CHAT); dismissSwipeHint(); }}
             style={s.hintPill}
           >
-            <Animated.Text style={[s.hintArrow, { transform: [{ translateX: hintArrowX }] }]}>←</Animated.Text>
             <Text style={s.hintText}>Swipe for chat with Zaeli</Text>
+            <Animated.Text style={[s.hintArrow, { transform: [{ translateX: hintArrowX }] }]}>→</Animated.Text>
           </TouchableOpacity>
         </Animated.View>
       )}
@@ -272,28 +258,6 @@ const s = StyleSheet.create({
   page: {
     width: W,
     flex: 1,
-  },
-  // ── Page dots (Session 25) — header-anchored, both pages ──
-  dotsWrap: {
-    position: 'absolute',
-    left: 0, right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    zIndex: 50,
-  },
-  dot: {
-    height: 7,
-    borderRadius: 4,
-  },
-  dotIdle: {
-    width: 7,
-    backgroundColor: 'rgba(10,10,10,0.20)',
-  },
-  dotActive: {
-    width: 22,
-    backgroundColor: '#FF4545',  // coral — primary brand accent (chat send button)
   },
   // ── First-run swipe hint pill (Session 25) — one-shot ──
   hintWrap: {

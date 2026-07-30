@@ -38,7 +38,7 @@ import { supabase } from '../../lib/supabase';
 import { getFamilyId } from '../../lib/family';
 import { getProfile } from '../../lib/auth';
 import { loadRoster, getRoster } from '../../lib/family-roster';
-import { setPendingChatContext } from '../../lib/navigation-store';
+import { setPendingChatContext, setChatIntent } from '../../lib/navigation-store';
 import Svg, { Path, Rect, Circle, Line, Polyline } from 'react-native-svg';
 
 // ── Design tokens ────────────────────────────────────────────────────────
@@ -242,6 +242,25 @@ export default function DashboardScreen({
     router.navigate('/(tabs)');
   }, [router, onNavigateChat]);
 
+  // ── Per-icon chat bar routing (Session 32 v2 Phase 04c) ────────────────
+  // Set an intent flag so Chat can act on activation. The chat bar on
+  // Dashboard is a fast-lane — tap mic and you get straight to recording;
+  // tap camera and you get straight to the picker. No extra step.
+  const openChatMic = useCallback(() => {
+    setChatIntent({ kind: 'mic' });
+    openChat();
+  }, [openChat]);
+
+  const openChatCamera = useCallback(() => {
+    setChatIntent({ kind: 'camera' });
+    openChat();
+  }, [openChat]);
+
+  const openChatFocus = useCallback(() => {
+    setChatIntent({ kind: 'focus' });
+    openChat();
+  }, [openChat]);
+
   // ── Derived ────────────────────────────────────────────────────────────
   const roster = getRoster();
   const memberById = (id: string) => roster.find(m => m.id === id);
@@ -384,28 +403,46 @@ export default function DashboardScreen({
       </KeyboardAvoidingView>
 
       {/* ── UNIVERSAL CHAT BAR ─────────────────────────────────────────
-          Session 32 — replaces coral mic FAB. Sits at screen bottom,
-          inset 14px each side (matches tile width). Visual-only for
-          Phase 04a — any tap navigates to Chat page. Real per-icon
-          routing (mic → recording pill, camera → picker, text →
-          keyboard-focused chat) lands in Phase 04c. */}
-      <TouchableOpacity
-        style={[s.chatbar, { bottom: 22 + Math.max(0, insets.bottom - 8) }]}
-        activeOpacity={0.85}
-        onPress={openChat}
-      >
-        <View style={s.cbBtn}>
+          Session 32 v2 — per-icon routing (Phase 04c). Each control
+          sets a specific ChatIntent then navigates. Chat consumes on
+          activation and jumps straight into the right mode. */}
+      <View style={[s.chatbar, { bottom: 22 + Math.max(0, insets.bottom - 8) }]}>
+        <TouchableOpacity
+          style={s.cbBtn}
+          activeOpacity={0.7}
+          onPress={openChatMic}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Start voice message"
+        >
           <IcoMic color={T.ink}/>
-        </View>
+        </TouchableOpacity>
         <View style={s.cbSep}/>
-        <Text style={s.cbField}>Ask Zaeli anything…</Text>
-        <View style={s.cbBtn}>
+        <TouchableOpacity
+          style={s.cbFieldTap}
+          activeOpacity={0.85}
+          onPress={openChatFocus}
+          accessibilityLabel="Type a message to Zaeli"
+        >
+          <Text style={s.cbField}>Ask Zaeli anything…</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.cbBtn}
+          activeOpacity={0.7}
+          onPress={openChatCamera}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel="Add photo"
+        >
           <IcoCamera color={T.coral}/>
-        </View>
-        <View style={s.cbSend}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={s.cbSend}
+          activeOpacity={0.85}
+          onPress={openChatFocus}
+          accessibilityLabel="Send message"
+        >
           <IcoSend/>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
 
     </SafeAreaView>
   );
@@ -536,8 +573,11 @@ const s = StyleSheet.create({
   cbSep: {
     width: 1, height: 24, backgroundColor: 'rgba(10,10,10,0.1)',
   },
+  cbFieldTap: {
+    flex: 1, justifyContent: 'center', paddingVertical: 10,
+  },
   cbField: {
-    flex: 1, fontSize: 17, color: T.ink3, paddingHorizontal: 4,
+    fontSize: 17, color: T.ink3, paddingHorizontal: 4,
     fontFamily: 'Poppins_400Regular',
   },
   cbSend: {
