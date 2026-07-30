@@ -5565,7 +5565,53 @@ Only include events directly relevant to the question. Max 5 events.`;
           const hasShopTool = toolUses.some((tu:any) => tu.name === 'add_shopping_item' || tu.name === 'remove_shopping_item' || tu.name === 'tick_shopping_item' || tu.name === 'update_shopping_item');
           const shopChips = hasShopTool ? ['Add more items', 'Back to Full List'] : [];
 
-          updateMsg(replyId, { text:cleanText, isLoading:false, quickReplies: shopChips.length > 0 ? shopChips : undefined });
+          // Session 32 v2 Phase 06 — Notify chip on ADD tools that families
+          // typically want to loop the other adult on. Shopping adds get one,
+          // reminder adds get one. (Calendar has its own richer confirm card
+          // Notify chip built above.)
+          const addShopToolUses = toolUses.filter((tu:any) => tu.name === 'add_shopping_item');
+          const addReminderToolUses = toolUses.filter((tu:any) => tu.name === 'add_reminder');
+          let phase06NotifyPayload: Msg['notifyPayload'] | undefined;
+          let phase06NotifyChip: string | undefined;
+          const myFirstName06 = (getProfile()?.name ?? '').split(/\s+/)[0] || 'Someone';
+          if (addShopToolUses.length > 0) {
+            const names = addShopToolUses.map((tu:any) => (tu.input?.name ?? '').trim()).filter(Boolean).slice(0, 5);
+            if (names.length) {
+              const list = names.length === 1 ? names[0] : `${names.length} items (${names.slice(0,3).join(', ')}${names.length>3 ? '…' : ''})`;
+              phase06NotifyPayload = {
+                recipientUserIds: [],
+                title: `🛒 ${myFirstName06} added to shopping`,
+                body:  list,
+                data:  { type: 'shopping_add' },
+              };
+              phase06NotifyChip = 'Notify family';
+            }
+          } else if (addReminderToolUses.length > 0) {
+            const titles = addReminderToolUses.map((tu:any) => (tu.input?.title ?? '').trim()).filter(Boolean).slice(0, 3);
+            if (titles.length) {
+              const list = titles.length === 1 ? titles[0] : `${titles.length} reminders`;
+              phase06NotifyPayload = {
+                recipientUserIds: [],
+                title: `⏰ ${myFirstName06} added a reminder`,
+                body:  list,
+                data:  { type: 'reminder_add' },
+              };
+              phase06NotifyChip = 'Notify family';
+            }
+          }
+
+          const chipsFinal = [
+            ...(phase06NotifyChip ? [phase06NotifyChip] : []),
+            ...shopChips,
+          ];
+
+          updateMsg(replyId, {
+            text: cleanText,
+            isLoading: false,
+            quickReplies: chipsFinal.length > 0 ? chipsFinal : undefined,
+            notifyPayload: phase06NotifyPayload,
+            notifyState: phase06NotifyPayload ? 'idle' : undefined,
+          });
           captureMemory(text, cleanText);
           // Refresh card data + inline calendar cards after any tool action
           loadCardData();
