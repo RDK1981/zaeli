@@ -255,3 +255,71 @@ export async function deleteGoal(id: string): Promise<boolean> {
   if (error) { console.log('[budget] deleteGoal error:', error.message); return false; }
   return true;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// ── EXPENSES (Session 32 v2 Phase 08 — flat model) ─────────────────────
+// ═══════════════════════════════════════════════════════════════════════
+// Replaces Category + LineItem. One row per recurring monthly expense.
+// UI shows flat list grouped by type (fixed / variable).
+// AI statement analyser writes directly here.
+export interface Expense {
+  id:             string;
+  name:           string;
+  emoji:          string;
+  type:           'fixed' | 'variable';
+  monthlyAmount:  number;
+  sortOrder:      number;
+}
+
+function rowToExpense(r: any): Expense {
+  return {
+    id:             r.id,
+    name:           r.name,
+    emoji:          r.emoji ?? '💰',
+    type:           r.type,
+    monthlyAmount:  Number(r.monthly_amount) || 0,
+    sortOrder:      Number(r.sort_order) || 0,
+  };
+}
+
+export async function loadExpenses(): Promise<Expense[]> {
+  const familyId = getFamilyId();
+  if (!familyId) return [];
+  const { data, error } = await supabase
+    .from('budget_expenses')
+    .select('*')
+    .eq('family_id', familyId)
+    .order('type')
+    .order('sort_order')
+    .order('created_at');
+  if (error) { console.log('[budget] loadExpenses error:', error.message); return []; }
+  return (data ?? []).map(rowToExpense);
+}
+
+export async function saveExpense(e: Expense): Promise<Expense | null> {
+  const familyId = getFamilyId();
+  if (!familyId) return null;
+  const row = {
+    id:              e.id,
+    family_id:       familyId,
+    name:            e.name,
+    emoji:           e.emoji || '💰',
+    type:            e.type,
+    monthly_amount:  e.monthlyAmount,
+    sort_order:      e.sortOrder,
+    updated_at:      new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from('budget_expenses')
+    .upsert(row, { onConflict: 'id' })
+    .select()
+    .maybeSingle();
+  if (error) { console.log('[budget] saveExpense error:', error.message); return null; }
+  return data ? rowToExpense(data) : null;
+}
+
+export async function deleteExpense(id: string): Promise<boolean> {
+  const { error } = await supabase.from('budget_expenses').delete().eq('id', id);
+  if (error) { console.log('[budget] deleteExpense error:', error.message); return false; }
+  return true;
+}
