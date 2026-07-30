@@ -51,6 +51,7 @@ import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 import { getFamilyId } from '../../lib/family';
+import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, type Reminder } from '../../lib/reminders';
 const MEMBER_NAME      = 'Rich';
 const INK              = '#0A0A0A';
 const INK3             = 'rgba(10,10,10,0.32)';
@@ -1701,6 +1702,7 @@ const TOOLS = [
   { name:'add_goal', description:'Add a personal goal', input_schema:{ type:'object', properties:{ title:{type:'string',description:'Goal title e.g. Run a half marathon'}, target_date:{type:'string',description:'Target date YYYY-MM-DD'}, detail:{type:'string',description:'Description of the goal and how to measure it'} }, required:['title'] } },
   { name:'update_goal', description:'Update a goal (progress, title, target date)', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Current goal title to search for'}, new_title:{type:'string'}, new_target_date:{type:'string'}, new_progress:{type:'number',description:'Progress percentage 0-100'}, new_detail:{type:'string'} }, required:['search_title'] } },
   { name:'delete_goal', description:'Delete a goal', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Goal title to search for'} }, required:['search_title'] } },
+  { name:'add_reminder', description:'Add a reminder. Three shapes: timed (remind_at set — fires a push notification to the creator at that instant), date-only (remind_on set — shows on that day, no push), undated (both omitted — "someday" bucket). Reminders are family-shared (everyone sees) but notifications go only to the person who created them. Use for personal to-remember things, NOT for calendar events (use add_calendar_event for shared events with a time).', input_schema:{ type:'object', properties:{ title:{type:'string',description:'What to remember, e.g. "pay soccer registration" or "call plumber back"'}, notes:{type:'string',description:'Optional detail — extra context if useful'}, remind_at:{type:'string',description:'ISO 8601 local time (no Z suffix), e.g. "2026-08-15T09:00:00". Sets a timed reminder that fires a phone notification.'}, remind_on:{type:'string',description:'YYYY-MM-DD if user wants a date-only reminder (no specific time). Use this OR remind_at, not both.'}, repeat:{type:'string',enum:['none','daily','weekdays','weekly','fortnightly','monthly'],description:'Recurring? Default none. Generates instances for ~12 months.'} }, required:['title'] } },
 ];
 
 async function executeTool(name: string, input: any): Promise<string> {
@@ -2216,6 +2218,50 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (error) throw error;
       return `\u2705 **${data[0].title}** removed from your goals.`;
     }
+    if (name === 'add_reminder') {
+      // Session 32 v2 Phase 05 \u2014 Zaeli-authored reminders. Family-shared
+      // visibility (everyone sees) with creator-only local notifications
+      // (only the person who set it gets the phone buzz).
+      const title = typeof input.title === 'string' ? input.title.trim() : '';
+      if (!title) return `TOOL_FAILED: add_reminder needs a title.`;
+      const repeat = (input.repeat as any) || 'none';
+
+      if (repeat !== 'none' && input.remind_at) {
+        try {
+          const saved = await (async () => {
+            const { saveReminderSeries } = await import('../../lib/reminders');
+            return await saveReminderSeries({
+              title,
+              notes: input.notes,
+              firstOccurrenceISO: input.remind_at,
+              rule: repeat,
+            });
+          })();
+          if (!saved.length) return `TOOL_FAILED: reminder series didn't save.`;
+          return `\u2705 **${title}** \u2014 recurring (${repeat}), ${saved.length} instances scheduled.`;
+        } catch (e:any) {
+          return `TOOL_FAILED: ${e?.message || 'series save failed'}`;
+        }
+      }
+
+      const r = await saveReminder({
+        title,
+        notes: input.notes,
+        remindAt: input.remind_at,
+        remindOn: input.remind_on,
+        repeatRule: repeat,
+        status: 'active',
+      });
+      if (!r) return `TOOL_FAILED: reminder didn't save.`;
+      let whenLabel = 'no time set';
+      if (r.remindAt) {
+        const d = new Date(r.remindAt);
+        whenLabel = d.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }) + ' at ' + d.toLocaleTimeString('en-AU', { hour:'numeric', minute:'2-digit' });
+      } else if (r.remindOn) {
+        whenLabel = 'on ' + new Date(r.remindOn + 'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+      }
+      return `\u2705 **${title}** \u2014 ${whenLabel}.`;
+    }
     if (name === 'send_family_message') {
       // Session 29 \u2014 Zaeli's "text a family member" flow. Resolves first names
       // to profile IDs, filters to those with push tokens, dispatches via the
@@ -2378,7 +2424,10 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
           <Text style={{ fontFamily:'Poppins_700Bold', fontSize:16, color:'rgba(0,0,0,0.45)', textAlign:'right' }} numberOfLines={1}>{fmtTime(ev.start_time)}</Text>
         </View>
         <View style={{ flex:1 }}>
-          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:17, color:'#0A0A0A' }} numberOfLines={1}>{ev.title}</Text>
+          <Text
+            style={{ fontFamily:'Poppins_700Bold', fontSize:17, color:'#0A0A0A', lineHeight: expanded ? 23 : 20 }}
+            numberOfLines={expanded ? undefined : 1}
+          >{ev.title}</Text>
           <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.40)', marginTop:2 }}>
             {fmtTime(ev.start_time)}{ev.end_time && ev.end_time !== ev.start_time ? ` – ${fmtTime(ev.end_time)}` : ''}{location ? ` · ${location}` : ''}
           </Text>
@@ -3374,6 +3423,12 @@ function HomeScreen({
   const [calSheetUserTapped, setCalSheetUserTapped] = useState(false);
   const [calSheetDayEvs,  setCalSheetDayEvs]  = useState<any[]>([]);
   const [calSheetMonthEvs, setCalSheetMonthEvs] = useState<any[]>([]); // all events in current month for dots
+
+  // ── Reminders sheet state (Session 32 v2 Phase 05) ─────────────────────
+  const [remindSheetOpen,    setRemindSheetOpen]    = useState(false);
+  const [remindSheetItems,   setRemindSheetItems]   = useState<any[]>([]);
+  const [remindDraft,        setRemindDraft]        = useState('');
+  const [remindKbHeight,     setRemindKbHeight]     = useState(0);
 
   // ── Shopping sheet state ─────────────────────────────────────────────────
   const [shopSheetOpen,      setShopSheetOpen]      = useState(false);
@@ -4554,7 +4609,13 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
         return;
       }
 
-      if ((ctx.type as string) === 'calendar_sheet') {
+      if ((ctx.type as string) === 'reminders_sheet') {
+        setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+        setTimeout(() => openRemindSheet(), 300);
+        return;
+      }
+
+      if ((ctx.type as string) === 'calendar_sheet' || (ctx.type as string) === 'calendar_view') {
         setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
         setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today'), 300);
         return;
@@ -4762,7 +4823,13 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
       return;
     }
 
-    if ((ctx.type as string) === 'calendar_sheet') {
+    if ((ctx.type as string) === 'reminders_sheet') {
+      setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
+      setTimeout(() => openRemindSheet(), 300);
+      return;
+    }
+
+    if ((ctx.type as string) === 'calendar_sheet' || (ctx.type as string) === 'calendar_view') {
       setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
       setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today'), 300);
       return;
@@ -4833,7 +4900,11 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
       setTimeout(() => openShopSheet('list'), 300);
       return;
     }
-    if ((ctx.type as string) === 'calendar_sheet') {
+    if ((ctx.type as string) === 'reminders_sheet') {
+      setTimeout(() => openRemindSheet(), 300);
+      return;
+    }
+    if ((ctx.type as string) === 'calendar_sheet' || (ctx.type as string) === 'calendar_view') {
       setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today'), 300);
       return;
     }
@@ -5651,6 +5722,28 @@ Only include events directly relevant to the question. Max 5 events.`;
   }
 
   // ── Shopping sheet open / data ────────────────────────────────────────────
+  // ── Reminders sheet (Session 32 v2 Phase 05) ──────────────────────────
+  async function openRemindSheet() {
+    setRemindSheetOpen(true);
+    await reloadReminders();
+  }
+  async function reloadReminders() {
+    try {
+      const list = await loadReminders();
+      setRemindSheetItems(list);
+    } catch (e:any) { console.log('[reminders] reload error:', e?.message); }
+  }
+  async function submitRemind() {
+    const raw = remindDraft.trim();
+    if (!raw) return;
+    setRemindDraft('');
+    // Simple heuristic: default = undated. User can tap the calendar/time
+    // pills after adding to attach a schedule. Keeps add-flow as fast as
+    // the shopping tile.
+    const r = await saveReminder({ title: raw.charAt(0).toUpperCase() + raw.slice(1), status: 'active' });
+    if (r) setRemindSheetItems(prev => [r, ...prev]);
+  }
+
   async function openShopSheet(tab: 'list'|'pantry'|'spend' = 'list') {
     setShopSheetTab(tab);
     setShopSearchOpen(false);
@@ -7620,6 +7713,140 @@ Rules:
                     </ScrollView>
                   </View>
                 )}
+              </SafeAreaView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* ── REMINDERS SHEET (Session 32 v2 Phase 05) ────────────────────
+            Simple v1: title-only reminders, ordered by remind_at/on/created.
+            Tap ✓ to mark done, tap ✕ to delete. Add row at bottom.
+            Time/date pickers land in a follow-up pass — first ship the
+            add + list + done + delete loop so Anna can try it.  */}
+        <Modal
+          visible={remindSheetOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setRemindSheetOpen(false)}
+          onDismiss={handleSheetDismissed}
+        >
+          <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
+            <TouchableOpacity style={{ flex:1 }} onPress={() => setRemindSheetOpen(false)} activeOpacity={1}/>
+            <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' }}>
+              <SafeAreaView style={{ flex:1, display:'flex', flexDirection:'column' }} edges={[]}>
+                <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginTop:10 }}/>
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+                    <Text style={{ fontSize:20 }}>⏰</Text>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A0A0A', letterSpacing:-0.3 }}>Reminders</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setRemindSheetOpen(false)}
+                    style={{ width:36, height:36, borderRadius:10, backgroundColor:'rgba(0,0,0,0.07)', alignItems:'center', justifyContent:'center' }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize:16, color:'rgba(0,0,0,0.5)' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <KeyboardAvoidingView
+                  style={{ flex:1 }}
+                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                  keyboardVerticalOffset={0}
+                >
+                  <ScrollView
+                    style={{ flex:1 }}
+                    contentContainerStyle={{ padding:16, paddingBottom: 20 + Math.max(0, insets.bottom) }}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {remindSheetItems.length === 0 ? (
+                      <View style={{ paddingVertical:32, alignItems:'center' }}>
+                        <Text style={{ fontSize:38, marginBottom:8 }}>⏰</Text>
+                        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:17, color:'#0A0A0A', marginBottom:4 }}>Nothing to remember yet</Text>
+                        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.5)', textAlign:'center', maxWidth:260 }}>
+                          Everyone in the family sees these. Notifications go to whoever added them.
+                        </Text>
+                      </View>
+                    ) : remindSheetItems.map((r:Reminder) => {
+                      const isDone = r.status === 'done';
+                      const myId = getProfile()?.id;
+                      const isMe = r.createdBy === myId;
+                      let whenLabel = 'someday';
+                      if (r.remindAt) {
+                        const d = new Date(r.remindAt);
+                        const dToday = new Date(); dToday.setHours(0,0,0,0);
+                        const dTmw   = new Date(dToday.getTime() + 24*3600*1000);
+                        const dayOfR = new Date(d); dayOfR.setHours(0,0,0,0);
+                        const hh     = d.getHours(); const mm = d.getMinutes();
+                        const tstr   = `${((hh+11)%12+1)}${mm ? ':' + String(mm).padStart(2,'0') : ''}${hh<12?'am':'pm'}`;
+                        if (dayOfR.getTime() === dToday.getTime()) whenLabel = `Today · ${tstr}`;
+                        else if (dayOfR.getTime() === dTmw.getTime()) whenLabel = `Tomorrow · ${tstr}`;
+                        else whenLabel = `${d.toLocaleDateString('en-AU',{ weekday:'short', day:'numeric', month:'short' })} · ${tstr}`;
+                      } else if (r.remindOn) {
+                        const d = new Date(r.remindOn + 'T00:00:00');
+                        whenLabel = d.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'short' });
+                      }
+                      return (
+                        <View key={r.id} style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#fff', borderRadius:16, padding:14, marginBottom:8, borderLeftWidth:3, borderLeftColor: isMe ? '#F0DC80' : 'rgba(0,0,0,0.10)' }}>
+                          <TouchableOpacity
+                            onPress={async () => {
+                              const updated = isDone ? await unmarkReminderDone(r) : await markReminderDone(r);
+                              if (updated) setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
+                            }}
+                            style={{ width:26, height:26, borderRadius:13, borderWidth:2, borderColor: isDone ? '#22C55E' : 'rgba(0,0,0,0.20)', backgroundColor: isDone ? '#22C55E' : 'transparent', alignItems:'center', justifyContent:'center' }}
+                            hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                          >
+                            {isDone && <Text style={{ color:'#fff', fontSize:14, fontWeight:'700' }}>✓</Text>}
+                          </TouchableOpacity>
+                          <View style={{ flex:1 }}>
+                            <Text
+                              style={{ fontFamily:'Poppins_600SemiBold', fontSize:16, color: isDone ? 'rgba(0,0,0,0.4)':'#0A0A0A', textDecorationLine: isDone ? 'line-through' : 'none' }}
+                              numberOfLines={0}
+                            >
+                              {r.title}
+                            </Text>
+                            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(0,0,0,0.5)', marginTop:2 }}>
+                              {whenLabel}{isMe ? '' : ' · shared'}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            onPress={async () => {
+                              const ok = await deleteReminder(r);
+                              if (ok) setRemindSheetItems(prev => prev.filter(x => x.id !== r.id));
+                            }}
+                            hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                          >
+                            <Text style={{ fontSize:18, color:'rgba(0,0,0,0.30)' }}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {/* Add row — sticky bottom */}
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:10, paddingHorizontal:16, paddingTop:10, paddingBottom: 12 + Math.max(0, insets.bottom - 8), borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', backgroundColor:'#FAF8F5' }}>
+                    <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#fff', borderRadius:14, borderWidth:1.5, borderColor:'#F0DC80', paddingHorizontal:14, paddingVertical:10 }}>
+                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:20, color:'#FF4545' }}>+</Text>
+                      <TextInput
+                        value={remindDraft}
+                        onChangeText={setRemindDraft}
+                        onSubmitEditing={submitRemind}
+                        placeholder="Add a reminder…"
+                        placeholderTextColor="rgba(139,105,20,0.55)"
+                        returnKeyType="done"
+                        style={{ flex:1, fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', padding:0 }}
+                        blurOnSubmit={false}
+                      />
+                    </View>
+                    <TouchableOpacity
+                      onPress={submitRemind}
+                      disabled={!remindDraft.trim()}
+                      style={{ width:46, height:46, borderRadius:23, backgroundColor: remindDraft.trim() ? '#FF4545' : 'rgba(255,69,69,0.28)', alignItems:'center', justifyContent:'center' }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={{ color:'#fff', fontFamily:'Poppins_700Bold', fontSize:18 }}>›</Text>
+                    </TouchableOpacity>
+                  </View>
+                </KeyboardAvoidingView>
               </SafeAreaView>
             </View>
           </View>

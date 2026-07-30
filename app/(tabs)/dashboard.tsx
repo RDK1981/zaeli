@@ -60,6 +60,9 @@ const T = {
   sky:       '#A8D8F0',
   skyTint:   '#E8F4FD',
   skyDeep:   '#0A5C80',
+  gold:      '#F0DC80',
+  goldTint:  '#FBF5D6',
+  goldDeep:  '#8B6914',
   coral:     '#FF4545',
   slate:     '#2D3748',
   anna:      '#FF7B6B',
@@ -159,12 +162,17 @@ export default function DashboardScreen({
   const [shopQuickAdd, setShopQuickAdd] = useState('');
   const [shopJustAdded, setShopJustAdded] = useState<string | null>(null);
 
+  // Reminders (Session 32 v2 Phase 05)
+  const [remindItems, setRemindItems] = useState<{ id: string; title: string; whenLabel: string; isMe: boolean }[]>([]);
+  const [remindCount, setRemindCount] = useState(0);
+
   // ── Data loaders — leaner than Phase 01, only what tiles need ─────────
   const loadData = useCallback(async () => {
     const today = localDateStr();
     const fid = getFamilyId();
+    const myId = getProfile()?.id;
 
-    const [evRes, shopRes] = await Promise.all([
+    const [evRes, shopRes, remRes] = await Promise.all([
       supabase.from('events')
         .select('id,title,date,start_time,assignees')
         .eq('family_id', fid).eq('date', today)
@@ -173,12 +181,39 @@ export default function DashboardScreen({
         .select('id,name')
         .eq('family_id', fid).neq('checked', true)
         .order('created_at', { ascending: false }).limit(50),
+      supabase.from('reminders')
+        .select('id,title,remind_at,remind_on,created_by,status')
+        .eq('family_id', fid).eq('status', 'active')
+        .order('remind_at', { ascending: true, nullsFirst: false })
+        .order('remind_on', { ascending: true, nullsFirst: false })
+        .limit(20),
     ]);
 
     setTodayEvents((evRes.data ?? []).slice(0, 3));
     setEventCountToday((evRes.data ?? []).length);
     setShopItems((shopRes.data ?? []).slice(0, 3));
     setShopCount((shopRes.data ?? []).length);
+
+    const rems = (remRes.data ?? []).map((r: any) => {
+      let whenLabel = 'someday';
+      if (r.remind_at) {
+        const d = new Date(r.remind_at);
+        const dToday = new Date(); dToday.setHours(0,0,0,0);
+        const dTmw   = new Date(dToday.getTime() + 24*3600*1000);
+        const dayOfR = new Date(d); dayOfR.setHours(0,0,0,0);
+        const hh     = d.getHours(); const mm = d.getMinutes();
+        const tstr   = `${((hh+11)%12+1)}${mm ? ':' + String(mm).padStart(2,'0') : ''}${hh<12?'am':'pm'}`;
+        if (dayOfR.getTime() === dToday.getTime()) whenLabel = tstr;
+        else if (dayOfR.getTime() === dTmw.getTime()) whenLabel = `tmw ${tstr}`;
+        else whenLabel = `${d.toLocaleDateString('en-AU',{ weekday:'short' })} ${tstr}`;
+      } else if (r.remind_on) {
+        const d = new Date(r.remind_on + 'T00:00:00');
+        whenLabel = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric' });
+      }
+      return { id: r.id, title: r.title, whenLabel, isMe: r.created_by === myId };
+    });
+    setRemindItems(rems.slice(0, 3));
+    setRemindCount(rems.length);
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -236,6 +271,15 @@ export default function DashboardScreen({
   const openBudget = useCallback(() => {
     router.navigate('/(tabs)/our-budget');
   }, [router]);
+
+  // Session 32 v2 Phase 05 — Reminders sheet lives in Chat (index.tsx)
+  // to reuse the 92% Modal + KAV infrastructure. Same pattern as Shopping.
+  const openRemindersSheet = useCallback(() => {
+    setPendingChatContext({ type: 'reminders_sheet', returnTo: 'dashboard' } as any);
+    onContextTrigger?.();
+    if (onNavigateChat) { onNavigateChat(); return; }
+    router.navigate('/(tabs)');
+  }, [router, onNavigateChat, onContextTrigger]);
 
   const openChat = useCallback(() => {
     if (onNavigateChat) { onNavigateChat(); return; }
@@ -384,6 +428,34 @@ export default function DashboardScreen({
                 ✓ ADDED {shopJustAdded.toUpperCase()}
               </Text>
             )}
+          </TouchableOpacity>
+
+          {/* ── REMINDERS TILE (gold) — Session 32 v2 Phase 05 ─────────── */}
+          <TouchableOpacity
+            style={[s.tile, { backgroundColor: T.goldTint, borderColor: 'transparent' }]}
+            onPress={openRemindersSheet} activeOpacity={0.85}
+          >
+            <View style={s.tileHead}>
+              <Text style={[s.tileEyebrow, { color: T.goldDeep }]}>⏰ REMINDERS</Text>
+              <Text style={[s.tileMeta, { color: T.goldDeep, opacity: 0.65 }]}>
+                {remindCount === 0 ? 'none' : `${remindCount} up next`}
+              </Text>
+            </View>
+            {remindItems.length === 0 ? (
+              <Text style={[s.emptyRow, { color: T.goldDeep, opacity: 0.65 }]}>Nothing to remember — tap to add one.</Text>
+            ) : (
+              remindItems.map(r => (
+                <View key={r.id} style={s.calRow}>
+                  <Text style={[s.calTime, { color: T.goldDeep, opacity: 0.75 }]}>{r.whenLabel}</Text>
+                  <View style={[s.calDot, { backgroundColor: T.goldDeep, opacity: r.isMe ? 0.9 : 0.45 }]}/>
+                  <Text style={[s.calTitle, { color: T.ink }]} numberOfLines={1}>{r.title}</Text>
+                </View>
+              ))
+            )}
+            <View style={[s.quickAdd, { backgroundColor: '#fff', borderColor: T.goldDeep, borderWidth: 1.5 }]}>
+              <Text style={[s.quickPlus, { color: T.coral }]}>+</Text>
+              <Text style={[s.quickField, { color: T.goldDeep, opacity: 0.75 }]}>Add a reminder…</Text>
+            </View>
           </TouchableOpacity>
 
           {/* ── BUDGET TILE — minimal, no numbers, tap-through ─────────── */}
