@@ -28,6 +28,7 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
+import { loadPrefs, savePrefs } from '../../lib/user-prefs';
 
 // ── Colour tokens ──────────────────────────────────────────────────────────
 const BG        = '#FAF8F5';
@@ -76,9 +77,13 @@ interface Member {
 }
 
 interface Rhythm {
-  schoolRun: string;  // 'HH:MM' 24h
-  dinner: string;
-  kidsInBed: string;
+  schoolRun: string;   // 'HH:MM' 24h — life anchor (context for Zaeli, not a notification)
+  dinner: string;      // life anchor
+  kidsInBed: string;   // life anchor
+  // Round A brief-time pickers — persisted to user_preferences.briefMorningTime
+  // / briefEveningTime at finishOnboarding via lib/user-prefs.savePrefs.
+  briefMorning: string;  // when the morning brief fires as a lockscreen push
+  briefEvening: string;  // evening brief
 }
 
 interface Prefs {
@@ -316,7 +321,10 @@ export default function OnboardingScreen() {
   const [family, setFamily]   = useState<Member[]>([]);
   // Rhythm keeps sensible default times so the picker has something to start
   // from; user adjusts on Step 5.
-  const [rhythm, setRhythm]   = useState<Rhythm>({ schoolRun: '08:15', dinner: '18:00', kidsInBed: '20:30' });
+  const [rhythm, setRhythm]   = useState<Rhythm>({
+    schoolRun: '08:15', dinner: '18:00', kidsInBed: '20:30',
+    briefMorning: '07:00', briefEvening: '17:00',
+  });
   const [prefs, setPrefs]     = useState<Prefs>({
     chips: [],
     holiday: false,
@@ -405,6 +413,26 @@ export default function OnboardingScreen() {
         completedAt: new Date().toISOString(),
         name, email, family, rhythm, prefs, locationOK, notifOK,
       }));
+
+      // Round A — persist chosen brief times to user_preferences so the
+      // server-side scheduler (supabase/functions/brief-scheduler) picks
+      // them up from profiles.user_preferences on its next cron tick.
+      // Load existing prefs first so we don't stomp fields the user
+      // hasn't touched (defaults from lib/user-prefs supply the rest).
+      try {
+        const existing = await loadPrefs();
+        await savePrefs({
+          ...existing,
+          briefMorningTime: rhythm.briefMorning,
+          briefEveningTime: rhythm.briefEvening,
+          // Ensure both are ON so the server picks them up — user can
+          // toggle off later in Settings if they want to.
+          briefMorningOn: true,
+          briefEveningOn: true,
+        });
+      } catch (e: any) {
+        console.log('[onboarding] savePrefs failed (defaults will apply):', e?.message);
+      }
     } catch {}
     router.replace('/(tabs)/swipe-world' as any);
   }
@@ -797,6 +825,28 @@ function RhythmStep(p: { rhythm: Rhythm; setRhythm: (r: Rhythm) => void; family:
     </View>
   );
 
+  // Round A — separate card for the brief-time notification anchors.
+  // Different concept from life anchors above (rhythm = context for Zaeli,
+  // briefs = when the phone actually buzzes). Explicit picker so users can
+  // set fires that fit their day — no more locked defaults.
+  const briefCard = (
+    <View style={[s.inlineCard, { marginTop: 12 }]}>
+      <Text style={s.cardLbl}>When should I reach you?</Text>
+
+      <TouchableOpacity style={s.rhythmRow} activeOpacity={0.75} onPress={() => openPicker('briefMorning')}>
+        <View style={[s.rhythmIcon, { backgroundColor: '#FDF1E5' }]}><Text style={{ fontSize: 16 }}>🌅</Text></View>
+        <Text style={s.rhythmLabel}>Morning brief on your lockscreen</Text>
+        <Text style={s.rhythmTime}>{fmtTime12(p.rhythm.briefMorning)}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[s.rhythmRow, { borderBottomWidth: 0 }]} activeOpacity={0.75} onPress={() => openPicker('briefEvening')}>
+        <View style={[s.rhythmIcon, { backgroundColor: '#F0EBFF' }]}><Text style={{ fontSize: 16 }}>🌙</Text></View>
+        <Text style={s.rhythmLabel}>Evening brief on your lockscreen</Text>
+        <Text style={s.rhythmTime}>{fmtTime12(p.rhythm.briefEvening)}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   // Family greeting carries over from Step 4 (the natural Zaeli reaction
   // happens after they've actually added members, not while they were typing).
   const greeting = renderFamilyGreeting(p.family);
@@ -810,12 +860,20 @@ function RhythmStep(p: { rhythm: Rhythm; setRhythm: (r: Rhythm) => void; family:
             { kind: 'zaeli', node: greeting },
             { kind: 'zaeli', node: <><Text style={s.b}>Three moments make or break a weekday.</Text> Set yours and I won't nudge at the wrong one — no one needs a ping at 7:58 when you're hunting for shoes.</> },
             { kind: 'card', node: card },
+            { kind: 'zaeli', node: <>And when do you want me on your lockscreen? A morning brief to set the day and an evening one to close it. Pick times that fit your rhythm — you can change them anytime in Settings.</> },
+            { kind: 'card', node: briefCard },
           ]}
         />
 
         {editing && (
           <View style={s.pickerModal}>
-            <Text style={s.pickerLbl}>Set {editing === 'schoolRun' ? 'school run' : editing === 'dinner' ? 'dinner time' : 'bedtime'}</Text>
+            <Text style={s.pickerLbl}>Set {
+              editing === 'schoolRun' ? 'school run'
+              : editing === 'dinner' ? 'dinner time'
+              : editing === 'kidsInBed' ? 'bedtime'
+              : editing === 'briefMorning' ? 'morning brief time'
+              : 'evening brief time'
+            }</Text>
             <DateTimePicker
               value={pickDate} mode="time" display="spinner"
               onChange={(_: any, d?: Date) => { if (d) setPickDate(d); }}
@@ -1284,7 +1342,8 @@ function BriefPreviewStep(p: { name: string; family: Member[]; rhythm: Rhythm; o
   const lastKid = kids[kids.length - 1];
   const olderNames = firstTwo.length === 2 ? `${firstTwo[0]} and ${firstTwo[1]}` : firstTwo[0] ?? 'the kids';
   const youngest = lastKid?.name ?? 'your youngest';
-  const briefTime = fmtTime12(subtractMin(p.rhythm.schoolRun, 45));
+  // Round A — use user's chosen morning brief time, not a derived one.
+  const briefTime = fmtTime12(p.rhythm.briefMorning);
 
   const [done, setDone] = useState(false);
   const briefBlock = (
@@ -1515,7 +1574,8 @@ function DashRow(p: { emoji: string; bg: string; fg: string; title: string; sub:
 // STEP 13 — READY
 // ═══════════════════════════════════════════════════════════════════════════
 function ReadyStep(p: { name: string; rhythm: Rhythm; onFinish: () => void }) {
-  const briefTime = fmtTime12(subtractMin(p.rhythm.schoolRun, 45));
+  // Round A — use user's chosen morning brief time, not a derived one.
+  const briefTime = fmtTime12(p.rhythm.briefMorning);
   return (
     <View style={{ flex: 1 }}>
       <ChatHeader/>

@@ -343,7 +343,22 @@ export default function SettingsScreen() {
               }},
             ],
           )}
-          onDelete={() => Alert.alert('Delete account', 'Destructive flow — confirmation + cascade delete will live here.')}
+          onDelete={() => Alert.alert(
+            'Delete account',
+            'Emails hello@zaeli.ai from your Mail app. We\'ll action the delete within 30 days and confirm by reply. All family data will be permanently removed.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Email now', style: 'destructive', onPress: () => {
+                const body = encodeURIComponent(
+                  'Please delete my Zaeli account and all associated family data.\n\n' +
+                  `Account email: ${profile?.email ?? '(add your email here)'}\n` +
+                  `Family: ${profile?.name ?? '(add your name here)'}\n\n` +
+                  'Thanks.'
+                );
+                Linking.openURL(`mailto:hello@zaeli.ai?subject=Delete%20my%20account&body=${body}`).catch(() => {});
+              }},
+            ],
+          )}
           onOurFamily={() => { setFamilyFromSettings(); router.navigate('/(tabs)/family' as any); }}
           onReplayOnboarding={async () => {
             // Clear the completion flag so any future auto-redirect gate also fires,
@@ -695,7 +710,10 @@ function MainView(p: {
              onPress={p.onOurFamily} last/>
       </View>
 
-      {/* Preferences */}
+      {/* Preferences — v2 cleanup: Integrations + Replay tour removed
+          (Integrations wasn't wired anywhere; tour is stale for v2 pivot
+          — references hidden features like Kids Hub / Tutor / Travel. Both
+          come back later, tour when we rewrite it for the trio v2 world.) */}
       <SecLabel>Preferences</SecLabel>
       <View style={s.group}>
         <Row icon="🔔" iconBg="#FFF4E0" iconFg="#D97706"
@@ -703,24 +721,13 @@ function MainView(p: {
              onPress={p.onNavNotifications}/>
         <Row icon="✦" iconBg="#EDE8FF" iconFg="#6B35D9"
              title="Zaeli's memory" sub="What I remember about your family"
-             onPress={p.onNavMemory}/>
-        <Row icon="🧭" iconBg="#E6F7EF" iconFg="#2D7A52"
-             title="Replay tour" sub="Run the whole thing or jump to one stop"
-             onPress={p.onNavTour}/>
-        <Row icon="🔗" iconBg="#E0F7FA" iconFg="#00838F"
-             title="Integrations" sub="Calendar, health, school portals"
-             onPress={() => p.onPlaceholder('Integrations')} last/>
+             onPress={p.onNavMemory} last/>
       </View>
 
-      {/* Data & Privacy */}
-      <SecLabel>Data &amp; Privacy</SecLabel>
+      {/* Privacy — v2 cleanup: Export + Clear chat removed until we build
+          them properly. Placeholder alerts hurt trust more than a missing row. */}
+      <SecLabel>Privacy</SecLabel>
       <View style={s.group}>
-        <Row icon="📥" iconBg="#FFE4E0" iconFg="#B83333"
-             title="Export your data" sub="Calendar, meals, shopping, notes"
-             onPress={() => p.onPlaceholder('Export your data')}/>
-        <Row icon="🗑️" iconBg="#FFE4E0" iconFg="#B83333"
-             title="Clear chat history" sub="Keep your data, reset Zaeli's thread"
-             onPress={() => p.onPlaceholder('Clear chat history')}/>
         <Row icon="🛡️" iconBg="#FFE4E0" iconFg="#B83333"
              title="Privacy policy"
              onPress={() => Linking.openURL('https://zaeli.app/privacy.html').catch(() => {})} last/>
@@ -770,15 +777,15 @@ function MainView(p: {
       </>
       )}
 
-      {/* About */}
+      {/* About — v2 cleanup: mailto wires replace placeholders */}
       <SecLabel>About</SecLabel>
       <View style={s.group}>
         <Row icon="💬" iconBg="rgba(10,10,10,0.06)" iconFg={INK}
-             title="Help &amp; support"
-             onPress={() => p.onPlaceholder('Help & support')}/>
+             title="Help &amp; support" sub="Email hello@zaeli.ai"
+             onPress={() => Linking.openURL('mailto:hello@zaeli.ai?subject=Zaeli%20help').catch(() => {})}/>
         <Row icon="⭐" iconBg="rgba(10,10,10,0.06)" iconFg={INK}
-             title="Rate Zaeli"
-             onPress={() => p.onPlaceholder('Rate Zaeli')}/>
+             title="Send feedback" sub="Tell us what's working (or not)"
+             onPress={() => Linking.openURL('mailto:hello@zaeli.ai?subject=Zaeli%20feedback').catch(() => {})}/>
         <Row icon="📜" iconBg="rgba(10,10,10,0.06)" iconFg={INK}
              title="Terms of service"
              onPress={() => Linking.openURL('https://zaeli.app/terms.html').catch(() => {})}/>
@@ -798,7 +805,7 @@ function MainView(p: {
         <Row icon="🚪" iconBg="rgba(197,48,48,0.1)" iconFg={DANGER}
              title="Sign out" danger onPress={p.onSignOut}/>
         <Row icon="⚠️" iconBg="rgba(197,48,48,0.1)" iconFg={DANGER}
-             title="Delete account" sub="Permanent — all family data removed"
+             title="Delete account" sub="Email hello@zaeli.ai — actioned within 30 days"
              danger onPress={p.onDelete} last/>
       </View>
 
