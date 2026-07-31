@@ -14,7 +14,7 @@ import { invalidateCache as invalidatePrefsCache, loadPrefs } from '../lib/user-
 import { resetCache as invalidateInvitesCache } from '../lib/invite-state'
 import { invalidateRosterCache, loadRoster } from '../lib/family-roster'
 import { getCurrentFamilyId } from '../lib/auth'
-import { requestNotificationPermission, scheduleBriefNotifications, registerPushToken } from '../lib/notifications'
+import { requestNotificationPermission, cancelBriefNotifications, registerPushToken } from '../lib/notifications'
 
 SplashScreen.preventAutoHideAsync()
 // Set the RN root view background color to warm bg immediately at module
@@ -154,30 +154,26 @@ export default function RootLayout() {
     return () => { sub.remove() }
   }, [])
 
-  // ── Push notifications — Phase 3a ───────────────────────────────────
-  // After auth completes, request notification permission (one-shot OS
-  // prompt) and schedule the user's morning + evening brief notifications
-  // from their preferences. Re-scheduling on prefs change is handled by
-  // Settings calling scheduleBriefNotifications directly.
+  // ── Push notifications ──────────────────────────────────────────────
+  // Round A (Rich decision) — LOCAL brief notifications KILLED. Phase 07
+  // server-side brief-scheduler is the sole notification source now. It
+  // generates the brief server-side with Sonnet and delivers RICH content
+  // in the lockscreen push body (not just "Tap to see..."). We still cancel
+  // any lingering local notifs from prior builds so users don't get double
+  // notifications during the changeover.
   useEffect(() => {
     if (!authed) return
     ;(async () => {
       try {
         const granted = await requestNotificationPermission()
         if (!granted) {
-          console.log('[notifications] permission not granted — briefs still fire in-app on chat open')
-          return
+          console.log('[notifications] permission not granted — server briefs will still be attempted')
         }
-        const prefs = await loadPrefs()
-        await scheduleBriefNotifications({
-          morningTime: prefs.briefMorningTime,
-          eveningTime: prefs.briefEveningTime,
-          morningOn:   prefs.briefMorningOn,
-          eveningOn:   prefs.briefEveningOn,
-        })
-        // Session 29 — register Expo push token for family push notifications
-        // (fire-and-forget; log failures so we can spot missing entitlements
-        // or credentials in production build logs).
+        // Wipe any legacy local brief notifs (Phase 3a leftovers). Safe if none scheduled.
+        try { await cancelBriefNotifications() } catch {}
+        // Session 29 — register Expo push token so server can deliver briefs
+        // + family push notifications. Fire-and-forget; log failures so we
+        // can spot missing entitlements or credentials in production logs.
         registerPushToken()
           .then(token => console.log('[push] registerPushToken result:', token ? 'OK' : 'null'))
           .catch(e => console.log('[push] registerPushToken threw:', e?.message ?? e))

@@ -103,14 +103,23 @@ Deno.serve(async (req) => {
     for (const [familyId, info] of Object.entries(familyPrimary)) {
       const morningTarget = parseHM(info.morningTime);
       const eveningTarget = parseHM(info.eveningTime);
-      // 15-minute window either side of the target time (matches cron frequency)
-      if (info.morningOn && Math.abs(nowMinutes - morningTarget) < 15) {
+      // Round A fix — wider firing window. Previously "< 15" meant only ONE
+      // cron slot per brief time (the exact target minute) fired. If that
+      // cron missed for any reason (Supabase pg_cron latency), the user got
+      // no brief that day. New rule: fire if we're AT or PAST the target
+      // by up to 45 minutes AND today's brief hasn't already been generated
+      // (the idempotent check below prevents duplicates). Gives 3 cron slots
+      // to succeed per brief window.
+      const morningDelta = nowMinutes - morningTarget;
+      const eveningDelta = nowMinutes - eveningTarget;
+      if (info.morningOn && morningDelta >= 0 && morningDelta <= 45) {
         toBrief.push({ familyId, window: 'morning', primaryUser: info.firstName, scheduledAt: info.morningTime });
       }
-      if (info.eveningOn && Math.abs(nowMinutes - eveningTarget) < 15) {
+      if (info.eveningOn && eveningDelta >= 0 && eveningDelta <= 45) {
         toBrief.push({ familyId, window: 'evening', primaryUser: info.firstName, scheduledAt: info.eveningTime });
       }
     }
+    console.log(`[brief-scheduler] now_local=${localHM}, profiles_checked=${profiles?.length ?? 0}, families=${Object.keys(familyPrimary).length}, candidates=${toBrief.length}`);
 
     // 2. For each family+window, check if brief already generated today
     const todayKey = new Intl.DateTimeFormat('en-CA', {
@@ -170,8 +179,15 @@ Deno.serve(async (req) => {
 
       // 6. Send lockscreen push with the BODY paragraph of the brief
       const bodyPara = extractBodyParagraph(briefText);
-      const pushSent = await sendBriefPush(f.familyId, f.window, bodyPara || briefText.slice(0, 300));
-      results.push({ familyId: f.familyId, window: f.window, status: 'sent', pushSent });
+      const pushResult = await sendBriefPush(f.familyId, f.window, bodyPara || briefText.slice(0, 300));
+      results.push({
+        familyId: f.familyId,
+        window: f.window,
+        status: pushResult.sent > 0 ? 'sent' : 'generated_but_no_push',
+        briefLen: briefText.length,
+        bodyLen: (bodyPara || briefText).length,
+        push: pushResult,
+      });
     }
 
     return json({
@@ -272,16 +288,22 @@ function extractBodyParagraph(brief: string): string {
   return paras[1] ?? paras[0] ?? brief;
 }
 
-async function sendBriefPush(familyId: string, window: 'morning' | 'evening', body: string): Promise<number> {
-  const { data: profiles } = await supabaseAdmin
+async function sendBriefPush(familyId: string, window: 'morning' | 'evening', body: string): Promise<{ sent: number; failed: number; reason?: string; ticketErrors?: string[] }> {
+  const { data: profiles, error: pErr } = await supabaseAdmin
     .from('profiles')
     .select('expo_push_token')
     .eq('family_id', familyId)
     .in('kind', ['owner', 'adult'])
     .not('expo_push_token', 'is', null);
 
+  if (pErr) {
+    console.error(`[brief-scheduler] family=${familyId} token query error:`, pErr.message);
+    return { sent: 0, failed: 0, reason: 'token_query_failed' };
+  }
+
   const tokens = (profiles ?? []).map(p => p.expo_push_token).filter(Boolean);
-  if (tokens.length === 0) return 0;
+  console.log(`[brief-scheduler] family=${familyId} tokens_found=${tokens.length}`);
+  if (tokens.length === 0) return { sent: 0, failed: 0, reason: 'no_registered_tokens' };
 
   const title = window === 'morning' ? '☀️ Morning brief from Zaeli' : '🌙 Evening brief from Zaeli';
 
@@ -299,10 +321,24 @@ async function sendBriefPush(familyId: string, window: 'morning' | 'evening', bo
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify(messages),
     });
-    if (!r.ok) return 0;
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      console.error(`[brief-scheduler] family=${familyId} Expo push API ${r.status}:`, txt.slice(0, 200));
+      return { sent: 0, failed: tokens.length, reason: `expo_${r.status}` };
+    }
     const j = await r.json();
-    return (j?.data ?? []).filter((t: any) => t?.status === 'ok').length;
-  } catch { return 0; }
+    const tickets = (j?.data ?? []) as any[];
+    const sent = tickets.filter(t => t?.status === 'ok').length;
+    const failed = tickets.length - sent;
+    const ticketErrors = tickets.filter(t => t?.status !== 'ok').map(t => t?.message ?? 'unknown').slice(0, 5);
+    if (failed > 0) {
+      console.error(`[brief-scheduler] family=${familyId} push errors:`, ticketErrors.join(' | '));
+    }
+    return { sent, failed, ticketErrors: failed > 0 ? ticketErrors : undefined };
+  } catch (e:any) {
+    console.error(`[brief-scheduler] family=${familyId} push threw:`, e?.message);
+    return { sent: 0, failed: tokens.length, reason: `exception:${e?.message ?? 'unknown'}` };
+  }
 }
 
 const corsHeaders = {

@@ -34,7 +34,7 @@ import {
   clearAllMemory, type InsightRow, type MilestoneRow,
 } from '../../lib/zaeli-memory';
 import { getFamilyId } from '../../lib/family';
-import { scheduleBriefNotifications, registerPushToken, debugPushToken, notifyFamily } from '../../lib/notifications';
+import { registerPushToken, debugPushToken, notifyFamily } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
 import { getSubscription, subscriptionLabel, fetchCustomerPortalUrl, shouldPromptSubscribe, getCheckoutUrl } from '../../lib/stripe';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -275,18 +275,11 @@ export default function SettingsScreen() {
       // Phase 2c — write-through to profile + AsyncStorage. Fire-and-forget;
       // the local React state is the immediate source for re-render.
       persistUpdatePref(key, val).catch(() => {});
-      // Phase 3a — if a brief time/toggle changed, re-schedule the daily
-      // local notifications so they fire at the new time. Idempotent on
-      // notification side (cancel + re-add).
-      if (key === 'briefMorningTime' || key === 'briefEveningTime' ||
-          key === 'briefMorningOn'   || key === 'briefEveningOn') {
-        scheduleBriefNotifications({
-          morningTime: next.briefMorningTime,
-          eveningTime: next.briefEveningTime,
-          morningOn:   next.briefMorningOn,
-          eveningOn:   next.briefEveningOn,
-        }).catch(() => {});
-      }
+      // Round A — local brief notifications KILLED. Phase 07 server
+      // scheduler is now the sole notification source. Prefs still saved
+      // (server reads user_preferences.briefMorningTime/eveningTime), just
+      // no client-side scheduling. Server picks up the new time on next
+      // 15-min cron tick.
       return next;
     });
   }
