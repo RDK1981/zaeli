@@ -7893,10 +7893,22 @@ Rules:
                     })}
                   </ScrollView>
 
-                  {/* Add row — sticky bottom */}
-                  <View style={{ flexDirection:'row', alignItems:'center', gap:10, paddingHorizontal:16, paddingTop:10, paddingBottom: 12 + Math.max(0, insets.bottom - 8), borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', backgroundColor:'#FAF8F5' }}>
-                    <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#fff', borderRadius:14, borderWidth:1.5, borderColor:'#F0DC80', paddingHorizontal:14, paddingVertical:10 }}>
-                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:20, color:'#FF4545' }}>+</Text>
+                  {/* Round A — unified sheet input pill: [mic | text | camera | send]
+                      Same shape as Chat's universal chat bar, tinted gold to
+                      match Reminders accent. */}
+                  <View style={{ paddingHorizontal:14, paddingTop:10, paddingBottom: 12 + Math.max(0, insets.bottom - 8), borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', backgroundColor:'#FAF8F5' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#fff', borderRadius:32, borderWidth:1.5, borderColor:'#F0DC80', paddingHorizontal:8, paddingVertical:8, minHeight:60 }}>
+                      <TouchableOpacity
+                        onPress={() => { Keyboard.dismiss(); startRecording(); }}
+                        style={{ width:44, height:44, borderRadius:22, backgroundColor:'rgba(240,220,128,0.20)', alignItems:'center', justifyContent:'center' }}
+                        hitSlop={{ top:6, bottom:6, left:6, right:6 }}
+                        activeOpacity={0.7}
+                      >
+                        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#8B6914" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <Rect x={9} y={2} width={6} height={12} rx={3}/><Path d="M5 10a7 7 0 0014 0"/><Line x1={12} y1={17} x2={12} y2={22}/>
+                        </Svg>
+                      </TouchableOpacity>
+                      <View style={{ width:1, height:24, backgroundColor:'rgba(10,10,10,0.1)' }}/>
                       <TextInput
                         value={remindDraft}
                         onChangeText={setRemindDraft}
@@ -7904,18 +7916,30 @@ Rules:
                         placeholder="Add a reminder…"
                         placeholderTextColor="rgba(139,105,20,0.55)"
                         returnKeyType="done"
-                        style={{ flex:1, fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', padding:0 }}
+                        style={{ flex:1, fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', paddingHorizontal:4 }}
                         blurOnSubmit={false}
                       />
+                      <TouchableOpacity
+                        onPress={openSheet}
+                        style={{ width:44, height:44, borderRadius:22, alignItems:'center', justifyContent:'center' }}
+                        hitSlop={{ top:6, bottom:6, left:6, right:6 }}
+                        activeOpacity={0.7}
+                      >
+                        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#FF4545" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><Circle cx={12} cy={13} r={4}/>
+                        </Svg>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={submitRemind}
+                        disabled={!remindDraft.trim()}
+                        style={{ width:44, height:44, borderRadius:22, backgroundColor: remindDraft.trim() ? '#FF4545' : 'rgba(255,69,69,0.30)', alignItems:'center', justifyContent:'center' }}
+                        activeOpacity={0.85}
+                      >
+                        <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                          <Path d="M22 2L11 13"/><Path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+                        </Svg>
+                      </TouchableOpacity>
                     </View>
-                    <TouchableOpacity
-                      onPress={submitRemind}
-                      disabled={!remindDraft.trim()}
-                      style={{ width:46, height:46, borderRadius:23, backgroundColor: remindDraft.trim() ? '#FF4545' : 'rgba(255,69,69,0.28)', alignItems:'center', justifyContent:'center' }}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={{ color:'#fff', fontFamily:'Poppins_700Bold', fontSize:18 }}>›</Text>
-                    </TouchableOpacity>
                   </View>
                 </KeyboardAvoidingView>
               </SafeAreaView>

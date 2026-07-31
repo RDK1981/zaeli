@@ -261,32 +261,34 @@ export default function DashboardScreen({
   }, [shopQuickAdd]);
 
   // ── Navigation ─────────────────────────────────────────────────────────
+  // Round A change (Rich feedback) — tile tap NO LONGER scrolls to Chat first
+  // before opening the sheet. The 92% Modal is a React Native portal that
+  // renders at root regardless of which page is on-screen, so we can open the
+  // sheet directly and it appears over Home. When user closes the sheet, they
+  // stay on Home (they never left). Return-to-origin is now the default because
+  // there's no navigation to reverse.
+  //
+  // How it works: setPendingChatContext + onContextTrigger fires the Chat's
+  // contextTrigger useEffect, which opens the sheet. We DON'T call
+  // onNavigateChat, so swipe-world stays on Home.
   const openCalendarSheet = useCallback(() => {
     setPendingChatContext({ type: 'calendar_view', returnTo: 'dashboard' } as any);
     onContextTrigger?.();
-    if (onNavigateChat) { onNavigateChat(); return; }
-    router.navigate('/(tabs)');
-  }, [router, onNavigateChat, onContextTrigger]);
+  }, [onContextTrigger]);
 
   const openShoppingSheet = useCallback(() => {
     setPendingChatContext({ type: 'shopping_sheet', returnTo: 'dashboard' } as any);
     onContextTrigger?.();
-    if (onNavigateChat) { onNavigateChat(); return; }
-    router.navigate('/(tabs)');
-  }, [router, onNavigateChat, onContextTrigger]);
+  }, [onContextTrigger]);
 
   const openBudget = useCallback(() => {
     router.navigate('/(tabs)/our-budget');
   }, [router]);
 
-  // Session 32 v2 Phase 05 — Reminders sheet lives in Chat (index.tsx)
-  // to reuse the 92% Modal + KAV infrastructure. Same pattern as Shopping.
   const openRemindersSheet = useCallback(() => {
     setPendingChatContext({ type: 'reminders_sheet', returnTo: 'dashboard' } as any);
     onContextTrigger?.();
-    if (onNavigateChat) { onNavigateChat(); return; }
-    router.navigate('/(tabs)');
-  }, [router, onNavigateChat, onContextTrigger]);
+  }, [onContextTrigger]);
 
   const openChat = useCallback(() => {
     if (onNavigateChat) { onNavigateChat(); return; }
@@ -506,7 +508,11 @@ export default function DashboardScreen({
           Session 32 v2 — per-icon routing (Phase 04c). Each control
           sets a specific ChatIntent then navigates. Chat consumes on
           activation and jumps straight into the right mode. */}
-      <View style={[s.chatbar, { bottom: 22 + Math.max(0, insets.bottom - 8) }]}>
+      {/* Round A — bottom position matches Chat's barFloat exactly for
+          zero-flicker swipe. Chat: barFloat wrapper paddingBottom 24 (iOS)
+          + bottom 0. Same math here so the pill sits at exactly the same
+          Y-position on both pages. */}
+      <View style={[s.chatbar, { bottom: Platform.OS === 'ios' ? 24 : 14 }]}>
         <TouchableOpacity
           style={s.cbBtn}
           activeOpacity={0.7}
@@ -675,17 +681,19 @@ const s = StyleSheet.create({
   },
 
   // Universal chat bar — Session 32
+  // Round A — match Chat's barPillV2 exactly for zero-flicker swipe.
+  // Same border colour, padding, gap, shadow, minHeight, alignItems.
   chatbar: {
     position: 'absolute', left: 14, right: 14,
-    backgroundColor: '#fff',
-    borderWidth: 1, borderColor: 'rgba(210,210,210,0.55)',
-    borderRadius: 32, paddingHorizontal: 10, paddingVertical: 8,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1, borderColor: 'rgba(220,220,220,0.6)',
+    borderRadius: 32, paddingVertical: 10, paddingHorizontal: 12,
+    flexDirection: 'row', alignItems: 'flex-end', gap: 8,
     minHeight: 60,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.10, shadowRadius: 20,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.10, shadowRadius: 18,
+    elevation: 10,
   },
   cbBtn: {
     width: 44, height: 44, borderRadius: 22,
