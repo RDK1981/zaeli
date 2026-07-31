@@ -35,6 +35,57 @@ export function uuidv4(): string {
   });
 }
 
+// ── Local ISO helpers (Round A — timezone bug fix) ─────────────────────
+// Round A discovered that Hermes (RN's engine) parses "2026-07-31T13:27:00"
+// as UTC, not local. To keep reminder timing sane on-device:
+//
+//   normaliseLocalIso: if input has no timezone suffix, extract y/m/d/h/min
+//   and store back as a stable local-form ISO ("YYYY-MM-DDTHH:MM:SS"). If it
+//   HAS a Z or +hh:mm suffix, convert to local wall-clock time (someone else
+//   picked UTC or a specific offset; we honor it but normalise to local
+//   presentation).
+//
+//   parseLocalIsoAsDate: given a local-form ISO with no tz suffix, build a
+//   real Date object using local constructor components (never new Date(str)
+//   which is engine-dependent).
+
+function pad2(n: number): string { return String(n).padStart(2, '0'); }
+
+export function normaliseLocalIso(s: string): string {
+  if (!s) return s;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:?\d{2})?$/);
+  if (!m) {
+    // Not an ISO pattern we recognise — trust it as-is
+    return s;
+  }
+  const [, y, mo, d, h, mi, se, tz] = m;
+  const sec = se ?? '00';
+  if (!tz) {
+    // No timezone → already local, just normalise the shape
+    return `${y}-${mo}-${d}T${h}:${mi}:${sec}`;
+  }
+  // Has timezone → convert to local wall-clock components
+  const asDate = new Date(s);
+  return `${asDate.getFullYear()}-${pad2(asDate.getMonth() + 1)}-${pad2(asDate.getDate())}T${pad2(asDate.getHours())}:${pad2(asDate.getMinutes())}:${pad2(asDate.getSeconds())}`;
+}
+
+export function parseLocalIsoAsDate(s: string): Date {
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) {
+    // Fallback — trust JS parser (dangerous but shouldn't happen after normaliseLocalIso)
+    return new Date(s);
+  }
+  const [, y, mo, d, h, mi, se] = m;
+  return new Date(
+    parseInt(y, 10),
+    parseInt(mo, 10) - 1,
+    parseInt(d, 10),
+    parseInt(h, 10),
+    parseInt(mi, 10),
+    se ? parseInt(se, 10) : 0,
+  );
+}
+
 // ── Types ────────────────────────────────────────────────────────────────
 export type RepeatRule =
   | 'none'
@@ -111,11 +162,19 @@ export async function saveReminder(r: Partial<Reminder> & { title: string }): Pr
     try { await Notifications.cancelScheduledNotificationAsync(r.notifId); } catch {}
   }
 
+  // Round A fix — normalize remindAt to a genuine local-time ISO string.
+  // Hermes (RN's JS engine) parses "2026-07-31T13:27:00" (no timezone) as UTC,
+  // not local. So a Sonnet-issued 1:27pm Brisbane time became 11:27pm on device.
+  // Explicit parse from digits keeps it unambiguous. If the string already had
+  // a Z or +hh:mm suffix, we honor that (someone passed real UTC on purpose).
+  const remindAt = r.remindAt ? normaliseLocalIso(r.remindAt) : undefined;
+
   // Schedule new notification if timed AND caller is creator
   let notifId: string | undefined = undefined;
-  if (r.remindAt && createdBy === userId) {
+  if (remindAt && createdBy === userId) {
     try {
-      const trigger = new Date(r.remindAt);
+      const trigger = parseLocalIsoAsDate(remindAt);
+      console.log('[reminders] scheduling notif — remindAt string:', remindAt, '· parsed date:', trigger.toString(), '· now:', new Date().toString());
       if (trigger.getTime() > Date.now() + 1000) {
         notifId = await Notifications.scheduleNotificationAsync({
           content: {
@@ -126,6 +185,9 @@ export async function saveReminder(r: Partial<Reminder> & { title: string }): Pr
           },
           trigger: { date: trigger },
         });
+        console.log('[reminders] scheduled ok — notifId:', notifId);
+      } else {
+        console.log('[reminders] SKIPPED scheduling — trigger is in the past');
       }
     } catch (e: any) {
       console.log('[reminders] schedule notif failed:', e?.message);
@@ -138,7 +200,7 @@ export async function saveReminder(r: Partial<Reminder> & { title: string }): Pr
     created_by:      createdBy,
     title:           r.title,
     notes:           r.notes ?? null,
-    remind_at:       r.remindAt ?? null,
+    remind_at:       remindAt ?? null,
     remind_on:       r.remindOn ?? null,
     repeat_rule:     r.repeatRule ?? null,
     repeat_group_id: r.repeatGroupId ?? null,

@@ -36,6 +36,7 @@ import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { getFamilyId } from '../../lib/family';
+import { parseLocalIsoAsDate } from '../../lib/reminders';
 import { getProfile } from '../../lib/auth';
 import { loadRoster, getRoster } from '../../lib/family-roster';
 import { setPendingChatContext, setChatIntent } from '../../lib/navigation-store';
@@ -197,7 +198,9 @@ export default function DashboardScreen({
     const rems = (remRes.data ?? []).map((r: any) => {
       let whenLabel = 'someday';
       if (r.remind_at) {
-        const d = new Date(r.remind_at);
+        // Round A fix — parse remind_at as local wall-clock (Hermes parses
+        // no-timezone ISO as UTC otherwise, causing a 10-hour Brisbane skew)
+        const d = parseLocalIsoAsDate(r.remind_at);
         const dToday = new Date(); dToday.setHours(0,0,0,0);
         const dTmw   = new Date(dToday.getTime() + 24*3600*1000);
         const dayOfR = new Date(d); dayOfR.setHours(0,0,0,0);

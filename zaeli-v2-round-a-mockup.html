@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli v2 — Round A Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #FAF8F5;
+    --ink:       #0A0A0A;
+    --ink2:      rgba(10,10,10,0.72);
+    --ink3:      rgba(10,10,10,0.48);
+    --ink4:      rgba(10,10,10,0.28);
+    --line:      rgba(10,10,10,0.08);
+    --coral:     #FF4545;
+    --slate:     #2D3748;
+    --peach:     #FAC8A8;
+    --peach-t:   #FDF1E5;
+    --peach-d:   #8A3A00;
+    --mint:      #B8EDD0;
+    --mint-t:    #E6F7EF;
+    --mint-d:    #2D7A52;
+    --lav:       #D8CCFF;
+    --lav-t:     #F0EBFF;
+    --lav-d:     #5020C0;
+    --sky:       #A8D8F0;
+    --sky-t:     #E8F4FD;
+    --sky-d:     #0A5C80;
+    --gold:      #F0DC80;
+    --gold-t:    #FBF5D6;
+    --gold-d:    #8B6914;
+    --anna:      #FF7B6B;
+    --rich:      #4D8BFF;
+    --poppy:     #A855F7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', -apple-system, sans-serif; }
+  body { background: #EFECE6; padding: 40px 20px; color: var(--ink); }
+  h1 { font-family: 'Poppins'; font-weight: 800; font-size: 28px; text-align: center; margin-bottom: 8px; }
+  .sub { text-align: center; color: var(--ink3); font-size: 14px; margin-bottom: 32px; }
+
+  .row { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; margin-bottom: 48px; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .label { font-family: 'Poppins'; font-weight: 700; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink3); }
+
+  /* iPhone frame */
+  .phone {
+    width: 380px; height: 780px;
+    background: var(--bg); border-radius: 44px;
+    border: 8px solid #1a1a1a; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    overflow: hidden; position: relative;
+    display: flex; flex-direction: column;
+  }
+  .notch {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 100px; height: 24px; background: #1a1a1a; border-radius: 12px; z-index: 100;
+  }
+  .status {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 28px 6px; font-size: 15px; font-weight: 700;
+    color: var(--ink);
+  }
+  .status-r { display: flex; gap: 5px; align-items: center; font-size: 13px; }
+
+  /* Header */
+  .hdr {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 20px 12px; border-bottom: 1px solid var(--line);
+  }
+  .wordmark {
+    font-family: 'Poppins'; font-weight: 800; font-size: 40px;
+    letter-spacing: -1.5px; line-height: 46px; color: var(--ink);
+  }
+  .wordmark span { color: var(--sky); }
+  .ham {
+    width: 42px; height: 42px; border-radius: 12px;
+    background: rgba(10,10,10,0.05); display: flex; align-items: center; justify-content: center;
+  }
+  .ham svg { width: 22px; height: 22px; }
+
+  /* Content area */
+  .content { flex: 1; overflow-y: auto; padding: 14px; padding-bottom: 100px; }
+
+  /* Tile shell */
+  .tile {
+    border-radius: 22px; padding: 22px 20px 20px; margin-bottom: 12px;
+    position: relative;
+  }
+  .tile-eyebrow-row {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+  }
+  .tile-eyebrow {
+    font-family: 'Poppins'; font-weight: 700; font-size: 11px;
+    letter-spacing: 1.2px; text-transform: uppercase;
+  }
+  .full-hint {
+    font-family: 'Poppins'; font-weight: 600; font-size: 12px;
+    opacity: 0.7; letter-spacing: 0.2px;
+  }
+  /* NEW big text headline — hero of each tile */
+  .tile-headline {
+    font-family: 'Poppins'; font-weight: 800; font-size: 26px;
+    letter-spacing: -0.6px; line-height: 31px; margin-bottom: 14px;
+  }
+
+  /* Row detail (matches Chat bubble text size — 17px) */
+  .row-detail {
+    display: flex; align-items: center; gap: 12px;
+    padding: 6px 0;
+  }
+  .row-time { font-family: 'Poppins'; font-weight: 700; font-size: 13px; width: 54px; opacity: 0.75; }
+  .row-dot { width: 8px; height: 8px; border-radius: 4px; }
+  .row-title {
+    flex: 1; font-family: 'Poppins'; font-weight: 500; font-size: 15px;
+    color: var(--ink);
+  }
+  .row-avat {
+    width: 26px; height: 26px; border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-family: 'Poppins'; font-weight: 700; font-size: 11px;
+  }
+
+  /* Add pill INSIDE tile — now with MIC on the right of the text field */
+  .tile-add {
+    display: flex; align-items: center; gap: 8px;
+    background: white; border: 1.5px solid; border-radius: 14px;
+    padding: 12px 12px 12px 14px; margin-top: 10px;
+  }
+  .tile-add-plus { font-family: 'Poppins'; font-weight: 700; font-size: 20px; color: var(--coral); }
+  .tile-add-text {
+    flex: 1; font-family: 'Poppins'; font-weight: 400; font-size: 15px;
+  }
+  .tile-add-mic {
+    width: 32px; height: 32px; border-radius: 10px;
+    background: rgba(10,10,10,0.06);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tile-add-mic svg { width: 18px; height: 18px; }
+  .tile-add-cam {
+    width: 32px; height: 32px; border-radius: 10px;
+    background: rgba(255,69,69,0.10);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tile-add-cam svg { width: 18px; height: 18px; stroke: var(--coral); }
+
+  /* Universal chat bar (bottom of Home) */
+  .chatbar {
+    position: absolute; left: 14px; right: 14px; bottom: 26px;
+    background: white; border-radius: 32px;
+    border: 1px solid rgba(220,220,220,0.6);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    display: flex; align-items: center; gap: 4px;
+    padding: 8px 8px 8px 12px; min-height: 60px;
+  }
+  .cb-btn {
+    width: 44px; height: 44px; border-radius: 22px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cb-btn svg { width: 24px; height: 24px; }
+  .cb-sep { width: 1px; height: 24px; background: rgba(10,10,10,0.1); }
+  .cb-field { flex: 1; font-family: 'Poppins'; font-weight: 400; font-size: 17px; color: var(--ink3); padding: 0 4px; }
+  .cb-send {
+    width: 44px; height: 44px; border-radius: 22px; background: var(--coral);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cb-send svg { width: 20px; height: 20px; }
+
+  /* ─ Frame 2: More sheet ─ */
+  .sheet-scrim {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: flex-end;
+  }
+  .sheet {
+    width: 100%; background: var(--bg);
+    border-top-left-radius: 28px; border-top-right-radius: 28px;
+    max-height: 92%;
+  }
+  .sheet-handle { width: 40px; height: 4px; border-radius: 2px; background: rgba(10,10,10,0.14); margin: 10px auto 0; }
+  .sheet-hdr {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px 14px;
+  }
+  .sheet-title { font-family: 'Poppins'; font-weight: 800; font-size: 28px; letter-spacing: -0.5px; }
+  .sheet-close {
+    width: 36px; height: 36px; border-radius: 18px;
+    background: rgba(10,10,10,0.06);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sheet-body { padding: 4px 16px 40px; }
+  .more-tile {
+    display: flex; align-items: center; gap: 16px;
+    border-radius: 18px; padding: 16px 18px;
+    margin-bottom: 10px;
+  }
+  .more-icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .more-icon svg { width: 22px; height: 22px; }
+  .more-label {
+    font-family: 'Poppins'; font-weight: 700; font-size: 17px;
+    letter-spacing: -0.2px;
+  }
+  .more-section-label {
+    font-family: 'Poppins'; font-weight: 700; font-size: 11px;
+    letter-spacing: 0.9px; text-transform: uppercase; color: var(--ink3);
+    margin: 16px 4px 10px;
+  }
+  .more-section-label:first-child { margin-top: 8px; }
+
+  /* ─ Frame 3: Sheet input pill (Reminders sheet) ─ */
+  .rem-sheet-body {
+    padding: 20px 16px; text-align: center; color: var(--ink3);
+    font-family: 'Poppins'; font-weight: 400; font-size: 14px;
+    height: 480px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px;
+  }
+  .rem-empty-title {
+    font-family: 'Poppins'; font-weight: 700; font-size: 17px; color: var(--ink);
+  }
+  .rem-empty-sub { max-width: 260px; line-height: 20px; }
+  .rem-emoji { font-size: 42px; margin-bottom: 4px; }
+  .sheet-input-bar {
+    position: absolute; left: 14px; right: 14px; bottom: 20px;
+    background: white; border-radius: 32px;
+    border: 1.5px solid var(--gold);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    display: flex; align-items: center; gap: 4px;
+    padding: 8px 8px 8px 12px; min-height: 60px;
+  }
+  .sheet-input-bar .cb-btn:first-child { background: rgba(240,220,128,0.15); }
+
+  .caption {
+    text-align: center; font-family: 'Poppins'; font-weight: 500;
+    font-size: 13px; color: var(--ink3); max-width: 380px;
+    padding: 12px 8px 0; line-height: 18px;
+  }
+
+  /* Section labels */
+  .section-h {
+    text-align: center; margin: 24px auto 20px;
+    font-family: 'Poppins'; font-weight: 700; font-size: 20px;
+    color: var(--ink); max-width: 700px;
+  }
+  .section-p {
+    text-align: center; margin: -10px auto 24px;
+    font-family: 'Poppins'; font-weight: 400; font-size: 14px;
+    color: var(--ink3); max-width: 600px; line-height: 21px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Zaeli v2 — Round A</h1>
+<p class="sub">Big-text tiles · per-tile mic · unified sheet input · shorter More menu</p>
+
+<!-- ═════════════════════════════════════════════════════════════ -->
+<h2 class="section-h">1. Home (renamed from Dashboard)</h2>
+<p class="section-p">
+  Each tile leads with a <b>big headline</b> summarising state. Detail rows sit below.
+  Add pill has a mic on the right so voice-add works without leaving the tile.
+  Small "Full ×××&nbsp;→" hint top-right tells users the tile is tappable.
+</p>
+
+<div class="row">
+  <div class="col">
+    <div class="label">Home</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status">9:49
+        <div class="status-r">•••• 5G 🔋</div>
+      </div>
+      <div class="hdr">
+        <div class="wordmark">z<span>a</span>el<span>i</span></div>
+        <div class="ham">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" stroke-width="2.2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </div>
+      </div>
+      <div class="content">
+
+        <!-- Calendar tile — slate -->
+        <div class="tile" style="background: var(--slate); color: white;">
+          <div class="tile-eyebrow-row">
+            <div class="tile-eyebrow" style="color: rgba(255,255,255,0.7);">📅 CALENDAR</div>
+            <div class="full-hint" style="color: rgba(255,255,255,0.6);">Full calendar →</div>
+          </div>
+          <div class="tile-headline" style="color: white;">2 events on today.</div>
+          <div class="row-detail">
+            <div class="row-time" style="color: rgba(255,255,255,0.7);">7:30 am</div>
+            <div class="row-dot" style="background: var(--poppy);"></div>
+            <div class="row-title" style="color: rgba(255,255,255,0.92);">School Dance Troop</div>
+            <div class="row-avat" style="background: var(--poppy);">P</div>
+          </div>
+          <div class="row-detail">
+            <div class="row-time" style="color: rgba(255,255,255,0.7);">4:00 pm</div>
+            <div class="row-dot" style="background: var(--rich);"></div>
+            <div class="row-title" style="color: rgba(255,255,255,0.92);">Soccer Training</div>
+            <div class="row-avat" style="background: var(--rich);">R</div>
+          </div>
+          <div class="tile-add" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.18);">
+            <div class="tile-add-plus">+</div>
+            <div class="tile-add-text" style="color: rgba(255,255,255,0.65);">Add event…</div>
+            <div class="tile-add-mic" style="background: rgba(255,255,255,0.14);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="17" x2="12" y2="22"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Shopping tile — lavender -->
+        <div class="tile" style="background: var(--lav);">
+          <div class="tile-eyebrow-row">
+            <div class="tile-eyebrow" style="color: var(--lav-d);">🛒 SHOPPING</div>
+            <div class="full-hint" style="color: var(--lav-d);">Full list →</div>
+          </div>
+          <div class="tile-headline">4 items to grab.</div>
+          <div class="row-detail">
+            <div class="row-dot" style="background: var(--lav-d); opacity: 0.4;"></div>
+            <div class="row-title">Grapes</div>
+          </div>
+          <div class="row-detail">
+            <div class="row-dot" style="background: var(--lav-d); opacity: 0.4;"></div>
+            <div class="row-title">Vanilla extract</div>
+          </div>
+          <div class="row-detail">
+            <div class="row-dot" style="background: var(--lav-d); opacity: 0.4;"></div>
+            <div class="row-title">Baking paper</div>
+          </div>
+          <div class="tile-add" style="border-color: var(--lav-d);">
+            <div class="tile-add-plus">+</div>
+            <div class="tile-add-text" style="color: rgba(80,32,192,0.6);">Add item…</div>
+            <div class="tile-add-mic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--lav-d)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="17" x2="12" y2="22"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reminders tile — gold -->
+        <div class="tile" style="background: var(--gold-t);">
+          <div class="tile-eyebrow-row">
+            <div class="tile-eyebrow" style="color: var(--gold-d);">⏰ REMINDERS</div>
+            <div class="full-hint" style="color: var(--gold-d);">All reminders →</div>
+          </div>
+          <div class="tile-headline">1 due at 3 pm.</div>
+          <div class="row-detail">
+            <div class="row-time" style="color: var(--gold-d);">3 pm</div>
+            <div class="row-dot" style="background: var(--gold-d); opacity: 0.9;"></div>
+            <div class="row-title">Walk the dog</div>
+          </div>
+          <div class="tile-add" style="border-color: var(--gold-d);">
+            <div class="tile-add-plus">+</div>
+            <div class="tile-add-text" style="color: rgba(139,105,20,0.65);">Add reminder…</div>
+            <div class="tile-add-mic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--gold-d)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="17" x2="12" y2="22"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Budget tile — mint (unchanged, minimal) -->
+        <div class="tile" style="background: var(--mint-t);">
+          <div class="tile-eyebrow-row">
+            <div class="tile-eyebrow" style="color: var(--mint-d);">💰 OUR BUDGET</div>
+            <div class="full-hint" style="color: var(--mint-d);">Full budget →</div>
+          </div>
+          <div class="tile-headline" style="color: var(--mint-d);">On track for July.</div>
+          <div style="font-family: 'Poppins'; font-weight: 400; font-size: 14px; color: var(--ink3); margin-top: -6px;">
+            Expenses · Savings · Spending
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Universal chat bar (identical to Chat page) -->
+      <div class="chatbar">
+        <div class="cb-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="17" x2="12" y2="22"/></svg>
+        </div>
+        <div class="cb-sep"></div>
+        <div class="cb-field">Ask Zaeli anything…</div>
+        <div class="cb-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </div>
+        <div class="cb-send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      Big headlines carry the mood — <i>"2 events on today"</i> reads at a glance. Detail rows below.<br>
+      Per-tile mic (bottom-right of add pill) → tap = jumps to Chat with mic active, domain pre-loaded.
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════════ -->
+<h2 class="section-h">2. More sheet — full-width, shorter tiles</h2>
+<p class="section-p">
+  Five tiles stack vertically at 68px each. Icon left, label right. Reminders added.<br>
+  Same visual language as the Home bento tiles — familiar, no learning curve.
+</p>
+
+<div class="row">
+  <div class="col">
+    <div class="label">More sheet</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status" style="opacity: 0.4;">1:05
+        <div class="status-r">•••• 5G 🔋</div>
+      </div>
+      <div class="sheet-scrim" style="align-items: flex-end;">
+        <div class="sheet" style="max-height: 88%;">
+          <div class="sheet-handle"></div>
+          <div class="sheet-hdr">
+            <div class="sheet-title">More</div>
+            <div class="sheet-close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.55)" stroke-width="2.5" stroke-linecap="round" width="18" height="18"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+            </div>
+          </div>
+          <div class="sheet-body">
+
+            <div class="more-section-label">Quick nav</div>
+
+            <div class="more-tile" style="background: var(--slate);">
+              <div class="more-icon" style="background: rgba(255,255,255,0.15);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </div>
+              <div class="more-label" style="color: white;">Calendar</div>
+            </div>
+
+            <div class="more-tile" style="background: var(--lav);">
+              <div class="more-icon" style="background: rgba(255,255,255,0.4);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--lav-d)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+              </div>
+              <div class="more-label" style="color: var(--ink);">Shopping</div>
+            </div>
+
+            <div class="more-tile" style="background: var(--gold-t);">
+              <div class="more-icon" style="background: rgba(240,220,128,0.35);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--gold-d)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3L2 6"/><path d="M22 6l-3-3"/></svg>
+              </div>
+              <div class="more-label" style="color: var(--ink);">Reminders</div>
+            </div>
+
+            <div class="more-tile" style="background: var(--mint-t);">
+              <div class="more-icon" style="background: rgba(184,237,208,0.55);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--mint-d)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6"/></svg>
+              </div>
+              <div class="more-label" style="color: var(--ink);">Our Budget</div>
+            </div>
+
+            <div class="more-section-label">Account</div>
+
+            <div class="more-tile" style="background: #FFE0ED;">
+              <div class="more-icon" style="background: rgba(212,0,106,0.15);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#D4006A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+              </div>
+              <div class="more-label" style="color: var(--ink);">Our Family</div>
+            </div>
+
+            <div class="more-tile" style="background: rgba(107,114,128,0.10);">
+              <div class="more-icon" style="background: rgba(107,114,128,0.18);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+              </div>
+              <div class="more-label" style="color: var(--ink);">Settings</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      6 tiles now (Reminders added). Full-width, 68px tall, icon-left/label-right.<br>
+      Zero white space, easy scan.
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════════════════════════════════════════════ -->
+<h2 class="section-h">3. Unified sheet input pill (Reminders, Shopping)</h2>
+<p class="section-p">
+  Every 92% sheet gets the same input pill at bottom: <b>[mic | text | camera | send]</b>.<br>
+  Mirrors the universal chat bar so users see the same input model everywhere.
+</p>
+
+<div class="row">
+  <div class="col">
+    <div class="label">Reminders sheet</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status" style="opacity: 0.4;">1:10
+        <div class="status-r">•••• 5G 🔋</div>
+      </div>
+      <div class="sheet-scrim" style="align-items: flex-end; padding: 0;">
+        <div class="sheet" style="max-height: 92%; position: relative;">
+          <div class="sheet-handle"></div>
+          <div class="sheet-hdr" style="border-bottom: 1px solid var(--line);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="font-size: 20px;">⏰</div>
+              <div style="font-family: 'Poppins'; font-weight: 700; font-size: 22px;">Reminders</div>
+            </div>
+            <div class="sheet-close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.55)" stroke-width="2.5" stroke-linecap="round" width="18" height="18"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+            </div>
+          </div>
+
+          <div class="rem-sheet-body">
+            <div class="rem-emoji">⏰</div>
+            <div class="rem-empty-title">Nothing to remember yet</div>
+            <div class="rem-empty-sub">Everyone in the family sees these. Notifications go to whoever added them.</div>
+          </div>
+
+          <!-- Sheet input pill — SAME as chat bar -->
+          <div class="sheet-input-bar">
+            <div class="cb-btn" style="background: rgba(240,220,128,0.20);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--gold-d)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="17" x2="12" y2="22"/></svg>
+            </div>
+            <div class="cb-sep"></div>
+            <div class="cb-field">Add a reminder…</div>
+            <div class="cb-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </div>
+            <div class="cb-send" style="background: rgba(255,69,69,0.3);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      Mic → dictate reminder inline (stays in sheet).<br>
+      Camera → attach photo (e.g. concert poster to remember dates).<br>
+      Send button pinks when field is empty, coral when there's text.
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="label">Shopping sheet</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="status" style="opacity: 0.4;">1:22
+        <div class="status-r">•••• 5G 🔋</div>
+      </div>
+      <div class="sheet-scrim" style="align-items: flex-end; padding: 0;">
+        <div class="sheet" style="max-height: 92%; position: relative;">
+          <div class="sheet-handle"></div>
+          <div class="sheet-hdr" style="border-bottom: 1px solid var(--line);">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div style="font-size: 20px;">🛒</div>
+              <div style="font-family: 'Poppins'; font-weight: 700; font-size: 22px;">Shopping</div>
+            </div>
+            <div class="sheet-close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.55)" stroke-width="2.5" stroke-linecap="round" width="18" height="18"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+            </div>
+          </div>
+
+          <div style="padding: 16px; padding-bottom: 100px;">
+            <div style="font-family: 'Poppins'; font-weight: 700; font-size: 11px; color: var(--ink3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px;">To get · 6 items</div>
+
+            <!-- sample items compact -->
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div style="background: white; padding: 14px; border-radius: 12px; display: flex; align-items: center; gap: 12px;">
+                <div style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid var(--ink4);"></div>
+                <div style="font-family: 'Poppins'; font-weight: 600; font-size: 15px; flex: 1;">Cocoa Pops</div>
+              </div>
+              <div style="background: white; padding: 14px; border-radius: 12px; display: flex; align-items: center; gap: 12px;">
+                <div style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid var(--ink4);"></div>
+                <div style="font-family: 'Poppins'; font-weight: 600; font-size: 15px; flex: 1;">Mango</div>
+              </div>
+              <div style="background: white; padding: 14px; border-radius: 12px; display: flex; align-items: center; gap: 12px;">
+                <div style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid var(--ink4);"></div>
+                <div style="font-family: 'Poppins'; font-weight: 600; font-size: 15px; flex: 1;">Grapes</div>
+              </div>
+              <div style="background: white; padding: 14px; border-radius: 12px; display: flex; align-items: center; gap: 12px;">
+                <div style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid var(--ink4);"></div>
+                <div style="font-family: 'Poppins'; font-weight: 600; font-size: 15px; flex: 1;">Vanilla extract</div>
+              </div>
+              <div style="background: white; padding: 14px; border-radius: 12px; display: flex; align-items: center; gap: 12px;">
+                <div style="width: 22px; height: 22px; border-radius: 11px; border: 2px solid var(--ink4);"></div>
+                <div style="font-family: 'Poppins'; font-weight: 600; font-size: 15px; flex: 1;">Baking paper</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sheet input pill — IDENTICAL to Reminders -->
+          <div class="sheet-input-bar" style="border-color: var(--lav-d);">
+            <div class="cb-btn" style="background: rgba(216,204,255,0.35);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--lav-d)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0"/><line x1="12" y1="17" x2="12" y2="22"/></svg>
+            </div>
+            <div class="cb-sep"></div>
+            <div class="cb-field">Add an item…</div>
+            <div class="cb-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </div>
+            <div class="cb-send" style="background: rgba(255,69,69,0.3);">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      Same input pill, tinted lavender to match Shopping's accent.<br>
+      Camera → receipt scan flows straight in.
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

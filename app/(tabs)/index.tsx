@@ -51,7 +51,7 @@ import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 import { getFamilyId } from '../../lib/family';
-import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, type Reminder } from '../../lib/reminders';
+import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, parseLocalIsoAsDate, type Reminder } from '../../lib/reminders';
 const MEMBER_NAME      = 'Rich';
 const INK              = '#0A0A0A';
 const INK3             = 'rgba(10,10,10,0.32)';
@@ -1690,7 +1690,7 @@ const TOOLS = [
   { name:'extend_recurring_event', description:'Roll a recurring event series on by another ~12 months from where it currently ends. Use when a series is running out or the user asks to extend/keep it going.', input_schema:{ type:'object', properties:{ search_title:{type:'string'} }, required:['search_title'] } },
   { name:'find_calendar_events', description:'Search the calendar for events by title keyword and/or date range. USE THIS WHEN the user asks about anything not in the LIVE DATA today/tomorrow window — "when is X?", "what\'s on next month?", "are we away in September?", "what did we have planned for Poppy\'s birthday?". Returns up to 20 matching events with date + time. Prefer this over saying "not in the calendar" — the calendar data goes months ahead but only today+tomorrow are pre-loaded.', input_schema:{ type:'object', properties:{ title_contains:{type:'string',description:'Case-insensitive keyword in the event title, e.g. "broken head" or "soccer" or "birthday". Optional if from_date/to_date narrow enough.'}, from_date:{type:'string',description:'Start of date window, YYYY-MM-DD. Defaults to today if omitted.'}, to_date:{type:'string',description:'End of date window, YYYY-MM-DD. Defaults to +365 days if omitted.'} } } },
   { name:'add_todo', description:'Add a todo item', input_schema:{ type:'object', properties:{ title:{type:'string'}, priority:{type:'string',enum:['low','normal','high','urgent']}, due_date:{type:'string'} }, required:['title'] } },
-  { name:'add_shopping_item', description:'Add item to shopping list. Pass force:true to bypass the pantry-stocked check when the user has explicitly confirmed they want to add anyway (e.g. "yes, add them", "add anyway", "override").', input_schema:{ type:'object', properties:{ name:{type:'string'}, category:{type:'string'}, quantity:{type:'string'}, force:{type:'boolean', description:'Bypass the pantry-stocked check. Set true ONLY when the user has explicitly confirmed after a PANTRY: warning.'} }, required:['name'] } },
+  { name:'add_shopping_item', description:'Add item to shopping list. ALWAYS adds first (pantry pre-blocking removed per Rich\'s rule — pantry isn\'t 100% accurate). Response may include a "NOTE:" mentioning the item is also in pantry — relay softly in your reply so user can tap-to-remove if they don\'t need it.', input_schema:{ type:'object', properties:{ name:{type:'string'}, category:{type:'string'}, quantity:{type:'string'} }, required:['name'] } },
   { name:'add_meal', description:'Add a meal to the weekly meal planner', input_schema:{ type:'object', properties:{ meal_name:{type:'string',description:'Name of the meal e.g. Spaghetti Bolognese'}, date:{type:'string',description:'Date in YYYY-MM-DD format'}, day_label:{type:'string',description:'Day abbreviation e.g. Mon, Tue, Wed'}, prep_mins:{type:'number',description:'Estimated prep time in minutes'} }, required:['meal_name','date'] } },
   { name:'update_todo', description:'Update a todo item (title, priority, due date, or mark done)', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Current title to search for'}, new_title:{type:'string'}, new_priority:{type:'string',enum:['low','normal','high','urgent']}, new_due_date:{type:'string'}, mark_done:{type:'boolean'} }, required:['search_title'] } },
   { name:'delete_todo', description:'Delete a todo item', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Title to search for'} }, required:['search_title'] } },
@@ -1702,7 +1702,7 @@ const TOOLS = [
   { name:'add_goal', description:'Add a personal goal', input_schema:{ type:'object', properties:{ title:{type:'string',description:'Goal title e.g. Run a half marathon'}, target_date:{type:'string',description:'Target date YYYY-MM-DD'}, detail:{type:'string',description:'Description of the goal and how to measure it'} }, required:['title'] } },
   { name:'update_goal', description:'Update a goal (progress, title, target date)', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Current goal title to search for'}, new_title:{type:'string'}, new_target_date:{type:'string'}, new_progress:{type:'number',description:'Progress percentage 0-100'}, new_detail:{type:'string'} }, required:['search_title'] } },
   { name:'delete_goal', description:'Delete a goal', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Goal title to search for'} }, required:['search_title'] } },
-  { name:'add_reminder', description:'Add a reminder. Three shapes: timed (remind_at set — fires a push notification to the creator at that instant), date-only (remind_on set — shows on that day, no push), undated (both omitted — "someday" bucket). Reminders are family-shared (everyone sees) but notifications go only to the person who created them. Use for personal to-remember things, NOT for calendar events (use add_calendar_event for shared events with a time).', input_schema:{ type:'object', properties:{ title:{type:'string',description:'What to remember, e.g. "pay soccer registration" or "call plumber back"'}, notes:{type:'string',description:'Optional detail — extra context if useful'}, remind_at:{type:'string',description:'ISO 8601 local time (no Z suffix), e.g. "2026-08-15T09:00:00". Sets a timed reminder that fires a phone notification.'}, remind_on:{type:'string',description:'YYYY-MM-DD if user wants a date-only reminder (no specific time). Use this OR remind_at, not both.'}, repeat:{type:'string',enum:['none','daily','weekdays','weekly','fortnightly','monthly'],description:'Recurring? Default none. Generates instances for ~12 months.'} }, required:['title'] } },
+  { name:'add_reminder', description:'Add a reminder. Three shapes: timed (remind_at set — fires a push notification to the creator at that instant), date-only (remind_on set — shows on that day, no push), undated (both omitted — "someday" bucket). Reminders are family-shared (everyone sees) but notifications go only to the person who created them. Use for personal to-remember things, NOT for calendar events (use add_calendar_event for shared events with a time). CRITICAL TIME RULE: remind_at MUST be Brisbane wall-clock time (family is in AEST/UTC+10), format "YYYY-MM-DDTHH:MM:SS" with NO Z suffix and NO timezone offset. If the user says "in 3 minutes" and it is currently 1:24pm Brisbane, remind_at is "TODAY_DATE + T13:27:00" — not UTC, not offset. Never convert to UTC yourself. The user\'s CURRENT_TIME is provided in the system context — use that.', input_schema:{ type:'object', properties:{ title:{type:'string',description:'What to remember, e.g. "pay soccer registration" or "call plumber back"'}, notes:{type:'string',description:'Optional detail — extra context if useful'}, remind_at:{type:'string',description:'Brisbane local wall-clock time as "YYYY-MM-DDTHH:MM:SS" — NO Z, NO offset. Example: "2026-08-15T09:00:00" for 9am Brisbane on 15 Aug.'}, remind_on:{type:'string',description:'YYYY-MM-DD if user wants a date-only reminder (no specific time). Use this OR remind_at, not both.'}, repeat:{type:'string',enum:['none','daily','weekdays','weekly','fortnightly','monthly'],description:'Recurring? Default none. Generates instances for ~12 months.'} }, required:['title'] } },
 ];
 
 async function executeTool(name: string, input: any): Promise<string> {
@@ -2078,18 +2078,22 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (listDup) {
         return `DUPLICATE: **${itemName}** is already on the shopping list. Want to update the quantity, or skip it?`;
       }
-      // Check pantry for well-stocked items — SKIP when force=true (user has
-      // explicitly overridden the warning). Fixes the loop where Zaeli would
-      // keep saying "the tool won't let me force this through" — she now can.
-      if (!input.force) {
-        try {
-          const { data: pantryItems } = await supabase.from('pantry_items').select('id,name,stock').eq('family_id',getFamilyId());
-          const pantryMatch = pantryItems?.find((i:any) => (i.name||'').toLowerCase() === lowerName);
-          if (pantryMatch && (pantryMatch.stock === 'good' || pantryMatch.stock === 'medium')) {
-            return `PANTRY: **${itemName}** looks ${pantryMatch.stock === 'good' ? 'well stocked' : 'okay'} in the pantry. Still want to add it to the list? (If user confirms, call add_shopping_item again with force:true.)`;
-          }
-        } catch { /* pantry table may not exist yet — skip check */ }
-      }
+      // Round A change (Rich feedback) — pantry is NEVER 100% accurate, so
+      // pre-blocking adds is friction. Always ADD FIRST. If we notice pantry
+      // has the item, MENTION IT after the add and let the user decide to
+      // remove. No more "PANTRY:" reject flow forcing a re-tool with force=true.
+      let pantryNote = '';
+      try {
+        const { data: pantryItems } = await supabase.from('pantry_items').select('id,name,last_bought').eq('family_id',getFamilyId());
+        const pantryMatch = pantryItems?.find((i:any) => (i.name||'').toLowerCase() === lowerName || (i.name||'').toLowerCase().includes(lowerName));
+        if (pantryMatch) {
+          const lastBought = pantryMatch.last_bought
+            ? ` (last bought ${new Date(pantryMatch.last_bought + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })})`
+            : '';
+          pantryNote = ` NOTE: **${pantryMatch.name}** is in the pantry${lastBought} — added anyway per Rich's rule (pantry isn't 100%). If you want to remove, tap the item and delete.`;
+        }
+      } catch { /* pantry table may not exist yet — skip check */ }
+
       const { error } = await supabase.from('shopping_items').insert({
         family_id:getFamilyId(), name:itemName,
         item:itemName, category:input.category||guessCategory(itemName),
@@ -2097,7 +2101,7 @@ async function executeTool(name: string, input: any): Promise<string> {
         checked:false,
       });
       if (error) throw error;
-      return `✅ **${itemName}**${input.quantity ? ' (' + input.quantity + ')' : ''} added to the shopping list.`;
+      return `✅ **${itemName}**${input.quantity ? ' (' + input.quantity + ')' : ''} added to the shopping list.${pantryNote}`;
     }
     if (name === 'add_meal') {
       const dateStr = input.date || localDateStr();
@@ -2255,7 +2259,8 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (!r) return `TOOL_FAILED: reminder didn't save.`;
       let whenLabel = 'no time set';
       if (r.remindAt) {
-        const d = new Date(r.remindAt);
+        // Round A fix \u2014 parse remindAt as local wall-clock, not UTC
+        const d = parseLocalIsoAsDate(r.remindAt);
         whenLabel = d.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }) + ' at ' + d.toLocaleTimeString('en-AU', { hour:'numeric', minute:'2-digit' });
       } else if (r.remindOn) {
         whenLabel = 'on ' + new Date(r.remindOn + 'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
@@ -4246,13 +4251,13 @@ LIVE DATA:
 - To-dos: ${todoCount??0} open tasks
 - ${dinnerRule}
 
-CAPABILITIES: Add/update/delete calendar events, shopping items, todos DIRECTLY using tools. Today is ${td}. Never tell Rich to do it himself.
+CAPABILITIES: Add/update/delete calendar events, shopping items, todos DIRECTLY using tools. Today is ${td}. CURRENT_TIME (Brisbane wall-clock, fresh at this call): ${(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}T${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:00`; })()} — use exactly this shape when passing local times to any tool. Never convert to UTC. Never tell Rich to do it himself.
 
 SHOPPING RULES:
 - When asked to add multiple items, call add_shopping_item ONCE PER ITEM — never combine items into one call.
-- The tool checks for duplicates automatically. If it returns DUPLICATE or PANTRY, relay that to the user naturally and ask what to do.
-- PANTRY OVERRIDE — if the user's next reply confirms they want it added anyway ("yes", "add anyway", "add them please", "override", "just add it", "yes add"), IMMEDIATELY call add_shopping_item again with the SAME name AND force:true. Do NOT say "the tool won't let me" or "add it manually" — force:true bypasses the pantry check. Never refuse an explicit override.
-- After adding items, confirm each item clearly by name and quantity. Keep it brief.
+- The tool now ALWAYS adds the item (pantry isn't 100% accurate — user's rule). If the tool response includes a "NOTE:" saying it's also in the pantry, mention that briefly in your reply so the user can tap-to-remove if they don't need it. Do NOT ask for permission before adding.
+- DUPLICATE — if the tool returns DUPLICATE, relay that (item already on list) and offer to update quantity or skip.
+- After adding items, confirm each item clearly by name and quantity. Keep it brief. If a pantry note is present, add one soft sentence: "Noticed X was last bought 20 July — added anyway, tap to remove if you're good."
 - NEVER write quick reply suggestions as text in your response. The app handles chips automatically. Just write your confirmation message.
 
 MEAL IDEAS RULES:
@@ -7084,6 +7089,25 @@ Rules:
                   loadCardData();
                 }}
               />
+              {/* Round A fix — chip render for calendar confirm cards. The
+                  Session 30 comment pointed at line 6975 but the render
+                  branch drifted to hasOtherInline only. Copy the chip block
+                  here so add_calendar_event confirm cards actually show
+                  their Notify chip. */}
+              {msg.inlineData!.showPortalPill && (
+                <View style={s.quickRepliesWrap}>
+                  <View style={s.qrChips}>
+                    <TouchableOpacity style={s.calPortalChip} onPress={() => openCalSheet('month')} activeOpacity={0.75}>
+                      <Text style={s.calPortalChipTxt}>Open Calendar →</Text>
+                    </TouchableOpacity>
+                    {(msg.quickReplies||[]).map((chip, ci) => (
+                      <TouchableOpacity key={ci} style={[s.qrChip, { borderColor:'rgba(10,10,10,0.18)' }]} onPress={() => handleQuickReply(chip)} activeOpacity={0.7}>
+                        <Text style={s.qrChipTxt}>{chip}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
             </>
           ) : hasShoppingInline ? (
             <>
@@ -7818,7 +7842,8 @@ Rules:
                       const isMe = r.createdBy === myId;
                       let whenLabel = 'someday';
                       if (r.remindAt) {
-                        const d = new Date(r.remindAt);
+                        // Round A fix — parseLocalIsoAsDate not new Date (Hermes UTC bug)
+                        const d = parseLocalIsoAsDate(r.remindAt);
                         const dToday = new Date(); dToday.setHours(0,0,0,0);
                         const dTmw   = new Date(dToday.getTime() + 24*3600*1000);
                         const dayOfR = new Date(d); dayOfR.setHours(0,0,0,0);
