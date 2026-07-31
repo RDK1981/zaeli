@@ -589,6 +589,95 @@
     .bg-slate .lede, .bg-slate .feature-list li { opacity: 0.85; }
     .bg-slate .eyebrow { color: rgba(255,255,255,0.6); }
 
+    /* ── Mirror section (two phones side-by-side) ─────────────────── */
+    .mirror-grid {
+      display: grid; grid-template-columns: 1fr 1.1fr;
+      gap: 56px; align-items: center;
+    }
+    @media (max-width: 900px) {
+      .mirror-grid { grid-template-columns: 1fr; gap: 40px; }
+    }
+    .mirror-phones {
+      display: flex; align-items: center; justify-content: center;
+      gap: 12px;
+      position: relative;
+    }
+    .phone.mini {
+      width: 220px; height: 450px;
+      border-radius: 34px;
+      padding: 6px;
+    }
+    .phone.mini .notch { width: 76px; height: 18px; }
+    .phone.mini .screen { border-radius: 28px; }
+
+    .mirror-ping {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .ping-line {
+      width: 44px; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      border-radius: 1px;
+      position: relative;
+    }
+    .ping-icon {
+      width: 36px; height: 36px; border-radius: 18px;
+      background: var(--gold); color: var(--gold-deep);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      box-shadow: 0 4px 16px rgba(240,220,128,0.5);
+      animation: pulse-glow 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 4px 16px rgba(240,220,128,0.4); transform: scale(1); }
+      50% { box-shadow: 0 4px 24px rgba(240,220,128,0.9); transform: scale(1.08); }
+    }
+    .ping-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+      color: rgba(255,255,255,0.65);
+      text-transform: uppercase;
+      writing-mode: horizontal-tb;
+    }
+    @media (max-width: 720px) {
+      .mirror-phones { flex-direction: column; gap: 24px; }
+      .phone.mini { width: 240px; height: 490px; }
+      .ping-line { width: 2px; height: 44px; background: linear-gradient(180deg, transparent, var(--gold), transparent); }
+      .mirror-ping { flex-direction: column; }
+    }
+
+    /* "just added" highlight on a tile row */
+    .tile-row.new-row {
+      background: rgba(240,220,128,0.16);
+      border-radius: 6px;
+      padding: 3px 4px;
+      margin: 2px -4px;
+      position: relative;
+    }
+    .new-dot {
+      width: 6px; height: 6px; border-radius: 3px;
+      background: var(--gold);
+      box-shadow: 0 0 8px var(--gold);
+      animation: pulse-dot 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.4); }
+    }
+    .mirror-caption-tag {
+      position: absolute; bottom: 10px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px; font-weight: 700; letter-spacing: 0.8px;
+      color: var(--rich);
+      background: rgba(77,139,255,0.16);
+      padding: 4px 10px; border-radius: 999px;
+      white-space: nowrap;
+    }
+    .mirror-caption-tag.anna-tag {
+      color: var(--anna);
+      background: rgba(255,123,107,0.16);
+    }
+
     /* ── Trio grid (Calendar / Shopping / Budget stacked) ─────────── */
     .trio {
       display: grid; grid-template-columns: repeat(3, 1fr);
@@ -734,7 +823,7 @@
               <a href="#beta" class="btn btn-primary">Join the beta →</a>
               <a href="#home" class="btn btn-ghost">See how it works</a>
             </div>
-            <p class="hero-note"><span class="dot"></span>Free for 14 days · A$9.99/month after · Made in Australia</p>
+            <p class="hero-note"><span class="dot"></span>Free for 14 days · A$6.99/month after · Made in Australia</p>
           </div>
 
           <!-- Hero phone: the new Bento Home -->
@@ -891,7 +980,110 @@
     </div>
   </section>
 
-  <!-- ── Section 2: Zaeli on the lockscreen (NEW HERO STORY) ─────── -->
+  <!-- ── Section 2: One family. One view. Instantly mirrored. ────── -->
+  <section id="mirror" class="bg-slate">
+    <div class="section-inner">
+      <div class="wrap">
+        <div class="mirror-grid">
+          <div>
+            <span class="eyebrow" style="color: rgba(255,255,255,0.65);">Made for two adults sharing a life</span>
+            <h2 class="h2">One family. One view.<br>In real time.</h2>
+            <p class="lede" style="color: rgba(255,255,255,0.82);">Anna sees what Rich added the moment he adds it. No "refresh". No "have you seen my Notes list?" One family, one Home — mirrored to every device instantly.</p>
+            <ul class="feature-list">
+              <li><span class="tick">✓</span><span style="color: rgba(255,255,255,0.88);"><b>Add on your phone. It's on Anna's in seconds.</b> Supabase Realtime pushes every change to every device the moment it happens. No button, no manual sync.</span></li>
+              <li><span class="tick">✓</span><span style="color: rgba(255,255,255,0.88);"><b>Same view for calendar, shopping, reminders, budget.</b> Everything shared, nothing hidden. If Rich adds "Poppy soccer 4pm", Anna sees it on her Home tile.</span></li>
+              <li><span class="tick">✓</span><span style="color: rgba(255,255,255,0.88);"><b>Personal reminders — shared list, YOUR notification.</b> Anna sees the reminder Rich set, but only Rich's phone buzzes for it. The best of both worlds.</span></li>
+              <li><span class="tick">✓</span><span style="color: rgba(255,255,255,0.88);"><b>Family colours + avatars.</b> Anna's events are coral, Rich's are blue, Poppy's purple. One glance tells you whose day is loaded.</span></li>
+              <li><span class="tick">✓</span><span style="color: rgba(255,255,255,0.88);"><b>Notify chip on every add.</b> After adding something big — "family dinner Sunday 6pm" — one tap sends a push to everyone else.</span></li>
+            </ul>
+          </div>
+
+          <div class="mirror-phones">
+            <!-- Rich's phone (left, tilted right) -->
+            <div class="phone mini tilt-right" aria-label="Rich's phone — adding an event">
+              <div class="notch"></div>
+              <div class="screen">
+                <div class="app-bar" style="padding: 32px 12px 8px;">
+                  <div class="word" style="font-size: 22px;">z<span class="a">a</span>el<span class="i">i</span></div>
+                  <div class="right">
+                    <span class="label" style="font-size: 12px;">Home</span>
+                  </div>
+                </div>
+                <div class="home-feed" style="padding: 10px 8px 0;">
+                  <div class="tile" style="background: var(--slate); color: #fff; padding: 10px;">
+                    <div class="tile-eyebrow" style="color: rgba(255,255,255,0.7); font-size: 8px;">📅 CALENDAR</div>
+                    <div class="tile-headline" style="color: #fff; font-size: 16px; margin: 4px 0 8px;">3 events on today.</div>
+                    <div class="tile-row" style="font-size: 9px;">
+                      <div class="t" style="color: rgba(255,255,255,0.75); width: 34px;">2pm</div>
+                      <div class="rd" style="background: var(--rich);"></div>
+                      <div class="n" style="color: rgba(255,255,255,0.92); font-weight: 500;">School pickup</div>
+                    </div>
+                    <div class="tile-row new-row" style="font-size: 9px;">
+                      <div class="t" style="color: rgba(255,255,255,0.75); width: 34px;">4pm</div>
+                      <div class="rd" style="background: var(--poppy);"></div>
+                      <div class="n" style="color: rgba(255,255,255,0.92); font-weight: 500;">Poppy soccer</div>
+                      <div class="new-dot"></div>
+                    </div>
+                    <div class="tile-row" style="font-size: 9px;">
+                      <div class="t" style="color: rgba(255,255,255,0.75); width: 34px;">6pm</div>
+                      <div class="rd" style="background: var(--anna);"></div>
+                      <div class="n" style="color: rgba(255,255,255,0.92); font-weight: 500;">Yoga</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="mirror-caption-tag">RICH · just added</div>
+              </div>
+            </div>
+
+            <!-- The sync ping between phones -->
+            <div class="mirror-ping" aria-hidden="true">
+              <div class="ping-line"></div>
+              <div class="ping-icon">⚡</div>
+              <div class="ping-label">Real-time sync</div>
+            </div>
+
+            <!-- Anna's phone (right, tilted left) -->
+            <div class="phone mini tilt-left" aria-label="Anna's phone — mirrored instantly">
+              <div class="notch"></div>
+              <div class="screen">
+                <div class="app-bar" style="padding: 32px 12px 8px;">
+                  <div class="word" style="font-size: 22px;">z<span class="a">a</span>el<span class="i">i</span></div>
+                  <div class="right">
+                    <span class="label" style="font-size: 12px;">Home</span>
+                  </div>
+                </div>
+                <div class="home-feed" style="padding: 10px 8px 0;">
+                  <div class="tile" style="background: var(--slate); color: #fff; padding: 10px;">
+                    <div class="tile-eyebrow" style="color: rgba(255,255,255,0.7); font-size: 8px;">📅 CALENDAR</div>
+                    <div class="tile-headline" style="color: #fff; font-size: 16px; margin: 4px 0 8px;">3 events on today.</div>
+                    <div class="tile-row" style="font-size: 9px;">
+                      <div class="t" style="color: rgba(255,255,255,0.75); width: 34px;">2pm</div>
+                      <div class="rd" style="background: var(--rich);"></div>
+                      <div class="n" style="color: rgba(255,255,255,0.92); font-weight: 500;">School pickup</div>
+                    </div>
+                    <div class="tile-row new-row" style="font-size: 9px;">
+                      <div class="t" style="color: rgba(255,255,255,0.75); width: 34px;">4pm</div>
+                      <div class="rd" style="background: var(--poppy);"></div>
+                      <div class="n" style="color: rgba(255,255,255,0.92); font-weight: 500;">Poppy soccer</div>
+                      <div class="new-dot"></div>
+                    </div>
+                    <div class="tile-row" style="font-size: 9px;">
+                      <div class="t" style="color: rgba(255,255,255,0.75); width: 34px;">6pm</div>
+                      <div class="rd" style="background: var(--anna);"></div>
+                      <div class="n" style="color: rgba(255,255,255,0.92); font-weight: 500;">Yoga</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="mirror-caption-tag anna-tag">ANNA · appears instantly</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Section 3: Zaeli on the lockscreen (NEW HERO STORY) ─────── -->
   <section id="lockscreen" class="bg-lav">
     <div class="section-inner">
       <div class="wrap">
@@ -1069,40 +1261,6 @@
     </div>
   </section>
 
-  <!-- ── Section 5: The productivity trio deep dive ─────────────── -->
-  <section id="trio" class="bg-slate">
-    <div class="section-inner">
-      <div class="wrap">
-        <div style="text-align: center; margin-bottom: 48px;">
-          <span class="eyebrow">The productivity trio</span>
-          <h2 class="h2" style="max-width: 720px; margin: 0 auto;">Calendar. Shopping. Budget. Reminders.<br>Done properly.</h2>
-        </div>
-        <div class="trio" style="grid-template-columns: repeat(2, 1fr);">
-          <div class="trio-card cal">
-            <div class="badge">📅</div>
-            <h3>Calendar</h3>
-            <p>One family calendar, colour-coded per person. Add by voice, tap, or photo. Notify the whole family with one chip after every add. Recurring events understand "every second Wednesday" without you having to explain twice.</p>
-          </div>
-          <div class="trio-card shop">
-            <div class="badge">🛒</div>
-            <h3>Shopping</h3>
-            <p>Type in the tile — faster than iPhone Notes. Or dictate. Or snap a receipt — Zaeli reads it, ticks off what you bought, and notes the last-bought date. Pantry never blocks an add (real families know pantries aren't 100%).</p>
-          </div>
-          <div class="trio-card rem">
-            <div class="badge">⏰</div>
-            <h3>Reminders</h3>
-            <p>Family-shared list. Creator-only push. Timed, date-only, or someday. Recurring built in. Voice, text, or ask Zaeli — "remind me to call the plumber Friday 3pm" — done.</p>
-          </div>
-          <div class="trio-card bud">
-            <div class="badge">💰</div>
-            <h3>Budget</h3>
-            <p>A planner, not a tracker. Fixed and variable expenses as a flat list — no messy category-of-category nesting. Set targets, track savings goals. Zaeli reads statements you upload and suggests the numbers.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- ── Pricing ─────────────────────────────────────────────────── -->
   <section class="pricing" id="pricing">
     <div class="section-inner">
@@ -1115,8 +1273,9 @@
 
         <div class="price-card">
           <div class="price-name">Family plan</div>
-          <div class="price-amount">A$9.99<span class="sm"> / month</span></div>
+          <div class="price-amount">A$6.99<span class="sm"> / month</span></div>
           <div class="price-trial">✨ Free for 14 days</div>
+          <p style="margin-top: 12px; font-size: 14px; color: var(--ink3);">Less than a coffee. Whole family sorted.</p>
           <ul class="price-list">
             <li><span class="tick">✓</span><span>Everything: Home, Chat, Calendar, Shopping, Budget, Reminders</span></li>
             <li><span class="tick">✓</span><span>Morning + evening lockscreen briefs</span></li>

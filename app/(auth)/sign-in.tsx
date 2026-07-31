@@ -206,7 +206,7 @@ export default function SignInScreen() {
 
               {mode === 'sign-up' && (
                 <Text style={s.fineprint}>
-                  Free for 14 days · A$9.99/month after
+                  Free for 14 days · A$6.99/month after
                 </Text>
               )}
             </>
