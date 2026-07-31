@@ -47,6 +47,7 @@ const TILES = {
   // Family channels
   calendar:  { label: 'Calendar',     bg: '#2D3748', fg: '#CBD5E0', textColour: '#FFFFFF' },
   shopping:  { label: 'Shopping',     bg: '#D8CCFF', fg: '#5020C0', textColour: '#0A0A0A' },
+  reminders: { label: 'Reminders',    bg: '#FBF5D6', fg: '#8B6914', textColour: '#0A0A0A' },
   meals:     { label: 'Meals',        bg: '#B8EDD0', fg: '#2D7A52', textColour: '#0A0A0A' },
   radar:     { label: 'Tasks', bg: '#F0DC80', fg: '#8B6914', textColour: '#0A0A0A' },
   notes:     { label: 'Notes',        bg: '#FAC8A8', fg: '#8A3A00', textColour: '#0A0A0A' },
@@ -78,6 +79,11 @@ function IcoShopping({ color }: { color: string }) {
 function IcoMeals({ color }: { color: string }) {
   return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
     <Path d="M18 8h1a4 4 0 010 8h-1"/><Path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><Line x1={6} y1={1} x2={6} y2={4}/><Line x1={10} y1={1} x2={10} y2={4}/><Line x1={14} y1={1} x2={14} y2={4}/>
+  </Svg>;
+}
+function IcoReminders({ color }: { color: string }) {
+  return <Svg width={26} height={26} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    <Circle cx={12} cy={13} r={8}/><Path d="M12 9v4l2 2"/><Path d="M5 3L2 6"/><Path d="M22 6l-3-3"/>
   </Svg>;
 }
 function IcoRadar({ color }: { color: string }) {
@@ -143,6 +149,7 @@ function MoreIcon({ keyId, color }: { keyId: string; color: string }) {
   switch (keyId) {
     case 'calendar':  return <IcoCalendar color={color}/>;
     case 'shopping':  return <IcoShopping color={color}/>;
+    case 'reminders': return <IcoReminders color={color}/>;
     case 'meals':     return <IcoMeals color={color}/>;
     case 'radar':     return <IcoRadar color={color}/>;
     case 'notes':     return <IcoNotes color={color}/>;
@@ -245,10 +252,11 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
       const channelContext: Record<string, any> = {
         calendar:  { type: 'calendar_sheet', event: { tab: 'today' } },
         shopping:  { type: 'shopping_sheet' },
+        reminders: { type: 'reminders_sheet' },
         meals:     { type: 'meals_sheet' },
         radar:     { type: 'notes_tasks_sheet', tab: 'tasks' },
         notes:     { type: 'notes_tasks_sheet', tab: 'notes' },
-        travel:    { type: 'add_event' }, // placeholder until Travel sheet built
+        travel:    { type: 'add_event' },
       };
       if (channelContext[key]) {
         setPendingChatContext(channelContext[key]);
@@ -319,17 +327,19 @@ export default function MoreSheet({ visible, onClose, onAction }: MoreSheetProps
                 hamburgers, will be replaced by direct Settings nav in
                 Phase 04+. */}
 
+            {/* Round A — full-width shorter tiles, matches Home bento vibe. */}
             <Text style={st.sectionLabel}>QUICK NAV</Text>
-            <View style={st.grid3}>
-              <Tile keyId="calendar"/>
-              <Tile keyId="shopping"/>
-              {!isKid && <Tile keyId="budget"/>}
+            <View style={st.stack}>
+              <Tile keyId="calendar" size="row"/>
+              <Tile keyId="shopping" size="row"/>
+              <Tile keyId="reminders" size="row"/>
+              {!isKid && <Tile keyId="budget" size="row"/>}
             </View>
 
             <Text style={st.sectionLabel}>ACCOUNT</Text>
-            <View style={st.grid2}>
-              {!isKid && <Tile keyId="family"/>}
-              <Tile keyId="settings"/>
+            <View style={st.stack}>
+              {!isKid && <Tile keyId="family" size="row"/>}
+              <Tile keyId="settings" size="row"/>
             </View>
           </ScrollView>
         </TouchableOpacity>
@@ -360,6 +370,7 @@ const st = StyleSheet.create({
 
   grid3:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   grid2:         { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  stack:         { flexDirection: 'column', gap: 8 },
 
   tile:          {
     flexBasis: '31%',
@@ -377,12 +388,14 @@ const st = StyleSheet.create({
     gap: 14,
   },
   tileRow:       {
-    flexBasis: '48%',
-    minHeight: 62,
+    flexBasis: '100%',
+    minHeight: 68,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 14,
+    gap: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 18,
   },
   tileIcon:      { width: 34, height: 34, alignItems: 'flex-start', justifyContent: 'flex-start', marginBottom: 6 },
   tileRowIcon:   { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },

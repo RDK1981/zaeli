@@ -37,6 +37,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { getFamilyId } from '../../lib/family';
 import { parseLocalIsoAsDate } from '../../lib/reminders';
+import MoreSheet from '../components/MoreSheet';
 import { getProfile } from '../../lib/auth';
 import { loadRoster, getRoster } from '../../lib/family-roster';
 import { setPendingChatContext, setChatIntent } from '../../lib/navigation-store';
@@ -166,6 +167,9 @@ export default function DashboardScreen({
   // Reminders (Session 32 v2 Phase 05)
   const [remindItems, setRemindItems] = useState<{ id: string; title: string; whenLabel: string; isMe: boolean }[]>([]);
   const [remindCount, setRemindCount] = useState(0);
+
+  // Round A — MoreSheet state (hamburger now opens this, not direct-to-Settings)
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // ── Data loaders — leaner than Phase 01, only what tiles need ─────────
   const loadData = useCallback(async () => {
@@ -317,21 +321,25 @@ export default function DashboardScreen({
     <SafeAreaView style={{ flex: 1, backgroundColor: T.bg }} edges={['top']}>
       <ExpoStatusBar style="dark"/>
 
-      {/* Header — wordmark + hamburger (Session 31 — directly to Settings) */}
+      {/* Header — wordmark + Home label + hamburger (Round A — Rich rename)
+          Hamburger now opens MoreSheet (not direct-to-Settings shortcut). */}
       <View style={s.hdr}>
         <Text style={s.wordmark}>
           z<Text style={s.aa}>a</Text>el<Text style={s.aa}>i</Text>
         </Text>
-        <TouchableOpacity
-          style={s.ham}
-          onPress={() => router.navigate('/(tabs)/settings')}
-          activeOpacity={0.7}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <View style={s.hamLine}/>
-          <View style={s.hamLine}/>
-          <View style={s.hamLine}/>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Text style={s.pageLabel}>Home</Text>
+          <TouchableOpacity
+            style={s.ham}
+            onPress={() => setMoreOpen(true)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <View style={s.hamLine}/>
+            <View style={s.hamLine}/>
+            <View style={s.hamLine}/>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -346,63 +354,64 @@ export default function DashboardScreen({
           showsVerticalScrollIndicator={false}
         >
 
-          {/* ── CALENDAR TILE (slate) ──────────────────────────────────── */}
+          {/* ── CALENDAR TILE (slate) — Round A big-text ──────────────── */}
           <TouchableOpacity
             style={[s.tile, { backgroundColor: T.slate, borderColor: 'transparent' }]}
             onPress={openCalendarSheet} activeOpacity={0.85}
           >
             <View style={s.tileHead}>
-              <Text style={[s.tileEyebrow, { color: 'rgba(255,255,255,0.7)' }]}>📅 TODAY'S CALENDAR</Text>
-              <Text style={[s.tileMeta, { color: 'rgba(255,255,255,0.55)' }]}>
-                {eventCountToday === 0 ? 'nothing on' : `${eventCountToday} event${eventCountToday === 1 ? '' : 's'}`}
-              </Text>
+              <Text style={[s.tileEyebrow, { color: 'rgba(255,255,255,0.7)' }]}>📅 CALENDAR</Text>
+              <Text style={[s.fullHint, { color: 'rgba(255,255,255,0.6)' }]}>Full calendar →</Text>
             </View>
-            {todayEvents.length === 0 ? (
-              <Text style={[s.emptyRow, { color: 'rgba(255,255,255,0.6)' }]}>Rare quiet day — enjoy it.</Text>
-            ) : (
-              todayEvents.map(ev => {
-                const mem = memberById((ev.assignees ?? [])[0] ?? '');
-                const c = mem?.color ?? T.rich;
-                const initial = (mem?.name ?? '?').charAt(0).toUpperCase();
-                return (
-                  <View key={ev.id} style={s.calRow}>
-                    <Text style={[s.calTime, { color: '#fff' }]}>{fmtTime(ev.start_time) || 'all day'}</Text>
-                    <View style={[s.calDot, { backgroundColor: c }]}/>
-                    <Text style={[s.calTitle, { color: 'rgba(255,255,255,0.92)' }]} numberOfLines={1}>{ev.title}</Text>
-                    <View style={[s.avat, { backgroundColor: c }]}>
-                      <Text style={s.avatTxt}>{initial}</Text>
-                    </View>
+            <Text style={[s.tileHeadline, { color: '#fff' }]}>
+              {eventCountToday === 0 ? "Nothing on today." : `${eventCountToday} event${eventCountToday === 1 ? '' : 's'} on today.`}
+            </Text>
+            {todayEvents.map(ev => {
+              const mem = memberById((ev.assignees ?? [])[0] ?? '');
+              const c = mem?.color ?? T.rich;
+              const initial = (mem?.name ?? '?').charAt(0).toUpperCase();
+              return (
+                <View key={ev.id} style={s.calRow}>
+                  <Text style={[s.calTime, { color: 'rgba(255,255,255,0.75)' }]}>{fmtTime(ev.start_time) || 'all day'}</Text>
+                  <View style={[s.calDot, { backgroundColor: c }]}/>
+                  <Text style={[s.calTitle, { color: 'rgba(255,255,255,0.92)' }]} numberOfLines={1}>{ev.title}</Text>
+                  <View style={[s.avat, { backgroundColor: c }]}>
+                    <Text style={s.avatTxt}>{initial}</Text>
                   </View>
-                );
-              })
-            )}
+                </View>
+              );
+            })}
             <View style={[s.quickAdd, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.18)' }]}>
               <Text style={[s.quickPlus, { color: T.coral }]}>+</Text>
               <Text style={[s.quickField, { color: 'rgba(255,255,255,0.7)' }]}>Add event…</Text>
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation?.(); openChatMic(); }}
+                style={[s.tileMic, { backgroundColor: 'rgba(255,255,255,0.14)' }]}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <IcoMic color="#fff" size={18}/>
+              </TouchableOpacity>
             </View>
           </TouchableOpacity>
 
-          {/* ── SHOPPING TILE (lavender) — Anna's speed fix ────────────── */}
+          {/* ── SHOPPING TILE (lavender) — Round A big-text ──────────── */}
           <TouchableOpacity
             style={[s.tile, { backgroundColor: T.lavender, borderColor: 'transparent' }]}
             onPress={openShoppingSheet} activeOpacity={0.85}
           >
             <View style={s.tileHead}>
               <Text style={[s.tileEyebrow, { color: T.lavDeep }]}>🛒 SHOPPING</Text>
-              <Text style={[s.tileMeta, { color: T.lavDeep, opacity: 0.65 }]}>
-                {shopCount} item{shopCount === 1 ? '' : 's'}
-              </Text>
+              <Text style={[s.fullHint, { color: T.lavDeep }]}>Full list →</Text>
             </View>
-            {shopItems.length === 0 ? (
-              <Text style={[s.emptyRow, { color: T.lavDeep, opacity: 0.6 }]}>List's empty — add something below.</Text>
-            ) : (
-              shopItems.map(it => (
-                <View key={it.id} style={s.shopRow}>
-                  <View style={[s.bullet, { backgroundColor: T.lavDeep, opacity: 0.4 }]}/>
-                  <Text style={[s.shopTxt, { color: T.ink }]} numberOfLines={1}>{it.name}</Text>
-                </View>
-              ))
-            )}
+            <Text style={[s.tileHeadline, { color: T.ink }]}>
+              {shopCount === 0 ? "List is empty." : `${shopCount} item${shopCount === 1 ? '' : 's'} to grab.`}
+            </Text>
+            {shopItems.map(it => (
+              <View key={it.id} style={s.shopRow}>
+                <View style={[s.bullet, { backgroundColor: T.lavDeep, opacity: 0.4 }]}/>
+                <Text style={[s.shopTxt, { color: T.ink }]} numberOfLines={1}>{it.name}</Text>
+              </View>
+            ))}
             <View
               onStartShouldSetResponder={() => true}
               style={[s.quickAdd, { backgroundColor: '#fff', borderColor: T.lavDeep, borderWidth: 1.5 }]}
@@ -412,7 +421,7 @@ export default function DashboardScreen({
                 value={shopQuickAdd}
                 onChangeText={setShopQuickAdd}
                 onSubmitEditing={handleShopSubmit}
-                placeholder="Add item… (tap Enter)"
+                placeholder="Add item…"
                 placeholderTextColor={T.ink3}
                 returnKeyType="done"
                 style={s.quickInput}
@@ -424,7 +433,15 @@ export default function DashboardScreen({
                     <Text style={s.enterTxt}>⏎</Text>
                   </View>
                 </TouchableOpacity>
-              ) : null}
+              ) : (
+                <TouchableOpacity
+                  onPress={(e) => { e.stopPropagation?.(); openChatMic(); }}
+                  style={s.tileMic}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <IcoMic color={T.lavDeep} size={18}/>
+                </TouchableOpacity>
+              )}
             </View>
             {shopJustAdded && (
               <Text style={{ fontSize: 12, color: T.mintDeep, fontWeight: '700', marginTop: 8, letterSpacing: 0.4 }}>
@@ -433,43 +450,51 @@ export default function DashboardScreen({
             )}
           </TouchableOpacity>
 
-          {/* ── REMINDERS TILE (gold) — Session 32 v2 Phase 05 ─────────── */}
+          {/* ── REMINDERS TILE (gold) — Round A big-text ──────────────── */}
           <TouchableOpacity
             style={[s.tile, { backgroundColor: T.goldTint, borderColor: 'transparent' }]}
             onPress={openRemindersSheet} activeOpacity={0.85}
           >
             <View style={s.tileHead}>
               <Text style={[s.tileEyebrow, { color: T.goldDeep }]}>⏰ REMINDERS</Text>
-              <Text style={[s.tileMeta, { color: T.goldDeep, opacity: 0.65 }]}>
-                {remindCount === 0 ? 'none' : `${remindCount} up next`}
-              </Text>
+              <Text style={[s.fullHint, { color: T.goldDeep }]}>All reminders →</Text>
             </View>
-            {remindItems.length === 0 ? (
-              <Text style={[s.emptyRow, { color: T.goldDeep, opacity: 0.65 }]}>Nothing to remember — tap to add one.</Text>
-            ) : (
-              remindItems.map(r => (
-                <View key={r.id} style={s.calRow}>
-                  <Text style={[s.calTime, { color: T.goldDeep, opacity: 0.75 }]}>{r.whenLabel}</Text>
-                  <View style={[s.calDot, { backgroundColor: T.goldDeep, opacity: r.isMe ? 0.9 : 0.45 }]}/>
-                  <Text style={[s.calTitle, { color: T.ink }]} numberOfLines={1}>{r.title}</Text>
-                </View>
-              ))
-            )}
+            <Text style={[s.tileHeadline, { color: T.ink }]}>
+              {remindCount === 0 ? "Nothing to remember." : remindCount === 1 && remindItems[0]?.whenLabel ? `1 due ${remindItems[0].whenLabel}.` : `${remindCount} up next.`}
+            </Text>
+            {remindItems.map(r => (
+              <View key={r.id} style={s.calRow}>
+                <Text style={[s.calTime, { color: T.goldDeep, opacity: 0.75 }]}>{r.whenLabel}</Text>
+                <View style={[s.calDot, { backgroundColor: T.goldDeep, opacity: r.isMe ? 0.9 : 0.45 }]}/>
+                <Text style={[s.calTitle, { color: T.ink }]} numberOfLines={1}>{r.title}</Text>
+              </View>
+            ))}
             <View style={[s.quickAdd, { backgroundColor: '#fff', borderColor: T.goldDeep, borderWidth: 1.5 }]}>
               <Text style={[s.quickPlus, { color: T.coral }]}>+</Text>
               <Text style={[s.quickField, { color: T.goldDeep, opacity: 0.75 }]}>Add a reminder…</Text>
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation?.(); openChatMic(); }}
+                style={s.tileMic}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <IcoMic color={T.goldDeep} size={18}/>
+              </TouchableOpacity>
             </View>
           </TouchableOpacity>
 
-          {/* ── BUDGET TILE — minimal, no numbers, tap-through ─────────── */}
+          {/* ── BUDGET TILE — Round A big-text, no numbers ─────────────── */}
           <TouchableOpacity
             style={[s.tile, { backgroundColor: T.mintTint, borderColor: 'transparent' }]}
             onPress={openBudget} activeOpacity={0.85}
           >
-            <Text style={[s.tileEyebrow, { color: T.mintDeep }]}>💰 OUR BUDGET</Text>
-            <Text style={s.budTitle}>Categories · Savings · Spending</Text>
-            <Text style={s.budSub}>Manage income, categories, savings goals.</Text>
-            <Text style={s.budCta}>Tap to open →</Text>
+            <View style={s.tileHead}>
+              <Text style={[s.tileEyebrow, { color: T.mintDeep }]}>💰 OUR BUDGET</Text>
+              <Text style={[s.fullHint, { color: T.mintDeep }]}>Full budget →</Text>
+            </View>
+            <Text style={[s.tileHeadline, { color: T.mintDeep }]}>On track for the month.</Text>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: T.ink3, marginTop: -6 }}>
+              Expenses · Savings · Spending
+            </Text>
           </TouchableOpacity>
 
           {/* NOTE — Reminders tile lands in Phase 05 as the 4th pillar */}
@@ -519,6 +544,9 @@ export default function DashboardScreen({
         </TouchableOpacity>
       </View>
 
+      {/* Round A — MoreSheet triggered by hamburger */}
+      <MoreSheet visible={moreOpen} onClose={() => setMoreOpen(false)}/>
+
     </SafeAreaView>
   );
 }
@@ -543,6 +571,7 @@ const s = StyleSheet.create({
     gap: 4,
   },
   hamLine: { width: 18, height: 2.2, backgroundColor: T.ink, borderRadius: 1 },
+  pageLabel: { fontFamily: 'Poppins_700Bold', fontSize: 17, color: T.ink2 },
 
   // Tile shared
   tile: {
@@ -562,6 +591,23 @@ const s = StyleSheet.create({
   tileMeta: {
     fontFamily: 'Poppins_600SemiBold', fontSize: 12,
     letterSpacing: 0.4, color: T.ink3,
+  },
+  // Round A — big-text headline (26px 800). Reads at a glance.
+  tileHeadline: {
+    fontFamily: 'Poppins_800ExtraBold', fontSize: 26,
+    letterSpacing: -0.6, lineHeight: 31,
+    marginTop: 6, marginBottom: 14,
+  },
+  // Round A — "Full × →" hint (top-right of each tile) so users know tile taps
+  fullHint: {
+    fontFamily: 'Poppins_600SemiBold', fontSize: 12,
+    letterSpacing: 0.2, opacity: 0.75,
+  },
+  // Round A — per-tile mic in the add pill (routes to Chat with mic intent)
+  tileMic: {
+    width: 32, height: 32, borderRadius: 10,
+    backgroundColor: 'rgba(10,10,10,0.06)',
+    alignItems: 'center', justifyContent: 'center',
   },
   emptyRow: {
     fontSize: 15, color: T.ink3, marginTop: 6, marginBottom: 6,

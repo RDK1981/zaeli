@@ -7355,7 +7355,7 @@ Rules:
               </Text>
             </TouchableOpacity>
             <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
-              <Text style={s.topBarChannelName}>Home</Text>
+              <Text style={s.topBarChannelName}>Chat</Text>
               <TouchableOpacity onPress={() => setMoreOpen(true)} activeOpacity={0.7} style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(10,10,10,0.05)', alignItems: 'center', justifyContent: 'center' }}>
                 <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#0A0A0A" strokeWidth={2.2} strokeLinecap="round">
                   <Line x1={4} y1={6} x2={20} y2={6}/>

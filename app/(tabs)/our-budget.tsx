@@ -517,7 +517,7 @@ Never invent variable category names outside the existing list — put those in 
       <View style={s.tabRow}>
         {(['overview', 'categories', 'goals'] as Tab[]).map(t => (
           <TouchableOpacity key={t} style={[s.tab, activeTab === t && s.tabOn]} onPress={() => setActiveTab(t)} activeOpacity={0.7}>
-            <Text style={[s.tabTxt, activeTab === t && s.tabTxtOn]}>{t === 'overview' ? 'Overview' : t === 'categories' ? 'Categories' : 'Savings'}</Text>
+            <Text style={[s.tabTxt, activeTab === t && s.tabTxtOn]}>{t === 'overview' ? 'Overview' : t === 'categories' ? 'Expenses' : 'Savings'}</Text>
           </TouchableOpacity>
         ))}
       </View>
