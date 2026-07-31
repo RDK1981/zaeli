@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Zaeli — Less chaos. More family.</title>
-  <meta name="description" content="The AI that runs your family week. Calendar, shopping, dinners, kids — all in one chat. Made in Australia for busy families.">
+  <meta name="description" content="Family productivity for Australian families. Calendar, shopping, budget, reminders — plus an AI who reads your mind at 7am and drops a real brief on your lockscreen.">
   <meta property="og:title" content="Zaeli — Less chaos. More family.">
-  <meta property="og:description" content="The AI that runs your family week. Calendar, shopping, dinners, kids — all in one chat.">
+  <meta property="og:description" content="Family productivity done right. Calendar · Shopping · Budget · Reminders — with an AI companion for everything else.">
   <meta property="og:url" content="https://zaeli.app">
   <meta property="og:type" content="website">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E✨%3C/text%3E%3C/svg%3E">
@@ -15,32 +15,36 @@
     /* ── Reset + base ─────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg:        #FAF8F5;
-      --ink:       #0A0A0A;
-      --ink2:      rgba(10,10,10,0.72);
-      --ink3:      rgba(10,10,10,0.48);
-      --line:      rgba(10,10,10,0.08);
-      --peach:     #FAC8A8;
-      --peach-tint:#FDF1E5;
-      --mint:      #B8EDD0;
-      --mint-tint: #E6F7EF;
-      --mint-deep: #2D7A52;
-      --lavender:  #D8CCFF;
-      --lav-tint:  #F0EBFF;
-      --sky:       #A8D8F0;
-      --sky-deep:  #0A5C80;
-      --sky-tint:  #E8F4FD;
-      --coral:     #FF4545;
-      --coral-tint:#FFE4E0;
-      --coral-deep:#B83333;
-      --slate:     #2D3748;
-      --gold:      #F0DC80;
-      --anna:      #FF7B6B;
-      --rich:      #4D8BFF;
-      --poppy:     #A855F7;
-      --gab:       #22C55E;
-      --duke:      #F59E0B;
-      --radius:    22px;
+      --bg:         #FAF8F5;
+      --ink:        #0A0A0A;
+      --ink2:       rgba(10,10,10,0.72);
+      --ink3:       rgba(10,10,10,0.48);
+      --line:       rgba(10,10,10,0.08);
+      --peach:      #FAC8A8;
+      --peach-tint: #FDF1E5;
+      --peach-deep: #8A3A00;
+      --mint:       #B8EDD0;
+      --mint-tint:  #E6F7EF;
+      --mint-deep:  #2D7A52;
+      --lavender:   #D8CCFF;
+      --lav-tint:   #F0EBFF;
+      --lav-deep:   #5020C0;
+      --sky:        #A8D8F0;
+      --sky-deep:   #0A5C80;
+      --sky-tint:   #E8F4FD;
+      --gold:       #F0DC80;
+      --gold-tint:  #FBF5D6;
+      --gold-deep:  #8B6914;
+      --coral:      #FF4545;
+      --coral-tint: #FFE4E0;
+      --coral-deep: #B83333;
+      --slate:      #2D3748;
+      --anna:       #FF7B6B;
+      --rich:       #4D8BFF;
+      --poppy:      #A855F7;
+      --gab:        #22C55E;
+      --duke:       #F59E0B;
+      --radius:     22px;
     }
     html, body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -62,12 +66,8 @@
       position: relative;
     }
     section { position: relative; overflow: hidden; }
-    .section-inner {
-      padding: 96px 0;
-    }
-    @media (max-width: 720px) {
-      .section-inner { padding: 64px 0; }
-    }
+    .section-inner { padding: 96px 0; }
+    @media (max-width: 720px) { .section-inner { padding: 64px 0; } }
 
     /* ── Nav ──────────────────────────────────────────────────────── */
     header.nav {
@@ -83,8 +83,7 @@
     }
     .wordmark {
       font-size: 32px; font-weight: 800; letter-spacing: -1.5px;
-      line-height: 1;
-      color: var(--ink);
+      line-height: 1; color: var(--ink);
     }
     .wordmark .a, .wordmark .i { color: var(--sky); }
     .nav .cta {
@@ -109,6 +108,7 @@
     .orb-mint  { width: 320px; height: 320px; background: var(--mint);  opacity: 0.55; bottom: -60px; left: -80px; }
     .orb-lav   { width: 220px; height: 220px; background: var(--lavender); opacity: 0.50; top: 200px; left: -30px; }
     .orb-sky   { width: 200px; height: 200px; background: var(--sky);   opacity: 0.45; bottom: 180px; right: -20px; }
+    .orb-gold  { width: 180px; height: 180px; background: var(--gold);  opacity: 0.45; top: 400px; right: 40px; }
 
     .hero .wrap { position: relative; z-index: 1; }
     .hero-grid {
@@ -133,7 +133,7 @@
     @media (max-width: 720px) { .hero-tag { font-size: 34px; letter-spacing: -1px; } }
 
     .hero-sub {
-      font-size: 19px; color: var(--ink2); max-width: 480px;
+      font-size: 19px; color: var(--ink2); max-width: 500px;
       margin-bottom: 32px;
     }
     @media (max-width: 720px) { .hero-sub { font-size: 17px; } }
@@ -158,6 +158,30 @@
       font-size: 14px; color: var(--ink3);
     }
     .hero-note .dot { display: inline-block; width: 6px; height: 6px; border-radius: 3px; background: var(--mint-deep); margin-right: 6px; vertical-align: middle; }
+
+    /* ── Pillar chips (below hero) ────────────────────────────────── */
+    .pillar-strip {
+      margin-top: 60px;
+      display: flex; gap: 8px; flex-wrap: wrap;
+      justify-content: center;
+    }
+    .pillar {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #fff; border: 1px solid var(--line);
+      padding: 10px 16px; border-radius: 999px;
+      font-size: 14px; font-weight: 600;
+      box-shadow: 0 2px 12px rgba(10,10,10,0.04);
+    }
+    .pillar .badge {
+      width: 20px; height: 20px; border-radius: 10px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 12px;
+    }
+    .pillar.cal   .badge { background: var(--slate); color: #fff; }
+    .pillar.shop  .badge { background: var(--lavender); color: var(--lav-deep); }
+    .pillar.rem   .badge { background: var(--gold); color: var(--gold-deep); }
+    .pillar.bud   .badge { background: var(--mint); color: var(--mint-deep); }
+    .pillar.chat  .badge { background: var(--peach); color: var(--peach-deep); }
 
     /* ── Phone mockup — the frame used across sections ────────────── */
     .phone {
@@ -191,11 +215,12 @@
     /* App bar inside phone */
     .app-bar {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 44px 18px 12px;
+      padding: 44px 16px 12px;
       border-bottom: 1px solid var(--line);
     }
     .app-bar .word {
-      font-size: 26px; font-weight: 800; letter-spacing: -1px;
+      font-size: 30px; font-weight: 800; letter-spacing: -1.2px;
+      line-height: 1;
     }
     .app-bar .word .a, .app-bar .word .i { color: var(--sky); }
     .app-bar .right { display: flex; align-items: center; gap: 10px; }
@@ -208,10 +233,229 @@
     }
     .app-bar .ham span { display: block; width: 16px; height: 2px; background: var(--ink); border-radius: 1px; }
 
-    /* Message bubble styles */
+    /* ── Home Bento (in phone) ────────────────────────────────────── */
+    .home-feed {
+      padding: 12px 12px 90px;
+      height: calc(100% - 60px);
+      overflow: hidden;
+    }
+    .tile {
+      border-radius: 18px; padding: 14px 14px 12px;
+      margin-bottom: 10px;
+    }
+    .tile-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .tile-eyebrow {
+      font-size: 9px; font-weight: 700; letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+    .tile-hint {
+      font-size: 10px; font-weight: 600; opacity: 0.7;
+    }
+    .tile-headline {
+      font-size: 20px; font-weight: 800;
+      letter-spacing: -0.4px; line-height: 1.15;
+      margin: 4px 0 10px;
+    }
+    .tile-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 3px 0;
+      font-size: 11px;
+    }
+    .tile-row .t { font-weight: 700; width: 42px; }
+    .tile-row .rd { width: 6px; height: 6px; border-radius: 3px; }
+    .tile-row .n { flex: 1; }
+    .tile-row .a {
+      width: 18px; height: 18px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 9px;
+    }
+    .add-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: #fff; border: 1.2px solid;
+      padding: 7px 10px; border-radius: 12px; margin-top: 8px;
+    }
+    .add-pill .plus { color: var(--coral); font-weight: 700; font-size: 15px; }
+    .add-pill .fld  { flex: 1; font-size: 12px; }
+    .add-pill .mic {
+      width: 22px; height: 22px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+    }
+
+    /* Universal chat bar mocked at bottom */
+    .chat-bar {
+      position: absolute; bottom: 14px; left: 12px; right: 12px;
+      background: #fff; border: 1px solid rgba(220,220,220,0.6);
+      border-radius: 28px;
+      padding: 8px 10px;
+      display: flex; align-items: center; gap: 6px;
+      min-height: 50px;
+    }
+    .chat-bar .mic {
+      width: 32px; height: 32px; border-radius: 16px;
+      background: rgba(10,10,10,0.05);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .chat-bar .sep { width: 1px; height: 22px; background: rgba(10,10,10,0.1); }
+    .chat-bar .field {
+      flex: 1; font-size: 13px; color: var(--ink3);
+    }
+    .chat-bar .send {
+      width: 32px; height: 32px; border-radius: 16px;
+      background: var(--coral); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+    }
+
+    /* ── Lockscreen mockup (NEW) ──────────────────────────────────── */
+    .lockscreen .screen {
+      background: linear-gradient(180deg, #1a1f2e 0%, #2a2035 50%, #3d2b48 100%);
+      position: relative;
+    }
+    .lockscreen .time {
+      color: #fff; font-size: 68px; font-weight: 200;
+      letter-spacing: -2px; line-height: 1;
+      text-align: center; padding-top: 78px;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.35);
+    }
+    .lockscreen .date {
+      color: #fff; text-align: center; font-size: 15px; font-weight: 500;
+      margin-top: 8px; opacity: 0.92; letter-spacing: 0.2px;
+    }
+    .lock-notif {
+      position: absolute; left: 12px; right: 12px; top: 230px;
+      background: rgba(60, 60, 65, 0.62);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      border-radius: 18px;
+      padding: 12px;
+      color: #fff;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+    }
+    .lock-notif .row1 {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+    }
+    .lock-notif .app-icon {
+      width: 38px; height: 38px; border-radius: 9px;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 20px; letter-spacing: -1px;
+      color: var(--ink);
+    }
+    .lock-notif .app-icon .a { color: var(--sky); }
+    .lock-notif .meta { flex: 1; display: flex; align-items: center; gap: 8px; }
+    .lock-notif .title {
+      font-size: 14px; font-weight: 700;
+    }
+    .lock-notif .now {
+      margin-left: auto; font-size: 12px; opacity: 0.7;
+    }
+    .lock-notif .body {
+      font-size: 14px; line-height: 1.4;
+      color: rgba(255,255,255,0.95);
+    }
+    .lock-controls {
+      position: absolute; bottom: 32px; left: 0; right: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 34px;
+    }
+    .lock-ctrl {
+      width: 44px; height: 44px; border-radius: 22px;
+      background: rgba(80, 80, 85, 0.55);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 18px;
+    }
+
+    /* ── Reminders sheet mockup ───────────────────────────────────── */
+    .rem-sheet .screen {
+      background: var(--bg);
+      position: relative;
+    }
+    .rem-sheet .handle {
+      width: 40px; height: 4px; border-radius: 2px;
+      background: rgba(10,10,10,0.14);
+      margin: 44px auto 0;
+    }
+    .rem-sheet .rem-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 12px; border-bottom: 1px solid var(--line);
+    }
+    .rem-sheet .rem-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 18px; font-weight: 700;
+    }
+    .rem-sheet .rem-close {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: rgba(10,10,10,0.07);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; color: var(--ink3);
+    }
+    .rem-list { padding: 12px; }
+    .rem-item {
+      background: #fff; border-radius: 12px; padding: 10px 12px;
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 6px; border-left: 3px solid var(--gold);
+    }
+    .rem-check {
+      width: 22px; height: 22px; border-radius: 11px;
+      border: 2px solid rgba(10,10,10,0.2);
+      background: transparent;
+    }
+    .rem-check.done {
+      background: var(--gab); border-color: var(--gab);
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+    }
+    .rem-item .body { flex: 1; }
+    .rem-item .body .t { font-size: 13px; font-weight: 600; }
+    .rem-item .body .t.done { text-decoration: line-through; color: var(--ink3); }
+    .rem-item .body .when { font-size: 10px; color: var(--ink3); font-weight: 500; margin-top: 2px; }
+    .rem-item .x { color: var(--ink3); font-size: 14px; }
+    .rem-input {
+      position: absolute; bottom: 14px; left: 12px; right: 12px;
+      background: #fff; border: 1.4px solid var(--gold);
+      border-radius: 28px;
+      padding: 8px 10px;
+      display: flex; align-items: center; gap: 6px;
+      min-height: 52px;
+    }
+    .rem-input .mic {
+      width: 34px; height: 34px; border-radius: 17px;
+      background: rgba(240,220,128,0.24);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+    }
+    .rem-input .sep { width: 1px; height: 22px; background: rgba(10,10,10,0.1); }
+    .rem-input .field { flex: 1; font-size: 13px; color: var(--gold-deep); opacity: 0.75; }
+    .rem-input .cam {
+      width: 34px; height: 34px; border-radius: 17px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: var(--coral);
+    }
+    .rem-input .send {
+      width: 34px; height: 34px; border-radius: 17px;
+      background: var(--coral); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+    }
+
+    /* ── Chat feed mockup (used in Chat section) ──────────────────── */
+    .chat-mock .screen { background: var(--bg); }
+    .chat-feed {
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 12px 12px 90px;
+      height: calc(100% - 60px);
+      overflow: hidden;
+    }
     .msg-user, .msg-zaeli {
-      max-width: 80%; padding: 11px 14px; border-radius: 18px;
-      font-size: 14px; line-height: 1.45;
+      max-width: 82%; padding: 10px 13px; border-radius: 16px;
+      font-size: 13px; line-height: 1.4;
     }
     .msg-user {
       background: var(--sky-tint); color: var(--ink);
@@ -223,110 +467,66 @@
     }
     .msg-brief-morning {
       background: var(--peach-tint); color: var(--ink);
-      max-width: 92%; padding: 14px 16px; border-radius: 18px;
-      align-self: flex-start; border-bottom-left-radius: 6px;
-    }
-    .msg-brief-evening {
-      background: var(--lav-tint); color: var(--ink);
-      max-width: 92%; padding: 14px 16px; border-radius: 18px;
+      max-width: 92%; padding: 12px 14px; border-radius: 16px;
       align-self: flex-start; border-bottom-left-radius: 6px;
     }
     .brief-pill {
       display: inline-flex; align-items: center; gap: 6px;
-      background: var(--peach); color: #8A3A00;
-      padding: 4px 10px; border-radius: 12px;
-      font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
-      margin-bottom: 8px;
+      background: var(--peach); color: var(--peach-deep);
+      padding: 3px 9px; border-radius: 10px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.8px;
+      margin-bottom: 6px;
     }
-    .brief-pill.evening { background: var(--lavender); color: #4A1F80; }
-    .zaeli-eyebrow {
-      font-size: 11px; color: var(--ink3); margin-bottom: 6px;
-      letter-spacing: 0.2px;
+    .z-eyebrow {
+      font-size: 10px; color: var(--ink3); margin-bottom: 4px;
     }
-
-    /* Chat feed inside phone */
-    .chat-feed {
-      display: flex; flex-direction: column; gap: 12px;
-      padding: 16px 14px 20px;
-      height: calc(100% - 156px);
-      overflow: hidden;
-    }
-    .chat-bar {
-      position: absolute; bottom: 12px; left: 12px; right: 12px;
-      background: #fff; border: 1px solid rgba(210,210,210,0.6);
-      border-radius: 30px;
-      padding: 10px 12px;
-      display: flex; align-items: center; gap: 10px;
-      min-height: 56px;
-    }
-    .chat-bar .mic {
-      width: 34px; height: 34px; border-radius: 17px;
-      background: rgba(10,10,10,0.05);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 15px;
-    }
-    .chat-bar .sep { width: 1px; height: 22px; background: rgba(10,10,10,0.1); }
-    .chat-bar .field {
-      flex: 1; font-size: 14px; color: var(--ink3);
-    }
-    .chat-bar .send {
-      width: 34px; height: 34px; border-radius: 17px;
-      background: var(--coral); color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px;
-    }
-
-    /* Inline card in chat */
     .inline-card {
       background: var(--slate); color: #fff;
-      border-radius: 14px; padding: 14px;
+      border-radius: 12px; padding: 12px;
       align-self: stretch;
     }
     .inline-card .head {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
     .inline-card .head .day {
-      font-size: 10px; font-weight: 700; letter-spacing: 1px;
-      color: rgba(255,255,255,0.65);
+      font-size: 9px; font-weight: 700; letter-spacing: 1px;
+      color: rgba(255,255,255,0.7);
     }
-    .inline-card .head .day::before { content: "📅  "; }
     .inline-card .add-btn {
       background: rgba(255,255,255,0.14); color: #fff;
-      padding: 5px 10px; border-radius: 10px;
-      font-size: 11px; font-weight: 600;
+      padding: 4px 8px; border-radius: 8px;
+      font-size: 10px; font-weight: 600;
     }
     .inline-card .event-row {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 0;
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 0;
       border-top: 1px solid rgba(255,255,255,0.08);
     }
     .inline-card .event-row:first-of-type { border-top: none; }
     .inline-card .time {
-      font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.75);
-      min-width: 52px;
+      font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.75);
+      min-width: 46px;
     }
     .inline-card .dot-title {
       display: flex; align-items: center; gap: 6px;
-      flex: 1; font-size: 13px; font-weight: 500;
+      flex: 1; font-size: 12px; font-weight: 500;
     }
-    .inline-card .dot {
-      width: 8px; height: 8px; border-radius: 4px;
-    }
+    .inline-card .dot { width: 6px; height: 6px; border-radius: 3px; }
     .inline-card .avatar {
-      width: 22px; height: 22px; border-radius: 11px;
+      width: 20px; height: 20px; border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 10px; font-weight: 700; color: #fff;
+      font-size: 9px; font-weight: 700; color: #fff;
     }
     .chip-row {
-      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
     }
     .chip {
       display: inline-flex; align-items: center;
       background: #fff; color: var(--ink);
       border: 1px solid rgba(10,10,10,0.14);
-      padding: 7px 12px; border-radius: 999px;
-      font-size: 12px; font-weight: 500;
+      padding: 6px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 500;
     }
     .chip.primary { background: var(--coral-tint); color: var(--coral-deep); border-color: rgba(255,69,69,0.28); font-weight: 600; }
 
@@ -338,400 +538,175 @@
       margin-bottom: 12px; text-transform: uppercase;
     }
     .h2 {
-      font-size: 44px; font-weight: 700; letter-spacing: -1.2px;
-      line-height: 1.1; margin-bottom: 18px;
+      font-size: 44px; font-weight: 700; letter-spacing: -1.4px;
+      line-height: 1.1;
+      margin-bottom: 20px;
     }
-    @media (max-width: 720px) { .h2 { font-size: 34px; letter-spacing: -0.8px; } }
+    @media (max-width: 720px) { .h2 { font-size: 32px; letter-spacing: -1px; } }
     .lede {
-      font-size: 19px; color: var(--ink2); max-width: 540px;
+      font-size: 19px; color: var(--ink2); max-width: 500px;
+      margin-bottom: 24px;
     }
     @media (max-width: 720px) { .lede { font-size: 17px; } }
 
-    /* ── Feature section layout — text | phone ────────────────────── */
+    /* ── Feature grid — text + phone ──────────────────────────────── */
     .feature-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
+      display: grid; grid-template-columns: 1fr 320px;
+      gap: 72px; align-items: center;
     }
-    .feature-grid.reverse { grid-template-columns: 1fr 1fr; }
-    .feature-grid.reverse .feature-text { order: 2; }
-    .feature-grid.reverse .feature-visual { order: 1; }
+    .feature-grid.reverse { grid-template-columns: 320px 1fr; }
     @media (max-width: 900px) {
-      .feature-grid, .feature-grid.reverse { grid-template-columns: 1fr; gap: 48px; }
-      .feature-grid.reverse .feature-text { order: 1; }
-      .feature-grid.reverse .feature-visual { order: 2; }
+      .feature-grid, .feature-grid.reverse {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+      .feature-grid .feature-text { order: -1; }
     }
-    .feature-list { list-style: none; margin-top: 22px; }
+    .feature-list {
+      list-style: none; display: flex; flex-direction: column; gap: 14px;
+      margin-top: 8px;
+    }
     .feature-list li {
-      display: flex; gap: 12px; align-items: flex-start;
-      padding: 12px 0; font-size: 16px; color: var(--ink2);
-      border-top: 1px solid var(--line);
-    }
-    .feature-list li:first-child { border-top: none; padding-top: 8px; }
-    .feature-list .tick {
-      flex-shrink: 0; margin-top: 3px;
-      width: 22px; height: 22px; border-radius: 11px;
-      background: var(--mint); color: var(--mint-deep);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 700;
-    }
-
-    /* ── Notifications section — side-by-side phones ──────────────── */
-    .notif-scene {
-      display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px;
-      align-items: center; justify-items: center;
-      max-width: 780px; margin: 0 auto;
-    }
-    .notif-arrow {
-      font-size: 40px; color: var(--sky-deep); font-weight: 300;
-    }
-    @media (max-width: 900px) {
-      .notif-scene { grid-template-columns: 1fr; gap: 36px; }
-      .notif-arrow { transform: rotate(90deg); font-size: 32px; }
-    }
-    .phone.compact { width: 280px; height: 574px; }
-    .phone.compact .app-bar { padding: 40px 16px 10px; }
-    .phone.compact .chat-feed { height: calc(100% - 148px); padding: 14px 12px 20px; }
-
-    /* Lockscreen (right phone in Notifications section) */
-    .lockscreen {
-      background: linear-gradient(180deg, #1a2540 0%, #34456e 60%, #6b8ab4 100%);
-      height: 100%; border-radius: 40px;
-      display: flex; flex-direction: column; align-items: center;
-      padding: 60px 16px 24px;
-      position: relative;
-    }
-    .lockscreen .lock-time {
-      color: #fff; font-size: 62px; font-weight: 200; letter-spacing: -2px;
-      margin-bottom: 4px;
-    }
-    .lockscreen .lock-date {
-      color: rgba(255,255,255,0.85); font-size: 15px; font-weight: 500;
-      margin-bottom: 44px;
-    }
-    .push-notif {
-      background: rgba(255,255,255,0.94); backdrop-filter: blur(20px);
-      border-radius: 18px; padding: 12px 14px; width: 92%;
       display: flex; gap: 10px; align-items: flex-start;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      font-size: 16px; color: var(--ink2);
     }
-    .push-notif .app-icon {
-      width: 38px; height: 38px; border-radius: 10px;
-      background: var(--bg);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 15px; font-weight: 800; letter-spacing: -0.5px;
-      flex-shrink: 0;
-    }
-    .push-notif .app-icon .a { color: var(--sky); }
-    .push-notif .body {
-      flex: 1; font-size: 13px; color: var(--ink);
-    }
-    .push-notif .body .row1 {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 2px;
-    }
-    .push-notif .body .app-name {
-      font-weight: 600; font-size: 12px; color: var(--ink);
-    }
-    .push-notif .body .time {
-      font-size: 11px; color: var(--ink3);
-    }
-    .push-notif .body .title {
-      font-weight: 600; margin-bottom: 2px; font-size: 13px;
-    }
-    .push-notif .body .msg {
-      font-size: 13px; color: var(--ink2); line-height: 1.35;
+    .feature-list .tick {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 6px;
+      background: var(--mint); color: var(--mint-deep);
+      font-weight: 700; font-size: 12px;
+      flex-shrink: 0; margin-top: 2px;
     }
 
-    /* ── Calendar sheet mockup ────────────────────────────────────── */
-    .cal-sheet {
-      background: var(--bg); height: 100%;
-      border-radius: 40px; padding: 44px 14px 20px;
-      overflow: hidden;
+    /* ── Section backgrounds (gentle tints) ──────────────────────── */
+    .bg-peach { background: linear-gradient(180deg, transparent, rgba(250,200,168,0.16), transparent); }
+    .bg-mint  { background: linear-gradient(180deg, transparent, rgba(184,237,208,0.16), transparent); }
+    .bg-lav   { background: linear-gradient(180deg, transparent, rgba(216,204,255,0.16), transparent); }
+    .bg-sky   { background: linear-gradient(180deg, transparent, rgba(168,216,240,0.16), transparent); }
+    .bg-gold  { background: linear-gradient(180deg, transparent, rgba(240,220,128,0.16), transparent); }
+    .bg-slate { background: var(--slate); color: #fff; }
+    .bg-slate .h2, .bg-slate .lede, .bg-slate .feature-list li { color: #fff; }
+    .bg-slate .lede, .bg-slate .feature-list li { opacity: 0.85; }
+    .bg-slate .eyebrow { color: rgba(255,255,255,0.6); }
+
+    /* ── Trio grid (Calendar / Shopping / Budget stacked) ─────────── */
+    .trio {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
     }
-    .cal-sheet .cal-head {
-      display: flex; align-items: center; justify-content: space-between;
+    @media (max-width: 900px) { .trio { grid-template-columns: 1fr; } }
+    .trio-card {
+      background: #fff; border: 1px solid var(--line); border-radius: 20px;
+      padding: 24px; display: flex; flex-direction: column;
+    }
+    .trio-card .badge {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 22px;
       margin-bottom: 14px;
     }
-    .cal-sheet .cal-title {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 20px; font-weight: 700;
-    }
-    .cal-sheet .cal-icon {
-      font-size: 20px;
-    }
-    .cal-sheet .cal-x {
-      width: 30px; height: 30px; border-radius: 8px;
-      background: rgba(10,10,10,0.05);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 14px; color: var(--ink2);
-    }
-    .cal-sheet .cal-tabs {
-      display: flex; background: rgba(10,10,10,0.05);
-      border-radius: 20px; padding: 4px; margin-bottom: 12px;
-    }
-    .cal-sheet .cal-tab {
-      flex: 1; text-align: center; padding: 8px; border-radius: 16px;
-      font-size: 13px; font-weight: 600; color: var(--ink2);
-    }
-    .cal-sheet .cal-tab.active { background: var(--ink); color: #fff; }
-    .cal-sheet .day-label {
-      font-size: 15px; font-weight: 700; margin-bottom: 12px;
-    }
-    .ev-card {
-      background: #fff; border-radius: 14px; padding: 10px 12px;
+    .trio-card.cal  .badge { background: var(--slate); color: #fff; }
+    .trio-card.shop .badge { background: var(--lavender); color: var(--lav-deep); }
+    .trio-card.rem  .badge { background: var(--gold); color: var(--gold-deep); }
+    .trio-card.bud  .badge { background: var(--mint); color: var(--mint-deep); }
+    .trio-card h3 {
+      font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
       margin-bottom: 8px;
-      display: flex; align-items: center; gap: 10px;
-      border-left: 4px solid var(--rich);
     }
-    .ev-card.p { border-left-color: var(--poppy); }
-    .ev-card.g { border-left-color: var(--gab); }
-    .ev-card.a { border-left-color: var(--anna); }
-    .ev-card .ev-time {
-      font-size: 11px; font-weight: 600; color: var(--ink3);
-      min-width: 44px;
-    }
-    .ev-card .ev-body { flex: 1; }
-    .ev-card .ev-title {
-      font-size: 13px; font-weight: 700; margin-bottom: 2px;
-    }
-    .ev-card .ev-meta {
-      font-size: 11px; color: var(--ink3);
-    }
-    .ev-card .avatars { display: flex; gap: -6px; }
-    .ev-card .avatar {
-      width: 22px; height: 22px; border-radius: 11px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 10px; font-weight: 700; color: #fff;
-      border: 2px solid #fff;
-      margin-left: -6px;
-    }
-    .ev-card .avatar:first-child { margin-left: 0; }
-
-    /* ── Shopping list mockup ─────────────────────────────────────── */
-    .shop-sheet {
-      background: var(--bg); height: 100%;
-      border-radius: 40px; padding: 44px 14px 20px;
-      overflow: hidden;
-    }
-    .shop-head {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 14px;
-    }
-    .shop-title {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 20px; font-weight: 700;
-    }
-    .shop-tabs {
-      display: flex; background: rgba(10,10,10,0.05);
-      border-radius: 20px; padding: 4px; margin-bottom: 14px;
-    }
-    .shop-tab {
-      flex: 1; text-align: center; padding: 8px; border-radius: 16px;
-      font-size: 13px; font-weight: 600; color: var(--ink2);
-    }
-    .shop-tab.active { background: var(--ink); color: #fff; }
-    .shop-item {
-      display: flex; align-items: center; gap: 10px;
-      background: #fff; border-radius: 12px;
-      padding: 12px; margin-bottom: 6px;
-    }
-    .shop-item .check {
-      width: 22px; height: 22px; border-radius: 11px;
-      border: 2px solid rgba(10,10,10,0.14);
-      flex-shrink: 0;
-    }
-    .shop-item.done .check {
-      background: var(--mint-deep); border-color: var(--mint-deep);
-      display: flex; align-items: center; justify-content: center;
-      color: #fff; font-size: 12px; font-weight: 700;
-    }
-    .shop-item.done .check::before { content: "✓"; }
-    .shop-item.done .item-txt {
-      color: var(--ink3); text-decoration: line-through;
-    }
-    .shop-item .item-txt {
-      flex: 1; font-size: 14px; font-weight: 500;
-    }
-    .shop-item .cat {
-      font-size: 10px; color: var(--ink3); font-weight: 600;
-      text-transform: uppercase; letter-spacing: 0.6px;
-    }
-    .pantry-chip {
-      display: inline-block; margin-top: 6px;
-      background: var(--mint-tint); color: var(--mint-deep);
-      padding: 3px 8px; border-radius: 10px;
-      font-size: 10px; font-weight: 600;
-    }
-
-    /* ── Dashboard mockup ─────────────────────────────────────────── */
-    .dash-scene {
-      background: var(--bg); height: 100%;
-      border-radius: 40px; padding: 44px 12px 20px;
-      overflow: hidden;
-    }
-    .dash-scene .dash-head {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 12px; padding: 0 4px;
-    }
-    .dash-scene .dash-title { font-size: 15px; font-weight: 700; color: var(--ink2); }
-    .dash-card {
-      background: var(--slate); color: #fff;
-      border-radius: 18px; padding: 14px;
-      margin-bottom: 10px;
-    }
-    .dash-card .card-label {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
-      color: rgba(255,255,255,0.55); margin-bottom: 6px;
-    }
-    .dash-card .card-head { font-size: 17px; font-weight: 700; margin-bottom: 3px; }
-    .dash-card .card-sub { font-size: 12px; color: rgba(255,255,255,0.7); }
-    .dash-shop {
-      background: var(--lavender); color: #3D2A80;
-    }
-    .dash-shop .card-label { color: rgba(80,32,192,0.65); }
-    .dash-shop .card-sub { color: rgba(80,32,192,0.72); }
-    .dash-bento { display: grid; grid-template-columns: 35fr 65fr; gap: 10px; }
-    .dash-weather {
-      background: var(--sky-tint); color: var(--ink);
-      border-radius: 16px; padding: 12px;
-    }
-    .dash-weather .temp { font-size: 24px; font-weight: 700; }
-    .dash-weather .cond { font-size: 11px; color: var(--ink2); }
-    .dash-noticed {
-      background: var(--peach-tint); color: var(--ink);
-      border-radius: 16px; padding: 12px;
-    }
-    .dash-noticed .head-mini {
-      font-size: 10px; font-weight: 700; color: var(--ink3);
-      letter-spacing: 0.6px; margin-bottom: 4px;
-    }
-    .dash-noticed .body-mini { font-size: 12px; line-height: 1.4; }
-    .dash-radar {
-      background: var(--gold); color: #5A4800;
-    }
-    .dash-radar .card-label { color: rgba(90,72,0,0.65); }
-    .dash-radar .card-sub { color: rgba(90,72,0,0.75); }
+    .trio-card p { color: var(--ink2); font-size: 15px; }
 
     /* ── Pricing ──────────────────────────────────────────────────── */
-    .pricing {
-      background: linear-gradient(180deg, transparent 0%, rgba(184,237,208,0.28) 100%);
-    }
-    .pricing .h2 { text-align: center; }
-    .pricing .lede { text-align: center; margin: 0 auto 44px; }
-    .price-grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
-      max-width: 780px; margin: 0 auto;
-    }
-    @media (max-width: 720px) { .price-grid { grid-template-columns: 1fr; } }
+    .pricing { }
     .price-card {
-      background: #fff; border-radius: 24px; padding: 32px 28px;
-      border: 1px solid var(--line);
-      display: flex; flex-direction: column;
+      max-width: 500px; margin: 32px auto 0;
+      background: #fff; border: 1px solid var(--line); border-radius: 24px;
+      padding: 40px 32px;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(10,10,10,0.06);
     }
-    .price-card.primary {
-      border: 2px solid var(--mint-deep);
-      background: linear-gradient(180deg, #fff 0%, var(--mint-tint) 100%);
-      position: relative;
+    .price-name {
+      font-size: 22px; font-weight: 700; margin-bottom: 6px;
     }
-    .price-card .tier {
-      font-size: 13px; font-weight: 700; letter-spacing: 0.5px;
-      color: var(--ink2); text-transform: uppercase;
-      margin-bottom: 12px;
+    .price-amount {
+      font-size: 56px; font-weight: 800; letter-spacing: -2px;
+      line-height: 1;
     }
-    .price-card .price {
-      font-size: 44px; font-weight: 800; letter-spacing: -1.5px;
-      line-height: 1; margin-bottom: 4px;
+    .price-amount .sm { font-size: 22px; font-weight: 500; color: var(--ink3); vertical-align: middle; }
+    .price-trial {
+      margin-top: 10px;
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--mint-tint); color: var(--mint-deep);
+      padding: 6px 14px; border-radius: 999px;
+      font-size: 13px; font-weight: 700;
     }
-    .price-card .price .cur { font-size: 22px; vertical-align: top; margin-right: 2px; }
-    .price-card .per { font-size: 15px; color: var(--ink2); margin-bottom: 20px; }
-    .price-card .tag {
-      position: absolute; top: -12px; right: 20px;
-      background: var(--mint-deep); color: #fff;
-      font-size: 11px; font-weight: 700; letter-spacing: 0.6px;
-      padding: 5px 10px; border-radius: 10px;
+    .price-list {
+      list-style: none; text-align: left;
+      margin-top: 24px; display: flex; flex-direction: column; gap: 10px;
     }
-    .price-card ul {
-      list-style: none; margin: 0 0 24px; padding: 0;
+    .price-list li {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 15px; color: var(--ink2);
     }
-    .price-card li {
-      font-size: 14px; padding: 7px 0; color: var(--ink2);
-      display: flex; align-items: flex-start; gap: 8px;
+    .price-list .tick {
+      color: var(--mint-deep); font-weight: 700;
     }
-    .price-card li::before {
-      content: "✓"; color: var(--mint-deep); font-weight: 700;
-      flex-shrink: 0;
+    .price-cta {
+      display: block; margin-top: 28px;
+      background: var(--ink); color: #fff;
+      padding: 15px 32px; border-radius: 30px;
+      font-weight: 600; font-size: 16px;
+      transition: transform 0.12s ease, opacity 0.12s ease;
     }
-    .price-card .btn { margin-top: auto; }
+    .price-cta:hover { transform: translateY(-1px); opacity: 0.92; }
+    .price-tutor {
+      margin-top: 20px; font-size: 14px; color: var(--ink3);
+    }
 
-    /* ── Beta signup form ─────────────────────────────────────────── */
+    /* ── Beta CTA ─────────────────────────────────────────────────── */
     .beta {
-      background: linear-gradient(180deg, rgba(184,237,208,0.28) 0%, transparent 100%);
+      text-align: center;
+      background: linear-gradient(160deg, var(--peach-tint), var(--lav-tint));
     }
-    .beta .wrap { max-width: 620px; text-align: center; }
-    .beta .h2 { text-align: center; }
-    .beta .lede { margin: 0 auto 28px; }
-    .beta-form {
-      display: flex; gap: 10px; flex-wrap: wrap;
-      justify-content: center; margin-top: 8px;
+    .beta .beta-form {
+      max-width: 460px; margin: 24px auto 0;
+      display: flex; gap: 10px;
     }
-    .beta-form input[type=email] {
-      flex: 1; min-width: 260px;
+    @media (max-width: 500px) { .beta .beta-form { flex-direction: column; } }
+    .beta input {
+      flex: 1;
       padding: 15px 20px; border-radius: 30px;
       border: 1.5px solid rgba(10,10,10,0.14);
-      background: #fff; font-size: 16px; color: var(--ink);
-      outline: none; transition: border-color 0.15s ease;
+      background: #fff;
+      font-size: 16px;
+      color: var(--ink);
     }
-    .beta-form input[type=email]:focus { border-color: var(--sky-deep); }
-    .beta-form button {
-      padding: 15px 32px; border-radius: 30px;
-      background: var(--ink); color: #fff;
-      font-size: 16px; font-weight: 600; border: none;
-      cursor: pointer;
+    .beta input:focus { outline: 2px solid var(--sky); }
+    .beta .btn-primary { white-space: nowrap; }
+    .beta .beta-note {
+      font-size: 13px; color: var(--ink3);
+      margin-top: 14px;
     }
-    .beta-form button:hover { opacity: 0.9; }
-    .beta-note {
-      font-size: 13px; color: var(--ink3); margin-top: 16px;
-    }
-    .beta-success {
-      display: none; margin-top: 20px;
-      background: var(--mint-tint); color: var(--mint-deep);
-      border-radius: 16px; padding: 16px 20px;
-      font-size: 15px; font-weight: 600;
-    }
-    .beta-success.show { display: block; }
 
     /* ── Footer ───────────────────────────────────────────────────── */
     footer {
+      padding: 40px 0 60px;
       border-top: 1px solid var(--line);
-      padding: 40px 0 32px;
-      background: var(--bg);
+      text-align: center;
+      font-size: 14px; color: var(--ink3);
     }
-    footer .wrap {
-      display: flex; justify-content: space-between; align-items: center;
-      flex-wrap: wrap; gap: 20px;
+    footer .foot-links {
+      display: flex; gap: 20px; justify-content: center;
+      margin-top: 12px; flex-wrap: wrap;
     }
-    footer .word-mini {
-      font-size: 22px; font-weight: 800; letter-spacing: -1px;
+    footer .foot-links a {
+      color: var(--ink3); text-decoration: none;
     }
-    footer .word-mini .a, .footer .word-mini .i { color: var(--sky); }
-    footer nav {
-      display: flex; gap: 24px; flex-wrap: wrap;
-    }
-    footer nav a {
-      font-size: 14px; color: var(--ink2);
-    }
-    footer nav a:hover { color: var(--ink); }
-    footer .made {
-      font-size: 13px; color: var(--ink3);
-    }
-
-    /* Utility */
-    .no-wrap { white-space: nowrap; }
-    .center { text-align: center; }
+    footer .foot-links a:hover { color: var(--ink); }
   </style>
 </head>
 <body>
 
-  <!-- ── Nav ─────────────────────────────────────────────────────── -->
+  <!-- ── Nav ────────────────────────────────────────────────────────── -->
   <header class="nav">
     <div class="wrap">
       <a href="#top" class="wordmark">z<span class="a">a</span>el<span class="i">i</span></a>
@@ -739,13 +714,14 @@
     </div>
   </header>
 
-  <!-- ── Hero ────────────────────────────────────────────────────── -->
+  <!-- ── Hero ───────────────────────────────────────────────────────── -->
   <section class="hero" id="top">
     <div class="hero-orbs">
       <div class="orb orb-peach"></div>
       <div class="orb orb-mint"></div>
       <div class="orb orb-lav"></div>
       <div class="orb orb-sky"></div>
+      <div class="orb orb-gold"></div>
     </div>
     <div class="section-inner">
       <div class="wrap">
@@ -753,15 +729,15 @@
           <div>
             <h1 class="hero-word">z<span class="a">a</span>el<span class="i">i</span></h1>
             <p class="hero-tag">Less <span class="coral">chaos</span>.<br>More family.</p>
-            <p class="hero-sub">The AI that runs your family week — calendar, shopping, dinners, kids — all in one chat. Talk to her like a switched-on friend. She does the rest.</p>
+            <p class="hero-sub">The family productivity app that pays attention. Calendar, shopping, budget, reminders — plus an AI who reads your mind at 7am and drops a real morning brief on your lockscreen.</p>
             <div class="hero-ctas">
               <a href="#beta" class="btn btn-primary">Join the beta →</a>
-              <a href="#chat" class="btn btn-ghost">See how it works</a>
+              <a href="#home" class="btn btn-ghost">See how it works</a>
             </div>
             <p class="hero-note"><span class="dot"></span>Free for 14 days · A$9.99/month after · Made in Australia</p>
           </div>
 
-          <!-- Hero phone mockup -->
+          <!-- Hero phone: the new Bento Home -->
           <div>
             <div class="phone tilt-right" aria-hidden="true">
               <div class="notch"></div>
@@ -773,33 +749,56 @@
                     <div class="ham"><span></span><span></span><span></span></div>
                   </div>
                 </div>
-                <div class="chat-feed">
-                  <div class="msg-brief-morning">
-                    <div class="brief-pill">☀ MORNING</div>
-                    <div class="zaeli-eyebrow">Zaeli · 7:12 am</div>
-                    <div style="font-size:14px; line-height:1.5;">Thursday morning, Rich — Poppy has soccer at 3:30 and there's a school pickup at 2. 📅<br><br>Dinner's the only loose thread. Want me to plan something around Poppy's soccer? 🍽</div>
+                <div class="home-feed">
+
+                  <!-- Calendar tile -->
+                  <div class="tile" style="background: var(--slate); color: #fff;">
+                    <div class="tile-head">
+                      <div class="tile-eyebrow" style="color: rgba(255,255,255,0.7);">📅 CALENDAR</div>
+                      <div class="tile-hint" style="color: rgba(255,255,255,0.65);">Full calendar →</div>
+                    </div>
+                    <div class="tile-headline" style="color: #fff;">2 events on today.</div>
+                    <div class="tile-row">
+                      <div class="t" style="color: rgba(255,255,255,0.75);">2:00 pm</div>
+                      <div class="rd" style="background: var(--rich);"></div>
+                      <div class="n" style="color: rgba(255,255,255,0.92);">School pickup</div>
+                      <div class="a" style="background: var(--rich);">R</div>
+                    </div>
+                    <div class="tile-row">
+                      <div class="t" style="color: rgba(255,255,255,0.75);">4:00 pm</div>
+                      <div class="rd" style="background: var(--poppy);"></div>
+                      <div class="n" style="color: rgba(255,255,255,0.92);">Soccer training</div>
+                      <div class="a" style="background: var(--poppy);">P</div>
+                    </div>
+                    <div class="add-pill" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.18);">
+                      <span class="plus">+</span>
+                      <span class="fld" style="color: rgba(255,255,255,0.65);">Add event…</span>
+                      <span class="mic" style="background: rgba(255,255,255,0.15); color: #fff;">🎙</span>
+                    </div>
                   </div>
 
-                  <div class="msg-user" style="align-self:flex-end;">Can you shift soccer to 4pm and text Anna?</div>
-
-                  <div class="msg-zaeli">Done. Poppy's soccer moved to 4pm, and Anna's been notified ✓</div>
-
-                  <div class="inline-card">
-                    <div class="head">
-                      <div class="day">TODAY · THU, 24 JUL</div>
-                      <div class="add-btn">+ Add</div>
+                  <!-- Shopping tile -->
+                  <div class="tile" style="background: var(--lavender);">
+                    <div class="tile-head">
+                      <div class="tile-eyebrow" style="color: var(--lav-deep);">🛒 SHOPPING</div>
+                      <div class="tile-hint" style="color: var(--lav-deep);">Full list →</div>
                     </div>
-                    <div class="event-row">
-                      <div class="time">2:00 pm</div>
-                      <div class="dot-title"><div class="dot" style="background:#4D8BFF"></div>School Pickup</div>
-                      <div class="avatar" style="background:#4D8BFF">R</div>
+                    <div class="tile-headline">4 items to grab.</div>
+                    <div class="tile-row">
+                      <div class="rd" style="background: var(--lav-deep); opacity: 0.4; margin-left: 42px;"></div>
+                      <div class="n" style="font-weight: 500;">Grapes</div>
                     </div>
-                    <div class="event-row">
-                      <div class="time">4:00 pm</div>
-                      <div class="dot-title"><div class="dot" style="background:#A855F7"></div>Poppy soccer</div>
-                      <div class="avatar" style="background:#A855F7">P</div>
+                    <div class="tile-row">
+                      <div class="rd" style="background: var(--lav-deep); opacity: 0.4; margin-left: 42px;"></div>
+                      <div class="n" style="font-weight: 500;">Vanilla extract</div>
+                    </div>
+                    <div class="add-pill" style="border-color: var(--lav-deep);">
+                      <span class="plus">+</span>
+                      <span class="fld" style="color: rgba(80,32,192,0.6);">Add item…</span>
+                      <span class="mic" style="background: rgba(80,32,192,0.10); color: var(--lav-deep);">🎙</span>
                     </div>
                   </div>
+
                 </div>
                 <div class="chat-bar">
                   <div class="mic">🎙</div>
@@ -811,27 +810,37 @@
             </div>
           </div>
         </div>
+
+        <div class="pillar-strip">
+          <span class="pillar cal"><span class="badge">📅</span>Calendar</span>
+          <span class="pillar shop"><span class="badge">🛒</span>Shopping</span>
+          <span class="pillar rem"><span class="badge">⏰</span>Reminders</span>
+          <span class="pillar bud"><span class="badge">💰</span>Budget</span>
+          <span class="pillar chat"><span class="badge">✨</span>Chat</span>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Chat is home ─────────────────────────────────────────────── -->
-  <section id="chat">
+  <!-- ── Section 1: Home is where your family lives ──────────────── -->
+  <section id="home" class="bg-peach">
     <div class="section-inner">
       <div class="wrap">
-        <div class="feature-grid reverse">
+        <div class="feature-grid">
           <div class="feature-text">
-            <span class="eyebrow">The heart of it</span>
-            <h2 class="h2">Chat is home.</h2>
-            <p class="lede">Zaeli isn't buried in a menu. She's the first thing you see. Talk to her like a friend — voice, text, or a photo — and she gets on with it.</p>
+            <span class="eyebrow">Home — the front door</span>
+            <h2 class="h2">Everything that matters, at a glance.</h2>
+            <p class="lede">Four tiles on Home cover 95% of the daily glue: <b>Calendar · Shopping · Reminders · Budget</b>. Each one leads with a plain-English headline you can read in a heartbeat.</p>
             <ul class="feature-list">
-              <li><span class="tick">✓</span><span>Morning and evening briefs that actually know your family — what's on today, what's tomorrow, what needs sorting.</span></li>
-              <li><span class="tick">✓</span><span>One chat handles calendar, shopping, meals, kids' bits and family messages. No app-hopping.</span></li>
-              <li><span class="tick">✓</span><span>Snap a school newsletter, receipt, or invitation. She reads it and files it.</span></li>
+              <li><span class="tick">✓</span><span><b>Big-text headlines.</b> "2 events on today." · "4 items to grab." · "1 due at 3 pm." · "On track for the month." No decoding.</span></li>
+              <li><span class="tick">✓</span><span><b>Type or tap the mic in any tile.</b> "Milk, bread, coffee" — added. Say "Duke's swim next Thursday 4pm" — booked.</span></li>
+              <li><span class="tick">✓</span><span><b>Tap any tile to expand.</b> Full calendar, full list, everything. Sheet pops over Home — you never lose your place.</span></li>
+              <li><span class="tick">✓</span><span><b>Chat is one swipe left.</b> For anything that needs a proper conversation, or a photo, or a brain-dump.</span></li>
             </ul>
           </div>
-          <div class="feature-visual">
-            <div class="phone" aria-hidden="true">
+
+          <div>
+            <div class="phone tilt-left">
               <div class="notch"></div>
               <div class="screen">
                 <div class="app-bar">
@@ -841,19 +850,32 @@
                     <div class="ham"><span></span><span></span><span></span></div>
                   </div>
                 </div>
-                <div class="chat-feed">
-                  <div class="msg-brief-evening">
-                    <div class="brief-pill evening">🌙 EVENING</div>
-                    <div class="zaeli-eyebrow">Zaeli · 9:05 pm</div>
-                    <div style="font-size:14px; line-height:1.5;">Wednesday done, Rich — and the bins are out 🌙<br><br>Tomorrow's soft: Gab has band at 8, Anna finishes early. Dinner's leftover pasta from Sunday, still in the fridge.<br><br>One thing — Duke's swim bag needs a repack in the morning 🎒</div>
-                    <div class="chip-row">
-                      <div class="chip">Chat with me</div>
-                      <div class="chip">Got it</div>
+                <div class="home-feed">
+                  <div class="tile" style="background: var(--gold-tint);">
+                    <div class="tile-head">
+                      <div class="tile-eyebrow" style="color: var(--gold-deep);">⏰ REMINDERS</div>
+                      <div class="tile-hint" style="color: var(--gold-deep);">All reminders →</div>
+                    </div>
+                    <div class="tile-headline">1 due at 3 pm.</div>
+                    <div class="tile-row">
+                      <div class="t" style="color: var(--gold-deep);">3 pm</div>
+                      <div class="rd" style="background: var(--gold-deep);"></div>
+                      <div class="n" style="font-weight: 500;">Walk the dog</div>
+                    </div>
+                    <div class="add-pill" style="border-color: var(--gold-deep);">
+                      <span class="plus">+</span>
+                      <span class="fld" style="color: rgba(139,105,20,0.65);">Add reminder…</span>
+                      <span class="mic" style="background: rgba(139,105,20,0.10); color: var(--gold-deep);">🎙</span>
                     </div>
                   </div>
-
-                  <div class="msg-user" style="align-self:flex-end;">add "buy sunscreen" to shopping</div>
-                  <div class="msg-zaeli">Added — sunscreen's on the list. Anything else?</div>
+                  <div class="tile" style="background: var(--mint-tint);">
+                    <div class="tile-head">
+                      <div class="tile-eyebrow" style="color: var(--mint-deep);">💰 OUR BUDGET</div>
+                      <div class="tile-hint" style="color: var(--mint-deep);">Full budget →</div>
+                    </div>
+                    <div class="tile-headline" style="color: var(--mint-deep);">On track for the month.</div>
+                    <div style="font-size: 11px; color: var(--ink3); margin-top: -2px;">Expenses · Savings · Spending</div>
+                  </div>
                 </div>
                 <div class="chat-bar">
                   <div class="mic">🎙</div>
@@ -869,289 +891,120 @@
     </div>
   </section>
 
-  <!-- ── Notifications ⭐ NEW ─────────────────────────────────────── -->
-  <section style="background: linear-gradient(180deg, transparent, rgba(216,204,255,0.18), transparent);">
-    <div class="section-inner">
-      <div class="wrap">
-        <div class="center" style="margin-bottom: 56px;">
-          <span class="eyebrow" style="color: var(--sky-deep);">⭐ New</span>
-          <h2 class="h2">Nudge the family without leaving the chat.</h2>
-          <p class="lede" style="margin: 0 auto;">Say "text Anna I'm running late" or tap a Notify chip on any new event. A real push notification lands on their phone — no SMS, no group thread noise.</p>
-        </div>
-
-        <div class="notif-scene">
-          <!-- Left: Rich's chat -->
-          <div class="phone compact" aria-hidden="true">
-            <div class="notch"></div>
-            <div class="screen">
-              <div class="app-bar">
-                <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
-                <div class="right">
-                  <span class="label">Home</span>
-                  <div class="ham"><span></span><span></span><span></span></div>
-                </div>
-              </div>
-              <div class="chat-feed">
-                <div class="msg-user" style="align-self:flex-end;">Text Anna I'll be home in 20.</div>
-                <div class="msg-zaeli">Sent to Anna ✓</div>
-                <div class="msg-user" style="align-self:flex-end;">and let her know I've grabbed milk on the way</div>
-                <div class="msg-zaeli">Second one just landed on her phone 🍼</div>
-              </div>
-              <div class="chat-bar">
-                <div class="mic">🎙</div>
-                <div class="sep"></div>
-                <div class="field">Ask Zaeli anything…</div>
-                <div class="send">↑</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="notif-arrow">→</div>
-
-          <!-- Right: Anna's lockscreen -->
-          <div class="phone compact" aria-hidden="true">
-            <div class="notch"></div>
-            <div class="screen">
-              <div class="lockscreen">
-                <div class="lock-time">4:52</div>
-                <div class="lock-date">Thursday, 24 July</div>
-                <div class="push-notif">
-                  <div class="app-icon">z<span class="a">a</span></div>
-                  <div class="body">
-                    <div class="row1">
-                      <div class="app-name">Zaeli</div>
-                      <div class="time">now</div>
-                    </div>
-                    <div class="title">💬 Rich</div>
-                    <div class="msg">I'll be home in 20.</div>
-                  </div>
-                </div>
-                <div class="push-notif" style="margin-top: 8px; opacity: 0.88;">
-                  <div class="app-icon">z<span class="a">a</span></div>
-                  <div class="body">
-                    <div class="row1">
-                      <div class="app-name">Zaeli</div>
-                      <div class="time">2m ago</div>
-                    </div>
-                    <div class="title">💬 Rich</div>
-                    <div class="msg">Grabbed the milk on the way.</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Calendar ─────────────────────────────────────────────────── -->
-  <section id="calendar">
-    <div class="section-inner">
-      <div class="wrap">
-        <div class="feature-grid">
-          <div class="feature-text">
-            <span class="eyebrow">Family calendar</span>
-            <h2 class="h2">One calendar, colour-coded per person, that actually gets used.</h2>
-            <p class="lede">Add events by talking. Recurring soccer, dance troop, work rosters — Zaeli handles the series, the clashes, and the "who's picking up who" the whole family sees at a glance.</p>
-            <ul class="feature-list">
-              <li><span class="tick">✓</span><span>Every family member gets a colour. See at a glance whose day is stacked.</span></li>
-              <li><span class="tick">✓</span><span>Recurring events done properly — "every Mon/Tue/Fri", multi-week series, one-tap "roll it on another year".</span></li>
-              <li><span class="tick">✓</span><span>Clash awareness: Zaeli flags overlaps before they bite. "Poppy soccer and Duke dance both hit 4pm Thursday — want me to sort it?"</span></li>
-            </ul>
-          </div>
-          <div class="feature-visual">
-            <div class="phone tilt-left" aria-hidden="true">
-              <div class="notch"></div>
-              <div class="screen">
-                <div class="cal-sheet">
-                  <div class="cal-head">
-                    <div class="cal-title"><span class="cal-icon">📅</span> Calendar</div>
-                    <div class="cal-x">✕</div>
-                  </div>
-                  <div class="cal-tabs">
-                    <div class="cal-tab">Today</div>
-                    <div class="cal-tab active">Tomorrow</div>
-                    <div class="cal-tab">Month</div>
-                  </div>
-                  <div class="day-label">Friday 25 July 2026</div>
-                  <div class="ev-card p">
-                    <div class="ev-time">7:30 am</div>
-                    <div class="ev-body">
-                      <div class="ev-title">School Dance Troop</div>
-                      <div class="ev-meta">7:30 – 8:30 am</div>
-                    </div>
-                    <div class="avatars">
-                      <div class="avatar" style="background:#A855F7">P</div>
-                    </div>
-                  </div>
-                  <div class="ev-card a">
-                    <div class="ev-time">9:00 am</div>
-                    <div class="ev-body">
-                      <div class="ev-title">Room 7 Assembly</div>
-                      <div class="ev-meta">9:00 – 10:00 am</div>
-                    </div>
-                    <div class="avatars">
-                      <div class="avatar" style="background:#FF7B6B">A</div>
-                      <div class="avatar" style="background:#F59E0B">D</div>
-                    </div>
-                  </div>
-                  <div class="ev-card a">
-                    <div class="ev-time">1:00 pm</div>
-                    <div class="ev-body">
-                      <div class="ev-title">Pick Up Shopping</div>
-                      <div class="ev-meta">1:00 – 2:00 pm</div>
-                    </div>
-                    <div class="avatars">
-                      <div class="avatar" style="background:#FF7B6B">A</div>
-                    </div>
-                  </div>
-                  <div class="ev-card">
-                    <div class="ev-time">4:00 pm</div>
-                    <div class="ev-body">
-                      <div class="ev-title">Soccer Training</div>
-                      <div class="ev-meta">4:00 – 5:15 pm</div>
-                    </div>
-                    <div class="avatars">
-                      <div class="avatar" style="background:#4D8BFF">R</div>
-                      <div class="avatar" style="background:#22C55E">G</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Shopping ─────────────────────────────────────────────────── -->
-  <section style="background: linear-gradient(180deg, transparent, rgba(216,204,255,0.14), transparent);">
+  <!-- ── Section 2: Zaeli on the lockscreen (NEW HERO STORY) ─────── -->
+  <section id="lockscreen" class="bg-lav">
     <div class="section-inner">
       <div class="wrap">
         <div class="feature-grid reverse">
-          <div class="feature-text">
-            <span class="eyebrow">Shopping + pantry</span>
-            <h2 class="h2">Scan a receipt. She takes it from there.</h2>
-            <p class="lede">Snap the whole receipt (multi-page fine). Zaeli reads it, ticks items off your list, updates the pantry, tracks the spend. She'll even flag things you've already got at home when you go to add them.</p>
-            <ul class="feature-list">
-              <li><span class="tick">✓</span><span>Voice, text, or camera — "add coffee beans and barista milk" and it's done in 3 seconds.</span></li>
-              <li><span class="tick">✓</span><span>Pantry-aware: "we've still got maple syrup, bought Tuesday — want to add it anyway?"</span></li>
-              <li><span class="tick">✓</span><span>Recipe → shopping. One tap sends every ingredient you don't already have straight to the list.</span></li>
-            </ul>
-          </div>
-          <div class="feature-visual">
-            <div class="phone tilt-right" aria-hidden="true">
+
+          <div>
+            <div class="phone lockscreen tilt-right">
               <div class="notch"></div>
               <div class="screen">
-                <div class="shop-sheet">
-                  <div class="shop-head">
-                    <div class="shop-title">🛒 Shopping</div>
-                    <div class="cal-x">✕</div>
-                  </div>
-                  <div class="shop-tabs">
-                    <div class="shop-tab active">List</div>
-                    <div class="shop-tab">Pantry</div>
-                    <div class="shop-tab">Spend</div>
-                  </div>
-                  <div class="shop-item">
-                    <div class="check"></div>
-                    <div style="flex:1;">
-                      <div class="item-txt">Sourdough loaf</div>
-                      <div class="cat">Bakery</div>
+                <div class="time">7:04</div>
+                <div class="date">Thursday, 31 July</div>
+                <div class="lock-notif">
+                  <div class="row1">
+                    <div class="app-icon">z<span class="a">a</span></div>
+                    <div class="meta">
+                      <div class="title">☀️ Morning brief</div>
+                      <div class="now">now</div>
                     </div>
                   </div>
-                  <div class="shop-item">
-                    <div class="check"></div>
-                    <div style="flex:1;">
-                      <div class="item-txt">Coffee beans</div>
-                      <div class="cat">Pantry</div>
-                      <div class="pantry-chip">In pantry — bought 5 days ago</div>
-                    </div>
-                  </div>
-                  <div class="shop-item">
-                    <div class="check"></div>
-                    <div style="flex:1;">
-                      <div class="item-txt">Bananas × 6</div>
-                      <div class="cat">Fruit</div>
-                    </div>
-                  </div>
-                  <div class="shop-item done">
-                    <div class="check"></div>
-                    <div style="flex:1;">
-                      <div class="item-txt">Full cream milk 2L</div>
-                      <div class="cat">Dairy</div>
-                    </div>
-                  </div>
-                  <div class="shop-item done">
-                    <div class="check"></div>
-                    <div style="flex:1;">
-                      <div class="item-txt">Eggs — free range 12pk</div>
-                      <div class="cat">Dairy</div>
-                    </div>
-                  </div>
+                  <div class="body">Thursday morning — Poppy has soccer at 4pm and school pickup at 2pm. Bins go out tonight. 🗑️</div>
+                </div>
+                <div class="lock-controls">
+                  <div class="lock-ctrl">🔦</div>
+                  <div class="lock-ctrl">📷</div>
                 </div>
               </div>
             </div>
           </div>
+
+          <div class="feature-text">
+            <span class="eyebrow">Morning + evening brief</span>
+            <h2 class="h2">Zaeli reads your day to you before you open the app.</h2>
+            <p class="lede">Every morning and evening at the time <b>you</b> pick, Zaeli lands a proper brief on your lockscreen. Not "you have new notifications". The actual brief — what's on today, what needs doing, what's coming.</p>
+            <ul class="feature-list">
+              <li><span class="tick">✓</span><span><b>Real content in the body.</b> A paragraph you can read from the lockscreen without unlocking your phone.</span></li>
+              <li><span class="tick">✓</span><span><b>Aware of your family's actual day.</b> Pulls from today's calendar, tomorrow's calendar, your shopping list, your open reminders.</span></li>
+              <li><span class="tick">✓</span><span><b>Warm, not naggy.</b> If nothing needs doing, she'll tell you that too. No fake urgency.</span></li>
+              <li><span class="tick">✓</span><span><b>Pick your times.</b> 7am morning, 5pm evening, or whenever fits your rhythm.</span></li>
+            </ul>
+          </div>
+
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Dashboard ────────────────────────────────────────────────── -->
-  <section id="dashboard">
+  <!-- ── Section 3: Reminders — the 4th pillar (NEW) ──────────────── -->
+  <section id="reminders" class="bg-gold">
     <div class="section-inner">
       <div class="wrap">
         <div class="feature-grid">
           <div class="feature-text">
-            <span class="eyebrow">The glance</span>
-            <h2 class="h2">Everything at a glance. Nothing shouting.</h2>
-            <p class="lede">One swipe from chat gets you the dashboard — calendar, shopping, weather, and Zaeli's quiet observations from the week. Tap anything to open it. That's it.</p>
+            <span class="eyebrow">Reminders — the 4th pillar</span>
+            <h2 class="h2">Family-shared. Notifications just for you.</h2>
+            <p class="lede">A reminder should nudge the person who set it — not the whole family. But the whole family should be able to <b>see</b> the list. Zaeli's reminders finally get this right.</p>
             <ul class="feature-list">
-              <li><span class="tick">✓</span><span>Bento layout: Weather + Zaeli Noticed side-by-side, everything else full width.</span></li>
-              <li><span class="tick">✓</span><span>On the Radar surfaces overdue tasks + upcoming week, so nothing quietly slips.</span></li>
-              <li><span class="tick">✓</span><span>Zaeli Noticed watches for patterns — birthdays coming up, standing appointments, quiet nudges she's earned the right to make.</span></li>
+              <li><span class="tick">✓</span><span><b>Shared visibility.</b> Anna can see the reminders Rich set. Rich can see Anna's. One family view.</span></li>
+              <li><span class="tick">✓</span><span><b>Creator-only push.</b> Your phone buzzes for the reminders <b>you</b> set. Nobody else's.</span></li>
+              <li><span class="tick">✓</span><span><b>Timed, date-only, or someday.</b> "3pm today" fires a push. "Sometime Friday" shows on Friday. "Someday" waits patiently.</span></li>
+              <li><span class="tick">✓</span><span><b>Recurring built in.</b> Every Monday, weekdays only, fortnightly, monthly — Zaeli generates the whole series ahead of time.</span></li>
+              <li><span class="tick">✓</span><span><b>Voice, text, or via Zaeli.</b> Type it, dictate it, or say it in chat — "remind me to call the plumber Friday 3pm."</span></li>
             </ul>
           </div>
-          <div class="feature-visual">
-            <div class="phone" aria-hidden="true">
+
+          <div>
+            <div class="phone rem-sheet tilt-left">
               <div class="notch"></div>
               <div class="screen">
-                <div class="dash-scene">
-                  <div class="dash-head">
-                    <div class="dash-title">Dashboard · Thursday</div>
-                  </div>
-
-                  <div class="dash-card">
-                    <div class="card-label">📅 CALENDAR</div>
-                    <div class="card-head">4 events today</div>
-                    <div class="card-sub">Next: School pickup at 2 pm — Rich</div>
-                  </div>
-
-                  <div class="dash-card dash-shop">
-                    <div class="card-label">🛒 SHOPPING</div>
-                    <div class="card-head">12 items on the list</div>
-                    <div class="card-sub">Tap to sort by aisle</div>
-                  </div>
-
-                  <div class="dash-bento">
-                    <div class="dash-weather">
-                      <div class="temp">22°</div>
-                      <div class="cond">Sunny · Brisbane</div>
+                <div class="handle"></div>
+                <div class="rem-hdr">
+                  <div class="rem-title"><span>⏰</span>Reminders</div>
+                  <div class="rem-close">✕</div>
+                </div>
+                <div class="rem-list">
+                  <div class="rem-item">
+                    <div class="rem-check"></div>
+                    <div class="body">
+                      <div class="t">Walk the dog</div>
+                      <div class="when">Today · 3 pm</div>
                     </div>
-                    <div class="dash-noticed">
-                      <div class="head-mini">✨ ZAELI NOTICED</div>
-                      <div class="body-mini">Poppy's birthday is in 3 weeks. Want to start jotting ideas?</div>
+                    <div class="x">✕</div>
+                  </div>
+                  <div class="rem-item" style="border-left-color: rgba(10,10,10,0.10);">
+                    <div class="rem-check"></div>
+                    <div class="body">
+                      <div class="t">Renew Duke's swim membership</div>
+                      <div class="when">Fri · 10:00 am · shared</div>
                     </div>
+                    <div class="x">✕</div>
                   </div>
-
-                  <div class="dash-card dash-radar">
-                    <div class="card-label">🎯 ON THE RADAR</div>
-                    <div class="card-head">3 things this week</div>
-                    <div class="card-sub">Plumber Wed · Gab's excursion form · Rego renewal</div>
+                  <div class="rem-item">
+                    <div class="rem-check"></div>
+                    <div class="body">
+                      <div class="t">Book dentist for Gab</div>
+                      <div class="when">someday</div>
+                    </div>
+                    <div class="x">✕</div>
                   </div>
+                  <div class="rem-item">
+                    <div class="rem-check done">✓</div>
+                    <div class="body">
+                      <div class="t done">Sign school forms</div>
+                      <div class="when">done today</div>
+                    </div>
+                    <div class="x">✕</div>
+                  </div>
+                </div>
+                <div class="rem-input">
+                  <div class="mic">🎙</div>
+                  <div class="sep"></div>
+                  <div class="field">Add a reminder…</div>
+                  <div class="cam">📷</div>
+                  <div class="send">↑</div>
                 </div>
               </div>
             </div>
@@ -1161,113 +1014,152 @@
     </div>
   </section>
 
-  <!-- ── Pricing ──────────────────────────────────────────────────── -->
-  <section class="pricing" id="pricing">
+  <!-- ── Section 4: Chat when you need her ────────────────────────── -->
+  <section id="chat" class="bg-peach">
     <div class="section-inner">
       <div class="wrap">
-        <div class="center">
-          <span class="eyebrow">Pricing</span>
-          <h2 class="h2">Family plan. One price. All of it.</h2>
-          <p class="lede">Everything above, for every adult and kid in your family. Prices in AUD, GST included. Cancel anytime.</p>
-        </div>
-        <div class="price-grid">
-          <div class="price-card primary">
-            <div class="tag">14-DAY FREE TRIAL</div>
-            <div class="tier">Zaeli Family Plan</div>
-            <div class="price"><span class="cur">A$</span>9.99</div>
-            <div class="per">per month · inc GST</div>
-            <ul>
-              <li>Unlimited chat with Zaeli — voice, text, photo</li>
-              <li>Family calendar, shopping, pantry, meals</li>
-              <li>Notes, tasks, budget planner</li>
-              <li>Push notifications between family members</li>
-              <li>Kids Hub — jobs, rewards, mini-games</li>
-            </ul>
-            <a href="#beta" class="btn btn-primary">Join the beta →</a>
+        <div class="feature-grid reverse">
+          <div>
+            <div class="phone chat-mock tilt-right">
+              <div class="notch"></div>
+              <div class="screen">
+                <div class="app-bar">
+                  <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+                  <div class="right">
+                    <span class="label">Chat</span>
+                    <div class="ham"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="chat-feed">
+                  <div class="msg-brief-morning">
+                    <div class="brief-pill">☀ MORNING</div>
+                    <div class="z-eyebrow">Zaeli · 7:12 am</div>
+                    <div style="font-size:13px; line-height:1.5;">Thursday morning, Rich — Poppy has soccer at 4pm and school pickup at 2. 📅<br><br>Bins go out tonight. Want me to remind you at 8pm? 🗑️</div>
+                  </div>
+                  <div class="msg-user" style="align-self:flex-end;">Yes please. And add mum's birthday next Wed to the calendar for the family.</div>
+                  <div class="msg-zaeli">Reminder set for 8pm tonight ✓. And mum's birthday added Wed 6 Aug — Anna's on the invite. Want me to notify her? 🎂</div>
+                  <div class="chip-row">
+                    <div class="chip primary">Notify family</div>
+                    <div class="chip">All good</div>
+                  </div>
+                </div>
+                <div class="chat-bar">
+                  <div class="mic">🎙</div>
+                  <div class="sep"></div>
+                  <div class="field">Ask Zaeli anything…</div>
+                  <div class="send">↑</div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="price-card">
-            <div class="tier">Tutor Add-on</div>
-            <div class="price"><span class="cur">A$</span>7.99</div>
-            <div class="per">per child · per month · inc GST</div>
-            <ul>
-              <li>Curriculum-aligned tutoring (F–Year 12)</li>
-              <li>Maths, English, Science, HASS</li>
-              <li>Read Aloud with real-time feedback</li>
-              <li>Homework helper — Socratic, not answer-giver</li>
-              <li>Adapts to child's level automatically</li>
+
+          <div class="feature-text">
+            <span class="eyebrow">Chat — for everything the tile isn't enough for</span>
+            <h2 class="h2">Talk to her like a switched-on friend.</h2>
+            <p class="lede">Home covers the quick adds. Chat covers everything else — the natural-language stuff you'd say to a partner, the photos you'd forward to the fridge, the "what have we got Saturday?"</p>
+            <ul class="feature-list">
+              <li><span class="tick">✓</span><span><b>Voice, text, or photo.</b> Snap a school newsletter — she reads it and files every event.</span></li>
+              <li><span class="tick">✓</span><span><b>One question, one answer.</b> "Did we buy grapes?" "Yes — last Tuesday." "What's on Saturday?" "Anna's parents lunch at 1pm."</span></li>
+              <li><span class="tick">✓</span><span><b>Notify chip on every add.</b> One tap and the whole family knows.</span></li>
+              <li><span class="tick">✓</span><span><b>She remembers.</b> Poppy plays soccer. Gab's got peanut allergies. Rich's brother's in Adelaide. Zaeli learns and uses it.</span></li>
             </ul>
-            <a href="#beta" class="btn btn-ghost">Add during signup</a>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Beta signup ──────────────────────────────────────────────── -->
+  <!-- ── Section 5: The productivity trio deep dive ─────────────── -->
+  <section id="trio" class="bg-slate">
+    <div class="section-inner">
+      <div class="wrap">
+        <div style="text-align: center; margin-bottom: 48px;">
+          <span class="eyebrow">The productivity trio</span>
+          <h2 class="h2" style="max-width: 720px; margin: 0 auto;">Calendar. Shopping. Budget. Reminders.<br>Done properly.</h2>
+        </div>
+        <div class="trio" style="grid-template-columns: repeat(2, 1fr);">
+          <div class="trio-card cal">
+            <div class="badge">📅</div>
+            <h3>Calendar</h3>
+            <p>One family calendar, colour-coded per person. Add by voice, tap, or photo. Notify the whole family with one chip after every add. Recurring events understand "every second Wednesday" without you having to explain twice.</p>
+          </div>
+          <div class="trio-card shop">
+            <div class="badge">🛒</div>
+            <h3>Shopping</h3>
+            <p>Type in the tile — faster than iPhone Notes. Or dictate. Or snap a receipt — Zaeli reads it, ticks off what you bought, and notes the last-bought date. Pantry never blocks an add (real families know pantries aren't 100%).</p>
+          </div>
+          <div class="trio-card rem">
+            <div class="badge">⏰</div>
+            <h3>Reminders</h3>
+            <p>Family-shared list. Creator-only push. Timed, date-only, or someday. Recurring built in. Voice, text, or ask Zaeli — "remind me to call the plumber Friday 3pm" — done.</p>
+          </div>
+          <div class="trio-card bud">
+            <div class="badge">💰</div>
+            <h3>Budget</h3>
+            <p>A planner, not a tracker. Fixed and variable expenses as a flat list — no messy category-of-category nesting. Set targets, track savings goals. Zaeli reads statements you upload and suggests the numbers.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Pricing ─────────────────────────────────────────────────── -->
+  <section class="pricing" id="pricing">
+    <div class="section-inner">
+      <div class="wrap">
+        <div style="text-align: center;">
+          <span class="eyebrow">Pricing</span>
+          <h2 class="h2">One price. Whole family.</h2>
+          <p class="lede" style="margin: 0 auto;">One subscription covers everyone in the family — Rich, Anna, kids, grandparents. No per-user fees, no tiers.</p>
+        </div>
+
+        <div class="price-card">
+          <div class="price-name">Family plan</div>
+          <div class="price-amount">A$9.99<span class="sm"> / month</span></div>
+          <div class="price-trial">✨ Free for 14 days</div>
+          <ul class="price-list">
+            <li><span class="tick">✓</span><span>Everything: Home, Chat, Calendar, Shopping, Budget, Reminders</span></li>
+            <li><span class="tick">✓</span><span>Morning + evening lockscreen briefs</span></li>
+            <li><span class="tick">✓</span><span>Voice, photo, receipt scan — no extra AI fees</span></li>
+            <li><span class="tick">✓</span><span>Whole family invited — no per-user charges</span></li>
+            <li><span class="tick">✓</span><span>Family push notifications</span></li>
+            <li><span class="tick">✓</span><span>Cancel any time from Settings</span></li>
+          </ul>
+          <a href="#beta" class="price-cta">Start free 14-day trial →</a>
+          <p class="price-tutor">Tax-inclusive · Made in Australia · <a href="mailto:hello@zaeli.ai" style="color: var(--ink2); border-bottom: 1px solid var(--ink3);">hello@zaeli.ai</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Beta CTA ────────────────────────────────────────────────── -->
   <section class="beta" id="beta">
     <div class="section-inner">
       <div class="wrap">
         <span class="eyebrow">Limited beta</span>
         <h2 class="h2">Join the first families using Zaeli.</h2>
-        <p class="lede">We're inviting Australian families to shape Zaeli before public launch. Drop your email — you'll hear from us within a week.</p>
-
-        <!-- Netlify Forms integration: data-netlify="true" + hidden form-name.
-             Submissions land in the Netlify dashboard, and Netlify sends
-             email notifications to Rich for each signup. -->
-        <form name="beta-signup" method="POST" data-netlify="true" netlify-honeypot="bot-field" class="beta-form" id="beta-form">
-          <input type="hidden" name="form-name" value="beta-signup">
-          <p style="display:none;"><label>Don't fill this out: <input name="bot-field"></label></p>
-          <input type="email" name="email" placeholder="your@email.com" required autocomplete="email">
-          <button type="submit">Get on the list →</button>
+        <p class="lede" style="margin: 0 auto; max-width: 520px;">Zaeli's in TestFlight now with a handful of Australian families. Drop your email to get an invite when the next round opens.</p>
+        <form class="beta-form" onsubmit="event.preventDefault(); alert('Thanks! We\'ll email you when the next round opens.'); this.reset();">
+          <input type="email" required placeholder="your.email@example.com" autocomplete="email">
+          <button type="submit" class="btn btn-primary">Request invite</button>
         </form>
-        <p class="beta-note">No spam. No newsletter. Just a personal invite when your family's up.</p>
-        <div class="beta-success" id="beta-success">
-          ✓ You're on the list. We'll be in touch soon.
-        </div>
+        <p class="beta-note">We'll only email you about your invite. No marketing. No noise.</p>
       </div>
     </div>
   </section>
 
-  <!-- ── Footer ───────────────────────────────────────────────────── -->
+  <!-- ── Footer ──────────────────────────────────────────────────── -->
   <footer>
     <div class="wrap">
-      <div class="word-mini">z<span class="a" style="color:#A8D8F0">a</span>el<span class="i" style="color:#A8D8F0">i</span></div>
-      <nav>
+      <div class="wordmark" style="font-size: 24px;">z<span class="a">a</span>el<span class="i">i</span></div>
+      <p style="margin-top: 12px;">Made with 💛 in Australia · A family of five field-testing every build</p>
+      <div class="foot-links">
         <a href="/privacy.html">Privacy</a>
         <a href="/terms.html">Terms</a>
         <a href="mailto:hello@zaeli.ai">hello@zaeli.ai</a>
-      </nav>
-      <div class="made">Made in Australia 🇦🇺</div>
+      </div>
     </div>
   </footer>
-
-  <script>
-    // Progressive enhancement — intercept the form submit, POST via fetch,
-    // show inline success. Netlify still processes the form because we've
-    // encoded the payload the same way as a native submit.
-    (function () {
-      var form = document.getElementById('beta-form');
-      var success = document.getElementById('beta-success');
-      if (!form) return;
-      form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        var data = new FormData(form);
-        var encoded = new URLSearchParams();
-        data.forEach(function (v, k) { encoded.append(k, v); });
-        fetch('/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: encoded.toString(),
-        }).then(function () {
-          form.style.display = 'none';
-          success.classList.add('show');
-        }).catch(function () {
-          // Fallback: allow native submit if fetch fails
-          form.submit();
-        });
-      });
-    })();
-  </script>
 
 </body>
 </html>
