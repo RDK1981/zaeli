@@ -1,30 +1,37 @@
 # ZAELI-PRODUCT.md — Product Vision & Decisions
-*Last updated: 17 July 2026 — Session 30 COMPLETE ✅ · PUBLIC-LAUNCH INFRASTRUCTURE SHIPPED · **API keys server-side (Phase 5)** — Anthropic + OpenAI + Whisper calls now route App → JWT → Supabase Edge Function → vendor API. Keys never bundled in the app. **Unblocks public App Store distribution** — the previous state was fine for trusted beta but not for anonymous users. Marginal cost + ~50ms latency per call, worth it for security · **Our Budget backend migration** — the deferred Session 17 backend pass finally done. 4 Supabase tables (`income_streams`, `budget_categories`, `category_line_items`, `savings_goals`), family-scoped RLS, `lib/budget.ts` with 8 CRUD helpers. Budget now persists across restarts + syncs cross-device (Anna sees Rich's edits and vice versa). Previously state was in-memory SEED_ constants that wiped on every app restart · **Stripe LIVE-MODE ACTIVATED** — Rich completed KYC. Live products (A$9.99 Family + A$7.99 Tutor, tax-inclusive), live Payment Link with 14-day free trial (card required upfront), live webhook, live Customer Portal. Real money can now be charged. Subscribe button copy: "Start free 14-day trial". Beta grants still bypass Stripe (Anna keeps beta access); new sign-ups after beta ends flow through real live checkout · **Privacy + Terms pages LIVE** at `https://zaeli.app/privacy.html` and `https://zaeli.app/terms.html`. Australian Privacy Act rights, AI processor disclosure (Anthropic + OpenAI in US), subscription terms, AI content disclaimer, contact `hello@zaeli.ai`. Legal foundation for public launch · **Supabase auth emails Zaeli-branded** — Confirm signup + Reset password templates updated with sky-blue `a+i` logo, warm copy, `hello@zaeli.ai` support link. No more generic Supabase system emails · **Anna beta round 2 fixes** — multi-event photo calendar adds (was only adding first event + fabricating success for the others), Whisper Welsh hallucination fix (all 9 call sites now force `language=en`), `send_family_message` no longer refuses to send with "I can't send messages" (leftover capability rule contradicted the new tool), `**markdown**` no longer shows literally in chat responses · **Family push notifications fully LIVE** — Session 30's earlier missing-plugin fix + verbose diagnostic combined mean push tokens now register for Rich + Anna, family push messages actually deliver, Notify chip on calendar confirm cards works end-to-end · **Dev row gate** — Settings Developer section email-gated to Rich only. Testers no longer see scary buttons like "Reset to owner account" · Backend pass now ~99% complete — only remaining items are Sonnet 5 migration + per-user brief cache, both optimisations not blockers · **App is genuinely ready for public sign-ups** after Anna beta round 2 test confirms nothing regressed · Pricing (A$9.99 family + A$7.99 tutor per child, tax-inclusive) unchanged since Session 26 · Prior Session 29 (meal planner pivot, Anna beta round 1 fixes, cost economics) + Session 28 (Stripe end-to-end, calendar phantom fix) + Session 27 (icon 2B, preview build) + Session 26 (brief invisible-domain rule, pricing pivot) + Session 25 (Universal Links LIVE) all still current*
+*Last updated: 31 July 2026 — Session 32 v2 Round A ✅ · **⭐⭐⭐ MAJOR VISION PIVOT** — Zaeli's Phase 1 identity has shifted from "AI companion that also manages family life" (Philosophy B, Session 9) to **"family productivity trio: Calendar + Shopping + Budget"** with **Reminders as the 4th pillar**. Home is the front door (was Dashboard, renamed). Kids Hub / Tutor / Travel / My Space / Meals moved to `app/_hidden/` — off the map for v2 launch, not deleted, brought back when the trio is validated. Rich made this pivot after Anna beta round 2: her iPhone Notes was faster than Zaeli for shopping (6-10s vs 2-3s), meal planner uptake was zero, and the broad AI framing was diffuse. Narrower beachhead, sharper story · **Home tile design** — big-text headlines (26px 800): "2 events on today.", "4 items to grab.", "1 due at 3pm.", "On track for the month." Detail rows below at 13-15px. Per-tile mic icon inside each add pill routes to Chat with mic intent. "Full × →" hint top-right on every tile. Empty state = competence line, NEVER a nudge · **Universal chat bar identical Home ↔ Chat** — same styles, same position, zero-flicker swipe · **Reminders subsystem (4th pillar)** — 3 shapes: timed (push notification at instant to creator) / date-only (shows on day, no push) / undated (someday bucket). Recurring: 12-month generated instances via `repeat_group_id`. Gold Home tile + 92% sheet with unified input pill (mic/text/camera/send). Family-shared visibility, creator-only notifications · **Server-side brief scheduler** — Phase 07 shipped: Deno Edge Function + pg_cron every 15 min. Cron fires at each family's morning/evening time (widened window 0-45 min after target for cron drift), generates brief via Sonnet, pushes RICH content to lockscreen via Expo push. Local notifications KILLED — server is sole source now. First brief-on-lockscreen with real content · **Sheet-over-Home pattern** — tapping a tile no longer scrolls to Chat first. Sheets pop over Home directly (RN Modal is portal). Closing keeps user on Home · **Reminder timezone fix** — Hermes was parsing local ISO as UTC (10-hour Brisbane skew). New `parseLocalIsoAsDate` + CURRENT_TIME injected fresh into Sonnet prompt · **Pantry no longer pre-blocks shopping adds** — always adds first, mentions pantry status softly for user to remove if not needed. Rich's rule: pantry isn't 100% accurate. Speed wins · **Notify chip on calendar adds fixed** (was rendering in wrong branch — Session 30 regression) · **MoreSheet redesign** — 6 full-width shorter tiles stacked (was 3×2 grid), Reminders added, cleaner scan · **Budget: Categories → Expenses** — flat expenses model (fixed/variable badge + monthly amount), legacy nested categories still shown during transition · Prior Session 30 infrastructure (Phase 5 API keys server-side, Stripe LIVE, Family push, Privacy/Terms deployed) all still current — remaining: production EAS build + `eas submit --platform ios --latest` for Anna beta round 3, website v6 rewrite for v2 pivot (next), Round B stale-tile bug (Home tile doesn't refresh after sheet edits — fix queued), Sonnet 5 migration queued. Pricing unchanged: A$9.99/month family + A$7.99/child Tutor, both tax-inclusive.*
+
+*Legacy pre-Session-32 header (kept for context): 17 July 2026 — Session 30 COMPLETE ✅ · PUBLIC-LAUNCH INFRASTRUCTURE SHIPPED · **API keys server-side (Phase 5)** — Anthropic + OpenAI + Whisper calls now route App → JWT → Supabase Edge Function → vendor API. Keys never bundled in the app. **Unblocks public App Store distribution** — the previous state was fine for trusted beta but not for anonymous users. Marginal cost + ~50ms latency per call, worth it for security · **Our Budget backend migration** — the deferred Session 17 backend pass finally done. 4 Supabase tables (`income_streams`, `budget_categories`, `category_line_items`, `savings_goals`), family-scoped RLS, `lib/budget.ts` with 8 CRUD helpers. Budget now persists across restarts + syncs cross-device (Anna sees Rich's edits and vice versa). Previously state was in-memory SEED_ constants that wiped on every app restart · **Stripe LIVE-MODE ACTIVATED** — Rich completed KYC. Live products (A$9.99 Family + A$7.99 Tutor, tax-inclusive), live Payment Link with 14-day free trial (card required upfront), live webhook, live Customer Portal. Real money can now be charged. Subscribe button copy: "Start free 14-day trial". Beta grants still bypass Stripe (Anna keeps beta access); new sign-ups after beta ends flow through real live checkout · **Privacy + Terms pages LIVE** at `https://zaeli.app/privacy.html` and `https://zaeli.app/terms.html`. Australian Privacy Act rights, AI processor disclosure (Anthropic + OpenAI in US), subscription terms, AI content disclaimer, contact `hello@zaeli.ai`. Legal foundation for public launch · **Supabase auth emails Zaeli-branded** — Confirm signup + Reset password templates updated with sky-blue `a+i` logo, warm copy, `hello@zaeli.ai` support link. No more generic Supabase system emails · **Anna beta round 2 fixes** — multi-event photo calendar adds (was only adding first event + fabricating success for the others), Whisper Welsh hallucination fix (all 9 call sites now force `language=en`), `send_family_message` no longer refuses to send with "I can't send messages" (leftover capability rule contradicted the new tool), `**markdown**` no longer shows literally in chat responses · **Family push notifications fully LIVE** — Session 30's earlier missing-plugin fix + verbose diagnostic combined mean push tokens now register for Rich + Anna, family push messages actually deliver, Notify chip on calendar confirm cards works end-to-end · **Dev row gate** — Settings Developer section email-gated to Rich only. Testers no longer see scary buttons like "Reset to owner account" · Backend pass now ~99% complete — only remaining items are Sonnet 5 migration + per-user brief cache, both optimisations not blockers · **App is genuinely ready for public sign-ups** after Anna beta round 2 test confirms nothing regressed · Pricing (A$9.99 family + A$7.99 tutor per child, tax-inclusive) unchanged since Session 26 · Prior Session 29 (meal planner pivot, Anna beta round 1 fixes, cost economics) + Session 28 (Stripe end-to-end, calendar phantom fix) + Session 27 (icon 2B, preview build) + Session 26 (brief invisible-domain rule, pricing pivot) + Session 25 (Universal Links LIVE) all still current*
 
 ---
 
-## What Zaeli Is
+## What Zaeli Is (v2 — Session 32 pivot)
 
-Zaeli is an iOS-first AI family life platform for Australian families with children. An AI companion that knows your family's life — through conversation, not data entry. Zaeli speaks first. You respond. Everything else flows from that conversation.
+Zaeli is an iOS-first family productivity app for Australian families with children — with AI as the connective tissue. Four tiles on Home cover 95% of the daily glue: **Calendar**, **Shopping**, **Reminders**, **Budget**. Chat is one swipe away for anything not a one-tap Home add — voice, photos, natural language ("add Poppy to Duke's soccer on Saturdays", "call plumber back Friday 3pm"). Zaeli's morning + evening brief drops onto the lockscreen with real prose, not a nudge.
 
 **Tagline:** Less Chaos. More Family.
 
-**Core positioning (LOCKED Session 9):** Zaeli is not competing with better calendars or better shopping apps. Zaeli is competing on *relationship*. Rich doesn't open Zaeli to check his calendar — he opens Zaeli to talk to someone who already knows what's going on and has been thinking about his family. That's a different category entirely.
+**Core positioning (v2 — Session 32):** Zaeli is a family productivity trio done right, with AI as the invisible speed layer — not a chat app that also does calendars. Every tile has an add pill you can type OR mic. Every add can be Notified to the family with one tap. Every question you'd ask a partner ("what have we got on Saturday?", "did we buy grapes?") gets an answer without opening a sheet. That's the wedge — real families want reliable productivity glue first, AI polish second.
+
+**Legacy positioning (Session 9-30 — Philosophy B, kept for context):** *"Zaeli is competing on relationship. Rich doesn't open Zaeli to check his calendar — he opens Zaeli to talk to someone who already knows what's going on."* This framing drove the Chat-first architecture (Sessions 9-30). The v2 pivot preserves the AI (chat, tools, briefs, notifications, memory) but reframes Home as the front door because Anna's real usage said the productivity core needs to be immediate, not one-swipe-away.
 
 ---
 
-## Philosophy B — AI First (LOCKED Session 9 ✅)
+## Philosophy — Productivity trio + AI companion (LOCKED Session 32 v2 ✅)
 
-Every product decision flows from this: **Zaeli is an AI companion that also manages family life — not a family management platform that has AI.**
+Every product decision flows from this: **Zaeli is a family productivity app for Calendar + Shopping + Budget + Reminders, with AI (chat, tools, briefs, memory) as the invisible speed layer.**
 
 What this means in practice:
-- Chat is the product's beating heart, not a feature
-- Zaeli speaks first every time Rich opens the app — the conversation has already started
-- Dashboard is a reference layer, not the home
-- Zaeli Noticed is not a card — it's Zaeli being proactive
-- The brief is Zaeli's daily audition. Every morning she gets one chance to remind Rich why he pays $9.99/month inc GST.
+- **Home is the front door**. Bento tiles for the trio + Reminders. Big-text headlines say what's happening in one glance. Tap-to-expand to sheet, tap the add pill to type, tap the mic for voice.
+- **Chat is one swipe away**, not the entry point. Rich uses chat for anything not a one-tap Home add — natural language, photo uploads, brain-dumps, complex multi-item adds.
+- **Zaeli's morning + evening brief lands on the lockscreen** with real prose (not "Tap to see..."). Server-side scheduler generates via Sonnet + delivers via Expo push. No app open required.
+- **AI is invisible when the tile is enough** — you don't need Zaeli to add "grapes" to the list; the tile pill handles it. You do need Zaeli for "what should we cook that uses what we've got?" or "what's on next Saturday?"
+- **Notify chip on every add** — one tap to loop the other family adult. Family push notification with a friendly title ("🛒 Rich added to shopping: Milk, Butter, Eggs").
+- **Reminders is family-shared, notifications are creator-only**. Everyone sees the reminders list; only the person who set the reminder gets the phone buzz.
 
-**The navigation architecture review** — LOCKED in Session 14. Chat is now page 0 (opens here), Dashboard is page 1 (swipe right), My Space moved to standalone route accessed via MoreSheet. FAB completely removed; replaced by universal hamburger ☰ button top-right of every header. Was deferred to Phase 2 — executed Session 14.
+**LEGACY philosophy note (Sessions 9-30 — Philosophy B):** *"Chat is the product's beating heart, not a feature. Zaeli speaks first every time Rich opens the app — the conversation has already started."* That framing drove the Chat-first architecture. The v2 pivot preserves the AI capabilities but changes the front door. Chat still exists, still opens with a brief, still handles tools + memory + vision — it's just no longer where Rich lands.
+
+**Navigation architecture (v2 — Session 32 Round A):** Home is page 0 (opens here), Chat is page 1 (swipe left with finger, arrow points →). Hamburger opens MoreSheet with 6 full-width tiles: Calendar / Shopping / Reminders / Budget / Our Family / Settings. Kids Hub / Tutor / Travel / My Space / Meals hidden for v2 launch — will return once trio product-market fit is validated.
 
 ---
 
@@ -55,27 +62,34 @@ Australian families with children. Priority: dual-income metro couples with prim
 ---
 
 ## ══════════════════════════════════
-## INTERFACE PHILOSOPHY (REBUILT Session 14 ✅)
+## INTERFACE PHILOSOPHY (REBUILT Session 32 v2 Round A ✅)
 ## ══════════════════════════════════
 
-**Two screens. No FAB. Hamburger menu. Chat-first.**
+**Two screens. No FAB. Hamburger menu. Home-first.**
 
 ```
-CHAT (page 0, opens here)  ↔  DASHBOARD (page 1)
+HOME (page 0, opens here)  ↔  CHAT (page 1, swipe left with finger)
 ```
 
-**Core UX principle:** Chat = relationship (home). Dashboard = glance. My Space = personal (standalone route, accessed via MoreSheet). Zaeli lives in Chat — Rich opens the app and Zaeli is already talking.
+**Core UX principle:** Home = productivity trio + Reminders at a glance. Chat = AI for anything not a one-tap Home add. Zaeli lives on both — the tile add pills use direct DB inserts (fast), Chat handles natural language + tools + vision.
 
-**Universal hamburger ☰** top-right of every screen AND every 92% sheet (Session 15) opens MoreSheet — a 92% bottom sheet with:
-- **NAVIGATE** (2 tiles): Chat · Dashboard
-- **FAMILY CHANNELS** (6 tiles, 3×2): Calendar · Shopping · Meals · Tasks · Notes · Travel
-- **PERSONAL** (2 tiles): My Space · Our Budget
-- **MODULES** (2 tiles): Tutor · Kids Hub
-- **ACCOUNT** (2 tiles): Our Family · Settings
+**Home tile design (Session 32 v2 Round A):**
+- Big-text headline (26px 800): "2 events on today.", "4 items to grab.", "1 due at 3pm.", "On track for the month."
+- Detail rows below at 13-15px (matches Chat bubble text size for continuity)
+- Add pill at bottom: `[+ Add ×… | mic]` — type text OR tap mic to dictate (mic routes to Chat with mic intent)
+- "Full × →" hint top-right on every tile so tap-to-expand is obvious
+- Empty state = competence line ("Nothing on today.", "List is empty."), NEVER a nudge ("You should plan…")
 
-**Cross-sheet navigation (Session 15)** — user can jump from Meals sheet → hamburger → tap Shopping → go straight to Shopping. Option A stacked: close current sheet, open MoreSheet, tap tile = switch. X on MoreSheet restores origin sheet.
+**Universal chat bar identical Home ↔ Chat** — same styles (border rgba(220,220,220,0.6), radius 32, minHeight 60, alignItems flex-end), same position (24 iOS / 14 Android from bottom). Zero-flicker swipe. `[Mic | sep | TextInput | Camera | Send]`. Camera opens Add-to-Chat picker (Camera/Photos).
 
-**Chat bar lives ONLY on Chat (and Tutor sessions)** — single white pill, `[Mic | sep | TextInput | Camera | Send]`. Tutor bar matches identical specs. Camera opens Add-to-Chat picker (Camera/Photos). Dashboard and My Space have NO chat bar — each screen has its own purpose.
+**Sheet-over-Home pattern** — tapping any Home tile opens the 92% sheet directly (RN Modal is a portal, renders at root over whichever page is active). No scroll-to-Chat first. Closing the sheet keeps user on Home — return-to-origin is the default because there's no navigation to reverse.
+
+**Universal hamburger ☰** top-right of Home opens MoreSheet — 6 full-width tiles stacked at 68px each:
+- Calendar · Shopping · Reminders · Our Budget · Our Family · Settings
+
+**Hidden features (Session 31/32 v2)** — Kids Hub / Tutor / Travel / My Space / Meals moved to `app/_hidden/`. Not deleted. Will return once trio has validated product-market fit in beta.
+
+**LEGACY interface notes (Session 14-30):** *Chat was page 0, Dashboard was page 1. FAMILY CHANNELS was 6 tiles (Calendar / Shopping / Meals / Tasks / Notes / Travel), PERSONAL was My Space + Budget, MODULES was Tutor + Kids. Cross-sheet nav via hamburger stacked. Chat bar was Chat-only. All still applies to Chat internally; Home layout is new.*
 
 ---
 

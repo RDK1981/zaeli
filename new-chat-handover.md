@@ -1,24 +1,148 @@
 # Zaeli — New Chat Handover
-*17 July 2026 — Session 30 continuation ✅ · **PHASE 5 API KEYS SERVER-SIDE + STRIPE LIVE + BUDGET BACKEND + WHISPER ENGLISH LOCK + HONESTY RULES + GDPR PAGES + ANNA ROUND 2 FIXES** · Three-day continuation of Session 30 has landed the largest single ship in the project's history — 9 commits pushed on top of 14 July's Session 30 base (all on origin/main). Headlines: **`e84a091` Phase 5 Anthropic + OpenAI + Whisper keys moved server-side via 3 Edge Functions** (client-bundled keys physically removed from the app — closes the pre-public-launch security hole flagged Session 27); **`3101f65` Stripe LIVE mode activated end-to-end** (Rich completed KYC, live products created A$9.99 + A$7.99 tax-inclusive, Payment Link with 14-day free trial live at buy.stripe.com/fZubJ36EM1QR2z6eBl83C01, live webhook registered + secrets set); **`f2974e4` Our Budget Supabase persistence** (4-table migration + `lib/budget.ts` swap, plus AI averaging fix); **`ff5bfd6` Whisper English lock** on all 9 voice-transcribe call sites (fixes Anna's Welsh transcription bug); **`c8db27f` + `c8ef80c`** honesty rules on `send_family_message` + calendar tools so Zaeli stops fabricating "message sent" / "event added" confirmations, plus Anna round 2 fixes (multi-event photo add prompt rewrite, `**markdown**` stripped from chat display); **`96e485d` GDPR + Terms pages** (privacy.html + terms.html deployed live to zaeli.app + dev row gated to Rich's email so Anna doesn't see it) · **Everything untested until the final build tomorrow** — Rich is queueing ONE `eas build --platform ios --profile production --auto-submit` with all 9 commits in it. Test path: push tokens (finally), multi-photo chat, Spend overlay, Stripe LIVE checkout with 14-day trial (REAL card required — test card 4242 doesn't work in live mode), Budget persistence + cross-device with Anna, AI budget averaging, multi-event calendar photo add, no `**markdown**` in chat, no Welsh from Whisper, Dev section hidden from Anna, "Start free 14-day trial" Subscribe button label · **Parked / deferred**: Sonnet 5 migration (queued for post-beta, intro pricing $2/$10 through Aug 2026 makes it cheaper than 4.6), per-user brief cache (queued past 100 families), Website v5 refresh (4-round plan drafted, ~1 day), Outlook/Gmail calendar sync (revisit if Anna asks twice), ElevenLabs voice, splash blue-flash full elimination (WSL needed, cosmetic parked) · **Prior Session 30 (14 July)** — push notification infrastructure, multi-photo chat, Kids Trivia guard, cold-start splash latency fix, expo-notifications plugin discovery, EAS Starter upgrade — all context, still applicable*
+*31 July 2026 — Session 32 v2 Round A ✅ · **⭐⭐⭐ MAJOR VISION PIVOT + ROUND A** — Zaeli's Phase 1 identity has changed from "AI companion that also manages family life" to "family productivity trio (Calendar + Shopping + Budget)" with Reminders as the 4th pillar. Home is the front door (renamed from Dashboard); Chat is one swipe left. Kids Hub / Tutor / Travel / My Space / Meals moved to `app/_hidden/` — off the map for v2, brought back when trio is validated. Big-text Home tile headlines (26px 800: "2 events on today.", "4 items to grab.", "1 due at 3pm.", "On track for the month.") with per-tile mic in add pill + "Full × →" hint. Universal chat bar identical Home ↔ Chat, zero-flicker swipe. Reminders subsystem (4th pillar) — 3 shapes (timed/date-only/undated) + recurring 12-month horizon + gold Home tile + 92% sheet with unified input pill + `add_reminder` Sonnet tool. Server-side brief scheduler LIVE — Phase 07 shipped (pg_cron every 15 min, wide window for cron latency, Anthropic Sonnet + Expo push with rich body prose to lockscreen). Local notifications KILLED. Sheet-over-Home pattern (Modal is portal, sheet opens over Home without scroll-to-Chat, closes back to Home). Round A bug fixes: Notify chip on calendar adds restored (chip render was in wrong branch), reminder timezone fixed (Hermes UTC bug — `parseLocalIsoAsDate` + CURRENT_TIME in Sonnet prompt), pantry no longer pre-blocks shopping adds (always inserts + soft mention). MoreSheet redesigned (6 full-width tiles, Reminders added). Budget "Categories" → "Expenses" (flat model). **All Session 30 infrastructure still current** (Phase 5 API keys server-side, Stripe LIVE, Family push, Anna round 2 fixes, Privacy/Terms deployed). · Three-day continuation of Session 30 has landed the largest single ship in the project's history — 9 commits pushed on top of 14 July's Session 30 base (all on origin/main). Headlines: **`e84a091` Phase 5 Anthropic + OpenAI + Whisper keys moved server-side via 3 Edge Functions** (client-bundled keys physically removed from the app — closes the pre-public-launch security hole flagged Session 27); **`3101f65` Stripe LIVE mode activated end-to-end** (Rich completed KYC, live products created A$9.99 + A$7.99 tax-inclusive, Payment Link with 14-day free trial live at buy.stripe.com/fZubJ36EM1QR2z6eBl83C01, live webhook registered + secrets set); **`f2974e4` Our Budget Supabase persistence** (4-table migration + `lib/budget.ts` swap, plus AI averaging fix); **`ff5bfd6` Whisper English lock** on all 9 voice-transcribe call sites (fixes Anna's Welsh transcription bug); **`c8db27f` + `c8ef80c`** honesty rules on `send_family_message` + calendar tools so Zaeli stops fabricating "message sent" / "event added" confirmations, plus Anna round 2 fixes (multi-event photo add prompt rewrite, `**markdown**` stripped from chat display); **`96e485d` GDPR + Terms pages** (privacy.html + terms.html deployed live to zaeli.app + dev row gated to Rich's email so Anna doesn't see it) · **Everything untested until the final build tomorrow** — Rich is queueing ONE `eas build --platform ios --profile production --auto-submit` with all 9 commits in it. Test path: push tokens (finally), multi-photo chat, Spend overlay, Stripe LIVE checkout with 14-day trial (REAL card required — test card 4242 doesn't work in live mode), Budget persistence + cross-device with Anna, AI budget averaging, multi-event calendar photo add, no `**markdown**` in chat, no Welsh from Whisper, Dev section hidden from Anna, "Start free 14-day trial" Subscribe button label · **Parked / deferred**: Sonnet 5 migration (queued for post-beta, intro pricing $2/$10 through Aug 2026 makes it cheaper than 4.6), per-user brief cache (queued past 100 families), Website v5 refresh (4-round plan drafted, ~1 day), Outlook/Gmail calendar sync (revisit if Anna asks twice), ElevenLabs voice, splash blue-flash full elimination (WSL needed, cosmetic parked) · **Prior Session 30 (14 July)** — push notification infrastructure, multi-photo chat, Kids Trivia guard, cold-start splash latency fix, expo-notifications plugin discovery, EAS Starter upgrade — all context, still applicable*
 *Copy this entire message to start a new chat.*
 
 ---
 
 ## Hi! Continuing development of Zaeli.
 
-Zaeli is an iOS-first AI family life platform built in React Native / Expo.
+Zaeli is an iOS-first family productivity app built in React Native / Expo — with AI as the connective tissue.
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-Session 30 continuation (15–17 July) is the biggest single production hardening block in the project's history. Nine commits landed on top of the 14 July Session 30 base — Phase 5 API keys server-side, Stripe LIVE mode end-to-end, Our Budget backend, Whisper English lock, honesty rules on Zaeli's tools, GDPR + Terms pages, and Anna beta round 2 fixes. All the code + all the external activations are done. Everything is untested pending tomorrow's final production build (Rich firing ONE `eas build ... --auto-submit`). The next session is validation-heavy — walk Rich through the test path, triage any failures, then Anna beta round 2 feedback session once the build lands cleanly.
+**Session 32 v2 (30–31 July) is the biggest architecture + vision pivot since Session 14.** Rich changed the Phase 1 identity from "AI companion" to "family productivity trio" (Calendar + Shopping + Budget + Reminders). Home is the front door now. Kids Hub / Tutor / Travel / My Space / Meals are hidden — brought back when the trio validates in beta. Reminders is a new 4th pillar with its own subsystem (SQL + lib + tile + sheet + Sonnet tool). Server-side brief scheduler LIVE — cron every 15 min generates + pushes brief prose to lockscreen (local notifications killed). Universal chat bar identical across pages for zero-flicker swipe. Sheets pop over Home directly (no scroll-to-Chat). Round A landed a dozen bug fixes + design revisions after Rich's real-device test.
+
+**What Rich needs to do next:**
+1. Deploy the updated brief-scheduler Edge Function: `supabase functions deploy brief-scheduler`
+2. Run production build: `eas build --platform ios --profile production`
+3. Submit to TestFlight: `eas submit --platform ios --latest`
+4. Anna beta round 3 with the whole v2 pivot live
+5. Website v6 rewrite for v2 pivot — CURRENT WEBSITE IS STALE, needs to match new product story
+
+**Next session priorities** (order):
+1. Website v6 rewrite for v2 pivot (starting immediately after this doc sweep)
+2. Anna round 3 feedback triage
+3. Round B fixes (see below)
+4. Sonnet 5 migration (queued for post-beta)
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — SESSION 30 CONTINUATION · PRODUCTION HARDENING BLOCK ✅
+## CURRENT STATE — SESSION 32 v2 ROUND A · MAJOR VISION PIVOT ✅
 ## ══════════════════════════════════
 
-### NEW THIS BLOCK (Session 30 continuation — 15–17 July, 9 commits on origin/main)
+### NEW THIS SESSION (Session 32 v2 — 30–31 July, 11 commits on origin/main)
+
+**A. Bento Home + universal chat bar** (Phase 04a, `c59943e`). Dashboard rewritten as Bento tile grid. Universal chat bar at bottom (mic/text/camera/coral send). Budget tile minimal (no financial numbers on front door). Brief/weather/Noticed tiles + coral mic FAB removed. Font bumps to match Chat baseline.
+
+**B. Swipe-world DOM swap + dots killed + per-icon chat routing** (Phase 04b/c, `370c0cb`). PAGE_DASHBOARD=0 / PAGE_CHAT=1 constants swapped — Home is DOM leftmost, opens by default. Chat is swipe-left. Page dots removed (looked awkward without chat bar underneath). Hint arrow points → toward Chat. NEW `ChatIntent` type (mic/camera/focus/seed) — Home chat bar per-icon routes to Chat with appropriate mode active. 250ms delay after swipe for intentional feel.
+
+**C. Reminders subsystem — 4th pillar** (Phase 05, `4383a22`) ⭐. NEW `supabase-reminders.sql` (three shapes: timed / date-only / undated, recurring via `repeat_group_id`, family-shared visibility, creator-only push, Session 21 RLS). Legacy pre-Session-14 `reminders` table safety fix (`92ac2a2` — CREATE TABLE IF NOT EXISTS was silently skipping; new SQL uses ADD COLUMN IF NOT EXISTS per-column). NEW `lib/reminders.ts` (CRUD + local push scheduling + `parseLocalIsoAsDate` + `normaliseLocalIso` + recurring `generateRecurrenceDates` + `saveReminderSeries`). Gold Home tile between Shopping and Budget. 92% Reminders sheet in Chat with unified input pill (mic + text + camera + send, gold-tinted). Tap ✓ to mark done, ✕ to delete. `add_reminder` Sonnet tool wired.
+
+**D. Notify chip on all add tools** (Phase 06, `58bc2e6`). Chat tool-completion path detects `add_shopping_item` + `add_reminder` tool_uses, attaches Notify chip + notifyPayload. Reuses existing handleQuickReply notify pipeline (Session 29). Calendar events already had per-event chips (Session 30 confirm card).
+
+**E. Server-side brief scheduler LIVE** (Phase 07, `58bc2e6`) ⭐. NEW `supabase/functions/brief-scheduler/index.ts` (Deno Edge Function). Scans `profiles.user_preferences` for briefMorningTime/briefEveningTime, finds families whose scheduled time is in window (widened Round A: 0-45 min after target for cron latency), generates brief via Anthropic Sonnet, upserts to `zaeli_briefs` cache, sends RICH lockscreen push to family adults via Expo push (brief body paragraph as notification body). Idempotent, `dry_run` support, structured push result diagnostics. NEW `supabase-brief-scheduler.sql` — pg_cron every 15 min (Rich runs, filling service_role JWT — NEVER commit that SQL block). Requires `pg_cron` + `pg_net` extensions enabled in Supabase Studio.
+
+**F. Budget flat Expenses model** (Phase 08, `d03bb75` + `547148c`). NEW `supabase-budget-expenses.sql` (flat `budget_expenses` table, fixed/variable type). `lib/budget.ts` gained `Expense` type + `loadExpenses` / `saveExpense` / `deleteExpense` helpers (legacy Category + LineItem helpers kept for rollback). `our-budget.tsx` — additive Expenses section at top of Categories tab (renamed to "Expenses" in tab), legacy nested categories still render below labelled "Legacy categories". Zero risk to Anna's existing data. NEW `ExpensesSection` + `EditExpenseSheet` components.
+
+**G. Calendar full-title-on-expand** (Phase 09, `4383a22`). `CalSheetEventCard`: `numberOfLines={expanded ? undefined : 1}` on title. Long parent-teacher event names now readable when tapped open.
+
+**H. Hidden features** (Phase 10, landed Session 31). Kids Hub / Tutor / Travel / My Space / Meals moved to `app/_hidden/`. Expo Router ignores. MoreSheet trimmed to trio.
+
+### Round A — Anna round 2 test feedback (6 commits)
+
+**I. Bug fixes trio** (`0923a71`) ⭐:
+- **Notify chip missing on calendar adds** — Chip render block lived in `hasOtherInline` branch only; calendar confirm cards trigger `hasCalendarInline` which had no chip render. Copied the chip block into the calendar branch.
+- **Reminder timezone bug** (1:27pm Brisbane saved as 11:27pm) — Hermes parses `"2026-07-31T13:27:00"` (no tz) as UTC. Fix: `parseLocalIsoAsDate()` builds Date via local constructor components. All 3 display sites fixed. Sonnet tool description hardened + CURRENT_TIME injected fresh into system prompt.
+- **Pantry pre-block on add** (Rich rule: pantry isn't 100% accurate) — `add_shopping_item` ALWAYS inserts now. If pantry contains item, soft `NOTE:` in tool response that Sonnet relays. `force` flag removed.
+
+**J. Home rename + Home tile redesign + More sheet + Budget label** (`8881e0f`):
+- Dashboard header shows "Home" label. Chat header changed "Home" → "Chat".
+- Hamburger on Home opens MoreSheet (was direct-to-Settings shortcut).
+- Big-text headlines (26px 800): "2 events on today." / "4 items to grab." / "1 due at 3pm." / "On track for the month."
+- Per-tile mic icon inside each add pill routes to Chat with mic intent.
+- "Full × →" hint top-right on every tile.
+- MoreSheet — 6 full-width tiles at 68px each (was 3×2 grid), Reminders added between Shopping and Budget. NEW `IcoReminders` SVG.
+- Budget tab: "Categories" → "Expenses".
+
+**K. Sheet-over-Home + input pill + chat bar match** (`80762e8`):
+- `openCalendarSheet` / `openShoppingSheet` / `openRemindersSheet` no longer call `onNavigateChat`. RN Modal is portal, renders over Home. Closing keeps user on Home. Return-to-origin is default because there's no nav to reverse.
+- Reminders sheet input replaced with unified pill: `[mic | text | camera | send]` (60px minHeight, gold-tinted).
+- Home chat bar style matches Chat's `barPillV2` EXACTLY: border rgba(220,220,220,0.6), paddingV 10 paddingH 12, alignItems flex-end, minHeight 60, shadow (opacity 0.10, radius 18, offset 0/6), elevation 10. Bottom position: 24 iOS / 14 Android. Zero-flicker swipe.
+
+**L. Kill local notif + harden Phase 07 server push** (`05ace95`):
+- Rich saw lockscreen notif with generic body "Tap to see how today shapes up." — that was Phase 3a LOCAL notification (Session 23), not Phase 07 server push.
+- `_layout.tsx`: removed `scheduleBriefNotifications` call. `cancelBriefNotifications()` wipes lingering scheduled local notifs.
+- `settings.tsx`: removed reschedule-on-prefs-change call.
+- `brief-scheduler` WIDER FIRING WINDOW (was 15-min tight, now 0-45 min after target so cron drift doesn't miss). Better logging. Structured push result.
+
+### Key decisions / learnings Session 32 v2 + Round A
+
+- **Vision pivot is deliberate and locked** — Zaeli is a family productivity trio + Reminders. AI is the speed layer, not the whole product. Kids Hub / Tutor / Travel / My Space / Meals return when trio validates. Do not push back to Chat-first.
+- **Home tile big-text pattern** — 26px 800 headline is the emotional punch. Detail rows at 13-15px. Empty state = competence line ("Nothing on today."), NEVER a nudge.
+- **Per-tile mic routes to Chat with mic intent** — user says the thing, Sonnet tools it. Consistent across Calendar/Shopping/Reminders.
+- **Universal chat bar identical Home ↔ Chat** — same styles, same position, zero-flicker swipe. If flicker appears, next step is full hoisting into `swipe-world.tsx`.
+- **Sheet-over-Home** — RN Modal is a portal, sheet opens at root over whatever page is active. No scroll-to-Chat. Closing keeps user on origin page.
+- **Reminders = family-shared visibility, creator-only push** — everyone sees the list; only the person who set it gets the phone buzz.
+- **Server-side brief scheduler is the sole notification source** — local notifications killed. Brief prose delivered to lockscreen via Expo push, no app-open required.
+- **Reminder times are Brisbane local wall-clock, ALWAYS** — Sonnet sends `"YYYY-MM-DDTHH:MM:SS"` no tz. Client uses `parseLocalIsoAsDate()`. Hermes parses no-tz ISO as UTC — DO NOT use `new Date(isoString)` for local times.
+- **Pantry never blocks a shopping add** — always inserts. `NOTE:` soft mention in tool response. `PANTRY:` warning flow retired.
+- **Calendar confirm chip render lives in the calendar branch** — not just `hasOtherInline`. Both branches need to render `showPortalPill` chips.
+- **Wide firing window for cron-driven Edge Functions** — Session 23-style tight window misses if cron drifts. Use `at-or-past + up-to-45-min AND not-yet-done` pattern.
+
+### Rich's build + submit path (after this doc sweep)
+
+```bash
+supabase functions deploy brief-scheduler
+```
+
+```bash
+eas build --platform ios --profile production
+```
+
+```bash
+eas submit --platform ios --latest
+```
+
+Then Anna round 3 with everything live:
+- Home is front door (Bento tiles + big headlines)
+- Reminders as 4th pillar (add, tick, delete, notify)
+- Server briefs on lockscreen with rich content
+- Sheet-over-Home (no scroll-to-Chat)
+- Notify chip on all adds
+- Pantry never blocks
+- Categories → Expenses tab
+- MoreSheet 6-tile stack
+
+### Parked / deferred
+
+- **Round B — Home tiles stale after sheet edits** (Rich reported end of Round A). Delete reminder in sheet → close sheet → Home Reminders tile still shows deleted item until force-close. Same bug class affects Shopping/Calendar tiles. Fix queued: shared `homeRefresh` trigger in `lib/navigation-store`, Chat bumps it after any sheet mutation, Home watches in useEffect and reloads data. One-line-per-mutation-site.
+- **Shopping sheet input pill unification** (Reminders sheet done, Shopping deferred — bigger surgery due to List/Pantry/Spend tabs).
+- **Full chat bar hoisting into swipe-world** — deferred, style match should give zero-flicker without moving the component.
+- **Website v6 rewrite** — CURRENT SITE IS STALE (still shows Meals as a headline pillar, "Chat" as the entry point, no Reminders). Rich flagged this as next-up after doc sweep.
+- **Sonnet 5 migration** — queued for post-beta. Intro pricing $2/$10 through Aug 2026 makes it cheaper than 4.6.
+- **Per-user brief cache** — queued for scale past 100 families.
+
+### What's NEXT (immediately after Rich confirms doc sweep + repo push)
+
+1. **Rich runs the build + submit chain above** (production build → TestFlight)
+2. **Website v6 rewrite** (this is the next chat task Rich called out) — rework `zaeli-app-links-template/public/index.html` to reflect v2 pivot: productivity trio + Reminders as 4th pillar, brief on lockscreen story, Home not Dashboard
+3. **Anna round 3 feedback** once TestFlight build lands and she's had a few days
+4. **Round B stale-tile fix** batch (see above)
+
+### Session 31 base (30 July — still current context)
+
+Prep for the v2 pivot. Bento Dashboard v2 introduced (Phase 01). Dashboard became the front door (Phase 02). Kids/Tutor/Travel/MySpace/Meals moved to `app/_hidden/` (Phase 03). First `zaeli-v2-design-brief.html` mockup shipped. Later revised in Session 32 with the universal chat bar direction + big-text tile design.
+
+### Session 30 base (14-17 July — still current context)
+
+Phase 5 API keys server-side. Stripe LIVE mode. Our Budget Supabase backend. Whisper English lock. Honesty rules on `send_family_message` + calendar. Privacy + Terms deployed. Dev row email-gated. Family push infrastructure. Multi-photo chat. Kids Trivia guard. Cold-start splash latency fix. `expo-notifications` plugin discovery. EAS Starter plan upgrade. Nine commits landed on top of the 14 July base — everything ready for public sign-ups.
+
+### Session 29 (still current — historical, 13 July)
+
+Anna beta round 1 shipped and installed on TestFlight. Meal planner pivot to recipes-first (later hidden entirely in Session 31). Tutor math accuracy three-layer defence. Sonnet prompt caching on chat tool-calling path. Bulk-paste truncation fix. API logger negative-cost bug fixed.
+
+### LEGACY SECTION — SESSION 30 CONTINUATION (kept for context, superseded above)
 
 **A. Phase 5 — Anthropic + OpenAI + Whisper API keys moved server-side** ⭐⭐⭐ (commit `e84a091`). The pre-public-launch blocker flagged Session 27 is now closed. Three new Supabase Edge Functions (`anthropic-proxy`, `openai-proxy`, `whisper-proxy`) with matching Supabase secrets (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) set via CLI. New `lib/ai-proxy.ts` provides `callAnthropic()` / `callOpenAI()` / `callWhisper()` — JWT-authed via `session.access_token`, same call signatures as before so migrating ~15 call sites was mechanical. **`EXPO_PUBLIC_ANTHROPIC_API_KEY` and `EXPO_PUBLIC_OPENAI_API_KEY` removed from local `.env` AND from EAS Environment Variables** — Metro inlines `process.env.EXPO_PUBLIC_*` at build time, so removing them means the values become `undefined` in the compiled bundle and the keys physically leave the app. Kept in EAS: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_GIPHY_API_KEY` (all safe to bundle). Public App Store launch is no longer blocked by client-bundled secrets.
 
