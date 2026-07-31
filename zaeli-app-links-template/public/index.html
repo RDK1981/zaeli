@@ -445,6 +445,86 @@
       font-size: 15px;
     }
 
+    /* ── Budget sheet mockup ──────────────────────────────────────── */
+    .bud-sheet .screen { background: var(--bg); position: relative; }
+    .bud-sheet .handle {
+      width: 40px; height: 4px; border-radius: 2px;
+      background: rgba(10,10,10,0.14);
+      margin: 44px auto 0;
+    }
+    .bud-hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px 10px;
+    }
+    .bud-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 18px; font-weight: 700;
+    }
+    .bud-tabs {
+      display: flex; margin: 0 16px 12px;
+      background: rgba(10,10,10,0.06);
+      border-radius: 14px;
+      padding: 3px;
+    }
+    .bud-tab {
+      flex: 1; text-align: center;
+      padding: 8px 6px;
+      border-radius: 11px;
+      font-size: 11px; font-weight: 700;
+      color: rgba(10,10,10,0.4);
+    }
+    .bud-tab.active {
+      background: var(--ink); color: #fff;
+    }
+    .bud-body { padding: 8px 16px 100px; }
+    .bud-spare-eyebrow {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.9px;
+      color: var(--mint-deep); text-transform: uppercase;
+      margin-top: 4px;
+    }
+    .bud-spare-num {
+      font-size: 40px; font-weight: 800; letter-spacing: -1.5px;
+      line-height: 1; color: var(--mint-deep);
+      margin: 4px 0 4px;
+    }
+    .bud-spare-note {
+      font-size: 12px; color: var(--ink3); font-weight: 500;
+      margin-bottom: 14px;
+    }
+    .bud-flow-bar {
+      display: flex; height: 12px; border-radius: 6px;
+      overflow: hidden; margin-bottom: 8px;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .bud-flow-bar .seg.fixed { background: var(--slate); }
+    .bud-flow-bar .seg.var   { background: var(--lav-deep); opacity: 0.75; }
+    .bud-flow-bar .seg.spare { background: var(--mint-deep); }
+    .bud-flow-legend {
+      display: flex; gap: 10px; margin-bottom: 16px;
+      font-size: 10px; font-weight: 600; color: var(--ink2);
+    }
+    .bud-flow-legend .lg { display: flex; align-items: center; gap: 4px; }
+    .bud-flow-legend .sw {
+      width: 8px; height: 8px; border-radius: 2px;
+    }
+    .bud-flow-legend .sw.fixed { background: var(--slate); }
+    .bud-flow-legend .sw.var   { background: var(--lav-deep); opacity: 0.75; }
+    .bud-flow-legend .sw.spare { background: var(--mint-deep); }
+    .bud-lines { display: flex; flex-direction: column; gap: 6px; }
+    .bud-line {
+      display: flex; align-items: center; gap: 10px;
+      background: #fff; border-radius: 10px; padding: 10px 12px;
+    }
+    .bud-line .ic { font-size: 15px; width: 20px; }
+    .bud-line .label {
+      flex: 1; font-size: 12px; font-weight: 500; color: var(--ink);
+    }
+    .bud-line .amt {
+      font-size: 12px; font-weight: 700; color: var(--ink); letter-spacing: -0.2px;
+    }
+    .bud-line.goal { background: var(--mint-tint); border: 1px dashed rgba(45,122,82,0.28); }
+    .bud-line.goal .goal-amt { color: var(--mint-deep); }
+
     /* ── Chat feed mockup (used in Chat section) ──────────────────── */
     .chat-mock .screen { background: var(--bg); }
     .chat-feed {
@@ -945,11 +1025,16 @@
                       <div class="tile-eyebrow" style="color: var(--gold-deep);">⏰ REMINDERS</div>
                       <div class="tile-hint" style="color: var(--gold-deep);">All reminders →</div>
                     </div>
-                    <div class="tile-headline">1 due at 3 pm.</div>
+                    <div class="tile-headline">2 due today.</div>
                     <div class="tile-row">
-                      <div class="t" style="color: var(--gold-deep);">3 pm</div>
+                      <div class="t" style="color: var(--gold-deep); width: 44px;">7:30 am</div>
                       <div class="rd" style="background: var(--gold-deep);"></div>
-                      <div class="n" style="font-weight: 500;">Walk the dog</div>
+                      <div class="n" style="font-weight: 500;">Gold coin — Gab's class</div>
+                    </div>
+                    <div class="tile-row">
+                      <div class="t" style="color: var(--gold-deep); width: 44px;">5:15 pm</div>
+                      <div class="rd" style="background: var(--gold-deep);"></div>
+                      <div class="n" style="font-weight: 500;">Pick up Poppy — dance</div>
                     </div>
                     <div class="add-pill" style="border-color: var(--gold-deep);">
                       <span class="plus">+</span>
@@ -963,7 +1048,21 @@
                       <div class="tile-hint" style="color: var(--mint-deep);">Full budget →</div>
                     </div>
                     <div class="tile-headline" style="color: var(--mint-deep);">On track for the month.</div>
-                    <div style="font-size: 11px; color: var(--ink3); margin-top: -2px;">Expenses · Savings · Spending</div>
+                    <div style="display: flex; align-items: center; gap: 6px; margin-top: -4px; margin-bottom: 8px;">
+                      <span style="font-size: 13px; font-weight: 700; color: var(--mint-deep);">A$720 spare</span>
+                      <span style="font-size: 10px; color: var(--ink3);">so far this month</span>
+                    </div>
+                    <!-- Mini flow bar: Fixed / Variable / Spare -->
+                    <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 4px;">
+                      <div style="flex: 59; background: var(--slate);"></div>
+                      <div style="flex: 32; background: var(--lav-deep); opacity: 0.65;"></div>
+                      <div style="flex: 9; background: var(--mint-deep);"></div>
+                    </div>
+                    <div style="display: flex; gap: 8px; font-size: 9px; color: var(--ink3); font-weight: 600;">
+                      <span>Fixed</span>
+                      <span>Variable</span>
+                      <span style="color: var(--mint-deep);">Spare</span>
+                    </div>
                   </div>
                 </div>
                 <div class="chat-bar">
@@ -1255,6 +1354,93 @@
               <li><span class="tick">✓</span><span><b>Notify chip on every add.</b> One tap and the whole family knows.</span></li>
               <li><span class="tick">✓</span><span><b>She remembers.</b> Poppy plays soccer. Gab's got peanut allergies. Rich's brother's in Adelaide. Zaeli learns and uses it.</span></li>
             </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Section 5: Our Budget — planner, not tracker ─────────────── -->
+  <section id="budget" class="bg-mint">
+    <div class="section-inner">
+      <div class="wrap">
+        <div class="feature-grid">
+          <div class="feature-text">
+            <span class="eyebrow">Our Budget — a planner, not a tracker</span>
+            <h2 class="h2">Know where you stand. Every month.</h2>
+            <p class="lede">A plain-English view of the family's money. Fixed and variable expenses as a flat list. Savings goals you can actually see. No wall of transactions, no bank feed to configure, no anxiety spiral — just clarity.</p>
+            <ul class="feature-list">
+              <li><span class="tick">✓</span><span><b>Flat Expenses list.</b> Fixed (mortgage, subscriptions, insurance) and Variable (groceries, fuel, coffee) on one screen. Add via the pill, or Zaeli reads a statement you upload and suggests the numbers.</span></li>
+              <li><span class="tick">✓</span><span><b>Cashflow bar at the top.</b> One glance shows what's committed, what varies, and what's spare. If spare is green, you're good. If it's not, you know.</span></li>
+              <li><span class="tick">✓</span><span><b>Savings goals.</b> Bali trip 2027. Duke's swim gear. School fees. Set a target + monthly contribution, watch it grow — no spreadsheet needed.</span></li>
+              <li><span class="tick">✓</span><span><b>No live tracking, no lies.</b> Zaeli won't pretend to know what you spent yesterday (she doesn't have a bank feed). What she does is help you set a plan you can trust.</span></li>
+              <li><span class="tick">✓</span><span><b>Statement upload.</b> Screenshot or paste a month's transactions — Zaeli categorises them and offers monthly averages you can accept or tweak.</span></li>
+            </ul>
+          </div>
+
+          <div>
+            <div class="phone bud-sheet tilt-right">
+              <div class="notch"></div>
+              <div class="screen">
+                <div class="handle"></div>
+                <div class="bud-hdr">
+                  <div class="bud-title"><span>💰</span>Our Budget</div>
+                  <div class="rem-close">✕</div>
+                </div>
+                <div class="bud-tabs">
+                  <div class="bud-tab active">Overview</div>
+                  <div class="bud-tab">Expenses</div>
+                  <div class="bud-tab">Savings</div>
+                </div>
+                <div class="bud-body">
+                  <div class="bud-spare-eyebrow">SPARE THIS MONTH</div>
+                  <div class="bud-spare-num">A$720</div>
+                  <div class="bud-spare-note">On track — comfortable buffer left.</div>
+
+                  <!-- Cashflow bar -->
+                  <div class="bud-flow-bar">
+                    <div class="seg fixed" style="flex: 59;"></div>
+                    <div class="seg var" style="flex: 32;"></div>
+                    <div class="seg spare" style="flex: 9;"></div>
+                  </div>
+                  <div class="bud-flow-legend">
+                    <div class="lg"><span class="sw fixed"></span>Fixed</div>
+                    <div class="lg"><span class="sw var"></span>Variable</div>
+                    <div class="lg"><span class="sw spare"></span>Spare</div>
+                  </div>
+
+                  <div class="bud-lines">
+                    <div class="bud-line">
+                      <span class="ic">🏠</span>
+                      <span class="label">Mortgage + rates</span>
+                      <span class="amt">A$2,180</span>
+                    </div>
+                    <div class="bud-line">
+                      <span class="ic">🛒</span>
+                      <span class="label">Groceries (target)</span>
+                      <span class="amt">A$960</span>
+                    </div>
+                    <div class="bud-line">
+                      <span class="ic">📺</span>
+                      <span class="label">Subs (Netflix, Spotify…)</span>
+                      <span class="amt">A$68</span>
+                    </div>
+                    <div class="bud-line goal">
+                      <span class="ic">✈️</span>
+                      <span class="label">Bali 2027 (saving)</span>
+                      <span class="amt goal-amt">A$220/mo</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="rem-input" style="border-color: var(--mint-deep);">
+                  <div class="mic" style="background: rgba(45,122,82,0.14); color: var(--mint-deep);">🎙</div>
+                  <div class="sep"></div>
+                  <div class="field" style="color: var(--mint-deep); opacity: 0.75;">Add expense…</div>
+                  <div class="cam">📷</div>
+                  <div class="send">↑</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
