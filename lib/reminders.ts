@@ -95,6 +95,12 @@ export type RepeatRule =
   | 'fortnightly'
   | 'monthly';
 
+// Round B — visibility tier. Personal = only creator sees + only creator gets
+// push. Shared = family sees + only creator gets push (Notify chip fires push
+// to whole family on demand). Default at insert: 'personal' — matches the new
+// UX where personal is the fast-path default and shared is a one-tap toggle.
+export type Visibility = 'personal' | 'shared';
+
 export interface Reminder {
   id:             string;
   familyId:       string;
@@ -108,6 +114,7 @@ export interface Reminder {
   status:         'active' | 'done' | 'cancelled';
   completedAt?:   string;
   notifId?:       string;
+  visibility:     Visibility;
   createdAt:      string;
 }
 
@@ -125,6 +132,7 @@ function rowToReminder(r: any): Reminder {
     status:         r.status,
     completedAt:    r.completed_at ?? undefined,
     notifId:        r.notif_id ?? undefined,
+    visibility:     (r.visibility as Visibility) ?? 'personal',
     createdAt:      r.created_at,
   };
 }
@@ -207,6 +215,9 @@ export async function saveReminder(r: Partial<Reminder> & { title: string }): Pr
     status:          r.status ?? 'active',
     completed_at:    r.completedAt ?? null,
     notif_id:        notifId ?? null,
+    // Round B — visibility persists tier. New items default 'personal' per
+    // Rich's UX (fast-path); user taps 📣 Notify chip to convert to 'shared'.
+    visibility:      r.visibility ?? 'personal',
     updated_at:      new Date().toISOString(),
   };
 
@@ -259,6 +270,21 @@ export async function unmarkReminderDone(r: Reminder): Promise<Reminder | null> 
     .select()
     .maybeSingle();
   if (error) { console.log('[reminders] unmark done error:', error.message); return null; }
+  return data ? rowToReminder(data) : null;
+}
+
+// ── VISIBILITY (Round B — tier conversion) ──────────────────────────────
+// Flip a reminder from personal to shared (or back). Used by the Notify chip
+// after add — one tap converts personal → shared + returns the updated row so
+// the UI can then fire notifyFamily separately.
+export async function updateReminderVisibility(id: string, visibility: Visibility): Promise<Reminder | null> {
+  const { data, error } = await supabase
+    .from('reminders')
+    .update({ visibility, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .maybeSingle();
+  if (error) { console.log('[reminders] update visibility error:', error.message); return null; }
   return data ? rowToReminder(data) : null;
 }
 

@@ -15,6 +15,27 @@ import { BriefWindow, hashString } from './brief-firing';
 
 const SONNET = 'claude-sonnet-4-6';
 
+// Round B — render event assignees as names so Zaeli can see who each event
+// belongs to. Falls back to raw IDs if we can't match; the important thing is
+// Zaeli understands parents drive the kids' events. `assignees` can be:
+//   - null / undefined (no owner tagged) → returns ''
+//   - array of UUIDs → looked up in memberNames if index matches; else raw
+//   - array of names → passed straight through
+function renderAssignees(assignees: any, memberNames: string[]): string {
+  if (!Array.isArray(assignees) || assignees.length === 0) return '';
+  const looksLikeUuid = (s: string) => typeof s === 'string' && /^[0-9a-f-]{20,}$/i.test(s);
+  const rendered = assignees.map((a: any) => {
+    if (typeof a !== 'string') return String(a);
+    if (looksLikeUuid(a)) return ''; // client sends UUIDs; brief-generator can't resolve → drop
+    return a;
+  }).filter(Boolean);
+  if (rendered.length === 0 && memberNames.length > 0) {
+    // Best-effort: if we couldn't resolve, hint that these are family members
+    return 'family';
+  }
+  return rendered.join(', ');
+}
+
 // ── Types ────────────────────────────────────────────────────────────────
 export interface BriefChip {
   label: string;
@@ -29,12 +50,14 @@ export interface BriefPayload {
 }
 
 export interface FamilyContext {
-  todayEvents: any[];
+  todayEvents: any[];           // ALL family events today — assignees included so Zaeli knows who "owns" each. Rich's brief must surface Duke's soccer because Rich is the driver.
   tomorrowEvents: any[];
   tonightMeal: { name: string } | null;
   shopCount: number;
   shopFlagged: string[];        // items flagged / low / overdue
   openTasks: any[];             // personal_tasks due in 7 days
+  personalReminders?: any[];    // Round B — creator's personal reminders (only in creator's own brief; hidden from other adults)
+  sharedReminders?: any[];      // Round B — family-visible reminders (in every brief)
   weather: { temp: number; condition: string } | null;
   memberNames: string[];        // family member first names
   primaryUser: string;          // signed-in user's first name (e.g. 'Rich', 'Anna')
@@ -49,6 +72,34 @@ export interface FamilyContext {
 // prompt-cache entry (fine — cache stays hot within a session).
 function buildSystemPrompt(win: BriefWindow, primaryUser: string): string {
   const common = `You are Zaeli, an AI family life companion for an Australian family. You're helping ${primaryUser} today — they're the one reading this.
+
+────────────────────────────────────────────
+WHOLE-FAMILY LENS — PARENTS DRIVE KIDS' EVENTS
+────────────────────────────────────────────
+When TODAY EVENTS or TOMORROW EVENTS show items tagged to a kid (Poppy, Gab,
+Duke, or any child's name in brackets like "4:00pm Soccer training [Duke]"),
+${primaryUser} is USUALLY the driver — the one dropping off, picking up, or
+sitting at the sideline. Treat those events as part of ${primaryUser}'s day
+even though the calendar shows a kid's name.
+
+NEVER say "quiet day ahead" or "quiet one for you" if there are kids' events
+on the schedule. That reads as "your day is empty" to a parent who is
+actually about to spend the afternoon in the car. Instead, name the drive
+implicitly: "busy family day", "you and the taxi crew are on today", "kids
+schedule stacks up this afternoon". Acknowledge the labour.
+
+────────────────────────────────────────────
+PERSONAL vs FAMILY REMINDERS — RESPECT THE DIVIDE
+────────────────────────────────────────────
+YOUR PERSONAL REMINDERS in LIVE DATA are private to ${primaryUser} — the
+other adult in the family does NOT see them and they are NOT rendered in
+their brief. When you mention a personal reminder, frame it as private:
+"just for you", "on your list", "personal for you". Not "the family should
+book...", not "someone needs to remember to..."
+
+FAMILY REMINDERS in LIVE DATA are shared — safe to mention as family
+items ("bins go out tonight", "the whole family's on Poppy's dance recital
+Saturday").
 
 ────────────────────────────────────────────
 ABSOLUTE RULE — NEVER INVENT SPECIFIC FACTS
@@ -231,12 +282,22 @@ function formatContext(ctx: FamilyContext, win: BriefWindow, now: Date): string 
   parts.push(``);
   parts.push(`── LIVE DATA (only populated domains appear below; anything absent is invisible per the ABSOLUTE rule) ──`);
 
-  // Events — only include when populated. Absent event lists = calendar is invisible to output.
+  // Events — include ALL family events regardless of assignee. Zaeli must
+  // surface kids' activities to parents because parents drive them there.
+  // Round B fix: previously the prompt implicitly encouraged Zaeli to talk
+  // about the reader's own tagged events; now we make it explicit that ANY
+  // family event is fair game, and we render the assignee names so Zaeli
+  // knows who's doing what.
+  const fmtEvt = (e: any) => {
+    const t = e.start_time ?? '';
+    const owners = renderAssignees(e.assignees, ctx.memberNames);
+    return `${t} ${e.title}${owners ? ` [${owners}]` : ''}`.trim();
+  };
   if (ctx.todayEvents.length > 0) {
-    parts.push(`TODAY EVENTS: ${ctx.todayEvents.map(e => `${e.start_time ?? ''} ${e.title}`.trim()).join('; ')}`);
+    parts.push(`TODAY EVENTS (whole family — parents drive these too): ${ctx.todayEvents.map(fmtEvt).join('; ')}`);
   }
   if (ctx.tomorrowEvents.length > 0) {
-    parts.push(`TOMORROW EVENTS: ${ctx.tomorrowEvents.map(e => `${e.start_time ?? ''} ${e.title}`.trim()).join('; ')}`);
+    parts.push(`TOMORROW EVENTS (whole family): ${ctx.tomorrowEvents.map(fmtEvt).join('; ')}`);
   }
 
   // Meal — only include when planned. Absent = invisible (do NOT signal "unplanned" to model).
@@ -252,6 +313,19 @@ function formatContext(ctx: FamilyContext, win: BriefWindow, now: Date): string 
   // Tasks — only include when populated. Absent = tasks domain invisible.
   if (ctx.openTasks.length > 0) {
     parts.push(`OPEN TASKS (7 days): ${ctx.openTasks.map(t => t.title).join('; ')}`);
+  }
+
+  // Round B — reminders. Personal are ONLY in the reader's own brief (RLS
+  // enforces this at query time; still filter defensively here). Shared are
+  // in every family member's brief. Zaeli must respect the divide — never
+  // mention Rich's personal items in Anna's brief and vice versa.
+  const personal = (ctx.personalReminders ?? []).slice(0, 5);
+  const shared   = (ctx.sharedReminders ?? []).slice(0, 5);
+  if (personal.length > 0) {
+    parts.push(`YOUR PERSONAL REMINDERS (only you see these — mention discreetly, e.g. "just for you"): ${personal.map(r => `${r.when_label ?? ''} ${r.title}`.trim()).join('; ')}`);
+  }
+  if (shared.length > 0) {
+    parts.push(`FAMILY REMINDERS (everyone sees): ${shared.map(r => `${r.when_label ?? ''} ${r.title}`.trim()).join('; ')}`);
   }
 
   if (ctx.weather) {
@@ -290,6 +364,9 @@ function computeSignature(ctx: FamilyContext): string {
     // changes even though the underlying family data is the same. Without
     // this, Anna signing into a shared family would see Rich's cached brief.
     `u:${ctx.primaryUser || ''}`,
+    // Round B — reminders in signature so add/complete/delete invalidates cache
+    (ctx.personalReminders ?? []).map((r:any) => `${r.id}:${r.status ?? ''}`).join('|'),
+    (ctx.sharedReminders ?? []).map((r:any) => `${r.id}:${r.status ?? ''}`).join('|'),
   ].join('~');
   return hashString(s);
 }

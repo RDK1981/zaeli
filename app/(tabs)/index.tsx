@@ -4420,14 +4420,18 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
     const today = localDateStr();
     const tomorrow = localDatePlusDays(1);
     const in7 = localDatePlusDays(7);
+    const myId = getProfile()?.id ?? null;
 
-    const [evTodayRes, evTomorrowRes, shopRes, mealRes, tasksRes, membersRes] = await Promise.all([
+    const [evTodayRes, evTomorrowRes, shopRes, mealRes, tasksRes, membersRes, remindersRes] = await Promise.all([
       supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', getFamilyId()).eq('date', today).order('start_time').limit(20),
       supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes').eq('family_id', getFamilyId()).eq('date', tomorrow).order('start_time').limit(20),
       supabase.from('shopping_items').select('id,name,item').eq('family_id', getFamilyId()).neq('checked', true).limit(100),
       supabase.from('meal_plans').select('id,meal_name,planned_date,day_key').eq('family_id', getFamilyId()).or(`planned_date.eq.${today},day_key.eq.${today}`).limit(1),
       supabase.from('personal_tasks').select('id,title,due_date,is_shared,member_name').eq('family_id', getFamilyId()).eq('is_complete', false).lte('due_date', in7).order('due_date').limit(20),
       supabase.from('family_members').select('name').eq('family_id', getFamilyId()).limit(10),
+      // Round B — reminders. RLS enforces: user sees own personal + all shared.
+      // We split client-side into personal (own) vs shared for tier-aware prompt.
+      supabase.from('reminders').select('id,title,remind_at,remind_on,visibility,created_by,status').eq('family_id', getFamilyId()).eq('status', 'active').order('remind_at', { ascending: true, nullsFirst: false }).order('remind_on', { ascending: true, nullsFirst: false }).limit(50),
     ]);
 
     const tonightMeal = (mealRes.data ?? [])[0];
@@ -4455,13 +4459,34 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
       endingSoonSeries = Object.values(maxByGroup).filter(s => s.lastDate <= in6w);
     } catch {}
 
+    // Round B — resolve event assignee UUIDs to first names so Sonnet can
+    // see "4pm Soccer training [Duke]" instead of a UUID it can't interpret.
+    // Uses the family roster (loaded on Home mount). Rich's brief now
+    // surfaces Duke's soccer as "kids on today" instead of "quiet day".
+    const roster = getRoster();
+    const nameById = new Map(roster.map(m => [m.id, m.name]));
+    const resolveAssignees = (ids: any): string[] => {
+      if (!Array.isArray(ids)) return [];
+      return ids.map((id: any) => nameById.get(id) ?? '').filter(Boolean);
+    };
+    const attachNames = (ev: any) => ({ ...ev, assignees: resolveAssignees(ev.assignees) });
+
+    // Round B — split reminders into personal (mine) vs shared (family).
+    // RLS already excludes other users' personal reminders at the SQL layer,
+    // but we double-check createdBy match here as defence in depth.
+    const allReminders = remindersRes.data ?? [];
+    const personalReminders = allReminders.filter((r: any) => r.visibility === 'personal' && r.created_by === myId).slice(0, 8);
+    const sharedReminders   = allReminders.filter((r: any) => r.visibility === 'shared').slice(0, 8);
+
     const ctx: FamilyContext = {
-      todayEvents: evTodayRes.data ?? [],
-      tomorrowEvents: evTomorrowRes.data ?? [],
+      todayEvents:    (evTodayRes.data ?? []).map(attachNames),
+      tomorrowEvents: (evTomorrowRes.data ?? []).map(attachNames),
       tonightMeal: tonightMeal ? { name: tonightMeal.meal_name } : null,
       shopCount: (shopRes.data ?? []).length,
       shopFlagged: [],
       openTasks: tasksRes.data ?? [],
+      personalReminders,
+      sharedReminders,
       weather: null,
       // Use the actual signed-in user's first name — was 'Rich' hardcoded
       // which meant every user got "Evening Rich" briefs regardless of who

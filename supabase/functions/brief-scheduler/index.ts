@@ -215,22 +215,44 @@ async function gatherLiveData(familyId: string, dateKey: string) {
   // to write a competent, honest brief. Empty domains omitted (invisible-
   // domain rule from Session 26 — don't invite Sonnet to nudge on missing
   // data).
+  //
+  // Round B additions:
+  //  - resolve event assignee UUIDs to first names via family_members lookup
+  //    (so brief can say "Duke has soccer" not "quiet day" when only Duke is
+  //     tagged) — fixes Anna Round 2 bug where kids' events didn't surface
+  //  - include SHARED reminders (personal reminders are user-scoped, can't
+  //    fit in a family-wide server brief — those live in the client brief)
   const tomorrowKey = new Date(new Date(dateKey + 'T00:00:00').getTime() + 24*3600*1000).toISOString().slice(0,10);
 
-  const [evTodayRes, evTmwRes, mealRes, shopRes, tasksRes] = await Promise.all([
+  const [evTodayRes, evTmwRes, mealRes, shopRes, tasksRes, membersRes, remRes] = await Promise.all([
     supabaseAdmin.from('events').select('title,start_time,assignees').eq('family_id', familyId).eq('date', dateKey).order('start_time'),
     supabaseAdmin.from('events').select('title,start_time,assignees').eq('family_id', familyId).eq('date', tomorrowKey).order('start_time'),
     supabaseAdmin.from('meal_plans').select('meal_name').eq('family_id', familyId).eq('date', dateKey).limit(1),
     supabaseAdmin.from('shopping_items').select('id').eq('family_id', familyId).neq('checked', true),
     supabaseAdmin.from('personal_tasks').select('id, title').eq('family_id', familyId).eq('status', 'active').order('due_date', { ascending: true }).limit(5),
+    supabaseAdmin.from('family_members').select('id,name').eq('family_id', familyId),
+    supabaseAdmin.from('reminders').select('id,title,remind_at,remind_on,visibility').eq('family_id', familyId).eq('status', 'active').eq('visibility', 'shared').limit(10),
   ]);
 
+  const nameById = new Map<string, string>();
+  for (const m of (membersRes.data ?? [])) {
+    if (m?.id && m?.name) nameById.set(m.id, String(m.name).split(/\s+/)[0]);
+  }
+  const attachNames = (ev: any) => {
+    const ids = Array.isArray(ev?.assignees) ? ev.assignees : [];
+    const names = ids.map((id: any) => nameById.get(id) ?? '').filter(Boolean);
+    return { ...ev, assignees: names };
+  };
+
   const shape: Record<string, any> = {};
-  if ((evTodayRes.data ?? []).length) shape.today_events = evTodayRes.data;
-  if ((evTmwRes.data ?? []).length)   shape.tomorrow_events = evTmwRes.data;
+  if ((evTodayRes.data ?? []).length) shape.today_events = (evTodayRes.data ?? []).map(attachNames);
+  if ((evTmwRes.data ?? []).length)   shape.tomorrow_events = (evTmwRes.data ?? []).map(attachNames);
   if (mealRes.data?.[0]?.meal_name)   shape.tonight_meal = mealRes.data[0].meal_name;
   if ((shopRes.data ?? []).length)    shape.shopping_count = (shopRes.data ?? []).length;
   if ((tasksRes.data ?? []).length)   shape.open_tasks = tasksRes.data;
+  if ((remRes.data ?? []).length)     shape.family_reminders = (remRes.data ?? []).map((r: any) => ({
+    title: r.title, when: r.remind_at ?? r.remind_on ?? null,
+  }));
   return shape;
 }
 
@@ -249,6 +271,10 @@ FORMAT (strict 2-3 paragraphs):
 [OPENER] one warm line
 [BODY] 2 sentences naming what's coming (from LIVE DATA)
 [ONE THING] optional single nudge (omit if nothing warrants)
+
+WHOLE-FAMILY LENS — parents drive kids' events. Any event with [Duke], [Poppy], [Gab] or any kid name in brackets is something ${primaryUser} probably has to drive to, pick up from, or supervise. NEVER call the day "quiet" if kids have things on. Name the kid + activity: "Duke's soccer at 4" not "an event at 4".
+
+Family reminders (if listed) are things a family member has already flagged — surface the most relevant one if it matters today.
 
 INVISIBLE-DOMAIN RULE: if a domain isn't in LIVE DATA, it doesn't appear anywhere.
 NEVER nudge to plan dinner. Never manufacture warmth.
