@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli v2 — Shopping sheet redesign (Round B)</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:         #FAF8F5;
+    --ink:        #0A0A0A;
+    --ink2:       rgba(10,10,10,0.72);
+    --ink3:       rgba(10,10,10,0.48);
+    --ink4:       rgba(10,10,10,0.28);
+    --ink5:       rgba(10,10,10,0.14);
+    --line:       rgba(10,10,10,0.08);
+    --coral:      #FF4545;
+    --coral-tint: #FFE4E0;
+    --coral-d:    #B83333;
+    --slate:      #2D3748;
+    --peach:      #FAC8A8;
+    --peach-t:    #FDF1E5;
+    --peach-d:    #8A3A00;
+    --mint:       #B8EDD0;
+    --mint-t:     #E6F7EF;
+    --mint-d:     #2D7A52;
+    --lav:        #D8CCFF;
+    --lav-t:      #F0EBFF;
+    --lav-d:      #5020C0;
+    --sky:        #A8D8F0;
+    --sky-t:      #E8F4FD;
+    --sky-d:      #0A5C80;
+    --gold:       #F0DC80;
+    --gold-t:     #FBF5D6;
+    --gold-d:     #8B6914;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+  body { background: #EFECE6; padding: 40px 20px 80px; color: var(--ink); }
+
+  h1 { font-weight: 800; font-size: 32px; text-align: center; letter-spacing: -1px; }
+  .sub { text-align: center; color: var(--ink3); font-size: 15px; margin: 8px 0 32px; max-width: 780px; margin-left: auto; margin-right: auto; line-height: 1.55; }
+  .sub b { color: var(--ink); font-weight: 700; }
+
+  /* Rich's complaints callout */
+  .callout {
+    max-width: 900px; margin: 12px auto 24px;
+    background: white; border: 1px solid var(--line);
+    border-radius: 16px; padding: 22px 26px;
+  }
+  .callout h3 {
+    font-size: 13px; font-weight: 800; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--lav-d); margin-bottom: 14px;
+  }
+  .callout ol { margin-left: 20px; }
+  .callout li { font-size: 14px; line-height: 1.7; color: var(--ink2); }
+  .callout li b { color: var(--ink); font-weight: 700; }
+  .callout .fix { color: var(--mint-d); font-weight: 700; }
+  .callout .kill { color: var(--coral); font-weight: 700; }
+
+  /* Section header */
+  .section-header { margin: 56px auto 24px; max-width: 1400px; }
+  .section-eyebrow { font-weight: 800; font-size: 12px; letter-spacing: 1.2px; color: var(--ink3); text-transform: uppercase; }
+  .section-title { font-weight: 800; font-size: 28px; letter-spacing: -0.5px; margin-top: 4px; }
+  .section-desc { color: var(--ink2); font-size: 15px; margin-top: 8px; max-width: 800px; line-height: 1.55; }
+  .section-desc b { color: var(--ink); font-weight: 700; }
+
+  /* Frame grid */
+  .frames {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px; max-width: 1400px; margin: 0 auto;
+  }
+  .frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .frame-label {
+    background: white; border: 1px solid var(--line);
+    padding: 5px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--ink2);
+  }
+  .frame-caption {
+    text-align: center; font-size: 12px; color: var(--ink3); line-height: 1.45;
+    max-width: 240px; margin-top: 4px;
+  }
+  .frame-caption b { color: var(--ink2); font-weight: 700; }
+
+  /* iPhone */
+  .phone {
+    position: relative; width: 260px; height: 545px;
+    background: var(--ink); border-radius: 38px; padding: 7px;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+  }
+  .phone .notch {
+    position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
+    width: 90px; height: 20px; background: var(--ink);
+    border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; z-index: 5;
+  }
+  .screen {
+    background: var(--bg); border-radius: 32px; height: 100%;
+    overflow: hidden; position: relative;
+  }
+  .home-behind {
+    position: absolute; inset: 0; background: var(--bg);
+    padding: 34px 12px 0; opacity: 0.5; z-index: 0;
+  }
+  .home-behind .word { font-size: 22px; font-weight: 800; letter-spacing: -1px; }
+  .home-behind .word .a, .home-behind .word .i { color: var(--sky); }
+
+  /* Sheet */
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: var(--bg);
+    border-top-left-radius: 22px; border-top-right-radius: 22px;
+    height: 92%; z-index: 10;
+    display: flex; flex-direction: column;
+    box-shadow: 0 -6px 20px rgba(0,0,0,0.10);
+  }
+  .sheet-handle {
+    width: 34px; height: 4px; border-radius: 2px;
+    background: rgba(10,10,10,0.14); margin: 9px auto 0;
+  }
+  .sheet-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px 12px; border-bottom: 1px solid var(--line);
+  }
+  .sheet-head .title-row {
+    display: flex; align-items: center; gap: 7px;
+  }
+  .sheet-head .emoji { font-size: 17px; }
+  .sheet-head h2 { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+  .sheet-head .actions { display: flex; gap: 5px; }
+  .sheet-head .icon-btn {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: rgba(10,10,10,0.06);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--ink3);
+  }
+
+  /* NEW segmented tabs — matches Reminders/To-dos style */
+  .tabs {
+    display: flex; margin: 12px 14px 8px;
+    background: rgba(10,10,10,0.06); border-radius: 11px; padding: 3px;
+  }
+  .tab {
+    flex: 1; padding: 8px; border-radius: 8px;
+    text-align: center; font-size: 12px; font-weight: 600; color: var(--ink3);
+  }
+  .tab.active {
+    background: white; color: var(--ink); font-weight: 800;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+
+  /* Body scroll */
+  .body {
+    flex: 1; padding: 12px 14px 8px;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .section-eyebrow-inline {
+    font-size: 10px; font-weight: 800; color: var(--lav-d);
+    letter-spacing: 0.6px; text-transform: uppercase;
+    margin: 6px 4px 10px;
+  }
+
+  /* NEW slim rows */
+  .item {
+    display: flex; align-items: center; gap: 10px;
+    background: white; padding: 9px 12px;
+    border-radius: 12px; margin-bottom: 6px;
+    min-height: 44px;
+  }
+  .item.done { background: rgba(10,10,10,0.03); }
+  .item .check {
+    width: 20px; height: 20px; border-radius: 10px;
+    border: 1.7px solid var(--ink4); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+  }
+  .item.done .check {
+    background: var(--mint-d); border-color: var(--mint-d); color: white;
+  }
+  .item .name { flex: 1; font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.25; }
+  .item.done .name { text-decoration: line-through; color: var(--ink4); }
+  .item .qty { font-size: 11px; color: var(--ink3); font-weight: 500; }
+  .item .x {
+    width: 20px; height: 20px; font-size: 15px; color: var(--ink4);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Bottom input pill — unified with Reminders sheet + chat bar */
+  .bottom-bar {
+    padding: 8px 14px 14px; background: var(--bg);
+    border-top: 1px solid var(--line);
+    position: relative;
+  }
+  .pill {
+    display: flex; align-items: center; gap: 3px;
+    background: white; border: 1.5px solid var(--lav);
+    border-radius: 24px; padding: 5px 6px;
+    min-height: 44px;
+  }
+  .pill .b {
+    width: 32px; height: 32px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: var(--lav-d);
+    background: rgba(216,204,255,0.30);
+  }
+  .pill .sep {
+    width: 1px; height: 18px; background: rgba(10,10,10,0.10); margin: 0 2px;
+  }
+  .pill .input {
+    flex: 1; font-size: 13px; color: var(--ink3); padding: 0 4px;
+  }
+  .pill .cam { color: var(--coral); background: transparent; }
+  .pill .send {
+    background: var(--coral); color: white; font-weight: 800;
+  }
+  .pill .send.dim { background: rgba(255,69,69,0.30); }
+
+  /* Scroll arrows — repositioned to NOT overlap the bar */
+  .scroll-arrows {
+    position: absolute; right: 14px; top: 8px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .scroll-arrows .a {
+    width: 26px; height: 26px; border-radius: 13px;
+    background: white; border: 1px solid var(--ink5);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--ink3);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+  }
+
+  /* Legend chip for annotations */
+  .anno {
+    position: absolute; z-index: 20;
+    background: var(--ink); color: white;
+    font-size: 10px; padding: 3px 7px; border-radius: 999px;
+    letter-spacing: 0.4px; font-weight: 700;
+  }
+  .anno.kill { background: var(--coral); }
+  .anno.new  { background: var(--mint-d); }
+
+  /* Diff table */
+  .diff-table {
+    max-width: 900px; margin: 40px auto 0;
+    background: white; border: 1px solid var(--line);
+    border-radius: 16px; overflow: hidden;
+  }
+  .diff-table table { width: 100%; border-collapse: collapse; }
+  .diff-table th, .diff-table td {
+    padding: 12px 16px; text-align: left; vertical-align: top;
+    font-size: 13px; line-height: 1.5;
+    border-bottom: 1px solid var(--line);
+  }
+  .diff-table th {
+    background: rgba(10,10,10,0.03);
+    font-weight: 800; font-size: 11px; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--ink3);
+  }
+  .diff-table td.was { color: var(--ink3); }
+  .diff-table td.now { color: var(--ink); font-weight: 600; }
+  .diff-table td.why { color: var(--ink2); font-size: 12px; }
+</style>
+</head>
+<body>
+
+<h1>Zaeli v2 — Shopping sheet redesign</h1>
+<div class="sub">
+  Round B redesign addressing Rich's <b>5 complaints</b>. Same tab surface, but visually pared back to match the Reminders &amp; To-dos sheet + Home bento vibe. Cost per change is low; combined they lift the sheet from "acceptable" to "on-brand".
+</div>
+
+<div class="callout">
+  <h3>What we're changing (and why)</h3>
+  <ol>
+    <li><b class="kill">Kill search bar</b> — 7-item lists don't need search; row-tap-to-edit already covers the "find + change" flow.</li>
+    <li><b class="kill">Kill List / Aisle toggle</b> — aisle-mode was a v1 exploration nobody uses. Category grouping stays under the hood if we need it later.</li>
+    <li><b class="fix">Slimmer rows</b> — 60px → 44px min height. Fits ~2 more rows on screen without keyboard, easier to scan.</li>
+    <li><b class="fix">Scroll arrows</b> repositioned top-right (inside the body area, above the bar) — used to overlap the add pill.</li>
+    <li><b class="fix">Redesign the bottom pill</b> — matches the Reminders sheet's `[mic | text | camera | send]` unified pill. Lavender tinted to match Shopping accent. Same 44×44 buttons, same 24px radius. Zaeli button still there but as a chip inside the pill or a separate row above.</li>
+  </ol>
+</div>
+
+<div class="section-header">
+  <div class="section-eyebrow">Section 1 — the redesign</div>
+  <div class="section-title">Cleaner List tab</div>
+  <div class="section-desc">
+    Header + tabs + list + bottom pill. That's it. Nothing else on the screen unless you tap into a row. Rich's screenshot vs. the new proposal side-by-side.
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">CURRENT (from Rich's screenshot)</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="home-behind"><div class="word">z<span class="a">a</span>el<span class="i">i</span></div></div>
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <div class="title-row"><span class="emoji">🛒</span><h2>Shopping</h2></div>
+          <div class="actions">
+            <div class="icon-btn">⬆</div>
+            <div class="icon-btn">☰</div>
+            <div class="icon-btn">✕</div>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab active">List</div>
+          <div class="tab">Pantry</div>
+          <div class="tab">Spend</div>
+        </div>
+        <!-- Old search bar -->
+        <div style="padding: 8px 14px 0;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div style="flex:1; background:white; border:1px solid var(--line); border-radius:20px; padding:8px 12px; font-size:12px; color:var(--ink3);">🔍 Search items…</div>
+            <div style="background:rgba(10,10,10,0.05); border-radius:10px; padding:5px 3px; display:flex; gap:2px;">
+              <div style="background:white; padding:3px 8px; border-radius:8px; font-size:10px; font-weight:700;">List</div>
+              <div style="padding:3px 8px; font-size:10px; color:var(--ink3);">Aisle</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding: 12px 14px 0;">
+          <div class="section-eyebrow-inline">TO GET · 7 ITEMS</div>
+          <div class="item" style="min-height:52px;"><div class="check"></div><div style="font-size:20px;">🛒</div><div class="name">Cocoa Pops<br><span style="font-size:10px;color:var(--ink3);font-weight:500;">Breakfast &amp; Cereals</span></div></div>
+          <div class="item" style="min-height:52px;"><div class="check"></div><div style="font-size:20px;">🛒</div><div class="name">Mango<br><span style="font-size:10px;color:var(--ink3);font-weight:500;">Fruit &amp; Veg</span></div></div>
+          <div class="item" style="min-height:52px;"><div class="check"></div><div style="font-size:20px;">🥔</div><div class="name">Sweet potato<br><span style="font-size:10px;color:var(--ink3);font-weight:500;">Fruit &amp; Veg</span></div></div>
+          <div class="item" style="min-height:52px;"><div class="check"></div><div style="font-size:20px;">🍇</div><div class="name">Grapes<br><span style="font-size:10px;color:var(--ink3);font-weight:500;">other</span></div></div>
+        </div>
+        <div style="position:absolute; right:10px; bottom:70px; display:flex; gap:6px;">
+          <div style="width:28px;height:28px;border-radius:14px;background:white;border:1px solid var(--ink5);display:flex;align-items:center;justify-content:center;font-size:13px;">↑</div>
+          <div style="width:28px;height:28px;border-radius:14px;background:white;border:1px solid var(--ink5);display:flex;align-items:center;justify-content:center;font-size:13px;">↓</div>
+        </div>
+        <div style="padding:10px 14px 14px; border-top:1px solid var(--line); background:var(--bg);">
+          <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:rgba(10,10,10,0.05); border-radius:20px; border:1px dashed var(--ink5);">
+            <span style="color:var(--coral);font-weight:800;">+</span>
+            <span style="flex:1; font-size:12px; color:var(--ink3);">Add an item…</span>
+            <div style="width:24px;height:24px;border-radius:12px;background:white;display:flex;align-items:center;justify-content:center;font-size:11px;">🎤</div>
+            <div style="background:var(--sky-t); border:1px solid var(--sky); padding:5px 10px; border-radius:12px; font-size:10px; font-weight:700; color:var(--sky-d);">+ Zaeli</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Search bar (unused), <b>List/Aisle toggle</b> (unused), <b>chunky rows</b> with category sub-line, <b>arrows overlap</b> the add pill, add-pill in <b>separate visual language</b> to the rest of the app.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">PROPOSED — Round B</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="home-behind"><div class="word">z<span class="a">a</span>el<span class="i">i</span></div></div>
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <div class="title-row"><span class="emoji">🛒</span><h2>Shopping</h2></div>
+          <div class="actions">
+            <div class="icon-btn">⬆</div>
+            <div class="icon-btn">✕</div>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab active">List</div>
+          <div class="tab">Pantry</div>
+          <div class="tab">Spend</div>
+        </div>
+        <div class="body">
+          <div class="section-eyebrow-inline" style="color:var(--lav-d);">TO GET · 7 ITEMS</div>
+          <div class="item"><div class="check"></div><div class="name">Cocoa Pops</div></div>
+          <div class="item"><div class="check"></div><div class="name">Mango</div></div>
+          <div class="item"><div class="check"></div><div class="name">Sweet potato</div></div>
+          <div class="item"><div class="check"></div><div class="name">Grapes</div></div>
+          <div class="item"><div class="check"></div><div class="name">Vanilla extract</div></div>
+          <div class="item"><div class="check"></div><div class="name">Baking paper</div></div>
+          <div class="item"><div class="check"></div><div class="name">Bananas</div></div>
+          <div class="scroll-arrows">
+            <div class="a">↑</div>
+            <div class="a">↓</div>
+          </div>
+        </div>
+        <div class="bottom-bar">
+          <div class="pill">
+            <div class="b">🎤</div>
+            <div class="sep"></div>
+            <div class="input">Add an item…</div>
+            <div class="b cam">📷</div>
+            <div class="b send">→</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption"><b>No search, no List/Aisle toggle</b>. Rows down to 44px min height (fits ~7 without scrolling). Scroll arrows moved into the body area top-right, <b>out of the bar's territory</b>. Bottom pill matches Reminders sheet: mic → text → camera → send, lavender-tinted to match Shopping accent.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">EMPTY STATE</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="home-behind"><div class="word">z<span class="a">a</span>el<span class="i">i</span></div></div>
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <div class="title-row"><span class="emoji">🛒</span><h2>Shopping</h2></div>
+          <div class="actions">
+            <div class="icon-btn">⬆</div>
+            <div class="icon-btn">✕</div>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab active">List</div>
+          <div class="tab">Pantry</div>
+          <div class="tab">Spend</div>
+        </div>
+        <div class="body" style="display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px;">
+          <div style="font-size:36px;">🛒</div>
+          <div style="font-size:14px; font-weight:800;">List is empty</div>
+          <div style="font-size:11px; color:var(--ink3); text-align:center; max-width:200px; line-height:1.4;">Type below or tell Zaeli what you need.</div>
+        </div>
+        <div class="bottom-bar">
+          <div class="pill">
+            <div class="b">🎤</div>
+            <div class="sep"></div>
+            <div class="input">Add an item…</div>
+            <div class="b cam">📷</div>
+            <div class="b send dim">→</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Competence-first empty state (per brief system rules). No nudge, no "you should add stuff" — just permission to.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">WITH KEYBOARD OPEN</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="home-behind"><div class="word">z<span class="a">a</span>el<span class="i">i</span></div></div>
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <div class="title-row"><span class="emoji">🛒</span><h2>Shopping</h2></div>
+          <div class="actions">
+            <div class="icon-btn">⬆</div>
+            <div class="icon-btn">✕</div>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab active">List</div>
+          <div class="tab">Pantry</div>
+          <div class="tab">Spend</div>
+        </div>
+        <div class="body" style="max-height: 130px; overflow: hidden;">
+          <div class="section-eyebrow-inline" style="color:var(--lav-d);">TO GET · 7 ITEMS</div>
+          <div class="item"><div class="check"></div><div class="name">Cocoa Pops</div></div>
+          <div class="item"><div class="check"></div><div class="name">Mango</div></div>
+        </div>
+        <!-- Bar pinned above keyboard -->
+        <div style="padding: 8px 14px 8px; background: var(--bg); border-top:1px solid var(--line);">
+          <div class="pill">
+            <div class="b">🎤</div>
+            <div class="sep"></div>
+            <div class="input" style="color: var(--ink);">Butter</div>
+            <div class="b cam">📷</div>
+            <div class="b send">→</div>
+          </div>
+        </div>
+        <!-- Fake keyboard -->
+        <div style="background: #D2D5DB; padding: 8px 4px 20px; text-align:center; font-size:9px; color: #333; font-weight:700; letter-spacing:0.5px;">
+          <div style="display:flex; gap:3px; justify-content:center; margin-bottom:5px;">
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px; box-shadow:0 1px 0 rgba(0,0,0,0.15);">Q</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">W</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">E</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">R</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">T</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">Y</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">U</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">I</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">O</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">P</div>
+          </div>
+          <div style="display:flex; gap:3px; justify-content:center;">
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">A</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">S</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">D</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">F</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">G</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">H</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">J</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">K</div>
+            <div style="background:white; padding:6px 5px; border-radius:4px; min-width:18px;">L</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Bar pinned above keyboard via Keyboard.addListener height tracking (same Shopping pattern that already worked). Body auto-shrinks. <b>Pill fully visible</b>, camera + send tappable.</div>
+  </div>
+
+</div>
+
+<div class="section-header">
+  <div class="section-eyebrow">Section 2 — Pantry + Spend</div>
+  <div class="section-title">Same shell, different content</div>
+  <div class="section-desc">
+    Pantry tab keeps the same slim-row treatment. Spend tab keeps its receipts + monthly total. Both re-use the same bottom pill (which changes context: "Add to pantry…" or scan controls on Spend).
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">PANTRY TAB</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="home-behind"><div class="word">z<span class="a">a</span>el<span class="i">i</span></div></div>
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <div class="title-row"><span class="emoji">🛒</span><h2>Shopping</h2></div>
+          <div class="actions">
+            <div class="icon-btn">📷</div>
+            <div class="icon-btn">✕</div>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab">List</div>
+          <div class="tab active">Pantry</div>
+          <div class="tab">Spend</div>
+        </div>
+        <div class="body">
+          <div class="section-eyebrow-inline" style="color:var(--lav-d);">IN THE PANTRY · 14 ITEMS</div>
+          <div class="item"><div style="width:20px;text-align:center;font-size:14px;">🥛</div><div class="name">Milk</div><div class="qty">2 days ago</div></div>
+          <div class="item"><div style="width:20px;text-align:center;font-size:14px;">🥚</div><div class="name">Eggs</div><div class="qty">today</div></div>
+          <div class="item"><div style="width:20px;text-align:center;font-size:14px;">🧈</div><div class="name">Butter</div><div class="qty">1 wk ago</div></div>
+          <div class="item"><div style="width:20px;text-align:center;font-size:14px;">🍞</div><div class="name">Bread</div><div class="qty">yesterday</div></div>
+          <div class="item"><div style="width:20px;text-align:center;font-size:14px;">🥩</div><div class="name">Chicken</div><div class="qty">3 days ago</div></div>
+          <div class="item"><div style="width:20px;text-align:center;font-size:14px;">🍚</div><div class="name">Rice</div><div class="qty">2 wk ago</div></div>
+          <div class="item"><div style="width:20px;text-align:center;font-size:14px;">🍅</div><div class="name">Tomatoes</div><div class="qty">4 days ago</div></div>
+        </div>
+        <div class="bottom-bar">
+          <div class="pill">
+            <div class="b">🎤</div>
+            <div class="sep"></div>
+            <div class="input">Add to pantry…</div>
+            <div class="b cam">📷</div>
+            <div class="b send dim">→</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Same slim row treatment. "Last bought" as trailing meta not sub-line. Header camera icon = quick scan pantry (fills gaps).</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">SPEND TAB</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="home-behind"><div class="word">z<span class="a">a</span>el<span class="i">i</span></div></div>
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-head">
+          <div class="title-row"><span class="emoji">🛒</span><h2>Shopping</h2></div>
+          <div class="actions">
+            <div class="icon-btn">📷</div>
+            <div class="icon-btn">✕</div>
+          </div>
+        </div>
+        <div class="tabs">
+          <div class="tab">List</div>
+          <div class="tab">Pantry</div>
+          <div class="tab active">Spend</div>
+        </div>
+        <div class="body">
+          <div style="text-align:center; padding: 14px 0 4px;">
+            <div style="font-size:10px; letter-spacing:0.5px; font-weight:700; color:var(--ink3); text-transform:uppercase;">This month</div>
+            <div style="font-size:38px; font-weight:800; letter-spacing:-1.5px; line-height:1.1; margin: 6px 0;">A$342.60</div>
+            <div style="font-size:11px; color:var(--ink3);">4 shops · 62 items</div>
+          </div>
+          <div class="section-eyebrow-inline" style="color:var(--lav-d); margin-top: 16px;">RECEIPTS</div>
+          <div class="item" style="min-height:52px;">
+            <div style="width:20px;text-align:center;font-size:16px;">🧾</div>
+            <div class="name">Coles Stones Corner<br><span style="font-size:10px;color:var(--ink3);font-weight:500;">Wed 30 Jul · 14 items</span></div>
+            <div style="font-size:14px; font-weight:800;">A$127.40</div>
+          </div>
+          <div class="item" style="min-height:52px;">
+            <div style="width:20px;text-align:center;font-size:16px;">🧾</div>
+            <div class="name">Woolworths Bulimba<br><span style="font-size:10px;color:var(--ink3);font-weight:500;">Sun 27 Jul · 22 items</span></div>
+            <div style="font-size:14px; font-weight:800;">A$96.30</div>
+          </div>
+        </div>
+        <div class="bottom-bar">
+          <div class="pill" style="border-color: var(--mint);">
+            <div class="b" style="background:rgba(184,237,208,0.30); color:var(--mint-d);">📷</div>
+            <div class="sep"></div>
+            <div class="input">Scan a receipt (up to 4 photos)</div>
+            <div class="b send" style="background:var(--mint-d);">→</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Big total centred at top (Poppins 800, tight letter-spacing). Same slim receipt cards. Bottom pill switches to "Scan receipt" mode with mint tint for this tab.</div>
+  </div>
+
+</div>
+
+<!-- Diff summary -->
+<div class="diff-table">
+  <table>
+    <thead>
+      <tr><th style="width: 25%;">Element</th><th style="width: 25%;">Was</th><th style="width: 30%;">Now</th><th style="width: 20%;">Why</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><b>Search bar</b></td>
+        <td class="was">Search box + List/Aisle toggle row</td>
+        <td class="now">Removed</td>
+        <td class="why">7 items don't need search; toggle wasn't used</td>
+      </tr>
+      <tr>
+        <td><b>Row height</b></td>
+        <td class="was">52px min (icon + name + category sub)</td>
+        <td class="now">44px min (name only)</td>
+        <td class="why">Fits ~2 more rows on screen; matches Reminders sheet density</td>
+      </tr>
+      <tr>
+        <td><b>Category sub-line</b></td>
+        <td class="was">Every row showed its category ("Breakfast &amp; Cereals")</td>
+        <td class="now">Removed from row; kept in DB for future grouping</td>
+        <td class="why">Category never needed to be visible during checkoff — noise</td>
+      </tr>
+      <tr>
+        <td><b>Icon per row</b></td>
+        <td class="was">🛒 emoji on every row (or category)</td>
+        <td class="now">Removed for List tab; kept for Pantry (last-bought signal)</td>
+        <td class="why">Redundant with the emoji-style row and the shopping-cart context</td>
+      </tr>
+      <tr>
+        <td><b>Bottom "add" pill</b></td>
+        <td class="was">Dashed pill + coral +, separate 🎤 chip + "+ Zaeli" sky button</td>
+        <td class="now">Unified [mic | text | camera | send] pill matching Reminders sheet + chat bar</td>
+        <td class="why">Session 32 v2 "universal chat bar" pattern; visually cohesive across sheets</td>
+      </tr>
+      <tr>
+        <td><b>Scroll arrows</b></td>
+        <td class="was">Bottom-right 28px circles, overlapping the add bar</td>
+        <td class="now">Top-right of body area, above content, 26px</td>
+        <td class="why">No overlap; still discoverable when list is long</td>
+      </tr>
+      <tr>
+        <td><b>Sheet header</b></td>
+        <td class="was">Share ⬆ + hamburger ☰ + close ✕</td>
+        <td class="now">Share ⬆ + close ✕ only (hamburger removed — MoreSheet cross-nav goes via Home)</td>
+        <td class="why">Round A cross-sheet hamburger created stacking bugs; removed here</td>
+      </tr>
+      <tr>
+        <td><b>Empty state</b></td>
+        <td class="was">"To get · 0 items" + blank list</td>
+        <td class="now">🛒 + "List is empty" + calm invite copy</td>
+        <td class="why">Competence-first tone; no nudge to "add stuff"</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

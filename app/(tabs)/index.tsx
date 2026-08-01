@@ -52,6 +52,7 @@ import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, 
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 import { getFamilyId } from '../../lib/family';
 import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, updateReminderVisibility, parseLocalIsoAsDate, type Reminder, type Visibility } from '../../lib/reminders';
+import { useSheetSwipeClose } from '../../lib/use-sheet-swipe-close';
 const MEMBER_NAME      = 'Rich';
 const INK              = '#0A0A0A';
 const INK3             = 'rgba(10,10,10,0.32)';
@@ -2366,6 +2367,8 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 
 - CALENDAR HONESTY — ABSOLUTE: Same rule as send_family_message. NEVER claim an event has been "added", "booked", "scheduled", "in the system", "confirmed", or any equivalent phrase unless a add_calendar_event tool call was actually made in this turn AND returned a "✅" response. If the user follows up with "did you add X and Y?" — check the tool_result history. If X and Y were NOT added via tool calls, say so honestly: "Only Gab's was added — I missed Poppy and Duke's. Want me to add them now?" Do NOT paraphrase absence as presence. Do NOT invent event details like teacher names or times you saw in images but didn't tool-add.
 
+- REMINDER HONESTY — ABSOLUTE: The confirmation for a fresh add_reminder call MUST reference the item added in THIS TURN's tool_result — never a previous turn's item, never a paraphrase of a prior confirmation. If Sonnet's previous turn added "Take out the bins" and the current turn's user request is "add find gate key to the to-do list", the current turn's tool_result is for "find gate key" — confirm THAT title, not "Take out the bins". If the fresh tool_result starts with "TOOL_FAILED" (e.g. "TOOL_FAILED: reminder didn't save"), you MUST report the failure honestly — say "That one didn't save, let me try again?" and DO NOT dredge up a prior successful reminder as if it were the answer. When multiple add_reminder tool calls were made across turns, each confirmation references its own turn's result only. Never blend past successes into a fresh confirmation to seem more helpful — that's dishonest and confusing.
+
 - CALENDAR LOOKUP — the LIVE DATA block only pre-loads today + tomorrow's events. The calendar itself holds events for months ahead. If the user asks about anything OUTSIDE the today/tomorrow window ("when is Broken Head?", "what's on in September?", "are we away that weekend?", "is Poppy's dance troop still going?"), CALL find_calendar_events IMMEDIATELY with a title keyword and/or date range. NEVER say "not showing in the calendar" or "not in the data I have" until you've actually searched via the tool. Only after find_calendar_events returns zero rows can you honestly say the event isn't there.
 - update_meal: use this to change a meal name, move a meal to a different date, or change prep time. NEVER use add_meal when the user wants to change or move an existing meal.
 - update_todo: use this to change title, priority, due date, or mark a todo as done. When the user says "mark X as done/complete/finished", use update_todo with mark_done:true.
@@ -3551,6 +3554,15 @@ function HomeScreen({
     return () => { showSub.remove(); hideSub.remove(); };
   }, [remindSheetOpen]);
 
+  // Round B commit 5 — swipe-down-to-close on all four sheets. Each hook
+  // owns its own Animated.Value + PanResponder; handleGrabProps goes on
+  // the sheet's drag handle, animatedStyle on the sheet card. Threshold
+  // 100px OR fast downward velocity closes.
+  const remindSwipe  = useSheetSwipeClose(remindSheetOpen,  () => setRemindSheetOpen(false));
+  const shopSwipe    = useSheetSwipeClose(shopSheetOpen,    () => setShopSheetOpen(false));
+  const calSwipe     = useSheetSwipeClose(calSheetOpen,     () => setCalSheetOpen(false));
+  const mealSwipe    = useSheetSwipeClose(mealSheetOpen,    () => setMealSheetOpen(false));
+
   // ── Card data state ──────────────────────────────────────────────────────
   const [cardData, setCardData] = useState<CardData>({
     todayEvents: [], tomorrowEvents: [], shopItems: [], shopCount: 0,
@@ -3574,6 +3586,7 @@ function HomeScreen({
   const wordmarkOpacity  = useRef(new Animated.Value(0)).current;
   const recordingRef     = useRef<Audio.Recording | null>(null);
   const shopMicMode      = useRef(false); // true = mic triggered from shop sheet → add as item
+  const remindMicMode    = useRef(false); // Round B commit 5 — true = mic from Reminders sheet → fill remindDraft instead of chat
   const shopListScrollRef   = useRef<ScrollView>(null);
   const shopPantryScrollRef = useRef<ScrollView>(null);
   const shopSpendScrollRef  = useRef<ScrollView>(null);
@@ -5755,6 +5768,14 @@ Only include events directly relevant to the question. Max 5 events.`;
       // Remove the voice thinking dots
       setMessages(prev => prev.filter(m => m.id !== voiceThinkId));
       if (!transcript) return;
+      // Round B commit 5 — if triggered from Reminders sheet mic, fill the
+      // sheet's draft input rather than routing through Chat + Sonnet.
+      // Faster path, no AI cost, no context-switch. User taps send to confirm.
+      if (remindMicMode.current) {
+        remindMicMode.current = false;
+        setRemindDraft(transcript);
+        return;
+      }
       // If triggered from shop sheet mic button — route through AI for smart parsing + duplicate check
       if (shopMicMode.current) {
         shopMicMode.current = false;
@@ -6447,9 +6468,10 @@ Only include events directly relevant to the question. Max 5 events.`;
 
     return (
       <View key={item.id} style={{ backgroundColor: isConfirm ? 'rgba(255,59,59,0.03)' : isPending ? 'rgba(5,150,105,0.04)' : '#fff', borderRadius:14, marginBottom:8, overflow:'hidden', borderWidth: isConfirm ? 1.5 : 0, borderColor: isConfirm ? 'rgba(255,59,59,0.25)' : 'transparent', opacity: isPending ? 0.55 : 1 }}>
-        {/* Main row */}
+        {/* Main row — Round B commit 5: slimmer (44px min), no emoji, no
+            category sub-line. Matches Reminders sheet density. */}
         <TouchableOpacity
-          style={{ flexDirection:'row', alignItems:'center', gap:12, padding:14 }}
+          style={{ flexDirection:'row', alignItems:'center', gap:10, paddingHorizontal:12, paddingVertical:10, minHeight:44 }}
           onPress={() => {
             if (isEditing || isPending) return;
             setShopExpandedId(isExpanded ? null : item.id);
@@ -6462,17 +6484,14 @@ Only include events directly relevant to the question. Max 5 events.`;
           <TouchableOpacity
             onPress={() => isPending ? shopUndoTick(item.id) : shopTickItem(item)}
             hitSlop={{ top:10, bottom:10, left:10, right:10 }}
-            style={{ width:26, height:26, borderRadius:13, borderWidth:1.5, borderColor: isPending ? '#059669' : 'rgba(0,0,0,0.22)', backgroundColor: isPending ? '#059669' : 'transparent', flexShrink:0, alignItems:'center', justifyContent:'center' }}
+            style={{ width:22, height:22, borderRadius:11, borderWidth:1.5, borderColor: isPending ? '#059669' : 'rgba(0,0,0,0.22)', backgroundColor: isPending ? '#059669' : 'transparent', flexShrink:0, alignItems:'center', justifyContent:'center' }}
             activeOpacity={0.75}
           >
-            {isPending && <Text style={{ fontSize:12, color:'#fff', fontWeight:'700' }}>✓</Text>}
+            {isPending && <Text style={{ fontSize:11, color:'#fff', fontWeight:'700' }}>✓</Text>}
           </TouchableOpacity>
-          {/* Emoji */}
-          <Text style={{ fontSize:22, flexShrink:0 }}>{emoji}</Text>
-          {/* Name + category */}
+          {/* Name only — no emoji, no category sub */}
           <View style={{ flex:1, minWidth:0 }}>
-            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:17, color: isPending ? 'rgba(0,0,0,0.35)' : '#0A0A0A', lineHeight:22, textDecorationLine: isPending ? 'line-through' : 'none' }} numberOfLines={1}>{item.name || item.item}</Text>
-            {!isPending && <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.40)', marginTop:2 }}>{cat}</Text>}
+            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color: isPending ? 'rgba(0,0,0,0.35)' : '#0A0A0A', lineHeight:20, textDecorationLine: isPending ? 'line-through' : 'none' }} numberOfLines={1}>{item.name || item.item}</Text>
           </View>
           {/* Undo link when pending */}
           {isPending ? (
@@ -7748,11 +7767,13 @@ Rules:
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setCalSheetOpen(false)} activeOpacity={1}/>
-            <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' }}>
+            <Animated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' }, calSwipe.animatedStyle]}>
               <SafeAreaView style={{ flex:1, display:'flex', flexDirection:'column' }} edges={['bottom']}>
 
-                {/* Handle */}
-                <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginTop:10 }}/>
+                {/* Handle — Round B commit 5 swipe-down close */}
+                <View {...calSwipe.handleGrabProps} style={{ paddingVertical:12, alignItems:'center' }}>
+                  <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
+                </View>
 
                 {/* Header — changes between list and edit form */}
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
@@ -7907,7 +7928,7 @@ Rules:
                   </View>
                 )}
               </SafeAreaView>
-            </View>
+            </Animated.View>
           </View>
         </Modal>
 
@@ -7927,10 +7948,15 @@ Rules:
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setRemindSheetOpen(false)} activeOpacity={1}/>
-            <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' }}>
+            <Animated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' }, remindSwipe.animatedStyle]}>
               <SafeAreaView style={{ flex:1, display:'flex', flexDirection:'column' }} edges={[]}>
-                <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginTop:10 }}/>
-                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
+                {/* Drag handle — Round B commit 5 swipe-down. Enlarged hit area
+                    (36px handle inside 24px vertical padding) so users can grab
+                    it easily without pixel-perfect aim. */}
+                <View {...remindSwipe.handleGrabProps} style={{ paddingVertical:12, alignItems:'center' }}>
+                  <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
+                </View>
+                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
                   <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                     <Text style={{ fontSize:20 }}>⏰</Text>
                     <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A0A0A', letterSpacing:-0.3 }}>Reminders & To-dos</Text>
@@ -8150,9 +8176,13 @@ Rules:
                     marginBottom: remindKbHeight > 0 ? Math.max(remindKbHeight - insets.bottom, 0) : 0,
                     borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', backgroundColor:'#FAF8F5',
                   }}>
+                    {/* Round B commit 5 — camera icon removed (no sensible
+                        photo→reminder path yet). Mic now fills the draft via
+                        remindMicMode ref instead of routing through Chat +
+                        Sonnet — faster path, no AI cost, no context switch. */}
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#fff', borderRadius:32, borderWidth:1.5, borderColor:'#F0DC80', paddingHorizontal:8, paddingVertical:8, minHeight:60 }}>
                       <TouchableOpacity
-                        onPress={() => { Keyboard.dismiss(); startRecording(); }}
+                        onPress={() => { remindMicMode.current = true; Keyboard.dismiss(); startRecording(); }}
                         style={{ width:44, height:44, borderRadius:22, backgroundColor:'rgba(240,220,128,0.20)', alignItems:'center', justifyContent:'center' }}
                         hitSlop={{ top:6, bottom:6, left:6, right:6 }}
                         activeOpacity={0.7}
@@ -8173,16 +8203,6 @@ Rules:
                         blurOnSubmit={false}
                       />
                       <TouchableOpacity
-                        onPress={openSheet}
-                        style={{ width:44, height:44, borderRadius:22, alignItems:'center', justifyContent:'center' }}
-                        hitSlop={{ top:6, bottom:6, left:6, right:6 }}
-                        activeOpacity={0.7}
-                      >
-                        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#FF4545" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                          <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><Circle cx={12} cy={13} r={4}/>
-                        </Svg>
-                      </TouchableOpacity>
-                      <TouchableOpacity
                         onPress={submitRemind}
                         disabled={!remindDraft.trim()}
                         style={{ width:44, height:44, borderRadius:22, backgroundColor: remindDraft.trim() ? '#FF4545' : 'rgba(255,69,69,0.30)', alignItems:'center', justifyContent:'center' }}
@@ -8196,7 +8216,7 @@ Rules:
                   </View>
                 </View>
               </SafeAreaView>
-            </View>
+            </Animated.View>
           </View>
         </Modal>
 
@@ -8210,14 +8230,16 @@ Rules:
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setShopSheetOpen(false)} activeOpacity={1}/>
-            <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }}>
+            <Animated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }, shopSwipe.animatedStyle]}>
               {/* SafeAreaView edges=[] — bottom inset is applied explicitly by the
                   add-bar wrappers below (was edges={['bottom']} which failed to
                   apply on first render inside Modal, leaving the add bar squashed) */}
               <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={[]}>
 
-                {/* Handle */}
-                <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginTop:10 }}/>
+                {/* Handle — Round B commit 5 swipe-down close */}
+                <View {...shopSwipe.handleGrabProps} style={{ paddingVertical:12, alignItems:'center' }}>
+                  <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
+                </View>
 
                 {/* Header */}
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
@@ -8320,42 +8342,9 @@ Rules:
                           showsVerticalScrollIndicator={false}
                           keyboardShouldPersistTaps="handled"
                         >
-                          {/* Toolbar: search + aisle toggle */}
-                          <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:14 }}>
-                            <TouchableOpacity
-                              style={{ flex:1, flexDirection:'row', alignItems:'center', gap:8, backgroundColor:'#fff', borderWidth:1.5, borderColor: shopSearchOpen ? 'rgba(80,32,192,0.30)' : 'rgba(0,0,0,0.09)', borderRadius:20, paddingVertical:8, paddingHorizontal:12 }}
-                              onPress={() => { setShopSearchOpen(true); }}
-                              activeOpacity={0.8}
-                            >
-                              <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={shopSearchOpen ? SHOP_ACCENT : 'rgba(0,0,0,0.35)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <Circle cx="11" cy="11" r="8"/><Line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                              </Svg>
-                              {shopSearchOpen ? (
-                                <TextInput
-                                  autoFocus
-                                  style={{ flex:1, fontFamily:'Poppins_400Regular', fontSize:13, color:'#0A0A0A', paddingVertical:0 }}
-                                  value={shopSearchText}
-                                  onChangeText={setShopSearchText}
-                                  placeholder="Search items…"
-                                  placeholderTextColor="rgba(0,0,0,0.30)"
-                                  onBlur={() => { if (!shopSearchText) setShopSearchOpen(false); }}
-                                />
-                              ) : (
-                                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.30)', flex:1 }}>Search items…</Text>
-                              )}
-                            </TouchableOpacity>
-                            <View style={{ flexDirection:'row', backgroundColor:'rgba(0,0,0,0.06)', borderRadius:14, padding:2, flexShrink:0 }}>
-                              {(['List','Aisle'] as const).map(mode => {
-                                const isOn = mode === 'Aisle' ? shopAisleMode : !shopAisleMode;
-                                return (
-                                  <TouchableOpacity key={mode} onPress={() => setShopAisleMode(mode === 'Aisle')} activeOpacity={0.75}
-                                    style={{ paddingVertical:5, paddingHorizontal:11, borderRadius:12, backgroundColor: isOn ? '#fff' : 'transparent' }}>
-                                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color: isOn ? '#0A0A0A' : 'rgba(0,0,0,0.40)' }}>{mode}</Text>
-                                  </TouchableOpacity>
-                                );
-                              })}
-                            </View>
-                          </View>
+                          {/* Round B commit 5 — search bar + List/Aisle
+                              toggle removed. Small lists don't need search;
+                              aisle mode was unused. Keeps the header lean. */}
 
                           {/* TO GET header */}
                           {!shopAisleMode && !shopSearchText && filtered.length > 0 && (
@@ -8515,18 +8504,92 @@ Rules:
                           )}
                         </ScrollView>
 
-                        {/* Scroll arrows — side by side, matching chat */}
-                        <View style={{ position:'absolute', right:14, bottom:80, flexDirection:'row', gap:8, zIndex:10 }}>
-                          <TouchableOpacity onPress={() => shopListScrollRef.current?.scrollTo({ y:0, animated:true })} activeOpacity={0.7} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#FFFFFF', alignItems:'center', justifyContent:'center', shadowColor:'#000', shadowOpacity:0.12, shadowRadius:10, shadowOffset:{width:0,height:3}, elevation:5, borderWidth:1, borderColor:'rgba(220,220,220,0.4)' }}>
-                            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.45)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>
+                        {/* Round B commit 5 — scroll arrows moved TOP-RIGHT
+                            (inside body area, small stack) so they don't
+                            overlap the add pill anymore. Was bottom:80. */}
+                        <View style={{ position:'absolute', right:12, top:12, flexDirection:'column', gap:6, zIndex:10 }}>
+                          <TouchableOpacity onPress={() => shopListScrollRef.current?.scrollTo({ y:0, animated:true })} activeOpacity={0.7} style={{ width:28, height:28, borderRadius:14, backgroundColor:'#FFFFFF', alignItems:'center', justifyContent:'center', shadowColor:'#000', shadowOpacity:0.08, shadowRadius:6, shadowOffset:{width:0,height:2}, elevation:3, borderWidth:1, borderColor:'rgba(220,220,220,0.5)' }}>
+                            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.45)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="19" x2="12" y2="5"/><Polyline points="5 12 12 5 19 12"/></Svg>
                           </TouchableOpacity>
-                          <TouchableOpacity onPress={() => shopListScrollRef.current?.scrollToEnd({ animated:true })} activeOpacity={0.7} style={{ width:38, height:38, borderRadius:19, backgroundColor:'#FFFFFF', alignItems:'center', justifyContent:'center', shadowColor:'#000', shadowOpacity:0.12, shadowRadius:10, shadowOffset:{width:0,height:3}, elevation:5, borderWidth:1, borderColor:'rgba(220,220,220,0.4)' }}>
-                            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.45)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="5" x2="12" y2="19"/><Polyline points="19 12 12 19 5 12"/></Svg>
+                          <TouchableOpacity onPress={() => shopListScrollRef.current?.scrollToEnd({ animated:true })} activeOpacity={0.7} style={{ width:28, height:28, borderRadius:14, backgroundColor:'#FFFFFF', alignItems:'center', justifyContent:'center', shadowColor:'#000', shadowOpacity:0.08, shadowRadius:6, shadowOffset:{width:0,height:2}, elevation:3, borderWidth:1, borderColor:'rgba(220,220,220,0.5)' }}>
+                            <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="rgba(10,10,10,0.45)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"><Line x1="12" y1="5" x2="12" y2="19"/><Polyline points="19 12 12 19 5 12"/></Svg>
                           </TouchableOpacity>
                         </View>
 
-                        {/* ── Add item bar ── */}
-                        <View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:6, paddingBottom: shopKbHeight > 0 ? (Platform.OS === 'ios' ? 2 : 4) : Math.max(insets.bottom, 8), marginBottom: shopKbHeight > 0 ? Math.max(shopKbHeight - insets.bottom, 0) : 0 }}>
+                        {/* Round B commit 5 — unified pill (mic + text + send).
+                            Lavender-tinted, matches Reminders sheet + chat bar.
+                            No more collapsed/expanded two-step, no separate
+                            Zaeli button. Mic still routes shopMicMode →
+                            Sonnet for smart parsing. */}
+                        <View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:10, paddingBottom: shopKbHeight > 0 ? (Platform.OS === 'ios' ? 2 : 4) : Math.max(insets.bottom, 8), marginBottom: shopKbHeight > 0 ? Math.max(shopKbHeight - insets.bottom, 0) : 0 }}>
+                          {!!shopAddConfirm && (
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 }}>
+                              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color: shopAddConfirm.startsWith('✓') ? '#059669' : '#D97706' }}>
+                                {shopAddConfirm.startsWith('✓') ? shopAddConfirm.replace('✓ ', '✓ Added ') : '⚠ ' + shopAddConfirm}
+                              </Text>
+                            </View>
+                          )}
+                          <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#fff', borderRadius:32, borderWidth:1.5, borderColor:'#D8CCFF', paddingHorizontal:8, paddingVertical:8, minHeight:60 }}>
+                            <TouchableOpacity
+                              onPress={async () => {
+                                setShopSheetOpen(false);
+                                await new Promise(r => setTimeout(r, 300));
+                                shopMicMode.current = true;
+                                startRecording();
+                              }}
+                              style={{ width:44, height:44, borderRadius:22, backgroundColor:'rgba(216,204,255,0.30)', alignItems:'center', justifyContent:'center' }}
+                              hitSlop={{ top:6, bottom:6, left:6, right:6 }}
+                              activeOpacity={0.7}
+                            >
+                              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#5020C0" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                <Rect x={9} y={2} width={6} height={12} rx={3}/><Path d="M5 10a7 7 0 0014 0"/><Line x1={12} y1={17} x2={12} y2={22}/>
+                              </Svg>
+                            </TouchableOpacity>
+                            <View style={{ width:1, height:24, backgroundColor:'rgba(10,10,10,0.1)' }}/>
+                            <TextInput
+                              value={shopAddInput}
+                              onChangeText={setShopAddInput}
+                              onSubmitEditing={async () => {
+                                if (!shopAddInput.trim()) return;
+                                const name = shopAddInput.trim();
+                                const dupMsg = await shopAddItem(name);
+                                if (dupMsg) { setShopAddConfirm(dupMsg); setTimeout(() => setShopAddConfirm(null), 3000); return; }
+                                setShopAddInput('');
+                                setShopAddConfirm('✓ ' + name);
+                                setTimeout(() => setShopAddConfirm(null), 2000);
+                              }}
+                              placeholder="Add an item…"
+                              placeholderTextColor="rgba(80,32,192,0.45)"
+                              returnKeyType="done"
+                              style={{ flex:1, fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', paddingHorizontal:4 }}
+                              blurOnSubmit={false}
+                            />
+                            <TouchableOpacity
+                              onPress={async () => {
+                                if (!shopAddInput.trim()) return;
+                                const name = shopAddInput.trim();
+                                const dupMsg = await shopAddItem(name);
+                                if (dupMsg) { setShopAddConfirm(dupMsg); setTimeout(() => setShopAddConfirm(null), 3000); return; }
+                                setShopAddInput('');
+                                setShopAddConfirm('✓ ' + name);
+                                setTimeout(() => setShopAddConfirm(null), 2000);
+                              }}
+                              disabled={!shopAddInput.trim()}
+                              style={{ width:44, height:44, borderRadius:22, backgroundColor: shopAddInput.trim() ? '#FF4545' : 'rgba(255,69,69,0.30)', alignItems:'center', justifyContent:'center' }}
+                              activeOpacity={0.85}
+                            >
+                              <Svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                                <Path d="M22 2L11 13"/><Path d="M22 2l-7 20-4-9-9-4 20-7z"/>
+                              </Svg>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        {/* Round B commit 5 — old collapsed/expanded structure
+                            gated with `false &&` so it never renders. Kept
+                            below for reference during this iteration; delete
+                            in a follow-up cleanup pass. */}
+                        {false && (<View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:6, paddingBottom: shopKbHeight > 0 ? (Platform.OS === 'ios' ? 2 : 4) : Math.max(insets.bottom, 8), marginBottom: shopKbHeight > 0 ? Math.max(shopKbHeight - insets.bottom, 0) : 0 }}>
 
                           {/* Confirmation / duplicate flash */}
                           {!!shopAddConfirm && (
@@ -8641,7 +8704,7 @@ Rules:
                               </View>
                             </View>
                           )}
-                        </View>
+                        </View>)}{/* end Round B commit 5 gated legacy add block */}
                       </>
                     );
                   })()}
@@ -9074,7 +9137,7 @@ Rules:
                 )}
 
               </SafeAreaView>
-            </View>
+            </Animated.View>
           </View>
         </Modal>
 
@@ -9088,11 +9151,13 @@ Rules:
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setMealSheetOpen(false)} activeOpacity={1}/>
-            <View style={{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }}>
+            <Animated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }, mealSwipe.animatedStyle]}>
               <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={['bottom']}>
 
-                {/* Handle */}
-                <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)', alignSelf:'center', marginTop:10 }}/>
+                {/* Handle — Round B commit 5 swipe-down close */}
+                <View {...mealSwipe.handleGrabProps} style={{ paddingVertical:12, alignItems:'center' }}>
+                  <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
+                </View>
 
                 {/* Header — dynamic based on sub-view */}
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
@@ -10096,7 +10161,7 @@ Rules:
                 </View>{/* end tab content */}
 
               </SafeAreaView>
-            </View>
+            </Animated.View>
           </View>
         </Modal>
 

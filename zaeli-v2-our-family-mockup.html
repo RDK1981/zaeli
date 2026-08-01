@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli v2 — Our Family redesign (Round B)</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:         #FAF8F5;
+    --ink:        #0A0A0A;
+    --ink2:       rgba(10,10,10,0.72);
+    --ink3:       rgba(10,10,10,0.48);
+    --ink4:       rgba(10,10,10,0.28);
+    --ink5:       rgba(10,10,10,0.14);
+    --line:       rgba(10,10,10,0.08);
+    --coral:      #FF4545;
+    --coral-tint: #FFE4E0;
+    --coral-d:    #B83333;
+    --slate:      #2D3748;
+    --peach:      #FAC8A8;
+    --peach-t:    #FDF1E5;
+    --peach-d:    #8A3A00;
+    --mint:       #B8EDD0;
+    --mint-t:     #E6F7EF;
+    --mint-d:     #2D7A52;
+    --lav:        #D8CCFF;
+    --lav-t:      #F0EBFF;
+    --lav-d:      #5020C0;
+    --sky:        #A8D8F0;
+    --sky-t:      #E8F4FD;
+    --sky-d:      #0A5C80;
+    --gold:       #F0DC80;
+    --gold-t:     #FBF5D6;
+    --gold-d:     #8B6914;
+    --magenta:    #D4006A;
+    --anna:       #FF7B6B;
+    --rich:       #4D8BFF;
+    --poppy:      #A855F7;
+    --gab:        #22C55E;
+    --duke:       #F59E0B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+  body { background: #EFECE6; padding: 40px 20px 80px; color: var(--ink); }
+
+  h1 { font-weight: 800; font-size: 32px; text-align: center; letter-spacing: -1px; }
+  .sub { text-align: center; color: var(--ink3); font-size: 15px; margin: 8px 0 32px; max-width: 780px; margin-left: auto; margin-right: auto; line-height: 1.55; }
+  .sub b { color: var(--ink); font-weight: 700; }
+
+  /* Design principles callout */
+  .callout {
+    max-width: 900px; margin: 12px auto 24px;
+    background: white; border: 1px solid var(--line);
+    border-radius: 16px; padding: 22px 26px;
+  }
+  .callout h3 {
+    font-size: 13px; font-weight: 800; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--magenta); margin-bottom: 14px;
+  }
+  .callout ol { margin-left: 20px; }
+  .callout li { font-size: 14px; line-height: 1.7; color: var(--ink2); margin-bottom: 4px; }
+  .callout li b { color: var(--ink); font-weight: 700; }
+  .callout .accent { color: var(--magenta); font-weight: 700; }
+  .callout .fix { color: var(--mint-d); font-weight: 700; }
+  .callout .kill { color: var(--coral); font-weight: 700; }
+
+  /* Section header */
+  .section-header { margin: 56px auto 24px; max-width: 1400px; }
+  .section-eyebrow { font-weight: 800; font-size: 12px; letter-spacing: 1.2px; color: var(--ink3); text-transform: uppercase; }
+  .section-title { font-weight: 800; font-size: 28px; letter-spacing: -0.5px; margin-top: 4px; }
+  .section-desc { color: var(--ink2); font-size: 15px; margin-top: 8px; max-width: 800px; line-height: 1.55; }
+  .section-desc b { color: var(--ink); font-weight: 700; }
+
+  /* Frame grid */
+  .frames {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px; max-width: 1400px; margin: 0 auto;
+  }
+  .frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .frame-label {
+    background: white; border: 1px solid var(--line);
+    padding: 5px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--ink2);
+  }
+  .frame-caption {
+    text-align: center; font-size: 12px; color: var(--ink3); line-height: 1.45;
+    max-width: 240px; margin-top: 4px;
+  }
+  .frame-caption b { color: var(--ink2); font-weight: 700; }
+
+  /* iPhone */
+  .phone {
+    position: relative; width: 260px; height: 545px;
+    background: var(--ink); border-radius: 38px; padding: 7px;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+  }
+  .phone .notch {
+    position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
+    width: 90px; height: 20px; background: var(--ink);
+    border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; z-index: 5;
+  }
+  .screen {
+    background: var(--bg); border-radius: 32px; height: 100%;
+    overflow: hidden; position: relative;
+  }
+
+  /* App bar */
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 34px 14px 8px;
+  }
+  .word {
+    font-size: 24px; font-weight: 800; letter-spacing: -1px; line-height: 1;
+  }
+  .word .a, .word .i { color: var(--magenta); }
+  .app-bar .right { display: flex; align-items: center; gap: 8px; }
+  .app-bar .label { font-size: 13px; font-weight: 700; color: var(--ink2); }
+  .ham {
+    width: 30px; height: 30px; border-radius: 8px; background: rgba(10,10,10,0.05);
+    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px;
+  }
+  .ham span { width: 14px; height: 2px; background: var(--ink); border-radius: 1px; }
+  .back {
+    width: 30px; height: 30px; border-radius: 8px; background: rgba(10,10,10,0.05);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--ink2);
+  }
+
+  /* Content */
+  .content {
+    padding: 8px 14px 20px;
+    height: calc(100% - 76px); overflow-y: auto;
+  }
+
+  /* Family hero */
+  .family-hero {
+    background: linear-gradient(135deg, #FFE0ED 0%, #FBD5E7 100%);
+    border-radius: 20px; padding: 18px 16px; margin-bottom: 16px;
+  }
+  .family-hero .name { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; color: var(--ink); }
+  .family-hero .meta { font-size: 12px; color: var(--magenta); font-weight: 600; margin-top: 3px; }
+  .family-hero .avatars { display: flex; margin-top: 12px; }
+  .family-hero .avatars .a {
+    width: 30px; height: 30px; border-radius: 15px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 800; font-size: 12px;
+    border: 2px solid white; margin-right: -6px;
+  }
+
+  /* Section label */
+  .sec-lbl {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.6px;
+    color: var(--ink3); text-transform: uppercase;
+    margin: 12px 4px 10px;
+  }
+
+  /* Member row */
+  .member {
+    display: flex; align-items: center; gap: 11px;
+    background: white; padding: 12px 14px;
+    border-radius: 14px; margin-bottom: 6px;
+    min-height: 60px;
+  }
+  .member .avatar {
+    width: 40px; height: 40px; border-radius: 20px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 800; font-size: 15px;
+    flex-shrink: 0;
+  }
+  .member .info { flex: 1; min-width: 0; }
+  .member .name { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .member .meta { font-size: 11px; color: var(--ink3); margin-top: 2px; }
+  .member .chev { color: var(--ink4); font-size: 16px; }
+  .pill {
+    display: inline-block; padding: 3px 8px; border-radius: 8px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+  }
+  .pill.owner  { background: var(--peach-t); color: var(--peach-d); }
+  .pill.adult  { background: var(--sky-t);  color: var(--sky-d); }
+  .pill.kid    { background: var(--lav-t);  color: var(--lav-d); }
+  .pill.pending{ background: var(--gold-t); color: var(--gold-d); }
+  .pill.joined { background: var(--mint-t); color: var(--mint-d); }
+  .pill.you    { background: rgba(10,10,10,0.06); color: var(--ink2); }
+
+  /* Toggle */
+  .toggle {
+    width: 34px; height: 20px; border-radius: 10px;
+    background: rgba(10,10,10,0.15); position: relative; flex-shrink: 0;
+  }
+  .toggle.on { background: var(--mint-d); }
+  .toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 8px; background: white;
+    transition: left 0.2s;
+  }
+  .toggle.on::after { left: 16px; }
+
+  /* Invite CTA */
+  .invite-cta {
+    background: white; border: 1.5px dashed var(--magenta);
+    border-radius: 14px; padding: 16px; text-align: center;
+    margin-top: 4px;
+  }
+  .invite-cta .plus { font-size: 22px; color: var(--magenta); font-weight: 800; }
+  .invite-cta .lbl { font-size: 13px; font-weight: 700; color: var(--magenta); margin-top: 4px; }
+  .invite-cta .sub { font-size: 10px; color: var(--ink3); margin-top: 2px; }
+
+  /* Pending invite card */
+  .pending-inv {
+    background: var(--gold-t); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 6px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .pending-inv .info { flex: 1; }
+  .pending-inv .name { font-size: 14px; font-weight: 700; color: var(--gold-d); }
+  .pending-inv .meta { font-size: 10px; color: var(--gold-d); opacity: 0.8; }
+  .pending-inv .chips { display: flex; gap: 4px; }
+  .pending-inv .chip {
+    background: white; border-radius: 8px;
+    padding: 4px 7px; font-size: 9px; font-weight: 700; color: var(--gold-d);
+  }
+
+  /* Profile detail — big card */
+  .profile-hero {
+    background: white; border-radius: 20px;
+    padding: 18px; text-align: center; margin-bottom: 14px;
+  }
+  .profile-hero .avatar {
+    width: 70px; height: 70px; border-radius: 35px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 800; font-size: 26px;
+    margin: 4px auto 10px;
+  }
+  .profile-hero .name { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; }
+  .profile-hero .role { font-size: 12px; color: var(--ink3); margin-top: 4px; }
+
+  /* Row group */
+  .row-group {
+    background: white; border-radius: 14px; overflow: hidden;
+    margin-bottom: 14px;
+  }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--line);
+    min-height: 48px;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .lbl { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .row .val { font-size: 12px; color: var(--ink3); }
+  .row .val.link { color: var(--sky-d); font-weight: 700; }
+
+  /* Danger */
+  .danger-row {
+    display: block; text-align: center;
+    background: white; border-radius: 14px;
+    padding: 14px; margin-top: 20px;
+    color: var(--coral); font-size: 13px; font-weight: 700;
+  }
+
+  /* Family switcher (owner picking view) */
+  .switcher {
+    display: flex; background: rgba(10,10,10,0.06);
+    border-radius: 11px; padding: 3px; margin-bottom: 14px;
+  }
+  .switcher .tab {
+    flex: 1; padding: 7px; text-align: center;
+    font-size: 11px; font-weight: 600; color: var(--ink3);
+    border-radius: 8px;
+  }
+  .switcher .tab.active {
+    background: white; color: var(--ink); font-weight: 800;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+  }
+</style>
+</head>
+<body>
+
+<h1>Zaeli v2 — Our Family redesign</h1>
+<div class="sub">
+  Full overhaul post the v2 pivot: <b>Kids Hub is hidden</b>, <b>Tutor add-on is hidden</b>, kids now have the <b>same core access as adults</b> (Calendar, Shopping, Reminders, Chat) with <b>Our Budget parent-toggled per-kid</b> (default OFF). Our Family becomes the control surface for the household — roster, invites, access toggles — plus the entry to a member's own profile and account settings.
+</div>
+
+<div class="callout">
+  <h3>Design principles</h3>
+  <ol>
+    <li><b class="fix">Kids are first-class</b> — no more separate "Kids Hub" mode. A kid signs in and sees Home / Chat / Calendar / Shopping / Reminders just like an adult. Simpler mental model for the family.</li>
+    <li><b class="accent">Budget is opt-in per kid</b> — parents toggle it on the child's row. Default OFF. Kids never see Our Family management, ever (adults-only).</li>
+    <li><b class="kill">"Add a member without a device"</b> — dropped. Every member either has an invite pending or is a joined account. No shadow-members.</li>
+    <li><b class="fix">Roles are visible and honest</b> — every row shows Owner / Adult / Kid + join status. No hidden hierarchy.</li>
+    <li><b class="fix">Tap-anywhere-on-row opens the member profile</b> — where you edit name/colour/PIN/permissions, or remove them.</li>
+    <li><b class="accent">Settings link kept top-of-mind</b> — Our Family and Settings are siblings; the header hamburger jumps between the two. Owner-only sections in Settings (Subscription, Delete account) hidden for adult invitees and kids.</li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 1 — Our Family main screen</div>
+  <div class="section-title">The roster + invite hub</div>
+  <div class="section-desc">
+    Owner view is the full-fat screen. Adult invitees see a slightly slimmed variant (they can see the roster but not modify it — that's owner-only). Kids can't reach Our Family at all — the MoreSheet tile is hidden for kid accounts.
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">OWNER VIEW (Rich)</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Our Family</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+        <!-- Family hero -->
+        <div class="family-hero">
+          <div class="name">The de Kretsers</div>
+          <div class="meta">5 members · Brisbane · Family plan</div>
+          <div class="avatars">
+            <div class="a" style="background:var(--rich)">R</div>
+            <div class="a" style="background:var(--anna)">A</div>
+            <div class="a" style="background:var(--poppy)">P</div>
+            <div class="a" style="background:var(--gab)">G</div>
+            <div class="a" style="background:var(--duke)">D</div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Adults</div>
+        <div class="member">
+          <div class="avatar" style="background:var(--rich)">R</div>
+          <div class="info">
+            <div class="name">Rich <span class="pill you" style="margin-left:4px;">You</span></div>
+            <div class="meta">Account owner · richarddekretser@gmail.com</div>
+          </div>
+          <div class="chev">›</div>
+        </div>
+        <div class="member">
+          <div class="avatar" style="background:var(--anna)">A</div>
+          <div class="info">
+            <div class="name">Anna <span class="pill joined" style="margin-left:4px;">Joined</span></div>
+            <div class="meta">Adult · anna@family.com</div>
+          </div>
+          <div class="chev">›</div>
+        </div>
+
+        <div class="sec-lbl">Kids</div>
+        <div class="member">
+          <div class="avatar" style="background:var(--poppy)">P</div>
+          <div class="info">
+            <div class="name">Poppy <span class="pill joined" style="margin-left:4px;">Joined</span></div>
+            <div class="meta">Kid · Year 6 · budget access <b style="color:var(--ink4)">off</b></div>
+          </div>
+          <div class="chev">›</div>
+        </div>
+        <div class="member">
+          <div class="avatar" style="background:var(--gab)">G</div>
+          <div class="info">
+            <div class="name">Gab <span class="pill pending" style="margin-left:4px;">Pending invite</span></div>
+            <div class="meta">Kid · Year 4 · shared 2 hrs ago</div>
+          </div>
+          <div class="chev">›</div>
+        </div>
+        <div class="member">
+          <div class="avatar" style="background:var(--duke)">D</div>
+          <div class="info">
+            <div class="name">Duke</div>
+            <div class="meta">Kid · Year 1 · not invited yet</div>
+          </div>
+          <div class="chev">›</div>
+        </div>
+
+        <div class="invite-cta">
+          <div class="plus">+</div>
+          <div class="lbl">Add a family member</div>
+          <div class="sub">Adult or kid — invite via SMS or QR</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Rich sees everyone with role + status + a chevron. Kids show <b>budget access on/off</b> right in the meta line. Peach hero card = Our Family accent (was magenta stripe — softened).</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">ADULT INVITEE VIEW (Anna)</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Our Family</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="family-hero">
+          <div class="name">The de Kretsers</div>
+          <div class="meta">5 members · Brisbane</div>
+          <div class="avatars">
+            <div class="a" style="background:var(--rich)">R</div>
+            <div class="a" style="background:var(--anna)">A</div>
+            <div class="a" style="background:var(--poppy)">P</div>
+            <div class="a" style="background:var(--gab)">G</div>
+            <div class="a" style="background:var(--duke)">D</div>
+          </div>
+        </div>
+        <div class="sec-lbl">Family members</div>
+        <div class="member">
+          <div class="avatar" style="background:var(--rich)">R</div>
+          <div class="info">
+            <div class="name">Rich <span class="pill owner" style="margin-left:4px;">Owner</span></div>
+            <div class="meta">Adult</div>
+          </div>
+        </div>
+        <div class="member">
+          <div class="avatar" style="background:var(--anna)">A</div>
+          <div class="info">
+            <div class="name">Anna <span class="pill you" style="margin-left:4px;">You</span></div>
+            <div class="meta">Adult</div>
+          </div>
+          <div class="chev">›</div>
+        </div>
+        <div class="member">
+          <div class="avatar" style="background:var(--poppy)">P</div>
+          <div class="info">
+            <div class="name">Poppy</div>
+            <div class="meta">Kid · Year 6</div>
+          </div>
+        </div>
+        <div class="member">
+          <div class="avatar" style="background:var(--gab)">G</div>
+          <div class="info">
+            <div class="name">Gab</div>
+            <div class="meta">Kid · Year 4</div>
+          </div>
+        </div>
+        <div class="member">
+          <div class="avatar" style="background:var(--duke)">D</div>
+          <div class="info">
+            <div class="name">Duke</div>
+            <div class="meta">Kid · Year 1</div>
+          </div>
+        </div>
+        <div style="text-align:center; margin-top: 20px; font-size: 11px; color: var(--ink3);">
+          Only <b style="color:var(--ink);">Rich</b> can invite or remove family members.<br>
+          <b style="color:var(--ink);">Nudge them if you need someone added.</b>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Anna sees the same roster but <b>read-only</b> — no chevrons on other people's rows (except her own), no add-member CTA, no per-kid Budget toggle. Footer hint explains why.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">WITH PENDING INVITES</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Our Family</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="family-hero" style="padding: 14px 16px;">
+          <div class="name">The de Kretsers</div>
+          <div class="meta">5 members · 2 pending</div>
+        </div>
+
+        <div class="sec-lbl">Pending invites</div>
+        <div class="pending-inv">
+          <div style="width:34px; height:34px; border-radius:17px; background:var(--gab); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px;">G</div>
+          <div class="info">
+            <div class="name">Gab · Kid</div>
+            <div class="meta">Sent to +61 4XX 812 · 2 hrs ago</div>
+          </div>
+          <div class="chips">
+            <div class="chip">Copy</div>
+            <div class="chip">Resend</div>
+            <div class="chip">✕</div>
+          </div>
+        </div>
+        <div class="pending-inv">
+          <div style="width:34px; height:34px; border-radius:17px; background:var(--anna); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px;">S</div>
+          <div class="info">
+            <div class="name">Sarah · Adult</div>
+            <div class="meta">Link shared · yesterday</div>
+          </div>
+          <div class="chips">
+            <div class="chip">Copy</div>
+            <div class="chip">Resend</div>
+            <div class="chip">✕</div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Family members</div>
+        <div class="member">
+          <div class="avatar" style="background:var(--rich)">R</div>
+          <div class="info">
+            <div class="name">Rich <span class="pill you" style="margin-left:4px;">You</span></div>
+            <div class="meta">Owner · Family plan</div>
+          </div>
+          <div class="chev">›</div>
+        </div>
+        <div class="member">
+          <div class="avatar" style="background:var(--anna)">A</div>
+          <div class="info">
+            <div class="name">Anna <span class="pill joined" style="margin-left:4px;">Joined</span></div>
+            <div class="meta">Adult</div>
+          </div>
+          <div class="chev">›</div>
+        </div>
+
+        <div class="invite-cta">
+          <div class="plus">+</div>
+          <div class="lbl">Add a family member</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Pending invites float to the top with gold accent (matches Reminders palette — status/waiting). Per-row <b>Copy · Resend · ✕</b> chips.</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 2 — Member profile detail</div>
+  <div class="section-title">One row → one page</div>
+  <div class="section-desc">
+    Tap anywhere on a member row → open the profile. Shape varies by role. Adults get name / email / colour / notification prefs. Kids get name / colour / PIN / <b>Our Budget access</b> (parent toggle). Removing is bottom-of-page danger.
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">KID PROFILE — Poppy</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Poppy</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="profile-hero">
+          <div class="avatar" style="background:var(--poppy)">P</div>
+          <div class="name">Poppy</div>
+          <div class="role"><span class="pill kid">Kid</span> <span class="pill joined" style="margin-left:4px;">Joined</span></div>
+        </div>
+
+        <div class="sec-lbl">Basics</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Name</div><div class="val">Poppy</div></div>
+          <div class="row"><div class="lbl">Year level</div><div class="val">Year 6</div></div>
+          <div class="row"><div class="lbl">Colour</div><div class="val"><div style="width:16px;height:16px;border-radius:8px;background:var(--poppy);"></div></div></div>
+          <div class="row"><div class="lbl">Reset PIN</div><div class="val link">Send new PIN →</div></div>
+        </div>
+
+        <div class="sec-lbl">Access</div>
+        <div class="row-group">
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Home &amp; Chat</div>
+              <div class="val" style="margin-top:2px;">Calendar · Shopping · Reminders</div>
+            </div>
+            <div class="pill joined">Always on</div>
+          </div>
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Our Budget</div>
+              <div class="val" style="margin-top:2px;">Sees family finances</div>
+            </div>
+            <div class="toggle"></div>
+          </div>
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Add family members</div>
+              <div class="val" style="margin-top:2px;">Invites are owner-only</div>
+            </div>
+            <div class="pill you" style="opacity:0.5;">Off</div>
+          </div>
+        </div>
+
+        <div class="danger-row">Remove Poppy from family</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Kid profile: Basics + <b>Access</b> section. Budget defaults off (mint toggle shows off state); parent flicks on if they want the kid to see spending.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">KID — BUDGET ACCESS ON</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Poppy</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="profile-hero">
+          <div class="avatar" style="background:var(--poppy)">P</div>
+          <div class="name">Poppy</div>
+          <div class="role"><span class="pill kid">Kid</span> <span class="pill joined" style="margin-left:4px;">Joined</span></div>
+        </div>
+
+        <div class="sec-lbl">Access</div>
+        <div class="row-group">
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Home &amp; Chat</div>
+              <div class="val" style="margin-top:2px;">Calendar · Shopping · Reminders</div>
+            </div>
+            <div class="pill joined">Always on</div>
+          </div>
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Our Budget</div>
+              <div class="val" style="margin-top:2px;">Sees family finances</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div style="background: var(--mint-t); border-radius: 12px; padding: 12px; margin: 4px 0 14px; font-size: 11px; color: var(--mint-d); line-height: 1.5;">
+          <b>Poppy can now open Our Budget.</b><br>
+          She'll see everything — income streams, categories, savings goals. This is the same view you and Anna see.
+        </div>
+
+        <div class="sec-lbl">Basics</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Name</div><div class="val">Poppy</div></div>
+          <div class="row"><div class="lbl">Year level</div><div class="val">Year 6</div></div>
+          <div class="row"><div class="lbl">Colour</div><div class="val"><div style="width:16px;height:16px;border-radius:8px;background:var(--poppy);"></div></div></div>
+        </div>
+
+        <div class="danger-row">Remove Poppy from family</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Toggle ON reveals a mint <b>confirmation banner</b> — clear about what changed and what Poppy will now see. Reversible by tapping the toggle again.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">ADULT PROFILE — Anna</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Anna</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="profile-hero">
+          <div class="avatar" style="background:var(--anna)">A</div>
+          <div class="name">Anna</div>
+          <div class="role"><span class="pill adult">Adult</span> <span class="pill joined" style="margin-left:4px;">Joined</span></div>
+        </div>
+
+        <div class="sec-lbl">Basics</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Name</div><div class="val">Anna</div></div>
+          <div class="row"><div class="lbl">Email</div><div class="val">anna@family.com</div></div>
+          <div class="row"><div class="lbl">Colour</div><div class="val"><div style="width:16px;height:16px;border-radius:8px;background:var(--anna);"></div></div></div>
+        </div>
+
+        <div class="sec-lbl">Access</div>
+        <div class="row-group">
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Everything</div>
+              <div class="val" style="margin-top:2px;">Full family app — same as Rich</div>
+            </div>
+            <div class="pill joined">Yes</div>
+          </div>
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Manage members</div>
+              <div class="val" style="margin-top:2px;">Only the owner can add/remove</div>
+            </div>
+            <div class="pill you" style="opacity:0.5;">No</div>
+          </div>
+        </div>
+
+        <div class="danger-row">Remove Anna from family</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Adult profile is simpler — no toggles, since adults get full access by default. Only member management is reserved to the owner. Anna's own email is shown (visible to her, hidden to other adults).</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">NOT-YET-INVITED KID — Duke</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Duke</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="profile-hero">
+          <div class="avatar" style="background:var(--duke)">D</div>
+          <div class="name">Duke</div>
+          <div class="role"><span class="pill kid">Kid</span> <span class="pill you" style="margin-left:4px;">Not invited</span></div>
+        </div>
+
+        <div style="background: var(--sky-t); border-radius: 14px; padding: 16px; margin-bottom: 14px; text-align: center;">
+          <div style="font-size: 13px; font-weight: 700; color: var(--sky-d);">Duke hasn't been invited yet</div>
+          <div style="font-size: 11px; color: var(--ink3); margin-top: 4px; line-height: 1.5;">He's on the family list but has no account. Invite when he's ready to have his own phone.</div>
+          <div style="background: var(--sky-d); color: white; padding: 10px 16px; border-radius: 12px; font-size: 12px; font-weight: 700; margin-top: 12px; display: inline-block;">📩 Invite Duke</div>
+        </div>
+
+        <div class="sec-lbl">Basics</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Name</div><div class="val">Duke</div></div>
+          <div class="row"><div class="lbl">Year level</div><div class="val">Year 1</div></div>
+          <div class="row"><div class="lbl">Colour</div><div class="val"><div style="width:16px;height:16px;border-radius:8px;background:var(--duke);"></div></div></div>
+        </div>
+
+        <div class="danger-row">Remove Duke from family</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Not-yet-invited kids get a <b>sky invite card</b> at the top instead of the Access section. Rich can still edit basics + colour before invite goes out (Duke's row on Home still counts him as family, but with no account).</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 3 — Invite flow (v2 refresh)</div>
+  <div class="section-title">Adult or Kid, one screen each</div>
+  <div class="section-desc">
+    Existing invite flow (Session 19) still works — refreshed here to match the v2 palette and to preview the receiver flow. Kids getting invited land in the same Home / Chat / Calendar / Shopping / Reminders as adults — <b>NO Kids Hub</b>. Budget access defaults OFF for them (parent flips on later).
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">INVITE — ROLE PICK</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Invite</div>
+        </div>
+      </div>
+      <div class="content">
+        <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px; margin-top: 8px;">Who are you adding?</div>
+        <div style="font-size: 12px; color: var(--ink3); margin-top: 6px; line-height: 1.5;">Adults get everything. Kids get everything except Budget (you can turn Budget on for them later).</div>
+
+        <div style="background: var(--sky-t); border-radius: 16px; padding: 20px; margin-top: 20px;">
+          <div style="font-size: 18px; font-weight: 800; color: var(--sky-d);">Adult</div>
+          <div style="font-size: 12px; color: var(--ink3); margin-top: 4px; line-height: 1.5;">Anyone with their own phone. Full app, full access.</div>
+        </div>
+
+        <div style="background: var(--lav-t); border-radius: 16px; padding: 20px; margin-top: 12px;">
+          <div style="font-size: 18px; font-weight: 800; color: var(--lav-d);">Kid</div>
+          <div style="font-size: 12px; color: var(--ink3); margin-top: 4px; line-height: 1.5;">Signs in with a 4-digit PIN. Same core app; Budget is off by default.</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Colour-coded not emoji-coded (Rich's earlier preference). Sky = adult, lavender = kid. Description under each explains scope.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">INVITE — SHARE</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Invite Duke</div>
+        </div>
+      </div>
+      <div class="content">
+        <div style="font-size: 15px; font-weight: 700;">Almost done.</div>
+        <div style="font-size: 11px; color: var(--ink3); margin-top: 4px;">Duke's invite link is ready. Send it via SMS or hand him the phone with the QR code.</div>
+
+        <div style="background: white; border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-top: 16px;">
+          <div style="font-size: 10px; letter-spacing: 0.5px; font-weight: 700; color: var(--ink3); text-transform: uppercase;">Preview SMS</div>
+          <div style="font-size: 12px; color: var(--ink2); margin-top: 6px; line-height: 1.6; background: rgba(10,10,10,0.03); padding: 10px 12px; border-radius: 10px;">
+            Hey Duke — Rich is inviting you to Zaeli, the family app. Tap here to set up your account: https://zaeli.app/invite/dK3fN9
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px;">
+          <div style="background: var(--ink); color: white; padding: 12px; border-radius: 12px; text-align: center; font-size: 13px; font-weight: 700;">📩 Share</div>
+          <div style="background: white; border: 1px solid var(--line); padding: 12px; border-radius: 12px; text-align: center; font-size: 13px; font-weight: 700; color: var(--ink);">📷 Show QR</div>
+        </div>
+
+        <div style="background: var(--mint-t); border-radius: 12px; padding: 12px 14px; margin-top: 16px; font-size: 11px; color: var(--mint-d); line-height: 1.5;">
+          <b>Once Duke joins</b>, his row on Our Family updates to <b>Joined</b> and you can toggle Budget access on his profile.
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">SMS preview + Share/QR. Mint teaser at the bottom explains what happens on the other side — sets expectation that Budget toggle appears after they join.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">RECEIVER — KID ONBOARDING</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div style="background: var(--bg); height: 100%; padding: 40px 20px 20px; display: flex; flex-direction: column; align-items: center; text-align: center;">
+        <div style="width: 80px; height: 80px; border-radius: 40px; background: var(--lav); display: flex; align-items: center; justify-content: center; font-size: 40px; margin-bottom: 20px;">👋</div>
+        <div style="font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">Welcome, Duke!</div>
+        <div style="font-size: 13px; color: var(--ink3); margin-top: 8px; line-height: 1.5;">Rich added you to <b style="color:var(--ink);">The de Kretsers</b>. You'll get the family calendar, shopping list, reminders, and your own chat with Zaeli.</div>
+
+        <div style="background: var(--lav-t); border-radius: 16px; padding: 14px; margin-top: 24px; width: 100%;">
+          <div style="font-size: 11px; letter-spacing: 0.5px; font-weight: 700; color: var(--lav-d); text-transform: uppercase;">What you get</div>
+          <div style="font-size: 13px; color: var(--ink); margin-top: 8px; line-height: 1.6; text-align: left;">
+            ✓ Family calendar<br>
+            ✓ Shopping list<br>
+            ✓ Reminders &amp; to-dos<br>
+            ✓ Chat with Zaeli
+          </div>
+        </div>
+
+        <div style="background: var(--ink); color: white; padding: 14px 24px; border-radius: 14px; font-size: 15px; font-weight: 700; margin-top: 24px; width: 100%;">Choose a 4-digit PIN →</div>
+      </div>
+    </div></div>
+    <div class="frame-caption"><b>Same shape as adult onboarding</b>, just simpler steps (PIN instead of password). No mention of Kids Hub — that's gone. Just "here's the family app, welcome in".</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 4 — Settings integration</div>
+  <div class="section-title">One Settings page, three role-shaped variants</div>
+  <div class="section-desc">
+    Settings is separate from Our Family, but they're siblings — MoreSheet has both. Settings varies by role: <b>owner</b> sees everything; <b>adult</b> hides Subscription + Delete family; <b>kid</b> gets a tiny slimmed-down page with just their PIN + notification prefs.
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">SETTINGS — OWNER</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Settings</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div style="background: linear-gradient(135deg, var(--slate), #1F2937); border-radius: 20px; padding: 20px; color: white; margin-bottom: 16px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:48px; height:48px; border-radius:24px; background:var(--peach); color:var(--ink); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px;">R</div>
+            <div>
+              <div style="font-size:16px; font-weight:800;">Rich</div>
+              <div style="font-size:11px; opacity:0.7;">Family plan · A$6.99/mo</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Account</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Our Family</div><div class="val">5 members ›</div></div>
+          <div class="row"><div class="lbl">Subscription</div><div class="val">Active ›</div></div>
+          <div class="row"><div class="lbl">Payment method</div><div class="val">Visa •••• 4242 ›</div></div>
+        </div>
+
+        <div class="sec-lbl">Notifications</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Morning brief</div><div class="val">7:00 am ›</div></div>
+          <div class="row"><div class="lbl">Evening brief</div><div class="val">5:00 pm ›</div></div>
+          <div class="row"><div class="lbl">Quiet hours</div><div class="val">10pm – 6am ›</div></div>
+        </div>
+
+        <div class="sec-lbl">Zaeli memory</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">What Zaeli remembers</div><div class="val">12 insights ›</div></div>
+          <div class="row"><div class="lbl">Learn from chats</div><div class="val"><div class="toggle on"></div></div></div>
+        </div>
+
+        <div class="sec-lbl">Privacy</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Privacy policy</div><div class="val">↗</div></div>
+          <div class="row"><div class="lbl">Terms of service</div><div class="val">↗</div></div>
+        </div>
+
+        <div class="sec-lbl">Danger</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl" style="color:var(--coral);">Sign out</div><div class="val">›</div></div>
+          <div class="row"><div class="lbl" style="color:var(--coral);">Delete account</div><div class="val">›</div></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Full Settings for the owner. Account section links back to <b>Our Family</b> as a row (round-trip nav). Subscription + Delete account only shown here.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">SETTINGS — ADULT (Anna)</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Settings</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div style="background: linear-gradient(135deg, var(--slate), #1F2937); border-radius: 20px; padding: 20px; color: white; margin-bottom: 16px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:48px; height:48px; border-radius:24px; background:var(--anna); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px;">A</div>
+            <div>
+              <div style="font-size:16px; font-weight:800;">Anna</div>
+              <div style="font-size:11px; opacity:0.7;">Adult · The de Kretsers</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Account</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Our Family</div><div class="val">5 members ›</div></div>
+          <div class="row"><div class="lbl">Change password</div><div class="val">›</div></div>
+        </div>
+
+        <div class="sec-lbl">Notifications</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Morning brief</div><div class="val">6:30 am ›</div></div>
+          <div class="row"><div class="lbl">Evening brief</div><div class="val">4:30 pm ›</div></div>
+          <div class="row"><div class="lbl">Quiet hours</div><div class="val">10pm – 6am ›</div></div>
+        </div>
+
+        <div class="sec-lbl">Zaeli memory</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Learn from chats</div><div class="val"><div class="toggle on"></div></div></div>
+        </div>
+
+        <div class="sec-lbl">Danger</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl" style="color:var(--coral);">Sign out</div><div class="val">›</div></div>
+          <div class="row"><div class="lbl" style="color:var(--coral);">Leave family</div><div class="val">›</div></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">No Subscription, no Payment method (owner handles billing). "Delete account" replaced with softer <b>Leave family</b> — Anna can walk away without nuking the household.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">SETTINGS — KID (Poppy)</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Settings</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div style="background: linear-gradient(135deg, var(--poppy), #7C3AED); border-radius: 20px; padding: 20px; color: white; margin-bottom: 16px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:48px; height:48px; border-radius:24px; background:white; color:var(--poppy); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:18px;">P</div>
+            <div>
+              <div style="font-size:16px; font-weight:800;">Poppy</div>
+              <div style="font-size:11px; opacity:0.7;">The de Kretsers</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Your account</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Change your PIN</div><div class="val">›</div></div>
+          <div class="row"><div class="lbl">Colour</div><div class="val"><div style="width:16px;height:16px;border-radius:8px;background:var(--poppy);"></div></div></div>
+        </div>
+
+        <div class="sec-lbl">Notifications</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl">Morning brief</div><div class="val">7:15 am ›</div></div>
+          <div class="row"><div class="lbl">Evening brief</div><div class="val"><div class="toggle on"></div></div></div>
+        </div>
+
+        <div style="text-align:center; margin-top: 20px; font-size: 11px; color: var(--ink3);">
+          Ask <b style="color:var(--ink);">Rich</b> or <b style="color:var(--ink);">Anna</b> to change other family settings.
+        </div>
+
+        <div class="sec-lbl" style="margin-top: 20px;">Danger</div>
+        <div class="row-group">
+          <div class="row"><div class="lbl" style="color:var(--coral);">Sign out</div><div class="val">›</div></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption"><b>Tiny Settings</b> — kids get PIN + colour + brief times. No Our Family link, no Subscription, no memory controls, no delete. Sign-out is the only escape hatch (nothing destructive).</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 5 — What kids see (context)</div>
+  <div class="section-title">A kid signed in to Zaeli</div>
+  <div class="section-desc">
+    Not a full audit of every screen — just a reminder that <b>with Kids Hub hidden, a kid sees Home / Chat / Calendar / Shopping / Reminders</b>. Same shell, no dedicated "kid mode". Simpler for us, more honest for the kid.
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">KID HOME — Poppy signed in</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        <div class="right">
+          <div class="label">Home</div>
+          <div class="ham"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div style="padding: 10px 14px 14px; overflow-y: auto; height: calc(100% - 76px);">
+        <!-- Brief tile -->
+        <div style="background: var(--peach-t); border-radius: 18px; padding: 14px; margin-bottom: 10px;">
+          <div style="font-size:10px; font-weight:800; color:var(--peach-d); letter-spacing:0.5px; text-transform:uppercase;">☀️ MORNING</div>
+          <div style="font-size:14px; font-weight:600; color:var(--ink); margin-top:6px; line-height:1.5;">Morning Pop! Big day — dance at 4pm and Gab's soccer straight after. Might be worth eating early.</div>
+        </div>
+
+        <!-- Calendar tile -->
+        <div style="background: var(--slate); color: white; border-radius: 18px; padding: 14px; margin-bottom: 10px;">
+          <div style="font-size:10px; font-weight:800; color:rgba(255,255,255,0.7); letter-spacing:0.5px; text-transform:uppercase;">📅 CALENDAR</div>
+          <div style="font-size:20px; font-weight:800; color:white; margin-top:5px;">2 events on today.</div>
+          <div style="font-size:11px; color:rgba(255,255,255,0.6); margin-top:6px;">4pm · Dance · Poppy</div>
+          <div style="font-size:11px; color:rgba(255,255,255,0.6); margin-top:2px;">5pm · Soccer training · Gab</div>
+        </div>
+
+        <!-- Shopping tile -->
+        <div style="background: var(--lav); border-radius: 18px; padding: 14px; margin-bottom: 10px;">
+          <div style="font-size:10px; font-weight:800; color:var(--lav-d); letter-spacing:0.5px; text-transform:uppercase;">🛒 SHOPPING</div>
+          <div style="font-size:20px; font-weight:800; margin-top:5px;">7 items to grab.</div>
+        </div>
+
+        <!-- Reminders tile -->
+        <div style="background: var(--gold-t); border-radius: 18px; padding: 14px;">
+          <div style="font-size:10px; font-weight:800; color:var(--gold-d); letter-spacing:0.5px; text-transform:uppercase;">⏰ REMINDERS &amp; TO-DOS</div>
+          <div style="font-size:20px; font-weight:800; margin-top:5px;">Nothing to remember.</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Poppy's Home = exact same shell as Rich's, minus the Budget tile (she doesn't have access). Brief text is family-scoped so it references her day. Chat + swipe still work.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">KID MORE SHEET — no Budget/Family</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div style="background: rgba(0,0,0,0.4); height: 100%; position: relative;">
+        <!-- Sheet -->
+        <div style="position:absolute; left:0; right:0; bottom:0; background: var(--bg); border-top-left-radius: 22px; border-top-right-radius: 22px; height: 88%; padding: 12px 16px;">
+          <div style="width:34px; height:4px; border-radius:2px; background:rgba(10,10,10,0.14); margin: 4px auto 12px;"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+            <div style="font-size:24px; font-weight:800; letter-spacing:-0.5px;">More</div>
+            <div style="width:30px; height:30px; border-radius:15px; background:rgba(10,10,10,0.06); display:flex; align-items:center; justify-content:center; font-size:12px;">✕</div>
+          </div>
+          <div class="sec-lbl">Quick nav</div>
+          <div style="background:var(--slate); border-radius:14px; padding: 14px; color:white; margin-bottom: 6px; display:flex; align-items:center; gap:12px;">
+            <div style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:14px;">📅</div>
+            <div style="font-weight:800; font-size:15px;">Calendar</div>
+          </div>
+          <div style="background:var(--lav); border-radius:14px; padding: 14px; margin-bottom: 6px; display:flex; align-items:center; gap:12px;">
+            <div style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:14px;">🛒</div>
+            <div style="font-weight:800; font-size:15px;">Shopping</div>
+          </div>
+          <div style="background:var(--gold-t); border-radius:14px; padding: 14px; margin-bottom: 6px; display:flex; align-items:center; gap:12px;">
+            <div style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:14px;">⏰</div>
+            <div style="font-weight:800; font-size:15px;">Reminders &amp; To-dos</div>
+          </div>
+          <div class="sec-lbl">Account</div>
+          <div style="background:rgba(10,10,10,0.05); border-radius:14px; padding: 14px; display:flex; align-items:center; gap:12px;">
+            <div style="width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:14px;">⚙️</div>
+            <div style="font-weight:800; font-size:15px;">Settings</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Poppy's MoreSheet — <b>Our Budget hidden</b>, <b>Our Family hidden</b>. Just her core productivity trio + Settings. If Rich toggles Budget on, the Budget tile appears here too on her next open.</div>
+  </div>
+
+</div>
+
+</body>
+</html>
