@@ -41,7 +41,7 @@ import MoreSheet from '../components/MoreSheet';
 import { getProfile } from '../../lib/auth';
 import { loadRoster, getRoster } from '../../lib/family-roster';
 import { setPendingChatContext, setChatIntent, subscribeHomeRefresh, getHomeRefreshVersion } from '../../lib/navigation-store';
-import { onAuthChange } from '../../lib/auth';
+// (onAuthChange removed Commit 6 — polling for profile-ready is the fix)
 import Svg, { Path, Rect, Circle, Line, Polyline } from 'react-native-svg';
 
 // ── Design tokens ────────────────────────────────────────────────────────
@@ -248,20 +248,46 @@ export default function DashboardScreen({
   useEffect(() => subscribeHomeRefresh(setHomeRefreshVer), []);
   useEffect(() => { if (homeRefreshVer > 0) loadData(); }, [homeRefreshVer, loadData]);
 
-  // Round B commit 3 — cold-open empty tiles fix. auth handshake can lag
-  // Home mount by ~200-500ms; loadData fires with the DUMMY family id
-  // fallback and queries return zero rows. Subscribe to onAuthChange and
-  // re-fire loadData once SIGNED_IN lands (or on any state change with
-  // a session present). Cheap: at most one extra query on cold start.
+  // Round B commit 6 — cold-open empty tiles, stronger fix.
+  //
+  // Commit 3's approach (subscribe to onAuthChange) failed on cached-session
+  // restore because onAuthChange fires SIGNED_IN during Supabase client init,
+  // BEFORE Dashboard mounts. Dashboard subscribes AFTER that event; it never
+  // sees it. Rich's cold-open still showed empty tiles.
+  //
+  // New approach: poll for getProfile()?.familyId every 300ms (up to 20
+  // attempts / 6 seconds). As soon as the profile cache has resolved to a
+  // real family_id, load once. If it never resolves (offline / signed-out),
+  // stop after 20 attempts — dashboard shows empty state gracefully.
+  //
+  // Cheap: 1 extra loadData in the happy path. No subscription lifecycle.
   useEffect(() => {
-    const { data } = onAuthChange((_event, session) => {
-      if (session?.user?.id) {
-        // small delay to let loadProfile()'s cache populate first, so
-        // getFamilyId() resolves to the real id, not the DUMMY fallback
-        setTimeout(() => loadData(), 300);
+    let attempts = 0;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let didLoad = false;
+
+    const check = () => {
+      if (cancelled || didLoad) return;
+      const p = getProfile();
+      if (p?.family_id) {
+        didLoad = true;
+        loadData();
+        return;
       }
-    });
-    return () => { try { data?.subscription?.unsubscribe?.(); } catch {} };
+      if (attempts++ < 20) {
+        timer = setTimeout(check, 300);
+      } else {
+        console.log('[dashboard] cold-open poll: profile never resolved after 6s — giving up');
+      }
+    };
+    // First poll after a short beat so getProfile()'s module cache has a
+    // chance to populate from AsyncStorage in the common warm path
+    timer = setTimeout(check, 150);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [loadData]);
 
   // ── Shopping quick-add (unchanged from Phase 01) ──────────────────────

@@ -7991,12 +7991,21 @@ Rules:
                   })}
                 </View>
 
-                {/* Round B — no KAV wrapper here. Instead, the input strip
-                    below applies marginBottom = keyboard height when up.
-                    Matches Shopping's proven pattern (KAV mode inside a
-                    Modal is unreliable on iOS — shrinks unpredictably or
-                    pushes whole modal off-screen). */}
-                <View style={{ flex:1 }}>
+                {/* Round B commit 6 — RESTORE KeyboardAvoidingView per CLAUDE.md
+                    SheetShell rule ("KAV inside card wrapping only body").
+                    Commit 2 tried manual keyboard-height + marginBottom on
+                    the pill wrapper (matched Shopping's supposed pattern),
+                    but the pill is the LAST child of a fixed-height flex
+                    column — marginBottom on a last-flex-child adds space
+                    BELOW it, doesn't move it up. Anna + Rich both reported
+                    the input pill still hidden behind the keyboard. KAV in
+                    padding mode is the proven approach and always has been
+                    for our sheets. */}
+                <KeyboardAvoidingView
+                  style={{ flex:1 }}
+                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                  keyboardVerticalOffset={0}
+                >
                   <ScrollView
                     style={{ flex:1 }}
                     contentContainerStyle={{ padding:16, paddingBottom: 20 + Math.max(0, insets.bottom) }}
@@ -8214,7 +8223,7 @@ Rules:
                       </TouchableOpacity>
                     </View>
                   </View>
-                </View>
+                </KeyboardAvoidingView>
               </SafeAreaView>
             </Animated.View>
           </View>
@@ -8313,8 +8322,18 @@ Rules:
                   ))}
                 </View>
 
-                {/* ── Tab content ── */}
-                <View style={{ flex:1, position:'relative' }}>
+                {/* ── Tab content —
+                    Round B commit 6: wrap in KeyboardAvoidingView per
+                    CLAUDE.md SheetShell rule. The manual keyboard-height
+                    marginBottom pattern doesn't visually lift a
+                    last-flex-child input pill inside a fixed-height Modal
+                    card — Anna + Rich reported the pill still hidden by
+                    the keyboard. KAV in padding mode is proven. */}
+                <KeyboardAvoidingView
+                  style={{ flex:1, position:'relative' }}
+                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                  keyboardVerticalOffset={0}
+                >
 
                   {/* ════ LIST TAB ════ */}
                   {shopSheetTab === 'list' && (() => {
@@ -9064,7 +9083,7 @@ Rules:
                     </>
                   )}
 
-                </View>{/* end tab content */}
+                </KeyboardAvoidingView>{/* end tab content — Round B commit 6 KAV wrap */}
 
                 {/* ── Full-screen Processing overlay (Session 29 — Rich feedback: simpler UX) ── */}
                 {shopScanBusy && (
