@@ -605,8 +605,28 @@ export default function DashboardScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Round A — MoreSheet triggered by hamburger */}
-      <MoreSheet visible={moreOpen} onClose={() => setMoreOpen(false)}/>
+      {/* Round A — MoreSheet triggered by hamburger.
+          Round B commit 4 — pass onAction so tile taps route THROUGH Home's
+          own sheet-openers (which open the sheet OVER Home via portal), not
+          through the default routing (which navigates to Chat's context that
+          never fires because Chat isn't active — sheets appeared to
+          "disappear" or land the user on the wrong page). */}
+      <MoreSheet
+        visible={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        onAction={(key) => {
+          setMoreOpen(false);
+          setTimeout(() => {
+            if      (key === 'calendar')  openCalendarSheet();
+            else if (key === 'shopping')  openShoppingSheet();
+            else if (key === 'reminders') openRemindersSheet();
+            else if (key === 'budget')    openBudget();
+            else if (key === 'family')    router.navigate('/(tabs)/family' as any);
+            else if (key === 'settings')  router.navigate('/(tabs)/settings' as any);
+            else if (key === 'chat')      onNavigateChat?.();
+          }, 200); // let MoreSheet close animate before opening the next sheet
+        }}
+      />
 
     </SafeAreaView>
   );

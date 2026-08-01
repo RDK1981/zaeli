@@ -47,7 +47,7 @@ const TILES = {
   // Family channels
   calendar:  { label: 'Calendar',     bg: '#2D3748', fg: '#CBD5E0', textColour: '#FFFFFF' },
   shopping:  { label: 'Shopping',     bg: '#D8CCFF', fg: '#5020C0', textColour: '#0A0A0A' },
-  reminders: { label: 'Reminders',    bg: '#FBF5D6', fg: '#8B6914', textColour: '#0A0A0A' },
+  reminders: { label: 'Reminders & To-dos', bg: '#FBF5D6', fg: '#8B6914', textColour: '#0A0A0A' },
   meals:     { label: 'Meals',        bg: '#B8EDD0', fg: '#2D7A52', textColour: '#0A0A0A' },
   radar:     { label: 'Tasks', bg: '#F0DC80', fg: '#8B6914', textColour: '#0A0A0A' },
   notes:     { label: 'Notes',        bg: '#FAC8A8', fg: '#8A3A00', textColour: '#0A0A0A' },

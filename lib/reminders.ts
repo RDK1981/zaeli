@@ -70,20 +70,31 @@ export function normaliseLocalIso(s: string): string {
 }
 
 export function parseLocalIsoAsDate(s: string): Date {
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
-  if (!m) {
-    // Fallback — trust JS parser (dangerous but shouldn't happen after normaliseLocalIso)
-    return new Date(s);
+  // Round B commit 4 — accept both naive and tz-suffixed strings.
+  //
+  // Naive form ("YYYY-MM-DDTHH:MM:SS", the shape saveReminder writes now):
+  //   parse components and build a local Date. Wall-clock preserved.
+  //
+  // Tz-suffixed form (legacy rows written when the column was still
+  // timestamptz — supabase returns "...+00:00" or "...Z" for those):
+  //   trust new Date() to convert the offset correctly. This yields the
+  //   correct absolute instant, which on-device renders as Brisbane
+  //   local time via toLocaleTimeString/getHours (both of which read the
+  //   device timezone). No double-conversion.
+  const naive = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (naive) {
+    const [, y, mo, d, h, mi, se] = naive;
+    return new Date(
+      parseInt(y, 10),
+      parseInt(mo, 10) - 1,
+      parseInt(d, 10),
+      parseInt(h, 10),
+      parseInt(mi, 10),
+      se ? parseInt(se, 10) : 0,
+    );
   }
-  const [, y, mo, d, h, mi, se] = m;
-  return new Date(
-    parseInt(y, 10),
-    parseInt(mo, 10) - 1,
-    parseInt(d, 10),
-    parseInt(h, 10),
-    parseInt(mi, 10),
-    se ? parseInt(se, 10) : 0,
-  );
+  // Has a tz suffix (Z or +HH:MM). Let JS parse the absolute instant.
+  return new Date(s);
 }
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -159,7 +170,11 @@ export async function loadReminders(): Promise<Reminder[]> {
 export async function saveReminder(r: Partial<Reminder> & { title: string }): Promise<Reminder | null> {
   const familyId = getFamilyId();
   const userId = await getCurrentUserId();
-  if (!familyId || !userId) return null;
+  console.log('[reminders/save] enter — familyId:', familyId, '· userId:', userId, '· title:', r.title, '· visibility:', r.visibility, '· remindAt:', r.remindAt, '· remindOn:', r.remindOn);
+  if (!familyId || !userId) {
+    console.log('[reminders/save] EXIT NULL — missing familyId or userId');
+    return null;
+  }
 
   const id = r.id ?? uuidv4();
   const isNew = !r.id;
@@ -221,19 +236,23 @@ export async function saveReminder(r: Partial<Reminder> & { title: string }): Pr
     updated_at:      new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
+  console.log('[reminders/save] upserting row — id:', row.id, '· visibility:', row.visibility, '· remind_at:', row.remind_at, '· remind_on:', row.remind_on);
+  const { data, error, status, statusText } = await supabase
     .from('reminders')
     .upsert(row, { onConflict: 'id' })
     .select()
     .maybeSingle();
 
+  console.log('[reminders/save] result — status:', status, '· statusText:', statusText, '· error:', error?.message ?? 'none', '· errCode:', (error as any)?.code, '· data.id:', data?.id ?? 'null');
+
   if (error || !data?.id) {
-    console.log('[reminders] save error:', error?.message ?? 'no data');
+    console.log('[reminders/save] EXIT NULL — error:', error?.message ?? 'no returning row (RLS or schema)');
     // Cancel the notif we just scheduled since the row didn't land
     if (notifId) { try { await Notifications.cancelScheduledNotificationAsync(notifId); } catch {} }
     return null;
   }
 
+  console.log('[reminders/save] OK — returning rowToReminder');
   return rowToReminder(data);
 }
 

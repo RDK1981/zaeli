@@ -521,6 +521,84 @@ export default function SettingsScreen() {
               Alert.alert('Direct test threw', e?.message ?? String(e));
             }
           }}
+          onTestReminderSave={async () => {
+            // Round B commit 4 — diagnose why the manual reminder-add path
+            // is still failing after the visibility SQL migration. Runs the
+            // EXACT payload submitRemind builds (personal, today's date-only)
+            // + surfaces every step's outcome in a single Alert so we don't
+            // need Metro logs.
+            const lines: string[] = [];
+            try {
+              const me = await getCurrentUserId();
+              const fid = getFamilyId();
+              lines.push(`userId: ${me ? me.slice(0, 8) + '…' : 'null'}`);
+              lines.push(`familyId: ${fid ? fid.slice(0, 8) + '…' : 'null'}`);
+              if (!me || !fid) {
+                Alert.alert('🐛 reminder save', lines.join('\n') + '\n\nBlocked: missing auth/family.');
+                return;
+              }
+              const today = new Date();
+              const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+              const testTitle = `Diagnostic ${new Date().toLocaleTimeString()}`;
+
+              // Step A — raw insert bypassing lib/reminders.saveReminder,
+              // to isolate whether the failure is in saveReminder or the DB.
+              const { data: rawIns, error: rawErr, status: rawStatus } = await supabase
+                .from('reminders')
+                .insert({
+                  family_id: fid,
+                  created_by: me,
+                  title: testTitle + ' (raw)',
+                  status: 'active',
+                  visibility: 'personal',
+                  remind_on: todayKey,
+                  updated_at: new Date().toISOString(),
+                })
+                .select('id, visibility, created_by')
+                .maybeSingle();
+              lines.push('');
+              lines.push('RAW INSERT:');
+              lines.push(`  status: ${rawStatus}`);
+              lines.push(`  error: ${rawErr?.message ?? 'none'}`);
+              lines.push(`  errCode: ${(rawErr as any)?.code ?? '-'}`);
+              lines.push(`  returned id: ${rawIns?.id ? rawIns.id.slice(0, 8) + '…' : 'null'}`);
+              lines.push(`  visibility: ${rawIns?.visibility ?? '-'}`);
+
+              // Step B — same via saveReminder helper (what the sheet uses)
+              const { saveReminder } = await import('../../lib/reminders');
+              const helped = await saveReminder({
+                title: testTitle + ' (via helper)',
+                status: 'active',
+                visibility: 'personal',
+                remindOn: todayKey,
+              });
+              lines.push('');
+              lines.push('VIA saveReminder():');
+              lines.push(`  returned: ${helped ? 'Reminder{id:' + helped.id.slice(0,8) + '…}' : 'null'}`);
+
+              // Step C — re-read table to see if either row actually landed
+              const { data: recent, error: rErr } = await supabase
+                .from('reminders')
+                .select('id, title, visibility, created_by')
+                .eq('family_id', fid)
+                .ilike('title', 'Diagnostic%')
+                .order('created_at', { ascending: false })
+                .limit(4);
+              lines.push('');
+              lines.push('SELECT-BACK:');
+              lines.push(`  error: ${rErr?.message ?? 'none'}`);
+              lines.push(`  rows: ${(recent ?? []).length}`);
+              (recent ?? []).slice(0, 3).forEach(r => {
+                lines.push(`   · ${r.title} · vis=${r.visibility} · by=${(r.created_by || '').slice(0,4)}…`);
+              });
+
+              Alert.alert('🐛 reminder save diagnostic', lines.join('\n'));
+            } catch (e: any) {
+              lines.push('');
+              lines.push('THREW: ' + (e?.message ?? String(e)));
+              Alert.alert('🐛 reminder save diagnostic', lines.join('\n'));
+            }
+          }}
         />
       )}
 
@@ -632,6 +710,7 @@ function MainView(p: {
   onTestCheckout: () => void;
   onRegisterPushToken: () => void;
   onDirectPushTest: () => void;
+  onTestReminderSave: () => void;
 }) {
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
@@ -772,7 +851,14 @@ function MainView(p: {
         <Row icon="🧪" iconBg="#E6F7EF" iconFg="#2D7A52"
              title="Test family push (direct)"
              sub="Bypasses Sonnet — hits Edge Function directly"
-             onPress={p.onDirectPushTest} last/>
+             onPress={p.onDirectPushTest}/>
+        {/* Round B commit 4 — reminder save diagnostic. Runs raw INSERT +
+            saveReminder helper + SELECT-back and shows each step's result
+            in an Alert so we can nail why manual add is failing. */}
+        <Row icon="🐛" iconBg="#FBF5D6" iconFg="#8B6914"
+             title="Test reminder save"
+             sub="Raw insert + helper + read-back — full trace in Alert"
+             onPress={p.onTestReminderSave} last/>
       </View>
       </>
       )}

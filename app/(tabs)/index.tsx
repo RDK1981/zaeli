@@ -5848,7 +5848,8 @@ Only include events directly relevant to the question. Max 5 events.`;
   }
   async function submitRemind() {
     const raw = remindDraft.trim();
-    if (!raw) return;
+    console.log('[reminders/submit] enter — raw:', JSON.stringify(raw), '· tab:', remindSheetTab);
+    if (!raw) { console.log('[reminders/submit] EXIT — empty draft'); return; }
     setRemindDraft('');
     // Round B — manual add now creates whichever kind matches the active
     // tab: Reminders tab → date-only reminder for today (user can promote
@@ -5867,11 +5868,13 @@ Only include events directly relevant to the question. Max 5 events.`;
       // tab. User can edit the date via a follow-up detail sheet later.
       draft.remindOn = localDateStr();
     }
+    console.log('[reminders/submit] draft:', JSON.stringify(draft));
     let r: Reminder | null = null;
     try {
       r = await saveReminder(draft);
+      console.log('[reminders/submit] saveReminder returned:', r ? `Reminder{id:${r.id}}` : 'null');
     } catch (e:any) {
-      console.log('[reminders] save threw:', e?.message);
+      console.log('[reminders/submit] save THREW:', e?.message);
     }
     if (r) {
       setRemindSheetItems(prev => [r as Reminder, ...prev]);
@@ -5884,6 +5887,7 @@ Only include events directly relevant to the question. Max 5 events.`;
     } else {
       // Save failed silently — force a full reload so at least a server
       // round-trip has a chance to surface the row (or nothing, honestly).
+      console.log('[reminders/submit] null result — forcing reload');
       reloadReminders();
     }
   }
