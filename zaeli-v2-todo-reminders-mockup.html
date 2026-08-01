@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli v2 — Reminders & To-dos Workshop (v2)</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:         #FAF8F5;
+    --ink:        #0A0A0A;
+    --ink2:       rgba(10,10,10,0.72);
+    --ink3:       rgba(10,10,10,0.48);
+    --ink4:       rgba(10,10,10,0.28);
+    --ink5:       rgba(10,10,10,0.14);
+    --line:       rgba(10,10,10,0.08);
+    --coral:      #FF4545;
+    --coral-tint: #FFE4E0;
+    --coral-d:    #B83333;
+    --slate:      #2D3748;
+    --peach:      #FAC8A8;
+    --peach-t:    #FDF1E5;
+    --peach-d:    #8A3A00;
+    --mint:       #B8EDD0;
+    --mint-t:     #E6F7EF;
+    --mint-d:     #2D7A52;
+    --lav:        #D8CCFF;
+    --lav-t:      #F0EBFF;
+    --lav-d:      #5020C0;
+    --sky:        #A8D8F0;
+    --sky-t:      #E8F4FD;
+    --sky-d:      #0A5C80;
+    --gold:       #F0DC80;
+    --gold-t:     #FBF5D6;
+    --gold-d:     #8B6914;
+    --anna:       #FF7B6B;
+    --rich:       #4D8BFF;
+    --poppy:      #A855F7;
+    --gab:        #22C55E;
+    --duke:       #F59E0B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+  body { background: #EFECE6; padding: 40px 20px 80px; color: var(--ink); }
+
+  h1 { font-weight: 800; font-size: 32px; text-align: center; letter-spacing: -1px; }
+  .sub { text-align: center; color: var(--ink3); font-size: 15px; margin: 8px 0 40px; max-width: 780px; margin-left: auto; margin-right: auto; line-height: 1.55; }
+  .sub b { color: var(--ink); font-weight: 700; }
+
+  /* Decisions callout */
+  .callout {
+    max-width: 900px; margin: 24px auto 12px;
+    background: white; border: 1px solid var(--line);
+    border-radius: 16px; padding: 20px 24px;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .callout .lbl { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--ink3); text-transform: uppercase; margin-bottom: 6px; }
+  .callout .val { font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+  .callout .val .accent { color: var(--gold-d); }
+
+  /* Section header */
+  .section-header { margin: 60px auto 24px; max-width: 1400px; }
+  .section-eyebrow { font-weight: 800; font-size: 12px; letter-spacing: 1.2px; color: var(--ink3); text-transform: uppercase; }
+  .section-title { font-weight: 800; font-size: 28px; letter-spacing: -0.5px; margin-top: 4px; }
+  .section-desc { color: var(--ink2); font-size: 15px; margin-top: 8px; max-width: 800px; line-height: 1.55; }
+  .section-desc b { color: var(--ink); font-weight: 700; }
+
+  /* Frame grid */
+  .frames {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px; max-width: 1400px; margin: 0 auto;
+  }
+  .frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .frame-label {
+    background: white; border: 1px solid var(--line);
+    padding: 5px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--ink2);
+  }
+  .frame-caption {
+    text-align: center; font-size: 12px; color: var(--ink3); line-height: 1.45;
+    max-width: 240px; margin-top: 4px;
+  }
+  .frame-caption b { color: var(--ink2); font-weight: 700; }
+
+  /* iPhone frame */
+  .phone {
+    position: relative; width: 260px; height: 545px;
+    background: var(--ink); border-radius: 38px; padding: 7px;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+  }
+  .phone .notch {
+    position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
+    width: 90px; height: 20px; background: var(--ink);
+    border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; z-index: 5;
+  }
+  .screen {
+    background: var(--bg); border-radius: 32px; height: 100%;
+    overflow: hidden; position: relative;
+  }
+
+  /* App bar */
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 34px 14px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .word {
+    font-size: 24px; font-weight: 800; letter-spacing: -1px; line-height: 1;
+  }
+  .word .a, .word .i { color: var(--sky); }
+  .app-bar .right { display: flex; align-items: center; gap: 8px; }
+  .app-bar .label { font-size: 12px; font-weight: 700; color: var(--ink2); }
+  .ham {
+    width: 30px; height: 30px; border-radius: 8px; background: rgba(10,10,10,0.05);
+    display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3px;
+  }
+  .ham span { width: 14px; height: 2px; background: var(--ink); border-radius: 1px; }
+
+  /* Home feed */
+  .home-feed { padding: 12px 12px 80px; height: calc(100% - 60px); overflow: hidden; }
+  .tile { border-radius: 18px; padding: 14px 14px 12px; margin-bottom: 10px; }
+  .tile-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px; gap: 6px;
+  }
+  /* Tile eyebrow — kept tight to fit "REMINDERS & TO-DOS" (20 chars) */
+  .tile-eyebrow {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase;
+    flex-shrink: 1; min-width: 0;
+    white-space: nowrap;
+  }
+  .tile-hint { font-size: 10px; font-weight: 600; opacity: 0.7; flex-shrink: 0; }
+  .tile-headline {
+    font-size: 20px; font-weight: 800; letter-spacing: -0.4px; line-height: 1.15;
+    margin: 4px 0 10px;
+  }
+  .tile-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 3px 0;
+    font-size: 11px;
+  }
+  .tile-row .t { font-weight: 700; width: 44px; }
+  .tile-row .rd { width: 6px; height: 6px; border-radius: 3px; }
+  .tile-row .n { flex: 1; }
+  .tile-row .shared-icon { font-size: 10px; opacity: 0.6; flex-shrink: 0; }
+  .add-pill {
+    display: flex; align-items: center; gap: 6px;
+    background: white; border: 1.2px solid;
+    padding: 7px 10px; border-radius: 12px; margin-top: 8px;
+  }
+  .add-pill .plus { color: var(--coral); font-weight: 700; font-size: 15px; }
+  .add-pill .fld { flex: 1; font-size: 12px; }
+  .add-pill .mic {
+    width: 22px; height: 22px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px;
+  }
+
+  /* Universal chat bar */
+  .chat-bar {
+    position: absolute; bottom: 14px; left: 12px; right: 12px;
+    background: #fff; border: 1px solid rgba(220,220,220,0.6);
+    border-radius: 28px; padding: 8px 10px;
+    display: flex; align-items: center; gap: 6px; min-height: 50px;
+  }
+  .chat-bar .mic {
+    width: 32px; height: 32px; border-radius: 16px;
+    background: rgba(10,10,10,0.05);
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .chat-bar .sep { width: 1px; height: 22px; background: rgba(10,10,10,0.1); }
+  .chat-bar .field { flex: 1; font-size: 13px; color: var(--ink3); }
+  .chat-bar .send {
+    width: 32px; height: 32px; border-radius: 16px; background: var(--coral); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+
+  /* Sheet — Reminders & to-dos */
+  .rem-screen { background: var(--bg); height: 100%; position: relative; }
+  .sheet-handle {
+    width: 40px; height: 4px; border-radius: 2px;
+    background: rgba(10,10,10,0.14); margin: 44px auto 0;
+  }
+  .sheet-hdr {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 14px 10px;
+  }
+  .sheet-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 17px; font-weight: 700;
+  }
+  .sheet-close {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: rgba(10,10,10,0.07); color: var(--ink3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+  }
+
+  /* Tab bar — matches Shopping sheet segmented pill */
+  .tab-bar {
+    display: flex; margin: 0 14px 8px;
+    background: rgba(10,10,10,0.06);
+    border-radius: 14px;
+    padding: 3px;
+  }
+  .tab {
+    flex: 1; text-align: center;
+    padding: 9px 6px;
+    border-radius: 11px;
+    font-size: 12px; font-weight: 700;
+    color: rgba(10,10,10,0.4);
+  }
+  .tab.active { background: var(--ink); color: #fff; }
+
+  /* Section label inside sheet (day-header for Reminders tab) */
+  .sheet-sec-lbl {
+    padding: 12px 16px 6px;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.6px;
+    color: var(--ink3); text-transform: uppercase;
+  }
+
+  /* Reminder / to-do item row */
+  .rem-list { padding: 0 12px; }
+  .rem-item {
+    display: flex; align-items: center; gap: 10px;
+    background: white; border-radius: 12px; padding: 10px 12px;
+    margin-bottom: 6px;
+  }
+  .rem-item.shared {
+    border-left: 3px solid var(--gold);
+  }
+  .rem-item.personal {
+    border-left: 3px solid transparent;
+  }
+  .rem-item.done {
+    background: rgba(10,10,10,0.03);
+    opacity: 0.7;
+  }
+  .rem-check {
+    width: 20px; height: 20px; border-radius: 10px;
+    border: 2px solid var(--ink4);
+    flex-shrink: 0;
+  }
+  .rem-check.done {
+    background: var(--gab); border-color: var(--gab);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+  }
+  .rem-body { flex: 1; min-width: 0; }
+  .rem-body .t {
+    font-size: 12px; font-weight: 600; color: var(--ink);
+    line-height: 1.3;
+  }
+  .rem-body .t.done { text-decoration: line-through; color: var(--ink3); }
+  .rem-body .meta {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10px; color: var(--ink3); font-weight: 500;
+    margin-top: 2px;
+  }
+  .rem-body .meta .tag.shared { color: var(--gold-d); font-weight: 700; }
+  .rem-body .meta .tag.personal { color: var(--ink3); }
+  .rem-body .meta .dot { font-size: 8px; color: var(--ink4); }
+  .rem-x { color: var(--ink4); font-size: 13px; padding-left: 4px; }
+
+  /* Chip row (for share/notify after add) */
+  .item-chips {
+    display: flex; gap: 6px; padding: 4px 12px 6px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    padding: 5px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .chip.primary { background: var(--coral-tint); color: var(--coral-d); border: 1px solid rgba(255,69,69,0.28); font-weight: 700; }
+  .chip.ghost { background: white; color: var(--ink); border: 1px solid var(--line); }
+  .chip.mint { background: var(--mint-t); color: var(--mint-d); border: 1px solid var(--mint); font-weight: 700; }
+
+  /* Sheet input pill (gold-tinted for Reminders) */
+  .sheet-input {
+    position: absolute; bottom: 14px; left: 12px; right: 12px;
+    background: white; border: 1.5px solid var(--gold);
+    border-radius: 28px; padding: 8px 10px;
+    display: flex; align-items: center; gap: 6px; min-height: 50px;
+  }
+  .sheet-input .mic {
+    width: 32px; height: 32px; border-radius: 16px;
+    background: rgba(240,220,128,0.24);
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .sheet-input .sep { width: 1px; height: 22px; background: rgba(10,10,10,0.1); }
+  .sheet-input .fld { flex: 1; font-size: 13px; color: var(--gold-d); opacity: 0.75; }
+  .sheet-input .fld.typed { color: var(--ink); opacity: 1; }
+  .sheet-input .cam {
+    width: 32px; height: 32px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--coral);
+  }
+  .sheet-input .send {
+    width: 32px; height: 32px; border-radius: 16px; background: var(--coral); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .sheet-input .send.dim { background: rgba(255,69,69,0.3); }
+
+  /* Empty state */
+  .empty-state {
+    padding: 60px 24px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .empty-emoji { font-size: 40px; }
+  .empty-ttl { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .empty-desc { font-size: 12px; color: var(--ink3); line-height: 1.5; max-width: 200px; }
+
+  /* Brief bubble (for section 4) */
+  .brief-bubble {
+    background: var(--peach-t); border-radius: 16px;
+    padding: 12px; margin: 6px 12px;
+    border-bottom-left-radius: 6px;
+  }
+  .brief-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--peach); color: var(--peach-d);
+    padding: 3px 9px; border-radius: 10px;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.8px;
+    margin-bottom: 6px;
+  }
+  .z-eyebrow { font-size: 10px; color: var(--ink3); margin-bottom: 4px; }
+  .brief-txt { font-size: 12px; line-height: 1.55; color: var(--ink); }
+  .brief-txt .hi { color: var(--gold-d); font-weight: 700; }
+
+  /* Chat body */
+  .chat-body {
+    padding: 14px 0 90px;
+    display: flex; flex-direction: column; gap: 8px;
+    height: calc(100% - 60px); overflow: hidden;
+  }
+  .msg-user {
+    background: var(--sky-t); color: var(--ink);
+    max-width: 80%; padding: 9px 12px; border-radius: 14px;
+    font-size: 12px; align-self: flex-end;
+    border-bottom-right-radius: 5px;
+    margin-right: 12px;
+  }
+  .msg-zaeli {
+    background: rgba(10,10,10,0.05); color: var(--ink);
+    max-width: 90%; padding: 9px 12px; border-radius: 14px;
+    font-size: 12px; align-self: flex-start;
+    border-bottom-left-radius: 5px;
+    margin-left: 12px;
+    line-height: 1.45;
+  }
+</style>
+</head>
+<body>
+
+<h1>Zaeli v2 — Reminders & To-dos (v2)</h1>
+<p class="sub">
+  Simplified from v1: <b>two tabs</b> instead of four. Reminders (dated stuff) + To-dos (undated stuff). Done items stay inline greyed at bottom, auto-clear after 7 days. Personal by default, one-tap to share. Same tab visual style as Shopping's segmented pill.
+</p>
+
+<div class="callout">
+  <div>
+    <div class="lbl">Home tile heading</div>
+    <div class="val"><span class="accent">⏰ REMINDERS & TO-DOS</span></div>
+  </div>
+  <div>
+    <div class="lbl">Sheet title</div>
+    <div class="val">⏰ Reminders & to-dos</div>
+  </div>
+  <div>
+    <div class="lbl">Two tabs</div>
+    <div class="val">Reminders (dated) · To-dos (undated)</div>
+  </div>
+  <div>
+    <div class="lbl">Tab visual</div>
+    <div class="val">Segmented pill (matches Shopping)</div>
+  </div>
+  <div>
+    <div class="lbl">Default privacy</div>
+    <div class="val">🔒 Personal — only you see, only you push</div>
+  </div>
+  <div>
+    <div class="lbl">Sharing</div>
+    <div class="val">One tap 📣 Notify → Shared + push to family</div>
+  </div>
+  <div>
+    <div class="lbl">To-dos layout</div>
+    <div class="val">Flat list, tier icons on each row</div>
+  </div>
+  <div>
+    <div class="lbl">Done items</div>
+    <div class="val">Inline greyed at bottom, auto-clear after 7 days</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: HOME TILE — 3 STATES -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 1 · Home tile</div>
+  <div class="section-title">Home tile — three states</div>
+  <div class="section-desc">Gold accent + big-text headline. Eyebrow renamed <b>⏰ REMINDERS & TO-DOS</b> to match the sheet identity. Longest tile eyebrow in the app (20 chars) — kept tight with 0.5px letter-spacing to fit next to the "Full list →" hint. Rows show top items (dated first). 🔒 / 📣 icons on right of each row make tier scannable.</div>
+</div>
+
+<div class="frames">
+
+  <!-- STATE 1: EMPTY -->
+  <div class="frame-wrap">
+    <div class="frame-label">STATE 1 · EMPTY</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">Home</div><div class="ham"><span></span><span></span><span></span></div></div>
+        </div>
+        <div class="home-feed">
+          <div class="tile" style="background: var(--gold-t);">
+            <div class="tile-head">
+              <div class="tile-eyebrow" style="color: var(--gold-d);">⏰ REMINDERS & TO-DOS</div>
+              <div class="tile-hint" style="color: var(--gold-d);">Full list →</div>
+            </div>
+            <div class="tile-headline" style="color: var(--ink);">Nothing on your plate.</div>
+            <div class="add-pill" style="border-color: var(--gold-d);">
+              <span class="plus">+</span>
+              <span class="fld" style="color: rgba(139,105,20,0.65);">Add a reminder or to-do…</span>
+              <span class="mic" style="background: rgba(139,105,20,0.10); color: var(--gold-d);">🎙</span>
+            </div>
+          </div>
+        </div>
+        <div class="chat-bar">
+          <div class="mic">🎙</div>
+          <div class="sep"></div>
+          <div class="field">Ask Zaeli anything…</div>
+          <div class="send">↑</div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Rare quiet moment. Competence-first empty state — no nudge, no fake urgency.</p>
+  </div>
+
+  <!-- STATE 2: POPULATED MIXED -->
+  <div class="frame-wrap">
+    <div class="frame-label">STATE 2 · POPULATED</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">Home</div><div class="ham"><span></span><span></span><span></span></div></div>
+        </div>
+        <div class="home-feed">
+          <div class="tile" style="background: var(--gold-t);">
+            <div class="tile-head">
+              <div class="tile-eyebrow" style="color: var(--gold-d);">⏰ REMINDERS & TO-DOS</div>
+              <div class="tile-hint" style="color: var(--gold-d);">Full list →</div>
+            </div>
+            <div class="tile-headline" style="color: var(--ink);">5 on your plate.</div>
+            <div class="tile-row">
+              <div class="t" style="color: var(--gold-d);">7:30 am</div>
+              <div class="rd" style="background: var(--gold-d);"></div>
+              <div class="n" style="font-weight: 500;">Gold coin — Gab</div>
+              <div class="shared-icon">📣</div>
+            </div>
+            <div class="tile-row">
+              <div class="t" style="color: var(--gold-d);">5:15 pm</div>
+              <div class="rd" style="background: var(--gold-d);"></div>
+              <div class="n" style="font-weight: 500;">Pick up Poppy — dance</div>
+              <div class="shared-icon">📣</div>
+            </div>
+            <div class="tile-row">
+              <div class="t" style="color: var(--ink4);">to-do</div>
+              <div class="rd" style="background: var(--ink5);"></div>
+              <div class="n" style="font-weight: 500;">Book haircut</div>
+              <div class="shared-icon">🔒</div>
+            </div>
+            <div class="add-pill" style="border-color: var(--gold-d);">
+              <span class="plus">+</span>
+              <span class="fld" style="color: rgba(139,105,20,0.65);">Add a reminder or to-do…</span>
+              <span class="mic" style="background: rgba(139,105,20,0.10); color: var(--gold-d);">🎙</span>
+            </div>
+          </div>
+        </div>
+        <div class="chat-bar">
+          <div class="mic">🎙</div>
+          <div class="sep"></div>
+          <div class="field">Ask Zaeli anything…</div>
+          <div class="send">↑</div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Reminders first (with times), then to-dos (grey "to-do" label). 📣 = shared, 🔒 = personal.</p>
+  </div>
+
+  <!-- STATE 3: ALL DONE -->
+  <div class="frame-wrap">
+    <div class="frame-label">STATE 3 · CAUGHT UP</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">Home</div><div class="ham"><span></span><span></span><span></span></div></div>
+        </div>
+        <div class="home-feed">
+          <div class="tile" style="background: var(--gold-t);">
+            <div class="tile-head">
+              <div class="tile-eyebrow" style="color: var(--gold-d);">⏰ REMINDERS & TO-DOS</div>
+              <div class="tile-hint" style="color: var(--gold-d);">Full list →</div>
+            </div>
+            <div class="tile-headline" style="color: var(--ink);">You're on top of it.</div>
+            <div style="font-size: 12px; color: var(--ink3); font-weight: 500; margin-top: -6px; margin-bottom: 6px;">3 done today · 2 to-dos ahead</div>
+            <div class="add-pill" style="border-color: var(--gold-d);">
+              <span class="plus">+</span>
+              <span class="fld" style="color: rgba(139,105,20,0.65);">Add a reminder or to-do…</span>
+              <span class="mic" style="background: rgba(139,105,20,0.10); color: var(--gold-d);">🎙</span>
+            </div>
+          </div>
+        </div>
+        <div class="chat-bar">
+          <div class="mic">🎙</div>
+          <div class="sep"></div>
+          <div class="field">Ask Zaeli anything…</div>
+          <div class="send">↑</div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Everything ticked. Small "done today / to-dos ahead" line acknowledges progress without shouting.</p>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: SHEET — 2 TABS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 2 · Reminders & to-dos sheet</div>
+  <div class="section-title">Two tabs — Reminders / To-dos</div>
+  <div class="section-desc">Simplified from four tabs to two. <b>Reminders</b> = anything dated (time or day). <b>To-dos</b> = undated. Reminders tab groups by day-header (Today / Tomorrow / Fri 5 Aug). To-dos tab is flat with tier icons showing 🔒 personal / 📣 shared. Done items sit inline at bottom, greyed + strikethrough, auto-clear after 7 days (or user long-press to permanently delete).</div>
+</div>
+
+<div class="frames">
+
+  <!-- TAB 1: REMINDERS (dated) -->
+  <div class="frame-wrap">
+    <div class="frame-label">TAB 1 · REMINDERS (dated)</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="rem-screen">
+          <div class="sheet-handle"></div>
+          <div class="sheet-hdr">
+            <div class="sheet-title">⏰ Reminders &amp; to-dos</div>
+            <div class="sheet-close">✕</div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab active">Reminders</div>
+            <div class="tab">To-dos</div>
+          </div>
+          <div style="overflow-y: hidden; height: 355px;">
+            <div class="sheet-sec-lbl">Today · Thu 31 Jul</div>
+            <div class="rem-list">
+              <div class="rem-item shared">
+                <div class="rem-check"></div>
+                <div class="rem-body">
+                  <div class="t">Gold coin — Gab's class</div>
+                  <div class="meta"><span>7:30 am</span><span class="dot">·</span><span class="tag shared">📣 Shared</span></div>
+                </div>
+                <div class="rem-x">✕</div>
+              </div>
+              <div class="rem-item shared">
+                <div class="rem-check"></div>
+                <div class="rem-body">
+                  <div class="t">Pick up Poppy — dance</div>
+                  <div class="meta"><span>5:15 pm</span><span class="dot">·</span><span class="tag shared">📣 Shared</span></div>
+                </div>
+                <div class="rem-x">✕</div>
+              </div>
+              <div class="rem-item personal">
+                <div class="rem-check"></div>
+                <div class="rem-body">
+                  <div class="t">Journal after kids in bed</div>
+                  <div class="meta"><span>9:00 pm</span><span class="dot">·</span><span class="tag personal">🔒 Just me</span></div>
+                </div>
+                <div class="rem-x">✕</div>
+              </div>
+            </div>
+
+            <div class="sheet-sec-lbl">Tomorrow · Fri 1 Aug</div>
+            <div class="rem-list">
+              <div class="rem-item shared">
+                <div class="rem-check"></div>
+                <div class="rem-body">
+                  <div class="t">Renew Duke's swim membership</div>
+                  <div class="meta"><span>10:00 am</span><span class="dot">·</span><span class="tag shared">📣 Shared</span></div>
+                </div>
+                <div class="rem-x">✕</div>
+              </div>
+            </div>
+
+            <div class="sheet-sec-lbl">Done · this week</div>
+            <div class="rem-list">
+              <div class="rem-item shared done">
+                <div class="rem-check done">✓</div>
+                <div class="rem-body">
+                  <div class="t done">School permission slips</div>
+                  <div class="meta"><span>Wed · Shared</span></div>
+                </div>
+                <div class="rem-x">↺</div>
+              </div>
+            </div>
+          </div>
+          <div class="sheet-input">
+            <div class="mic">🎙</div>
+            <div class="sep"></div>
+            <div class="fld">Add a reminder or to-do…</div>
+            <div class="cam">📷</div>
+            <div class="send dim">↑</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Grouped by day. Today at top with timed items. Done items sit at bottom greyed. ↺ = undo done.</p>
+  </div>
+
+  <!-- TAB 2: TO-DOS (undated, flat) -->
+  <div class="frame-wrap">
+    <div class="frame-label">TAB 2 · TO-DOS (undated)</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="rem-screen">
+          <div class="sheet-handle"></div>
+          <div class="sheet-hdr">
+            <div class="sheet-title">⏰ Reminders &amp; to-dos</div>
+            <div class="sheet-close">✕</div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab">Reminders</div>
+            <div class="tab active">To-dos</div>
+          </div>
+          <div style="overflow-y: hidden; height: 355px;">
+            <div class="rem-list" style="padding-top: 8px;">
+              <div class="rem-item personal">
+                <div class="rem-check"></div>
+                <div class="rem-body">
+                  <div class="t">Book haircut</div>
+                  <div class="meta"><span class="tag personal">🔒 Just me</span></div>
+                </div>
+                <div class="rem-x">✕</div>
+              </div>
+              <div class="rem-item shared">
+                <div class="rem-check"></div>
+                <div class="rem-body">
+                  <div class="t">Book Bali holiday flights</div>
+                  <div class="meta"><span class="tag shared">📣 Shared</span></div>
+                </div>
+                <div class="rem-x">✕</div>
+              </div>
+              <div class="rem-item personal">
+                <div class="rem-check"></div>
+                <div class="rem-body">
+                  <div class="t">Renew rego before Sept</div>
+                  <div class="meta"><span class="tag personal">🔒 Just me</span></div>
+                </div>
+                <div class="rem-x">✕</div>
+              </div>
+              <div class="rem-item shared">
+                <div class="rem-check"></div>
+                <div class="rem-body">
+                  <div class="t">Get bike helmets — kids growing out</div>
+                  <div class="meta"><span class="tag shared">📣 Shared</span></div>
+                </div>
+                <div class="rem-x">✕</div>
+              </div>
+              <div class="rem-item personal">
+                <div class="rem-check"></div>
+                <div class="rem-body">
+                  <div class="t">Call physio about back</div>
+                  <div class="meta"><span class="tag personal">🔒 Just me</span></div>
+                </div>
+                <div class="rem-x">✕</div>
+              </div>
+            </div>
+
+            <div class="sheet-sec-lbl">Done</div>
+            <div class="rem-list">
+              <div class="rem-item shared done">
+                <div class="rem-check done">✓</div>
+                <div class="rem-body">
+                  <div class="t done">Sort weekend BBQ plans</div>
+                  <div class="meta"><span>Mon · Shared</span></div>
+                </div>
+                <div class="rem-x">↺</div>
+              </div>
+            </div>
+          </div>
+          <div class="sheet-input">
+            <div class="mic">🎙</div>
+            <div class="sep"></div>
+            <div class="fld">Add a reminder or to-do…</div>
+            <div class="cam">📷</div>
+            <div class="send dim">↑</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Flat list, mixed personal + shared. Icons on right show tier. Done at bottom. THIS is the to-do list Anna asked for.</p>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: ADD FLOW -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 3 · Add flow</div>
+  <div class="section-title">Type → Personal by default → 1 tap to Share</div>
+  <div class="section-desc">Fast path: type, hit send, item lands as <b>Personal</b>. Chip row appears: <b>📣 Notify family</b> converts it to Shared + fires push in one tap. No modal, no toggle, no upfront decision required.</div>
+</div>
+
+<div class="frames">
+
+  <!-- ADD 1: TYPING -->
+  <div class="frame-wrap">
+    <div class="frame-label">ADD 1 · TYPING</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="rem-screen">
+          <div class="sheet-handle"></div>
+          <div class="sheet-hdr">
+            <div class="sheet-title">⏰ Reminders &amp; to-dos</div>
+            <div class="sheet-close">✕</div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab">Reminders</div>
+            <div class="tab active">To-dos</div>
+          </div>
+          <div style="height: 175px; overflow: hidden;">
+            <div class="rem-list" style="padding-top: 8px;">
+              <div class="rem-item personal">
+                <div class="rem-check"></div>
+                <div class="rem-body">
+                  <div class="t">Book Bali holiday flights</div>
+                  <div class="meta"><span class="tag shared">📣 Shared</span></div>
+                </div>
+                <div class="rem-x">✕</div>
+              </div>
+            </div>
+          </div>
+          <div class="sheet-input" style="bottom: 170px;">
+            <div class="mic">🎙</div>
+            <div class="sep"></div>
+            <div class="fld typed">Book haircut</div>
+            <div class="cam">📷</div>
+            <div class="send">↑</div>
+          </div>
+          <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 160px; background: rgba(210,210,210,0.9); border-top: 1px solid var(--line); padding: 8px;">
+            <div style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; padding: 4px;">
+              <div style="background: white; border-radius: 5px; padding: 8px 0; text-align: center; font-size: 11px;">q</div>
+              <div style="background: white; border-radius: 5px; padding: 8px 0; text-align: center; font-size: 11px;">w</div>
+              <div style="background: white; border-radius: 5px; padding: 8px 0; text-align: center; font-size: 11px;">e</div>
+              <div style="background: white; border-radius: 5px; padding: 8px 0; text-align: center; font-size: 11px;">r</div>
+              <div style="background: white; border-radius: 5px; padding: 8px 0; text-align: center; font-size: 11px;">t</div>
+              <div style="background: white; border-radius: 5px; padding: 8px 0; text-align: center; font-size: 11px;">y</div>
+              <div style="background: white; border-radius: 5px; padding: 8px 0; text-align: center; font-size: 11px;">u</div>
+              <div style="background: white; border-radius: 5px; padding: 8px 0; text-align: center; font-size: 11px;">i</div>
+              <div style="background: white; border-radius: 5px; padding: 8px 0; text-align: center; font-size: 11px;">o</div>
+              <div style="background: white; border-radius: 5px; padding: 8px 0; text-align: center; font-size: 11px;">p</div>
+            </div>
+            <div style="text-align: center; font-size: 10px; color: var(--ink3); padding-top: 60px;">(keyboard doesn't cover input — Round B fix)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Send button lights up when there's text. Sheet input pill sits above keyboard — no more covered input.</p>
+  </div>
+
+  <!-- ADD 2: JUST ADDED (PERSONAL DEFAULT) -->
+  <div class="frame-wrap">
+    <div class="frame-label">ADD 2 · JUST ADDED (Personal)</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="rem-screen">
+          <div class="sheet-handle"></div>
+          <div class="sheet-hdr">
+            <div class="sheet-title">⏰ Reminders &amp; to-dos</div>
+            <div class="sheet-close">✕</div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab">Reminders</div>
+            <div class="tab active">To-dos</div>
+          </div>
+          <div class="rem-list" style="padding-top: 8px;">
+            <div class="rem-item personal" style="background: var(--gold-t); border-left: 3px solid var(--gold);">
+              <div class="rem-check"></div>
+              <div class="rem-body">
+                <div class="t">Book haircut</div>
+                <div class="meta"><span class="tag personal">🔒 Just me</span></div>
+              </div>
+              <div class="rem-x">✕</div>
+            </div>
+            <div class="item-chips">
+              <div class="chip primary">📣 Notify family</div>
+              <div class="chip ghost">All good</div>
+            </div>
+            <div class="rem-item shared">
+              <div class="rem-check"></div>
+              <div class="rem-body">
+                <div class="t">Book Bali holiday flights</div>
+                <div class="meta"><span class="tag shared">📣 Shared</span></div>
+              </div>
+              <div class="rem-x">✕</div>
+            </div>
+          </div>
+          <div class="sheet-input">
+            <div class="mic">🎙</div>
+            <div class="sep"></div>
+            <div class="fld">Add a reminder or to-do…</div>
+            <div class="cam">📷</div>
+            <div class="send dim">↑</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Item added as <b>Personal</b> (default). Gold highlight fades after 2s. Chip row appears: <b>📣 Notify family</b> = convert + push. "All good" = keep personal, dismiss chips.</p>
+  </div>
+
+  <!-- ADD 3: CONVERTED TO SHARED -->
+  <div class="frame-wrap">
+    <div class="frame-label">ADD 3 · SHARED + NOTIFIED</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="rem-screen">
+          <div class="sheet-handle"></div>
+          <div class="sheet-hdr">
+            <div class="sheet-title">⏰ Reminders &amp; to-dos</div>
+            <div class="sheet-close">✕</div>
+          </div>
+          <div class="tab-bar">
+            <div class="tab">Reminders</div>
+            <div class="tab active">To-dos</div>
+          </div>
+          <div class="rem-list" style="padding-top: 8px;">
+            <div class="rem-item shared">
+              <div class="rem-check"></div>
+              <div class="rem-body">
+                <div class="t">Book haircut</div>
+                <div class="meta"><span class="tag shared">📣 Shared · notified</span></div>
+              </div>
+              <div class="rem-x">✕</div>
+            </div>
+            <div class="item-chips">
+              <div class="chip mint">✓ Anna notified</div>
+            </div>
+            <div class="rem-item shared">
+              <div class="rem-check"></div>
+              <div class="rem-body">
+                <div class="t">Book Bali holiday flights</div>
+                <div class="meta"><span class="tag shared">📣 Shared</span></div>
+              </div>
+              <div class="rem-x">✕</div>
+            </div>
+          </div>
+          <div class="sheet-input">
+            <div class="mic">🎙</div>
+            <div class="sep"></div>
+            <div class="fld">Add a reminder or to-do…</div>
+            <div class="cam">📷</div>
+            <div class="send dim">↑</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Tap 📣 → item flips to <b>Shared</b> (gold border), push fires to Anna, confirmation chip <b>✓ Anna notified</b> for 3s.</p>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 4: BRIEF MENTION -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 4 · Morning brief</div>
+  <div class="section-title">Personal vs Shared — respected in the brief</div>
+  <div class="section-desc">Your personal items surface <b>only to you</b>. Family items surface for everyone. Zaeli separates them naturally in the morning brief.</div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">MORNING BRIEF</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">Chat</div><div class="ham"><span></span><span></span><span></span></div></div>
+        </div>
+        <div class="chat-body">
+          <div class="brief-bubble">
+            <div class="brief-pill">☀ MORNING</div>
+            <div class="z-eyebrow">Zaeli · 7:00 am</div>
+            <div class="brief-txt">
+              Morning Rich — <span class="hi">busy family day</span> ahead 🚗<br><br>
+              Gab's got soccer at 4pm, Poppy's dance at 5:15pm, Duke's swim at 6pm — you and Anna are the taxi crew. Bins go out tonight 🗑<br><br>
+              Personal for you: <b>book haircut</b> is still on your to-do list — this weekend maybe? 💇
+            </div>
+          </div>
+          <div class="msg-user">Yeah let me sort haircut Saturday</div>
+          <div class="msg-zaeli">Done ✓. <b>Haircut Saturday 10 am</b> — moved from To-dos to Reminders. Kept it just for you.</div>
+        </div>
+        <div class="chat-bar">
+          <div class="mic">🎙</div>
+          <div class="sep"></div>
+          <div class="field">Ask Zaeli anything…</div>
+          <div class="send">↑</div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Family stuff mentioned first (kids' events), then personal ("book haircut"). Zaeli understands the divide. Anna's brief omits Rich's personal items entirely.</p>
+  </div>
+
+</div>
+
+<div class="section-header" style="text-align: center; margin-top: 60px;">
+  <div class="section-eyebrow">Also fixes these Round B bugs</div>
+  <div class="section-desc" style="max-width: 700px; margin-left: auto; margin-right: auto;">
+    <b>1.</b> Keyboard covered reminder input → KAV inside sheet card (Session 18 pattern).<br>
+    <b>2.</b> Manual reminder entry didn't save → rewritten send path with tier system.<br>
+    <b>3.</b> Calendar + Add Event skipping intermediary sheet → same one-tap principle applied.
+  </div>
+</div>
+
+</body>
+</html>

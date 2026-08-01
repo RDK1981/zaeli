@@ -165,7 +165,7 @@ export default function DashboardScreen({
   const [shopJustAdded, setShopJustAdded] = useState<string | null>(null);
 
   // Reminders (Session 32 v2 Phase 05)
-  const [remindItems, setRemindItems] = useState<{ id: string; title: string; whenLabel: string; isMe: boolean }[]>([]);
+  const [remindItems, setRemindItems] = useState<{ id: string; title: string; whenLabel: string; isMe: boolean; tier: 'personal'|'shared' }[]>([]);
   const [remindCount, setRemindCount] = useState(0);
 
   // Round A — MoreSheet state (hamburger now opens this, not direct-to-Settings)
@@ -187,7 +187,7 @@ export default function DashboardScreen({
         .eq('family_id', fid).neq('checked', true)
         .order('created_at', { ascending: false }).limit(50),
       supabase.from('reminders')
-        .select('id,title,remind_at,remind_on,created_by,status')
+        .select('id,title,remind_at,remind_on,visibility,created_by,status')
         .eq('family_id', fid).eq('status', 'active')
         .order('remind_at', { ascending: true, nullsFirst: false })
         .order('remind_on', { ascending: true, nullsFirst: false })
@@ -199,26 +199,39 @@ export default function DashboardScreen({
     setShopItems((shopRes.data ?? []).slice(0, 3));
     setShopCount((shopRes.data ?? []).length);
 
-    const rems = (remRes.data ?? []).map((r: any) => {
-      let whenLabel = 'someday';
-      if (r.remind_at) {
-        // Round A fix — parse remind_at as local wall-clock (Hermes parses
-        // no-timezone ISO as UTC otherwise, causing a 10-hour Brisbane skew)
-        const d = parseLocalIsoAsDate(r.remind_at);
-        const dToday = new Date(); dToday.setHours(0,0,0,0);
-        const dTmw   = new Date(dToday.getTime() + 24*3600*1000);
-        const dayOfR = new Date(d); dayOfR.setHours(0,0,0,0);
-        const hh     = d.getHours(); const mm = d.getMinutes();
-        const tstr   = `${((hh+11)%12+1)}${mm ? ':' + String(mm).padStart(2,'0') : ''}${hh<12?'am':'pm'}`;
-        if (dayOfR.getTime() === dToday.getTime()) whenLabel = tstr;
-        else if (dayOfR.getTime() === dTmw.getTime()) whenLabel = `tmw ${tstr}`;
-        else whenLabel = `${d.toLocaleDateString('en-AU',{ weekday:'short' })} ${tstr}`;
-      } else if (r.remind_on) {
-        const d = new Date(r.remind_on + 'T00:00:00');
-        whenLabel = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric' });
-      }
-      return { id: r.id, title: r.title, whenLabel, isMe: r.created_by === myId };
-    });
+    // Round B — home tile shows DATED items only (reminders with a time or
+    // date). To-dos (no date) don't rank naturally without a due date and
+    // live in the sheet's To-dos tab only. RLS already excludes other users'
+    // personal items; tier icon (🔒/👥) lets Rich see at a glance whether
+    // a row is mine-only or family-shared.
+    const rems = (remRes.data ?? [])
+      .filter((r: any) => r.remind_at || r.remind_on)
+      .map((r: any) => {
+        let whenLabel = 'someday';
+        if (r.remind_at) {
+          // Round A fix — parse remind_at as local wall-clock (Hermes parses
+          // no-timezone ISO as UTC otherwise, causing a 10-hour Brisbane skew)
+          const d = parseLocalIsoAsDate(r.remind_at);
+          const dToday = new Date(); dToday.setHours(0,0,0,0);
+          const dTmw   = new Date(dToday.getTime() + 24*3600*1000);
+          const dayOfR = new Date(d); dayOfR.setHours(0,0,0,0);
+          const hh     = d.getHours(); const mm = d.getMinutes();
+          const tstr   = `${((hh+11)%12+1)}${mm ? ':' + String(mm).padStart(2,'0') : ''}${hh<12?'am':'pm'}`;
+          if (dayOfR.getTime() === dToday.getTime()) whenLabel = tstr;
+          else if (dayOfR.getTime() === dTmw.getTime()) whenLabel = `tmw ${tstr}`;
+          else whenLabel = `${d.toLocaleDateString('en-AU',{ weekday:'short' })} ${tstr}`;
+        } else if (r.remind_on) {
+          const d = new Date(r.remind_on + 'T00:00:00');
+          whenLabel = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric' });
+        }
+        return {
+          id: r.id,
+          title: r.title,
+          whenLabel,
+          isMe: r.created_by === myId,
+          tier: (r.visibility as 'personal'|'shared') ?? 'personal',
+        };
+      });
     setRemindItems(rems.slice(0, 3));
     setRemindCount(rems.length);
   }, []);
@@ -452,14 +465,18 @@ export default function DashboardScreen({
             )}
           </TouchableOpacity>
 
-          {/* ── REMINDERS TILE (gold) — Round A big-text ──────────────── */}
+          {/* ── REMINDERS & TO-DOS TILE (gold) — Round B renamed ──────────
+              Sheet now holds both dated Reminders and undated To-dos in two
+              tabs (Round B commit 2). Tile headline still surfaces just the
+              next few DATED items (to-dos don't rank naturally without a
+              due date) but the eyebrow + hint reflect the fuller scope. */}
           <TouchableOpacity
             style={[s.tile, { backgroundColor: T.goldTint, borderColor: 'transparent' }]}
             onPress={openRemindersSheet} activeOpacity={0.85}
           >
             <View style={s.tileHead}>
-              <Text style={[s.tileEyebrow, { color: T.goldDeep }]}>⏰ REMINDERS</Text>
-              <Text style={[s.fullHint, { color: T.goldDeep }]}>All reminders →</Text>
+              <Text style={[s.tileEyebrow, { color: T.goldDeep }]}>⏰ REMINDERS & TO-DOS</Text>
+              <Text style={[s.fullHint, { color: T.goldDeep }]}>Full list →</Text>
             </View>
             <Text style={[s.tileHeadline, { color: T.ink }]}>
               {remindCount === 0 ? "Nothing to remember." : remindCount === 1 && remindItems[0]?.whenLabel ? `1 due ${remindItems[0].whenLabel}.` : `${remindCount} up next.`}
@@ -467,13 +484,14 @@ export default function DashboardScreen({
             {remindItems.map(r => (
               <View key={r.id} style={s.calRow}>
                 <Text style={[s.calTime, { color: T.goldDeep, opacity: 0.75 }]}>{r.whenLabel}</Text>
-                <View style={[s.calDot, { backgroundColor: T.goldDeep, opacity: r.isMe ? 0.9 : 0.45 }]}/>
+                {/* Tier icon — 🔒 personal (mine only) / 👥 shared (family sees) */}
+                <Text style={{ fontSize: 11, marginRight: 4 }}>{r.tier === 'personal' ? '🔒' : '👥'}</Text>
                 <Text style={[s.calTitle, { color: T.ink }]} numberOfLines={1}>{r.title}</Text>
               </View>
             ))}
             <View style={[s.quickAdd, { backgroundColor: '#fff', borderColor: T.goldDeep, borderWidth: 1.5 }]}>
               <Text style={[s.quickPlus, { color: T.coral }]}>+</Text>
-              <Text style={[s.quickField, { color: T.goldDeep, opacity: 0.75 }]}>Add a reminder…</Text>
+              <Text style={[s.quickField, { color: T.goldDeep, opacity: 0.75 }]}>Add reminder or to-do…</Text>
               <TouchableOpacity
                 onPress={(e) => { e.stopPropagation?.(); openChatMic(); }}
                 style={s.tileMic}

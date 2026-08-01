@@ -51,7 +51,7 @@ import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 import { getFamilyId } from '../../lib/family';
-import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, parseLocalIsoAsDate, type Reminder } from '../../lib/reminders';
+import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, updateReminderVisibility, parseLocalIsoAsDate, type Reminder, type Visibility } from '../../lib/reminders';
 const MEMBER_NAME      = 'Rich';
 const INK              = '#0A0A0A';
 const INK3             = 'rgba(10,10,10,0.32)';
@@ -3429,11 +3429,18 @@ function HomeScreen({
   const [calSheetDayEvs,  setCalSheetDayEvs]  = useState<any[]>([]);
   const [calSheetMonthEvs, setCalSheetMonthEvs] = useState<any[]>([]); // all events in current month for dots
 
-  // ── Reminders sheet state (Session 32 v2 Phase 05) ─────────────────────
+  // ── Reminders & To-dos sheet state (Round B commit 2) ──────────────────
+  // Sheet now houses two tabs: dated Reminders + undated To-dos (both live
+  // in the same `reminders` table). Notify chip appears after a successful
+  // add and offers a one-tap Personal → Shared conversion so Rich can add
+  // for himself by default but share with a single tap when useful.
   const [remindSheetOpen,    setRemindSheetOpen]    = useState(false);
   const [remindSheetItems,   setRemindSheetItems]   = useState<any[]>([]);
+  const [remindSheetTab,     setRemindSheetTab]     = useState<'reminders'|'todos'>('reminders');
   const [remindDraft,        setRemindDraft]        = useState('');
   const [remindKbHeight,     setRemindKbHeight]     = useState(0);
+  const [remindLastAddedId,  setRemindLastAddedId]  = useState<string|null>(null);
+  const remindNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Shopping sheet state ─────────────────────────────────────────────────
   const [shopSheetOpen,      setShopSheetOpen]      = useState(false);
@@ -3523,6 +3530,20 @@ function HomeScreen({
     });
     return () => { showSub.remove(); hideSub.remove(); };
   }, [shopSheetOpen]);
+
+  // Round B — same keyboard-height pattern for Reminders sheet. Anna's
+  // Round A feedback said "keyboard covers the Reminder typing section".
+  // KAV padding mode isn't reliable inside Modal on iOS; matching Shopping's
+  // manual-height approach fixes it deterministically.
+  useEffect(() => {
+    const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
+      if (remindSheetOpen) setRemindKbHeight(e.endCoordinates.height);
+    });
+    const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {
+      setRemindKbHeight(0);
+    });
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, [remindSheetOpen]);
 
   // ── Card data state ──────────────────────────────────────────────────────
   const [cardData, setCardData] = useState<CardData>({
@@ -5798,7 +5819,7 @@ Only include events directly relevant to the question. Max 5 events.`;
   }
 
   // ── Shopping sheet open / data ────────────────────────────────────────────
-  // ── Reminders sheet (Session 32 v2 Phase 05) ──────────────────────────
+  // ── Reminders & To-dos sheet (Round B commit 2) ───────────────────────
   async function openRemindSheet() {
     setRemindSheetOpen(true);
     await reloadReminders();
@@ -5813,11 +5834,63 @@ Only include events directly relevant to the question. Max 5 events.`;
     const raw = remindDraft.trim();
     if (!raw) return;
     setRemindDraft('');
-    // Simple heuristic: default = undated. User can tap the calendar/time
-    // pills after adding to attach a schedule. Keeps add-flow as fast as
-    // the shopping tile.
-    const r = await saveReminder({ title: raw.charAt(0).toUpperCase() + raw.slice(1), status: 'active' });
-    if (r) setRemindSheetItems(prev => [r, ...prev]);
+    // Round B — manual add now creates whichever kind matches the active
+    // tab: Reminders tab → date-only reminder for today (user can promote
+    // to timed via edit later); To-dos tab → undated to-do. Personal by
+    // default; Notify chip below the row offers one-tap Shared conversion.
+    // Anna Round A bug: manual entry didn't save — belt-and-braces reload
+    // after add so if the optimistic state prepend misses (rare race), the
+    // list catches up.
+    const draft: Partial<Reminder> = {
+      title: raw.charAt(0).toUpperCase() + raw.slice(1),
+      status: 'active',
+      visibility: 'personal',
+    };
+    if (remindSheetTab === 'reminders') {
+      // Default a date-only reminder to today so it lands in the correct
+      // tab. User can edit the date via a follow-up detail sheet later.
+      draft.remindOn = localDateStr();
+    }
+    let r: Reminder | null = null;
+    try {
+      r = await saveReminder(draft);
+    } catch (e:any) {
+      console.log('[reminders] save threw:', e?.message);
+    }
+    if (r) {
+      setRemindSheetItems(prev => [r as Reminder, ...prev]);
+      // Show the Notify chip for the freshly-added item; auto-dismiss
+      // after 8s so it doesn't hang around forever.
+      setRemindLastAddedId(r.id);
+      if (remindNotifyTimerRef.current) clearTimeout(remindNotifyTimerRef.current);
+      remindNotifyTimerRef.current = setTimeout(() => setRemindLastAddedId(null), 8000);
+    } else {
+      // Save failed silently — force a full reload so at least a server
+      // round-trip has a chance to surface the row (or nothing, honestly).
+      reloadReminders();
+    }
+  }
+  // Round B — one-tap Personal → Shared conversion. Called from the Notify
+  // chip that appears below the freshly-added row.
+  async function convertReminderToShared(id: string) {
+    // Optimistic UI first
+    setRemindSheetItems(prev => prev.map(x => x.id === id ? { ...x, visibility: 'shared' } : x));
+    setRemindLastAddedId(null);
+    if (remindNotifyTimerRef.current) clearTimeout(remindNotifyTimerRef.current);
+    try {
+      await updateReminderVisibility(id, 'shared');
+      // Fire family push — creator is excluded from recipients server-side.
+      const item = remindSheetItems.find(x => x.id === id);
+      if (item) {
+        const me = getProfile()?.name?.split(/\s+/)[0] ?? 'Someone';
+        notifyFamily({
+          title: `⏰ ${me} shared a reminder`,
+          body: item.title,
+        }).catch((e:any) => console.log('[reminders] notify threw:', e?.message));
+      }
+    } catch (e:any) {
+      console.log('[reminders] convert threw:', e?.message);
+    }
   }
 
   async function openShopSheet(tab: 'list'|'pantry'|'spend' = 'list') {
@@ -7813,11 +7886,13 @@ Rules:
           </View>
         </Modal>
 
-        {/* ── REMINDERS SHEET (Session 32 v2 Phase 05) ────────────────────
-            Simple v1: title-only reminders, ordered by remind_at/on/created.
-            Tap ✓ to mark done, tap ✕ to delete. Add row at bottom.
-            Time/date pickers land in a follow-up pass — first ship the
-            add + list + done + delete loop so Anna can try it.  */}
+        {/* ── REMINDERS & TO-DOS SHEET (Round B commit 2) ─────────────────
+            Two-tab sheet: dated Reminders (grouped by day) + undated To-dos
+            (flat). Each row shows a tier icon (🔒 personal / 👥 shared) and
+            done items appear inline greyed at the bottom of each tab,
+            auto-clearing after 7 days via client filter. Notify chip below
+            the freshly-added row lets the user convert Personal → Shared
+            with one tap (which also fires a family push).  */}
         <Modal
           visible={remindSheetOpen}
           transparent
@@ -7833,7 +7908,7 @@ Rules:
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
                   <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                     <Text style={{ fontSize:20 }}>⏰</Text>
-                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A0A0A', letterSpacing:-0.3 }}>Reminders</Text>
+                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:22, color:'#0A0A0A', letterSpacing:-0.3 }}>Reminders & To-dos</Text>
                   </View>
                   <TouchableOpacity
                     onPress={() => setRemindSheetOpen(false)}
@@ -7843,85 +7918,207 @@ Rules:
                     <Text style={{ fontSize:16, color:'rgba(0,0,0,0.5)' }}>✕</Text>
                   </TouchableOpacity>
                 </View>
-                <KeyboardAvoidingView
-                  style={{ flex:1 }}
-                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                  keyboardVerticalOffset={0}
-                >
+
+                {/* Segmented pill tabs — matches Shopping's style for
+                    consistency (Round B feedback: "same tab design like
+                    shopping to match the app theme") */}
+                <View style={{ flexDirection:'row', marginHorizontal:16, marginTop:12, marginBottom:4, backgroundColor:'rgba(0,0,0,0.06)', borderRadius:12, padding:4 }}>
+                  {(['reminders','todos'] as const).map(tab => {
+                    const active = remindSheetTab === tab;
+                    return (
+                      <TouchableOpacity
+                        key={tab}
+                        onPress={() => setRemindSheetTab(tab)}
+                        style={{ flex:1, backgroundColor: active ? '#fff' : 'transparent', borderRadius:9, paddingVertical:8, alignItems:'center', shadowColor: active ? '#000' : 'transparent', shadowOffset: { width:0, height:1 }, shadowOpacity: active ? 0.08 : 0, shadowRadius: 2 }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontFamily: active ? 'Poppins_700Bold' : 'Poppins_500Medium', fontSize:14, color: active ? '#0A0A0A' : 'rgba(0,0,0,0.55)' }}>
+                          {tab === 'reminders' ? 'Reminders' : 'To-dos'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Round B — no KAV wrapper here. Instead, the input strip
+                    below applies marginBottom = keyboard height when up.
+                    Matches Shopping's proven pattern (KAV mode inside a
+                    Modal is unreliable on iOS — shrinks unpredictably or
+                    pushes whole modal off-screen). */}
+                <View style={{ flex:1 }}>
                   <ScrollView
                     style={{ flex:1 }}
                     contentContainerStyle={{ padding:16, paddingBottom: 20 + Math.max(0, insets.bottom) }}
                     keyboardShouldPersistTaps="handled"
                   >
-                    {remindSheetItems.length === 0 ? (
-                      <View style={{ paddingVertical:32, alignItems:'center' }}>
-                        <Text style={{ fontSize:38, marginBottom:8 }}>⏰</Text>
-                        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:17, color:'#0A0A0A', marginBottom:4 }}>Nothing to remember yet</Text>
-                        <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.5)', textAlign:'center', maxWidth:260 }}>
-                          Everyone in the family sees these. Notifications go to whoever added them.
-                        </Text>
-                      </View>
-                    ) : remindSheetItems.map((r:Reminder) => {
-                      const isDone = r.status === 'done';
-                      const myId = getProfile()?.id;
-                      const isMe = r.createdBy === myId;
-                      let whenLabel = 'someday';
-                      if (r.remindAt) {
-                        // Round A fix — parseLocalIsoAsDate not new Date (Hermes UTC bug)
-                        const d = parseLocalIsoAsDate(r.remindAt);
-                        const dToday = new Date(); dToday.setHours(0,0,0,0);
-                        const dTmw   = new Date(dToday.getTime() + 24*3600*1000);
-                        const dayOfR = new Date(d); dayOfR.setHours(0,0,0,0);
-                        const hh     = d.getHours(); const mm = d.getMinutes();
-                        const tstr   = `${((hh+11)%12+1)}${mm ? ':' + String(mm).padStart(2,'0') : ''}${hh<12?'am':'pm'}`;
-                        if (dayOfR.getTime() === dToday.getTime()) whenLabel = `Today · ${tstr}`;
-                        else if (dayOfR.getTime() === dTmw.getTime()) whenLabel = `Tomorrow · ${tstr}`;
-                        else whenLabel = `${d.toLocaleDateString('en-AU',{ weekday:'short', day:'numeric', month:'short' })} · ${tstr}`;
-                      } else if (r.remindOn) {
-                        const d = new Date(r.remindOn + 'T00:00:00');
-                        whenLabel = d.toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'short' });
-                      }
-                      return (
-                        <View key={r.id} style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor:'#fff', borderRadius:16, padding:14, marginBottom:8, borderLeftWidth:3, borderLeftColor: isMe ? '#F0DC80' : 'rgba(0,0,0,0.10)' }}>
-                          <TouchableOpacity
-                            onPress={async () => {
-                              const updated = isDone ? await unmarkReminderDone(r) : await markReminderDone(r);
-                              if (updated) setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
-                            }}
-                            style={{ width:26, height:26, borderRadius:13, borderWidth:2, borderColor: isDone ? '#22C55E' : 'rgba(0,0,0,0.20)', backgroundColor: isDone ? '#22C55E' : 'transparent', alignItems:'center', justifyContent:'center' }}
-                            hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                          >
-                            {isDone && <Text style={{ color:'#fff', fontSize:14, fontWeight:'700' }}>✓</Text>}
-                          </TouchableOpacity>
-                          <View style={{ flex:1 }}>
-                            <Text
-                              style={{ fontFamily:'Poppins_600SemiBold', fontSize:16, color: isDone ? 'rgba(0,0,0,0.4)':'#0A0A0A', textDecorationLine: isDone ? 'line-through' : 'none' }}
-                              numberOfLines={0}
-                            >
-                              {r.title}
+                    {(() => {
+                      // Round B — split items by tab. Reminders tab = has
+                      // remind_at OR remind_on. To-dos tab = neither.
+                      // Auto-clear done items >7 days old (client filter —
+                      // ~zero cost, keeps the list tidy without a cron job).
+                      const now = Date.now();
+                      const SEVEN_DAYS = 7 * 24 * 3600 * 1000;
+                      const filtered = remindSheetItems.filter((r: Reminder) => {
+                        if (r.status !== 'done') return true;
+                        // completedAt is set by markReminderDone (lib/reminders.ts)
+                        // Falls back to createdAt if somehow missing.
+                        const doneAt = r.completedAt ? new Date(r.completedAt).getTime()
+                                     : r.createdAt   ? new Date(r.createdAt).getTime()
+                                     : 0;
+                        return (now - doneAt) < SEVEN_DAYS;
+                      });
+                      const isTimed = (r: Reminder) => !!r.remindAt || !!r.remindOn;
+                      const items = filtered.filter(r =>
+                        remindSheetTab === 'reminders' ? isTimed(r) : !isTimed(r)
+                      );
+
+                      if (items.length === 0) {
+                        return (
+                          <View style={{ paddingVertical:32, alignItems:'center' }}>
+                            <Text style={{ fontSize:38, marginBottom:8 }}>{remindSheetTab === 'reminders' ? '⏰' : '📝'}</Text>
+                            <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:17, color:'#0A0A0A', marginBottom:4 }}>
+                              {remindSheetTab === 'reminders' ? 'Nothing to remember yet' : 'No to-dos yet'}
                             </Text>
-                            <Text style={{ fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(0,0,0,0.5)', marginTop:2 }}>
-                              {whenLabel}{isMe ? '' : ' · shared'}
+                            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:14, color:'rgba(0,0,0,0.5)', textAlign:'center', maxWidth:280 }}>
+                              {remindSheetTab === 'reminders'
+                                ? 'Add anything time-sensitive. 🔒 stays with you; tap “Notify family” to share.'
+                                : 'Add anything without a date. 🔒 stays with you; tap “Notify family” to share.'}
                             </Text>
                           </View>
-                          <TouchableOpacity
-                            onPress={async () => {
-                              const ok = await deleteReminder(r);
-                              if (ok) setRemindSheetItems(prev => prev.filter(x => x.id !== r.id));
-                            }}
-                            hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                          >
-                            <Text style={{ fontSize:18, color:'rgba(0,0,0,0.30)' }}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                      );
-                    })}
+                        );
+                      }
+
+                      // Sort: active first (by date asc for reminders,
+                      // updated asc for todos), then done at bottom.
+                      const active = items.filter(r => r.status !== 'done');
+                      const done   = items.filter(r => r.status === 'done');
+                      if (remindSheetTab === 'reminders') {
+                        active.sort((a, b) => {
+                          const ta = a.remindAt ? parseLocalIsoAsDate(a.remindAt).getTime() : (a.remindOn ? new Date(a.remindOn + 'T00:00:00').getTime() : Infinity);
+                          const tb = b.remindAt ? parseLocalIsoAsDate(b.remindAt).getTime() : (b.remindOn ? new Date(b.remindOn + 'T00:00:00').getTime() : Infinity);
+                          return ta - tb;
+                        });
+                      }
+                      const ordered = [...active, ...done];
+
+                      // Build day-header groups for the Reminders tab.
+                      const dayKey = (r: Reminder): string => {
+                        if (r.status === 'done') return 'z_done';
+                        let d: Date;
+                        if (r.remindAt) d = parseLocalIsoAsDate(r.remindAt);
+                        else if (r.remindOn) d = new Date(r.remindOn + 'T00:00:00');
+                        else return '';
+                        d.setHours(0, 0, 0, 0);
+                        const today = new Date(); today.setHours(0, 0, 0, 0);
+                        const tmw   = new Date(today.getTime() + 24 * 3600 * 1000);
+                        const wk    = new Date(today.getTime() + 7 * 24 * 3600 * 1000);
+                        if (d.getTime() === today.getTime()) return 'Today';
+                        if (d.getTime() === tmw.getTime())   return 'Tomorrow';
+                        if (d.getTime() < wk.getTime())      return 'This week';
+                        return 'Later';
+                      };
+
+                      let prevGroup = '';
+                      return ordered.map((r: Reminder) => {
+                        const isDone = r.status === 'done';
+                        const myId   = getProfile()?.id;
+                        const isMe   = r.createdBy === myId;
+                        const tier   = r.visibility ?? 'personal';
+                        const showChip = remindLastAddedId === r.id && tier === 'personal';
+
+                        // Day-header logic (Reminders tab only).
+                        let header: string | null = null;
+                        if (remindSheetTab === 'reminders') {
+                          const g = dayKey(r);
+                          if (g && g !== prevGroup) {
+                            header = g === 'z_done' ? 'Done' : g;
+                            prevGroup = g;
+                          }
+                        }
+
+                        // When label — same logic as before, unchanged.
+                        let whenLabel = 'someday';
+                        if (r.remindAt) {
+                          const d = parseLocalIsoAsDate(r.remindAt);
+                          const hh = d.getHours(); const mm = d.getMinutes();
+                          whenLabel = `${((hh+11)%12+1)}${mm ? ':' + String(mm).padStart(2,'0') : ''}${hh<12?'am':'pm'}`;
+                        } else if (r.remindOn) {
+                          const d = new Date(r.remindOn + 'T00:00:00');
+                          whenLabel = d.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+                        } else {
+                          whenLabel = ''; // to-dos have no time label
+                        }
+
+                        return (
+                          <View key={r.id}>
+                            {header && (
+                              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, letterSpacing:0.6, color: header === 'Done' ? 'rgba(0,0,0,0.35)' : '#8B6914', textTransform:'uppercase', marginTop: prevGroup === '' ? 0 : 14, marginBottom: 8 }}>
+                                {header}
+                              </Text>
+                            )}
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor: isDone ? 'rgba(0,0,0,0.03)' : '#fff', borderRadius:16, padding:14, marginBottom:8, borderLeftWidth:3, borderLeftColor: tier === 'shared' ? '#B8EDD0' : (isMe ? '#F0DC80' : 'rgba(0,0,0,0.10)') }}>
+                              <TouchableOpacity
+                                onPress={async () => {
+                                  const updated = isDone ? await unmarkReminderDone(r) : await markReminderDone(r);
+                                  if (updated) setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
+                                }}
+                                style={{ width:26, height:26, borderRadius:13, borderWidth:2, borderColor: isDone ? '#22C55E' : 'rgba(0,0,0,0.20)', backgroundColor: isDone ? '#22C55E' : 'transparent', alignItems:'center', justifyContent:'center' }}
+                                hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                              >
+                                {isDone && <Text style={{ color:'#fff', fontSize:14, fontWeight:'700' }}>✓</Text>}
+                              </TouchableOpacity>
+                              <View style={{ flex:1 }}>
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                  {/* Tier icon */}
+                                  <Text style={{ fontSize:12 }}>{tier === 'shared' ? '👥' : '🔒'}</Text>
+                                  <Text
+                                    style={{ flex:1, fontFamily:'Poppins_600SemiBold', fontSize:16, color: isDone ? 'rgba(0,0,0,0.4)':'#0A0A0A', textDecorationLine: isDone ? 'line-through' : 'none' }}
+                                    numberOfLines={0}
+                                  >
+                                    {r.title}
+                                  </Text>
+                                </View>
+                                {(whenLabel || !isMe) && (
+                                  <Text style={{ fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(0,0,0,0.5)', marginTop:2 }}>
+                                    {whenLabel}{whenLabel && !isMe ? ' · ' : ''}{!isMe ? 'shared' : ''}
+                                  </Text>
+                                )}
+                                {showChip && (
+                                  <TouchableOpacity
+                                    onPress={() => convertReminderToShared(r.id)}
+                                    style={{ alignSelf:'flex-start', marginTop:8, backgroundColor:'#B8EDD0', paddingHorizontal:12, paddingVertical:6, borderRadius:14 }}
+                                    activeOpacity={0.85}
+                                  >
+                                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#0A5C3A' }}>📣 Notify family</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                              <TouchableOpacity
+                                onPress={async () => {
+                                  const ok = await deleteReminder(r);
+                                  if (ok) setRemindSheetItems(prev => prev.filter(x => x.id !== r.id));
+                                }}
+                                hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                              >
+                                <Text style={{ fontSize:18, color:'rgba(0,0,0,0.30)' }}>✕</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        );
+                      });
+                    })()}
                   </ScrollView>
 
-                  {/* Round A — unified sheet input pill: [mic | text | camera | send]
-                      Same shape as Chat's universal chat bar, tinted gold to
-                      match Reminders accent. */}
-                  <View style={{ paddingHorizontal:14, paddingTop:10, paddingBottom: 12 + Math.max(0, insets.bottom - 8), borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', backgroundColor:'#FAF8F5' }}>
+                  {/* Round B — input pill with keyboard-aware bottom margin.
+                      When keyboard is up: marginBottom = keyboardHeight -
+                      safe-area (so pill sits directly above keyboard). When
+                      down: normal safe-area padding. Matches Shopping. */}
+                  <View style={{
+                    paddingHorizontal:14, paddingTop:10,
+                    paddingBottom: remindKbHeight > 0 ? (Platform.OS === 'ios' ? 2 : 4) : Math.max(insets.bottom, 8),
+                    marginBottom: remindKbHeight > 0 ? Math.max(remindKbHeight - insets.bottom, 0) : 0,
+                    borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', backgroundColor:'#FAF8F5',
+                  }}>
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#fff', borderRadius:32, borderWidth:1.5, borderColor:'#F0DC80', paddingHorizontal:8, paddingVertical:8, minHeight:60 }}>
                       <TouchableOpacity
                         onPress={() => { Keyboard.dismiss(); startRecording(); }}
@@ -7938,7 +8135,7 @@ Rules:
                         value={remindDraft}
                         onChangeText={setRemindDraft}
                         onSubmitEditing={submitRemind}
-                        placeholder="Add a reminder…"
+                        placeholder={remindSheetTab === 'reminders' ? 'Add a reminder…' : 'Add a to-do…'}
                         placeholderTextColor="rgba(139,105,20,0.55)"
                         returnKeyType="done"
                         style={{ flex:1, fontFamily:'Poppins_400Regular', fontSize:17, color:'#0A0A0A', paddingHorizontal:4 }}
@@ -7966,7 +8163,7 @@ Rules:
                       </TouchableOpacity>
                     </View>
                   </View>
-                </KeyboardAvoidingView>
+                </View>
               </SafeAreaView>
             </View>
           </View>

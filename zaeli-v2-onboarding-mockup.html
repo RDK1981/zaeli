@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli v2 — Onboarding Flows</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:         #FAF8F5;
+    --ink:        #0A0A0A;
+    --ink2:       rgba(10,10,10,0.72);
+    --ink3:       rgba(10,10,10,0.48);
+    --ink4:       rgba(10,10,10,0.28);
+    --line:       rgba(10,10,10,0.08);
+    --coral:      #FF4545;
+    --coral-tint: #FFE4E0;
+    --slate:      #2D3748;
+    --peach:      #FAC8A8;
+    --peach-t:    #FDF1E5;
+    --peach-d:    #8A3A00;
+    --mint:       #B8EDD0;
+    --mint-t:     #E6F7EF;
+    --mint-d:     #2D7A52;
+    --lav:        #D8CCFF;
+    --lav-t:      #F0EBFF;
+    --lav-d:      #5020C0;
+    --sky:        #A8D8F0;
+    --sky-t:      #E8F4FD;
+    --sky-d:      #0A5C80;
+    --gold:       #F0DC80;
+    --gold-t:     #FBF5D6;
+    --gold-d:     #8B6914;
+    --anna:       #FF7B6B;
+    --rich:       #4D8BFF;
+    --poppy:      #A855F7;
+    --gab:        #22C55E;
+    --duke:       #F59E0B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+  body { background: #EFECE6; padding: 40px 20px 80px; color: var(--ink); }
+
+  h1 { font-weight: 800; font-size: 32px; text-align: center; letter-spacing: -1px; }
+  .sub { text-align: center; color: var(--ink3); font-size: 15px; margin: 8px 0 40px; max-width: 720px; margin-left: auto; margin-right: auto; }
+
+  /* Section header */
+  .section-header { margin: 60px auto 24px; max-width: 1400px; }
+  .section-eyebrow { font-weight: 800; font-size: 12px; letter-spacing: 1.2px; color: var(--ink3); text-transform: uppercase; }
+  .section-title { font-weight: 800; font-size: 28px; letter-spacing: -0.5px; margin-top: 4px; }
+  .section-desc { color: var(--ink2); font-size: 15px; margin-top: 8px; max-width: 800px; line-height: 1.5; }
+
+  /* Step map */
+  .step-map { display: flex; gap: 6px; margin: 24px 0 32px; flex-wrap: wrap; }
+  .step-dot {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: white; border: 1px solid var(--line);
+    padding: 8px 14px; border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+  }
+  .step-dot .num {
+    width: 22px; height: 22px; border-radius: 11px;
+    background: var(--ink); color: white;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+  }
+  .step-dot.owner .num  { background: var(--slate); }
+  .step-dot.adult .num  { background: var(--anna); }
+  .step-dot.kid .num    { background: var(--poppy); }
+
+  /* Frame grid */
+  .frames {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px; max-width: 1400px; margin: 0 auto;
+  }
+  .frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .frame-label {
+    background: white; border: 1px solid var(--line);
+    padding: 5px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--ink2);
+  }
+  .frame-caption {
+    text-align: center; font-size: 12px; color: var(--ink3); line-height: 1.4;
+    max-width: 240px; margin-top: 4px;
+  }
+
+  /* iPhone frame */
+  .phone {
+    position: relative; width: 260px; height: 545px;
+    background: var(--ink); border-radius: 38px; padding: 7px;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+  }
+  .phone .notch {
+    position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
+    width: 90px; height: 20px; background: var(--ink);
+    border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; z-index: 5;
+  }
+  .screen {
+    background: var(--bg); border-radius: 32px; height: 100%;
+    overflow: hidden; position: relative;
+  }
+
+  /* App bar */
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 34px 14px 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .word {
+    font-size: 24px; font-weight: 800; letter-spacing: -1px; line-height: 1;
+  }
+  .word .a, .word .i { color: var(--sky); }
+  .app-bar .right { display: flex; align-items: center; gap: 8px; }
+  .app-bar .label { font-size: 12px; font-weight: 700; color: var(--ink2); }
+  .app-bar .back { color: var(--ink3); font-size: 20px; padding: 4px; }
+
+  /* Chat body (Zaeli conversational onboarding) */
+  .chat-body {
+    padding: 14px 12px 90px;
+    display: flex; flex-direction: column; gap: 10px;
+    height: calc(100% - 60px); overflow: hidden;
+  }
+  .msg-zaeli {
+    background: rgba(10,10,10,0.05); color: var(--ink);
+    max-width: 90%; padding: 10px 12px; border-radius: 14px;
+    font-size: 12px; line-height: 1.45;
+    align-self: flex-start; border-bottom-left-radius: 5px;
+  }
+  .msg-zaeli b { font-weight: 700; }
+  .msg-user {
+    background: var(--sky-t); color: var(--ink);
+    max-width: 82%; padding: 10px 12px; border-radius: 14px;
+    font-size: 12px; align-self: flex-end; border-bottom-right-radius: 5px;
+  }
+
+  /* Card (form inside chat) */
+  .in-card {
+    background: white; border: 1px solid var(--line); border-radius: 14px;
+    padding: 12px; margin: 4px 0;
+  }
+  .card-lbl {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+    color: var(--ink3); text-transform: uppercase; margin-bottom: 8px;
+  }
+  .input-row {
+    display: flex; flex-direction: column; margin-bottom: 10px;
+  }
+  .input-row .lb { font-size: 10px; font-weight: 600; color: var(--ink3); margin-bottom: 3px; }
+  .input-row .fld {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; color: var(--ink);
+  }
+  .input-row .fld.filled { color: var(--ink); }
+  .input-row .fld.placeholder { color: var(--ink4); font-style: normal; }
+  .input-row .fld.locked { background: rgba(10,10,10,0.04); color: var(--ink3); }
+
+  .card-cta {
+    background: var(--ink); color: white; text-align: center;
+    padding: 10px; border-radius: 10px;
+    font-size: 12px; font-weight: 700; margin-top: 4px;
+  }
+  .card-cta.mint { background: var(--mint-d); }
+  .card-cta.gold { background: var(--gold-d); }
+  .card-cta.coral { background: var(--coral); }
+  .skip-link {
+    text-align: center; font-size: 11px; color: var(--ink3);
+    font-weight: 500; margin-top: 8px;
+  }
+
+  /* Rhythm row (time picker rows in onboarding) */
+  .rhythm-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid var(--line);
+  }
+  .rhythm-row:last-child { border-bottom: none; }
+  .rhythm-ic {
+    width: 26px; height: 26px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+  }
+  .rhythm-lb { flex: 1; font-size: 11px; font-weight: 500; color: var(--ink); line-height: 1.3; }
+  .rhythm-tm { font-size: 11px; font-weight: 700; color: var(--ink); }
+
+  /* Preference chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .chip {
+    padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px;
+    font-size: 10px; font-weight: 500; color: var(--ink2);
+  }
+  .chip.on { background: var(--mint-d); color: white; border-color: var(--mint-d); font-weight: 700; }
+
+  /* Pref toggle row */
+  .pref-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 0; border-top: 1px solid var(--line);
+  }
+  .pref-ic {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .pref-body { flex: 1; }
+  .pref-ttl { font-size: 11px; font-weight: 700; color: var(--ink); }
+  .pref-desc { font-size: 9px; color: var(--ink3); margin-top: 2px; }
+  .switch { width: 32px; height: 18px; border-radius: 10px; background: rgba(10,10,10,0.15); position: relative; }
+  .switch.on { background: var(--mint-d); }
+  .switch::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 14px; height: 14px; border-radius: 7px; background: white;
+    transition: transform 0.2s;
+  }
+  .switch.on::after { transform: translateX(14px); }
+
+  /* Splash — first + final screens */
+  .splash-screen {
+    background: var(--bg); position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; padding: 30px 24px; overflow: hidden;
+  }
+  .splash-orb {
+    position: absolute; border-radius: 50%; filter: blur(4px);
+    pointer-events: none;
+  }
+  .splash-orb.o1 { width: 160px; height: 160px; background: var(--peach); opacity: 0.55; top: -40px; right: -40px; }
+  .splash-orb.o2 { width: 140px; height: 140px; background: var(--mint); opacity: 0.65; bottom: -30px; left: -30px; }
+  .splash-orb.o3 { width: 110px; height: 110px; background: var(--lav); opacity: 0.60; top: 200px; left: -20px; }
+  .splash-orb.o4 { width: 100px; height: 100px; background: var(--sky); opacity: 0.55; bottom: 200px; right: -10px; }
+  .splash-wm {
+    font-family: 'Poppins'; font-weight: 800; font-size: 68px;
+    letter-spacing: -2px; line-height: 1; color: var(--ink);
+    z-index: 2; margin-bottom: 20px;
+  }
+  .splash-wm .a, .splash-wm .i { color: var(--sky); }
+  .splash-hi {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
+    text-align: center; margin-bottom: 8px; z-index: 2;
+  }
+  .splash-hi .coral { color: var(--coral); }
+  .splash-sub {
+    font-size: 13px; color: var(--ink2); text-align: center;
+    line-height: 1.5; margin-bottom: 24px; z-index: 2; max-width: 220px;
+  }
+  .splash-cta {
+    background: var(--ink); color: white; padding: 12px 24px;
+    border-radius: 24px; font-size: 13px; font-weight: 700;
+    z-index: 2;
+  }
+  .splash-fine { font-size: 10px; color: var(--ink3); margin-top: 12px; z-index: 2; }
+
+  /* Family members list */
+  .fam-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 0; border-bottom: 1px solid var(--line);
+  }
+  .fam-row:last-child { border-bottom: none; }
+  .fam-avat {
+    width: 28px; height: 28px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 800; font-size: 11px;
+  }
+  .fam-name { flex: 1; font-size: 11px; font-weight: 600; color: var(--ink); }
+  .fam-tag { font-size: 9px; color: var(--ink3); font-weight: 500; }
+  .fam-add-btn {
+    background: var(--sky-t); color: var(--sky-d); font-weight: 700;
+    text-align: center; font-size: 11px; padding: 8px; border-radius: 8px;
+    border: 1px dashed var(--sky-d); margin-top: 6px;
+  }
+
+  /* Permission prompt (iOS-style) */
+  .ios-prompt {
+    background: rgba(240,240,240,0.98);
+    backdrop-filter: blur(20px);
+    border-radius: 14px;
+    padding: 18px 14px 0;
+    margin: 12px 6px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+  .ios-prompt .ttl { font-size: 13px; font-weight: 700; text-align: center; }
+  .ios-prompt .body { font-size: 11px; text-align: center; color: rgba(10,10,10,0.6); margin: 6px 0 14px; line-height: 1.35; }
+  .ios-prompt .btn-row {
+    display: flex; border-top: 0.5px solid rgba(10,10,10,0.2);
+    margin: 0 -14px;
+  }
+  .ios-prompt .btn {
+    flex: 1; padding: 10px; text-align: center; font-size: 13px;
+    color: #007AFF;
+  }
+  .ios-prompt .btn.dont-allow { border-right: 0.5px solid rgba(10,10,10,0.2); }
+  .ios-prompt .btn.allow { font-weight: 700; }
+
+  /* Lockscreen mockup (Zaeli brief) */
+  .lock-scr {
+    background: linear-gradient(180deg, #1a1f2e 0%, #2a2035 50%, #3d2b48 100%);
+    height: 100%; position: relative; padding-top: 34px;
+  }
+  .lock-time { color: white; font-size: 54px; font-weight: 200; letter-spacing: -1.5px; text-align: center; padding-top: 40px; }
+  .lock-date { color: white; text-align: center; font-size: 12px; margin-top: 6px; opacity: 0.9; }
+  .lock-notif {
+    position: absolute; left: 10px; right: 10px; top: 190px;
+    background: rgba(60,60,65,0.62); backdrop-filter: blur(30px);
+    border-radius: 15px; padding: 10px; color: white;
+  }
+  .lock-notif-row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .lock-notif .app-icon {
+    width: 30px; height: 30px; border-radius: 7px;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 16px;
+    color: var(--ink);
+  }
+  .lock-notif .app-icon .a { color: var(--sky); }
+  .lock-notif .ttl { font-size: 12px; font-weight: 700; flex: 1; }
+  .lock-notif .now { font-size: 10px; opacity: 0.7; }
+  .lock-notif .body { font-size: 11px; line-height: 1.4; }
+
+  /* Kid PIN pad */
+  .pin-display {
+    display: flex; gap: 12px; justify-content: center;
+    margin: 24px 0;
+  }
+  .pin-dot {
+    width: 16px; height: 16px; border-radius: 8px;
+    border: 2px solid var(--ink3);
+  }
+  .pin-dot.filled { background: var(--poppy); border-color: var(--poppy); }
+  .pin-pad {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    padding: 0 16px; margin-top: 12px;
+  }
+  .pin-key {
+    background: white; border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 0; text-align: center;
+    font-size: 20px; font-weight: 600; color: var(--ink);
+  }
+
+  /* Toggle row for Budget access */
+  .budget-toggle {
+    background: var(--mint-t); border: 1px solid var(--mint);
+    border-radius: 10px; padding: 10px 12px;
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 10px;
+  }
+  .budget-toggle .body { flex: 1; }
+  .budget-toggle .ttl { font-size: 11px; font-weight: 700; }
+  .budget-toggle .desc { font-size: 9px; color: var(--ink3); margin-top: 2px; }
+
+  /* Success/final panels */
+  .done-panel {
+    background: white; border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px 14px; text-align: center; margin: 12px 0;
+  }
+  .done-emoji { font-size: 40px; margin-bottom: 8px; }
+  .done-ttl { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 4px; }
+  .done-desc { font-size: 12px; color: var(--ink2); line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<h1>Zaeli v2 — Onboarding Flows</h1>
+<p class="sub">Complete mockups of the 3 flows for beta round 3.<br>
+<b>Owner (8 steps)</b> · <b>Adult invitee (4 steps)</b> · <b>Kid invitee (3 steps)</b> + parent's Add Family Member modal with new Budget toggle.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: PRIMARY USER (OWNER) — 8 STEPS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Flow 1 · Primary user</div>
+  <div class="section-title">Owner onboarding — 8 steps</div>
+  <div class="section-desc">First-time sign-up flow. Warm chat-conversational tone, ends with the lockscreen wow-moment + free trial CTA. All 8 screens fit under 3 minutes end-to-end. Cut from the previous 11-step flow: Opener (folded into Welcome), PantryDemo + HomeworkDemo + LifeDemo (redundant now Home shows the productivity story on its own), BriefPreview (repositioned as step 7 Lockscreen preview).</div>
+  <div class="step-map">
+    <span class="step-dot owner"><span class="num">1</span>Welcome</span>
+    <span class="step-dot owner"><span class="num">2</span>Account</span>
+    <span class="step-dot owner"><span class="num">3</span>Family</span>
+    <span class="step-dot owner"><span class="num">4</span>Rhythm + Brief</span>
+    <span class="step-dot owner"><span class="num">5</span>Preferences</span>
+    <span class="step-dot owner"><span class="num">6</span>Permissions</span>
+    <span class="step-dot owner"><span class="num">7</span>Lockscreen preview</span>
+    <span class="step-dot owner"><span class="num">8</span>Ready</span>
+  </div>
+</div>
+
+<div class="frames">
+
+  <!-- OWNER STEP 1: WELCOME -->
+  <div class="frame-wrap">
+    <div class="frame-label">1 · WELCOME</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="splash-screen">
+          <div class="splash-orb o1"></div>
+          <div class="splash-orb o2"></div>
+          <div class="splash-orb o3"></div>
+          <div class="splash-orb o4"></div>
+          <div class="splash-wm">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="splash-hi">Hey 👋 I'm Zaeli.</div>
+          <div class="splash-sub">The family productivity app that pays attention. Let me show you what I do.</div>
+          <div class="splash-cta">Let's go →</div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Splash + palette orbs + first "hi". Opener folded in here (was separate step).</p>
+  </div>
+
+  <!-- OWNER STEP 2: ACCOUNT -->
+  <div class="frame-wrap">
+    <div class="frame-label">2 · ACCOUNT</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">1 of 8</div></div>
+        </div>
+        <div class="chat-body">
+          <div class="msg-zaeli">First things first — who are you, and how do I reach you?</div>
+          <div class="msg-zaeli">I'll only use email for your morning brief if the app's closed. No spam, ever.</div>
+          <div class="in-card">
+            <div class="card-lbl">Your account</div>
+            <div class="input-row">
+              <div class="lb">YOUR NAME</div>
+              <div class="fld filled">Rich</div>
+            </div>
+            <div class="input-row">
+              <div class="lb">EMAIL</div>
+              <div class="fld filled">rich@example.com</div>
+            </div>
+            <div class="input-row">
+              <div class="lb">PASSWORD</div>
+              <div class="fld placeholder">••••••••</div>
+            </div>
+            <div class="card-cta">Create account →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Real Supabase sign-up. Password required. Email verification via Zaeli-branded template.</p>
+  </div>
+
+  <!-- OWNER STEP 3: FAMILY -->
+  <div class="frame-wrap">
+    <div class="frame-label">3 · FAMILY</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">2 of 8</div></div>
+        </div>
+        <div class="chat-body">
+          <div class="msg-zaeli">Who's in the family? Add anyone you'd like me to know about — partner, kids, pets, grandparents.</div>
+          <div class="in-card">
+            <div class="card-lbl">Your family</div>
+            <div class="fam-row">
+              <div class="fam-avat" style="background: var(--rich);">R</div>
+              <div class="fam-name">Rich</div>
+              <div class="fam-tag">You · Adult</div>
+            </div>
+            <div class="fam-row">
+              <div class="fam-avat" style="background: var(--anna);">A</div>
+              <div class="fam-name">Anna</div>
+              <div class="fam-tag">Partner · Adult</div>
+            </div>
+            <div class="fam-row">
+              <div class="fam-avat" style="background: var(--poppy);">P</div>
+              <div class="fam-name">Poppy · Yr 6</div>
+              <div class="fam-tag">Kid</div>
+            </div>
+            <div class="fam-row">
+              <div class="fam-avat" style="background: var(--gab);">G</div>
+              <div class="fam-name">Gab · Yr 4</div>
+              <div class="fam-tag">Kid</div>
+            </div>
+            <div class="fam-row">
+              <div class="fam-avat" style="background: var(--duke);">D</div>
+              <div class="fam-name">Duke · Yr 1</div>
+              <div class="fam-tag">Kid</div>
+            </div>
+            <div class="fam-add-btn">+ Add family member</div>
+            <div class="card-cta" style="margin-top: 10px;">Done — that's us</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Add members with name + role + (kid) year level + avatar colour. Owner pre-added.</p>
+  </div>
+
+  <!-- OWNER STEP 4: RHYTHM + BRIEF TIMES -->
+  <div class="frame-wrap">
+    <div class="frame-label">4 · RHYTHM + BRIEF</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">3 of 8</div></div>
+        </div>
+        <div class="chat-body">
+          <div class="msg-zaeli"><b>Three moments make or break a weekday.</b> Set yours and I won't nudge at the wrong one.</div>
+          <div class="in-card">
+            <div class="card-lbl">Your weekday rhythm</div>
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: #FFE8D6;">☀️</div>
+              <div class="rhythm-lb">School run out the door</div>
+              <div class="rhythm-tm">8:15 am</div>
+            </div>
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: #FFEBE2;">🍝</div>
+              <div class="rhythm-lb">Dinner time</div>
+              <div class="rhythm-tm">6:00 pm</div>
+            </div>
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: #E8E0FF;">🌙</div>
+              <div class="rhythm-lb">Kids in bed</div>
+              <div class="rhythm-tm">8:30 pm</div>
+            </div>
+          </div>
+          <div class="msg-zaeli">And when do you want me on your lockscreen?</div>
+          <div class="in-card">
+            <div class="card-lbl">When should I reach you?</div>
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: var(--peach-t);">🌅</div>
+              <div class="rhythm-lb">Morning brief</div>
+              <div class="rhythm-tm">7:00 am</div>
+            </div>
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: var(--lav-t);">🌙</div>
+              <div class="rhythm-lb">Evening brief</div>
+              <div class="rhythm-tm">5:00 pm</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Two cards: family rhythm (context for Zaeli) + brief times (when phone actually buzzes). Both editable via time picker.</p>
+  </div>
+
+  <!-- OWNER STEP 5: PREFERENCES -->
+  <div class="frame-wrap">
+    <div class="frame-label">5 · PREFERENCES</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">4 of 8</div></div>
+        </div>
+        <div class="chat-body">
+          <div class="msg-zaeli">Where should I lean in most? Pick what feels heaviest.</div>
+          <div class="in-card">
+            <div class="card-lbl">Where I can help most</div>
+            <div class="chips">
+              <span class="chip on">Meal planning</span>
+              <span class="chip on">The mental load</span>
+              <span class="chip">After-school chaos</span>
+              <span class="chip on">Forgetting things</span>
+              <span class="chip">Weekends feel rushed</span>
+              <span class="chip">Shopping admin</span>
+              <span class="chip">Solo-parent days</span>
+            </div>
+            <div class="pref-row">
+              <div class="pref-ic" style="background: var(--sky-t);">✈️</div>
+              <div class="pref-body">
+                <div class="pref-ttl">Upcoming holiday or trip?</div>
+                <div class="pref-desc">I'll help with packing, dates, countdown.</div>
+              </div>
+              <div class="switch"></div>
+            </div>
+            <div class="pref-row">
+              <div class="pref-ic" style="background: var(--lav-t);">🛒</div>
+              <div class="pref-body">
+                <div class="pref-ttl">Shared shopping list</div>
+                <div class="pref-desc">Everyone sees the same list.</div>
+              </div>
+              <div class="switch on"></div>
+            </div>
+            <div class="card-cta mint" style="margin-top: 10px;">Continue</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Chips trimmed for v2 (removed Homework battles — Tutor hidden). Toggles cover trip + shared list.</p>
+  </div>
+
+  <!-- OWNER STEP 6: PERMISSIONS -->
+  <div class="frame-wrap">
+    <div class="frame-label">6 · PERMISSIONS</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">5 of 8</div></div>
+        </div>
+        <div class="chat-body">
+          <div class="msg-zaeli">Two quick asks so I can do my job:</div>
+          <div class="msg-zaeli">📍 <b>Location</b> — so I know your weather and school-run traffic.<br>🔔 <b>Notifications</b> — so morning briefs actually land.</div>
+          <div class="ios-prompt">
+            <div class="ttl">"Zaeli" Would Like to Send You Notifications</div>
+            <div class="body">Notifications may include alerts, sounds, and icon badges. These can be configured in Settings.</div>
+            <div class="btn-row">
+              <div class="btn dont-allow">Don't Allow</div>
+              <div class="btn allow">Allow</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">iOS-native permission prompts. Location & notifications both requested. Skipping either doesn't block completion.</p>
+  </div>
+
+  <!-- OWNER STEP 7: LOCKSCREEN PREVIEW -->
+  <div class="frame-wrap">
+    <div class="frame-label">7 · LOCKSCREEN PREVIEW</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="lock-scr">
+          <div class="lock-time">7:00</div>
+          <div class="lock-date">Thursday, 31 July</div>
+          <div class="lock-notif">
+            <div class="lock-notif-row1">
+              <div class="app-icon">z<span class="a">a</span></div>
+              <div class="ttl">☀️ Morning brief</div>
+              <div class="now">now</div>
+            </div>
+            <div class="body">Thursday, Rich — Poppy's got soccer at 4pm and school pickup at 2. Bins go out tonight. 🗑️</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">THE wow moment for v2. Realistic lockscreen with the actual brief prose in the body. Sells the app.</p>
+  </div>
+
+  <!-- OWNER STEP 8: READY -->
+  <div class="frame-wrap">
+    <div class="frame-label">8 · READY</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="splash-screen">
+          <div class="splash-orb o1"></div>
+          <div class="splash-orb o2"></div>
+          <div class="splash-orb o3"></div>
+          <div class="splash-orb o4"></div>
+          <div class="splash-wm">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="splash-hi">You're all set.</div>
+          <div class="splash-sub">7:00 tomorrow morning — I'll be here. Gentle, specific, short. In the meantime, say hi anytime 💬</div>
+          <div class="splash-cta">Take me Home →</div>
+          <div class="splash-fine">Free for 14 days · A$6.99/month after</div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Free trial + pricing. Lands on Home (front door) with a fresh warm chat waiting.</p>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: ADULT INVITEE — 4 STEPS -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Flow 2 · Adult invitee (partner joining family)</div>
+  <div class="section-title">Adult invitee — 4 steps</div>
+  <div class="section-desc">When Rich invites Anna, she taps the link and lands in a stripped-down flow. She skips family setup + rhythm (inherits from family) + preferences (her own settings later in the app). Just: account creation → brief times → done. ~1 minute.</div>
+  <div class="step-map">
+    <span class="step-dot adult"><span class="num">1</span>Welcome to family</span>
+    <span class="step-dot adult"><span class="num">2</span>Create account</span>
+    <span class="step-dot adult"><span class="num">3</span>Brief times</span>
+    <span class="step-dot adult"><span class="num">4</span>You're in</span>
+  </div>
+</div>
+
+<div class="frames">
+
+  <!-- ADULT 1: WELCOME TO RICH'S FAMILY -->
+  <div class="frame-wrap">
+    <div class="frame-label">1 · WELCOME (personalised)</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="splash-screen">
+          <div class="splash-orb o1"></div>
+          <div class="splash-orb o2"></div>
+          <div class="splash-orb o3"></div>
+          <div class="splash-orb o4"></div>
+          <div class="splash-wm">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="splash-hi">Welcome in, <span style="color: var(--anna);">Anna</span>.</div>
+          <div class="splash-sub">Rich added you to the family. Family stuff is already wired up — just get you set up.</div>
+          <div class="splash-cta">Let's go →</div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Personalised with invitee name from the invite token. No "explain Zaeli" — Rich has already sold it.</p>
+  </div>
+
+  <!-- ADULT 2: CREATE ACCOUNT -->
+  <div class="frame-wrap">
+    <div class="frame-label">2 · CREATE ACCOUNT</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">1 of 4</div></div>
+        </div>
+        <div class="chat-body">
+          <div class="msg-zaeli">Just need a password from you — Rich's already added your name and email.</div>
+          <div class="in-card">
+            <div class="card-lbl">Your account</div>
+            <div class="input-row">
+              <div class="lb">NAME</div>
+              <div class="fld filled">Anna</div>
+            </div>
+            <div class="input-row">
+              <div class="lb">EMAIL</div>
+              <div class="fld locked">anna@example.com 🔒</div>
+            </div>
+            <div class="input-row">
+              <div class="lb">PASSWORD</div>
+              <div class="fld placeholder">Choose 6+ characters</div>
+            </div>
+            <div class="card-cta">Create account →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Name editable, email locked (from invite). Password only new input. Real Supabase sign-up via invite trigger.</p>
+  </div>
+
+  <!-- ADULT 3: BRIEF TIMES -->
+  <div class="frame-wrap">
+    <div class="frame-label">3 · BRIEF TIMES</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">2 of 4</div></div>
+        </div>
+        <div class="chat-body">
+          <div class="msg-zaeli">When do you want me on your lockscreen? Rich has his own times — pick yours.</div>
+          <div class="in-card">
+            <div class="card-lbl">When should I reach you?</div>
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: var(--peach-t);">🌅</div>
+              <div class="rhythm-lb">Morning brief</div>
+              <div class="rhythm-tm">6:45 am</div>
+            </div>
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: var(--lav-t);">🌙</div>
+              <div class="rhythm-lb">Evening brief</div>
+              <div class="rhythm-tm">5:30 pm</div>
+            </div>
+            <div class="card-cta" style="margin-top: 10px;">Continue</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Each adult picks their own brief times. Skip rhythm (family life anchors already set by Rich).</p>
+  </div>
+
+  <!-- ADULT 4: YOU'RE IN -->
+  <div class="frame-wrap">
+    <div class="frame-label">4 · YOU'RE IN</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">3 of 4</div></div>
+        </div>
+        <div class="chat-body">
+          <div class="msg-zaeli">You're in the family, Anna. Here's what tomorrow morning could look like:</div>
+          <div class="lock-notif" style="position: static; margin: 6px 0;">
+            <div class="lock-notif-row1">
+              <div class="app-icon">z<span class="a">a</span></div>
+              <div class="ttl">☀️ Morning brief</div>
+              <div class="now">now</div>
+            </div>
+            <div class="body">Morning Anna — Rich has the school run today. Coffee catch-up with Poly at 10:30 ☕</div>
+          </div>
+          <div class="done-panel">
+            <div class="done-emoji">🎉</div>
+            <div class="done-ttl">Welcome to the family</div>
+            <div class="done-desc">Home has everything already sorted. Say hi anytime 💬</div>
+            <div class="card-cta" style="margin-top: 12px;">Take me Home →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">First brief preview (personalised with family context Rich already added) + jump to Home.</p>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: KID INVITEE — 3 STEPS + PARENT'S BUDGET TOGGLE -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Flow 3 · Kid invitee + parent's toggle</div>
+  <div class="section-title">Kid onboarding — 3 steps + Budget access toggle for parent</div>
+  <div class="section-desc">Kids with their own phone get onboarded onto Zaeli — they see Home, Chat, Calendar, Shopping, Reminders. They never see Our Family. <b>Our Budget access is a parent toggle</b> — off by default, parent turns on for teens ready for money conversations. Under 60 seconds end-to-end.</div>
+  <div class="step-map">
+    <span class="step-dot kid"><span class="num">1</span>Welcome</span>
+    <span class="step-dot kid"><span class="num">2</span>Choose PIN</span>
+    <span class="step-dot kid"><span class="num">3</span>All set</span>
+    <span class="step-dot kid"><span class="num">+</span>Parent invite modal</span>
+  </div>
+</div>
+
+<div class="frames">
+
+  <!-- KID 1: WELCOME -->
+  <div class="frame-wrap">
+    <div class="frame-label">1 · WELCOME</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="splash-screen" style="background: linear-gradient(160deg, var(--lav-t), var(--peach-t));">
+          <div class="splash-orb o1" style="background: var(--poppy); opacity: 0.35;"></div>
+          <div class="splash-orb o2" style="background: var(--gab); opacity: 0.35;"></div>
+          <div class="splash-orb o3" style="background: var(--duke); opacity: 0.35;"></div>
+          <div class="splash-wm">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="splash-hi">Hey <span style="color: var(--poppy);">Poppy</span>! 👋</div>
+          <div class="splash-sub">Rich added you to the family Zaeli. Let's get you set up — takes a minute.</div>
+          <div class="splash-cta" style="background: var(--poppy);">Let's go →</div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Personalised welcome with kid's name + accent colour. Warm, not too grown-up.</p>
+  </div>
+
+  <!-- KID 2: PIN -->
+  <div class="frame-wrap">
+    <div class="frame-label">2 · CHOOSE PIN</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">1 of 3</div></div>
+        </div>
+        <div class="chat-body">
+          <div class="msg-zaeli">Pick a 4-digit PIN — this is how you'll sign in on this phone.</div>
+          <div class="msg-zaeli">Something you'll remember but nobody else would guess.</div>
+          <div class="in-card">
+            <div class="card-lbl">Your PIN</div>
+            <div class="pin-display">
+              <div class="pin-dot filled"></div>
+              <div class="pin-dot filled"></div>
+              <div class="pin-dot filled"></div>
+              <div class="pin-dot"></div>
+            </div>
+            <div class="pin-pad">
+              <div class="pin-key">1</div>
+              <div class="pin-key">2</div>
+              <div class="pin-key">3</div>
+              <div class="pin-key">4</div>
+              <div class="pin-key">5</div>
+              <div class="pin-key">6</div>
+              <div class="pin-key">7</div>
+              <div class="pin-key">8</div>
+              <div class="pin-key">9</div>
+              <div class="pin-key" style="visibility: hidden;"></div>
+              <div class="pin-key">0</div>
+              <div class="pin-key" style="color: var(--ink3);">⌫</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">4-digit PIN — easier than a full password for younger kids. Stored as auth secret alongside synthetic email.</p>
+  </div>
+
+  <!-- KID 3: ALL SET -->
+  <div class="frame-wrap">
+    <div class="frame-label">3 · ALL SET</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">2 of 3</div></div>
+        </div>
+        <div class="chat-body">
+          <div class="msg-zaeli">You're in! Here's what you'll find at Home:</div>
+          <div class="in-card">
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: var(--slate); color: white;">📅</div>
+              <div class="rhythm-lb">Family calendar — everyone's stuff</div>
+            </div>
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: var(--lav);">🛒</div>
+              <div class="rhythm-lb">Shopping list — add what you need</div>
+            </div>
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: var(--gold);">⏰</div>
+              <div class="rhythm-lb">Reminders — for your stuff</div>
+            </div>
+            <div class="rhythm-row">
+              <div class="rhythm-ic" style="background: rgba(255,69,69,0.14);">💬</div>
+              <div class="rhythm-lb">Chat — ask me anything</div>
+            </div>
+          </div>
+          <div class="card-cta" style="background: var(--poppy);">Take me Home →</div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">Overview of what the kid gets. NO Our Budget or Our Family (unless parent toggled Budget on).</p>
+  </div>
+
+  <!-- PARENT'S ADD-MEMBER MODAL WITH BUDGET TOGGLE -->
+  <div class="frame-wrap">
+    <div class="frame-label">+ PARENT'S INVITE MODAL</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <div class="app-bar">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+          <div class="right"><div class="label">Family</div></div>
+        </div>
+        <div class="chat-body" style="height: calc(100% - 60px);">
+          <div style="background: rgba(0,0,0,0.35); position: absolute; inset: 0; z-index: 1;"></div>
+          <div style="background: white; border-radius: 18px 18px 0 0; position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 14px 22px; z-index: 2;">
+            <div style="width: 36px; height: 4px; background: var(--ink4); border-radius: 2px; margin: -6px auto 12px;"></div>
+            <div style="font-size: 16px; font-weight: 800; margin-bottom: 10px;">Invite Poppy</div>
+            <div class="input-row">
+              <div class="lb">NAME</div>
+              <div class="fld filled">Poppy</div>
+            </div>
+            <div class="input-row">
+              <div class="lb">ROLE</div>
+              <div class="fld filled">Kid</div>
+            </div>
+            <div class="input-row">
+              <div class="lb">YEAR LEVEL</div>
+              <div class="fld filled">Year 6</div>
+            </div>
+            <div class="input-row">
+              <div class="lb">PHONE (OPTIONAL)</div>
+              <div class="fld placeholder">Text her the invite link</div>
+            </div>
+            <div class="budget-toggle">
+              <div class="pref-ic" style="background: var(--mint); font-size: 14px;">💰</div>
+              <div class="body">
+                <div class="ttl">Show Our Budget to Poppy</div>
+                <div class="desc">Off by default. Turn on for teens ready to see family finances.</div>
+              </div>
+              <div class="switch"></div>
+            </div>
+            <div class="card-cta coral" style="margin-top: 12px;">Send invite link</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="frame-caption">NEW toggle in the Add Family Member modal. Only appears when role=Kid. Toggle stored on invite_tokens + copied to profiles.kid_can_see_budget on accept.</p>
+  </div>
+
+</div>
+
+<div class="section-header">
+  <div class="section-eyebrow">Kid access — what they see vs don't</div>
+  <div class="section-desc">
+    <b>Kids get:</b> Home · Chat · Calendar · Shopping · Reminders (full access to add/edit)<br>
+    <b>Kids never get:</b> Our Family (member management), Settings → Family invites, Developer rows<br>
+    <b>Kids get IF parent toggled on:</b> Our Budget (view + read; can't add expenses without parent approval flow later)
+  </div>
+</div>
+
+</body>
+</html>
