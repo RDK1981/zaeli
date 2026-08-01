@@ -4901,7 +4901,9 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
 
     if ((ctx.type as string) === 'calendar_sheet' || (ctx.type as string) === 'calendar_view') {
       setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
-      setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today'), 300);
+      // Round B commit 7 — pass openAdd through so Home tile's "+ Add event"
+      // pill opens the add form directly (not the events list first)
+      setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today', { openAdd: !!(ctx as any).openAdd }), 300);
       return;
     }
 
@@ -4975,7 +4977,9 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
       return;
     }
     if ((ctx.type as string) === 'calendar_sheet' || (ctx.type as string) === 'calendar_view') {
-      setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today'), 300);
+      // Round B commit 7 — pass openAdd through so Home tile's "+ Add event"
+      // pill opens the add form directly (not the events list first)
+      setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today', { openAdd: !!(ctx as any).openAdd }), 300);
       return;
     }
     if ((ctx.type as string) === 'meals_sheet') {
