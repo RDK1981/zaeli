@@ -14,6 +14,10 @@ export type ChatEntryContext = {
   type: 'edit_event' | 'add_event' | 'shopping' | 'actions' | 'meals' | 'notes_tasks_sheet' | 'reminders_sheet' | 'calendar_view' | 'shopping_sheet' | null;
   event?:    any;     // for edit_event — full event object
   tab?:      'notes' | 'tasks';   // for notes_tasks_sheet — which tab to open
+  // Round B — when set on 'calendar_view', the calendar sheet opens
+  // directly into the manual add form for today (skipping the
+  // "tap + Add event → tap Add manually" two-tap flow).
+  openAdd?:  boolean;
   returnTo?: 'dashboard';
 };
 
@@ -68,3 +72,30 @@ export function consumeChatIntent(): ChatIntent {
   return v;
 }
 export function hasChatIntent(): boolean { return _chatIntent !== null; }
+
+// ── Home refresh trigger (Round B commit 3) ─────────────────────────────
+// Home tiles cache their own state (reminders / calendar / shopping /
+// tasks / budget). When the user mutates state via a sheet (which lives
+// as a Modal in Chat, i.e. renders as a portal over Home without Home
+// losing focus), Home doesn't know to reload.
+//
+// Pattern: any mutation inside a sheet calls bumpHomeRefresh(). Home
+// subscribes via useEffect on the version counter and re-runs loadData.
+// Cheap — just an int increment + one debounced Supabase round-trip.
+//
+// Any consumer that needs to observe the counter should:
+//   const [ver, setVer] = useState(getHomeRefreshVersion());
+//   useEffect(() => subscribeHomeRefresh(setVer), []);
+//   useEffect(() => { loadData(); }, [ver]);
+let _homeRefreshVersion = 0;
+const _homeRefreshListeners = new Set<(v: number) => void>();
+
+export function bumpHomeRefresh(): void {
+  _homeRefreshVersion++;
+  _homeRefreshListeners.forEach(fn => { try { fn(_homeRefreshVersion); } catch {} });
+}
+export function getHomeRefreshVersion(): number { return _homeRefreshVersion; }
+export function subscribeHomeRefresh(fn: (v: number) => void): () => void {
+  _homeRefreshListeners.add(fn);
+  return () => { _homeRefreshListeners.delete(fn); };
+}

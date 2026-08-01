@@ -40,7 +40,8 @@ import { parseLocalIsoAsDate } from '../../lib/reminders';
 import MoreSheet from '../components/MoreSheet';
 import { getProfile } from '../../lib/auth';
 import { loadRoster, getRoster } from '../../lib/family-roster';
-import { setPendingChatContext, setChatIntent } from '../../lib/navigation-store';
+import { setPendingChatContext, setChatIntent, subscribeHomeRefresh, getHomeRefreshVersion } from '../../lib/navigation-store';
+import { onAuthChange } from '../../lib/auth';
 import Svg, { Path, Rect, Circle, Line, Polyline } from 'react-native-svg';
 
 // ── Design tokens ────────────────────────────────────────────────────────
@@ -240,6 +241,29 @@ export default function DashboardScreen({
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
   useEffect(() => { if (isActive) loadData(); }, [isActive, loadData]);
 
+  // Round B commit 3 — subscribe to bumpHomeRefresh() so sheet mutations
+  // (add/tick/delete reminder, shop, etc) refresh the home tiles even
+  // though the sheet is a Modal portal and Home never lost focus.
+  const [homeRefreshVer, setHomeRefreshVer] = useState(getHomeRefreshVersion());
+  useEffect(() => subscribeHomeRefresh(setHomeRefreshVer), []);
+  useEffect(() => { if (homeRefreshVer > 0) loadData(); }, [homeRefreshVer, loadData]);
+
+  // Round B commit 3 — cold-open empty tiles fix. auth handshake can lag
+  // Home mount by ~200-500ms; loadData fires with the DUMMY family id
+  // fallback and queries return zero rows. Subscribe to onAuthChange and
+  // re-fire loadData once SIGNED_IN lands (or on any state change with
+  // a session present). Cheap: at most one extra query on cold start.
+  useEffect(() => {
+    const { data } = onAuthChange((_event, session) => {
+      if (session?.user?.id) {
+        // small delay to let loadProfile()'s cache populate first, so
+        // getFamilyId() resolves to the real id, not the DUMMY fallback
+        setTimeout(() => loadData(), 300);
+      }
+    });
+    return () => { try { data?.subscription?.unsubscribe?.(); } catch {} };
+  }, [loadData]);
+
   // ── Shopping quick-add (unchanged from Phase 01) ──────────────────────
   const handleShopSubmit = useCallback(async () => {
     const raw = shopQuickAdd.trim();
@@ -286,6 +310,15 @@ export default function DashboardScreen({
   // onNavigateChat, so swipe-world stays on Home.
   const openCalendarSheet = useCallback(() => {
     setPendingChatContext({ type: 'calendar_view', returnTo: 'dashboard' } as any);
+    onContextTrigger?.();
+  }, [onContextTrigger]);
+
+  // Round B commit 3 — tapping the "+ Add event…" pill on the Calendar
+  // tile now opens the sheet straight into the manual-add form for today,
+  // skipping the intermediate "sheet lists events → tap Add manually"
+  // second-tap Rich reported.
+  const openCalendarSheetAdd = useCallback(() => {
+    setPendingChatContext({ type: 'calendar_view', openAdd: true, returnTo: 'dashboard' } as any);
     onContextTrigger?.();
   }, [onContextTrigger]);
 
@@ -396,7 +429,11 @@ export default function DashboardScreen({
                 </View>
               );
             })}
-            <View style={[s.quickAdd, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.18)' }]}>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation?.(); openCalendarSheetAdd(); }}
+              activeOpacity={0.75}
+              style={[s.quickAdd, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.18)' }]}
+            >
               <Text style={[s.quickPlus, { color: T.coral }]}>+</Text>
               <Text style={[s.quickField, { color: 'rgba(255,255,255,0.7)' }]}>Add event…</Text>
               <TouchableOpacity
@@ -406,7 +443,7 @@ export default function DashboardScreen({
               >
                 <IcoMic color="#fff" size={18}/>
               </TouchableOpacity>
-            </View>
+            </TouchableOpacity>
           </TouchableOpacity>
 
           {/* ── SHOPPING TILE (lavender) — Round A big-text ──────────── */}

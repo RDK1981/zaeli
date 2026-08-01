@@ -46,7 +46,7 @@ import TourBanner from '../components/TourBanner';
 import { currentWindow as getCurrentWindow, currentBucket as getCurrentBucket, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
 import { generateBrief, FamilyContext } from '../../lib/brief-generator';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
-import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, consumeChatIntent } from '../../lib/navigation-store';
+import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, consumeChatIntent, bumpHomeRefresh } from '../../lib/navigation-store';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
@@ -3398,6 +3398,12 @@ function HomeScreen({
       pendingOpenMoreRef.current = false;
       setMoreOpen(true);
     }
+    // Round B commit 3 — safety-net stale-tile refresh. Individual mutation
+    // paths already bumpHomeRefresh() where appropriate (reminders, shop),
+    // but for calendar events (mutated via child components), this catches
+    // any mutations that don't have a direct hook. Cost: one Supabase query
+    // when the user closes a sheet without mutating; harmless.
+    bumpHomeRefresh();
   }
 
   function closeMoreSheet() {
@@ -4668,7 +4674,7 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
 
       if ((ctx.type as string) === 'calendar_sheet' || (ctx.type as string) === 'calendar_view') {
         setScreen('chat'); chatOpacity.setValue(1); entryOpacity.setValue(0);
-        setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today'), 300);
+        setTimeout(() => openCalSheet((ctx.event as any)?.tab || 'today', { openAdd: !!ctx.openAdd }), 300);
         return;
       }
 
@@ -5765,7 +5771,11 @@ Only include events directly relevant to the question. Max 5 events.`;
 
   // ── Sheet ─────────────────────────────────────────────────────────────────
   // ── Calendar sheet open/data ──────────────────────────────────────────────
-  async function openCalSheet(tab: 'today'|'tomorrow'|'month' = 'today') {
+  //
+  // Round B commit 3 — added `openAdd` option. When true, the sheet opens
+  // straight into the manual-add form for today's date, skipping the
+  // "tap the tile → tap Add event again" two-tap flow Rich reported.
+  async function openCalSheet(tab: 'today'|'tomorrow'|'month' = 'today', opts?: { openAdd?: boolean }) {
     const now = new Date();
     const today = localDateStr();
     const tomorrow = localDatePlusDays(1);
@@ -5774,7 +5784,13 @@ Only include events directly relevant to the question. Max 5 events.`;
     setCalSheetSelDay(today);
     setCalSheetUserTapped(false);  // auto-selected, don't show red highlight yet
     setCalSheetTab(tab);
-    setCalSheetEditEv(null);
+    // Preload a blank add form when openAdd requested. Uses same shape as
+    // the calendar sheet's own onManualAdd handler for consistency.
+    if (opts?.openAdd) {
+      setCalSheetEditEv({ date: today, title: '', assignees: defaultAssigneeIds(), start_time: '', end_time: '' } as any);
+    } else {
+      setCalSheetEditEv(null);
+    }
     setCalSheetOpen(true);
 
     // Fetch data in background — sheet shows loading state while this runs
@@ -5864,6 +5880,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       setRemindLastAddedId(r.id);
       if (remindNotifyTimerRef.current) clearTimeout(remindNotifyTimerRef.current);
       remindNotifyTimerRef.current = setTimeout(() => setRemindLastAddedId(null), 8000);
+      bumpHomeRefresh(); // Round B commit 3 — Home tile stale-refresh
     } else {
       // Save failed silently — force a full reload so at least a server
       // round-trip has a chance to surface the row (or nothing, honestly).
@@ -5877,6 +5894,7 @@ Only include events directly relevant to the question. Max 5 events.`;
     setRemindSheetItems(prev => prev.map(x => x.id === id ? { ...x, visibility: 'shared' } : x));
     setRemindLastAddedId(null);
     if (remindNotifyTimerRef.current) clearTimeout(remindNotifyTimerRef.current);
+    bumpHomeRefresh(); // Round B commit 3 — Home tile stale-refresh
     try {
       await updateReminderVisibility(id, 'shared');
       // Fire family push — creator is excluded from recipients server-side.
@@ -6027,6 +6045,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       const { data } = await supabase.from('shopping_items').select('id,name,item,category,checked,meal_source,created_at').eq('family_id', getFamilyId()).eq('checked', true).order('created_at', { ascending: false }).limit(30);
       setShopSheetBought(data ?? []);
     } catch { /* silent */ }
+    bumpHomeRefresh(); // Round B commit 3 — Home tile stale-refresh
   }
 
   // Legacy function kept for inline card use
@@ -6056,6 +6075,7 @@ Only include events directly relevant to the question. Max 5 events.`;
     await supabase.from('shopping_items').insert({ family_id: getFamilyId(), name: itemName, item: itemName, category: cat, meal_source: itemQty || null, checked: false });
     setShopAddInput('');
     refreshShopList();
+    bumpHomeRefresh(); // Round B commit 3 — Home tile stale-refresh
     return null; // success, no issue
   }
 
@@ -6064,6 +6084,7 @@ Only include events directly relevant to the question. Max 5 events.`;
     setShopDelConfirmId(null);
     setShopExpandedId(null);
     refreshShopList();
+    bumpHomeRefresh(); // Round B commit 3
   }
 
   async function deleteReceipt(id: string) {
@@ -8060,7 +8081,10 @@ Rules:
                               <TouchableOpacity
                                 onPress={async () => {
                                   const updated = isDone ? await unmarkReminderDone(r) : await markReminderDone(r);
-                                  if (updated) setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
+                                  if (updated) {
+                                    setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
+                                    bumpHomeRefresh(); // Round B commit 3
+                                  }
                                 }}
                                 style={{ width:26, height:26, borderRadius:13, borderWidth:2, borderColor: isDone ? '#22C55E' : 'rgba(0,0,0,0.20)', backgroundColor: isDone ? '#22C55E' : 'transparent', alignItems:'center', justifyContent:'center' }}
                                 hitSlop={{ top:8, bottom:8, left:8, right:8 }}
@@ -8096,7 +8120,10 @@ Rules:
                               <TouchableOpacity
                                 onPress={async () => {
                                   const ok = await deleteReminder(r);
-                                  if (ok) setRemindSheetItems(prev => prev.filter(x => x.id !== r.id));
+                                  if (ok) {
+                                    setRemindSheetItems(prev => prev.filter(x => x.id !== r.id));
+                                    bumpHomeRefresh(); // Round B commit 3
+                                  }
                                 }}
                                 hitSlop={{ top:8, bottom:8, left:8, right:8 }}
                               >
