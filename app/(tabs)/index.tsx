@@ -2232,8 +2232,25 @@ async function executeTool(name: string, input: any): Promise<string> {
       // Session 32 v2 Phase 05 \u2014 Zaeli-authored reminders. Family-shared
       // visibility (everyone sees) with creator-only local notifications
       // (only the person who set it gets the phone buzz).
+      //
+      // Round B commit 13b \u2014 verbose diagnostic logging + verified-save
+      // pattern. Rich reported Zaeli claimed "Added" twice for a reminder
+      // that never landed in the DB. Two possible causes: fabrication
+      // (no tool call actually happened) or silent save failure (tool
+      // said \u2705 but Postgres rolled back). Diagnostic logs surface which.
+      console.log('[add_reminder/tool] enter \u2014 input:', JSON.stringify({
+        title: input.title,
+        remind_at: input.remind_at,
+        remind_on: input.remind_on,
+        repeat: input.repeat,
+        notes: input.notes ? '<present>' : undefined,
+      }));
+
       const title = typeof input.title === 'string' ? input.title.trim() : '';
-      if (!title) return `TOOL_FAILED: add_reminder needs a title.`;
+      if (!title) {
+        console.log('[add_reminder/tool] EARLY FAIL \u2014 empty title');
+        return `TOOL_FAILED: add_reminder needs a title.`;
+      }
       const repeat = (input.repeat as any) || 'none';
 
       if (repeat !== 'none' && input.remind_at) {
@@ -2247,22 +2264,37 @@ async function executeTool(name: string, input: any): Promise<string> {
               rule: repeat,
             });
           })();
-          if (!saved.length) return `TOOL_FAILED: reminder series didn't save.`;
+          if (!saved.length) {
+            console.log('[add_reminder/tool] SERIES SAVE FAILED \u2014 zero rows returned');
+            return `TOOL_FAILED: reminder series didn't save (0 rows).`;
+          }
+          console.log('[add_reminder/tool] SERIES SAVED \u2014', saved.length, 'instances');
           return `\u2705 **${title}** \u2014 recurring (${repeat}), ${saved.length} instances scheduled.`;
         } catch (e:any) {
+          console.log('[add_reminder/tool] SERIES SAVE THREW:', e?.message);
           return `TOOL_FAILED: ${e?.message || 'series save failed'}`;
         }
       }
 
-      const r = await saveReminder({
-        title,
-        notes: input.notes,
-        remindAt: input.remind_at,
-        remindOn: input.remind_on,
-        repeatRule: repeat,
-        status: 'active',
-      });
-      if (!r) return `TOOL_FAILED: reminder didn't save.`;
+      let r: any = null;
+      try {
+        r = await saveReminder({
+          title,
+          notes: input.notes,
+          remindAt: input.remind_at,
+          remindOn: input.remind_on,
+          repeatRule: repeat,
+          status: 'active',
+        });
+      } catch (e:any) {
+        console.log('[add_reminder/tool] saveReminder THREW:', e?.message);
+        return `TOOL_FAILED: save threw \u2014 ${e?.message || 'unknown error'}`;
+      }
+      if (!r) {
+        console.log('[add_reminder/tool] saveReminder RETURNED NULL \u2014 check [reminders/save] logs above for RLS/profile/DB details');
+        return `TOOL_FAILED: reminder didn't save (returned null). Common causes: profile not ready, RLS blocked the insert, or DB constraint violation. Check Metro logs for [reminders/save] details.`;
+      }
+      console.log('[add_reminder/tool] SAVED OK \u2014 id:', r.id, '\u00b7 title:', r.title, '\u00b7 remindAt:', r.remindAt, '\u00b7 remindOn:', r.remindOn);
       let whenLabel = 'no time set';
       if (r.remindAt) {
         // Round A fix \u2014 parse remindAt as local wall-clock, not UTC
@@ -2372,7 +2404,13 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 
 - CALENDAR HONESTY — ABSOLUTE: Same rule as send_family_message. NEVER claim an event has been "added", "booked", "scheduled", "in the system", "confirmed", or any equivalent phrase unless a add_calendar_event tool call was actually made in this turn AND returned a "✅" response. If the user follows up with "did you add X and Y?" — check the tool_result history. If X and Y were NOT added via tool calls, say so honestly: "Only Gab's was added — I missed Poppy and Duke's. Want me to add them now?" Do NOT paraphrase absence as presence. Do NOT invent event details like teacher names or times you saw in images but didn't tool-add.
 
-- REMINDER HONESTY — ABSOLUTE: The confirmation for a fresh add_reminder call MUST reference the item added in THIS TURN's tool_result — never a previous turn's item, never a paraphrase of a prior confirmation. If Sonnet's previous turn added "Take out the bins" and the current turn's user request is "add find gate key to the to-do list", the current turn's tool_result is for "find gate key" — confirm THAT title, not "Take out the bins". If the fresh tool_result starts with "TOOL_FAILED" (e.g. "TOOL_FAILED: reminder didn't save"), you MUST report the failure honestly — say "That one didn't save, let me try again?" and DO NOT dredge up a prior successful reminder as if it were the answer. When multiple add_reminder tool calls were made across turns, each confirmation references its own turn's result only. Never blend past successes into a fresh confirmation to seem more helpful — that's dishonest and confusing.
+- REMINDER HONESTY — ABSOLUTE (same rule as calendar + send_family_message):
+    * NEVER claim a reminder has been "added", "saved", "set", "on your list", "in your reminders", or ANY equivalent phrase unless an add_reminder tool call was actually made in THIS TURN AND returned a "✅" response (never "TOOL_FAILED", never nothing).
+    * If the tool result starts with "TOOL_FAILED" — even if it succeeded ANOTHER time earlier in the conversation — the CURRENT attempt failed. Report honestly: "That one didn't save — want me to try again?" NEVER paraphrase failure as success. NEVER say "Added" when the fresh tool_result is a failure.
+    * The confirmation for a fresh add_reminder call MUST reference the item added in THIS TURN's tool_result — never a previous turn's item, never a paraphrase of a prior confirmation.
+    * If the user sends the SAME message twice (e.g. "remind me tomorrow to ask Poppy" twice in a row), each attempt is INDEPENDENT. Each requires its own fresh tool call AND its own fresh ✅. Never reuse the previous turn's ✅ as evidence the current turn worked.
+    * If you have not called add_reminder in this turn, you have NOT added a reminder. Do not describe an add that didn't happen. If you meant to call the tool but didn't, say "Let me actually add that now" and CALL THE TOOL — don't fabricate a confirmation.
+    * When multiple add_reminder tool calls were made across turns, each confirmation references its own turn's result only. Never blend past successes into a fresh confirmation to seem more helpful — that's dishonest.
 
 - CALENDAR LOOKUP — the LIVE DATA block only pre-loads today + tomorrow's events. The calendar itself holds events for months ahead. If the user asks about anything OUTSIDE the today/tomorrow window ("when is Broken Head?", "what's on in September?", "are we away that weekend?", "is Poppy's dance troop still going?"), CALL find_calendar_events IMMEDIATELY with a title keyword and/or date range. NEVER say "not showing in the calendar" or "not in the data I have" until you've actually searched via the tool. Only after find_calendar_events returns zero rows can you honestly say the event isn't there.
 - update_meal: use this to change a meal name, move a meal to a different date, or change prep time. NEVER use add_meal when the user wants to change or move an existing meal.
@@ -5706,6 +5744,12 @@ Only include events directly relevant to the question. Max 5 events.`;
           // Refresh card data + inline calendar cards after any tool action
           loadCardData();
           refreshCalendarEvents();
+          // Round B commit 13b — bump the shared Home refresh signal so tiles
+          // (Reminders/Shopping/Calendar) re-fetch after any chat tool
+          // completion. Without this, Rich adds a reminder in chat, swipes
+          // to Home, and the tile still shows the old count/list until he
+          // force-quits or opens the sheet. Same pattern as sheet mutations.
+          bumpHomeRefresh();
         } else {
           const reply = data.content?.find((b:any) => b.type==='text')?.text ?? 'Something went wrong — try again?';
           updateMsg(replyId, { text:reply, isLoading:false });
