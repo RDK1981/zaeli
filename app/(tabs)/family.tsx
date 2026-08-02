@@ -119,11 +119,15 @@ export default function FamilyScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   // ── Derived ───────────────────────────────────────────────────────────
+  // Round B commit 11 — family_members table uses role='parent'|'child';
+  // profiles table (separately) uses kind='owner'|'adult'|'kid'. Filter the
+  // roster by parent/child, then use ownerId (from profiles.kind='owner')
+  // to distinguish the Owner from other Adults at render time.
   const me = roster.find(m => m.id === meId) ?? null;
-  const isOwner = me?.role === 'owner' || meId === ownerId;
-  const isAdult = me?.role === 'adult';
-  const adults = roster.filter(m => m.role === 'owner' || m.role === 'adult');
-  const kids   = roster.filter(m => m.role === 'kid');
+  const isOwner = meId != null && meId === ownerId;
+  const isAdult = !isOwner && me?.role === 'parent';
+  const adults = roster.filter(m => m.role === 'parent');
+  const kids   = roster.filter(m => m.role === 'child');
   const selected = roster.find(m => m.id === selectedId) ?? null;
 
   const familyName = 'Family';   // TODO: pull from families.name once wired
@@ -210,6 +214,7 @@ export default function FamilyScreen() {
           me={me}
           isOwner={isOwner}
           isAdult={isAdult}
+          ownerId={ownerId}
           familyName={familyName}
           onMember={openMember}
           onInvite={openInvite}
@@ -227,6 +232,7 @@ export default function FamilyScreen() {
           me={me}
           isOwner={isOwner}
           isMe={selected.id === meId}
+          ownerId={ownerId}
           budgetAccess={!!kidBudgetAccess[selected.id]}
           onToggleBudget={() => onToggleKidBudget(selected.id)}
           onInvite={openInvite}
@@ -262,6 +268,7 @@ function MainView(p: {
   me: RosterMember | null;
   isOwner: boolean;
   isAdult: boolean;
+  ownerId: string | null;
   familyName: string;
   onMember: (m: RosterMember) => void;
   onInvite: () => void;
@@ -334,6 +341,7 @@ function MainView(p: {
           key={m.id}
           member={m}
           isMe={m.id === p.me?.id}
+          isOwnerMember={m.id === p.ownerId}
           canTap={p.isOwner || m.id === p.me?.id}
           onPress={() => p.onMember(m)}
         />
@@ -346,6 +354,7 @@ function MainView(p: {
           key={m.id}
           member={m}
           isMe={m.id === p.me?.id}
+          isOwnerMember={false}
           canTap={p.isOwner || m.id === p.me?.id}
           onPress={() => p.onMember(m)}
         />
@@ -371,12 +380,15 @@ function MainView(p: {
 }
 
 // ── Member row ──────────────────────────────────────────────────────────
-function MemberRow({ member, isMe, canTap, onPress }:{
-  member: RosterMember; isMe: boolean; canTap: boolean; onPress: () => void;
+function MemberRow({ member, isMe, isOwnerMember, canTap, onPress }:{
+  member: RosterMember; isMe: boolean; isOwnerMember: boolean; canTap: boolean; onPress: () => void;
 }) {
-  const roleLabel = member.role === 'owner' ? 'Owner' : member.role === 'adult' ? 'Adult' : 'Kid';
-  const rolePillColor = member.role === 'owner' ? PEACH_D : member.role === 'adult' ? SKY_D : LAV_D;
-  const rolePillBg    = member.role === 'owner' ? PEACH_T : member.role === 'adult' ? SKY_T   : LAV_T;
+  // Round B commit 11 — family_members.role is 'parent' | 'child'; cross-ref
+  // with isOwnerMember (from profiles.kind='owner') to label the Owner row.
+  const isKid = member.role === 'child';
+  const roleLabel = isOwnerMember ? 'Owner' : isKid ? 'Kid' : 'Adult';
+  const rolePillColor = isOwnerMember ? PEACH_D : isKid ? LAV_D : SKY_D;
+  const rolePillBg    = isOwnerMember ? PEACH_T : isKid ? LAV_T : SKY_T;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -401,7 +413,7 @@ function MemberRow({ member, isMe, canTap, onPress }:{
           )}
         </View>
         <Text style={s.memberMeta} numberOfLines={1}>
-          {member.role === 'kid' && member.yearLevel ? `Year ${member.yearLevel}` : roleLabel}
+          {isKid && member.yearLevel ? `Year ${member.yearLevel}` : roleLabel}
         </Text>
       </View>
       {canTap && <Text style={s.chev}>›</Text>}
@@ -415,13 +427,17 @@ function MemberDetailView(p: {
   me: RosterMember | null;
   isOwner: boolean;
   isMe: boolean;
+  ownerId: string | null;
   budgetAccess: boolean;
   onToggleBudget: () => void;
   onInvite: () => void;
   onBack: () => void;
 }) {
-  const isKid = p.member.role === 'kid';
-  const isAdult = p.member.role === 'adult' || p.member.role === 'owner';
+  // Round B commit 11 — family_members.role is 'parent'|'child'; owner is
+  // identified separately via profiles.kind='owner' (passed as p.ownerId).
+  const isKid = p.member.role === 'child';
+  const isAdult = p.member.role === 'parent';
+  const isOwnerMember = p.member.id === p.ownerId;
   const canEdit = p.isOwner || p.isMe;
 
   return (
@@ -437,9 +453,9 @@ function MemberDetailView(p: {
         </View>
         <Text style={s.profileName}>{p.member.name}</Text>
         <View style={{ flexDirection:'row', gap: 6, marginTop: 4 }}>
-          <View style={[s.pill, { backgroundColor: isKid ? LAV_T : isAdult ? SKY_T : PEACH_T }]}>
-            <Text style={[s.pillText, { color: isKid ? LAV_D : isAdult ? SKY_D : PEACH_D }]}>
-              {p.member.role === 'owner' ? 'Owner' : p.member.role === 'adult' ? 'Adult' : 'Kid'}
+          <View style={[s.pill, { backgroundColor: isOwnerMember ? PEACH_T : isKid ? LAV_T : SKY_T }]}>
+            <Text style={[s.pillText, { color: isOwnerMember ? PEACH_D : isKid ? LAV_D : SKY_D }]}>
+              {isOwnerMember ? 'Owner' : isKid ? 'Kid' : 'Adult'}
             </Text>
           </View>
           <View style={[s.pill, { backgroundColor: MINT_T }]}>
@@ -547,7 +563,7 @@ function MemberDetailView(p: {
                 <Text style={[s.pillText, { color: MINT_D }]}>Yes</Text>
               </View>
             </View>
-            {p.member.role !== 'owner' && (
+            {!isOwnerMember && (
               <View style={s.row}>
                 <View style={{ flex:1 }}>
                   <Text style={s.rowLbl}>Manage members</Text>

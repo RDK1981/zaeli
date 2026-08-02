@@ -191,8 +191,29 @@ export default function SwipeWorld() {
         </View>
       </ScrollView>
 
-      {/* Session 32 v2 — page dots removed per Rich's call. Cleaner header,
-          swipe hint teaches Chat exists on first install, users learn quickly. */}
+      {/* Round B commit 11 — 2-dot page indicator restored per Rich's ask.
+          Header-anchored (top: insets.top + 12) so it lives in the empty
+          strip between status bar and page header. Coral active / grey idle.
+          Tap either dot to jump to that page. */}
+      <View
+        pointerEvents="box-none"
+        style={[s.dotsWrap, { top: insets.top + 12 }]}
+      >
+        <TouchableOpacity
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          onPress={() => scrollToPage(PAGE_DASHBOARD)}
+          activeOpacity={0.7}
+        >
+          <View style={[s.dot, activePage === PAGE_DASHBOARD ? s.dotActive : s.dotIdle]} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          onPress={() => scrollToPage(PAGE_CHAT)}
+          activeOpacity={0.7}
+        >
+          <View style={[s.dot, activePage === PAGE_CHAT ? s.dotActive : s.dotIdle]} />
+        </TouchableOpacity>
+      </View>
 
       {/* ── First-run swipe hint — one-shot, fades out on dismiss ──
           Session 32 v2: Chat is now at DOM index 1 (right side). Arrow
@@ -258,6 +279,27 @@ const s = StyleSheet.create({
   page: {
     width: W,
     flex: 1,
+  },
+  // ── 2-dot page indicator (Round B commit 11 — restored) ──
+  dotsWrap: {
+    position: 'absolute',
+    left: 0, right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 40,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  dotActive: {
+    backgroundColor: '#FF4545',   // coral — matches Chat identity, also visible on both light headers
+  },
+  dotIdle: {
+    backgroundColor: 'rgba(10,10,10,0.20)',
   },
   // ── First-run swipe hint pill (Session 25) — one-shot ──
   hintWrap: {

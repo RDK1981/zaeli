@@ -24,6 +24,11 @@ import {
 } from 'react-native';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+// Round B commit 11 — react-native-gesture-handler + reanimated for
+// reliable swipe-down close on sheet Modals (PanResponder was flaky
+// inside iOS Modal — see lib/use-sheet-swipe-close.ts)
+import { GestureDetector } from 'react-native-gesture-handler';
+import ReAnimated from 'react-native-reanimated';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { getPendingCalendarImage, setPendingCalendarImage } from './calendar';
 import Svg, { Path, Line, Rect, Circle, Polyline, Polygon } from 'react-native-svg';
@@ -51,7 +56,7 @@ import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 import { getFamilyId } from '../../lib/family';
-import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, updateReminderVisibility, parseLocalIsoAsDate, type Reminder, type Visibility } from '../../lib/reminders';
+import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, updateReminderVisibility, updateReminderTitle, parseLocalIsoAsDate, type Reminder, type Visibility } from '../../lib/reminders';
 import { useSheetSwipeClose } from '../../lib/use-sheet-swipe-close';
 const MEMBER_NAME      = 'Rich';
 const INK              = '#0A0A0A';
@@ -3449,6 +3454,9 @@ function HomeScreen({
   const [remindDraft,        setRemindDraft]        = useState('');
   const [remindKbHeight,     setRemindKbHeight]     = useState(0);
   const [remindLastAddedId,  setRemindLastAddedId]  = useState<string|null>(null);
+  // Round B commit 11 — tap-to-expand for edit + tier toggle
+  const [remindExpandedId,   setRemindExpandedId]   = useState<string|null>(null);
+  const [remindEditTitle,    setRemindEditTitle]    = useState<string>('');
   const remindNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Shopping sheet state ─────────────────────────────────────────────────
@@ -7810,13 +7818,15 @@ Rules:
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setCalSheetOpen(false)} activeOpacity={1}/>
-            <Animated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' }, calSwipe.animatedStyle]}>
+            <ReAnimated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' }, calSwipe.animatedStyle]}>
               <SafeAreaView style={{ flex:1, display:'flex', flexDirection:'column' }} edges={['bottom']}>
 
-                {/* Handle — Round B commit 5 swipe-down close */}
-                <View {...calSwipe.handleGrabProps} style={{ paddingVertical:12, alignItems:'center' }}>
-                  <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
-                </View>
+                {/* Handle — Round B commit 11 uses Gesture.Pan() from gesture-handler */}
+                <GestureDetector gesture={calSwipe.panGesture}>
+                  <View style={{ paddingVertical:16, alignItems:'center' }}>
+                    <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
+                  </View>
+                </GestureDetector>
 
                 {/* Header — changes between list and edit form */}
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
@@ -7971,7 +7981,7 @@ Rules:
                   </View>
                 )}
               </SafeAreaView>
-            </Animated.View>
+            </ReAnimated.View>
           </View>
         </Modal>
 
@@ -7991,14 +8001,23 @@ Rules:
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setRemindSheetOpen(false)} activeOpacity={1}/>
-            <Animated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' }, remindSwipe.animatedStyle]}>
+            {/* Round B commit 11 — sheet card gets marginBottom = keyboard
+                height when up, physically lifting the whole card above the
+                keyboard. Kills the KAV-inside-Modal approach that never
+                worked reliably. */}
+            <ReAnimated.View style={[
+              { backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' },
+              remindKbHeight > 0 && { marginBottom: Math.max(remindKbHeight - insets.bottom, 0) },
+              remindSwipe.animatedStyle,
+            ]}>
               <SafeAreaView style={{ flex:1, display:'flex', flexDirection:'column' }} edges={[]}>
-                {/* Drag handle — Round B commit 5 swipe-down. Enlarged hit area
-                    (36px handle inside 24px vertical padding) so users can grab
-                    it easily without pixel-perfect aim. */}
-                <View {...remindSwipe.handleGrabProps} style={{ paddingVertical:12, alignItems:'center' }}>
-                  <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
-                </View>
+                {/* Handle — Round B commit 11 uses Gesture.Pan() (PanResponder
+                    was unreliable inside iOS Modal). Enlarged 32px hit area. */}
+                <GestureDetector gesture={remindSwipe.panGesture}>
+                  <View style={{ paddingVertical:16, alignItems:'center' }}>
+                    <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
+                  </View>
+                </GestureDetector>
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingBottom:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
                   <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
                     <Text style={{ fontSize:20 }}>⏰</Text>
@@ -8034,21 +8053,13 @@ Rules:
                   })}
                 </View>
 
-                {/* Round B commit 6 — RESTORE KeyboardAvoidingView per CLAUDE.md
-                    SheetShell rule ("KAV inside card wrapping only body").
-                    Commit 2 tried manual keyboard-height + marginBottom on
-                    the pill wrapper (matched Shopping's supposed pattern),
-                    but the pill is the LAST child of a fixed-height flex
-                    column — marginBottom on a last-flex-child adds space
-                    BELOW it, doesn't move it up. Anna + Rich both reported
-                    the input pill still hidden behind the keyboard. KAV in
-                    padding mode is the proven approach and always has been
-                    for our sheets. */}
-                <KeyboardAvoidingView
-                  style={{ flex:1 }}
-                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                  keyboardVerticalOffset={0}
-                >
+                {/* Round B commit 11 — NO KeyboardAvoidingView.
+                    KAV inside iOS Modal is unreliable — commit 6 tried it,
+                    Rich's screenshot showed the pill still hidden behind
+                    the keyboard. New approach: marginBottom on the sheet
+                    CARD (Animated.View above) shifts the entire card up
+                    by keyboard height. Simple, deterministic, works. */}
+                <View style={{ flex:1 }}>
                   <ScrollView
                     style={{ flex:1 }}
                     contentContainerStyle={{ padding:16, paddingBottom: 20 + Math.max(0, insets.bottom) }}
@@ -8152,6 +8163,7 @@ Rules:
                           whenLabel = ''; // to-dos have no time label
                         }
 
+                        const isExpanded = remindExpandedId === r.id;
                         return (
                           <View key={r.id}>
                             {header && (
@@ -8159,58 +8171,154 @@ Rules:
                                 {header}
                               </Text>
                             )}
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:12, backgroundColor: isDone ? 'rgba(0,0,0,0.03)' : '#fff', borderRadius:16, padding:14, marginBottom:8, borderLeftWidth:3, borderLeftColor: tier === 'shared' ? '#B8EDD0' : (isMe ? '#F0DC80' : 'rgba(0,0,0,0.10)') }}>
+                            <View style={{ backgroundColor: isDone ? 'rgba(0,0,0,0.03)' : '#fff', borderRadius:16, marginBottom:8, borderLeftWidth:3, borderLeftColor: tier === 'shared' ? '#B8EDD0' : (isMe ? '#F0DC80' : 'rgba(0,0,0,0.10)'), overflow:'hidden' }}>
+                              {/* Round B commit 11 — tap row (not tick or ✕) → expand inline edit */}
                               <TouchableOpacity
-                                onPress={async () => {
-                                  const updated = isDone ? await unmarkReminderDone(r) : await markReminderDone(r);
-                                  if (updated) {
-                                    setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
-                                    bumpHomeRefresh(); // Round B commit 3
-                                  }
+                                onPress={() => {
+                                  if (isExpanded) { setRemindExpandedId(null); return; }
+                                  setRemindExpandedId(r.id);
+                                  setRemindEditTitle(r.title);
                                 }}
-                                style={{ width:26, height:26, borderRadius:13, borderWidth:2, borderColor: isDone ? '#22C55E' : 'rgba(0,0,0,0.20)', backgroundColor: isDone ? '#22C55E' : 'transparent', alignItems:'center', justifyContent:'center' }}
-                                hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                                activeOpacity={0.75}
+                                style={{ flexDirection:'row', alignItems:'center', gap:12, padding:14 }}
                               >
-                                {isDone && <Text style={{ color:'#fff', fontSize:14, fontWeight:'700' }}>✓</Text>}
-                              </TouchableOpacity>
-                              <View style={{ flex:1 }}>
-                                <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                                  {/* Tier icon */}
-                                  <Text style={{ fontSize:12 }}>{tier === 'shared' ? '👥' : '🔒'}</Text>
-                                  <Text
-                                    style={{ flex:1, fontFamily:'Poppins_600SemiBold', fontSize:16, color: isDone ? 'rgba(0,0,0,0.4)':'#0A0A0A', textDecorationLine: isDone ? 'line-through' : 'none' }}
-                                    numberOfLines={0}
-                                  >
-                                    {r.title}
-                                  </Text>
+                                <TouchableOpacity
+                                  onPress={async () => {
+                                    const updated = isDone ? await unmarkReminderDone(r) : await markReminderDone(r);
+                                    if (updated) {
+                                      setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
+                                      bumpHomeRefresh();
+                                    }
+                                  }}
+                                  style={{ width:26, height:26, borderRadius:13, borderWidth:2, borderColor: isDone ? '#22C55E' : 'rgba(0,0,0,0.20)', backgroundColor: isDone ? '#22C55E' : 'transparent', alignItems:'center', justifyContent:'center' }}
+                                  hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                                >
+                                  {isDone && <Text style={{ color:'#fff', fontSize:14, fontWeight:'700' }}>✓</Text>}
+                                </TouchableOpacity>
+                                <View style={{ flex:1 }}>
+                                  <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                                    <Text style={{ fontSize:12 }}>{tier === 'shared' ? '👥' : '🔒'}</Text>
+                                    <Text
+                                      style={{ flex:1, fontFamily:'Poppins_600SemiBold', fontSize:16, color: isDone ? 'rgba(0,0,0,0.4)':'#0A0A0A', textDecorationLine: isDone ? 'line-through' : 'none' }}
+                                      numberOfLines={0}
+                                    >
+                                      {r.title}
+                                    </Text>
+                                  </View>
+                                  {(whenLabel || !isMe) && (
+                                    <Text style={{ fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(0,0,0,0.5)', marginTop:2 }}>
+                                      {whenLabel}{whenLabel && !isMe ? ' · ' : ''}{!isMe ? 'shared' : ''}
+                                    </Text>
+                                  )}
+                                  {showChip && !isExpanded && (
+                                    <TouchableOpacity
+                                      onPress={() => convertReminderToShared(r.id)}
+                                      style={{ alignSelf:'flex-start', marginTop:8, backgroundColor:'#B8EDD0', paddingHorizontal:12, paddingVertical:6, borderRadius:14 }}
+                                      activeOpacity={0.85}
+                                    >
+                                      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#0A5C3A' }}>📣 Notify family</Text>
+                                    </TouchableOpacity>
+                                  )}
                                 </View>
-                                {(whenLabel || !isMe) && (
-                                  <Text style={{ fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(0,0,0,0.5)', marginTop:2 }}>
-                                    {whenLabel}{whenLabel && !isMe ? ' · ' : ''}{!isMe ? 'shared' : ''}
-                                  </Text>
-                                )}
-                                {showChip && (
-                                  <TouchableOpacity
-                                    onPress={() => convertReminderToShared(r.id)}
-                                    style={{ alignSelf:'flex-start', marginTop:8, backgroundColor:'#B8EDD0', paddingHorizontal:12, paddingVertical:6, borderRadius:14 }}
-                                    activeOpacity={0.85}
-                                  >
-                                    <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'#0A5C3A' }}>📣 Notify family</Text>
-                                  </TouchableOpacity>
-                                )}
-                              </View>
-                              <TouchableOpacity
-                                onPress={async () => {
-                                  const ok = await deleteReminder(r);
-                                  if (ok) {
-                                    setRemindSheetItems(prev => prev.filter(x => x.id !== r.id));
-                                    bumpHomeRefresh(); // Round B commit 3
-                                  }
-                                }}
-                                hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                              >
-                                <Text style={{ fontSize:18, color:'rgba(0,0,0,0.30)' }}>✕</Text>
+                                <Text style={{ fontSize:16, color:'rgba(0,0,0,0.32)' }}>{isExpanded ? '›' : '›'}</Text>
                               </TouchableOpacity>
+
+                              {/* Round B commit 11 — expanded edit panel */}
+                              {isExpanded && (
+                                <View style={{ padding:14, paddingTop:0, gap:10, borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.06)', marginTop:2 }}>
+                                  <View style={{ paddingTop:12 }}>
+                                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.5, color:'rgba(10,10,10,0.55)', textTransform:'uppercase', marginBottom:6 }}>Title</Text>
+                                    <TextInput
+                                      value={remindEditTitle}
+                                      onChangeText={setRemindEditTitle}
+                                      placeholder="What to remember…"
+                                      placeholderTextColor="rgba(10,10,10,0.30)"
+                                      style={{ backgroundColor:'#fff', borderWidth:1.5, borderColor:'#F0DC80', borderRadius:12, paddingHorizontal:12, paddingVertical:10, fontFamily:'Poppins_500Medium', fontSize:15, color:'#0A0A0A' }}
+                                    />
+                                  </View>
+                                  <View>
+                                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.5, color:'rgba(10,10,10,0.55)', textTransform:'uppercase', marginBottom:6 }}>Visibility</Text>
+                                    <View style={{ flexDirection:'row', gap:8 }}>
+                                      <TouchableOpacity
+                                        onPress={async () => {
+                                          if (tier !== 'personal') {
+                                            const updated = await updateReminderVisibility(r.id, 'personal');
+                                            if (updated) {
+                                              setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
+                                              bumpHomeRefresh();
+                                            }
+                                          }
+                                        }}
+                                        style={{ flex:1, paddingVertical:10, borderRadius:10, backgroundColor: tier === 'personal' ? '#F0DC80' : 'rgba(10,10,10,0.05)', alignItems:'center', flexDirection:'row', justifyContent:'center', gap:6 }}
+                                        activeOpacity={0.75}
+                                      >
+                                        <Text style={{ fontSize:13 }}>🔒</Text>
+                                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color: tier === 'personal' ? '#0A0A0A' : 'rgba(10,10,10,0.55)' }}>Personal</Text>
+                                      </TouchableOpacity>
+                                      <TouchableOpacity
+                                        onPress={async () => {
+                                          if (tier !== 'shared') {
+                                            await convertReminderToShared(r.id);
+                                            const updated = await updateReminderVisibility(r.id, 'shared');
+                                            if (updated) setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
+                                          }
+                                        }}
+                                        style={{ flex:1, paddingVertical:10, borderRadius:10, backgroundColor: tier === 'shared' ? '#B8EDD0' : 'rgba(10,10,10,0.05)', alignItems:'center', flexDirection:'row', justifyContent:'center', gap:6 }}
+                                        activeOpacity={0.75}
+                                      >
+                                        <Text style={{ fontSize:13 }}>👥</Text>
+                                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color: tier === 'shared' ? '#0A5C3A' : 'rgba(10,10,10,0.55)' }}>Shared</Text>
+                                      </TouchableOpacity>
+                                    </View>
+                                    <Text style={{ fontFamily:'Poppins_400Regular', fontSize:10, color:'rgba(10,10,10,0.45)', marginTop:6, lineHeight:14 }}>
+                                      {tier === 'shared' ? 'Family sees it. Push notification still goes only to you.' : 'Only you see it. Push notification goes to you at the reminder time.'}
+                                    </Text>
+                                  </View>
+                                  <View style={{ flexDirection:'row', gap:8, marginTop:4 }}>
+                                    <TouchableOpacity
+                                      onPress={async () => {
+                                        const ok = await deleteReminder(r);
+                                        if (ok) {
+                                          setRemindSheetItems(prev => prev.filter(x => x.id !== r.id));
+                                          setRemindExpandedId(null);
+                                          bumpHomeRefresh();
+                                        }
+                                      }}
+                                      style={{ paddingVertical:10, paddingHorizontal:14, borderRadius:10, backgroundColor:'rgba(255,69,69,0.10)' }}
+                                      activeOpacity={0.75}
+                                    >
+                                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#B83333' }}>Delete</Text>
+                                    </TouchableOpacity>
+                                    <View style={{ flex:1 }}/>
+                                    <TouchableOpacity
+                                      onPress={() => { setRemindExpandedId(null); setRemindEditTitle(''); }}
+                                      style={{ paddingVertical:10, paddingHorizontal:14, borderRadius:10, backgroundColor:'rgba(10,10,10,0.05)' }}
+                                      activeOpacity={0.75}
+                                    >
+                                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'rgba(10,10,10,0.55)' }}>Cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                      onPress={async () => {
+                                        const trimmed = remindEditTitle.trim();
+                                        if (!trimmed || trimmed === r.title) { setRemindExpandedId(null); return; }
+                                        const updated = await updateReminderTitle(r.id, trimmed);
+                                        if (updated) {
+                                          setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
+                                          setRemindExpandedId(null);
+                                          setRemindEditTitle('');
+                                          bumpHomeRefresh();
+                                        } else {
+                                          Alert.alert("Couldn't save", 'Try again in a moment.');
+                                        }
+                                      }}
+                                      style={{ paddingVertical:10, paddingHorizontal:16, borderRadius:10, backgroundColor:'#0A0A0A' }}
+                                      activeOpacity={0.85}
+                                    >
+                                      <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#fff' }}>Save</Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                </View>
+                              )}
                             </View>
                           </View>
                         );
@@ -8298,9 +8406,9 @@ Rules:
                       </TouchableOpacity>
                     </View>
                   </View>
-                </KeyboardAvoidingView>
+                </View>
               </SafeAreaView>
-            </Animated.View>
+            </ReAnimated.View>
           </View>
         </Modal>
 
@@ -8314,16 +8422,24 @@ Rules:
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setShopSheetOpen(false)} activeOpacity={1}/>
-            <Animated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }, shopSwipe.animatedStyle]}>
+            {/* Round B commit 11 — sheet card gets marginBottom = keyboard
+                height when up, killing the KAV double-lift pattern. */}
+            <ReAnimated.View style={[
+              { backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' },
+              shopKbHeight > 0 && { marginBottom: Math.max(shopKbHeight - insets.bottom, 0) },
+              shopSwipe.animatedStyle,
+            ]}>
               {/* SafeAreaView edges=[] — bottom inset is applied explicitly by the
                   add-bar wrappers below (was edges={['bottom']} which failed to
                   apply on first render inside Modal, leaving the add bar squashed) */}
               <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={[]}>
 
-                {/* Handle — Round B commit 5 swipe-down close */}
-                <View {...shopSwipe.handleGrabProps} style={{ paddingVertical:12, alignItems:'center' }}>
-                  <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
-                </View>
+                {/* Handle — Round B commit 11 Gesture.Pan() */}
+                <GestureDetector gesture={shopSwipe.panGesture}>
+                  <View style={{ paddingVertical:16, alignItems:'center' }}>
+                    <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
+                  </View>
+                </GestureDetector>
 
                 {/* Header */}
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
@@ -8398,17 +8514,11 @@ Rules:
                 </View>
 
                 {/* ── Tab content —
-                    Round B commit 6: wrap in KeyboardAvoidingView per
-                    CLAUDE.md SheetShell rule. The manual keyboard-height
-                    marginBottom pattern doesn't visually lift a
-                    last-flex-child input pill inside a fixed-height Modal
-                    card — Anna + Rich reported the pill still hidden by
-                    the keyboard. KAV in padding mode is proven. */}
-                <KeyboardAvoidingView
-                  style={{ flex:1, position:'relative' }}
-                  behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                  keyboardVerticalOffset={0}
-                >
+                    Round B commit 11: NO KeyboardAvoidingView. KAV in
+                    Modal was unreliable. Keyboard handling is now
+                    marginBottom on the sheet CARD above (moves the whole
+                    card up above the keyboard). */}
+                <View style={{ flex:1, position:'relative' }}>
 
                   {/* ════ LIST TAB ════ */}
                   {shopSheetTab === 'list' && (() => {
@@ -9161,7 +9271,7 @@ Rules:
                     </>
                   )}
 
-                </KeyboardAvoidingView>{/* end tab content — Round B commit 6 KAV wrap */}
+                </View>{/* end tab content — Round B commit 11 (no KAV) */}
 
                 {/* ── Full-screen Processing overlay (Session 29 — Rich feedback: simpler UX) ── */}
                 {shopScanBusy && (
@@ -9234,7 +9344,7 @@ Rules:
                 )}
 
               </SafeAreaView>
-            </Animated.View>
+            </ReAnimated.View>
           </View>
         </Modal>
 
@@ -9248,13 +9358,15 @@ Rules:
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setMealSheetOpen(false)} activeOpacity={1}/>
-            <Animated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }, mealSwipe.animatedStyle]}>
+            <ReAnimated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }, mealSwipe.animatedStyle]}>
               <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={['bottom']}>
 
-                {/* Handle — Round B commit 5 swipe-down close */}
-                <View {...mealSwipe.handleGrabProps} style={{ paddingVertical:12, alignItems:'center' }}>
-                  <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
-                </View>
+                {/* Handle — Round B commit 11 Gesture.Pan() */}
+                <GestureDetector gesture={mealSwipe.panGesture}>
+                  <View style={{ paddingVertical:16, alignItems:'center' }}>
+                    <View style={{ width:36, height:4, borderRadius:2, backgroundColor:'rgba(0,0,0,0.12)' }}/>
+                  </View>
+                </GestureDetector>
 
                 {/* Header — dynamic based on sub-view */}
                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:'rgba(0,0,0,0.08)' }}>
@@ -10258,7 +10370,7 @@ Rules:
                 </View>{/* end tab content */}
 
               </SafeAreaView>
-            </Animated.View>
+            </ReAnimated.View>
           </View>
         </Modal>
 

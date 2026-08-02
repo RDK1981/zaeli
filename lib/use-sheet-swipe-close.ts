@@ -1,84 +1,70 @@
 /**
- * lib/use-sheet-swipe-close.ts — Round B commit 5
+ * lib/use-sheet-swipe-close.ts — Round B commit 11 rewrite
  *
- * Adds swipe-down-to-close on 92% bottom sheets (Reminders, Shopping,
- * Calendar, Meals). RN's Modal isn't natively draggable, but our sheets
- * are actually a View-inside-Modal at bottom-of-screen — we can translate
- * that inner card via PanResponder + Animated.Value.
+ * Uses react-native-gesture-handler's Gesture.Pan() (the modern Gesture API)
+ * instead of RN's PanResponder. The rewrite was forced by Rich reporting
+ * that PanResponder-based swipe-down didn't fire at all inside iOS Modal —
+ * known-fragile combo where native modal presentation swallows JS-side
+ * pan events.
  *
- * Attach the returned `handleGrabProps` to the sheet's drag handle
- * (the small grey pill at the top). Wrap the sheet card in
- * <Animated.View style={[cardStyle, animatedStyle]}>. On visible=false
- * transition the translate resets so re-open animates from bottom
- * cleanly.
+ * Gesture.Pan() uses native gesture recognisers that route cleanly through
+ * Modal boundaries. Reliable in every sheet-in-modal scenario.
  *
- * Only the handle is draggable — not the whole card — to avoid
- * conflicts with scroll views inside the sheet body.
+ * The hook returns `panGesture` (composable Gesture) + `animatedStyle`
+ * (translateY transform). Wrap the sheet card in Animated.View with the
+ * style; wrap the drag handle View in GestureDetector with the gesture.
  *
- * Threshold: 100px OR fast downward velocity closes. Below that,
- * springs back to 0.
+ * ⚠ Root layout must have <GestureHandlerRootView style={{flex:1}}> at
+ *   the very top of the tree for gestures to work. Expo Router usually
+ *   wires this automatically via expo-router setup.
  */
 
-import { useEffect, useMemo, useRef } from 'react';
-import { Animated, PanResponder } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { Gesture } from 'react-native-gesture-handler';
+import { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
 
 export interface SwipeDownHandlers {
-  /** Spread onto the sheet's DRAG HANDLE view (the small grey pill at top). */
-  handleGrabProps: any;
-  /** Spread onto the sheet CARD (the bottom View that contains the content). */
+  /** Attach to <GestureDetector gesture={...}> around the drag handle */
+  panGesture: ReturnType<typeof Gesture.Pan>;
+  /** Spread on the sheet card (Animated.View) */
   animatedStyle: any;
 }
 
 const CLOSE_THRESHOLD_PX = 100;
-const CLOSE_VELOCITY = 0.6;
+const CLOSE_VELOCITY = 800;   // gesture-handler uses px/s (much larger than PanResponder)
 
 export function useSheetSwipeClose(visible: boolean, onClose: () => void): SwipeDownHandlers {
-  const translateY = useRef(new Animated.Value(0)).current;
+  const translateY = useSharedValue(0);
 
-  // Round B commit 8 — only reset when sheet becomes VISIBLE (re-open).
-  // Previously reset also fired on visible=false during close, which SNAPPED
-  // the card back to y=0 mid-close, causing the flash Rich reported (fling
-  // to 600 → snap to 0 → Modal native slide again from 0 to 600). Now the
-  // card stays at y=600 during close so nothing flashes.
   useEffect(() => {
-    if (visible) translateY.setValue(0);
+    if (visible) translateY.value = 0;
   }, [visible, translateY]);
 
-  const panHandlers = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 5,
-    onPanResponderMove: (_, g) => {
-      // Only allow downward drag; upward = clamp at 0 (no bounce)
-      const y = Math.max(0, g.dy);
-      translateY.setValue(y);
-    },
-    onPanResponderRelease: (_, g) => {
-      const shouldClose = g.dy > CLOSE_THRESHOLD_PX || g.vy > CLOSE_VELOCITY;
-      if (shouldClose) {
-        // Round B commit 8 — fire onClose IMMEDIATELY, don't animate
-        // ourselves. Modal's native animationType="slide" handles the
-        // slide-out from wherever the card visually is. Previously our
-        // Animated.timing to 600 + Modal's own animation = jitter/flash.
-        onClose();
-      } else {
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          bounciness: 3,
-        }).start();
-      }
-    },
-    onPanResponderTerminate: () => {
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        bounciness: 3,
-      }).start();
-    },
-  }).panHandlers, [translateY, onClose]);
+  const panGesture = useMemo(() =>
+    Gesture.Pan()
+      .onUpdate((e) => {
+        // Only allow downward drag
+        translateY.value = Math.max(0, e.translationY);
+      })
+      .onEnd((e) => {
+        const shouldClose = e.translationY > CLOSE_THRESHOLD_PX || e.velocityY > CLOSE_VELOCITY;
+        if (shouldClose) {
+          // Fire onClose immediately — Modal's native slide animation handles the
+          // visual close from wherever the card is. No fight between our animation
+          // and Modal's animation.
+          runOnJS(onClose)();
+        } else {
+          // Not enough to close — spring back to top
+          translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
+        }
+      })
+      .activeOffsetY([-10, 10])  // only activate on vertical movement, not accidental horizontal
+      .failOffsetX([-20, 20])    // fail if user drags horizontally more than 20px (helps kids not accidentally trigger)
+  , [translateY, onClose]);
 
-  return {
-    handleGrabProps: panHandlers,
-    animatedStyle: { transform: [{ translateY }] },
-  };
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  return { panGesture, animatedStyle };
 }

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { View, Linking, AppState, AppStateStatus } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useFonts, DMSerifDisplay_400Regular } from '@expo-google-fonts/dm-serif-display'
 import { DMSans_300Light, DMSans_400Regular, DMSans_700Bold } from '@expo-google-fonts/dm-sans'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -238,10 +239,12 @@ export default function RootLayout() {
   }, [authed, segments, loaded])
 
   if (!loaded || authed === null) return (
-    <View
-      style={{ flex: 1, backgroundColor: '#FAF8F5' }}
-      onLayout={() => setHasLaidOut(true)}
-    />
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
+      <View
+        style={{ flex: 1, backgroundColor: '#FAF8F5' }}
+        onLayout={() => setHasLaidOut(true)}
+      />
+    </GestureHandlerRootView>
   )
 
   // Warm-bg container + Stack contentStyle both set to #FAF8F5 to prevent
@@ -253,15 +256,17 @@ export default function RootLayout() {
   // useEffect above) — splash stays visible until this View is ready to
   // paint, which prevents the blue frame between splash hide and paint.
   return (
-    <View
-      style={{ flex: 1, backgroundColor: '#FAF8F5' }}
-      onLayout={() => setHasLaidOut(true)}
-    >
-      <StatusBar style="light" />
-      <Stack screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: '#FAF8F5' },
-      }} />
-    </View>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
+      <View
+        style={{ flex: 1, backgroundColor: '#FAF8F5' }}
+        onLayout={() => setHasLaidOut(true)}
+      >
+        <StatusBar style="light" />
+        <Stack screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: '#FAF8F5' },
+        }} />
+      </View>
+    </GestureHandlerRootView>
   )
 }

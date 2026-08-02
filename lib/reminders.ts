@@ -306,6 +306,21 @@ export async function unmarkReminderDone(r: Reminder): Promise<Reminder | null> 
 // Flip a reminder from personal to shared (or back). Used by the Notify chip
 // after add — one tap converts personal → shared + returns the updated row so
 // the UI can then fire notifyFamily separately.
+// Round B commit 11 — update just the title (used by inline edit in sheet).
+export async function updateReminderTitle(id: string, title: string): Promise<Reminder | null> {
+  const trimmed = title.trim();
+  if (!trimmed) return null;
+  const { data, error } = await supabase
+    .from('reminders')
+    .update({ title: trimmed, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .maybeSingle();
+  if (error) { console.log('[reminders] update title error:', error.message); return null; }
+  if (!data?.id) return null;
+  return rowToReminder(data);
+}
+
 export async function updateReminderVisibility(id: string, visibility: Visibility): Promise<Reminder | null> {
   const { data, error } = await supabase
     .from('reminders')
