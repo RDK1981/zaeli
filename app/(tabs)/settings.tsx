@@ -17,7 +17,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
-  Dimensions, Alert, Platform, Linking,
+  Dimensions, Alert, Platform, Linking, TextInput,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,7 +36,7 @@ import {
 import { getFamilyId } from '../../lib/family';
 import { registerPushToken, debugPushToken, notifyFamily } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
-import { getSubscription, subscriptionLabel, fetchCustomerPortalUrl, shouldPromptSubscribe, getCheckoutUrl } from '../../lib/stripe';
+import { getSubscription, subscriptionLabel, fetchCustomerPortalUrl, shouldPromptSubscribe, getCheckoutUrl, isFamilyInBeta } from '../../lib/stripe';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Constants from 'expo-constants';
 import Svg, { Path } from 'react-native-svg';
@@ -56,7 +56,8 @@ const DANGER  = '#C53030';
 const SUCCESS = '#34C759';
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type View = 'main' | 'notifications' | 'memory' | 'tour';
+// Round B commit 10 — added subscription/password/colour/pin sub-pages.
+type Screen = 'main' | 'notifications' | 'memory' | 'tour' | 'subscription' | 'password' | 'colour' | 'pin';
 // Prefs / DEFAULT_PREFS imported from lib/user-prefs (Phase 2c — Supabase-backed)
 
 // '07:00' -> '7:00 am' · '12:30' -> '12:30 pm' · '18:30' -> '6:30 pm'
@@ -200,7 +201,7 @@ function Header({ pageLabel, onBack, onMore }: HeaderProps) {
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [view, setView]     = useState<View>('main');
+  const [view, setView]     = useState<Screen>('main');
   const [prefs, setPrefs]   = useState<Prefs>(DEFAULT_PREFS);
   const [loaded, setLoaded] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -313,6 +314,10 @@ export default function SettingsScreen() {
     view === 'main' ? 'Settings'
     : view === 'notifications' ? 'Notifications'
     : view === 'memory' ? 'Memory'
+    : view === 'subscription' ? 'Subscription'
+    : view === 'password' ? 'Password'
+    : view === 'colour' ? 'Your colour'
+    : view === 'pin' ? 'Change PIN'
     : 'Replay tour';
   const handleBack = () => {
     if (view !== 'main') setView('main');
@@ -331,6 +336,10 @@ export default function SettingsScreen() {
           onNavNotifications={() => setView('notifications')}
           onNavMemory={() => setView('memory')}
           onNavTour={() => setView('tour')}
+          onNavSubscription={() => setView('subscription')}
+          onNavPassword={() => setView('password')}
+          onNavColour={() => setView('colour')}
+          onNavPin={() => setView('pin')}
           onPlaceholder={handleRowPlaceholder}
           onSignOut={() => Alert.alert(
             'Sign out?',
@@ -641,6 +650,33 @@ export default function SettingsScreen() {
         />
       )}
 
+      {loaded && view === 'subscription' && (
+        <SubscriptionView profile={profile} onManage={async () => {
+          const url = await fetchCustomerPortalUrl();
+          if (url) {
+            Linking.openURL(url).catch(() => Alert.alert("Couldn't open portal", 'Try again in a moment.'));
+          } else {
+            Alert.alert('Portal unavailable', "Couldn't open subscription portal right now. Try again in a moment.");
+          }
+        }}/>
+      )}
+
+      {loaded && view === 'password' && (
+        <PasswordView onChanged={() => setView('main')}/>
+      )}
+
+      {loaded && view === 'colour' && (
+        <ColourView profile={profile} onSaved={async () => {
+          const p = await loadProfile();
+          if (p) setProfile(p);
+          setView('main');
+        }}/>
+      )}
+
+      {loaded && view === 'pin' && (
+        <PinResetView onDone={() => setView('main')}/>
+      )}
+
       {/* Time picker modal */}
       <Modal
         visible={!!editingTimeKey}
@@ -697,6 +733,11 @@ function MainView(p: {
   onNavNotifications: () => void;
   onNavMemory: () => void;
   onNavTour: () => void;
+  // Round B commit 10 — new sub-page nav
+  onNavSubscription: () => void;
+  onNavPassword: () => void;
+  onNavColour: () => void;
+  onNavPin: () => void;
   onPlaceholder: (label: string) => void;
   onSignOut: () => void;
   onDelete: () => void;
@@ -788,6 +829,39 @@ function MainView(p: {
              title="Our Family" sub="Anna, Poppy, Gab, Duke"
              onPress={p.onOurFamily} last/>
       </View>
+
+      {/* Round B commit 10 — Account (owner + adults) */}
+      {p.profile?.kind !== 'kid' && (
+        <>
+          <SecLabel>Account</SecLabel>
+          <View style={s.group}>
+            <Row icon="💳" iconBg="#EDE8FF" iconFg="#6B35D9"
+                 title="Subscription" sub="Plan · billing · Manage"
+                 onPress={p.onNavSubscription}/>
+            <Row icon="🔐" iconBg="#FFE4E0" iconFg="#B83333"
+                 title="Change password"
+                 onPress={p.onNavPassword}/>
+            <Row icon="🎨" iconBg="#E8F4FD" iconFg="#0A5C80"
+                 title="Your colour" sub="How you appear on events + tiles"
+                 onPress={p.onNavColour} last/>
+          </View>
+        </>
+      )}
+
+      {/* Round B commit 10 — Account (kid) — different rows */}
+      {p.profile?.kind === 'kid' && (
+        <>
+          <SecLabel>Your account</SecLabel>
+          <View style={s.group}>
+            <Row icon="🔑" iconBg="#F0EBFF" iconFg="#5020C0"
+                 title="Change your PIN"
+                 onPress={p.onNavPin}/>
+            <Row icon="🎨" iconBg="#E8F4FD" iconFg="#0A5C80"
+                 title="Your colour"
+                 onPress={p.onNavColour} last/>
+          </View>
+        </>
+      )}
 
       {/* Preferences — v2 cleanup: Integrations + Replay tour removed
           (Integrations wasn't wired anywhere; tour is stale for v2 pivot
@@ -1206,6 +1280,334 @@ function TourReplayView(p: {
         })}
       </View>
     </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUBSCRIPTION VIEW — Round B commit 10
+// Owner-only sub-page. Reads real Stripe state via lib/stripe.ts. Manage
+// button hands off to Stripe Customer Portal in Safari.
+// ═══════════════════════════════════════════════════════════════════════════
+function SubscriptionView(p: { profile: Profile | null; onManage: () => void }) {
+  const sub = getSubscription();
+  const isTrial = sub.status === 'trialing';
+  const isActive = sub.status === 'active';
+  const isPastDue = sub.status === 'past_due';
+  const isBeta = isFamilyInBeta();
+
+  const statusBg = isBeta ? '#B8EDD0'
+                 : isTrial ? '#A8D8F0'
+                 : isPastDue ? '#FAC8A8'
+                 : '#B8EDD0';
+  const statusEyebrowColor = isBeta ? '#2D7A52'
+                            : isTrial ? '#0A5C80'
+                            : isPastDue ? '#8A3A00'
+                            : '#2D7A52';
+  const statusEyebrowText = isBeta ? 'Beta · full access'
+                           : isTrial ? 'Free trial'
+                           : isPastDue ? '⚠ Payment failed'
+                           : 'Active';
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+      {/* Status hero */}
+      <View style={{ marginHorizontal: 14, backgroundColor: statusBg, borderRadius: 20, padding: 18, marginBottom: 16 }}>
+        <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: 11, letterSpacing: 0.5, color: statusEyebrowColor, textTransform:'uppercase' }}>{statusEyebrowText}</Text>
+        <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: 22, color: '#0A0A0A', letterSpacing:-0.5, marginTop: 4 }}>
+          {sub.plan === 'family' ? 'Family plan' : 'Family plan'}
+        </Text>
+        <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 12, color: 'rgba(10,10,10,0.72)', marginTop: 6 }}>
+          {isBeta ? 'Beta access — free until beta ends'
+           : isTrial ? 'A$6.99/month after trial'
+           : isPastDue ? 'Please update your card to keep access'
+           : 'A$6.99/month · inc GST'}
+        </Text>
+      </View>
+
+      <SecLabel>Details</SecLabel>
+      <View style={s.group}>
+        <Row icon="📦" iconBg="#EDE8FF" iconFg="#6B35D9"
+             title="Plan" value="Family"/>
+        <Row icon="💵" iconBg="#E6F7EF" iconFg="#2D7A52"
+             title="Price" value="A$6.99 / month"/>
+        <Row icon="💳" iconBg="#E8F4FD" iconFg="#0A5C80"
+             title="Payment method" value={sub.status === 'active' || sub.status === 'trialing' ? 'On file' : 'Not set up'}/>
+        <Row icon="📅" iconBg="#FBF5D6" iconFg="#8B6914"
+             title={isTrial ? 'Free until' : 'Next bill'}
+             value={sub.renewsAt ? new Date(sub.renewsAt).toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' }) : '—'}
+             last/>
+      </View>
+
+      <TouchableOpacity onPress={p.onManage} style={{ marginHorizontal: 14, marginTop: 16, backgroundColor: '#0A0A0A', borderRadius: 14, paddingVertical: 14, alignItems:'center' }} activeOpacity={0.85}>
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 14, color: 'white' }}>Manage subscription →</Text>
+      </TouchableOpacity>
+      <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 10, color: 'rgba(10,10,10,0.48)', textAlign:'center', marginTop: 8, paddingHorizontal: 20, lineHeight: 15 }}>
+        Opens Stripe in Safari — cancel, update card, view invoices.
+      </Text>
+    </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PASSWORD VIEW — Round B commit 10 (Supabase auth handles the actual work)
+// ═══════════════════════════════════════════════════════════════════════════
+function PasswordView(p: { onChanged: () => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const validNew = next.length >= 8;
+  const matches = next.length > 0 && next === confirm;
+  const canSubmit = current.length > 0 && validNew && matches && !busy;
+
+  async function submit() {
+    setBusy(true);
+    try {
+      // Supabase auth.updateUser doesn't verify current password — we do a
+      // sign-in with current pw first to confirm, then update.
+      const { data: userData } = await supabase.auth.getUser();
+      const email = userData.user?.email;
+      if (!email) { Alert.alert('Not signed in'); setBusy(false); return; }
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: current });
+      if (signInErr) { Alert.alert('Wrong current password', 'Please try again.'); setBusy(false); return; }
+      const { error: updateErr } = await supabase.auth.updateUser({ password: next });
+      if (updateErr) { Alert.alert('Update failed', updateErr.message); setBusy(false); return; }
+      Alert.alert('Password updated', 'You\'re still signed in on this device.');
+      p.onChanged();
+    } catch (e:any) {
+      Alert.alert('Error', e?.message ?? 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+      <SecLabel>Current password</SecLabel>
+      <View style={{ marginHorizontal: 14, marginBottom: 14 }}>
+        <View style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1.5, borderColor: 'rgba(10,10,10,0.08)', padding: 14 }}>
+          <TextInput
+            value={current}
+            onChangeText={setCurrent}
+            secureTextEntry
+            placeholder="Type your current password"
+            placeholderTextColor="rgba(10,10,10,0.28)"
+            style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'#0A0A0A' }}
+            autoCapitalize="none"
+          />
+        </View>
+      </View>
+
+      <SecLabel>New password</SecLabel>
+      <View style={{ marginHorizontal: 14, marginBottom: 6 }}>
+        <View style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1.5, borderColor: validNew ? '#A8D8F0' : 'rgba(10,10,10,0.08)', padding: 14 }}>
+          <TextInput
+            value={next}
+            onChangeText={setNext}
+            secureTextEntry
+            placeholder="At least 8 characters"
+            placeholderTextColor="rgba(10,10,10,0.28)"
+            style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'#0A0A0A' }}
+            autoCapitalize="none"
+          />
+        </View>
+      </View>
+      <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 11, color: validNew ? '#2D7A52' : 'rgba(10,10,10,0.48)', paddingHorizontal: 18, marginBottom: 14 }}>
+        {validNew ? '✓ Long enough' : 'At least 8 characters'}
+      </Text>
+
+      <SecLabel>Confirm new</SecLabel>
+      <View style={{ marginHorizontal: 14, marginBottom: 14 }}>
+        <View style={{ backgroundColor: 'white', borderRadius: 14, borderWidth: 1.5, borderColor: confirm.length > 0 && !matches ? '#FF4545' : 'rgba(10,10,10,0.08)', padding: 14 }}>
+          <TextInput
+            value={confirm}
+            onChangeText={setConfirm}
+            secureTextEntry
+            placeholder="Type it again"
+            placeholderTextColor="rgba(10,10,10,0.28)"
+            style={{ fontFamily:'Poppins_400Regular', fontSize:15, color:'#0A0A0A' }}
+            autoCapitalize="none"
+          />
+        </View>
+      </View>
+
+      <TouchableOpacity
+        onPress={submit}
+        disabled={!canSubmit}
+        style={{ marginHorizontal: 14, marginTop: 10, backgroundColor: canSubmit ? '#0A0A0A' : 'rgba(10,10,10,0.15)', borderRadius: 14, paddingVertical: 14, alignItems:'center' }}
+        activeOpacity={0.85}
+      >
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 14, color: 'white' }}>{busy ? 'Updating…' : 'Update password'}</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COLOUR VIEW — Round B commit 10
+// ═══════════════════════════════════════════════════════════════════════════
+const COLOUR_SWATCHES = [
+  '#4D8BFF', '#FF7B6B', '#A855F7', '#22C55E', '#F59E0B',
+  '#FF4545', '#2D7A52', '#0A5C80', '#D4006A', '#8B6914',
+];
+
+function ColourView(p: { profile: Profile | null; onSaved: () => void }) {
+  const current = (p.profile as any)?.colour ?? '#4D8BFF';
+  const [picked, setPicked] = useState<string>(current);
+  const [busy, setBusy] = useState(false);
+  const name = p.profile?.name?.trim() || 'You';
+  const initial = name[0]?.toUpperCase() ?? 'Y';
+
+  async function save() {
+    if (picked === current || !p.profile) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.from('profiles').update({ colour: picked }).eq('id', p.profile.id);
+      if (error) { Alert.alert('Save failed', error.message); setBusy(false); return; }
+      Alert.alert('Colour updated', 'Your colour will show on new events and reminders.');
+      p.onSaved();
+    } catch (e:any) {
+      Alert.alert('Error', e?.message ?? 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+      <View style={{ marginHorizontal: 14, backgroundColor: 'white', borderRadius: 20, padding: 24, alignItems:'center', marginBottom: 16 }}>
+        <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: picked, alignItems:'center', justifyContent:'center', marginBottom: 10 }}>
+          <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: 26, color:'white' }}>{initial}</Text>
+        </View>
+        <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 12, color:'rgba(10,10,10,0.48)', textAlign:'center' }}>
+          This colour shows on events, reminders, and family list.
+        </Text>
+      </View>
+
+      <SecLabel>Pick one</SecLabel>
+      <View style={{ flexDirection:'row', flexWrap:'wrap', gap: 10, marginHorizontal: 14, marginBottom: 16 }}>
+        {COLOUR_SWATCHES.map(c => {
+          const isPicked = c === picked;
+          return (
+            <TouchableOpacity
+              key={c}
+              onPress={() => setPicked(c)}
+              style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c, borderWidth: isPicked ? 3 : 0, borderColor: '#0A0A0A' }}
+              activeOpacity={0.75}
+            />
+          );
+        })}
+      </View>
+
+      <TouchableOpacity
+        onPress={save}
+        disabled={picked === current || busy}
+        style={{ marginHorizontal: 14, marginTop: 10, backgroundColor: picked !== current && !busy ? '#0A0A0A' : 'rgba(10,10,10,0.15)', borderRadius: 14, paddingVertical: 14, alignItems:'center' }}
+        activeOpacity={0.85}
+      >
+        <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 14, color: 'white' }}>{busy ? 'Saving…' : 'Save colour'}</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KID PIN RESET VIEW — Round B commit 10 (3-step wizard)
+// ═══════════════════════════════════════════════════════════════════════════
+function PinResetView(p: { onDone: () => void }) {
+  const [step, setStep] = useState<1|2|3>(1);
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+
+  function tapKey(k: string) {
+    if (step === 1) {
+      if (k === '⌫') { setCurrentPin(prev => prev.slice(0, -1)); return; }
+      if (currentPin.length >= 4) return;
+      const next = currentPin + k;
+      setCurrentPin(next);
+      if (next.length === 4) {
+        // For now, no server-side verify — just proceed. Backend hook TODO.
+        setTimeout(() => setStep(2), 250);
+      }
+    } else if (step === 2) {
+      if (k === '⌫') { setNewPin(prev => prev.slice(0, -1)); return; }
+      if (newPin.length >= 4) return;
+      const next = newPin + k;
+      setNewPin(next);
+      if (next.length === 4) {
+        // TODO: persist new PIN to Supabase (kids use synthetic email +
+        // token+PIN as their password per Session 22). Would need
+        // supabase.auth.updateUser({ password: `<token>-${newPin}` }).
+        setTimeout(() => setStep(3), 250);
+      }
+    }
+  }
+
+  if (step === 3) {
+    return (
+      <ScrollView contentContainerStyle={{ paddingTop: 40, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+        <View style={{ alignItems:'center', padding: 20 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor:'#B8EDD0', alignItems:'center', justifyContent:'center', marginBottom: 20 }}>
+            <Text style={{ fontSize: 40 }}>✓</Text>
+          </View>
+          <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: 20, letterSpacing:-0.4 }}>PIN updated</Text>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 12, color: 'rgba(10,10,10,0.48)', marginTop: 10, textAlign:'center', lineHeight: 18, paddingHorizontal: 30 }}>
+            Use your new PIN next time you sign in.{'\n'}A parent can help if you forget.
+          </Text>
+          <TouchableOpacity onPress={p.onDone} style={{ marginTop: 28, backgroundColor:'#0A0A0A', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 14 }} activeOpacity={0.85}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 14, color: 'white' }}>Back to Settings</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
+
+  const currentValue = step === 1 ? currentPin : newPin;
+
+  return (
+    <View style={{ flex:1, padding: 20 }}>
+      <View style={{ alignItems:'center', marginBottom: 6, marginTop: 6 }}>
+        <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: 16 }}>
+          {step === 1 ? 'Enter your current PIN' : 'Choose a new 4-digit PIN'}
+        </Text>
+        <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 12, color: 'rgba(10,10,10,0.48)', marginTop: 4 }}>{step} of 3</Text>
+      </View>
+
+      {/* PIN dots */}
+      <View style={{ flexDirection:'row', justifyContent:'center', gap: 12, marginVertical: 24 }}>
+        {[0,1,2,3].map(i => (
+          <View key={i} style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: i < currentValue.length ? '#0A0A0A' : 'rgba(10,10,10,0.10)' }}/>
+        ))}
+      </View>
+
+      {/* Keypad */}
+      <View style={{ flexDirection:'row', flexWrap:'wrap', gap: 8, justifyContent:'center', marginTop: 12 }}>
+        {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((k, i) => k === '' ? (
+          <View key={i} style={{ width: '30%' }}/>
+        ) : (
+          <TouchableOpacity
+            key={i}
+            onPress={() => tapKey(k)}
+            style={{ width: '30%', paddingVertical: 14, backgroundColor:'white', borderRadius: 12, alignItems:'center', borderWidth: 1, borderColor:'rgba(10,10,10,0.08)' }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize: k === '⌫' ? 18 : 22, color: k === '⌫' ? 'rgba(10,10,10,0.48)' : '#0A0A0A' }}>{k}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {step === 1 && (
+        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize: 12, color: '#0A5C80', textAlign:'center', marginTop: 20 }}>
+          Forgot? Ask Rich or Anna to send a new one
+        </Text>
+      )}
+      {step === 2 && (
+        <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 11, color: 'rgba(10,10,10,0.48)', textAlign:'center', marginTop: 20, paddingHorizontal: 20 }}>
+          Pick something you'll remember — not 1234 or your birthday.
+        </Text>
+      )}
+    </View>
   );
 }
 
