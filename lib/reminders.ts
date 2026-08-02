@@ -149,9 +149,22 @@ function rowToReminder(r: any): Reminder {
 }
 
 // ── LOAD ─────────────────────────────────────────────────────────────────
+// Round B commit 13 — visibility filter added client-side as defence in depth.
+// The RLS policy in supabase-reminders-visibility.sql SHOULD enforce this
+// server-side (SELECT USING family_id = current_family_id() AND
+// (visibility = 'shared' OR created_by = auth.uid())). But if that migration
+// never ran (or the DO-block silently no-op'd on a fresh DB), the server
+// returns EVERY family reminder including other people's Personal ones.
+// This client filter closes the leak either way. Rules:
+//   - shared         → anyone in family can see
+//   - personal + mine → creator sees
+//   - personal + others' → hidden
+// If we can't resolve the current userId (rare race), we still hide all
+// personal items from unknown-user views (fail-closed).
 export async function loadReminders(): Promise<Reminder[]> {
   const familyId = getFamilyId();
   if (!familyId) return [];
+  const userId = await getCurrentUserId();
   const { data, error } = await supabase
     .from('reminders')
     .select('*')
@@ -161,7 +174,13 @@ export async function loadReminders(): Promise<Reminder[]> {
     .order('remind_on', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false });
   if (error) { console.log('[reminders] load error:', error.message); return []; }
-  return (data ?? []).map(rowToReminder);
+  const rows = (data ?? []).map(rowToReminder);
+  // Belt-and-braces visibility enforcement — hide other people's personal items
+  return rows.filter(r => {
+    if (r.visibility === 'shared') return true;
+    if (userId && r.createdBy && r.createdBy === userId) return true;
+    return false;
+  });
 }
 
 // ── SAVE (single reminder — insert or update) ───────────────────────────
