@@ -20,8 +20,9 @@
  */
 
 import { useEffect, useMemo } from 'react';
+import { Dimensions } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
-import { useSharedValue, useAnimatedStyle, withSpring, runOnJS } from 'react-native-reanimated';
+import { useSharedValue, useAnimatedStyle, withSpring, withTiming, Easing, runOnJS } from 'react-native-reanimated';
 
 export interface SwipeDownHandlers {
   /** Attach to <GestureDetector gesture={...}> around the drag handle */
@@ -32,6 +33,10 @@ export interface SwipeDownHandlers {
 
 const CLOSE_THRESHOLD_PX = 100;
 const CLOSE_VELOCITY = 800;   // gesture-handler uses px/s (much larger than PanResponder)
+const SCREEN_H = Dimensions.get('window').height;
+// How far to translate down before firing onClose. Slightly more than screen
+// height so even the tallest sheet is fully off-screen before Modal unmounts.
+const OFFSCREEN_Y = SCREEN_H + 120;
 
 export function useSheetSwipeClose(visible: boolean, onClose: () => void): SwipeDownHandlers {
   const translateY = useSharedValue(0);
@@ -49,10 +54,29 @@ export function useSheetSwipeClose(visible: boolean, onClose: () => void): Swipe
       .onEnd((e) => {
         const shouldClose = e.translationY > CLOSE_THRESHOLD_PX || e.velocityY > CLOSE_VELOCITY;
         if (shouldClose) {
-          // Fire onClose immediately — Modal's native slide animation handles the
-          // visual close from wherever the card is. No fight between our animation
-          // and Modal's animation.
-          runOnJS(onClose)();
+          // Round B commit 12 — animate sheet OFF-SCREEN first, THEN close Modal.
+          // Previously we called runOnJS(onClose)() immediately at threshold —
+          // that left the card at its drag position (say translateY=140) while
+          // Modal did its own slide-down. Result: visible "flash" where the
+          // sheet is briefly frozen mid-drag before the Modal fade completes.
+          //
+          // Now: animate translateY to OFFSCREEN_Y with a fast timing curve
+          // (matches the drag momentum), THEN call onClose via completion cb.
+          // By the time Modal unmounts, our sheet is already invisible below
+          // the fold — no visible flash, one continuous downward motion.
+          //
+          // Duration scales with remaining distance so a slow gentle release
+          // doesn't slam offscreen, and a fast flick doesn't drag out.
+          const remaining = OFFSCREEN_Y - translateY.value;
+          const velocity = Math.max(600, Math.abs(e.velocityY));
+          const duration = Math.min(320, Math.max(140, Math.round((remaining / velocity) * 1000)));
+          translateY.value = withTiming(
+            OFFSCREEN_Y,
+            { duration, easing: Easing.out(Easing.cubic) },
+            (finished) => {
+              if (finished) runOnJS(onClose)();
+            }
+          );
         } else {
           // Not enough to close — spring back to top
           translateY.value = withSpring(0, { damping: 20, stiffness: 200 });

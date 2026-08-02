@@ -197,21 +197,21 @@ export default function SwipeWorld() {
           Tap either dot to jump to that page. */}
       <View
         pointerEvents="box-none"
-        style={[s.dotsWrap, { top: insets.top + 12 }]}
+        style={[s.dotsWrap, { top: insets.top + 26 }]}
       >
         <TouchableOpacity
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={() => scrollToPage(PAGE_DASHBOARD)}
           activeOpacity={0.7}
         >
-          <View style={[s.dot, activePage === PAGE_DASHBOARD ? s.dotActive : s.dotIdle]} />
+          <View style={activePage === PAGE_DASHBOARD ? s.dotActive : s.dotIdle} />
         </TouchableOpacity>
         <TouchableOpacity
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           onPress={() => scrollToPage(PAGE_CHAT)}
           activeOpacity={0.7}
         >
-          <View style={[s.dot, activePage === PAGE_CHAT ? s.dotActive : s.dotIdle]} />
+          <View style={activePage === PAGE_CHAT ? s.dotActive : s.dotIdle} />
         </TouchableOpacity>
       </View>
 
@@ -280,26 +280,27 @@ const s = StyleSheet.create({
     width: W,
     flex: 1,
   },
-  // ── 2-dot page indicator (Round B commit 11 — restored) ──
+  // ── 2-dot page indicator (Round B commit 12 — active wider) ──
   dotsWrap: {
     position: 'absolute',
     left: 0, right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     zIndex: 40,
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
   dotActive: {
+    width: 22,
+    height: 7,
+    borderRadius: 3.5,
     backgroundColor: '#FF4545',   // coral — matches Chat identity, also visible on both light headers
   },
   dotIdle: {
-    backgroundColor: 'rgba(10,10,10,0.20)',
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: 'rgba(10,10,10,0.22)',
   },
   // ── First-run swipe hint pill (Session 25) — one-shot ──
   hintWrap: {
