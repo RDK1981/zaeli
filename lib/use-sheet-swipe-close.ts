@@ -35,10 +35,13 @@ const CLOSE_VELOCITY = 0.6;
 export function useSheetSwipeClose(visible: boolean, onClose: () => void): SwipeDownHandlers {
   const translateY = useRef(new Animated.Value(0)).current;
 
-  // Reset when sheet becomes visible/hidden so re-open animates from bottom
-  // cleanly (RN's Modal slide handles the entry; our translate is 0 by then).
+  // Round B commit 8 — only reset when sheet becomes VISIBLE (re-open).
+  // Previously reset also fired on visible=false during close, which SNAPPED
+  // the card back to y=0 mid-close, causing the flash Rich reported (fling
+  // to 600 → snap to 0 → Modal native slide again from 0 to 600). Now the
+  // card stays at y=600 during close so nothing flashes.
   useEffect(() => {
-    translateY.setValue(0);
+    if (visible) translateY.setValue(0);
   }, [visible, translateY]);
 
   const panHandlers = useMemo(() => PanResponder.create({
@@ -52,14 +55,11 @@ export function useSheetSwipeClose(visible: boolean, onClose: () => void): Swipe
     onPanResponderRelease: (_, g) => {
       const shouldClose = g.dy > CLOSE_THRESHOLD_PX || g.vy > CLOSE_VELOCITY;
       if (shouldClose) {
-        // Slide down off-screen then invoke onClose. The Modal itself
-        // handles the actual dismiss animation once onClose fires; this
-        // just gives a natural fling-out feel.
-        Animated.timing(translateY, {
-          toValue: 600,
-          duration: 180,
-          useNativeDriver: true,
-        }).start(() => { onClose(); });
+        // Round B commit 8 — fire onClose IMMEDIATELY, don't animate
+        // ourselves. Modal's native animationType="slide" handles the
+        // slide-out from wherever the card visually is. Previously our
+        // Animated.timing to 600 + Modal's own animation = jitter/flash.
+        onClose();
       } else {
         Animated.spring(translateY, {
           toValue: 0,

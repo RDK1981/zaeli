@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli v2 — Getting-started tour (Round B)</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:         #FAF8F5;
+    --ink:        #0A0A0A;
+    --ink2:       rgba(10,10,10,0.72);
+    --ink3:       rgba(10,10,10,0.48);
+    --ink4:       rgba(10,10,10,0.28);
+    --ink5:       rgba(10,10,10,0.14);
+    --line:       rgba(10,10,10,0.08);
+    --coral:      #FF4545;
+    --coral-tint: #FFE4E0;
+    --coral-d:    #B83333;
+    --slate:      #2D3748;
+    --peach:      #FAC8A8;
+    --peach-t:    #FDF1E5;
+    --peach-d:    #8A3A00;
+    --mint:       #B8EDD0;
+    --mint-t:     #E6F7EF;
+    --mint-d:     #2D7A52;
+    --lav:        #D8CCFF;
+    --lav-t:      #F0EBFF;
+    --lav-d:      #5020C0;
+    --sky:        #A8D8F0;
+    --sky-t:      #E8F4FD;
+    --sky-d:      #0A5C80;
+    --gold:       #F0DC80;
+    --gold-t:     #FBF5D6;
+    --gold-d:     #8B6914;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+  body { background: #EFECE6; padding: 40px 20px 80px; color: var(--ink); }
+
+  h1 { font-weight: 800; font-size: 32px; text-align: center; letter-spacing: -1px; }
+  .sub { text-align: center; color: var(--ink3); font-size: 15px; margin: 8px 0 32px; max-width: 780px; margin-left: auto; margin-right: auto; line-height: 1.55; }
+  .sub b { color: var(--ink); font-weight: 700; }
+
+  .callout {
+    max-width: 900px; margin: 12px auto 24px;
+    background: white; border: 1px solid var(--line);
+    border-radius: 16px; padding: 22px 26px;
+  }
+  .callout h3 {
+    font-size: 13px; font-weight: 800; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--coral-d); margin-bottom: 14px;
+  }
+  .callout ol { margin-left: 20px; }
+  .callout li { font-size: 14px; line-height: 1.7; color: var(--ink2); margin-bottom: 4px; }
+  .callout li b { color: var(--ink); font-weight: 700; }
+
+  .section-header { margin: 56px auto 24px; max-width: 1400px; }
+  .section-eyebrow { font-weight: 800; font-size: 12px; letter-spacing: 1.2px; color: var(--ink3); text-transform: uppercase; }
+  .section-title { font-weight: 800; font-size: 28px; letter-spacing: -0.5px; margin-top: 4px; }
+  .section-desc { color: var(--ink2); font-size: 15px; margin-top: 8px; max-width: 800px; line-height: 1.55; }
+
+  .frames {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px; max-width: 1400px; margin: 0 auto;
+  }
+  .frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .frame-label {
+    background: white; border: 1px solid var(--line);
+    padding: 5px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--ink2);
+  }
+  .frame-caption {
+    text-align: center; font-size: 12px; color: var(--ink3); line-height: 1.45;
+    max-width: 240px; margin-top: 4px;
+  }
+  .frame-caption b { color: var(--ink2); font-weight: 700; }
+
+  .phone {
+    position: relative; width: 260px; height: 545px;
+    background: var(--ink); border-radius: 38px; padding: 7px;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+  }
+  .phone .notch {
+    position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
+    width: 90px; height: 20px; background: var(--ink);
+    border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; z-index: 5;
+  }
+  .screen {
+    background: var(--bg); border-radius: 32px; height: 100%;
+    overflow: hidden; position: relative;
+    display: flex; flex-direction: column;
+  }
+
+  /* Tour header */
+  .tour-header {
+    padding: 34px 14px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .tour-close {
+    width: 30px; height: 30px; border-radius: 8px; background: rgba(10,10,10,0.05);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--ink2);
+  }
+  .tour-skip {
+    font-size: 12px; font-weight: 700; color: var(--ink3);
+  }
+
+  /* Eyebrow */
+  .tour-eyebrow {
+    font-size: 11px; font-weight: 800; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--ink3);
+    padding: 6px 14px 4px;
+  }
+
+  /* Progress bar */
+  .progress {
+    height: 4px; background: rgba(10,10,10,0.08); border-radius: 2px;
+    margin: 4px 14px 12px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: var(--coral); border-radius: 2px;
+  }
+
+  /* Tour body */
+  .tour-body {
+    flex: 1; padding: 6px 20px 20px;
+    display: flex; flex-direction: column;
+  }
+  .tour-h1 {
+    font-size: 26px; font-weight: 800; letter-spacing: -0.5px; line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .tour-h1 .accent { color: var(--coral); }
+  .tour-sub {
+    font-size: 14px; color: var(--ink2); line-height: 1.55;
+    margin-bottom: 16px;
+  }
+  .tour-sub b { color: var(--ink); font-weight: 700; }
+
+  /* Feature card (renders the actual tile/screen in mini) */
+  .tour-card {
+    background: white; border-radius: 16px; padding: 14px;
+    border: 1px solid var(--line);
+    margin: 4px 0 14px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  /* Feature pills */
+  .feature-pills {
+    display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 16px;
+  }
+  .pill {
+    background: rgba(10,10,10,0.05); border-radius: 999px;
+    padding: 5px 10px; font-size: 11px; font-weight: 700; color: var(--ink2);
+    display: flex; align-items: center; gap: 4px;
+  }
+
+  /* Try saying callout */
+  .try-saying {
+    background: var(--mint-t); border-left: 3px solid var(--mint-d);
+    border-radius: 8px; padding: 10px 12px;
+    margin: 4px 0 16px;
+  }
+  .try-saying .lbl {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.6px;
+    color: var(--mint-d); text-transform: uppercase; margin-bottom: 3px;
+  }
+  .try-saying .text {
+    font-size: 13px; color: var(--ink); font-style: italic;
+  }
+
+  /* Bottom CTAs */
+  .tour-bottom {
+    padding: 12px 14px 24px; display: flex; gap: 8px; align-items: center;
+  }
+  .btn-back {
+    padding: 12px 14px; font-size: 13px; font-weight: 700; color: var(--ink3);
+  }
+  .btn-cta {
+    flex: 1; background: var(--ink); color: white;
+    padding: 12px; border-radius: 12px;
+    font-size: 14px; font-weight: 700; text-align: center;
+  }
+  .btn-cta.coral { background: var(--coral); }
+
+  /* Mini tile mockups inside cards */
+  .mini-tile {
+    padding: 10px 12px; border-radius: 10px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .mini-tile-eyebrow {
+    font-size: 8px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+  }
+  .mini-tile-headline {
+    font-size: 14px; font-weight: 800; letter-spacing: -0.2px;
+  }
+  .mini-row {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 9px; margin-top: 2px;
+  }
+
+  /* Home tile grid inside stop 1 */
+  .home-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  }
+
+  /* Finale */
+  .finale-hero {
+    text-align: center; margin: 10px 0 16px;
+  }
+  .finale-emoji { font-size: 44px; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<h1>Zaeli v2 — Getting-started tour</h1>
+<div class="sub">
+  <b>6 stops</b>, card-based walkthrough that fires <b>immediately after onboarding</b>. Same visual mechanic as the Session 19 tour but trimmed for v2 (Tutor + Kids Hub + Travel + My Space + Meals all hidden — no HERO stop). Each stop shows the actual tile/screen in miniature so the user recognises what they're about to see when they tap the CTA.
+</div>
+
+<div class="callout">
+  <h3>Design principles</h3>
+  <ol>
+    <li><b>Fires automatically post-onboarding</b> — no "want a tour?" offer. Skip button always visible top-right so anyone in a hurry can bail.</li>
+    <li><b>Every stop has a <span style="background:var(--mint-t); padding:1px 6px; border-radius:4px; font-weight:700; color:var(--mint-d);">Try saying…</span> callout</b> — plants the mic idea early, and gives the user a concrete first thing to say when they land in the app.</li>
+    <li><b>CTAs open the real thing, not a mock</b> — tapping "Open Calendar" opens the actual Calendar sheet. Tour reappears after they close the sheet, resuming at the next stop.</li>
+    <li><b>No HERO stop</b> — the Session 19 tour had Tutor at stop 7 with violet + trial badge. That's gone in v2. Everything's flat and equal in importance.</li>
+    <li><b>Coral progress bar animates</b> smoothly between stops so the user sees forward motion.</li>
+    <li><b>Persists to <code>tour_state</code> profile column</b> (Session 21 pattern) — pick up where you left off if you close the app mid-tour.</li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">The 6 stops</div>
+  <div class="section-title">Card by card</div>
+  <div class="section-desc">
+    Each frame is a full stop. Skip → jumps to finale. Back → previous stop. Primary CTA → opens the real sheet/screen; when the user closes it, the tour resumes at the next stop.
+  </div>
+</div>
+
+<div class="frames">
+
+  <!-- STOP 1 — Welcome + Home -->
+  <div class="frame-wrap">
+    <div class="frame-label">STOP 1 — WELCOME + HOME</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="tour-header">
+        <div class="tour-close">✕</div>
+        <div class="tour-skip">Skip →</div>
+      </div>
+      <div class="tour-eyebrow">Stop 1 of 6</div>
+      <div class="progress"><div class="progress-fill" style="width: 0%;"></div></div>
+
+      <div class="tour-body">
+        <div class="tour-h1">Welcome to your <span class="accent">family hub</span> 👋</div>
+        <div class="tour-sub">
+          Home is where everything lives at a glance. <b>Four tiles</b>, one per thing your family juggles — no digging.
+        </div>
+
+        <div class="tour-card" style="padding: 8px;">
+          <div class="home-grid">
+            <div class="mini-tile" style="background:var(--slate); color:white;">
+              <div class="mini-tile-eyebrow" style="color:rgba(255,255,255,0.7);">📅 CALENDAR</div>
+              <div class="mini-tile-headline" style="color:white;">2 events on today.</div>
+            </div>
+            <div class="mini-tile" style="background:var(--lav);">
+              <div class="mini-tile-eyebrow" style="color:var(--lav-d);">🛒 SHOPPING</div>
+              <div class="mini-tile-headline">4 items to grab.</div>
+            </div>
+            <div class="mini-tile" style="background:var(--gold-t);">
+              <div class="mini-tile-eyebrow" style="color:var(--gold-d);">⏰ REMINDERS</div>
+              <div class="mini-tile-headline">Nothing due.</div>
+            </div>
+            <div class="mini-tile" style="background:var(--mint-t);">
+              <div class="mini-tile-eyebrow" style="color:var(--mint-d);">💰 BUDGET</div>
+              <div class="mini-tile-headline">On track.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="feature-pills">
+          <div class="pill">📅 Calendar</div>
+          <div class="pill">🛒 Shopping</div>
+          <div class="pill">⏰ Reminders</div>
+          <div class="pill">💰 Budget</div>
+        </div>
+
+        <div class="try-saying">
+          <div class="lbl">Try saying</div>
+          <div class="text">"Zaeli, what's on today?"</div>
+        </div>
+      </div>
+
+      <div class="tour-bottom">
+        <div style="flex:1;"></div>
+        <div class="btn-cta coral">Let's go →</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Welcome frame. Shows the 4 tiles in miniature so the user recognises Home immediately when the tour ends. First stop = 0% progress (bar just starting).</div>
+  </div>
+
+  <!-- STOP 2 — Calendar -->
+  <div class="frame-wrap">
+    <div class="frame-label">STOP 2 — CALENDAR</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="tour-header">
+        <div class="tour-close">✕</div>
+        <div class="tour-skip">Skip →</div>
+      </div>
+      <div class="tour-eyebrow">Stop 2 of 6</div>
+      <div class="progress"><div class="progress-fill" style="width: 20%; background: #2D3748;"></div></div>
+
+      <div class="tour-body">
+        <div class="tour-h1" style="color:var(--slate);">Your family's <span style="color:var(--slate);">calendar</span> 📅</div>
+        <div class="tour-sub">
+          Every event, every kid. Tap a tile → today, tomorrow, or the whole month. Tap <b>+ Add event</b> to drop something in fast.
+        </div>
+
+        <div class="tour-card" style="padding:0; overflow:hidden;">
+          <div style="background:var(--slate); padding: 12px; color:white;">
+            <div style="font-size:10px; font-weight:800; letter-spacing:0.5px; color:rgba(255,255,255,0.7);">📅 CALENDAR</div>
+            <div style="font-size:16px; font-weight:800; margin-top:4px;">2 events on today.</div>
+            <div style="font-size:9px; opacity:0.75; margin-top:6px;">4pm · Dance · Poppy</div>
+            <div style="font-size:9px; opacity:0.75; margin-top:2px;">5pm · Soccer · Gab</div>
+            <div style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.18); border-radius:14px; padding:8px 10px; margin-top:8px; display:flex; align-items:center; gap:6px;">
+              <span style="color:var(--coral); font-weight:800; font-size:14px;">+</span>
+              <span style="font-size:10px; color:rgba(255,255,255,0.75);">Add event…</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="feature-pills">
+          <div class="pill">👨‍👩‍👧‍👦 Whole family</div>
+          <div class="pill">📸 Photo → event</div>
+          <div class="pill">🎤 Voice add</div>
+        </div>
+
+        <div class="try-saying">
+          <div class="lbl">Try saying</div>
+          <div class="text">"Add soccer for Gab, Thursday 4pm."</div>
+        </div>
+      </div>
+
+      <div class="tour-bottom">
+        <div class="btn-back">Back</div>
+        <div class="btn-cta" style="background:var(--slate);">Open Calendar →</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Slate accent (Calendar identity). Card mirrors the real Home Calendar tile — familiar surface. Try-saying primes voice add. CTA opens the sheet directly; tour resumes on close.</div>
+  </div>
+
+  <!-- STOP 3 — Shopping -->
+  <div class="frame-wrap">
+    <div class="frame-label">STOP 3 — SHOPPING</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="tour-header">
+        <div class="tour-close">✕</div>
+        <div class="tour-skip">Skip →</div>
+      </div>
+      <div class="tour-eyebrow">Stop 3 of 6</div>
+      <div class="progress"><div class="progress-fill" style="width: 40%; background:var(--lav-d);"></div></div>
+
+      <div class="tour-body">
+        <div class="tour-h1" style="color:var(--lav-d);">The <span style="color:var(--lav-d);">shopping list</span> everyone shares 🛒</div>
+        <div class="tour-sub">
+          One list, whole family. Tap to tick off. <b>Scan a receipt</b> and Zaeli extracts every item into your history. Fast enough to beat Notes.
+        </div>
+
+        <div class="tour-card" style="padding:0; overflow:hidden;">
+          <div style="background:var(--lav); padding: 12px;">
+            <div style="font-size:10px; font-weight:800; letter-spacing:0.5px; color:var(--lav-d);">🛒 SHOPPING</div>
+            <div style="font-size:16px; font-weight:800; margin-top:4px;">4 items to grab.</div>
+            <div style="font-size:9px; color:var(--ink3); margin-top:6px;">• Milk</div>
+            <div style="font-size:9px; color:var(--ink3); margin-top:2px;">• Eggs</div>
+            <div style="font-size:9px; color:var(--ink3); margin-top:2px;">• Bananas</div>
+            <div style="background:white; border-radius:14px; padding:8px 10px; margin-top:8px; display:flex; align-items:center; gap:6px; border:1.5px solid var(--lav-d);">
+              <span style="color:var(--coral); font-weight:800; font-size:14px;">+</span>
+              <span style="font-size:10px; color:var(--lav-d);">Add an item…</span>
+              <span style="margin-left:auto; color:var(--lav-d); font-size:10px;">🎤</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="feature-pills">
+          <div class="pill">🧾 Scan receipts</div>
+          <div class="pill">🥬 Pantry tracking</div>
+          <div class="pill">💰 Monthly spend</div>
+        </div>
+
+        <div class="try-saying">
+          <div class="lbl">Try saying</div>
+          <div class="text">"Add milk, eggs, and Cocoa Pops."</div>
+        </div>
+      </div>
+
+      <div class="tour-bottom">
+        <div class="btn-back">Back</div>
+        <div class="btn-cta" style="background:var(--lav-d);">Open Shopping →</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Lavender accent. Sells the multi-item voice-add pitch (the "beats Notes" moment Anna flagged in Session 32). Feature pills tease Scan + Pantry + Spend — the deeper features.</div>
+  </div>
+
+  <!-- STOP 4 — Reminders & To-dos -->
+  <div class="frame-wrap">
+    <div class="frame-label">STOP 4 — REMINDERS & TO-DOS</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="tour-header">
+        <div class="tour-close">✕</div>
+        <div class="tour-skip">Skip →</div>
+      </div>
+      <div class="tour-eyebrow">Stop 4 of 6</div>
+      <div class="progress"><div class="progress-fill" style="width: 60%; background:var(--gold-d);"></div></div>
+
+      <div class="tour-body">
+        <div class="tour-h1" style="color:var(--gold-d);">Never forget the <span style="color:var(--gold-d);">little things</span> ⏰</div>
+        <div class="tour-sub">
+          Timed reminders, date-only, or someday to-dos. <b>Personal by default</b> — one tap makes them family-shared.
+        </div>
+
+        <div class="tour-card" style="padding:10px;">
+          <div style="display:flex; align-items:center; gap:6px; padding:6px 8px; background:white; border-left:3px solid var(--gold); border-radius:8px; margin-bottom:4px;">
+            <div style="width:14px; height:14px; border-radius:7px; border:1.5px solid var(--ink4);"></div>
+            <span style="font-size:11px;">🔒</span>
+            <span style="font-size:11px; font-weight:600;">Take out bins</span>
+            <span style="font-size:9px; color:var(--ink3); margin-left:auto;">tmw 8am</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; padding:6px 8px; background:white; border-left:3px solid var(--mint); border-radius:8px;">
+            <div style="width:14px; height:14px; border-radius:7px; border:1.5px solid var(--ink4);"></div>
+            <span style="font-size:11px;">👥</span>
+            <span style="font-size:11px; font-weight:600;">Book plumber</span>
+            <span style="font-size:9px; color:var(--ink3); margin-left:auto;">shared</span>
+          </div>
+        </div>
+
+        <div class="feature-pills">
+          <div class="pill">🔒 Personal</div>
+          <div class="pill">👥 Family</div>
+          <div class="pill">🔔 Push at time</div>
+        </div>
+
+        <div class="try-saying">
+          <div class="lbl">Try saying</div>
+          <div class="text">"Remind me to call Mum at 6pm."</div>
+        </div>
+      </div>
+
+      <div class="tour-bottom">
+        <div class="btn-back">Back</div>
+        <div class="btn-cta" style="background:var(--gold-d);">Open Reminders →</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Gold accent. Explains the tier system with two example rows (🔒 personal + 👥 shared) — the Round B mental model. Notification promise: only the creator gets the push.</div>
+  </div>
+
+  <!-- STOP 5 — Chat -->
+  <div class="frame-wrap">
+    <div class="frame-label">STOP 5 — CHAT WITH ZAELI</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="tour-header">
+        <div class="tour-close">✕</div>
+        <div class="tour-skip">Skip →</div>
+      </div>
+      <div class="tour-eyebrow">Stop 5 of 6</div>
+      <div class="progress"><div class="progress-fill" style="width: 80%; background:var(--sky-d);"></div></div>
+
+      <div class="tour-body">
+        <div class="tour-h1" style="color:var(--sky-d);">Talk to <span style="color:var(--sky-d);">Zaeli</span> directly 💬</div>
+        <div class="tour-sub">
+          <b>Swipe left</b> from Home to chat. Type, tap the mic, or drop a photo — she'll add events, reminders, shopping, or just chat.
+        </div>
+
+        <div class="tour-card" style="padding:0; overflow:hidden;">
+          <div style="background:var(--sky-t); padding:8px 10px;">
+            <div style="background:white; border-radius:14px; padding:8px 10px; margin-bottom:6px;">
+              <div style="font-size:10px; color:var(--ink3); margin-bottom:2px;">Zaeli</div>
+              <div style="font-size:11px;">Added — soccer Thursday 4pm, Gab</div>
+            </div>
+            <div style="background:var(--sky); border-radius:14px; padding:8px 10px; margin-left:20px; margin-bottom:8px;">
+              <div style="font-size:11px;">Add soccer for Gab Thursday 4pm</div>
+            </div>
+            <div style="background:white; border:1.5px solid var(--sky); border-radius:20px; padding:6px 8px; display:flex; align-items:center; gap:4px;">
+              <div style="width:22px; height:22px; border-radius:11px; background:rgba(168,216,240,0.30); display:flex; align-items:center; justify-content:center; font-size:10px;">🎤</div>
+              <div style="width:1px; height:14px; background:rgba(10,10,10,0.10);"></div>
+              <div style="flex:1; font-size:10px; color:var(--sky-d); padding: 0 3px;">Ask Zaeli anything…</div>
+              <div style="width:22px; height:22px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--coral);">📷</div>
+              <div style="width:22px; height:22px; border-radius:11px; background:var(--coral); color:white; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800;">→</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="feature-pills">
+          <div class="pill">🎤 Voice</div>
+          <div class="pill">📷 Photo → data</div>
+          <div class="pill">👨‍👩‍👧 Family reach</div>
+        </div>
+
+        <div class="try-saying">
+          <div class="lbl">Try saying</div>
+          <div class="text">"Text Anna I'll be 15 mins late."</div>
+        </div>
+      </div>
+
+      <div class="tour-bottom">
+        <div class="btn-back">Back</div>
+        <div class="btn-cta" style="background:var(--sky-d);">Open Chat →</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Sky accent (Chat identity — matches the "a+i" wordmark tint). Miniature chat surface with an example exchange + the universal chat bar. Try-saying pushes the family-notify use case (Session 30 feature that's still underused).</div>
+  </div>
+
+  <!-- STOP 6 — Finale -->
+  <div class="frame-wrap">
+    <div class="frame-label">STOP 6 — YOU'RE SET</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="tour-header">
+        <div class="tour-close">✕</div>
+        <div style="width: 40px;"></div>
+      </div>
+      <div class="tour-eyebrow" style="color:var(--coral);">Complete</div>
+      <div class="progress"><div class="progress-fill" style="width: 100%;"></div></div>
+
+      <div class="tour-body" style="justify-content:center; text-align:center; padding-top: 20px;">
+        <div class="finale-hero">
+          <div class="finale-emoji">🎉</div>
+          <div class="tour-h1" style="text-align:center;">You're all set</div>
+          <div class="tour-sub" style="text-align:center; padding: 0 6px;">
+            Zaeli's watching in the background. She'll ping you with a brief every morning and evening, and land you a nudge when something needs attention.
+          </div>
+        </div>
+
+        <div class="try-saying" style="margin-top: 10px;">
+          <div class="lbl">One more thing</div>
+          <div class="text" style="font-style: normal;">
+            When you're ready to plan the money side, tap <b style="color:var(--mint-d);">💰 Our Budget</b> on Home. It's not a tracker — it's a planner. No live spend, just clarity on where things go.
+          </div>
+        </div>
+
+        <div style="background:var(--peach-t); border-radius:12px; padding:10px 12px; margin-top:10px; font-size:11px; color:var(--peach-d); line-height:1.5;">
+          <b>Family invite tip:</b> got a partner? Head to Our Family → Add a member. Kids too. Everyone sees the calendar, shopping list, and reminders.
+        </div>
+      </div>
+
+      <div class="tour-bottom">
+        <div style="flex:1;"></div>
+        <div class="btn-cta coral">Take me to Home ✨</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Finale. Two "one more thing" callouts: Budget (planner, not tracker — sets expectations) + Family invite tip (drives the network effect). Progress bar at 100%. Single warm CTA back to Home.</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Post-onboarding trigger + resume mechanic</div>
+  <div class="section-title">When the tour fires</div>
+  <div class="section-desc">
+    Auto-fires the moment onboarding finishes — no "would you like a tour?" offer, no swipe. Zaeli's welcome message in Chat lands afterwards as the natural transition out.
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">POST-ONBOARDING HAND-OFF</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div style="background: var(--bg); padding: 34px 20px 20px; height: 100%; display: flex; flex-direction: column;">
+        <div style="text-align:center; margin: 20px 0 28px;">
+          <div style="font-size: 44px; margin-bottom: 10px;">✨</div>
+          <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">You're in!</div>
+          <div style="font-size: 12px; color: var(--ink3); margin-top: 8px; padding: 0 20px; line-height: 1.5;">
+            Give me 60 seconds to walk you through the family stuff — you'll get the most out of Zaeli much faster this way.
+          </div>
+        </div>
+
+        <div style="background: white; border-radius: 16px; padding: 16px; margin-bottom: 12px;">
+          <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.5px; color: var(--ink3); text-transform: uppercase; margin-bottom: 8px;">The tour covers</div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-size: 12px;">📅 Calendar</div>
+            <div style="font-size: 12px;">🛒 Shopping</div>
+            <div style="font-size: 12px;">⏰ Reminders &amp; To-dos</div>
+            <div style="font-size: 12px;">💬 Chatting with me</div>
+          </div>
+        </div>
+
+        <div style="background: var(--coral); color: white; padding: 14px; border-radius: 14px; font-size: 14px; font-weight: 700; text-align: center; margin-top: auto; margin-bottom: 8px;">Show me around →</div>
+        <div style="padding: 12px; text-align: center; font-size: 13px; font-weight: 700; color: var(--ink3);">Skip the tour</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">The single moment the user has choice. "Show me around" fires the 6-stop walkthrough. "Skip the tour" jumps straight to Home + Zaeli's welcome message in Chat. Never appears again unless triggered from Settings.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">MID-TOUR — CLOSED APP, REOPENED</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="tour-header">
+        <div class="tour-close">✕</div>
+        <div class="tour-skip">Skip →</div>
+      </div>
+      <div class="tour-eyebrow">Picking up where you left off</div>
+      <div class="progress"><div class="progress-fill" style="width: 40%; background:var(--lav-d);"></div></div>
+
+      <div class="tour-body" style="justify-content: center; text-align: center; padding: 40px 20px;">
+        <div style="font-size: 40px; margin-bottom: 12px;">👋</div>
+        <div class="tour-h1" style="text-align:center;">Welcome back</div>
+        <div class="tour-sub" style="text-align:center;">
+          You were on <b>stop 3 — Shopping</b>. Want to keep going, jump ahead, or come back later?
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+          <div style="background: var(--coral); color: white; padding: 12px; border-radius: 12px; font-size: 13px; font-weight: 700;">Keep going ▶</div>
+          <div style="background: white; border: 1.5px solid var(--line); padding: 12px; border-radius: 12px; font-size: 13px; font-weight: 700; color: var(--ink);">Skip to end 🏁</div>
+          <div style="padding: 12px; font-size: 12px; color: var(--ink3); font-weight: 600;">Not right now</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">If the user closes mid-tour and comes back later, this "welcome back" resume screen fires (once, after 24h+ inactivity). Same three-way choice: continue, skip to end, dismiss.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">CHAT AFTER TOUR</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div style="background: var(--bg); padding: 34px 14px 14px; height: 100%; display: flex; flex-direction: column;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <div style="font-size: 22px; font-weight: 800; letter-spacing: -1px;">z<span style="color:var(--sky);">a</span>el<span style="color:var(--sky);">i</span></div>
+          <div style="font-size: 13px; font-weight: 700; color: var(--ink2);">Chat</div>
+        </div>
+
+        <div style="flex: 1; padding: 8px 4px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="background: rgba(10,10,10,0.04); border-radius: 16px; border-bottom-left-radius: 6px; padding: 10px 12px; align-self: flex-start; max-width: 88%;">
+            <div style="font-size: 12px; line-height: 1.5;">
+              Hey Rich — nice to meet you properly. Ready when you are 👋
+            </div>
+          </div>
+          <div style="background: rgba(10,10,10,0.04); border-radius: 16px; border-bottom-left-radius: 6px; padding: 10px 12px; align-self: flex-start; max-width: 88%;">
+            <div style="font-size: 12px; line-height: 1.5;">
+              A few ways to start: <b>tell me what's on this week</b>, drop a photo of a school newsletter, or paste a shopping list. Whatever's easiest.
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px;">
+              <div style="background: white; border: 1px solid var(--line); border-radius: 10px; padding: 5px 9px; font-size: 10px; font-weight: 600;">What's on this week?</div>
+              <div style="background: white; border: 1px solid var(--line); border-radius: 10px; padding: 5px 9px; font-size: 10px; font-weight: 600;">Add school events</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="background: white; border: 1.5px solid var(--line); border-radius: 20px; padding: 5px 6px; display: flex; align-items: center; gap: 4px; margin-top: 8px;">
+          <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🎤</div>
+          <div style="width: 1px; height: 14px; background: rgba(10,10,10,0.10);"></div>
+          <div style="flex: 1; font-size: 11px; color: var(--ink3); padding: 0 4px;">Ask Zaeli anything…</div>
+          <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--coral);">📷</div>
+          <div style="width: 24px; height: 24px; border-radius: 12px; background: var(--coral); color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800;">→</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">What the user sees the moment the tour finishes: Chat is one swipe left from Home, and Zaeli's already waiting with a warm opener + two starter chips. The tour's "Try saying…" prompts have primed the mic idea, so voice feels natural.</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">The mechanic</div>
+  <div class="section-title">State + navigation notes</div>
+</div>
+
+<div style="max-width: 900px; margin: 24px auto 0; background: white; border: 1px solid var(--line); border-radius: 16px; overflow: hidden;">
+  <table style="width:100%; border-collapse: collapse;">
+    <tbody>
+      <tr>
+        <td style="padding: 14px 16px; font-size: 13px; font-weight: 800; letter-spacing: 0.4px; color: var(--ink3); text-transform: uppercase; background: rgba(10,10,10,0.03); width: 26%; border-bottom: 1px solid var(--line);">Fires</td>
+        <td style="padding: 14px 16px; font-size: 13px; color: var(--ink); line-height: 1.6; border-bottom: 1px solid var(--line);">Post-onboarding finale sets <code>tour_offer_pending=true</code>. Chat mount detects, pushes the "You're in! Show me around?" prompt as first Zaeli message. Tap CTA → <code>router.navigate('/tour')</code>.</td>
+      </tr>
+      <tr>
+        <td style="padding: 14px 16px; font-size: 13px; font-weight: 800; letter-spacing: 0.4px; color: var(--ink3); text-transform: uppercase; background: rgba(10,10,10,0.03); border-bottom: 1px solid var(--line);">Stops</td>
+        <td style="padding: 14px 16px; font-size: 13px; color: var(--ink); line-height: 1.6; border-bottom: 1px solid var(--line);"><code>STOPS</code> array in <code>lib/tour-state.ts</code> — 6 entries. Each: <code>{ id, emoji, h1, sub, tryText, cta, ctaTarget, accent }</code>. Refactor the Session 19 STOPS from 11 → 6.</td>
+      </tr>
+      <tr>
+        <td style="padding: 14px 16px; font-size: 13px; font-weight: 800; letter-spacing: 0.4px; color: var(--ink3); text-transform: uppercase; background: rgba(10,10,10,0.03); border-bottom: 1px solid var(--line);">Persistence</td>
+        <td style="padding: 14px 16px; font-size: 13px; color: var(--ink); line-height: 1.6; border-bottom: 1px solid var(--line);"><code>profiles.tour_state</code> JSONB (Session 21 pattern). Field: <code>{ currentStop, startedAt, completedAt, lastOpenedAt }</code>. Kid accounts already have the effective-stops filter (Session 19 quick wins) — untouched, still works.</td>
+      </tr>
+      <tr>
+        <td style="padding: 14px 16px; font-size: 13px; font-weight: 800; letter-spacing: 0.4px; color: var(--ink3); text-transform: uppercase; background: rgba(10,10,10,0.03); border-bottom: 1px solid var(--line);">CTA → sheet</td>
+        <td style="padding: 14px 16px; font-size: 13px; color: var(--ink); line-height: 1.6; border-bottom: 1px solid var(--line);">Each stop's CTA sets <code>pendingChatContext</code> then navigates to swipe-world. Home consumes the context, opens the sheet. When the sheet closes, <code>router.navigate('/tour')</code> resumes at the next stop (via <code>tour_resume_next=true</code> flag).</td>
+      </tr>
+      <tr>
+        <td style="padding: 14px 16px; font-size: 13px; font-weight: 800; letter-spacing: 0.4px; color: var(--ink3); text-transform: uppercase; background: rgba(10,10,10,0.03); border-bottom: 1px solid var(--line);">Skip</td>
+        <td style="padding: 14px 16px; font-size: 13px; color: var(--ink); line-height: 1.6; border-bottom: 1px solid var(--line);">"Skip →" jumps to finale (stop 6) with progress bar filled. <code>completeTour()</code> marks done. Never reappears unless triggered from Settings → Replay tour.</td>
+      </tr>
+      <tr>
+        <td style="padding: 14px 16px; font-size: 13px; font-weight: 800; letter-spacing: 0.4px; color: var(--ink3); text-transform: uppercase; background: rgba(10,10,10,0.03); border-bottom: 1px solid var(--line);">Resume</td>
+        <td style="padding: 14px 16px; font-size: 13px; color: var(--ink); line-height: 1.6; border-bottom: 1px solid var(--line);">If <code>lastOpenedAt</code> &gt; 24h and <code>completedAt</code> is null, the "Welcome back" resume screen (frame 8) fires on next app open. Continue / Skip / Dismiss. Dismiss = <code>completeTour()</code> too (soft giving up).</td>
+      </tr>
+      <tr>
+        <td style="padding: 14px 16px; font-size: 13px; font-weight: 800; letter-spacing: 0.4px; color: var(--ink3); text-transform: uppercase; background: rgba(10,10,10,0.03);">Cost</td>
+        <td style="padding: 14px 16px; font-size: 13px; color: var(--ink); line-height: 1.6;">Zero AI cost — no Sonnet calls, no runtime data. Pure static content. Refactor of existing Session 19 tour system, not new infra.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

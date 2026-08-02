@@ -23,7 +23,7 @@
 
 import { supabase } from './supabase';
 import { getFamilyId } from './family';
-import { getCurrentUserId } from './auth';
+import { getCurrentUserId, waitForProfile } from './auth';
 import * as Notifications from 'expo-notifications';
 
 // ── UUID ─────────────────────────────────────────────────────────────────
@@ -168,11 +168,21 @@ export async function loadReminders(): Promise<Reminder[]> {
 // Schedules a local notification if remindAt is set AND caller is creator.
 // Cancels any existing scheduled notif on update.
 export async function saveReminder(r: Partial<Reminder> & { title: string }): Promise<Reminder | null> {
-  const familyId = getFamilyId();
-  const userId = await getCurrentUserId();
+  // Round B commit 8 — wait for the profile cache to populate before
+  // reading familyId. Previously getFamilyId() silently returned DUMMY on
+  // race → INSERT WITH CHECK failed against RLS current_family_id() → row
+  // never landed → user sees "nothing happened". Now we wait up to 5s;
+  // if profile still not ready, bail cleanly.
+  const profile = await waitForProfile(5000);
+  if (!profile) {
+    console.log('[reminders/save] EXIT NULL — profile did not resolve in 5s (offline / signed-out)');
+    return null;
+  }
+  const familyId = profile.family_id;
+  const userId = profile.id;
   console.log('[reminders/save] enter — familyId:', familyId, '· userId:', userId, '· title:', r.title, '· visibility:', r.visibility, '· remindAt:', r.remindAt, '· remindOn:', r.remindOn);
   if (!familyId || !userId) {
-    console.log('[reminders/save] EXIT NULL — missing familyId or userId');
+    console.log('[reminders/save] EXIT NULL — profile loaded but missing familyId or userId');
     return null;
   }
 

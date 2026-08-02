@@ -38,7 +38,7 @@ import { supabase } from '../../lib/supabase';
 import { getFamilyId } from '../../lib/family';
 import { parseLocalIsoAsDate } from '../../lib/reminders';
 import MoreSheet from '../components/MoreSheet';
-import { getProfile } from '../../lib/auth';
+import { getProfile, waitForProfile } from '../../lib/auth';
 import { loadRoster, getRoster } from '../../lib/family-roster';
 import { setPendingChatContext, setChatIntent, subscribeHomeRefresh, getHomeRefreshVersion } from '../../lib/navigation-store';
 // (onAuthChange removed Commit 6 — polling for profile-ready is the fix)
@@ -174,9 +174,21 @@ export default function DashboardScreen({
 
   // ── Data loaders — leaner than Phase 01, only what tiles need ─────────
   const loadData = useCallback(async () => {
+    // Round B commit 8 — bail if profile not loaded yet. Previously
+    // loadData called getFamilyId() which silently fell back to DUMMY on
+    // race → queries returned 0 rows (RLS resolves real family from JWT,
+    // DUMMY ≠ real) → tiles rendered empty. Now we bail; the
+    // waitForProfile-driven useEffect below will fire loadData once the
+    // real profile lands. Cold-open now shows loading state briefly
+    // instead of "everything is empty".
+    const p = getProfile();
+    if (!p?.family_id) {
+      console.log('[dashboard] loadData bailed — profile not ready yet');
+      return;
+    }
     const today = localDateStr();
-    const fid = getFamilyId();
-    const myId = getProfile()?.id;
+    const fid = p.family_id;
+    const myId = p.id;
 
     const [evRes, shopRes, remRes] = await Promise.all([
       supabase.from('events')
@@ -248,46 +260,25 @@ export default function DashboardScreen({
   useEffect(() => subscribeHomeRefresh(setHomeRefreshVer), []);
   useEffect(() => { if (homeRefreshVer > 0) loadData(); }, [homeRefreshVer, loadData]);
 
-  // Round B commit 6 — cold-open empty tiles, stronger fix.
+  // Round B commit 8 — cold-open empty tiles, event-based fix.
   //
-  // Commit 3's approach (subscribe to onAuthChange) failed on cached-session
-  // restore because onAuthChange fires SIGNED_IN during Supabase client init,
-  // BEFORE Dashboard mounts. Dashboard subscribes AFTER that event; it never
-  // sees it. Rich's cold-open still showed empty tiles.
+  // Previous approach (Commit 6 polling every 300ms up to 6s) worked but
+  // gave up if profile took >6s on flaky network. Now uses the new
+  // waitForProfile() event helper from lib/auth.ts — subscribes to a
+  // waiter list that loadProfile() drains on completion. No timeout cap.
   //
-  // New approach: poll for getProfile()?.familyId every 300ms (up to 20
-  // attempts / 6 seconds). As soon as the profile cache has resolved to a
-  // real family_id, load once. If it never resolves (offline / signed-out),
-  // stop after 20 attempts — dashboard shows empty state gracefully.
-  //
-  // Cheap: 1 extra loadData in the happy path. No subscription lifecycle.
+  // The other useEffects (line 240-242) still fire loadData() immediately,
+  // but they now bail early inside loadData if getProfile is null (see the
+  // guard added to the top of loadData). So empty queries stop firing
+  // pre-auth entirely — tiles stay in loading state until real data lands.
   useEffect(() => {
-    let attempts = 0;
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let didLoad = false;
-
-    const check = () => {
-      if (cancelled || didLoad) return;
-      const p = getProfile();
-      if (p?.family_id) {
-        didLoad = true;
-        loadData();
-        return;
-      }
-      if (attempts++ < 20) {
-        timer = setTimeout(check, 300);
-      } else {
-        console.log('[dashboard] cold-open poll: profile never resolved after 6s — giving up');
-      }
-    };
-    // First poll after a short beat so getProfile()'s module cache has a
-    // chance to populate from AsyncStorage in the common warm path
-    timer = setTimeout(check, 150);
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
+    waitForProfile(60000).then(p => {
+      if (cancelled) return;
+      if (p?.family_id) loadData();
+      else console.log('[dashboard] waitForProfile timed out — user may be signed out');
+    });
+    return () => { cancelled = true; };
   }, [loadData]);
 
   // ── Shopping quick-add (unchanged from Phase 01) ──────────────────────
@@ -373,6 +364,16 @@ export default function DashboardScreen({
   // tap camera and you get straight to the picker. No extra step.
   const openChatMic = useCallback(() => {
     setChatIntent({ kind: 'mic' });
+    openChat();
+  }, [openChat]);
+
+  // Round B commit 8 — Reminders tile mic. Direct-add path per Rich's
+  // Option B: tap mic on Reminders tile → speak → transcript becomes a
+  // reminder title (visibility='personal') without going through Chat +
+  // Sonnet. Wired via ChatIntent 'mic-reminder' — Chat consumes, starts
+  // recording with a flag; stopRecording routes to saveReminder direct.
+  const openReminderTileMic = useCallback(() => {
+    setChatIntent({ kind: 'mic-reminder' });
     openChat();
   }, [openChat]);
 
@@ -556,7 +557,7 @@ export default function DashboardScreen({
               <Text style={[s.quickPlus, { color: T.coral }]}>+</Text>
               <Text style={[s.quickField, { color: T.goldDeep, opacity: 0.75 }]}>Add reminder or to-do…</Text>
               <TouchableOpacity
-                onPress={(e) => { e.stopPropagation?.(); openChatMic(); }}
+                onPress={(e) => { e.stopPropagation?.(); openReminderTileMic(); }}
                 style={s.tileMic}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >

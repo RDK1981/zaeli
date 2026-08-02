@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zaeli v2 — Settings sub-pages (Round B)</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:         #FAF8F5;
+    --ink:        #0A0A0A;
+    --ink2:       rgba(10,10,10,0.72);
+    --ink3:       rgba(10,10,10,0.48);
+    --ink4:       rgba(10,10,10,0.28);
+    --ink5:       rgba(10,10,10,0.14);
+    --line:       rgba(10,10,10,0.08);
+    --coral:      #FF4545;
+    --coral-tint: #FFE4E0;
+    --coral-d:    #B83333;
+    --slate:      #2D3748;
+    --peach:      #FAC8A8;
+    --peach-t:    #FDF1E5;
+    --peach-d:    #8A3A00;
+    --mint:       #B8EDD0;
+    --mint-t:     #E6F7EF;
+    --mint-d:     #2D7A52;
+    --lav:        #D8CCFF;
+    --lav-t:      #F0EBFF;
+    --lav-d:      #5020C0;
+    --sky:        #A8D8F0;
+    --sky-t:      #E8F4FD;
+    --sky-d:      #0A5C80;
+    --gold:       #F0DC80;
+    --gold-t:     #FBF5D6;
+    --gold-d:     #8B6914;
+    --magenta:    #D4006A;
+    --anna:       #FF7B6B;
+    --rich:       #4D8BFF;
+    --poppy:      #A855F7;
+    --gab:        #22C55E;
+    --duke:       #F59E0B;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+  body { background: #EFECE6; padding: 40px 20px 80px; color: var(--ink); }
+
+  h1 { font-weight: 800; font-size: 32px; text-align: center; letter-spacing: -1px; }
+  .sub { text-align: center; color: var(--ink3); font-size: 15px; margin: 8px 0 32px; max-width: 780px; margin-left: auto; margin-right: auto; line-height: 1.55; }
+  .sub b { color: var(--ink); font-weight: 700; }
+
+  .callout {
+    max-width: 900px; margin: 12px auto 24px;
+    background: white; border: 1px solid var(--line);
+    border-radius: 16px; padding: 22px 26px;
+  }
+  .callout h3 {
+    font-size: 13px; font-weight: 800; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--sky-d); margin-bottom: 14px;
+  }
+  .callout ol { margin-left: 20px; }
+  .callout li { font-size: 14px; line-height: 1.7; color: var(--ink2); margin-bottom: 4px; }
+  .callout li b { color: var(--ink); font-weight: 700; }
+  .callout .accent { color: var(--sky-d); font-weight: 700; }
+
+  .section-header { margin: 56px auto 24px; max-width: 1400px; }
+  .section-eyebrow { font-weight: 800; font-size: 12px; letter-spacing: 1.2px; color: var(--ink3); text-transform: uppercase; }
+  .section-title { font-weight: 800; font-size: 28px; letter-spacing: -0.5px; margin-top: 4px; }
+  .section-desc { color: var(--ink2); font-size: 15px; margin-top: 8px; max-width: 800px; line-height: 1.55; }
+  .section-desc b { color: var(--ink); font-weight: 700; }
+
+  .frames {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px; max-width: 1400px; margin: 0 auto;
+  }
+  .frame-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .frame-label {
+    background: white; border: 1px solid var(--line);
+    padding: 5px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--ink2);
+  }
+  .frame-caption {
+    text-align: center; font-size: 12px; color: var(--ink3); line-height: 1.45;
+    max-width: 240px; margin-top: 4px;
+  }
+  .frame-caption b { color: var(--ink2); font-weight: 700; }
+
+  .phone {
+    position: relative; width: 260px; height: 545px;
+    background: var(--ink); border-radius: 38px; padding: 7px;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+  }
+  .phone .notch {
+    position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
+    width: 90px; height: 20px; background: var(--ink);
+    border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; z-index: 5;
+  }
+  .screen {
+    background: var(--bg); border-radius: 32px; height: 100%;
+    overflow: hidden; position: relative;
+  }
+
+  .app-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 34px 14px 8px;
+  }
+  .word {
+    font-size: 24px; font-weight: 800; letter-spacing: -1px; line-height: 1;
+  }
+  .word .a, .word .i { color: var(--ink3); }
+  .app-bar .right { display: flex; align-items: center; gap: 8px; }
+  .app-bar .label { font-size: 13px; font-weight: 700; color: var(--ink2); }
+  .back {
+    width: 30px; height: 30px; border-radius: 8px; background: rgba(10,10,10,0.05);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--ink2);
+  }
+
+  .content {
+    padding: 8px 14px 20px;
+    height: calc(100% - 76px); overflow-y: auto;
+  }
+
+  .sec-lbl {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.6px;
+    color: var(--ink3); text-transform: uppercase;
+    margin: 12px 4px 10px;
+  }
+
+  .row-group {
+    background: white; border-radius: 14px; overflow: hidden;
+    margin-bottom: 14px;
+  }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid var(--line);
+    min-height: 48px;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .lbl { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .row .val { font-size: 12px; color: var(--ink3); }
+  .row .val.link { color: var(--sky-d); font-weight: 700; }
+  .row .val.deep { color: var(--ink); font-weight: 700; }
+  .row .icon-left {
+    width: 32px; height: 32px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; margin-right: 4px; flex-shrink: 0;
+  }
+
+  .toggle {
+    width: 34px; height: 20px; border-radius: 10px;
+    background: rgba(10,10,10,0.15); position: relative; flex-shrink: 0;
+  }
+  .toggle.on { background: var(--mint-d); }
+  .toggle::after {
+    content: ''; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 8px; background: white;
+    transition: left 0.2s;
+  }
+  .toggle.on::after { left: 16px; }
+
+  .time-chip {
+    background: var(--sky-t); border-radius: 10px;
+    padding: 5px 12px; color: var(--sky-d);
+    font-size: 13px; font-weight: 700;
+  }
+
+  .btn-primary {
+    background: var(--ink); color: white;
+    padding: 14px 16px; border-radius: 14px;
+    font-size: 14px; font-weight: 700;
+    text-align: center; margin-top: 16px;
+  }
+  .btn-secondary {
+    background: white; color: var(--ink);
+    border: 1.5px solid var(--line);
+    padding: 12px 16px; border-radius: 14px;
+    font-size: 13px; font-weight: 700;
+    text-align: center; margin-top: 8px;
+  }
+
+  .pin-dots {
+    display: flex; justify-content: center; gap: 12px; margin: 24px 0;
+  }
+  .pin-dot {
+    width: 14px; height: 14px; border-radius: 7px;
+    background: rgba(10,10,10,0.10);
+  }
+  .pin-dot.filled { background: var(--ink); }
+
+  .keypad {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    margin-top: 12px;
+  }
+  .key {
+    padding: 14px; text-align: center;
+    background: white; border-radius: 12px;
+    font-size: 22px; font-weight: 700; color: var(--ink);
+    border: 1px solid var(--line);
+  }
+
+  .callout-mini {
+    background: var(--sky-t); border-radius: 12px; padding: 10px 12px;
+    font-size: 11px; color: var(--sky-d); line-height: 1.5;
+  }
+  .callout-mini b { color: var(--ink); font-weight: 700; }
+
+  .card-tile {
+    background: linear-gradient(135deg, var(--mint), #A2E3C3);
+    border-radius: 20px; padding: 18px; margin-bottom: 14px;
+  }
+  .card-tile.warn {
+    background: linear-gradient(135deg, var(--peach), #F5B586);
+  }
+  .card-tile .status-eyebrow {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.5px;
+    color: var(--mint-d); text-transform: uppercase;
+  }
+  .card-tile.warn .status-eyebrow { color: var(--peach-d); }
+  .card-tile .status-headline {
+    font-size: 22px; font-weight: 800; letter-spacing: -0.5px;
+    color: var(--ink); margin-top: 4px;
+  }
+  .card-tile .status-meta {
+    font-size: 12px; color: var(--ink2); margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Zaeli v2 — Settings sub-pages</h1>
+<div class="sub">
+  Standalone Settings mockup expanding on the three role-variant top-level screens shown in the <b>Our Family</b> mockup (Section 4). Covers every sub-page a user taps into: Notifications, Memory, Subscription, Change password, Account/profile, and the Kid-only PIN reset flow.
+</div>
+
+<div class="callout">
+  <h3>Design principles</h3>
+  <ol>
+    <li><b>Every sub-page has back-navigation</b> in the top-left (chevron), never uses a modal for detail — one settings surface, breadcrumb style.</li>
+    <li><b>Owner-only sections</b> (Subscription, Delete family) are gated at the top-level; adults + kids simply don't see them. No greyed-out permission messaging — cleaner.</li>
+    <li><b>Time pickers use inline chips</b>, not native modal spinners. Tap the chip → sky-blue focus ring → wheel picker slides up from bottom (native <code>DateTimePicker</code>).</li>
+    <li><b>Destructive actions</b> (Sign out, Delete account, Reset PIN) live at the bottom in coral, always require confirm.</li>
+    <li><b>PIN reset uses the same 4-dot + keypad</b> as invite-flow onboarding — familiar surface, one visual language.</li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 1 — Notifications sub-page</div>
+  <div class="section-title">When Zaeli reaches you</div>
+  <div class="section-desc">
+    Brief times (morning + evening), quiet hours, and per-channel toggles. Each brief time is a tap-to-edit chip. Toggles are individually persisted (no explicit Save).
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">DEFAULT VIEW</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right">
+          <div class="label">Notifications</div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="sec-lbl">Daily briefs</div>
+        <div class="row-group">
+          <div class="row">
+            <div class="lbl">Morning brief</div>
+            <div class="time-chip">7:00 am</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Evening brief</div>
+            <div class="time-chip">5:00 pm</div>
+          </div>
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Rich text on lockscreen</div>
+              <div class="val" style="margin-top:2px;">Show the brief body, not just a nudge</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Quiet hours</div>
+        <div class="row-group">
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Quiet hours</div>
+              <div class="val" style="margin-top:2px;">10pm – 6am · non-urgent muted</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="lbl">Start</div>
+            <div class="time-chip">10:00 pm</div>
+          </div>
+          <div class="row">
+            <div class="lbl">End</div>
+            <div class="time-chip">6:00 am</div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Alerts</div>
+        <div class="row-group">
+          <div class="row">
+            <div class="lbl">Reminders due</div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="lbl">Family messages</div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="lbl">Sound &amp; vibration</div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Three sections: <b>Daily briefs</b> (times + rich-text lockscreen toggle), <b>Quiet hours</b> (start/end appear when enabled), <b>Alerts</b> (channel-level).</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">TIME PICKER OPEN</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Notifications</div></div>
+      </div>
+      <div class="content" style="filter: brightness(0.85);">
+        <div class="sec-lbl">Daily briefs</div>
+        <div class="row-group">
+          <div class="row" style="background:var(--sky-t);">
+            <div class="lbl">Morning brief</div>
+            <div class="time-chip" style="background:var(--sky-d); color:white;">7:00 am</div>
+          </div>
+        </div>
+      </div>
+      <div style="position:absolute; left:0; right:0; bottom:0; background:white; padding:14px 16px 32px; border-top-left-radius:20px; border-top-right-radius:20px; box-shadow: 0 -6px 20px rgba(0,0,0,0.15);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+          <div style="font-size:13px; font-weight:700; color:var(--ink3);">Morning brief time</div>
+          <div style="background:var(--ink); color:white; padding:6px 14px; border-radius:14px; font-size:12px; font-weight:800;">Done</div>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:center; gap:6px; height: 120px;">
+          <div style="text-align:center;">
+            <div style="font-size:11px; color:var(--ink3);">6</div>
+            <div style="font-size:34px; font-weight:800; padding: 4px 0;">7</div>
+            <div style="font-size:11px; color:var(--ink3);">8</div>
+          </div>
+          <div style="font-size:34px; font-weight:800;">:</div>
+          <div style="text-align:center;">
+            <div style="font-size:11px; color:var(--ink3);">45</div>
+            <div style="font-size:34px; font-weight:800; padding: 4px 0;">00</div>
+            <div style="font-size:11px; color:var(--ink3);">15</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px; margin-left:14px;">
+            <div style="font-size:16px; font-weight:800; color:var(--ink3);">am</div>
+            <div style="font-size:16px; font-weight:400; color:var(--ink4);">pm</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Native <code>DateTimePicker</code> wheel slides up. Row highlights sky-blue while active. Done button commits + closes.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">QUIET HOURS OFF</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Notifications</div></div>
+      </div>
+      <div class="content">
+        <div class="sec-lbl">Daily briefs</div>
+        <div class="row-group">
+          <div class="row">
+            <div class="lbl">Morning brief</div>
+            <div class="time-chip">7:00 am</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Evening brief</div>
+            <div class="time-chip">5:00 pm</div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Quiet hours</div>
+        <div class="row-group">
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Quiet hours</div>
+              <div class="val" style="margin-top:2px;">Get alerts anytime</div>
+            </div>
+            <div class="toggle"></div>
+          </div>
+        </div>
+
+        <div class="callout-mini">
+          <b>Off means all alerts land immediately</b> — Zaeli will ping you at any time of day. Turn on to silence non-urgent things overnight.
+        </div>
+
+        <div class="sec-lbl">Alerts</div>
+        <div class="row-group">
+          <div class="row">
+            <div class="lbl">Reminders due</div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="lbl">Family messages</div>
+            <div class="toggle on"></div>
+          </div>
+          <div class="row">
+            <div class="lbl">Sound &amp; vibration</div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">When Quiet hours is off, the Start/End rows collapse (no need to show times you're not using). Mini sky-tinted callout explains what "off" means.</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 2 — Memory sub-page</div>
+  <div class="section-title">What Zaeli remembers</div>
+  <div class="section-desc">
+    Family insights (learned from chats) + milestones + the master toggle. Each insight has a × to remove; the whole thing can be nuked with Clear all. Directly reads <code>family_insights</code> + <code>family_milestones</code> tables (Session 23 wiring).
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">MEMORY MAIN</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Memory</div></div>
+      </div>
+      <div class="content">
+        <div class="row-group">
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Learn from chats</div>
+              <div class="val" style="margin-top:2px;">Off means Zaeli forgets what you tell her</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Routines · 4</div>
+        <div class="row-group">
+          <div class="row">
+            <div style="flex:1; min-width:0;">
+              <div class="lbl">Poppy's dance on Tuesdays</div>
+              <div class="val" style="margin-top:2px;">Strong pattern · seen 6×</div>
+            </div>
+            <div style="color:var(--ink4); font-size:16px; padding: 0 4px;">✕</div>
+          </div>
+          <div class="row">
+            <div style="flex:1; min-width:0;">
+              <div class="lbl">Gab's soccer training Fri 4pm</div>
+              <div class="val" style="margin-top:2px;">Strong pattern · seen 8×</div>
+            </div>
+            <div style="color:var(--ink4); font-size:16px; padding: 0 4px;">✕</div>
+          </div>
+          <div class="row">
+            <div style="flex:1; min-width:0;">
+              <div class="lbl">Bins on Sunday night</div>
+              <div class="val" style="margin-top:2px;">Confirmed · seen 12×</div>
+            </div>
+            <div style="color:var(--ink4); font-size:16px; padding: 0 4px;">✕</div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Preferences · 2</div>
+        <div class="row-group">
+          <div class="row">
+            <div style="flex:1; min-width:0;">
+              <div class="lbl">Rich prefers early morning briefs</div>
+              <div class="val" style="margin-top:2px;">Noticed once, might update</div>
+            </div>
+            <div style="color:var(--ink4); font-size:16px; padding: 0 4px;">✕</div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Milestones · 1</div>
+        <div class="row-group">
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Duke's first day of school</div>
+              <div class="val" style="margin-top:2px;">🎉 3 Feb 2026</div>
+            </div>
+            <div style="color:var(--ink4); font-size:16px; padding: 0 4px;">✕</div>
+          </div>
+        </div>
+
+        <div class="btn-secondary" style="color:var(--coral); border-color:rgba(255,69,69,0.35);">Clear everything Zaeli remembers</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Top-level toggle stops all future capture. Below: 3 grouped sections (Routines / Preferences / Milestones) with per-item × delete. Big coral "Clear all" at bottom = nuclear option (confirm dialog).</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">EMPTY STATE</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Memory</div></div>
+      </div>
+      <div class="content">
+        <div class="row-group">
+          <div class="row">
+            <div style="flex:1;">
+              <div class="lbl">Learn from chats</div>
+              <div class="val" style="margin-top:2px;">Off means Zaeli forgets what you tell her</div>
+            </div>
+            <div class="toggle on"></div>
+          </div>
+        </div>
+
+        <div style="text-align:center; margin-top: 40px;">
+          <div style="font-size:44px; margin-bottom:10px;">🧠</div>
+          <div style="font-size:15px; font-weight:800;">Nothing to remember yet</div>
+          <div style="font-size:12px; color:var(--ink3); margin-top:6px; padding: 0 30px; line-height: 1.5;">
+            Zaeli listens as you chat with her. After a few conversations, patterns she spots will appear here.
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Fresh signup or after Clear all. Toggle stays visible (they can turn it off pre-emptively), but no lists — just the brain emoji and a warm explanation.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">CONFIRM CLEAR</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div style="position:absolute; inset:0; background: rgba(10,10,10,0.55);"></div>
+      <div style="position:absolute; left:14px; right:14px; top:35%; background:white; border-radius: 20px; padding: 20px 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <div style="font-size:44px; text-align:center; margin-bottom:10px;">🗑️</div>
+        <div style="font-size:16px; font-weight:800; text-align:center;">Clear everything Zaeli remembers?</div>
+        <div style="font-size:12px; color:var(--ink3); text-align:center; margin-top:8px; line-height:1.5;">
+          Removes all routines, preferences, milestones, and saved chat memory for the family. Can't be undone.
+        </div>
+        <div style="background:var(--coral); color:white; padding:12px; border-radius:12px; font-size:14px; font-weight:700; text-align:center; margin-top:20px;">Clear everything</div>
+        <div style="background:rgba(10,10,10,0.05); color:var(--ink); padding:12px; border-radius:12px; font-size:13px; font-weight:700; text-align:center; margin-top:8px;">Keep memory</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Native <code>Alert</code>-style confirm modal. Never one-tap destroy.</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 3 — Subscription sub-page (owner only)</div>
+  <div class="section-title">Billing lives here</div>
+  <div class="section-desc">
+    Owner-only. Shows plan status, next bill, payment method. "Manage subscription" hands off to Stripe Customer Portal in Safari (Session 28 wiring). Adult + kid roles never see this sub-page.
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">ACTIVE SUB</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Subscription</div></div>
+      </div>
+      <div class="content">
+        <div class="card-tile">
+          <div class="status-eyebrow">Active</div>
+          <div class="status-headline">Family plan</div>
+          <div class="status-meta">A$6.99/month · next bill 14 Aug 2026</div>
+        </div>
+
+        <div class="sec-lbl">Details</div>
+        <div class="row-group">
+          <div class="row">
+            <div class="lbl">Plan</div>
+            <div class="val deep">Family</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Price</div>
+            <div class="val deep">A$6.99 / month (inc GST)</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Payment method</div>
+            <div class="val deep">Visa •••• 4242</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Next bill</div>
+            <div class="val deep">14 Aug 2026</div>
+          </div>
+        </div>
+
+        <div class="btn-primary">Manage subscription →</div>
+        <div style="font-size:10px; color:var(--ink3); text-align:center; margin-top:8px;">Opens Stripe in Safari — cancel, update card, view invoices there.</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Mint status card + details grid + Manage button. Everything actionable lives in the Portal (Stripe's UI), we don't build a mini portal ourselves.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">TRIAL</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Subscription</div></div>
+      </div>
+      <div class="content">
+        <div class="card-tile" style="background:linear-gradient(135deg, var(--sky), #7CB8DF);">
+          <div class="status-eyebrow" style="color:var(--sky-d);">Free trial · 9 days left</div>
+          <div class="status-headline">Family plan</div>
+          <div class="status-meta">First bill 10 Aug 2026 · A$6.99/month after</div>
+        </div>
+
+        <div class="sec-lbl">Trial details</div>
+        <div class="row-group">
+          <div class="row">
+            <div class="lbl">Started</div>
+            <div class="val deep">1 Aug 2026</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Free until</div>
+            <div class="val deep">14 Aug 2026</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Card on file</div>
+            <div class="val deep">Visa •••• 4242</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Auto-renew</div>
+            <div class="val deep">Yes</div>
+          </div>
+        </div>
+
+        <div class="btn-primary">Manage subscription →</div>
+        <div class="btn-secondary" style="color:var(--coral); border-color:rgba(255,69,69,0.30);">Cancel trial</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Sky status card during trial. Countdown in the eyebrow. Explicit Cancel trial button so the user isn't hunting.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">PAST DUE</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Subscription</div></div>
+      </div>
+      <div class="content">
+        <div class="card-tile warn">
+          <div class="status-eyebrow">⚠ Payment failed</div>
+          <div class="status-headline">Family plan · past due</div>
+          <div class="status-meta">Charge on 14 Aug failed. Please update your card.</div>
+        </div>
+
+        <div class="sec-lbl">Details</div>
+        <div class="row-group">
+          <div class="row">
+            <div class="lbl">Last attempt</div>
+            <div class="val deep">14 Aug 2026</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Card on file</div>
+            <div class="val deep">Visa •••• 4242 · declined</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Next retry</div>
+            <div class="val deep">17 Aug 2026</div>
+          </div>
+        </div>
+
+        <div class="btn-primary" style="background:var(--coral);">Update payment method →</div>
+        <div style="font-size:11px; color:var(--ink3); text-align:center; margin-top:8px; line-height:1.5;">
+          You still have full access. Zaeli will keep trying every 3 days until your card works.
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Peach warning tile (matches Round B palette — never red/alarm). CTA jumps into Stripe portal on the "Update card" screen deep-link. Reassures user access isn't cut yet.</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 4 — Account / profile edit</div>
+  <div class="section-title">Your identity in the family</div>
+  <div class="section-desc">
+    Name, email, avatar colour. All members can edit their own profile. Password change is adult-only, kids use PIN reset (Section 5). Owner has a hidden extra: transfer ownership.
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">ACCOUNT — ADULT</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Account</div></div>
+      </div>
+      <div class="content">
+        <div style="background:white; border-radius:20px; padding:20px; text-align:center; margin-bottom:14px;">
+          <div style="width:70px; height:70px; border-radius:35px; background:var(--anna); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:26px; margin:0 auto 12px;">A</div>
+          <div style="font-size:13px; color:var(--sky-d); font-weight:700;">Change avatar colour →</div>
+        </div>
+
+        <div class="sec-lbl">Basics</div>
+        <div class="row-group">
+          <div class="row">
+            <div class="lbl">Name</div>
+            <div class="val deep">Anna</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Email</div>
+            <div class="val deep">anna@family.com</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Role</div>
+            <div class="val">Adult</div>
+          </div>
+        </div>
+
+        <div class="sec-lbl">Security</div>
+        <div class="row-group">
+          <div class="row">
+            <div class="lbl">Change password</div>
+            <div class="val">›</div>
+          </div>
+          <div class="row">
+            <div class="lbl">Sign out other devices</div>
+            <div class="val">›</div>
+          </div>
+        </div>
+
+        <div class="btn-secondary" style="color:var(--coral); border-color:rgba(255,69,69,0.30);">Leave family</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Adult sees: Basics (name/email/role read-only for now), Security (change password + sign out other devices), and softer "Leave family" instead of "Delete account". Colour picker is a tap-away chip.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">CHANGE PASSWORD</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Password</div></div>
+      </div>
+      <div class="content">
+        <div class="sec-lbl">Current</div>
+        <div style="background:white; border:1.5px solid var(--line); border-radius:14px; padding:14px; margin-bottom:14px;">
+          <div style="font-family:monospace; font-size:15px; color:var(--ink4);">••••••••••</div>
+        </div>
+
+        <div class="sec-lbl">New password</div>
+        <div style="background:white; border:1.5px solid var(--sky); border-radius:14px; padding:14px; margin-bottom:6px;">
+          <div style="font-family:monospace; font-size:15px; color:var(--ink);">••••••••••••</div>
+        </div>
+        <div style="font-size:11px; color:var(--ink3); padding-left:4px; margin-bottom:14px;">
+          ✓ at least 8 characters<br>
+          ✓ not too obvious
+        </div>
+
+        <div class="sec-lbl">Confirm new</div>
+        <div style="background:white; border:1.5px solid var(--line); border-radius:14px; padding:14px; margin-bottom:14px;">
+          <div style="font-family:monospace; font-size:15px; color:var(--ink4);">Type it again…</div>
+        </div>
+
+        <div class="btn-primary" style="background:rgba(10,10,10,0.15);">Update password</div>
+        <div style="font-size:10px; color:var(--ink3); text-align:center; margin-top:8px;">Signs you out of other devices after change.</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Three fields, live-validated (green ticks appear as password meets rules). Primary button greyed until all valid. Small notice — other devices get signed out (security best practice).</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">COLOUR PICKER</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Your colour</div></div>
+      </div>
+      <div class="content">
+        <div style="background:white; border-radius:20px; padding:24px 18px; text-align:center; margin-bottom:20px;">
+          <div style="width:70px; height:70px; border-radius:35px; background:var(--anna); color:white; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:26px; margin:0 auto 10px;">A</div>
+          <div style="font-size:12px; color:var(--ink3);">Your colour appears on events, reminders, and the family list.</div>
+        </div>
+
+        <div class="sec-lbl">Pick one</div>
+        <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 4px 4px;">
+          <div style="aspect-ratio:1; border-radius:50%; background:var(--rich);"></div>
+          <div style="aspect-ratio:1; border-radius:50%; background:var(--anna); border:3px solid var(--ink); box-shadow: 0 0 0 3px var(--bg);"></div>
+          <div style="aspect-ratio:1; border-radius:50%; background:var(--poppy);"></div>
+          <div style="aspect-ratio:1; border-radius:50%; background:var(--gab);"></div>
+          <div style="aspect-ratio:1; border-radius:50%; background:var(--duke);"></div>
+          <div style="aspect-ratio:1; border-radius:50%; background:var(--coral);"></div>
+          <div style="aspect-ratio:1; border-radius:50%; background:var(--mint-d);"></div>
+          <div style="aspect-ratio:1; border-radius:50%; background:var(--sky-d);"></div>
+          <div style="aspect-ratio:1; border-radius:50%; background:var(--magenta);"></div>
+          <div style="aspect-ratio:1; border-radius:50%; background:var(--gold-d);"></div>
+        </div>
+
+        <div style="background:var(--peach-t); border-radius:12px; padding:12px; margin-top:20px; font-size:11px; color:var(--peach-d); line-height:1.5;">
+          <b>Anna's colour is already taken by another family member.</b><br>
+          Pick a different one — helps everyone tell events apart at a glance.
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">10-swatch grid. Currently-selected has thick black ring. Peach warning if two family members somehow pick the same shade (rare, but should nudge).</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 5 — Kid PIN reset</div>
+  <div class="section-title">Rich or Anna can trigger — kid confirms on device</div>
+  <div class="section-desc">
+    Two flavours: <b>kid changes their own PIN</b> from their Settings (via Change PIN row), or <b>owner sends a fresh PIN</b> from Our Family → member profile → Reset PIN. Both end at the same 3-step wizard.
+  </div>
+</div>
+
+<div class="frames">
+
+  <div class="frame-wrap">
+    <div class="frame-label">STEP 1 — VERIFY CURRENT PIN</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Change PIN</div></div>
+      </div>
+      <div class="content" style="padding: 20px 20px;">
+        <div style="text-align:center; margin-bottom:6px; margin-top:6px;">
+          <div style="font-size:16px; font-weight:800;">Enter your current PIN</div>
+          <div style="font-size:12px; color:var(--ink3); margin-top:4px;">1 of 3</div>
+        </div>
+        <div class="pin-dots">
+          <div class="pin-dot filled"></div>
+          <div class="pin-dot filled"></div>
+          <div class="pin-dot"></div>
+          <div class="pin-dot"></div>
+        </div>
+        <div class="keypad">
+          <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+          <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+          <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+          <div class="key" style="background:transparent; border:none;"></div>
+          <div class="key">0</div>
+          <div class="key" style="background:transparent; border:none; font-size:18px; color:var(--ink3);">⌫</div>
+        </div>
+        <div style="text-align:center; margin-top: 12px;">
+          <div style="font-size:12px; color:var(--sky-d); font-weight:700;">Forgot? Ask Rich or Anna to send a new one</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Same 4-dot + keypad as the invite-flow onboarding — familiar surface. Forgot link routes to a parent-triggered reset via Our Family.</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">STEP 2 — SET NEW PIN</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Change PIN</div></div>
+      </div>
+      <div class="content" style="padding: 20px 20px;">
+        <div style="text-align:center; margin-bottom:6px; margin-top:6px;">
+          <div style="font-size:16px; font-weight:800;">Choose a new 4-digit PIN</div>
+          <div style="font-size:12px; color:var(--ink3); margin-top:4px;">2 of 3</div>
+        </div>
+        <div class="pin-dots">
+          <div class="pin-dot filled"></div>
+          <div class="pin-dot filled"></div>
+          <div class="pin-dot filled"></div>
+          <div class="pin-dot"></div>
+        </div>
+        <div class="keypad">
+          <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+          <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+          <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+          <div class="key" style="background:transparent; border:none;"></div>
+          <div class="key">0</div>
+          <div class="key" style="background:transparent; border:none; font-size:18px; color:var(--ink3);">⌫</div>
+        </div>
+        <div style="text-align:center; margin-top: 12px;">
+          <div style="font-size:11px; color:var(--ink3);">Pick something you'll remember — not 1234 or your birthday.</div>
+        </div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Warm nudge against obvious PINs. No hard validation (kids will still pick 1111 sometimes — that's on the parent).</div>
+  </div>
+
+  <div class="frame-wrap">
+    <div class="frame-label">STEP 3 — CONFIRM + DONE</div>
+    <div class="phone"><div class="notch"></div><div class="screen">
+      <div class="app-bar">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="back">‹</div>
+          <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+        </div>
+        <div class="right"><div class="label">Change PIN</div></div>
+      </div>
+      <div class="content" style="padding: 40px 20px; text-align:center;">
+        <div style="width:80px; height:80px; border-radius:40px; background:var(--mint); display:flex; align-items:center; justify-content:center; font-size:40px; margin: 8px auto 20px;">✓</div>
+        <div style="font-size:20px; font-weight:800; letter-spacing:-0.4px;">PIN updated</div>
+        <div style="font-size:12px; color:var(--ink3); margin-top:10px; line-height:1.5;">
+          Use your new PIN next time you sign in. Rich can help if you forget.
+        </div>
+        <div class="btn-primary" style="margin-top:28px;">Back to Settings</div>
+      </div>
+    </div></div>
+    <div class="frame-caption">Success screen with mint check. Warm nudge that a parent can help. Single CTA back to Settings home.</div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <div class="section-eyebrow">Section 6 — Recap: sub-page reachability</div>
+  <div class="section-title">Who can reach what</div>
+  <div class="section-desc">
+    Quick guide to which sub-pages are visible per role. Anything not in a row = hidden entirely for that role.
+  </div>
+</div>
+
+<div style="max-width: 900px; margin: 24px auto 0; background: white; border: 1px solid var(--line); border-radius: 16px; overflow: hidden;">
+  <table style="width:100%; border-collapse: collapse;">
+    <thead>
+      <tr>
+        <th style="padding:14px 16px; text-align:left; background: rgba(10,10,10,0.03); font-size:11px; letter-spacing:0.6px; text-transform:uppercase; color:var(--ink3); border-bottom:1px solid var(--line); font-weight:800;">Sub-page</th>
+        <th style="padding:14px 16px; text-align:center; background: rgba(10,10,10,0.03); font-size:11px; letter-spacing:0.6px; text-transform:uppercase; color:var(--peach-d); border-bottom:1px solid var(--line); font-weight:800;">Owner</th>
+        <th style="padding:14px 16px; text-align:center; background: rgba(10,10,10,0.03); font-size:11px; letter-spacing:0.6px; text-transform:uppercase; color:var(--sky-d); border-bottom:1px solid var(--line); font-weight:800;">Adult</th>
+        <th style="padding:14px 16px; text-align:center; background: rgba(10,10,10,0.03); font-size:11px; letter-spacing:0.6px; text-transform:uppercase; color:var(--lav-d); border-bottom:1px solid var(--line); font-weight:800;">Kid</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding:14px 16px; font-size:13px; font-weight:600; border-bottom:1px solid var(--line);">Notifications (brief times + quiet hours)</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓ (limited: brief times only)</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 16px; font-size:13px; font-weight:600; border-bottom:1px solid var(--line);">Memory (routines / preferences / milestones)</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--ink4);">Hidden</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 16px; font-size:13px; font-weight:600; border-bottom:1px solid var(--line);">Subscription (plan + billing + Manage)</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--ink4);">Hidden</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--ink4);">Hidden</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 16px; font-size:13px; font-weight:600; border-bottom:1px solid var(--line);">Account (name + email + colour)</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓ (name + colour, no email)</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 16px; font-size:13px; font-weight:600; border-bottom:1px solid var(--line);">Change password</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--ink4);">— (PIN instead)</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 16px; font-size:13px; font-weight:600; border-bottom:1px solid var(--line);">Change PIN</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--ink4);">—</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--ink4);">—</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 16px; font-size:13px; font-weight:600; border-bottom:1px solid var(--line);">Our Family (family roster + invites)</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓ (full)</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--gold-d); font-weight:700;">✓ (read-only)</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--ink4);">Hidden</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 16px; font-size:13px; font-weight:600; border-bottom:1px solid var(--line);">Privacy · Terms · Version</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; border-bottom:1px solid var(--line); color:var(--mint-d); font-weight:700;">✓</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 16px; font-size:13px; font-weight:600;">Sign out</td>
+        <td style="padding:14px 16px; text-align:center; color:var(--coral); font-weight:700;">✓</td>
+        <td style="padding:14px 16px; text-align:center; color:var(--coral); font-weight:700;">✓ (Leave family)</td>
+        <td style="padding:14px 16px; text-align:center; color:var(--coral); font-weight:700;">✓ (no delete)</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

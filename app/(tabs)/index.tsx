@@ -3587,6 +3587,7 @@ function HomeScreen({
   const recordingRef     = useRef<Audio.Recording | null>(null);
   const shopMicMode      = useRef(false); // true = mic triggered from shop sheet → add as item
   const remindMicMode    = useRef(false); // Round B commit 5 — true = mic from Reminders sheet → fill remindDraft instead of chat
+  const dashboardReminderMicMode = useRef(false); // Round B commit 8 — true = mic from Home Reminders TILE → direct saveReminder(title)
   const shopListScrollRef   = useRef<ScrollView>(null);
   const shopPantryScrollRef = useRef<ScrollView>(null);
   const shopSpendScrollRef  = useRef<ScrollView>(null);
@@ -4810,6 +4811,13 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
         if (intent.kind === 'mic') {
           Keyboard.dismiss();
           startRecording();
+        } else if (intent.kind === 'mic-reminder') {
+          // Round B commit 8 — Reminders tile mic direct-add path.
+          // Setting the flag routes stopRecording's transcript to
+          // saveReminder direct (see line ~5787) instead of Sonnet.
+          dashboardReminderMicMode.current = true;
+          Keyboard.dismiss();
+          startRecording();
         } else if (intent.kind === 'camera') {
           openSheet();
         } else if (intent.kind === 'focus') {
@@ -5778,6 +5786,37 @@ Only include events directly relevant to the question. Max 5 events.`;
       if (remindMicMode.current) {
         remindMicMode.current = false;
         setRemindDraft(transcript);
+        return;
+      }
+      // Round B commit 8 — Reminders tile mic (Home) direct saveReminder path.
+      // Uses the raw transcript as the reminder title (visibility='personal'
+      // per Rich's Option B: tile mic = add fast). Bumps Home refresh so
+      // tile updates when user swipes back. Confirmation message in Chat
+      // gives feedback even though the tile is the destination.
+      if (dashboardReminderMicMode.current) {
+        dashboardReminderMicMode.current = false;
+        const title = transcript.trim();
+        if (!title) return;
+        const displayTitle = title.charAt(0).toUpperCase() + title.slice(1);
+        // Optimistic message in Chat so user sees SOMETHING happened
+        const uMsg: Msg = { id: uid(), role:'user', text: displayTitle, ts: nowTs(), isLoading: false };
+        const zMsg: Msg = { id: uid(), role:'zaeli', text:'', ts: nowTs(), isLoading: true };
+        setMessages(prev => [...prev, uMsg, zMsg]);
+        try {
+          const r = await saveReminder({
+            title: displayTitle,
+            status: 'active',
+            visibility: 'personal',
+          });
+          if (r) {
+            updateMsg(zMsg.id, { text: `✅ Added — "${displayTitle}" to your reminders.`, isLoading: false });
+            bumpHomeRefresh();
+          } else {
+            updateMsg(zMsg.id, { text: `That one didn't stick — want me to try again?`, isLoading: false });
+          }
+        } catch (e:any) {
+          updateMsg(zMsg.id, { text: `Something went wrong: ${e?.message ?? 'unknown error'}`, isLoading: false });
+        }
         return;
       }
       // If triggered from shop sheet mic button — route through AI for smart parsing + duplicate check
@@ -8179,14 +8218,46 @@ Rules:
                     })()}
                   </ScrollView>
 
-                  {/* Round B — input pill with keyboard-aware bottom margin.
-                      When keyboard is up: marginBottom = keyboardHeight -
-                      safe-area (so pill sits directly above keyboard). When
-                      down: normal safe-area padding. Matches Shopping. */}
+                  {/* Round B commit 8 — in-sheet recording indicator.
+                      When the user taps the mic on this sheet, remindMicMode
+                      is set + startRecording() fires. But Chat's recording
+                      pill (at line ~7553) lives INSIDE Chat's render tree,
+                      hidden behind this native Modal. User couldn't see it
+                      or hit Send/Cancel. Renders a mini indicator here so
+                      the user has a visible send/cancel path. Only shows
+                      when isRecording AND the mic was tapped from THIS
+                      sheet (via remindMicMode ref). */}
+                  {isRecording && remindMicMode.current && (
+                    <View style={{ paddingHorizontal:14, paddingTop:10, paddingBottom:6, backgroundColor:'#FBF5D6', borderTopWidth:1, borderTopColor:'rgba(139,105,20,0.15)' }}>
+                      <View style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor:'#fff', borderRadius:16, padding:12, borderWidth:1.5, borderColor:'#F0DC80' }}>
+                        <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#FF4545' }}/>
+                        <Text style={{ flex:1, fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A' }}>Recording · {String(Math.floor(micTimer/60)).padStart(2,'0')}:{String(micTimer%60).padStart(2,'0')}</Text>
+                        <TouchableOpacity
+                          onPress={() => stopRecording(true)}
+                          style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:10, backgroundColor:'rgba(10,10,10,0.05)' }}
+                          activeOpacity={0.75}
+                        >
+                          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(10,10,10,0.55)' }}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => stopRecording(false)}
+                          style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:10, backgroundColor:'#FF4545' }}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#fff' }}>Send</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Round B — input pill.
+                      Round B commit 8 — removed remindKbHeight marginBottom
+                      double-lift. The parent KeyboardAvoidingView (padding
+                      mode) is now the only mechanism lifting the pill above
+                      the keyboard. */}
                   <View style={{
                     paddingHorizontal:14, paddingTop:10,
-                    paddingBottom: remindKbHeight > 0 ? (Platform.OS === 'ios' ? 2 : 4) : Math.max(insets.bottom, 8),
-                    marginBottom: remindKbHeight > 0 ? Math.max(remindKbHeight - insets.bottom, 0) : 0,
+                    paddingBottom: Math.max(insets.bottom, 8),
                     borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', backgroundColor:'#FAF8F5',
                   }}>
                     {/* Round B commit 5 — camera icon removed (no sensible
@@ -8544,7 +8615,9 @@ Rules:
                             No more collapsed/expanded two-step, no separate
                             Zaeli button. Mic still routes shopMicMode →
                             Sonnet for smart parsing. */}
-                        <View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:10, paddingBottom: shopKbHeight > 0 ? (Platform.OS === 'ios' ? 2 : 4) : Math.max(insets.bottom, 8), marginBottom: shopKbHeight > 0 ? Math.max(shopKbHeight - insets.bottom, 0) : 0 }}>
+                        {/* Round B commit 8 — removed shopKbHeight marginBottom
+                            double-lift. KAV parent handles keyboard now. */}
+                        <View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:10, paddingBottom: Math.max(insets.bottom, 8) }}>
                           {!!shopAddConfirm && (
                             <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:8 }}>
                               <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color: shopAddConfirm.startsWith('✓') ? '#059669' : '#D97706' }}>
@@ -8949,7 +9022,8 @@ Rules:
                         </View>
 
                         {/* ── Pantry add bar ── */}
-                        <View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:6, paddingBottom: shopKbHeight > 0 ? (Platform.OS === 'ios' ? 2 : 4) : Math.max(insets.bottom, 8), marginBottom: shopKbHeight > 0 ? Math.max(shopKbHeight - insets.bottom, 0) : 0 }}>
+                        {/* Round B commit 8 — removed shopKbHeight double-lift (Pantry tab) */}
+                        <View style={{ backgroundColor:'#FAF8F5', borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.08)', paddingHorizontal:14, paddingTop:6, paddingBottom: Math.max(insets.bottom, 8) }}>
 
                           {/* Confirmation / duplicate flash */}
                           {!!pantryAddConfirm && (

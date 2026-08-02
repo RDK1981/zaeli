@@ -139,10 +139,23 @@ export function onAuthChange(cb: (event: AuthChangeEvent, session: Session | nul
 }
 
 // ── Profile load / read ───────────────────────────────────────────────────
+//
+// Round B commit 8 — waitForProfile helper. The DUMMY_FAMILY_ID silent
+// fallback in getFamilyId() was masking auth-race bugs across the app:
+// dashboard cold-open with empty tiles (queries hit wrong family_id
+// silently) and manual reminder save failing (INSERT with wrong
+// family_id fails RLS silently). Callers now await this before any
+// write path or first-render query. Falls back to null after timeout
+// so bail-early logic works.
+
+let _profileWaiters: Array<(p: Profile | null) => void> = [];
+
 export async function loadProfile(): Promise<Profile | null> {
   const userId = await getCurrentUserId();
   if (!userId) {
     _profile = null;
+    // Notify anyone waiting — they get null, can decide what to do
+    _profileWaiters.splice(0).forEach(fn => fn(null));
     return null;
   }
   const { data, error } = await supabase
@@ -153,9 +166,13 @@ export async function loadProfile(): Promise<Profile | null> {
   if (error) {
     console.error('[auth] loadProfile error:', error.message);
     _profile = null;
+    _profileWaiters.splice(0).forEach(fn => fn(null));
     return null;
   }
   _profile = data as Profile;
+  // Round B commit 8 — notify any waiters so critical paths (loadData,
+  // saveReminder) unblock as soon as the profile lands.
+  _profileWaiters.splice(0).forEach(fn => fn(_profile));
   return _profile;
 }
 
@@ -169,6 +186,36 @@ export function getCurrentFamilyId(): string | null {
 
 export function isAuthenticated(): boolean {
   return _profile !== null;
+}
+
+/**
+ * Round B commit 8 — wait for the profile cache to populate.
+ *
+ * Returns immediately if profile is already loaded.
+ * Otherwise waits until either loadProfile() completes or the timeout
+ * elapses. Returns the loaded profile, or null on timeout / failure.
+ *
+ * Use this at the top of any critical operation that MUST have a real
+ * family_id (dashboard loadData, saveReminder, tool executes for
+ * add_event / add_reminder / etc). Bail early if null returned rather
+ * than falling back to DUMMY_FAMILY_ID (the old silent-fail path).
+ */
+export function waitForProfile(timeoutMs = 5000): Promise<Profile | null> {
+  if (_profile) return Promise.resolve(_profile);
+  return new Promise((resolve) => {
+    let done = false;
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      resolve(_profile ?? null);
+    }, timeoutMs);
+    _profileWaiters.push((p) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(p);
+    });
+  });
 }
 
 // ── Test helper — for the dev "Reset auth" row ────────────────────────────

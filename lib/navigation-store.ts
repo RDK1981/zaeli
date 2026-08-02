@@ -62,6 +62,12 @@ export type ChatIntent =
   | { kind: 'camera' }
   | { kind: 'focus' }
   | { kind: 'seed'; text: string }
+  // Round B commit 8 — tile-specific mic modes. Dashboard tile mic on
+  // Reminders → sets kind:'mic-reminder' → Chat's consumer starts recording
+  // with a flag; on stop, transcript saves as a Reminder directly (no
+  // Sonnet involved) + drops a confirmation message in Chat, then bumps
+  // Home tile so user sees it on next swipe back.
+  | { kind: 'mic-reminder' }
   | null;
 
 let _chatIntent: ChatIntent = null;
