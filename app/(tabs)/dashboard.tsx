@@ -36,7 +36,7 @@ import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
 import { getFamilyId } from '../../lib/family';
-import { parseLocalIsoAsDate } from '../../lib/reminders';
+import { parseLocalIsoAsDate, loadReminders } from '../../lib/reminders';
 import MoreSheet from '../components/MoreSheet';
 import { getProfile, waitForProfile } from '../../lib/auth';
 import { loadRoster, getRoster } from '../../lib/family-roster';
@@ -196,7 +196,7 @@ export default function DashboardScreen({
     const fid = p.family_id;
     const myId = p.id;
 
-    const [evRes, shopRes, remRes] = await Promise.all([
+    const [evRes, shopRes, allReminders] = await Promise.all([
       supabase.from('events')
         .select('id,title,date,start_time,assignees')
         .eq('family_id', fid).eq('date', today)
@@ -205,12 +205,14 @@ export default function DashboardScreen({
         .select('id,name')
         .eq('family_id', fid).neq('checked', true)
         .order('created_at', { ascending: false }).limit(50),
-      supabase.from('reminders')
-        .select('id,title,remind_at,remind_on,visibility,created_by,status')
-        .eq('family_id', fid).eq('status', 'active')
-        .order('remind_at', { ascending: true, nullsFirst: false })
-        .order('remind_on', { ascending: true, nullsFirst: false })
-        .limit(20),
+      // Round B commit 19 — switched from direct Supabase query to
+      // loadReminders() so Dashboard uses the SAME source-of-truth as the
+      // Reminders sheet. Before: Dashboard called supabase.from('reminders')
+      // and trusted RLS; sheet used loadReminders() which adds a client-side
+      // visibility filter on top. Any race between the two paths surfaced as
+      // count mismatches (Rich saw "+4 undated to-dos" on Home while the
+      // sheet showed only 1). Now both consume the same filtered list.
+      loadReminders(),
     ]);
 
     setTodayEvents((evRes.data ?? []).slice(0, 3));
@@ -221,19 +223,20 @@ export default function DashboardScreen({
     // Round B — home tile shows DATED items in the primary "up next" list.
     // Undated to-dos surface as a small count in the sub-line (see todoCount)
     // so they're not invisible when Home is the front door.
-    // RLS already excludes other users' personal items; tier icon (🔒/👥)
-    // lets Rich see at a glance whether a row is mine-only or family-shared.
-    const allRems = (remRes.data ?? []);
-    const undated = allRems.filter((r: any) => !r.remind_at && !r.remind_on);
+    // loadReminders() already excludes other users' personal items (visibility
+    // filter — RLS + belt-and-braces client filter) and returns Reminder objects
+    // with camelCase fields.
+    const activeRems = allReminders.filter(r => r.status !== 'done');
+    const undated = activeRems.filter(r => !r.remindAt && !r.remindOn);
     setTodoCount(undated.length);
-    const rems = allRems
-      .filter((r: any) => r.remind_at || r.remind_on)
-      .map((r: any) => {
+    const rems = activeRems
+      .filter(r => r.remindAt || r.remindOn)
+      .map(r => {
         let whenLabel = 'someday';
-        if (r.remind_at) {
-          // Round A fix — parse remind_at as local wall-clock (Hermes parses
+        if (r.remindAt) {
+          // Round A fix — parse remindAt as local wall-clock (Hermes parses
           // no-timezone ISO as UTC otherwise, causing a 10-hour Brisbane skew)
-          const d = parseLocalIsoAsDate(r.remind_at);
+          const d = parseLocalIsoAsDate(r.remindAt);
           const dToday = new Date(); dToday.setHours(0,0,0,0);
           const dTmw   = new Date(dToday.getTime() + 24*3600*1000);
           const dayOfR = new Date(d); dayOfR.setHours(0,0,0,0);
@@ -242,16 +245,16 @@ export default function DashboardScreen({
           if (dayOfR.getTime() === dToday.getTime()) whenLabel = tstr;
           else if (dayOfR.getTime() === dTmw.getTime()) whenLabel = `tmw ${tstr}`;
           else whenLabel = `${d.toLocaleDateString('en-AU',{ weekday:'short' })} ${tstr}`;
-        } else if (r.remind_on) {
-          const d = new Date(r.remind_on + 'T00:00:00');
+        } else if (r.remindOn) {
+          const d = new Date(r.remindOn + 'T00:00:00');
           whenLabel = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric' });
         }
         return {
           id: r.id,
           title: r.title,
           whenLabel,
-          isMe: r.created_by === myId,
-          tier: (r.visibility as 'personal'|'shared') ?? 'personal',
+          isMe: r.createdBy === myId,
+          tier: r.visibility ?? 'personal',
         };
       });
     setRemindItems(rems.slice(0, 3));

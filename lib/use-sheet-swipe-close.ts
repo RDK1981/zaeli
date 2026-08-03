@@ -22,13 +22,18 @@
 import { useEffect, useMemo } from 'react';
 import { Dimensions } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
-import { useSharedValue, useAnimatedStyle, withSpring, withTiming, Easing, runOnJS } from 'react-native-reanimated';
+import { useSharedValue, useAnimatedStyle, withSpring, withTiming, Easing, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated';
 
 export interface SwipeDownHandlers {
   /** Attach to <GestureDetector gesture={...}> around the drag handle */
   panGesture: ReturnType<typeof Gesture.Pan>;
   /** Spread on the sheet card (Animated.View) */
   animatedStyle: any;
+  /** Spread on the absolute-positioned backdrop (ReAnimated.View). Opacity
+   *  tracks translateY so the backdrop fades cleanly as the sheet slides
+   *  off — eliminates the "see-through black splash" that appeared when
+   *  Modal dismissed a translated-away sheet with a fully opaque backdrop. */
+  backdropStyle: any;
 }
 
 const CLOSE_THRESHOLD_PX = 100;
@@ -90,5 +95,19 @@ export function useSheetSwipeClose(visible: boolean, onClose: () => void): Swipe
     transform: [{ translateY: translateY.value }],
   }));
 
-  return { panGesture, animatedStyle };
+  // Backdrop opacity fades as the sheet moves away — from 1 (fully open) at
+  // translateY=0, down to 0 when translateY exceeds ~85% of the screen. Using
+  // clamped extrapolation so slight overshoots on the spring-back don't briefly
+  // flash opacity>1. During normal drag translateY hits maybe 150-300px, so
+  // backdrop stays mostly opaque — the fade dominates only on close.
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      translateY.value,
+      [0, SCREEN_H * 0.85],
+      [1, 0],
+      Extrapolation.CLAMP,
+    ),
+  }));
+
+  return { panGesture, animatedStyle, backdropStyle };
 }

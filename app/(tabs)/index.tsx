@@ -7862,7 +7862,15 @@ Rules:
           onRequestClose={() => setCalSheetOpen(false)}
           onDismiss={handleSheetDismissed}
         >
-          <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
+          {/* Round B commit 19 — backdrop split into animated layer for fade */}
+          <View style={{ flex:1, justifyContent:'flex-end' }}>
+            <ReAnimated.View
+              pointerEvents="none"
+              style={[
+                { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.40)' },
+                calSwipe.backdropStyle,
+              ]}
+            />
             <TouchableOpacity style={{ flex:1 }} onPress={() => setCalSheetOpen(false)} activeOpacity={1}/>
             <ReAnimated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' }, calSwipe.animatedStyle]}>
               <SafeAreaView style={{ flex:1, display:'flex', flexDirection:'column' }} edges={['bottom']}>
@@ -8045,12 +8053,22 @@ Rules:
           onRequestClose={() => setRemindSheetOpen(false)}
           onDismiss={handleSheetDismissed}
         >
-          <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
+          {/* Round B commit 19 — backdrop split into its own animated layer
+              so it can fade in sync with the sheet's swipe-down translateY.
+              Prior version had the backdrop as a static bg on the flex-1
+              parent — when the sheet animated off-screen the backdrop stayed
+              fully opaque until Modal's own dismiss transition kicked in,
+              causing a visible "see-through black splash". Now the backdrop
+              fades to 0 as the sheet clears ~85% of screen height. */}
+          <View style={{ flex:1, justifyContent:'flex-end' }}>
+            <ReAnimated.View
+              pointerEvents="none"
+              style={[
+                { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.40)' },
+                remindSwipe.backdropStyle,
+              ]}
+            />
             <TouchableOpacity style={{ flex:1 }} onPress={() => setRemindSheetOpen(false)} activeOpacity={1}/>
-            {/* Round B commit 11 — sheet card gets marginBottom = keyboard
-                height when up, physically lifting the whole card above the
-                keyboard. Kills the KAV-inside-Modal approach that never
-                worked reliably. */}
             {/* Round B commit 15 — card compresses instead of moving off-screen.
                 Prior version added marginBottom = kbAdjust which lifted the whole
                 card, including its top edge, off the top of the screen (Rich saw
@@ -8476,7 +8494,16 @@ Rules:
           onRequestClose={() => setShopSheetOpen(false)}
           onDismiss={handleSheetDismissed}
         >
-          <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
+          {/* Round B commit 19 — backdrop split into animated layer (see
+              Reminders sheet comment above for full rationale). */}
+          <View style={{ flex:1, justifyContent:'flex-end' }}>
+            <ReAnimated.View
+              pointerEvents="none"
+              style={[
+                { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.40)' },
+                shopSwipe.backdropStyle,
+              ]}
+            />
             <TouchableOpacity style={{ flex:1 }} onPress={() => setShopSheetOpen(false)} activeOpacity={1}/>
             {/* Round B commit 15 — same fix as Reminders sheet: shrink card
                 height by kbAdjust AND add matching marginBottom so top stays
@@ -9420,7 +9447,15 @@ Rules:
           onRequestClose={() => setMealSheetOpen(false)}
           onDismiss={handleSheetDismissed}
         >
-          <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
+          {/* Round B commit 19 — backdrop split into animated layer for fade */}
+          <View style={{ flex:1, justifyContent:'flex-end' }}>
+            <ReAnimated.View
+              pointerEvents="none"
+              style={[
+                { position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.40)' },
+                mealSwipe.backdropStyle,
+              ]}
+            />
             <TouchableOpacity style={{ flex:1 }} onPress={() => setMealSheetOpen(false)} activeOpacity={1}/>
             <ReAnimated.View style={[{ backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' }, mealSwipe.animatedStyle]}>
               <SafeAreaView style={{ flex:1, flexDirection:'column' }} edges={['bottom']}>
