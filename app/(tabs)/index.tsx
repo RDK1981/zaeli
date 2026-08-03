@@ -8653,25 +8653,29 @@ Rules:
                                 const isRbExpanded = shopExpandedId === rbId;
                                 const isRbConfirm  = shopDelConfirmId === rbId;
                                 return (
-                                  <View key={item.id} style={{ backgroundColor: isRbConfirm ? 'rgba(255,59,59,0.03)' : '#fff', borderRadius:14, marginBottom:8, overflow:'hidden', borderWidth: isRbConfirm ? 1.5 : 0, borderColor: isRbConfirm ? 'rgba(255,59,59,0.25)' : 'transparent' }}>
+                                  <View key={item.id} style={{ backgroundColor: isRbConfirm ? 'rgba(255,59,59,0.03)' : '#fff', borderRadius:14, marginBottom:6, overflow:'hidden', borderWidth: isRbConfirm ? 1.5 : 0, borderColor: isRbConfirm ? 'rgba(255,59,59,0.25)' : 'transparent' }}>
+                                    {/* Round B commit 16 — density matched to "To Get" rows above
+                                        (paddingV:10, name 15px, no chunky emoji). Rich reported the
+                                        recently-bought rows looked disproportionately bigger. Kept
+                                        the small day subtext + Add button, just slimmed everything. */}
                                     <TouchableOpacity
-                                      style={{ flexDirection:'row', alignItems:'center', gap:10, padding:14 }}
+                                      style={{ flexDirection:'row', alignItems:'center', gap:10, paddingHorizontal:12, paddingVertical:10, minHeight:44 }}
                                       onPress={() => { setShopExpandedId(isRbExpanded ? null : rbId); setShopDelConfirmId(null); }}
                                       activeOpacity={0.75}
                                     >
-                                      <Text style={{ fontSize:22, flexShrink:0 }}>{boughtEmoji}</Text>
+                                      <Text style={{ fontSize:15, flexShrink:0, opacity:0.55 }}>{boughtEmoji}</Text>
                                       <View style={{ flex:1, minWidth:0 }}>
-                                        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:16, color:'rgba(0,0,0,0.38)', lineHeight:21 }} numberOfLines={1}>{item.name || item.item}</Text>
+                                        <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:15, color:'rgba(0,0,0,0.42)', lineHeight:20 }} numberOfLines={1}>{item.name || item.item}</Text>
                                         {!!boughtDate && (
-                                          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color:'rgba(0,0,0,0.35)', marginTop:2 }}>{boughtDate}</Text>
+                                          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.35)', marginTop:1 }}>{boughtDate}</Text>
                                         )}
                                       </View>
                                       <TouchableOpacity
                                         onPress={() => shopReAdd(item)}
-                                        style={{ backgroundColor:'rgba(224,0,124,0.12)', borderRadius:14, paddingVertical:6, paddingHorizontal:13, flexShrink:0 }}
+                                        style={{ backgroundColor:'rgba(224,0,124,0.12)', borderRadius:12, paddingVertical:5, paddingHorizontal:11, flexShrink:0 }}
                                         activeOpacity={0.75}
                                       >
-                                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color: SHOP_MAG }}>+ Add</Text>
+                                        <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: SHOP_MAG }}>+ Add</Text>
                                       </TouchableOpacity>
                                     </TouchableOpacity>
 
