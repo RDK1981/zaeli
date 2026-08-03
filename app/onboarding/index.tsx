@@ -1,15 +1,27 @@
 /**
- * onboarding/index.tsx — Zaeli first-run flow
+ * onboarding/index.tsx — Zaeli owner first-run flow (v2)
  *
- * 13 screens, 4 acts. Chat-first — every step rendered inside the chat UI.
- * Act I — Meeting Zaeli · Act II — Getting to know you · Act III — Show don't tell · Act IV — Magic moment
+ * 8 steps, chat-first. Every step renders inside the chat UI. Matches
+ * zaeli-v2-onboarding-mockup.html.
+ *
+ * v2 changes (from v1's 13 steps):
+ *   - Dropped OpenerStep (voice pill)         — added friction, no signal
+ *   - Dropped PantryDemoStep                  — demoed hidden Meals concept
+ *   - Dropped HomeworkDemoStep                — demoed hidden Tutor
+ *   - Dropped LifeDemoStep                    — Brentwood photo, redundant with real chat
+ *   - Dropped BriefPreviewStep                — superseded by LockscreenPreviewStep
+ *   - Dropped DashboardRevealStep             — pre-v2 tile layout was stale
+ *   - Added   LockscreenPreviewStep           — the wow moment: real brief on faux lockscreen
+ *   - RhythmStep: weekday-rhythm card removed (school run / dinner / kids in bed)
+ *   - PreferencesStep: Travel toggle removed  — Travel hidden in v2
+ *   - PermissionsStep: Location removed       — no weather in v2
+ *   - FamilyStep: School Year is now a chip picker, not free-text
+ *   - NameEmailStep: email copy honest ("account stuff only, never briefs")
  *
  * State: local to this file (name, email, family, rhythm, prefs). On
- * completion: writes `onboarding_complete` to AsyncStorage + `onboarding_data`
- * for backend pass to pick up later. Navigates to /(tabs)/swipe-world.
- *
- * Voice pill (Step 2): ElevenLabs call + expo-av playback. Falls back
- * gracefully if EXPO_PUBLIC_ELEVENLABS_API_KEY is missing.
+ * completion: writes `onboarding_complete` + `onboarding_data` to AsyncStorage,
+ * writes brief times to profiles.user_preferences via lib/user-prefs, navigates
+ * to /(tabs)/swipe-world.
  */
 
 import React, { useRef, useState } from 'react';
@@ -22,13 +34,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import { loadPrefs, savePrefs } from '../../lib/user-prefs';
+// v2 change — Audio, FileSystem, Location imports dropped along with
+// OpenerStep (voice pill) and Location permission. Audio + FileSystem
+// were only used by the ElevenLabs voice cache; Location was only used
+// by the Location permission ask.
 
 // ── Colour tokens ──────────────────────────────────────────────────────────
 const BG        = '#FAF8F5';
@@ -331,73 +344,14 @@ export default function OnboardingScreen() {
     sharedShopping: false,
     budget: false,
   });
-  const [locationOK, setLocationOK] = useState<boolean | null>(null);
   const [notifOK, setNotifOK]       = useState<boolean | null>(null);
 
-  // Voice playback
-  const [voicePlaying, setVoicePlaying] = useState(false);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  // v2 change — voice playback + location permission removed. OpenerStep
+  // (voice pill) dropped, Location permission dropped (no weather in v2).
 
   function goNext() { setStep(s => s + 1); }
   function goBack() { setStep(s => Math.max(1, s - 1)); }
 
-  async function handlePlayVoice() {
-    // Tap-to-hear Zaeli welcome clip via ElevenLabs. Cache once.
-    const key = process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY;
-    if (!key) {
-      Alert.alert(
-        'Voice needs setup',
-        'Add EXPO_PUBLIC_ELEVENLABS_API_KEY and an EXPO_PUBLIC_ELEVENLABS_VOICE_ID to your env, then rebuild. For now you can continue — voice will work once the keys are in.',
-      );
-      return;
-    }
-    const voiceId = process.env.EXPO_PUBLIC_ELEVENLABS_VOICE_ID ?? 'EXAVITQu4vr4xnSDxMaL'; // Bella default
-    const cachePath = (FileSystem.cacheDirectory ?? '') + 'zaeli_welcome.mp3';
-
-    try {
-      setVoicePlaying(true);
-      let exists = false;
-      try { const info = await FileSystem.getInfoAsync(cachePath); exists = info.exists; } catch {}
-      if (!exists) {
-        const text = "Hello, I'm Zaeli. Think of me as your family's sharpest friend — the one who remembers what time pickup is and what's still in the freezer.";
-        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-          method: 'POST',
-          headers: {
-            'xi-api-key': key,
-            'Content-Type': 'application/json',
-            'accept': 'audio/mpeg',
-          },
-          body: JSON.stringify({
-            text,
-            model_id: 'eleven_turbo_v2_5',
-            voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-          }),
-        });
-        if (!res.ok) throw new Error('ElevenLabs ' + res.status);
-        const arrayBuf = await res.arrayBuffer();
-        // Convert ArrayBuffer → base64 → write file
-        const b64 = bufToB64(arrayBuf);
-        await FileSystem.writeAsStringAsync(cachePath, b64, { encoding: 'base64' as any });
-      }
-      if (soundRef.current) { try { await soundRef.current.unloadAsync(); } catch {} }
-      const { sound } = await Audio.Sound.createAsync({ uri: cachePath }, { shouldPlay: true });
-      soundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status?.didJustFinish) { setVoicePlaying(false); sound.unloadAsync(); }
-      });
-    } catch (e) {
-      console.error('[voice]', e);
-      setVoicePlaying(false);
-      Alert.alert('Voice playback failed', 'Check the ElevenLabs key and try again.');
-    }
-  }
-
-  async function requestLocation() {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      setLocationOK(status === 'granted');
-    } catch { setLocationOK(false); }
-  }
   async function requestNotif() {
     try {
       const { status } = await Notifications.requestPermissionsAsync();
@@ -411,7 +365,7 @@ export default function OnboardingScreen() {
       await AsyncStorage.setItem('onboarding_just_completed', 'true');
       await AsyncStorage.setItem('onboarding_data', JSON.stringify({
         completedAt: new Date().toISOString(),
-        name, email, family, rhythm, prefs, locationOK, notifOK,
+        name, email, family, rhythm, prefs, notifOK,
       }));
 
       // Round A — persist chosen brief times to user_preferences so the
@@ -442,60 +396,52 @@ export default function OnboardingScreen() {
     <View style={{ flex: 1, backgroundColor: BG, paddingTop: insets.top }}>
       <StatusBar style="dark"/>
 
+      {/* v2 onboarding — 8 steps per zaeli-v2-onboarding-mockup.html
+          (Session 32 v3, dropped: OpenerStep / PantryDemoStep / HomeworkDemoStep /
+          LifeDemoStep / BriefPreviewStep / DashboardRevealStep. All demoed hidden
+          features or duplicated the Lockscreen wow.) */}
       {step === 1 && <WelcomeStep onNext={goNext}/>}
       {step === 2 && (
-        <OpenerStep onNext={goNext} onBack={goBack}
-          voicePlaying={voicePlaying} onPlayVoice={handlePlayVoice}/>
-      )}
-      {step === 3 && (
         <NameEmailStep
           name={name} setName={setName}
           email={email} setEmail={setEmail}
           onNext={goNext} onBack={goBack}
         />
       )}
-      {step === 4 && (
+      {step === 3 && (
         <FamilyStep
           family={family} setFamily={setFamily}
           userName={name}
           onNext={goNext} onBack={goBack}
         />
       )}
-      {step === 5 && (
+      {step === 4 && (
         <RhythmStep
           rhythm={rhythm} setRhythm={setRhythm}
           family={family}
           onNext={goNext} onBack={goBack}
         />
       )}
-      {step === 6 && (
+      {step === 5 && (
         <PreferencesStep
           prefs={prefs} setPrefs={setPrefs}
           onNext={goNext} onBack={goBack}
         />
       )}
-      {step === 7 && (
+      {step === 6 && (
         <PermissionsStep
-          locationOK={locationOK} notifOK={notifOK}
-          onRequestLocation={requestLocation} onRequestNotif={requestNotif}
+          notifOK={notifOK}
+          onRequestNotif={requestNotif}
           onNext={goNext} onBack={goBack}
         />
       )}
-      {step === 8 && <PantryDemoStep onNext={goNext} onBack={goBack}/>}
-      {step === 9 && <HomeworkDemoStep family={family} onNext={goNext} onBack={goBack}/>}
-      {step === 10 && <LifeDemoStep family={family} onNext={goNext} onBack={goBack}/>}
-      {step === 11 && (
-        <BriefPreviewStep
+      {step === 7 && (
+        <LockscreenPreviewStep
           name={name} family={family} rhythm={rhythm}
           onNext={goNext} onBack={goBack}
         />
       )}
-      {step === 12 && (
-        <DashboardRevealStep
-          prefs={prefs} onNext={goNext} onBack={goBack}
-        />
-      )}
-      {step === 13 && (
+      {step === 8 && (
         <ReadyStep name={name} rhythm={rhythm} onFinish={finishOnboarding}/>
       )}
     </View>
@@ -548,43 +494,10 @@ function WelcomeStep(p: { onNext: () => void }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 2 — OPENER (voice pill)
-// ═══════════════════════════════════════════════════════════════════════════
-function OpenerStep(p: { onNext: () => void; onBack: () => void; voicePlaying: boolean; onPlayVoice: () => void }) {
-  const [done, setDone] = useState(false);
-  const voicePill = (
-    <TouchableOpacity style={s.voicePill} onPress={p.onPlayVoice} activeOpacity={0.85}>
-      <View style={s.voicePillDot}>{p.voicePlaying ? <Text style={s.voicePillPlaying}>●</Text> : <IcoPlay/>}</View>
-      <Text style={s.voicePillTxt}>{p.voicePlaying ? 'Playing…' : 'Tap to hear me · 0:08'}</Text>
-    </TouchableOpacity>
-  );
-  return (
-    <View style={{ flex: 1 }}>
-      <ChatHeader onBack={p.onBack}/>
-      <ScrollView contentContainerStyle={s.chatBody} showsVerticalScrollIndicator={false}>
-        <TypedConversation
-          items={[
-            { kind: 'eyebrow', label: 'Zaeli · just now' },
-            { kind: 'zaeli', node: <>Hey 👋 I'm <Text style={s.b}>Zaeli</Text>.</> },
-            { kind: 'card', node: voicePill },
-            { kind: 'zaeli', node: <>Think of me as your family's sharpest friend — the one who remembers what time pickup is, what's still in the freezer, and when the car rego is due.</> },
-            { kind: 'zaeli', node: <>Once we're set up, you'll be able to <Text style={s.b}>message me</Text>, <Text style={s.b}>tap the mic</Text>, or <Text style={s.b}>show me a photo</Text> of just about anything 📸 — permission slips, a confusing recipe, even <Text style={s.italic}>"what's this homework asking?"</Text> 📚. For now, just tap through with me. The fun starts in three minutes ⏱️</> },
-            { kind: 'zaeli', node: <>Couple of quick questions and we're off. Ready?</> },
-          ]}
-          onComplete={() => setDone(true)}
-        />
-        {done && (
-          <TouchableOpacity style={s.primaryCta} onPress={p.onNext} activeOpacity={0.85}>
-            <Text style={s.primaryCtaTxt}>Let's go</Text>
-          </TouchableOpacity>
-        )}
-      </ScrollView>
-    </View>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 3 — NAME + EMAIL
+// STEP 2 — NAME + EMAIL (v2 — OpenerStep dropped, its content folded into
+// WelcomeStep since the voice pill/demo added a step without changing the
+// user's setup progress. Fresh v2 pivot puts sign-up second so the account
+// exists before family setup — enables real Supabase auth from Step 3+.)
 // ═══════════════════════════════════════════════════════════════════════════
 function NameEmailStep(p: {
   name: string; setName: (n: string) => void;
@@ -623,7 +536,7 @@ function NameEmailStep(p: {
         <TypedConversation
           items={[
             { kind: 'user', node: "Let's go." },
-            { kind: 'zaeli', node: <>Wonderful. <Text style={s.b}>Who are you</Text>, and how do I email you? I promise I won't spam — I'll only use it for your morning brief if the app's closed.</> },
+            { kind: 'zaeli', node: <>Wonderful. <Text style={s.b}>Who are you</Text>, and how do I reach you? Email's only for account stuff — sign-in, password resets, receipts. Never briefs. Never spam.</> },
             { kind: 'card', node: card },
           ]}
         />
@@ -660,7 +573,11 @@ function FamilyStep(p: {
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState<'parent' | 'child'>('child');
   const [newAge, setNewAge]   = useState('');
-  const [newYear, setNewYear] = useState('');
+  // v2 — year picker is a fixed enum, no free-text ambiguity ("5" vs "Grade 5"
+  // vs "Year 5"). Empty string = not chosen. Stored to yearLevel verbatim.
+  const [newYear, setNewYear] = useState<string>('');
+
+  const YEAR_OPTIONS = ['Kinder', 'Prep', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'Year 6', 'Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11', 'Year 12'];
 
   const COLOURS = [FAMILY_COLOURS.poppy, FAMILY_COLOURS.gab, FAMILY_COLOURS.duke, '#E879F9', '#06B6D4', '#10B981'];
   function nextColour(): string {
@@ -670,21 +587,12 @@ function FamilyStep(p: {
 
   function addMember() {
     if (!newName.trim()) { Alert.alert('Name?', 'Give this family member a name.'); return; }
-    // Normalise year level — accept "1", "Year 1", "yr 1" all as "Year 1"
-    let yl: string | undefined;
-    if (newRole === 'child' && newYear.trim()) {
-      const raw = newYear.trim();
-      if (/^\d+$/.test(raw)) yl = `Year ${raw}`;
-      else if (/^year\s*\d+$/i.test(raw)) yl = raw.replace(/^year\s*/i, 'Year ');
-      else if (/^yr\s*\d+$/i.test(raw)) yl = raw.replace(/^yr\s*/i, 'Year ');
-      else yl = raw;
-    }
     const m: Member = {
       id: `m-${Date.now()}`,
       name: newName.trim(),
       role: newRole,
       age: newRole === 'child' ? (parseInt(newAge, 10) || undefined) : undefined,
-      yearLevel: yl,
+      yearLevel: newRole === 'child' ? (newYear || undefined) : undefined,
       colour: nextColour(),
       initial: newName.trim()[0].toUpperCase(),
     };
@@ -720,10 +628,37 @@ function FamilyStep(p: {
             </TouchableOpacity>
           </View>
           {newRole === 'child' && (
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <TextInput style={[s.smallField, { flex: 1 }]} value={newAge} onChangeText={setNewAge} placeholder="Age" keyboardType="number-pad" placeholderTextColor={INK4}/>
-              <TextInput style={[s.smallField, { flex: 2 }]} value={newYear} onChangeText={setNewYear} placeholder="Year level (e.g. Year 3)" placeholderTextColor={INK4}/>
-            </View>
+            <>
+              <TextInput style={[s.smallField, { marginTop: 8 }]} value={newAge} onChangeText={setNewAge} placeholder="Age (optional)" keyboardType="number-pad" placeholderTextColor={INK4}/>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:11, letterSpacing:0.6, color: INK3, textTransform:'uppercase', marginTop: 12, marginBottom: 6 }}>
+                School year
+              </Text>
+              {/* Chip picker — no free text. Eliminates format ambiguity
+                  ("5" vs "Grade 5" vs "Year 5"). Tap once to select. */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 40 }}>
+                <View style={{ flexDirection: 'row', gap: 6, paddingRight: 12 }}>
+                  {YEAR_OPTIONS.map(opt => {
+                    const on = newYear === opt;
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        onPress={() => setNewYear(on ? '' : opt)}
+                        activeOpacity={0.75}
+                        style={{
+                          paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16,
+                          backgroundColor: on ? INK : 'rgba(10,10,10,0.06)',
+                        }}
+                      >
+                        <Text style={{
+                          fontFamily: 'Poppins_600SemiBold', fontSize: 13,
+                          color: on ? '#fff' : INK2,
+                        }}>{opt}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </>
           )}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
             <TouchableOpacity style={[s.ghostBtn, { flex: 1 }]} onPress={() => { setAddOpen(false); setNewName(''); setNewAge(''); setNewYear(''); }} activeOpacity={0.85}>
@@ -783,71 +718,45 @@ function renderFamilyGreeting(family: Member[]): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 5 — RHYTHM
+// STEP 4 — RHYTHM + BRIEF (v2 — weekday rhythm card dropped per mockup)
 // ═══════════════════════════════════════════════════════════════════════════
+// v2 change: weekday rhythm card (school run / dinner / kids in bed) removed.
+// Users push back that it was friction without a clear payoff (Zaeli didn't
+// use those anchors for anything visible). The two lockscreen briefs alone
+// give her the "when to reach you" answer she needs. Continue CTA moved into
+// the brief card since it's the only card now.
 function RhythmStep(p: { rhythm: Rhythm; setRhythm: (r: Rhythm) => void; family: Member[]; onNext: () => void; onBack: () => void }) {
-  const [editing, setEditing] = useState<null | keyof Rhythm>(null);
+  const [editing, setEditing] = useState<null | 'briefMorning' | 'briefEvening'>(null);
   const [pickDate, setPickDate] = useState<Date>(new Date());
 
-  function openPicker(k: keyof Rhythm) {
+  function openPicker(k: 'briefMorning' | 'briefEvening') {
     setPickDate(hmToDate(p.rhythm[k]));
     setEditing(k);
   }
 
-  const card = (
-    <View style={s.inlineCard}>
-      <Text style={s.cardLbl}>Your weekday rhythm</Text>
-
-      <TouchableOpacity style={s.rhythmRow} activeOpacity={0.75} onPress={() => openPicker('schoolRun')}>
-        <View style={[s.rhythmIcon, { backgroundColor: '#FFE8D6' }]}><Text style={{ fontSize: 16 }}>☀️</Text></View>
-        <Text style={s.rhythmLabel}>School run out the door</Text>
-        <Text style={s.rhythmTime}>{fmtTime12(p.rhythm.schoolRun)}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={s.rhythmRow} activeOpacity={0.75} onPress={() => openPicker('dinner')}>
-        <View style={[s.rhythmIcon, { backgroundColor: '#FFEBE2' }]}><Text style={{ fontSize: 16 }}>🍝</Text></View>
-        <Text style={s.rhythmLabel}>Dinner time</Text>
-        <Text style={s.rhythmTime}>{fmtTime12(p.rhythm.dinner)}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[s.rhythmRow, { borderBottomWidth: 0 }]} activeOpacity={0.75} onPress={() => openPicker('kidsInBed')}>
-        <View style={[s.rhythmIcon, { backgroundColor: '#E8E0FF' }]}><Text style={{ fontSize: 16 }}>🌙</Text></View>
-        <Text style={s.rhythmLabel}>Kids in bed</Text>
-        <Text style={s.rhythmTime}>{fmtTime12(p.rhythm.kidsInBed)}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[s.cardCta, { marginTop: 12 }]} onPress={p.onNext} activeOpacity={0.85}>
-        <Text style={s.cardCtaTxt}>That's us</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={p.onNext} activeOpacity={0.7} style={s.skipLinkWrap}>
-        <Text style={s.skipLink}>A bit different each day · set later</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  // Round A — separate card for the brief-time notification anchors.
-  // Different concept from life anchors above (rhythm = context for Zaeli,
-  // briefs = when the phone actually buzzes). Explicit picker so users can
-  // set fires that fit their day — no more locked defaults.
   const briefCard = (
-    <View style={[s.inlineCard, { marginTop: 12 }]}>
-      <Text style={s.cardLbl}>When should I reach you?</Text>
+    <View style={s.inlineCard}>
+      <Text style={s.cardLbl}>Your brief times</Text>
 
       <TouchableOpacity style={s.rhythmRow} activeOpacity={0.75} onPress={() => openPicker('briefMorning')}>
         <View style={[s.rhythmIcon, { backgroundColor: '#FDF1E5' }]}><Text style={{ fontSize: 16 }}>🌅</Text></View>
-        <Text style={s.rhythmLabel}>Morning brief on your lockscreen</Text>
+        <Text style={s.rhythmLabel}>Morning brief</Text>
         <Text style={s.rhythmTime}>{fmtTime12(p.rhythm.briefMorning)}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={[s.rhythmRow, { borderBottomWidth: 0 }]} activeOpacity={0.75} onPress={() => openPicker('briefEvening')}>
         <View style={[s.rhythmIcon, { backgroundColor: '#F0EBFF' }]}><Text style={{ fontSize: 16 }}>🌙</Text></View>
-        <Text style={s.rhythmLabel}>Evening brief on your lockscreen</Text>
+        <Text style={s.rhythmLabel}>Evening brief</Text>
         <Text style={s.rhythmTime}>{fmtTime12(p.rhythm.briefEvening)}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[s.cardCta, { marginTop: 12 }]} onPress={p.onNext} activeOpacity={0.85}>
+        <Text style={s.cardCtaTxt}>Continue</Text>
       </TouchableOpacity>
     </View>
   );
 
-  // Family greeting carries over from Step 4 (the natural Zaeli reaction
+  // Family greeting carries over from Step 3 (the natural Zaeli reaction
   // happens after they've actually added members, not while they were typing).
   const greeting = renderFamilyGreeting(p.family);
 
@@ -858,22 +767,14 @@ function RhythmStep(p: { rhythm: Rhythm; setRhythm: (r: Rhythm) => void; family:
         <TypedConversation
           items={[
             { kind: 'zaeli', node: greeting },
-            { kind: 'zaeli', node: <><Text style={s.b}>Three moments make or break a weekday.</Text> Set yours and I won't nudge at the wrong one — no one needs a ping at 7:58 when you're hunting for shoes.</> },
-            { kind: 'card', node: card },
-            { kind: 'zaeli', node: <>And when do you want me on your lockscreen? A morning brief to set the day and an evening one to close it. Pick times that fit your rhythm — you can change them anytime in Settings.</> },
+            { kind: 'zaeli', node: <><Text style={s.b}>When should I reach you?</Text> Two lockscreen moments — a morning setup and an evening wrap. Pick times that fit your day. You can change them anytime in Settings.</> },
             { kind: 'card', node: briefCard },
           ]}
         />
 
         {editing && (
           <View style={s.pickerModal}>
-            <Text style={s.pickerLbl}>Set {
-              editing === 'schoolRun' ? 'school run'
-              : editing === 'dinner' ? 'dinner time'
-              : editing === 'kidsInBed' ? 'bedtime'
-              : editing === 'briefMorning' ? 'morning brief time'
-              : 'evening brief time'
-            }</Text>
+            <Text style={s.pickerLbl}>Set {editing === 'briefMorning' ? 'morning brief time' : 'evening brief time'}</Text>
             <DateTimePicker
               value={pickDate} mode="time" display="spinner"
               onChange={(_: any, d?: Date) => { if (d) setPickDate(d); }}
@@ -928,20 +829,8 @@ function PreferencesStep(p: { prefs: Prefs; setPrefs: (pr: Prefs) => void; onNex
 
       <Text style={[s.cardLbl, { marginTop: 14 }]}>A few extras</Text>
 
-      <View style={s.prefRow}>
-        <View style={[s.prefIcon, { backgroundColor: SKY_BG }]}><Text style={{ fontSize: 17 }}>✈️</Text></View>
-        <View style={{ flex: 1 }}>
-          <Text style={s.prefTtl}>Upcoming holiday or trip?</Text>
-          <Text style={s.prefDesc}>I'll help with packing, bookings, countdown.</Text>
-        </View>
-        <Switch
-          value={p.prefs.holiday}
-          onValueChange={v => p.setPrefs({ ...p.prefs, holiday: v })}
-          trackColor={{ false: 'rgba(10,10,10,0.15)', true: MINT_DARK }}
-          thumbColor="#fff"
-        />
-      </View>
-
+      {/* v2 change — Travel toggle removed (Travel is hidden in v2). Only
+          Shared shopping list + Budget toggles remain. */}
       <View style={s.prefRow}>
         <View style={[s.prefIcon, { backgroundColor: LAV }]}><Text style={{ fontSize: 17 }}>🛒</Text></View>
         <View style={{ flex: 1 }}>
@@ -995,41 +884,18 @@ function PreferencesStep(p: { prefs: Prefs; setPrefs: (pr: Prefs) => void; onNex
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 7 — PERMISSIONS
+// STEP 6 — PERMISSIONS (v2 — Location removed, Notifications only)
 // ═══════════════════════════════════════════════════════════════════════════
+// v2 change: Location permission dropped. No weather in v2, no reason to ask
+// for GPS if we don't use it. Just Notifications now — needed for the two
+// lockscreen briefs.
 function PermissionsStep(p: {
-  locationOK: boolean | null; notifOK: boolean | null;
-  onRequestLocation: () => void; onRequestNotif: () => void;
+  notifOK: boolean | null;
+  onRequestNotif: () => void;
   onNext: () => void; onBack: () => void;
 }) {
-  const canContinue = p.locationOK !== null && p.notifOK !== null;
+  const canContinue = p.notifOK !== null;
 
-  const locationCard = (
-    <View style={[s.permCard, { borderColor: SKY }]}>
-      <View style={s.permHeader}>
-        <View style={[s.permIcon, { backgroundColor: SKY }]}><Text style={{ fontSize: 18 }}>📍</Text></View>
-        <Text style={s.permTitle}>Where are you?</Text>
-      </View>
-      <Text style={s.permSub}>So I can put the right weather in your brief. Nothing stored on my end — just used each morning.</Text>
-      {p.locationOK === null ? (
-        <>
-          <TouchableOpacity style={[s.permBtn, { backgroundColor: SKY_DEEP }]} onPress={p.onRequestLocation} activeOpacity={0.85}>
-            <Text style={s.permBtnTxt}>Share location</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={p.onRequestLocation} activeOpacity={0.7} style={s.skipLinkWrap}>
-            <Text style={s.skipLink}>Skip — I'll enter my suburb later</Text>
-          </TouchableOpacity>
-        </>
-      ) : (
-        <View style={s.permDoneRow}>
-          <View style={[s.permDoneTick, { backgroundColor: p.locationOK ? MINT_DARK : INK4 }]}>
-            <IcoCheck/>
-          </View>
-          <Text style={s.permDoneTxt}>{p.locationOK ? 'Location shared' : 'Set later'}</Text>
-        </View>
-      )}
-    </View>
-  );
   const notifCard = (
     <View style={[s.permCard, { borderColor: '#F59E0B', backgroundColor: '#FFFBEB', marginTop: 4 }]}>
       <View style={s.permHeader}>
@@ -1065,8 +931,8 @@ function PermissionsStep(p: {
       <ScrollView contentContainerStyle={s.chatBody} showsVerticalScrollIndicator={false}>
         <TypedConversation
           items={[
-            { kind: 'zaeli', node: <>Two tiny housekeeping bits. I promise this is the boring part — and the last of it.</> },
-            { kind: 'card', node: locationCard },
+            { kind: 'zaeli', node: <>One quick ask so I can do my job. Promise this is the boring part — and the last of it.</> },
+            { kind: 'zaeli', node: <>🔔 <Text style={s.b}>Notifications</Text> — so morning + evening briefs actually land on your lockscreen. Skip if you'd rather open the app manually.</> },
             { kind: 'card', node: notifCard },
           ]}
           onComplete={() => setConvoDone(true)}
@@ -1087,7 +953,84 @@ function PermissionsStep(p: {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 8 — PANTRY DEMO
+// STEP 7 — LOCKSCREEN PREVIEW (v2 — the wow moment)
+// ═══════════════════════════════════════════════════════════════════════════
+// v2 change: replaces the old BriefPreviewStep + DashboardRevealStep pair.
+// Single scene showing "this notification will appear on your lockscreen
+// tomorrow morning" — the actual payoff, not a walkthrough. Uses the
+// user's chosen brief time + family context (kid names).
+function LockscreenPreviewStep(p: { name: string; family: Member[]; rhythm: Rhythm; onNext: () => void; onBack: () => void }) {
+  const kids = p.family.filter(m => m.role === 'child');
+  const firstTwo = kids.slice(0, 2).map(k => k.name);
+  const olderNames = firstTwo.length === 2 ? `${firstTwo[0]} and ${firstTwo[1]}` : firstTwo[0] ?? 'the kids';
+  const youngest = kids[kids.length - 1]?.name ?? 'your youngest';
+  const briefTime = fmtTime12(p.rhythm.briefMorning);
+  const dateStr = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const [done, setDone] = useState(false);
+
+  // Lockscreen-styled notification card. Deep slate bg, faux status bar with
+  // time + date, then an iOS notification cell with the actual brief prose.
+  // This is the "you'll get this tomorrow" moment.
+  const lockCard = (
+    <View style={s.lockScreen}>
+      <View style={s.lockTop}>
+        <Text style={s.lockTime}>{briefTime.replace(/\s?am|\s?pm/i, '').trim()}</Text>
+        <Text style={s.lockDate}>{dateStr}</Text>
+      </View>
+      <View style={s.lockNotif}>
+        <View style={s.lockNotifHead}>
+          <View style={s.lockNotifIcon}>
+            <Text style={s.lockNotifIconTxt}>
+              z<Text style={{ color: SKY }}>a</Text>
+            </Text>
+          </View>
+          <Text style={s.lockNotifApp}>ZAELI</Text>
+          <View style={{ flex: 1 }}/>
+          <Text style={s.lockNotifWhen}>now</Text>
+        </View>
+        <Text style={s.lockNotifTitle}>☀️ Morning brief</Text>
+        <Text style={s.lockNotifBody}>
+          {p.name ? `${p.name.split(/\s+/)[0]} — ` : ''}
+          {kids.length > 0
+            ? `light rain on the school run. Grab jackets for ${olderNames}. ${youngest}'s swim tonight at 4:30 — on the radar. Low on milk if pancakes are on the cards 🥞`
+            : `light rain today ☔ Nothing urgent on the calendar — the day is yours. I'll be here if you need me 💬`}
+        </Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={{ flex: 1 }}>
+      <ChatHeader onBack={p.onBack}/>
+      <ScrollView contentContainerStyle={s.chatBody} showsVerticalScrollIndicator={false}>
+        <TypedConversation
+          items={[
+            { kind: 'zaeli', node: <>Okay {p.name || 'friend'} — enough setup. Let me show you what actually <Text style={s.b}>lands on your phone</Text>.</> },
+            { kind: 'zaeli', node: <>Here's what tomorrow morning could look like on your lockscreen — no need to open the app.</> },
+            { kind: 'card', node: lockCard },
+            { kind: 'zaeli', node: <>Morning brief at {briefTime}. Evening wrap at {fmtTime12(p.rhythm.briefEvening)}. That's it. <Text style={s.b}>Gentle. Specific. Short.</Text></> },
+          ]}
+          onComplete={() => setDone(true)}
+        />
+        {done && (
+          <TouchableOpacity style={s.primaryCta} onPress={p.onNext} activeOpacity={0.85}>
+            <Text style={s.primaryCtaTxt}>Love it</Text>
+          </TouchableOpacity>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEGACY STEPS — kept until end-of-file rewrite. Dropped from router in v2:
+//   PantryDemoStep — demoed hidden Meals concept
+//   HomeworkDemoStep — demoed hidden Tutor
+//   LifeDemoStep — Brentwood photo demo, redundant with real chat vision
+//   BriefPreviewStep — superseded by LockscreenPreviewStep above
+//   DashboardRevealStep — pre-v2 tile layout, no longer accurate
+// Delete on next pass once we're sure nothing else references them.
 // ═══════════════════════════════════════════════════════════════════════════
 function PantryDemoStep(p: { onNext: () => void; onBack: () => void }) {
   const [done, setDone] = useState(false);
@@ -1804,6 +1747,41 @@ const s = StyleSheet.create({
   briefChipTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: 'rgba(10,10,10,0.55)' },
   briefChipPri: { backgroundColor: CORAL_SOFT, borderColor: '#F5C2BA' },
   briefChipPriTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: CORAL_DEEP },
+
+  // Lockscreen preview (v2 Step 7 — the wow moment). Faux iOS lockscreen
+  // showing the real brief notification the user will get tomorrow.
+  lockScreen: {
+    backgroundColor: '#1C2330',
+    borderRadius: 24,
+    padding: 20,
+    paddingTop: 44,
+    marginTop: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  lockTop: { alignItems: 'center', marginBottom: 26 },
+  lockTime: { fontFamily: 'Poppins_300Light', fontSize: 64, color: '#fff', lineHeight: 68, letterSpacing: -2 },
+  lockDate: { fontFamily: 'Poppins_500Medium', fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: -2 },
+  lockNotif: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 18,
+    padding: 14,
+    // Subtle blur-alike — solid tint since RN blur needs a native module
+  },
+  lockNotifHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  lockNotifIcon: {
+    width: 20, height: 20, borderRadius: 5,
+    backgroundColor: '#FAF8F5',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  lockNotifIconTxt: { fontFamily: 'Poppins_800ExtraBold', fontSize: 11, color: INK, letterSpacing: -0.5 },
+  lockNotifApp: { fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.4 },
+  lockNotifWhen: { fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.5)' },
+  lockNotifTitle: { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff', marginBottom: 4 },
+  lockNotifBody: { fontFamily: 'Poppins_400Regular', fontSize: 14, color: 'rgba(255,255,255,0.92)', lineHeight: 20 },
 
   // Dashboard preview (old, inline card — kept for reuse but unused on Step 12 now)
   dashCard: { backgroundColor: CARD, borderRadius: 18, borderWidth: 1, borderColor: BORDER, padding: 4, paddingTop: 14, overflow: 'hidden' },

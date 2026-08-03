@@ -415,7 +415,7 @@
         </div>
         <div class="chat-body">
           <div class="msg-zaeli">First things first — who are you, and how do I reach you?</div>
-          <div class="msg-zaeli">I'll only use email for your morning brief if the app's closed. No spam, ever.</div>
+          <div class="msg-zaeli">Email's only for account stuff — sign-in, password resets, receipts. Never briefs. Never spam.</div>
           <div class="in-card">
             <div class="card-lbl">Your account</div>
             <div class="input-row">
@@ -499,28 +499,9 @@
           <div class="right"><div class="label">3 of 8</div></div>
         </div>
         <div class="chat-body">
-          <div class="msg-zaeli"><b>Three moments make or break a weekday.</b> Set yours and I won't nudge at the wrong one.</div>
+          <div class="msg-zaeli"><b>When should I reach you?</b> Two lockscreen moments — morning setup and evening wrap.</div>
           <div class="in-card">
-            <div class="card-lbl">Your weekday rhythm</div>
-            <div class="rhythm-row">
-              <div class="rhythm-ic" style="background: #FFE8D6;">☀️</div>
-              <div class="rhythm-lb">School run out the door</div>
-              <div class="rhythm-tm">8:15 am</div>
-            </div>
-            <div class="rhythm-row">
-              <div class="rhythm-ic" style="background: #FFEBE2;">🍝</div>
-              <div class="rhythm-lb">Dinner time</div>
-              <div class="rhythm-tm">6:00 pm</div>
-            </div>
-            <div class="rhythm-row">
-              <div class="rhythm-ic" style="background: #E8E0FF;">🌙</div>
-              <div class="rhythm-lb">Kids in bed</div>
-              <div class="rhythm-tm">8:30 pm</div>
-            </div>
-          </div>
-          <div class="msg-zaeli">And when do you want me on your lockscreen?</div>
-          <div class="in-card">
-            <div class="card-lbl">When should I reach you?</div>
+            <div class="card-lbl">Your brief times</div>
             <div class="rhythm-row">
               <div class="rhythm-ic" style="background: var(--peach-t);">🌅</div>
               <div class="rhythm-lb">Morning brief</div>
@@ -535,7 +516,7 @@
         </div>
       </div>
     </div>
-    <p class="frame-caption">Two cards: family rhythm (context for Zaeli) + brief times (when phone actually buzzes). Both editable via time picker.</p>
+    <p class="frame-caption">One card: two lockscreen briefs (when phone actually buzzes). Weekday-rhythm card removed — the two briefs already cover the "when" question and rhythm was friction without clear payoff.</p>
   </div>
 
   <!-- OWNER STEP 5: PREFERENCES -->
@@ -563,14 +544,6 @@
               <span class="chip">Solo-parent days</span>
             </div>
             <div class="pref-row">
-              <div class="pref-ic" style="background: var(--sky-t);">✈️</div>
-              <div class="pref-body">
-                <div class="pref-ttl">Upcoming holiday or trip?</div>
-                <div class="pref-desc">I'll help with packing, dates, countdown.</div>
-              </div>
-              <div class="switch"></div>
-            </div>
-            <div class="pref-row">
               <div class="pref-ic" style="background: var(--lav-t);">🛒</div>
               <div class="pref-body">
                 <div class="pref-ttl">Shared shopping list</div>
@@ -583,7 +556,7 @@
         </div>
       </div>
     </div>
-    <p class="frame-caption">Chips trimmed for v2 (removed Homework battles — Tutor hidden). Toggles cover trip + shared list.</p>
+    <p class="frame-caption">Chips trimmed for v2 (removed Homework battles — Tutor hidden). Travel toggle also removed — Travel is hidden in v2. One toggle: shared shopping list.</p>
   </div>
 
   <!-- OWNER STEP 6: PERMISSIONS -->
@@ -598,8 +571,8 @@
           <div class="right"><div class="label">5 of 8</div></div>
         </div>
         <div class="chat-body">
-          <div class="msg-zaeli">Two quick asks so I can do my job:</div>
-          <div class="msg-zaeli">📍 <b>Location</b> — so I know your weather and school-run traffic.<br>🔔 <b>Notifications</b> — so morning briefs actually land.</div>
+          <div class="msg-zaeli">One quick ask so I can do my job:</div>
+          <div class="msg-zaeli">🔔 <b>Notifications</b> — so morning + evening briefs actually land on your lockscreen. That's it. Skip if you'd rather open the app manually.</div>
           <div class="ios-prompt">
             <div class="ttl">"Zaeli" Would Like to Send You Notifications</div>
             <div class="body">Notifications may include alerts, sounds, and icon badges. These can be configured in Settings.</div>
@@ -611,7 +584,7 @@
         </div>
       </div>
     </div>
-    <p class="frame-caption">iOS-native permission prompts. Location & notifications both requested. Skipping either doesn't block completion.</p>
+    <p class="frame-caption">Notifications only — Location removed (no weather in v2, and we don't want to track locations if we don't need to). Skipping doesn't block completion.</p>
   </div>
 
   <!-- OWNER STEP 7: LOCKSCREEN PREVIEW -->
@@ -947,8 +920,8 @@
               <div class="fld filled">Kid</div>
             </div>
             <div class="input-row">
-              <div class="lb">YEAR LEVEL</div>
-              <div class="fld filled">Year 6</div>
+              <div class="lb">SCHOOL YEAR</div>
+              <div class="fld filled" style="display:flex; justify-content:space-between; align-items:center;">Year 6 <span style="color:var(--ink4); font-size:12px;">▾</span></div>
             </div>
             <div class="input-row">
               <div class="lb">PHONE (OPTIONAL)</div>
