@@ -18,7 +18,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, KeyboardAvoidingView, Platform, Share, Alert,
+  TextInput, KeyboardAvoidingView, Platform, Share, Alert, Switch,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,7 +43,7 @@ const LAV = '#D8CCFF';
 const LAV_TINT = '#F0EBFF';
 const LAV_DEEP = '#5020C0';
 
-type View = 'role' | 'form';
+type ViewName = 'role' | 'form';
 
 export default function InviteScreen() {
   const insets = useSafeAreaInsets();
@@ -54,10 +54,16 @@ export default function InviteScreen() {
     ? (params.role as InviteRole)
     : null;
 
-  const [view, setView] = useState<View>(initialRole ? 'form' : 'role');
+  const [view, setView] = useState<ViewName>(initialRole ? 'form' : 'role');
   const [role, setRole] = useState<InviteRole | null>(initialRole);
   const [name, setName] = useState<string>(typeof params.name === 'string' ? params.name : '');
   const [phone, setPhone] = useState<string>('');
+  // v2 — kid-only fields captured on parent's invite form. yearLevel is
+  // required for kids (chip picker, no free-text); showBudget defaults false
+  // (parent's explicit opt-in for teens). Both currently log-only in
+  // lib/invite-state.ts — persistence deferred until SQL migration lands.
+  const [yearLevel, setYearLevel] = useState<string>('');
+  const [showBudget, setShowBudget] = useState<boolean>(false);
   const [sending, setSending] = useState(false);
   // Inviter's first name = the signed-in user (Session 23 — was hardcoded 'Rich').
   const [inviterFirstName, setInviterFirstName] = useState<string>(
@@ -82,6 +88,11 @@ export default function InviteScreen() {
       Alert.alert('Need a name', 'Pop in their name so I know who I\u2019m welcoming.');
       return;
     }
+    // v2 \u2014 for kid invites, School Year is required (no ambiguity).
+    if (role === 'kid' && !yearLevel) {
+      Alert.alert('Need a school year', 'Pick their year so their profile\u2019s set up correctly.');
+      return;
+    }
     setSending(true);
     try {
       const { sms, link } = await createInvite({
@@ -89,6 +100,8 @@ export default function InviteScreen() {
         name: name.trim(),
         phone: phone.trim() || undefined,
         inviterFirstName,
+        yearLevel: role === 'kid' ? yearLevel : undefined,
+        showBudget: role === 'kid' ? showBudget : undefined,
       });
 
       // Open iOS share sheet with the pre-composed SMS body.
@@ -134,10 +147,14 @@ export default function InviteScreen() {
           role={role}
           name={name}
           phone={phone}
+          yearLevel={yearLevel}
+          showBudget={showBudget}
           sending={sending}
           inviterName={inviterFirstName}
           onChangeName={setName}
           onChangePhone={setPhone}
+          onChangeYearLevel={setYearLevel}
+          onChangeShowBudget={setShowBudget}
           onSend={handleSend}
         />
       )}
@@ -151,7 +168,7 @@ function RoleView({ onPick }: { onPick: (r: InviteRole) => void }) {
     <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
       <Text style={s.eyebrow}>STEP 1 OF 2</Text>
       <Text style={s.h1}>Who are you inviting?</Text>
-      <Text style={s.sub}>Adults get full access. Kids get their own Hub — jobs, rewards, games, and Tutor.</Text>
+      <Text style={s.sub}>Adults get full access. Kids see the family stuff — Calendar, Shopping, Reminders, and chat with Zaeli.</Text>
 
       <View style={s.roleRow}>
         <TouchableOpacity
@@ -163,8 +180,8 @@ function RoleView({ onPick }: { onPick: (r: InviteRole) => void }) {
           <Text style={s.roleDesc}>Other parent, grandparent, carer, nanny.</Text>
           <View style={s.roleFeatures}>
             <RoleFeature text="Full app access"/>
-            <RoleFeature text="Edits everything"/>
-            <RoleFeature text="Their own Zaeli"/>
+            <RoleFeature text="Their own brief times"/>
+            <RoleFeature text="Family notifications"/>
           </View>
         </TouchableOpacity>
 
@@ -176,9 +193,9 @@ function RoleView({ onPick }: { onPick: (r: InviteRole) => void }) {
           <Text style={[s.roleName, { color: LAV_DEEP }]}>Kid</Text>
           <Text style={s.roleDesc}>A child in your family with their own device.</Text>
           <View style={s.roleFeatures}>
-            <RoleFeature text="Full app (no Budget/Family)"/>
-            <RoleFeature text="Kids Hub + Tutor"/>
+            <RoleFeature text="Calendar + Shopping + Reminders"/>
             <RoleFeature text="Chat with Zaeli"/>
+            <RoleFeature text="No Budget or Family admin"/>
           </View>
         </TouchableOpacity>
       </View>
@@ -196,21 +213,27 @@ function RoleFeature({ text }: { text: string }) {
 }
 
 // ── Form ──────────────────────────────────────────────────────────────────
+const YEAR_OPTIONS = ['Kinder', 'Prep', 'Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'Year 6', 'Year 7', 'Year 8', 'Year 9', 'Year 10', 'Year 11', 'Year 12'];
+
 function FormView(p: {
   role: InviteRole;
   name: string;
   phone: string;
+  yearLevel: string;
+  showBudget: boolean;
   sending: boolean;
   inviterName: string;
   onChangeName: (v: string) => void;
   onChangePhone: (v: string) => void;
+  onChangeYearLevel: (v: string) => void;
+  onChangeShowBudget: (v: boolean) => void;
   onSend: () => void;
 }) {
   // Live SMS preview — mirrors what invite-state.composeSms does
   const first = (p.name.trim() || (p.role === 'adult' ? 'Anna' : 'Poppy')).split(/\s+/)[0];
   const previewSms = p.role === 'adult'
     ? `${first} — ${p.inviterName} invited you to join our family on Zaeli 🏡 It\u2019s the family-life app — handles the daily juggle. Set up takes 2 min: zaeli.app/i/\u2026`
-    : `${first}! 🎉 ${p.inviterName} set up Zaeli for our family — your own hub, jobs, games, Tutor for homework, plus the family calendar, meals and shopping. Tap to join: zaeli.app/i/\u2026`;
+    : `${first}! 🎉 ${p.inviterName} set up Zaeli for our family — our family app for calendar, shopping and reminders. Tap to join: zaeli.app/i/\u2026`;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -231,6 +254,38 @@ function FormView(p: {
             returnKeyType="next"
           />
 
+          {/* v2 — School Year chip picker (kid only). Chip picker eliminates
+              "Grade 5 / Year 5 / 5" format ambiguity. Same enum as the owner
+              flow's Family step. */}
+          {p.role === 'kid' && (
+            <>
+              <Text style={[s.formLabel, { marginTop: 16 }]}>School year</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', gap: 6, paddingRight: 12 }}>
+                  {YEAR_OPTIONS.map(opt => {
+                    const on = p.yearLevel === opt;
+                    return (
+                      <TouchableOpacity
+                        key={opt}
+                        onPress={() => p.onChangeYearLevel(on ? '' : opt)}
+                        activeOpacity={0.75}
+                        style={{
+                          paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16,
+                          backgroundColor: on ? '#0A0A0A' : 'rgba(10,10,10,0.06)',
+                        }}
+                      >
+                        <Text style={{
+                          fontFamily: 'Poppins_600SemiBold', fontSize: 13,
+                          color: on ? '#fff' : INK2,
+                        }}>{opt}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </>
+          )}
+
           <Text style={[s.formLabel, { marginTop: 16 }]}>
             Phone or email <Text style={{ color: INK4, fontFamily: 'Poppins_400Regular' }}>(optional)</Text>
           </Text>
@@ -245,6 +300,34 @@ function FormView(p: {
             returnKeyType="done"
           />
           <Text style={s.formHint}>If left blank, you'll just copy the link to send.</Text>
+
+          {/* v2 — Our Budget access toggle (kid only). Off by default; parent
+              opts in for teens ready to see family finances. Persisted per-invite
+              once the SQL migration lands. */}
+          {p.role === 'kid' && (
+            <View style={{
+              flexDirection: 'row', alignItems: 'center', gap: 12,
+              marginTop: 20, padding: 14, borderRadius: 14,
+              backgroundColor: 'rgba(45,122,82,0.06)',
+              borderWidth: 1, borderColor: 'rgba(45,122,82,0.18)',
+            }}>
+              <Text style={{ fontSize: 20 }}>💰</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: INK }}>
+                  Show Our Budget to {first}
+                </Text>
+                <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK3, lineHeight: 17, marginTop: 2 }}>
+                  Off by default. Turn on for teens ready to see family finances.
+                </Text>
+              </View>
+              <Switch
+                value={p.showBudget}
+                onValueChange={p.onChangeShowBudget}
+                trackColor={{ false: 'rgba(10,10,10,0.15)', true: '#2D7A52' }}
+                thumbColor="#fff"
+              />
+            </View>
+          )}
         </View>
 
         {/* SMS preview */}

@@ -123,6 +123,14 @@ export interface CreateInviteArgs {
   name: string;
   phone?: string;
   inviterFirstName: string;
+  // v2 additions (kid role only). Captured on parent's invite form.
+  // Currently logged only — persistence needs a supabase migration adding
+  // invite_tokens.year_level (text) + invite_tokens.show_budget (bool) plus
+  // an update to handle_new_user() to copy them onto the new kid profile
+  // when the invite is accepted. Deferred to next backend pass; ships as
+  // capture-only so the parent UX is complete.
+  yearLevel?: string;
+  showBudget?: boolean;
 }
 
 export interface CreatedInvite {
@@ -147,6 +155,14 @@ export async function createInvite(args: CreateInviteArgs): Promise<CreatedInvit
     .single();
   if (profErr || !profile?.family_id) throw new Error('No family for current user');
   const familyId = profile.family_id as string;
+
+  // v2 extras (year_level + show_budget) — captured on parent side but not
+  // yet persisted to invite_tokens (needs SQL migration). Log so debug is
+  // possible on-device; drop when SQL columns land.
+  if (args.role === 'kid' && (args.yearLevel || args.showBudget !== undefined)) {
+    console.log('[invite/create] kid extras (not yet persisted):',
+      { yearLevel: args.yearLevel, showBudget: args.showBudget });
+  }
 
   // Generate a unique token (retry up to 5x on the rare collision).
   let token = generateToken();

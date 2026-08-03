@@ -242,7 +242,14 @@ function AdultFlow({
           onNext={next}
         />
       )}
-      {step === 'preferences' && <AdultPrefsStep inviter={inviter} onFinish={() => onFinish({ name: fullName, email, password })}/>}
+      {step === 'preferences' && (
+        <AdultReadyStep
+          first={first}
+          inviter={inviter}
+          morning={morningTime}
+          onFinish={() => onFinish({ name: fullName, email, password })}
+        />
+      )}
     </View>
   );
 }
@@ -324,8 +331,8 @@ function AdultRhythmStep(p: {
   return (
     <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
       <Text style={s.eyebrow}>STEP 2 OF 3</Text>
-      <Text style={s.h1}>Your daily rhythm.</Text>
-      <Text style={s.sub}>When should I check in with you? You can change these anytime.</Text>
+      <Text style={s.h1}>When should I reach you?</Text>
+      <Text style={s.sub}>Two lockscreen moments — morning setup and evening wrap. Each adult picks their own. Change anytime in Settings.</Text>
 
       <View style={s.rhythmCard}>
         <View>
@@ -351,53 +358,62 @@ function AdultRhythmStep(p: {
   );
 }
 
-const PREF_CHIPS = [
-  { key: 'school',    label: '🏃 School run' },
-  { key: 'meals',     label: '🍽 Meal planning' },
-  { key: 'shopping',  label: '🛒 Groceries' },
-  { key: 'appts',     label: '🏥 Appointments' },
-  { key: 'homework',  label: '📚 Homework' },
-  { key: 'sport',     label: '⚽ Activities' },
-  { key: 'birthdays', label: '🎂 Birthdays' },
-];
-
-function AdultPrefsStep({ inviter, onFinish }: { inviter: string; onFinish: () => void }) {
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  function toggle(k: string) {
-    setPicked(prev => {
-      const next = new Set(prev);
-      if (next.has(k)) next.delete(k); else next.add(k);
-      return next;
-    });
-  }
+// v2 — AdultPrefsStep replaced with AdultReadyStep. The chip picker was
+// low-signal (parent had "already dialled in" the family stuff so the chips
+// mostly just added friction). New scene mirrors owner Step 7 pattern:
+// a preview of tomorrow morning's lockscreen brief, personalised with the
+// invitee's first name and inviter's name, then a "Take me Home" CTA.
+function AdultReadyStep({ first, inviter, morning, onFinish }: {
+  first: string; inviter: string; morning: string; onFinish: () => void;
+}) {
+  const dateStr = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
   return (
     <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
-      <Text style={s.eyebrow}>STEP 3 OF 3 · OPTIONAL</Text>
-      <Text style={s.h1}>What's on your plate?</Text>
-      <Text style={s.sub}>Tap anything I should know. Skip if nothing fits.</Text>
+      <Text style={s.eyebrow}>STEP 3 OF 3</Text>
+      <Text style={s.h1}>You're in the family, {first}.</Text>
+      <Text style={s.sub}>Here's what tomorrow morning could look like on your lockscreen.</Text>
 
-      <View style={s.chipsWrap}>
-        {PREF_CHIPS.map(c => {
-          const on = picked.has(c.key);
-          return (
-            <TouchableOpacity
-              key={c.key}
-              onPress={() => toggle(c.key)}
-              style={[s.prefChip, on && s.prefChipOn]}
-              activeOpacity={0.8}
-            >
-              <Text style={[s.prefChipTxt, on && s.prefChipTxtOn]}>{c.label}{on ? ' ✓' : ''}</Text>
-            </TouchableOpacity>
-          );
-        })}
+      {/* Faux iOS lockscreen preview (matches owner Step 7 pattern) */}
+      <View style={{
+        backgroundColor: '#1C2330', borderRadius: 24,
+        padding: 20, paddingTop: 40, marginTop: 20,
+        shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 20,
+        shadowOffset: { width: 0, height: 8 }, elevation: 8,
+      }}>
+        <View style={{ alignItems: 'center', marginBottom: 22 }}>
+          <Text style={{ fontFamily: 'Poppins_300Light', fontSize: 56, color: '#fff', lineHeight: 60, letterSpacing: -2 }}>
+            {morning.replace(/\s?am|\s?pm/i, '').trim()}
+          </Text>
+          <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: -2 }}>
+            {dateStr}
+          </Text>
+        </View>
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: 18, padding: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <View style={{ width: 20, height: 20, borderRadius: 5, backgroundColor: '#FAF8F5', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 11, color: INK, letterSpacing: -0.5 }}>
+                z<Text style={{ color: SKY }}>a</Text>
+              </Text>
+            </View>
+            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.4 }}>ZAELI</Text>
+            <View style={{ flex: 1 }}/>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>now</Text>
+          </View>
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff', marginBottom: 4 }}>
+            ☀️ Morning brief
+          </Text>
+          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: 'rgba(255,255,255,0.92)', lineHeight: 20 }}>
+            Morning {first} — {inviter} has the school run today. Coffee catch-up at 10:30 ☕
+          </Text>
+        </View>
       </View>
 
       <View style={s.tipBox}>
-        <Text style={s.tipTxt}>💡 You don't need to set this up — {inviter} already has the family stuff dialled in. This just helps me prioritise <Text style={{ fontFamily: 'Poppins_700Bold' }}>your</Text> brief.</Text>
+        <Text style={s.tipTxt}>Family stuff is already wired up — {inviter} has it dialled in. Say hi anytime 💬</Text>
       </View>
 
       <TouchableOpacity style={s.primaryCta} onPress={onFinish} activeOpacity={0.85}>
-        <Text style={s.primaryCtaTxt}>Finish</Text>
+        <Text style={s.primaryCtaTxt}>Take me Home</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -477,7 +493,7 @@ function KidWelcome({ first, inviter, onNext }: { first: string; inviter: string
       <View style={s.welcomeContent}>
         <Text style={[s.welcomeEyebrow, { color: LAV_DEEP }]}>YOUR SPACE</Text>
         <Text style={s.welcomeH1}>Hi {first}! ✨{'\n'}Welcome to your <Text style={{ color: VIOLET }}>hub</Text>.</Text>
-        <Text style={s.welcomeSub}>{inviter} set this up for you. You've got jobs, rewards, games, Tutor, plus the whole family calendar.</Text>
+        <Text style={s.welcomeSub}>{inviter} set this up for you. You'll see the family calendar, help with shopping and reminders, and can chat with Zaeli anytime.</Text>
       </View>
       <TouchableOpacity style={[s.welcomeCta, { backgroundColor: VIOLET }]} onPress={onNext} activeOpacity={0.85}>
         <Text style={s.welcomeCtaTxt}>Let's go</Text>
@@ -547,14 +563,14 @@ function KidCapabilitiesStep({ onFinish }: { onFinish: () => void }) {
       <Text style={s.sub}>A quick tour just for you.</Text>
 
       <View style={{ marginTop: 22, gap: 12 }}>
-        <KidCapTile emoji="✅" title="Jobs & Rewards" sub="Tick off jobs, earn points, redeem rewards."/>
-        <KidCapTile emoji="🎮" title="Games" sub="Daily Wordle, Maths Sprint, World Trivia."/>
-        <KidCapTile emoji="📚" title="Tutor" sub="Stuck on homework? Ask me anything."/>
-        <KidCapTile emoji="💬" title="Chat with me" sub="Anything on your mind — I'm here."/>
+        <KidCapTile emoji="📅" title="Family calendar" sub="Everyone's stuff, one place."/>
+        <KidCapTile emoji="🛒" title="Shopping list" sub="Add what you need — it shares with the family."/>
+        <KidCapTile emoji="⏰" title="Reminders" sub="Set your own personal ones + see family ones."/>
+        <KidCapTile emoji="💬" title="Chat with Zaeli" sub="Ask me anything — homework, plans, ideas."/>
       </View>
 
       <TouchableOpacity style={[s.primaryCta, { backgroundColor: VIOLET }]} onPress={onFinish} activeOpacity={0.85}>
-        <Text style={s.primaryCtaTxt}>Take me to my hub</Text>
+        <Text style={s.primaryCtaTxt}>Take me Home</Text>
       </TouchableOpacity>
     </ScrollView>
   );
