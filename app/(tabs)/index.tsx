@@ -20,8 +20,10 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Animated, Easing, TextInput, KeyboardAvoidingView,
   Platform, Modal, Pressable, Image, Share, Clipboard, Keyboard,
-  PanResponder, StatusBar, Alert, ActivityIndicator,
+  PanResponder, StatusBar, Alert, ActivityIndicator, Dimensions,
 } from 'react-native';
+
+const { height: SCREEN_H } = Dimensions.get('window');
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // Round B commit 11 — react-native-gesture-handler + reanimated for
@@ -8049,9 +8051,19 @@ Rules:
                 height when up, physically lifting the whole card above the
                 keyboard. Kills the KAV-inside-Modal approach that never
                 worked reliably. */}
+            {/* Round B commit 15 — card compresses instead of moving off-screen.
+                Prior version added marginBottom = kbAdjust which lifted the whole
+                card, including its top edge, off the top of the screen (Rich saw
+                the header disappear when keyboard opened). Fix: combine marginBottom
+                (raises the bottom above the keyboard) with a matching height reduction
+                (shrinks by the same amount so the TOP stays at its original position).
+                Net effect: card top stays put, card bottom rises, input pill stays
+                visible above keyboard. */}
             <ReAnimated.View style={[
-              { backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', display:'flex', flexDirection:'column' },
-              remindKbHeight > 0 && { marginBottom: Math.max(remindKbHeight - insets.bottom, 0) },
+              { backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, display:'flex', flexDirection:'column' },
+              remindKbHeight > 0
+                ? { height: SCREEN_H * 0.92 - Math.max(remindKbHeight - insets.bottom, 0), marginBottom: Math.max(remindKbHeight - insets.bottom, 0) }
+                : { height: SCREEN_H * 0.92 },
               remindSwipe.animatedStyle,
             ]}>
               <SafeAreaView style={{ flex:1, display:'flex', flexDirection:'column' }} edges={[]}>
@@ -8466,11 +8478,15 @@ Rules:
         >
           <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.40)', justifyContent:'flex-end' }}>
             <TouchableOpacity style={{ flex:1 }} onPress={() => setShopSheetOpen(false)} activeOpacity={1}/>
-            {/* Round B commit 11 — sheet card gets marginBottom = keyboard
-                height when up, killing the KAV double-lift pattern. */}
+            {/* Round B commit 15 — same fix as Reminders sheet: shrink card
+                height by kbAdjust AND add matching marginBottom so top stays
+                pinned + bottom rises above keyboard. Prior version only added
+                marginBottom which lifted the whole card off-screen. */}
             <ReAnimated.View style={[
-              { backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, height:'92%', flexDirection:'column' },
-              shopKbHeight > 0 && { marginBottom: Math.max(shopKbHeight - insets.bottom, 0) },
+              { backgroundColor:'#FAF8F5', borderTopLeftRadius:24, borderTopRightRadius:24, flexDirection:'column' },
+              shopKbHeight > 0
+                ? { height: SCREEN_H * 0.92 - Math.max(shopKbHeight - insets.bottom, 0), marginBottom: Math.max(shopKbHeight - insets.bottom, 0) }
+                : { height: SCREEN_H * 0.92 },
               shopSwipe.animatedStyle,
             ]}>
               {/* SafeAreaView edges=[] — bottom inset is applied explicitly by the

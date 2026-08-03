@@ -168,6 +168,12 @@ export default function DashboardScreen({
   // Reminders (Session 32 v2 Phase 05)
   const [remindItems, setRemindItems] = useState<{ id: string; title: string; whenLabel: string; isMe: boolean; tier: 'personal'|'shared' }[]>([]);
   const [remindCount, setRemindCount] = useState(0);
+  // Round B commit 15 — undated to-do count. Undated items (both remind_at
+  // and remind_on null) live in the sheet's To-dos tab. Without a count on
+  // the Home tile they were invisible (Rich noticed Anna's Poppy reminders
+  // saved as undated + never showed on Home). Now shown as a small "· N to-dos"
+  // suffix in the sub-line.
+  const [todoCount, setTodoCount] = useState(0);
 
   // Round A — MoreSheet state (hamburger now opens this, not direct-to-Settings)
   const [moreOpen, setMoreOpen] = useState(false);
@@ -212,12 +218,15 @@ export default function DashboardScreen({
     setShopItems((shopRes.data ?? []).slice(0, 3));
     setShopCount((shopRes.data ?? []).length);
 
-    // Round B — home tile shows DATED items only (reminders with a time or
-    // date). To-dos (no date) don't rank naturally without a due date and
-    // live in the sheet's To-dos tab only. RLS already excludes other users'
-    // personal items; tier icon (🔒/👥) lets Rich see at a glance whether
-    // a row is mine-only or family-shared.
-    const rems = (remRes.data ?? [])
+    // Round B — home tile shows DATED items in the primary "up next" list.
+    // Undated to-dos surface as a small count in the sub-line (see todoCount)
+    // so they're not invisible when Home is the front door.
+    // RLS already excludes other users' personal items; tier icon (🔒/👥)
+    // lets Rich see at a glance whether a row is mine-only or family-shared.
+    const allRems = (remRes.data ?? []);
+    const undated = allRems.filter((r: any) => !r.remind_at && !r.remind_on);
+    setTodoCount(undated.length);
+    const rems = allRems
       .filter((r: any) => r.remind_at || r.remind_on)
       .map((r: any) => {
         let whenLabel = 'someday';
@@ -543,7 +552,13 @@ export default function DashboardScreen({
               <Text style={[s.fullHint, { color: T.goldDeep }]}>Full list →</Text>
             </View>
             <Text style={[s.tileHeadline, { color: T.ink }]}>
-              {remindCount === 0 ? "Nothing to remember." : remindCount === 1 && remindItems[0]?.whenLabel ? `1 due ${remindItems[0].whenLabel}.` : `${remindCount} up next.`}
+              {remindCount === 0 && todoCount === 0
+                ? "Nothing to remember."
+                : remindCount === 0 && todoCount > 0
+                ? `${todoCount} to-do${todoCount === 1 ? '' : 's'}.`
+                : remindCount === 1 && remindItems[0]?.whenLabel
+                ? `1 due ${remindItems[0].whenLabel}.`
+                : `${remindCount} up next.`}
             </Text>
             {remindItems.map(r => (
               <View key={r.id} style={s.calRow}>
@@ -553,6 +568,14 @@ export default function DashboardScreen({
                 <Text style={[s.calTitle, { color: T.ink }]} numberOfLines={1}>{r.title}</Text>
               </View>
             ))}
+            {/* Round B commit 15 — undated to-do count line. Only shown when
+                there are BOTH dated items above AND undated items below, so
+                Anna's Poppy-style undated items aren't invisible on Home. */}
+            {remindCount > 0 && todoCount > 0 && (
+              <Text style={{ fontFamily:'Poppins_500Medium', fontSize:12, color:'rgba(0,0,0,0.5)', marginTop:6 }}>
+                +{todoCount} undated to-do{todoCount === 1 ? '' : 's'}
+              </Text>
+            )}
             <View style={[s.quickAdd, { backgroundColor: '#fff', borderColor: T.goldDeep, borderWidth: 1.5 }]}>
               <Text style={[s.quickPlus, { color: T.coral }]}>+</Text>
               <Text style={[s.quickField, { color: T.goldDeep, opacity: 0.75 }]}>Add reminder or to-do…</Text>
