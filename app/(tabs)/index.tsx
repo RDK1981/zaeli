@@ -5834,12 +5834,17 @@ Only include events directly relevant to the question. Max 5 events.`;
       // Remove the voice thinking dots
       setMessages(prev => prev.filter(m => m.id !== voiceThinkId));
       if (!transcript) return;
-      // Round B commit 5 — if triggered from Reminders sheet mic, fill the
-      // sheet's draft input rather than routing through Chat + Sonnet.
-      // Faster path, no AI cost, no context-switch. User taps send to confirm.
+      // Round B commit 20 — mic in Reminders sheet now AUTO-SUBMITS.
+      // Prior UX (commit 5): dumped transcript into pill, user had to hit send.
+      // Rich flagged this as "not smooth" vs Chat mic which fires straight
+      // through. Same-as-Chat treatment: transcript → smart submit → row
+      // appears. submitRemind now routes through Sonnet when time-hints are
+      // present (see helper below) so "get shin pads in 30 min" parses into
+      // title="Get shin pads" + remind_at=<now+30min> instead of dumping the
+      // full sentence as title.
       if (remindMicMode.current) {
         remindMicMode.current = false;
-        setRemindDraft(transcript);
+        await submitRemindSmart(transcript);
         return;
       }
       // Round B commit 8 — Reminders tile mic (Home) direct saveReminder path.
@@ -5964,50 +5969,123 @@ Only include events directly relevant to the question. Max 5 events.`;
       setRemindSheetItems(list);
     } catch (e:any) { console.log('[reminders] reload error:', e?.message); }
   }
-  async function submitRemind() {
-    const raw = remindDraft.trim();
-    console.log('[reminders/submit] enter — raw:', JSON.stringify(raw), '· tab:', remindSheetTab);
-    if (!raw) { console.log('[reminders/submit] EXIT — empty draft'); return; }
+  // Round B commit 20 — heuristic: does the text mention time or a specific
+  // day? If so, worth a Sonnet parse. Otherwise fast-path direct save.
+  // Regex stays cheap and false-positives to "yes" are fine (extra Sonnet
+  // call is ~$0.005 cached, no user-visible cost). False-negatives (missed
+  // time hint) fall back to Rich's old direct-save behaviour with the raw
+  // text as title.
+  function hasTimeHint(text: string): boolean {
+    return /\b(in\s+\d+\s*(min|minute|hour|hr|sec|day|week|month)|at\s+\d|(\d{1,2}(:\d{2})?\s*(am|pm))|(today|tonight|tomorrow|tmr|tmw|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b|(morning|afternoon|evening|noon|midnight)|(next\s+(week|month|year|monday|tuesday|wednesday|thursday|friday|saturday|sunday))|(in|after)\s+(a\s+)?(few\s+)?(minute|hour|day|week))/i.test(text);
+  }
+
+  // Round B commit 20 — Sonnet-driven smart parse for time-y inputs. Extracts
+  // {title, remind_at?, remind_on?} from natural-language text. Fast fallback
+  // to raw-title save if Sonnet fails or takes too long (5s timeout).
+  async function parseWithSonnet(text: string): Promise<{ title: string; remindAt?: string; remindOn?: string } | null> {
+    try {
+      const now = new Date();
+      const pad = (n:number) => String(n).padStart(2,'0');
+      const nowIso = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
+      const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+      const data = await callAnthropic({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 200,
+        system: `You extract structured reminders from natural language. Output JSON only, no prose.
+CURRENT_TIME (Brisbane local): ${nowIso}
+TODAY: ${todayStr}
+
+Rules:
+- title: WHAT to remember. Strip ALL time/date words. Never leave "in 30 min", "tomorrow", "3pm", "monday" in title.
+  Example: "get Gab's shin pads in 30 minutes" → title="Get Gab's shin pads"
+- remind_at: Brisbane wall-clock ISO "YYYY-MM-DDTHH:MM:SS" (no Z, no offset). Set when user mentioned a specific time.
+  Compute times locally from CURRENT_TIME. Never UTC-convert.
+- remind_on: "YYYY-MM-DD" when user said a specific day but no time.
+  Example: "tomorrow" → remind_on="<tomorrow's date>"
+- If no time or date info at all, omit both remind_at and remind_on.
+
+Output format: {"title": "...", "remind_at": "...", "remind_on": "..."} — omit remind_at/remind_on if absent. No markdown, no code fences, JSON only.`,
+        messages: [{ role: 'user', content: text }],
+      });
+      const raw = data?.content?.[0]?.text?.trim() ?? '';
+      // Strip any accidental markdown fences
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+      const parsed = JSON.parse(cleaned);
+      if (!parsed?.title || typeof parsed.title !== 'string') return null;
+      const out: { title: string; remindAt?: string; remindOn?: string } = {
+        title: parsed.title.trim().charAt(0).toUpperCase() + parsed.title.trim().slice(1),
+      };
+      if (parsed.remind_at && typeof parsed.remind_at === 'string') out.remindAt = parsed.remind_at;
+      if (parsed.remind_on && typeof parsed.remind_on === 'string') out.remindOn = parsed.remind_on;
+      console.log('[reminders/sonnet-parse] input:', text, '→', out);
+      return out;
+    } catch (e:any) {
+      console.log('[reminders/sonnet-parse] failed:', e?.message);
+      return null;
+    }
+  }
+
+  // Round B commit 20 — unified smart submit. Both mic auto-submit and manual
+  // pill-send route through here. If text has time hints → Sonnet parse first;
+  // otherwise fast-path direct save. Same save mechanics as before, just with
+  // an optional AI parse step in front.
+  async function submitRemindSmart(rawInput: string) {
+    const raw = rawInput.trim();
+    console.log('[reminders/smart-submit] enter — raw:', JSON.stringify(raw), '· tab:', remindSheetTab);
+    if (!raw) { console.log('[reminders/smart-submit] EXIT — empty'); return; }
     setRemindDraft('');
-    // Round B — manual add now creates whichever kind matches the active
-    // tab: Reminders tab → date-only reminder for today (user can promote
-    // to timed via edit later); To-dos tab → undated to-do. Personal by
-    // default; Notify chip below the row offers one-tap Shared conversion.
-    // Anna Round A bug: manual entry didn't save — belt-and-braces reload
-    // after add so if the optimistic state prepend misses (rare race), the
-    // list catches up.
-    const draft: Partial<Reminder> = {
+
+    const draft: Partial<Reminder> & { title: string } = {
       title: raw.charAt(0).toUpperCase() + raw.slice(1),
       status: 'active',
       visibility: 'personal',
     };
-    if (remindSheetTab === 'reminders') {
-      // Default a date-only reminder to today so it lands in the correct
-      // tab. User can edit the date via a follow-up detail sheet later.
+
+    // Time hint present → let Sonnet parse title/time properly.
+    if (hasTimeHint(raw)) {
+      console.log('[reminders/smart-submit] time hint detected — routing through Sonnet');
+      const parsed = await parseWithSonnet(raw);
+      if (parsed) {
+        draft.title = parsed.title;
+        if (parsed.remindAt) draft.remindAt = parsed.remindAt;
+        else if (parsed.remindOn) draft.remindOn = parsed.remindOn;
+      } else if (remindSheetTab === 'reminders') {
+        // Sonnet failed — default a date-only for today so it at least lands
+        // in the Reminders tab (user can promote to timed via edit).
+        draft.remindOn = localDateStr();
+      }
+    } else if (remindSheetTab === 'reminders') {
+      // No time hint but on Reminders tab → date-only for today so tab
+      // classification is right. User can edit later.
       draft.remindOn = localDateStr();
     }
-    console.log('[reminders/submit] draft:', JSON.stringify(draft));
+    // (To-dos tab + no time hint → undated. Both fields stay null.)
+
+    console.log('[reminders/smart-submit] draft:', JSON.stringify(draft));
     let r: Reminder | null = null;
     try {
       r = await saveReminder(draft);
-      console.log('[reminders/submit] saveReminder returned:', r ? `Reminder{id:${r.id}}` : 'null');
+      console.log('[reminders/smart-submit] saveReminder returned:', r ? `Reminder{id:${r.id}}` : 'null');
     } catch (e:any) {
-      console.log('[reminders/submit] save THREW:', e?.message);
+      console.log('[reminders/smart-submit] save THREW:', e?.message);
     }
     if (r) {
       setRemindSheetItems(prev => [r as Reminder, ...prev]);
-      // Show the Notify chip for the freshly-added item; auto-dismiss
-      // after 8s so it doesn't hang around forever.
       setRemindLastAddedId(r.id);
       if (remindNotifyTimerRef.current) clearTimeout(remindNotifyTimerRef.current);
       remindNotifyTimerRef.current = setTimeout(() => setRemindLastAddedId(null), 8000);
-      bumpHomeRefresh(); // Round B commit 3 — Home tile stale-refresh
+      bumpHomeRefresh();
     } else {
-      // Save failed silently — force a full reload so at least a server
-      // round-trip has a chance to surface the row (or nothing, honestly).
-      console.log('[reminders/submit] null result — forcing reload');
+      console.log('[reminders/smart-submit] null result — forcing reload');
       reloadReminders();
     }
+  }
+
+  // Legacy alias — manual pill-send button still calls submitRemind. Kept as a
+  // thin wrapper so we don't have to touch the JSX; behaviour delegates to
+  // submitRemindSmart.
+  async function submitRemind() {
+    await submitRemindSmart(remindDraft);
   }
   // Round B — one-tap Personal → Shared conversion. Called from the Notify
   // chip that appears below the freshly-added row.
@@ -7830,6 +7908,10 @@ Rules:
             if (key === 'calendar') { setTimeout(() => openCalSheet('today'), 350); return; }
             if (key === 'shopping') { setTimeout(() => openShopSheet('list'), 350); return; }
             if (key === 'meals')    { setTimeout(() => openMealSheet('meals'), 350); return; }
+            // Round B commit 20 — reminders tile was missing from Chat's
+            // MoreSheet router. Dashboard's handler had it, Chat's didn't,
+            // so opening MoreSheet from Chat → Reminders was a no-op.
+            if (key === 'reminders') { setTimeout(() => openRemindSheet(), 350); return; }
             // Tasks / Notes → navigate to My Space with context for Notes & Tasks sheet
             if (key === 'radar') {
               closeAllSheets();
