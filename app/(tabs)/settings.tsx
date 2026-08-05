@@ -41,6 +41,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import Constants from 'expo-constants';
 import Svg, { Path } from 'react-native-svg';
 import MoreSheet from '../components/MoreSheet';
+import * as AppleCal from '../../lib/apple-calendar';
 
 const { height: H } = Dimensions.get('window');
 
@@ -753,6 +754,46 @@ function MainView(p: {
   onDirectPushTest: () => void;
   onTestReminderSave: () => void;
 }) {
+  // Round B commit 23 — Apple Calendar toggle state. Local to MainView (not
+  // plumbed through top) because the pref persists device-side via
+  // AsyncStorage in lib/apple-calendar.ts, not to profiles.user_preferences.
+  // Loads once on mount, re-syncs after toggle to reflect iOS permission
+  // outcome (user might deny in the system prompt).
+  const [appleCalOn, setAppleCalOn] = useState(false);
+  const [appleCalPerm, setAppleCalPerm] = useState<AppleCal.PermissionStatus>('undetermined');
+  useEffect(() => {
+    (async () => {
+      const on   = await AppleCal.isEnabledPref();
+      const perm = await AppleCal.getPermissionStatus();
+      setAppleCalOn(on);
+      setAppleCalPerm(perm);
+    })();
+  }, []);
+  async function toggleAppleCal(next: boolean) {
+    if (Platform.OS !== 'ios') {
+      Alert.alert('iOS only', 'Apple Calendar sync is only available on iPhone right now.');
+      return;
+    }
+    if (!next) {
+      await AppleCal.setEnabledPref(false);
+      setAppleCalOn(false);
+      return;
+    }
+    // Turning ON — request permission if not already granted.
+    let perm = await AppleCal.getPermissionStatus();
+    if (perm === 'undetermined') perm = await AppleCal.requestPermission();
+    setAppleCalPerm(perm);
+    if (perm !== 'granted') {
+      Alert.alert(
+        'Permission needed',
+        'To show your iPhone Calendar events, Zaeli needs Calendar access. Grant it in Settings → Zaeli → Calendars.',
+      );
+      return;
+    }
+    await AppleCal.setEnabledPref(true);
+    setAppleCalOn(true);
+  }
+
   return (
     <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
 
@@ -863,10 +904,30 @@ function MainView(p: {
         </>
       )}
 
-      {/* Preferences — v2 cleanup: Integrations + Replay tour removed
-          (Integrations wasn't wired anywhere; tour is stale for v2 pivot
-          — references hidden features like Kids Hub / Tutor / Travel. Both
-          come back later, tour when we rewrite it for the trio v2 world.) */}
+      {/* Round B commit 23 — Integrations back (Apple Calendar first). One-way
+          IN sync: iPhone Calendar events show up in Zaeli's Calendar sheet
+          with a "📱 iPhone" badge, read-only. Zaeli events stay in Zaeli.
+          Off by default; toggle-on triggers iOS permission prompt.
+          Google + Outlook come later — each needs its own OAuth setup. */}
+      {Platform.OS === 'ios' && (
+        <>
+          <SecLabel>Integrations</SecLabel>
+          <View style={s.group}>
+            <Row icon="📱" iconBg="rgba(10,10,10,0.05)" iconFg="#0A0A0A"
+                 title="iPhone Calendar"
+                 sub={appleCalOn && appleCalPerm === 'granted'
+                   ? 'Read-only · showing your iPhone events'
+                   : appleCalPerm === 'denied'
+                   ? 'Permission denied — enable in iOS Settings → Zaeli'
+                   : 'Show your iPhone Calendar events alongside Zaeli'}
+                 toggle toggleValue={appleCalOn && appleCalPerm === 'granted'}
+                 onToggle={toggleAppleCal}
+                 last/>
+          </View>
+        </>
+      )}
+
+      {/* Preferences */}
       <SecLabel>Preferences</SecLabel>
       <View style={s.group}>
         <Row icon="🔔" iconBg="#FFF4E0" iconFg="#D97706"

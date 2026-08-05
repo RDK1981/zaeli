@@ -59,6 +59,7 @@ import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, 
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 import { getFamilyId } from '../../lib/family';
 import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, updateReminderVisibility, updateReminderTitle, parseLocalIsoAsDate, type Reminder, type Visibility } from '../../lib/reminders';
+import * as AppleCal from '../../lib/apple-calendar';
 import { useSheetSwipeClose } from '../../lib/use-sheet-swipe-close';
 const MEMBER_NAME      = 'Rich';
 const INK              = '#0A0A0A';
@@ -2458,10 +2459,16 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
 }) {
   const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Round B commit 23 — external Apple Calendar events render read-only. Use
+  // the iPhone calendar's own colour for the left border (falls back to grey
+  // if colour missing), and skip Edit/Delete on expand entirely.
+  const isExternal = !!ev._external;
   const members = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
-  const borderColor = members.length > 0 ? members[0].color : 'rgba(0,0,0,0.15)';
+  const borderColor = isExternal
+    ? (ev._calendarColour || 'rgba(0,0,0,0.15)')
+    : (members.length > 0 ? members[0].color : 'rgba(0,0,0,0.15)');
   const noteParts = (ev.notes||'').split(' | ');
-  const location = noteParts.length > 1 ? noteParts[noteParts.length-1] : '';
+  const location = noteParts.length > 1 ? noteParts[noteParts.length-1] : (isExternal ? (ev.notes || '') : '');
 
   async function deleteEvent() {
     await supabase.from('events').delete().eq('id', ev.id);
@@ -2484,6 +2491,14 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
           <Text style={{ fontFamily:'Poppins_400Regular', fontSize:13, color:'rgba(0,0,0,0.40)', marginTop:2 }}>
             {fmtTime(ev.start_time)}{ev.end_time && ev.end_time !== ev.start_time ? ` – ${fmtTime(ev.end_time)}` : ''}{location ? ` · ${location}` : ''}
           </Text>
+          {isExternal && (
+            <View style={{ flexDirection:'row', alignItems:'center', gap:4, marginTop:4, alignSelf:'flex-start', backgroundColor:'rgba(0,0,0,0.05)', paddingHorizontal:8, paddingVertical:3, borderRadius:8 }}>
+              <Text style={{ fontSize:10 }}>📱</Text>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:10, color:'rgba(0,0,0,0.55)', letterSpacing:0.3 }}>
+                iPhone{ev._calendarTitle ? ` · ${ev._calendarTitle}` : ''}
+              </Text>
+            </View>
+          )}
         </View>
         {members.length > 0 && (
           <View style={{ flexDirection:'row', gap:4 }}>
@@ -2497,8 +2512,18 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
         )}
       </View>
 
-      {/* Expanded actions — only visible on tap */}
-      {expanded && (
+      {/* Expanded actions — only visible on tap. External Apple Calendar
+          events are read-only from Zaeli's perspective, so hide Edit/Delete
+          entirely and show a plain-language hint pointing users to iPhone
+          Calendar. */}
+      {expanded && isExternal && (
+        <View style={{ marginTop:12, paddingTop:12, borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.08)' }}>
+          <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(0,0,0,0.45)', lineHeight:18 }}>
+            From iPhone Calendar. Edit or delete this event in the iPhone Calendar app.
+          </Text>
+        </View>
+      )}
+      {expanded && !isExternal && (
         <View style={{ flexDirection:'row', gap:8, flexWrap:'wrap', alignItems:'center', marginTop:12, paddingTop:12, borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.08)' }}>
           <TouchableOpacity
             style={{ flexDirection:'row', alignItems:'center', gap:5, backgroundColor:'rgba(168,216,240,0.18)', borderWidth:1, borderColor:'rgba(168,216,240,0.45)', borderRadius:12, paddingVertical:9, paddingHorizontal:14 }}
@@ -5898,6 +5923,34 @@ Only include events directly relevant to the question. Max 5 events.`;
   // Round B commit 3 — added `openAdd` option. When true, the sheet opens
   // straight into the manual-add form for today's date, skipping the
   // "tap the tile → tap Add event again" two-tap flow Rich reported.
+  // Round B commit 23 — Apple Calendar (EventKit) → Zaeli event shape
+  // converter. Produces objects compatible with CalSheetEventCard's expected
+  // props (title, start_time "HH:MM", end_time, assignees, notes, date) plus
+  // `_external` marker fields the card uses to render the "📱 iPhone" badge
+  // and skip Edit/Delete buttons (external events are read-only from Zaeli).
+  function appleEventsForDate(events: AppleCal.AppleEvent[], dateStr: string): any[] {
+    const pad = (n:number) => String(n).padStart(2, '0');
+    const dayStart = new Date(dateStr + 'T00:00:00').getTime();
+    const dayEnd = dayStart + 24*3600*1000;
+    return events
+      .filter(e => {
+        const startMs = e.startDate.getTime();
+        return startMs >= dayStart && startMs < dayEnd;
+      })
+      .map(e => ({
+        id:         e.id,
+        title:      e.title,
+        date:       dateStr,
+        start_time: e.allDay ? '00:00' : `${pad(e.startDate.getHours())}:${pad(e.startDate.getMinutes())}`,
+        end_time:   e.allDay ? '23:59' : `${pad(e.endDate.getHours())}:${pad(e.endDate.getMinutes())}`,
+        assignees:  [],
+        notes:      e.location || '',
+        _external:      true,
+        _calendarTitle: e.calendarTitle,
+        _calendarColour:e.calendarColour,
+      }));
+  }
+
   async function openCalSheet(tab: 'today'|'tomorrow'|'month' = 'today', opts?: { openAdd?: boolean }) {
     const now = new Date();
     const today = localDateStr();
@@ -5916,14 +5969,26 @@ Only include events directly relevant to the question. Max 5 events.`;
     }
     setCalSheetOpen(true);
 
-    // Fetch data in background — sheet shows loading state while this runs
-    const [todRes, tomRes] = await Promise.all([
+    // Fetch data in background — sheet shows loading state while this runs.
+    // Round B commit 23 — parallel fetch of Zaeli events + Apple Calendar
+    // events. Apple fetch returns [] if disabled/denied (silent — no error
+    // path for the user to worry about). Range covers today + tomorrow +
+    // buffer so we can render both tabs without a re-fetch.
+    const rangeStart = new Date(today + 'T00:00:00');
+    const rangeEnd   = new Date(today + 'T00:00:00');
+    rangeEnd.setDate(rangeEnd.getDate() + 2); // today + tomorrow
+    const [todRes, tomRes, appleEvs] = await Promise.all([
       supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes').eq('family_id', getFamilyId()).eq('date', today).order('start_time').limit(20),
       supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes').eq('family_id', getFamilyId()).eq('date', tomorrow).order('start_time').limit(20),
+      AppleCal.fetchEvents(rangeStart, rangeEnd),
     ]);
-    setCalSheetEvents(todRes.data ?? []);
-    setCalSheetTomEvents(tomRes.data ?? []);
-    setCalSheetDayEvs(todRes.data ?? []);
+    // Merge Zaeli + Apple, sort by start_time so mixed lists read chronologically.
+    const sortByStart = (a:any, b:any) => (a.start_time || '').localeCompare(b.start_time || '');
+    const todMerged = [...(todRes.data ?? []), ...appleEventsForDate(appleEvs, today)].sort(sortByStart);
+    const tomMerged = [...(tomRes.data ?? []), ...appleEventsForDate(appleEvs, tomorrow)].sort(sortByStart);
+    setCalSheetEvents(todMerged);
+    setCalSheetTomEvents(tomMerged);
+    setCalSheetDayEvs(todMerged);
 
     // Fetch month dots separately (non-blocking)
     const monthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;

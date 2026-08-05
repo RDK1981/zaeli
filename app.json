@@ -93,6 +93,12 @@
         {
           "color": "#0057FF"
         }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Zaeli shows your iPhone Calendar events alongside family events, so you see everything in one place. Read-only — Zaeli doesn't change or delete your iPhone events."
+        }
       ]
     ],
     "experiments": {
