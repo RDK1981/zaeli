@@ -8908,12 +8908,46 @@ Rules:
                               </Text>
                             </View>
                           )}
+                          {/* Round B commit 22 — in-sheet recording indicator (same
+                              pattern as Reminders sheet). Fires only when isRecording
+                              AND mic was tapped from THIS sheet (via shopMicMode).
+                              Lavender-tinted to match Shopping accent. */}
+                          {isRecording && shopMicMode.current && (
+                            <View style={{ marginBottom:10, backgroundColor:'#F0EBFF', borderRadius:16, padding:12, borderWidth:1.5, borderColor:'#D8CCFF' }}>
+                              <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+                                <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#FF4545' }}/>
+                                <Text style={{ flex:1, fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A' }}>
+                                  Recording · {String(Math.floor(micTimer/60)).padStart(2,'0')}:{String(micTimer%60).padStart(2,'0')}
+                                </Text>
+                                <TouchableOpacity
+                                  onPress={() => stopRecording(true)}
+                                  style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:10, backgroundColor:'rgba(10,10,10,0.05)' }}
+                                  activeOpacity={0.75}
+                                >
+                                  <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(10,10,10,0.55)' }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  onPress={() => stopRecording(false)}
+                                  style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:10, backgroundColor:'#5020C0' }}
+                                  activeOpacity={0.85}
+                                >
+                                  <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#fff' }}>Send</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          )}
                           <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#fff', borderRadius:32, borderWidth:1.5, borderColor:'#D8CCFF', paddingHorizontal:8, paddingVertical:8, minHeight:60 }}>
+                            {/* Round B commit 22 — mic keeps the sheet open + fires
+                                startRecording in-place. Previously closed the sheet
+                                and fired mic in Chat, but with sheet-over-Home the
+                                user is on Home when the sheet closes and Chat's
+                                recording pill is a swipe away (invisible). Now
+                                same pattern as Reminders sheet — in-sheet indicator
+                                below shows the pill + Cancel/Send. */}
                             <TouchableOpacity
-                              onPress={async () => {
-                                setShopSheetOpen(false);
-                                await new Promise(r => setTimeout(r, 300));
+                              onPress={() => {
                                 shopMicMode.current = true;
+                                Keyboard.dismiss();
                                 startRecording();
                               }}
                               style={{ width:44, height:44, borderRadius:22, backgroundColor:'rgba(216,204,255,0.30)', alignItems:'center', justifyContent:'center' }}
