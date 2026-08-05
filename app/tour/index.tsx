@@ -1,12 +1,16 @@
 /**
  * app/tour/index.tsx — Post-onboarding tour route.
  *
- * Single-route component. Reads tour-state, renders the current stop card.
- * "Open X" CTA either routes to a live module or sets a pendingChatContext
- * + nav to swipe-world (which opens the corresponding sheet).
+ * Round B commit 21 (v2 rewrite): mockup-faithful UI. Single primary CTA per
+ * stop (was: separate "Open X" middle CTA + bottom "Next →"). CTA semantics:
+ *   - kind: 'advance'                  → just advance (Welcome stop)
+ *   - kind: 'sheet' | 'route' | 'chat' → advance THEN navigate to target
+ * Bottom nav = Back button only (was: Back + Next). "Skip to end" stays in
+ * header for skipping ahead.
  *
- * "Next →" advances stop. "Skip to end" → finale celebration. Finale has
- * a single "Take me to chat" CTA which marks complete + routes home.
+ * Finale rewritten for v2 content (Budget planner mention + Family invite
+ * tip) — was: v1 Daily loop / Hero (Tutor) / Bonus (Travel/Budget/MySpace/
+ * Family) which mostly referenced hidden features.
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -87,19 +91,50 @@ export default function TourScreen() {
   }
 
   // ── Finale ───────────────────────────────────────────────────────────────
+  // v2 rewrite: mockup-faithful. "You're all set" + two callouts (Budget +
+  // Family invite tip) + coral "Take me to Home" CTA. No more Tutor / Kids
+  // Hub / Travel / My Space references (all hidden in v2).
   if (position === 'finale') {
     return (
       <View style={[s.root, { paddingTop: insets.top + 8 }]}>
         <StatusBar style="dark"/>
-        <View style={s.finaleWrap}>
-          <Text style={s.finaleEmoji}>🎉</Text>
-          <Text style={s.finaleH1}>That’s the lot.</Text>
-          <Text style={s.finaleSub}>You’ve seen everything I do. Now go play — I’ll keep showing you new things along the way.</Text>
-          <View style={s.finaleSummary}>
-            <FinaleRow text={'Daily loop — Shopping, Meals, Calendar, Kids, Tasks, Photos'}/>
-            <FinaleRow text={'Hero — Tutor (free 14 days)'} highlight/>
-            <FinaleRow text={'Bonus — Travel, Budget, My Space, Family'}/>
+        {/* Header — just close, no skip (already at end) */}
+        <View style={s.header}>
+          <TouchableOpacity style={s.headerBtn} onPress={handleClose} activeOpacity={0.7}>
+            <Text style={s.headerBtnIcon}>✕</Text>
+          </TouchableOpacity>
+          <View style={{ width: 36 }}/>
+        </View>
+        {/* Full progress bar */}
+        <View style={s.progressTrack}>
+          <View style={[s.progressFill, { backgroundColor: CORAL, width: '100%' }]}/>
+        </View>
+        <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 28, paddingBottom: 24 }} showsVerticalScrollIndicator={false}>
+          <View style={{ alignItems: 'center', marginBottom: 22 }}>
+            <Text style={s.finaleEmoji}>🎉</Text>
+            <Text style={s.finaleH1}>You’re all set</Text>
+            <Text style={[s.finaleSub, { textAlign: 'center' }]}>
+              Zaeli’s watching in the background. She’ll ping you with a brief every morning and evening, and land you a nudge when something needs attention.
+            </Text>
           </View>
+
+          {/* Budget callout (mint) — "one more thing" */}
+          <View style={{ backgroundColor: MINT_TINT, borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: MINT_LINE }}>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, letterSpacing: 0.6, color: MINT_DEEP, textTransform: 'uppercase', marginBottom: 6 }}>
+              One more thing
+            </Text>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: INK, lineHeight: 20 }}>
+              When you’re ready to plan the money side, tap <Text style={{ fontFamily: 'Poppins_700Bold', color: MINT_DEEP }}>💰 Our Budget</Text> on Home. It’s not a tracker — it’s a planner. No live spend, just clarity on where things go.
+            </Text>
+          </View>
+
+          {/* Family invite tip (peach) */}
+          <View style={{ backgroundColor: '#F5EDE3', borderRadius: 14, padding: 14, marginBottom: 24 }}>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 14, color: '#8A3A00', lineHeight: 20 }}>
+              <Text style={{ fontFamily: 'Poppins_700Bold' }}>Family invite tip:</Text> got a partner? Head to Our Family → Add a member. Kids too. Everyone sees the calendar, shopping list, and reminders.
+            </Text>
+          </View>
+
           <TouchableOpacity
             style={s.finaleCta}
             activeOpacity={0.85}
@@ -108,9 +143,9 @@ export default function TourScreen() {
               router.replace('/(tabs)/swipe-world' as any);
             }}
           >
-            <Text style={s.finaleCtaTxt}>Take me to chat ✨</Text>
+            <Text style={s.finaleCtaTxt}>Take me to Home ✨</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </View>
     );
   }
@@ -126,9 +161,18 @@ export default function TourScreen() {
     );
   }
 
-  function handleOpenCta() {
+  // v2 — main CTA advances the tour AND (for stops 2-5) navigates to the
+  // target. Stop 1 (Welcome) uses kind:'advance' which is nav-less. If the
+  // user later comes back to /tour (via chat tour pill or Settings replay),
+  // they resume at whichever stop is now current. Formal "resume on sheet
+  // close" mechanic is deferred — tour pill in Chat covers the discovery
+  // case for now.
+  async function handleOpenCta() {
     if (!stop) return;
     const t = stop.ctaTarget;
+    // Advance FIRST so the tour is at the next stop when user returns.
+    await advanceStop();
+    // Then perform the navigation (if any). advance-only stops stay put.
     if (t.kind === 'route') {
       router.navigate(t.path as any);
     } else if (t.kind === 'sheet') {
@@ -136,6 +180,10 @@ export default function TourScreen() {
       router.navigate('/(tabs)/swipe-world' as any);
     } else if (t.kind === 'chat') {
       router.navigate('/(tabs)/swipe-world' as any);
+    } else if (t.kind === 'advance') {
+      // No nav — just update our own position state so the render reflects
+      // the advance immediately.
+      setPosition(getCurrentStop());
     }
   }
 
@@ -267,8 +315,10 @@ export default function TourScreen() {
         </View>
       </ScrollView>
 
-      {/* Bottom nav */}
-      <View style={[s.bottomNav, { paddingBottom: insets.bottom + 14 }]}>
+      {/* Bottom nav — v2: Back only. Main progression is via the primary CTA
+          in the card (which advances + navigates). "Skip to end" in header
+          covers the "skip a stop without opening" case. */}
+      <View style={[s.bottomNav, { paddingBottom: insets.bottom + 14, justifyContent: 'flex-start' }]}>
         <TouchableOpacity
           style={[s.navBtn, s.navBack, effectiveIdx <= 0 && s.navDisabled]}
           activeOpacity={0.85}
@@ -276,20 +326,6 @@ export default function TourScreen() {
           disabled={effectiveIdx <= 0}
         >
           <Text style={s.navBackTxt}>← Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            s.navBtn,
-            s.navNext,
-            { backgroundColor: stop.accent.progressFill },
-            isLastStop && { backgroundColor: CORAL, flex: 2 },
-          ]}
-          activeOpacity={0.85}
-          onPress={handleNext}
-        >
-          <Text style={s.navNextTxt}>
-            {isLastStop ? '🎉 Finish tour' : 'Next →'}
-          </Text>
         </TouchableOpacity>
       </View>
     </View>

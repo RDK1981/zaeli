@@ -1,41 +1,49 @@
 /**
  * lib/tour-state.ts — Post-onboarding tour state machine + stop definitions.
  *
- * Phase 2b: tour state moved from AsyncStorage to profiles.tour_state JSONB.
- * Profile is source of truth when signed in (so the tour follows the user
- * across devices). AsyncStorage stays as offline fallback + pre-auth path
- * (kid receivers don't have a Supabase user yet — Phase 2d will fix that).
+ * Round B commit 21 (v2 rewrite): 11 stops → 5 stops + finale, matching
+ * zaeli-v2-tour-mockup.html. All Session 19 hidden-feature stops removed
+ * (Meal Planner / Kids Hub / Tutor HERO / Travel / My Space / Our Family
+ * / Photos & Docs — the last is now a feature pill inside Shopping/Chat
+ * stops rather than its own stop). Tutor HERO gone with it (trialBadge /
+ * priceLine / secondaryCtaLabel kept in the type so we don't have to touch
+ * the /tour route render, just omitted from all v2 stops).
  *
- * 11 stops + finale celebration. Single source of truth: STOPS array drives
- * the /tour route render. Public API surface unchanged from Phase 2a so
- * call sites (chat tour pill, /tour route, settings replay picker) work as-is.
+ * v2 stops:
+ *   1. Welcome + Home (coral, kind: 'advance' — CTA "Let's go →" just moves)
+ *   2. Calendar (slate)
+ *   3. Shopping (lavender)
+ *   4. Reminders & To-dos (gold)
+ *   5. Chat with Zaeli (sky)
+ *   finale — "You're set" celebration (Budget + Family invite callouts)
  *
- * Public API:
- *   loadTourState()     — read from profile (or AsyncStorage), initialise if missing
- *   getCurrentStop()    — current stop number (1..11) or 'finale'
- *   advanceStop()       — next stop, or → 'finale' when past 11
- *   replayFromStart()   — reset to stop 1, clear completion
- *   replayStop(n)       — jump to a specific stop
- *   completeTour()      — mark complete + stamp time
- *   isCompleted()       — bool
- *   getStopById(n)      — TourStop metadata
- *   STOPS               — array of all 11 stop definitions
+ * Persistence: profile.tour_state JSONB when signed in, AsyncStorage otherwise.
+ *
+ * Public API surface unchanged from Round B so call sites (chat tour pill,
+ * /tour route, settings replay picker) work as-is:
+ *   loadTourState / getCurrentStop / advanceStop / goBackStop / skipToFinale
+ *   completeTour / replayFromStart / replayStop(n) / isCompleted / isInProgress
+ *   getStopById(n) / getEffectiveStops / getEffectiveTotal / getProgressPct
+ *   STOPS / TOTAL_STOPS
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { loadAccount, isKidAccount } from './account-state';
+import { loadAccount } from './account-state';
 import { supabase } from './supabase';
 
 const KEY_STATE = 'tour_state_v1';
 
-// Stops a kid invitee skips — Our Budget (id 9) + Our Family (id 11).
-// Adults / owner see all 11.
-const KID_SKIP_IDS: number[] = [9, 11];
+// v2 note: KID_SKIP_IDS retired. The 5 v2 stops (Home / Calendar / Shopping /
+// Reminders / Chat) are all universal features — kids see the same walkthrough
+// as adults. Budget + Family were the kid-skip stops in v1; v2 puts Budget in
+// the finale (mention only, no walkthrough stop) and Family in the invite
+// modal (not part of the tour).
 
 export type CtaTarget =
+  | { kind: 'advance' }               // Just move to next stop, no nav
   | { kind: 'sheet'; ctx: any }       // Set pendingChatContext + nav to swipe-world
   | { kind: 'route'; path: string }   // Direct router.navigate
-  | { kind: 'chat' };                 // Just go back to chat (Photos stop)
+  | { kind: 'chat' };                 // Nav to swipe-world (lands on Chat)
 
 export interface TourAccent {
   cardBg: string;
@@ -59,6 +67,8 @@ export interface TourStop {
   ctaLabel: string;
   ctaTarget: CtaTarget;
   accent: TourAccent;
+  // Legacy Session 19 HERO fields — kept in the type so the /tour route
+  // render doesn't need edits, but omitted from every v2 stop.
   isHero?: boolean;
   trialBadge?: boolean;
   priceLine?: string;
@@ -66,189 +76,124 @@ export interface TourStop {
 }
 
 const TINT = {
-  lavender:    '#F0EBFF',
+  slate:      '#E3E7EE',    // Calendar identity tint (matches Home tile bg-derived)
+  slateDeep:  '#2D3748',
+  lavender:   '#F0EBFF',
   lavenderDeep:'#5020C0',
-  mint:        '#E6F7EF',
-  mintDeep:    '#2D7A52',
-  mintLine:    '#B8EDD0',
-  cobalt:      '#E0E8FE',
-  cobaltDeep:  '#2055F0',
-  gold:        '#FEF4D0',
-  goldDeep:    '#8A6500',
-  peach:       '#FFF0E8',
-  peachDeep:   '#8A3A00',
-  peachLine:   '#FAC8A8',
-  sky:         '#E8F4FD',
-  skyLine:     '#A8D8F0',
-  skyDeep:     '#0A4A6A',
-  violet:      '#F4ECFF',
-  violetDeep:  '#6B35D9',
-  magenta:     '#FCE0F0',
-  magentaDeep: '#A1014F',
+  gold:       '#FEF4D0',
+  goldDeep:   '#8A6500',
+  sky:        '#E8F4FD',
+  skyLine:    '#A8D8F0',
+  skyDeep:    '#0A4A6A',
+  coral:      '#FF4545',
+  coralSoft:  '#FFE4E0',
+  mintDeep:   '#2D7A52',
+  peach:      '#F5EDE3',
+  peachDeep:  '#8A3A00',
 };
 
 const INK = '#0A0A0A';
 
-// ── The 11 stops ──────────────────────────────────────────────────────────
+// ── The 5 v2 stops ────────────────────────────────────────────────────────
 export const STOPS: TourStop[] = [
   {
     id: 1,
-    emoji: '🛒',
-    pageH1: 'Smart Shopping List.',
-    pageSub: 'Built for chat. Add by typing, snap a receipt, or use the list directly.',
-    cardTitle: 'Shopping',
-    cardSub: 'Family-shared in real time. Auto-categorised. Receipt scan ticks bought items + updates pantry.',
-    trySaying: '"Add milk, eggs and bread to the shopping list"',
-    features: ['Chat-driven', 'Receipt scan', 'Pantry tracking', 'Spend monthly'],
-    ctaLabel: 'Open Shopping →',
-    ctaTarget: { kind: 'sheet', ctx: { type: 'shopping_sheet' } },
-    accent: { cardBg: TINT.lavender, pillBg: INK, pillText: '#fff', progressFill: TINT.lavenderDeep, eyebrow: TINT.mintDeep },
+    emoji: '👋',
+    pageH1: 'Welcome to your family hub.',
+    pageSub: 'Home is where everything lives at a glance. Four tiles, one per thing your family juggles — no digging.',
+    cardTitle: 'Home',
+    cardSub: 'Calendar · Shopping · Reminders · Budget — all in one glance. Tap a tile to open. Tap the mic to speak.',
+    trySaying: '"Zaeli, what’s on today?"',
+    features: ['📅 Calendar', '🛒 Shopping', '⏰ Reminders', '💰 Budget'],
+    ctaLabel: 'Let’s go →',
+    ctaTarget: { kind: 'advance' },
+    accent: {
+      cardBg: TINT.coralSoft,
+      pillBg: TINT.coral,
+      pillText: '#fff',
+      progressFill: TINT.coral,
+      eyebrow: TINT.coral,
+    },
   },
   {
     id: 2,
-    emoji: '🍝',
-    pageH1: 'Meal Planner.',
-    pageSub: '10-day rolling plan. Recipes, favourites, pantry-aware shopping list pull.',
-    cardTitle: 'Meal Planner',
-    cardSub: 'Plan the week. Tap a night to swap. Heart your favourites. Snap a recipe page and I’ll save it.',
-    trySaying: '"Spag bol for tonight, chicken curry tomorrow"',
-    features: ['10-day plan', 'Recipe library', 'Photo scan', 'Cooks per night'],
-    ctaLabel: 'Open Meal Planner →',
-    ctaTarget: { kind: 'sheet', ctx: { type: 'meals_sheet' } },
-    accent: { cardBg: TINT.mint, pillBg: INK, pillText: '#fff', progressFill: TINT.mintDeep, eyebrow: TINT.mintDeep },
+    emoji: '📅',
+    pageH1: 'Your family’s calendar.',
+    pageSub: 'Every event, every kid. Tap a tile → today, tomorrow, or the whole month. Tap + Add event to drop something in fast.',
+    cardTitle: 'Calendar',
+    cardSub: 'Family-shared, per-member colours. Snap a permission slip — I’ll pull the date. Voice-add works with messy time refs.',
+    trySaying: '"Add soccer for Gab, Thursday 4pm."',
+    features: ['👨‍👩‍👧‍👦 Whole family', '📸 Photo → event', '🎤 Voice add'],
+    ctaLabel: 'Open Calendar →',
+    ctaTarget: { kind: 'sheet', ctx: { type: 'calendar_sheet', event: { tab: 'today' } } },
+    accent: {
+      cardBg: TINT.slate,
+      pillBg: TINT.slateDeep,
+      pillText: '#fff',
+      progressFill: TINT.slateDeep,
+      eyebrow: TINT.slateDeep,
+    },
   },
   {
     id: 3,
-    emoji: '📅',
-    pageH1: 'Calendar.',
-    pageSub: 'Natural language works — even messy time references. Long-press a day to add inline.',
-    cardTitle: 'Calendar',
-    cardSub: 'Family-shared. Each member colour-coded. Snap a permission slip and I add the date for you.',
-    trySaying: '"Add Poppy’s dentist next Tuesday at 3pm"',
-    features: ['Natural language', 'Per-member colours', 'Photo extract', 'Reminders'],
-    ctaLabel: 'Open Calendar →',
-    ctaTarget: { kind: 'sheet', ctx: { type: 'calendar_sheet', event: { tab: 'today' } } },
-    accent: { cardBg: TINT.cobalt, pillBg: INK, pillText: '#fff', progressFill: TINT.cobaltDeep, eyebrow: TINT.mintDeep },
+    emoji: '🛒',
+    pageH1: 'The shopping list everyone shares.',
+    pageSub: 'One list, whole family. Tap to tick off. Scan a receipt and Zaeli extracts every item into your history. Fast enough to beat Notes.',
+    cardTitle: 'Shopping',
+    cardSub: 'Family-shared in real time. Auto-categorised. Receipt scan ticks bought items + updates pantry. Voice-add multiple items in one go.',
+    trySaying: '"Add milk, eggs, and Cocoa Pops."',
+    features: ['🧾 Scan receipts', '🥬 Pantry tracking', '💰 Monthly spend'],
+    ctaLabel: 'Open Shopping →',
+    ctaTarget: { kind: 'sheet', ctx: { type: 'shopping_sheet' } },
+    accent: {
+      cardBg: TINT.lavender,
+      pillBg: TINT.lavenderDeep,
+      pillText: '#fff',
+      progressFill: TINT.lavenderDeep,
+      eyebrow: TINT.lavenderDeep,
+    },
   },
   {
     id: 4,
-    emoji: '🎮',
-    pageH1: 'Kids Hub.',
-    pageSub: 'Each kid gets their own. Jobs, rewards, age-tiered games. They suggest, you approve.',
-    cardTitle: 'Kids Hub',
-    cardSub: 'Younger kids get easier puzzles. Daily Wordle, Maths Sprint, World Trivia. Streaks + points + custom rewards.',
-    trySaying: '"Give Duke a job to feed the dog this week"',
-    features: ['Per-child hub', 'Jobs + approval', 'Rewards system', '5 games · age-tiered'],
-    ctaLabel: 'Open Kids Hub →',
-    ctaTarget: { kind: 'route', path: '/(tabs)/kids' },
-    accent: { cardBg: TINT.lavender, pillBg: INK, pillText: '#fff', progressFill: TINT.lavenderDeep, eyebrow: TINT.mintDeep },
+    emoji: '⏰',
+    pageH1: 'Never forget the little things.',
+    pageSub: 'Timed reminders, date-only, or someday to-dos. Personal by default — one tap makes them family-shared.',
+    cardTitle: 'Reminders & To-dos',
+    cardSub: '🔒 Personal (only you see it, only you get the push) or 👥 Shared (family sees it, still only you get the push). One-tap toggle after add.',
+    trySaying: '"Remind me to call Mum at 6pm."',
+    features: ['🔒 Personal', '👥 Family shared', '🔔 Push at time'],
+    ctaLabel: 'Open Reminders →',
+    ctaTarget: { kind: 'sheet', ctx: { type: 'reminders_sheet' } },
+    accent: {
+      cardBg: TINT.gold,
+      pillBg: TINT.goldDeep,
+      pillText: '#fff',
+      progressFill: TINT.goldDeep,
+      eyebrow: TINT.goldDeep,
+    },
   },
   {
     id: 5,
-    emoji: '✓',
-    pageH1: 'Tasks & Reminders.',
-    pageSub: 'The mental load you can offload. Personal or shared with the whole family.',
-    cardTitle: 'Tasks & Reminders',
-    cardSub: 'Set-and-forget reminders with push notifications. Toggle "Shared" and the whole family sees it on their Dashboard.',
-    trySaying: '"Remind me to pay the school fees Friday morning"',
-    features: ['Personal + shared', 'Push reminders', 'Dashboard surface', 'Voice add'],
-    ctaLabel: 'Open Tasks →',
-    ctaTarget: { kind: 'sheet', ctx: { type: 'notes_tasks_sheet', tab: 'tasks' } },
-    accent: { cardBg: TINT.gold, pillBg: INK, pillText: '#fff', progressFill: TINT.goldDeep, eyebrow: TINT.mintDeep },
-  },
-  {
-    id: 6,
-    emoji: '📸',
-    pageH1: 'Photos & Docs.',
-    pageSub: 'Snap anything. I read what matters and put it where it belongs.',
-    cardTitle: 'Photos & Docs',
-    cardSub: 'Permission slips → calendar. Recipes → meal planner. Receipts → pantry + spend. Even "is this rash anything?".',
-    trySaying: 'Tap the camera icon in chat. Snap a permission slip, recipe page, receipt — anything.',
-    trySayingType: 'tap',
-    features: ['Permission slips', 'Recipe pages', 'Receipts', 'Anything else'],
-    ctaLabel: 'Open chat →',
+    emoji: '💬',
+    pageH1: 'Talk to Zaeli directly.',
+    pageSub: 'Swipe left from Home to chat. Type, tap the mic, or drop a photo — she’ll add events, reminders, shopping, or just chat.',
+    cardTitle: 'Chat',
+    cardSub: 'Voice, photo, or text. Sonnet parses natural language into real actions. Ask her to text a family member and she’ll fire a push (with your name attached).',
+    trySaying: '"Text Anna I’ll be 15 mins late."',
+    features: ['🎤 Voice', '📷 Photo → data', '👨‍👩‍👧 Family reach'],
+    ctaLabel: 'Open Chat →',
     ctaTarget: { kind: 'chat' },
-    accent: { cardBg: TINT.peach, pillBg: INK, pillText: '#fff', progressFill: TINT.peachDeep, eyebrow: TINT.mintDeep },
-  },
-  {
-    id: 7,
-    emoji: '📚',
-    pageH1: 'And then there’s Tutor.',
-    pageSub: 'The thing that makes Zaeli different. Per-kid, curriculum-aligned, adaptive.',
-    cardTitle: 'Tutor',
-    cardSub: 'Maths · English · Science · HASS. Foundation through Year 12. Difficulty bands shift up when they nail it, ease back when they’re stuck. Parent recap after every session.',
-    trySaying: '"Run a maths session with Poppy"',
-    features: ['4 subjects', 'F–12 curriculum', '3 difficulty bands', 'Parent recap', 'Voice + photo'],
-    ctaLabel: 'Open Tutor →',
-    ctaTarget: { kind: 'route', path: '/(tabs)/tutor' },
     accent: {
-      cardBg: TINT.violet,
-      pillBg: TINT.violetDeep,
+      cardBg: TINT.sky,
+      pillBg: TINT.skyDeep,
       pillText: '#fff',
-      progressFill: TINT.violetDeep,
-      eyebrow: TINT.violetDeep,
-      border: TINT.violetDeep,
+      progressFill: TINT.skyDeep,
+      eyebrow: TINT.skyDeep,
     },
-    isHero: true,
-    trialBadge: true,
-    priceLine: 'Trial includes everything · then $7.99 / child / month',
-    secondaryCtaLabel: 'Just have a look',
-  },
-  {
-    id: 8,
-    emoji: '✈️',
-    pageH1: 'Travel.',
-    pageSub: 'Trips planned, packed, costed. Bookings auto-extracted from screenshots.',
-    cardTitle: 'Travel',
-    cardSub: 'Per-trip overview, bookings, packing checklist, notes. Pure Planner budget — set total + Booked auto-sums.',
-    trySaying: '"Plan a trip to Bali in September"',
-    features: ['Bookings', 'Packing', 'Notes', 'Per-trip budget'],
-    ctaLabel: 'Open Travel →',
-    ctaTarget: { kind: 'route', path: '/(tabs)/travel' },
-    accent: { cardBg: TINT.sky, pillBg: INK, pillText: '#fff', progressFill: TINT.skyDeep, eyebrow: TINT.mintDeep },
-  },
-  {
-    id: 9,
-    emoji: '💰',
-    pageH1: 'Our Budget.',
-    pageSub: 'A planner, not a tracker. Plan the month. Hit the goals. No surprise bills.',
-    cardTitle: 'Our Budget',
-    cardSub: 'Income streams, fixed bills, variable categories, savings goals. AI helper turns a statement screenshot into starter line items.',
-    trySaying: '"Set up a savings goal for our holiday"',
-    features: ['Income streams', 'Categories', 'Savings goals', 'Statement scan'],
-    ctaLabel: 'Open Our Budget →',
-    ctaTarget: { kind: 'route', path: '/(tabs)/our-budget' },
-    accent: { cardBg: TINT.mint, pillBg: INK, pillText: '#fff', progressFill: TINT.mintDeep, eyebrow: TINT.mintDeep },
-  },
-  {
-    id: 10,
-    emoji: '🌿',
-    pageH1: 'My Space.',
-    pageSub: 'Your zone. Just you. Family stuff is everywhere else.',
-    cardTitle: 'My Space',
-    cardSub: 'Personal notes & tasks · goals · fitness ring · stretch · zen sessions · daily Wordle. Word of the Day.',
-    trySaying: '"Take me to my space" or tap ☰ then the My Space tile',
-    features: ['Notes', 'Goals', 'Fitness', 'Wordle', 'Zen'],
-    ctaLabel: 'Open My Space →',
-    ctaTarget: { kind: 'route', path: '/(tabs)/my-space' },
-    accent: { cardBg: TINT.peach, pillBg: INK, pillText: '#fff', progressFill: TINT.peachDeep, eyebrow: TINT.mintDeep },
-  },
-  {
-    id: 11,
-    emoji: '👨‍👩‍👧‍👦',
-    pageH1: 'Our Family.',
-    pageSub: 'Manage the household. Profiles, approvals, invitations.',
-    cardTitle: 'Our Family',
-    cardSub: 'Each member has a profile. Approve kid-suggested jobs and rewards. Invite Anna, the kids, even grandparents.',
-    trySaying: '"Invite Anna to join our family"',
-    features: ['Profiles', 'Approvals', 'Invites', 'Roles'],
-    ctaLabel: 'Open Our Family →',
-    ctaTarget: { kind: 'route', path: '/(tabs)/family' },
-    accent: { cardBg: TINT.magenta, pillBg: INK, pillText: '#fff', progressFill: TINT.magentaDeep, eyebrow: TINT.mintDeep },
   },
 ];
 
-export const TOTAL_STOPS = STOPS.length; // 11
+export const TOTAL_STOPS = STOPS.length; // 5
 
 export type StopPosition = number | 'finale';
 
@@ -293,13 +238,15 @@ async function persist(): Promise<void> {
 }
 
 export async function loadTourState(): Promise<TourState> {
-  // Always make sure account is loaded too — getEffectiveStops() depends on it.
+  // Always make sure account is loaded too — some downstream callers check
+  // isKidAccount() to alter behaviour (kept for compat even though v2 tour
+  // no longer branches on account kind).
   await loadAccount();
   if (_loaded) return _state;
 
   // Phase 2d — when signed in, profile is the ONLY source of truth (even
   // if it's null = fresh user). Don't fall back to AsyncStorage because
-  // it might still hold the previous user's data. Only the unsignedin
+  // it might still hold the previous user's data. Only the unsigned-in
   // path (kid receivers mid-onboarding) reads from AsyncStorage.
   let signedIn = false;
   try {
@@ -330,6 +277,18 @@ export async function loadTourState(): Promise<TourState> {
     } catch {}
   }
 
+  // Guard against stale state from Session 19 v1 (currentStop could be 6-11).
+  // If the persisted stop id isn't in the v2 STOPS array and isn't 'finale',
+  // reset to stop 1 so the user starts the v2 tour cleanly.
+  if (typeof _state.currentStop === 'number') {
+    const valid = STOPS.some(s => s.id === _state.currentStop);
+    if (!valid) {
+      console.log('[tour] stale v1 stop', _state.currentStop, '→ resetting to 1');
+      _state = { ..._state, currentStop: 1 };
+      await persist();
+    }
+  }
+
   _loaded = true;
   return _state;
 }
@@ -352,14 +311,14 @@ function sanitiseState(parsed: any): TourState {
   };
 }
 
-// ── Effective stops (filtered by account kind) ────────────────────────────
+// ── Effective stops (v2: kids + adults see the same 5 stops) ─────────────
+// Kept as a function so call sites don't need to change from Session 19.
 export function getEffectiveStops(): TourStop[] {
-  if (isKidAccount()) return STOPS.filter(s => !KID_SKIP_IDS.includes(s.id));
   return STOPS;
 }
 
 export function getEffectiveTotal(): number {
-  return getEffectiveStops().length;
+  return STOPS.length;
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
@@ -488,12 +447,14 @@ export function getStopById(id: number): TourStop | undefined {
   return STOPS.find(s => s.id === id);
 }
 
+// v2 progress: 5 stops → 0 / 20 / 40 / 60 / 80. Finale = 100.
+// Matches the mockup's per-stop progress fill widths.
 export function getProgressPct(): number {
   const cur = _state.currentStop;
   if (cur === 'finale') return 100;
   const stops = getEffectiveStops();
-  if (stops.length <= 1) return 100;
+  if (stops.length === 0) return 0;
   const idx = stops.findIndex(s => s.id === cur);
   if (idx < 0) return 0;
-  return Math.round((idx / (stops.length - 1)) * 100);
+  return Math.round((idx / stops.length) * 100);
 }
