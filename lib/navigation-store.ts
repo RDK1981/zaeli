@@ -39,6 +39,34 @@ export function hasPendingChatContext(): boolean {
   return _pending.type !== null;
 }
 
+// ── Tour resume-on-sheet-close (Round B commit 25) ───────────────────────
+// When the tour's primary CTA opens a sheet, we set this flag so that when
+// the sheet's Modal dismisses, we auto-navigate back to /tour and resume at
+// the next stop. Without this, users close the sheet and land on Home/Chat
+// without a clear path back to the tour (the Chat tour pill exists but is a
+// swipe away in v2's sheet-over-Home world). Rich flagged: "some people
+// might just get lost mid tour."
+//
+// Cleared by:
+//  - consumeTourResumePending() — after dismiss handler re-navigates
+//  - clearTourResumePending()   — when user explicitly closes tour (X /
+//                                 skip-to-end / finale complete)
+let _tourResumePending = false;
+
+export function setTourResumePending(v: boolean): void {
+  _tourResumePending = v;
+}
+
+export function consumeTourResumePending(): boolean {
+  const v = _tourResumePending;
+  _tourResumePending = false;
+  return v;
+}
+
+export function clearTourResumePending(): void {
+  _tourResumePending = false;
+}
+
 // ── Family screen origin flag ────────────────────────────────────────────
 // When Settings opens Our Family, it sets this so family's back button
 // returns to Settings instead of the default (swipe-world).

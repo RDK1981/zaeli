@@ -28,7 +28,7 @@ import {
   getEffectiveStops, getEffectiveTotal,
   STOPS, TOTAL_STOPS, StopPosition, TourStop,
 } from '../../lib/tour-state';
-import { setPendingChatContext } from '../../lib/navigation-store';
+import { setPendingChatContext, setTourResumePending, clearTourResumePending } from '../../lib/navigation-store';
 
 const BG = '#FAF8F5';
 const INK = '#0A0A0A';
@@ -139,6 +139,9 @@ export default function TourScreen() {
             style={s.finaleCta}
             activeOpacity={0.85}
             onPress={async () => {
+              // Round B commit 25 — clear resume flag; finale complete means
+              // the tour is officially over.
+              clearTourResumePending();
               await completeTour();
               router.replace('/(tabs)/swipe-world' as any);
             }}
@@ -167,22 +170,28 @@ export default function TourScreen() {
   // they resume at whichever stop is now current. Formal "resume on sheet
   // close" mechanic is deferred — tour pill in Chat covers the discovery
   // case for now.
+  // v2 Round B commit 25 — main CTA advances the tour AND (for stops 2-5)
+  // navigates to the target. Sets the tour_resume_pending flag before nav
+  // so when the user closes the target sheet, they auto-return to /tour at
+  // the next stop. Rich flagged: without this, users close the sheet and
+  // land on Home without a clear path back — they get lost mid-tour.
   async function handleOpenCta() {
     if (!stop) return;
     const t = stop.ctaTarget;
-    // Advance FIRST so the tour is at the next stop when user returns.
     await advanceStop();
-    // Then perform the navigation (if any). advance-only stops stay put.
     if (t.kind === 'route') {
+      setTourResumePending(true);
       router.navigate(t.path as any);
     } else if (t.kind === 'sheet') {
+      setTourResumePending(true);
       setPendingChatContext(t.ctx);
       router.navigate('/(tabs)/swipe-world' as any);
     } else if (t.kind === 'chat') {
+      // Chat has no dismiss event to hook. Don't set the flag — user finds
+      // the tour pill in Chat (bottom-left) to resume when ready.
       router.navigate('/(tabs)/swipe-world' as any);
     } else if (t.kind === 'advance') {
-      // No nav — just update our own position state so the render reflects
-      // the advance immediately.
+      // Just advance in place — no nav, no flag.
       setPosition(getCurrentStop());
     }
   }
@@ -198,11 +207,20 @@ export default function TourScreen() {
   }
 
   async function handleSkipToEnd() {
+    // Round B commit 25 — clear any pending resume so if the user was mid-
+    // sheet-open (unlikely from tour but defensive), they don't get yanked
+    // back into the tour after they've explicitly asked to skip.
+    clearTourResumePending();
     await skipToFinale();
     setPosition('finale');
   }
 
   function handleClose() {
+    // Round B commit 25 — user explicitly closed the tour. Any prior
+    // "open sheet → auto-return to tour" intent is stale — clear it so a
+    // subsequent sheet close doesn't ambush them back into a tour they
+    // wanted to leave.
+    clearTourResumePending();
     router.replace('/(tabs)/swipe-world' as any);
   }
 
@@ -290,15 +308,10 @@ export default function TourScreen() {
             ))}
           </View>
 
-          {/* CTAs */}
-          <TouchableOpacity
-            style={[s.ctaPrimary, { backgroundColor: stop.accent.pillBg }]}
-            activeOpacity={0.85}
-            onPress={handleOpenCta}
-          >
-            <Text style={[s.ctaPrimaryTxt, { color: stop.accent.pillText }]}>{stop.ctaLabel}</Text>
-          </TouchableOpacity>
-
+          {/* Round B commit 25 — primary CTA moved from here into the fixed
+              bottom nav (see below). Empty space between short card content
+              and the Back button was pushing everything off-screen. Card
+              content ends here; nav lives in the footer. */}
           {isHero && stop.secondaryCtaLabel && (
             <TouchableOpacity
               style={s.ctaSecondary}
@@ -315,17 +328,44 @@ export default function TourScreen() {
         </View>
       </ScrollView>
 
-      {/* Bottom nav — v2: Back only. Main progression is via the primary CTA
-          in the card (which advances + navigates). "Skip to end" in header
-          covers the "skip a stop without opening" case. */}
-      <View style={[s.bottomNav, { paddingBottom: insets.bottom + 14, justifyContent: 'flex-start' }]}>
+      {/* Round B commit 25 — bottom nav rewired: [Back | Next | Open X].
+          Rich flagged (a) Back button was in dead space below the CTA and
+          (b) forcing users to Open X on every stop was a bad choice.
+          Three-button footer gives users three clean options:
+            Back  — previous stop
+            Next  — skip THIS stop, advance to next (no navigation)
+            Open  — open the feature AND advance (auto-resume when closed)
+          Advance stop's "advance"-kind CTA merges with primary — Next and
+          primary do the same thing on Stop 1 (Welcome), so we hide Next
+          there to avoid duplicate buttons. */}
+      <View style={[s.bottomNav, { paddingBottom: insets.bottom + 14, gap: 8 }]}>
         <TouchableOpacity
-          style={[s.navBtn, s.navBack, effectiveIdx <= 0 && s.navDisabled]}
+          style={[s.navBtn, s.navBack, effectiveIdx <= 0 && s.navDisabled, { flex: 0, paddingHorizontal: 20 }]}
           activeOpacity={0.85}
           onPress={handleBack}
           disabled={effectiveIdx <= 0}
         >
           <Text style={s.navBackTxt}>← Back</Text>
+        </TouchableOpacity>
+        {stop.ctaTarget.kind !== 'advance' && (
+          <TouchableOpacity
+            style={{ paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: 'rgba(10,10,10,0.06)' }}
+            activeOpacity={0.75}
+            onPress={handleNext}
+          >
+            <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: INK2 }}>Next →</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[
+            s.navBtn,
+            s.navNext,
+            { backgroundColor: stop.accent.pillBg, flex: 1 },
+          ]}
+          activeOpacity={0.85}
+          onPress={handleOpenCta}
+        >
+          <Text style={[s.navNextTxt, { color: stop.accent.pillText }]}>{stop.ctaLabel}</Text>
         </TouchableOpacity>
       </View>
     </View>

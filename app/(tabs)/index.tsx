@@ -53,7 +53,7 @@ import TourBanner from '../components/TourBanner';
 import { currentWindow as getCurrentWindow, currentBucket as getCurrentBucket, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
 import { generateBrief, FamilyContext } from '../../lib/brief-generator';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
-import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, consumeChatIntent, bumpHomeRefresh } from '../../lib/navigation-store';
+import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, consumeChatIntent, bumpHomeRefresh, consumeTourResumePending } from '../../lib/navigation-store';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
@@ -3477,6 +3477,21 @@ function HomeScreen({
     // any mutations that don't have a direct hook. Cost: one Supabase query
     // when the user closes a sheet without mutating; harmless.
     bumpHomeRefresh();
+    // Round B commit 25 — tour resume-on-close. If this sheet was opened
+    // from the tour (setTourResumePending(true) fired before nav), the tour
+    // has already been advanced to the next stop. Route the user back to
+    // /tour so they resume there. Delay 300ms so the Modal's own dismiss
+    // animation completes cleanly first — otherwise the router-nav races
+    // the dismiss and iOS gets confused about which view is on top.
+    // Skipped if pendingOpenMoreRef is true (MoreSheet is opening — user's
+    // intent is nav, not resume). Also skipped when the flag isn't set
+    // (normal sheet close outside of tour context).
+    if (!pendingOpenMoreRef.current && consumeTourResumePending()) {
+      setTimeout(() => {
+        console.log('[tour] resuming after sheet close');
+        router.navigate('/tour' as any);
+      }, 300);
+    }
   }
 
   function closeMoreSheet() {
