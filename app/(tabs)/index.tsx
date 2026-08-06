@@ -3537,6 +3537,15 @@ function HomeScreen({
   // Round B commit 11 — tap-to-expand for edit + tier toggle
   const [remindExpandedId,   setRemindExpandedId]   = useState<string|null>(null);
   const [remindEditTitle,    setRemindEditTitle]    = useState<string>('');
+  // Round B commit 26 — bridges the ~5s gap between "user tapped Send on mic
+  // recording pill" and "reminder appears in the list". Sequence during that
+  // gap: audio uploads to Whisper (~2s) → transcript comes back → Sonnet parse
+  // if time hints (~1-2s) → saveReminder write. Without this, isRecording
+  // flips false immediately on Send, the pill disappears, and the user stares
+  // at a static list wondering if anything happened. Rich reported: "feels
+  // like nothing is working and then pop." Now the pill persists in a
+  // "Processing…" state until the reminder lands.
+  const [remindProcessing,   setRemindProcessing]   = useState(false);
   const remindNotifyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Shopping sheet state ─────────────────────────────────────────────────
@@ -5843,6 +5852,12 @@ Only include events directly relevant to the question. Max 5 events.`;
   async function stopRecording(cancel = false) {
     try {
       setIsRecording(false);
+      // Round B commit 26 — bridge to the processing indicator (Reminders
+      // sheet mic only). If the user tapped Send from the sheet's mic, we're
+      // about to spend ~5s on Whisper + Sonnet + DB. Flip processing on so
+      // the pill stays visible with a "Processing…" state instead of
+      // disappearing and leaving the user staring at a static list.
+      if (!cancel && remindMicMode.current) setRemindProcessing(true);
       if (micTimerRef.current) { clearInterval(micTimerRef.current); micTimerRef.current = null; }
       waveLoopRef.current?.stop();
       waveAnims.forEach(a => a.setValue(0.3));
@@ -5884,7 +5899,15 @@ Only include events directly relevant to the question. Max 5 events.`;
       // full sentence as title.
       if (remindMicMode.current) {
         remindMicMode.current = false;
-        await submitRemindSmart(transcript);
+        try {
+          await submitRemindSmart(transcript);
+        } finally {
+          // Round B commit 26 — clear the processing bridge state so the
+          // "Processing…" pill disappears cleanly (whether the reminder
+          // saved or errored). Finally-block guarantees clearance even on
+          // Sonnet/network failure so the UI doesn't get stuck.
+          setRemindProcessing(false);
+        }
         return;
       }
       // Round B commit 8 — Reminders tile mic (Home) direct saveReminder path.
@@ -8562,20 +8585,32 @@ Rules:
                     })()}
                   </ScrollView>
 
-                  {/* Round B commit 8 — in-sheet recording indicator.
-                      When the user taps the mic on this sheet, remindMicMode
-                      is set + startRecording() fires. But Chat's recording
-                      pill (at line ~7553) lives INSIDE Chat's render tree,
-                      hidden behind this native Modal. User couldn't see it
-                      or hit Send/Cancel. Renders a mini indicator here so
-                      the user has a visible send/cancel path. Only shows
-                      when isRecording AND the mic was tapped from THIS
-                      sheet (via remindMicMode ref). */}
-                  {isRecording && remindMicMode.current && (
+                  {/* Round B commit 8 + 26 — in-sheet recording/processing
+                      indicator. Two states share this container:
+                        (a) Recording — user is speaking. Timer + Cancel/Send.
+                        (b) Processing — user tapped Send. Whisper + Sonnet +
+                            DB write take ~5s. Rich flagged: without this
+                            state the pill just disappeared and the user
+                            stared at a static list. Now the pill stays with
+                            a spinner + "Processing your reminder…" until
+                            the row appears. Buttons hidden (no cancel path
+                            once transcription starts). */}
+                  {((isRecording && remindMicMode.current) || remindProcessing) && (
                     <View style={{ paddingHorizontal:14, paddingTop:10, paddingBottom:6, backgroundColor:'#FBF5D6', borderTopWidth:1, borderTopColor:'rgba(139,105,20,0.15)' }}>
                       <View style={{ flexDirection:'row', alignItems:'center', gap:10, backgroundColor:'#fff', borderRadius:16, padding:12, borderWidth:1.5, borderColor:'#F0DC80' }}>
-                        <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#FF4545' }}/>
-                        <Text style={{ flex:1, fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A' }}>Recording · {String(Math.floor(micTimer/60)).padStart(2,'0')}:{String(micTimer%60).padStart(2,'0')}</Text>
+                        {isRecording ? (
+                          <>
+                            <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#FF4545' }}/>
+                            <Text style={{ flex:1, fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A' }}>Recording · {String(Math.floor(micTimer/60)).padStart(2,'0')}:{String(micTimer%60).padStart(2,'0')}</Text>
+                          </>
+                        ) : (
+                          <>
+                            <ActivityIndicator size="small" color="#8B6914"/>
+                            <Text style={{ flex:1, fontFamily:'Poppins_600SemiBold', fontSize:14, color:'#0A0A0A' }}>Processing your reminder…</Text>
+                          </>
+                        )}
+                        {isRecording && (
+                          <>
                         <TouchableOpacity
                           onPress={() => stopRecording(true)}
                           style={{ paddingHorizontal:14, paddingVertical:7, borderRadius:10, backgroundColor:'rgba(10,10,10,0.05)' }}
@@ -8590,6 +8625,8 @@ Rules:
                         >
                           <Text style={{ fontFamily:'Poppins_700Bold', fontSize:12, color:'#fff' }}>Send</Text>
                         </TouchableOpacity>
+                          </>
+                        )}
                       </View>
                     </View>
                   )}
