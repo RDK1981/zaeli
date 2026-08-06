@@ -185,6 +185,9 @@ export default function SwipeWorld() {
             isActive={activePage === PAGE_CHAT}
             contextTrigger={contextTrigger}
             onNavigateDashboard={() => scrollToPage(PAGE_DASHBOARD)}
+            /* Round B commit 27 — Chat needs to be able to make itself the
+               active page (e.g. from Calendar sheet's "Add with Zaeli"). */
+            onNavigateChat={() => scrollToPage(PAGE_CHAT)}
             pendingMicText={pendingMicText}
             onMicTextConsumed={() => setPendingMicText(null)}
           />

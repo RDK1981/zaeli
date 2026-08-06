@@ -3372,6 +3372,7 @@ function HomeScreen({
   fabActive: externalFabActive,
   setFabActive: externalSetFabActive,
   onNavigateDashboard,
+  onNavigateChat,
   isEmbedded = false,
   isActive = false,
   contextTrigger = 0,
@@ -3383,6 +3384,13 @@ function HomeScreen({
   fabActive?: 'dashboard'|'chat'|'keyboard'|'myspace'|null;
   setFabActive?: (v: any) => void;
   onNavigateDashboard?: () => void;
+  // Round B commit 27 — swipe FROM whatever's currently active TO the Chat
+  // page. Needed when a sheet-embedded handler (e.g. Calendar sheet's "Add
+  // with Zaeli" button) wants to route the user to Chat after closing the
+  // sheet. Without this, sheet closes → user is left on Dashboard (v2
+  // sheet-over-Home) and the keyboard-focus intent falls onto an invisible
+  // Chat input. Passed from swipe-world.tsx as () => scrollToPage(PAGE_CHAT).
+  onNavigateChat?: () => void;
   isEmbedded?: boolean;
   isActive?: boolean;
   contextTrigger?: number;
@@ -6904,8 +6912,18 @@ Output format: {"title": "...", "remind_at": "...", "remind_on": "..."} — omit
   }
 
   function handleSheetAddWithZaeli() {
+    // Round B commit 27 — with v2 sheet-over-Home architecture, closing the
+    // calendar sheet returns the user to Dashboard (not Chat). Prior code
+    // pushed the Zaeli prompt + focused the input, but the input lives in
+    // Chat which was NOT the active page — user saw the keyboard rise on
+    // Dashboard (against an invisible Chat input) and got stuck. Fix: swipe
+    // to Chat via onNavigateChat BEFORE focusing. Focus delay bumped from
+    // 150 → 350 ms so the swipe animation finishes first, otherwise the
+    // input is off-screen mid-animation when focus() fires and iOS can
+    // silently drop the focus.
     setCalSheetOpen(false);
     setTimeout(() => {
+      onNavigateChat?.(); // swipe swipe-world to the Chat page
       pendingCalendarAdd.current = true;
       const zaeliPrompt: Msg = {
         id: uid(), role: 'zaeli',
@@ -6914,7 +6932,7 @@ Output format: {"title": "...", "remind_at": "...", "remind_on": "..."} — omit
         quickReplies: ["Dentist tomorrow 10am", "Duke's sports day Fri", "Date night Saturday"],
       };
       setMessages(prev => [...prev, zaeliPrompt]);
-      setTimeout(() => { scrollRef.current?.scrollToEnd({ animated:true }); inputRef.current?.focus(); }, 150);
+      setTimeout(() => { scrollRef.current?.scrollToEnd({ animated:true }); inputRef.current?.focus(); }, 350);
     }, 350);
   }
 
