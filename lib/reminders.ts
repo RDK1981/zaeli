@@ -228,6 +228,12 @@ export async function saveReminder(r: Partial<Reminder> & { title: string }): Pr
       const trigger = parseLocalIsoAsDate(remindAt);
       console.log('[reminders] scheduling notif — remindAt string:', remindAt, '· parsed date:', trigger.toString(), '· now:', new Date().toString());
       if (trigger.getTime() > Date.now() + 1000) {
+        // Round B commit 24 — trigger API updated to the 0.29+ shape.
+        // Old `{ date: trigger }` (no type field) silently misfired in
+        // expo-notifications 0.32.x — reminder saved fine but the OS never
+        // received a valid scheduled notification. Rich reported never
+        // getting a push for an overnight reminder. New shape uses the
+        // SchedulableTriggerInputTypes.DATE discriminator explicitly.
         notifId = await Notifications.scheduleNotificationAsync({
           content: {
             title: r.title,
@@ -235,9 +241,12 @@ export async function saveReminder(r: Partial<Reminder> & { title: string }): Pr
             sound: 'default',
             data: { type: 'reminder', reminderId: id },
           },
-          trigger: { date: trigger },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: trigger,
+          },
         });
-        console.log('[reminders] scheduled ok — notifId:', notifId);
+        console.log('[reminders] scheduled ok — notifId:', notifId, '· fires at:', trigger.toString());
       } else {
         console.log('[reminders] SKIPPED scheduling — trigger is in the past');
       }
