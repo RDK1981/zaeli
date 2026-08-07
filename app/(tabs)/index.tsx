@@ -60,6 +60,7 @@ import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, 
 import { getFamilyId } from '../../lib/family';
 import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, updateReminderVisibility, updateReminderTitle, parseLocalIsoAsDate, type Reminder, type Visibility } from '../../lib/reminders';
 import * as AppleCal from '../../lib/apple-calendar';
+import { scheduleEventAlert, cancelEventAlert, cancelManyEventAlerts } from '../../lib/event-notifications';
 import { useSheetSwipeClose } from '../../lib/use-sheet-swipe-close';
 const MEMBER_NAME      = 'Rich';
 const INK              = '#0A0A0A';
@@ -1563,13 +1564,26 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
         const r2 = await supabase.from('events').update(slim).eq('id', event.id);
         error = r2.error;
       }
-      if (!error) { onReload(); onClose(); }
+      if (!error) {
+        // Round B commit 29 — reschedule alert with the freshly saved values.
+        // scheduleEventAlert cancels the prior notif for this event id first.
+        scheduleEventAlert({
+          id: event.id,
+          title: updates.title,
+          date: dateStr,
+          start_time: updates.start_time,
+          alert_rule: updates.alert_rule,
+        }).catch(() => {});
+        onReload(); onClose();
+      }
       setSaving(false);
     } catch { setSaving(false); }
   };
 
   const doDelete = async () => {
     setDeleting(true);
+    // Round B commit 29 — cancel any scheduled alert before removing the row.
+    await cancelEventAlert(event.id).catch(() => {});
     await supabase.from('events').delete().eq('id', event.id);
     onDeleted();
   };
@@ -1779,17 +1793,30 @@ async function executeTool(name: string, input: any): Promise<string> {
       const repeat = (input.repeat || 'none').toString().toLowerCase().trim();
       const isRecurring = repeat !== 'none' && repeat !== '';
 
+      // Round B commit 29 — default alert_rule injection. If the user has
+      // the calendarNotif toggle on (Settings → Notifications → Calendar
+      // events → "10 min before start"), inject '10 min before' onto new
+      // events so scheduleEventAlert has something to work with. Sonnet
+      // doesn't currently pass alert_rule; users can edit specific events
+      // to change it afterwards.
+      let defaultAlertRule: string | null = null;
+      try {
+        const p = await loadPrefs();
+        if (p.calendarNotif) defaultAlertRule = '10 min before';
+      } catch {}
+
       if (!isRecurring) {
         const row: any = { family_id:getFamilyId(), title:input.title, date:dateOnly, start_time:localDt, end_time:endDt, notes:input.notes||'', timezone:'Australia/Brisbane', assignees:assigneeIds };
-        console.log('[calendar-add]', { title: row.title, date: row.date, family_id: row.family_id, assignees: row.assignees, assigneeCount: assigneeIds.length });
+        if (defaultAlertRule) row.alert_rule = defaultAlertRule;
+        console.log('[calendar-add]', { title: row.title, date: row.date, family_id: row.family_id, assignees: row.assignees, assigneeCount: assigneeIds.length, alert_rule: row.alert_rule });
         // .select() returns the inserted row. If RLS silently blocks the
         // write, data is null with no error — we treat that as TOOL_FAILED
         // so Zaeli doesn't confidently confirm a phantom event.
-        let insertRes = await supabase.from('events').insert(row).select('id').maybeSingle();
+        let insertRes = await supabase.from('events').insert(row).select('id, title, date, start_time, alert_rule, reminder_minutes').maybeSingle();
         if (insertRes.error && (insertRes.error.message?.includes('assignees') || insertRes.error.code==='42703')) {
           console.warn('[calendar-add] assignees column error, retrying without:', insertRes.error.message);
           const { assignees:_a, ...slim } = row;
-          insertRes = await supabase.from('events').insert(slim).select('id').maybeSingle();
+          insertRes = await supabase.from('events').insert(slim).select('id, title, date, start_time, alert_rule, reminder_minutes').maybeSingle();
         }
         if (insertRes.error) {
           console.error('[calendar-add] insert failed:', insertRes.error);
@@ -1803,6 +1830,10 @@ async function executeTool(name: string, input: any): Promise<string> {
           return `TOOL_FAILED: Couldn't save "${input.title}" — the write didn't take (permissions or family context issue). Ask the user to try again in a moment.`;
         }
         console.log('[calendar-add] inserted OK:', insertRes.data.id);
+        // Round B commit 29 — schedule alert notification on the DEVICE
+        // that created the event. Silent-fails if permission denied / past
+        // trigger / no alert_rule.
+        scheduleEventAlert(insertRes.data as any).catch(e => console.log('[calendar-add] alert schedule threw:', e?.message));
         return `✅ "${input.title}" added on ${dateOnly} at ${localDt.split('T')[1]?.slice(0,5) ?? 'the time you specified'}.`;
       }
 
@@ -1817,15 +1848,17 @@ async function executeTool(name: string, input: any): Promise<string> {
         start_time: `${d}T${timeStr}`, end_time: `${d}T${endTimeStr}`,
         notes: input.notes || '', timezone: 'Australia/Brisbane',
         assignees: assigneeIds, repeat_rule: repeatRule, repeat_group_id: groupId,
+        ...(defaultAlertRule ? { alert_rule: defaultAlertRule } : {}),
       }));
       let totalInserted = 0;
+      const insertedForNotif: any[] = []; // rows with id + fields needed for scheduling
       for (let i=0; i<rows.length; i+=20) {
         const batch = rows.slice(i, i+20);
-        let batchRes = await supabase.from('events').insert(batch).select('id');
+        let batchRes = await supabase.from('events').insert(batch).select('id, title, date, start_time, alert_rule, reminder_minutes');
         if (batchRes.error && (batchRes.error.message?.includes('assignees') || batchRes.error.message?.includes('repeat_rule') || batchRes.error.message?.includes('repeat_group_id') || batchRes.error.code==='42703')) {
           console.warn('[calendar-add:recurring] column error, retrying slim:', batchRes.error.message);
           const slim = batch.map(({ assignees:_a, repeat_rule:_r, repeat_group_id:_g, ...rest }) => rest);
-          batchRes = await supabase.from('events').insert(slim).select('id');
+          batchRes = await supabase.from('events').insert(slim).select('id, title, date, start_time, alert_rule, reminder_minutes');
         }
         if (batchRes.error) {
           console.error('[calendar-add:recurring] batch failed:', batchRes.error);
@@ -1839,8 +1872,13 @@ async function executeTool(name: string, input: any): Promise<string> {
           return `TOOL_FAILED: Couldn't save the recurring "${input.title}" — write didn't take (permissions or family context issue).`;
         }
         totalInserted += returned;
+        if (Array.isArray(batchRes.data)) insertedForNotif.push(...batchRes.data);
       }
       console.log('[calendar-add:recurring] inserted', totalInserted, 'of', rows.length, 'planned rows');
+      // Round B commit 29 — schedule alert notification for EACH instance.
+      // Fire-and-forget; silent-fails per instance if past-trigger or perm
+      // denied. Runs in parallel via Promise.all but not awaited.
+      Promise.all(insertedForNotif.map(r => scheduleEventAlert(r).catch(() => {}))).catch(() => {});
       const daysLabel = Array.isArray(input.repeat_days) && input.repeat_days.length
         ? input.repeat_days.join(', ')
         : repeat;
@@ -1906,6 +1944,17 @@ async function executeTool(name: string, input: any): Promise<string> {
           else error = null;
         }
         if (error) throw error;
+        // Round B commit 29 — reschedule alerts for the updated series.
+        // Refetch id + alert-relevant fields; scheduleEventAlert cancels any
+        // prior notif per event and schedules a fresh one if alert_rule set.
+        try {
+          const { data: refetch } = await supabase.from('events')
+            .select('id,title,date,start_time,alert_rule,reminder_minutes')
+            .in('id', ids);
+          if (Array.isArray(refetch)) {
+            Promise.all(refetch.map(r => scheduleEventAlert(r as any).catch(() => {}))).catch(() => {});
+          }
+        } catch {}
         return `✅ Updated all ${ids.length} upcoming "${input.new_title || t.title}" events.`;
       }
 
@@ -1960,6 +2009,14 @@ async function executeTool(name: string, input: any): Promise<string> {
         error = r2.error;
       }
       if (error) throw error;
+      // Round B commit 29 — reschedule alert for the updated event.
+      try {
+        const { data: refetch } = await supabase.from('events')
+          .select('id,title,date,start_time,alert_rule,reminder_minutes')
+          .eq('id', t.id)
+          .maybeSingle();
+        if (refetch) scheduleEventAlert(refetch as any).catch(() => {});
+      } catch {}
       const what = input.new_assignees ? `assignees updated` : input.new_title ? `renamed to "${input.new_title}"` : 'updated';
       return `✅ "${input.new_title || t.title}" — ${what}.`;
     }
@@ -1972,6 +2029,9 @@ async function executeTool(name: string, input: any): Promise<string> {
         const { data } = await (q as any);
         if (!data || data.length === 0) return `Couldn't find "${input.search_title}".`;
         const ids = data.map((e:any) => e.id);
+        // Round B commit 29 — cancel scheduled alerts BEFORE the DB delete so
+        // notif_id map is cleared even if delete fails.
+        await cancelManyEventAlerts(ids).catch(() => {});
         await supabase.from('events').delete().in('id', ids);
         return `✅ Removed all ${ids.length} upcoming "${data[0].title}" events.`;
       }
@@ -1979,6 +2039,8 @@ async function executeTool(name: string, input: any): Promise<string> {
       if (input.date) q = (q as any).eq('date', input.date);
       const { data } = await (q as any).order('date').limit(1);
       if (!data || data.length === 0) return `Couldn't find "${input.search_title}".`;
+      // Round B commit 29 — cancel alert for the single event we're deleting.
+      await cancelEventAlert(data[0].id).catch(() => {});
       await supabase.from('events').delete().eq('id', data[0].id);
       return `✅ **${data[0].title}** deleted.`;
     }
@@ -2009,12 +2071,20 @@ async function executeTool(name: string, input: any): Promise<string> {
         notes:'', timezone:'Australia/Brisbane',
         assignees:last.assignees||[], repeat_rule:repeatRule, repeat_group_id:last.repeat_group_id,
       }));
+      // Round B commit 29 — read prefs so extended instances inherit the same
+      // default alert as newly-added events (10 min before by default).
+      const extPrefs = await loadPrefs().catch(() => null);
+      const extDefaultAlertRule = extPrefs?.calendarNotif ? '10 min before' : null;
+      const insertedIdsForNotif: any[] = [];
       for (let i=0;i<rows2.length;i+=20){
-        const batch=rows2.slice(i,i+20);
-        let {error}=await supabase.from('events').insert(batch);
-        if(error){ const slim=batch.map(({assignees:_a,repeat_rule:_r,repeat_group_id:_g,...rest})=>rest); const r2=await supabase.from('events').insert(slim); error=r2.error; }
+        const batch=rows2.slice(i,i+20).map((r:any) => ({ ...r, alert_rule: extDefaultAlertRule }));
+        let {data:insData, error}=await supabase.from('events').insert(batch).select('id,title,date,start_time,alert_rule,reminder_minutes');
+        if(error){ const slim=batch.map(({assignees:_a,repeat_rule:_r,repeat_group_id:_g,alert_rule:_al,...rest}:any)=>rest); const r2=await supabase.from('events').insert(slim); error=r2.error; insData = null; }
         if(error) return `TOOL_FAILED: Couldn't extend "${last.title}" — ${error.message}`;
+        if (Array.isArray(insData)) insertedIdsForNotif.push(...insData);
       }
+      // Fire-and-forget per-instance alerts.
+      Promise.all(insertedIdsForNotif.map(r => scheduleEventAlert(r).catch(() => {}))).catch(() => {});
       return `✅ Rolled "${last.title}" on another ${dates.length} sessions, through ${dates[dates.length-1]}.`;
     }
     if (name === 'find_calendar_events') {
@@ -2471,6 +2541,9 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
   const location = noteParts.length > 1 ? noteParts[noteParts.length-1] : (isExternal ? (ev.notes || '') : '');
 
   async function deleteEvent() {
+    // Round B commit 29 — cancel scheduled alert before removing the row so
+    // the AsyncStorage notif map stays clean even if the delete fails.
+    await cancelEventAlert(ev.id).catch(() => {});
     await supabase.from('events').delete().eq('id', ev.id);
     onDeleted?.();
   }
@@ -2781,12 +2854,17 @@ function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDel
         title: title.trim() || 'New Event',
         notes: [noteParts[0]||'', location.trim()].filter(Boolean).join(' | '),
         repeat_rule: repeatRule,
+        // Round B commit 29 — persist alertRule so scheduleEventAlert has
+        // something to read. Previously the sheet had the state but never
+        // saved it, so notifications never fired for sheet-added events.
+        alert_rule: alertRule,
         assignees,
         date: dateStr,
         start_time: `${dateStr}T${pad(sh24)}:${pad(startM)}:00`,
         end_time:   `${dateStr}T${pad(eh24)}:${pad(endM)}:00`,
       };
       let error: any = null;
+      let savedId: string | null = ev.id || null;
       if (ev.id) {
         // Update existing
         const { error: e } = await supabase.from('events').update(payload).eq('id', ev.id);
@@ -2797,16 +2875,29 @@ function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDel
           error = r2.error;
         }
       } else {
-        // Insert new
-        const { error: e } = await supabase.from('events').insert(payload);
-        error = e;
+        // Insert new — read back id so we can schedule the alert with it.
+        let insRes = await supabase.from('events').insert(payload).select('id').maybeSingle();
+        error = insRes.error;
         if (error && (error.message?.includes('assignees') || error.code==='42703')) {
           const { assignees:_a, ...slim } = payload;
-          const r2 = await supabase.from('events').insert(slim);
-          error = r2.error;
+          insRes = await supabase.from('events').insert(slim).select('id').maybeSingle();
+          error = insRes.error;
         }
+        if (!error) savedId = insRes.data?.id ?? null;
       }
-      if (!error) onSaved();
+      if (!error) {
+        // Round B commit 29 — schedule the alert now that the row landed.
+        if (savedId) {
+          scheduleEventAlert({
+            id: savedId,
+            title: payload.title,
+            date: dateStr,
+            start_time: payload.start_time,
+            alert_rule: payload.alert_rule,
+          }).catch(() => {});
+        }
+        onSaved();
+      }
     } catch {}
     setSaving(false);
   }
