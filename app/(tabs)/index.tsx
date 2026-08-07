@@ -1503,7 +1503,7 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
   const [editNotes,    setEditNotes]    = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editRepeat,   setEditRepeat]   = useState('Never');
-  const [editAlert,    setEditAlert]    = useState('15 min before');
+  const [editAlert,    setEditAlert]    = useState('10 min before');
   const [editAssignees,setEditAssignees]= useState<string[]>([]);
   const [editStartH,   setEditStartH]   = useState(9);
   const [editStartM,   setEditStartM]   = useState(0);
@@ -1523,7 +1523,7 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
       setEditNotes(parts[0] || '');
       setEditLocation(parts.length > 1 ? parts[parts.length - 1] : '');
       setEditRepeat(event.repeat_rule || 'Never');
-      setEditAlert(event.alert_rule || '15 min before');
+      setEditAlert(event.alert_rule || '10 min before');
       setEditAssignees(event.assignees || []);
       if (event.start_time) {
         const mins = isoToMinutes(event.start_time);
@@ -2852,7 +2852,7 @@ function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDel
   const [location,  setLocation]  = useState(noteParts.length > 1 ? noteParts[noteParts.length-1] : '');
   const [assignees, setAssignees] = useState<string[]>(ev.assignees || []);
   const [repeatRule, setRepeatRule] = useState(ev.repeat_rule || 'Never');
-  const [alertRule,  setAlertRule]  = useState(ev.alert_rule || ev.reminder_minutes != null ? `${ev.reminder_minutes} min before` : '15 min before');
+  const [alertRule,  setAlertRule]  = useState(ev.alert_rule || ev.reminder_minutes != null ? `${ev.reminder_minutes} min before` : '10 min before');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 

@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -434,13 +435,71 @@ Never invent variable category names outside the existing list — put those in 
     await analyseStatement([{ type: 'text', text: `${buildAnalysisPrompt()}\n\n──── STATEMENT TEXT ────\n${text.slice(0, 60000)}` }]);
   }
 
-  // CSV/PDF flow: requires expo-document-picker (not installed). Graceful instruction.
+  // Round B commit 31 — CSV / PDF flow. expo-document-picker installed
+  // this session; wire real picker + Sonnet analysis.
+  //
+  // CSV: read as UTF-8 text, pass as a text block (same shape as paste).
+  // PDF: read as base64, pass as an Anthropic 'document' block — Sonnet
+  //      supports native PDF understanding, no third-party parser needed.
+  // Anything else: gentle Alert asking the user to pick a CSV or PDF.
   async function runAIHelperCsvPdf() {
     setAiHelperOpen(false);
-    Alert.alert(
-      'Needs a dev client rebuild',
-      'CSV/PDF uploads need the expo-document-picker module, which isn\'t installed yet.\n\nTo enable:\n1. Run: npx expo install expo-document-picker\n2. Rebuild the dev client\n\nPaste and Photo work today — try those in the meantime.',
-    );
+    let picked: DocumentPicker.DocumentPickerResult;
+    try {
+      picked = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'application/pdf', 'text/comma-separated-values'],
+        multiple: false,
+        copyToCacheDirectory: true,
+      });
+    } catch (e:any) {
+      console.log('[budget csv/pdf] picker threw:', e?.message);
+      Alert.alert("Couldn't open picker", e?.message || 'Try again in a moment.');
+      return;
+    }
+    if (picked.canceled || !picked.assets?.length) return;
+    const asset = picked.assets[0];
+    const name = (asset.name || '').toLowerCase();
+    const mime = (asset.mimeType || '').toLowerCase();
+    const isPdf = mime.includes('pdf') || name.endsWith('.pdf');
+    const isCsv = mime.includes('csv') || name.endsWith('.csv');
+
+    if (!isPdf && !isCsv) {
+      Alert.alert('Not supported', 'Please pick a CSV or PDF export from your bank. Screenshots go through Photo instead.');
+      return;
+    }
+
+    try {
+      setScanning(true);
+      if (isCsv) {
+        const text = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'utf8' as any });
+        if (!text || text.trim().length < 20) {
+          setScanning(false);
+          Alert.alert('Empty CSV', 'That file looked empty — try re-exporting from your bank.');
+          return;
+        }
+        setScanning(false);
+        await analyseStatement([{ type: 'text', text: `${buildAnalysisPrompt()}\n\n──── CSV CONTENT (${asset.name}) ────\n${text.slice(0, 60000)}` }]);
+      } else {
+        // PDF path — Anthropic document blocks accept base64 PDFs up to ~32MB.
+        const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' as any });
+        // Rough guard — a huge PDF could blow past token limits + timeout.
+        // asset.size is bytes; over 10MB is very unusual for a bank statement.
+        if (asset.size && asset.size > 10 * 1024 * 1024) {
+          setScanning(false);
+          Alert.alert('File too large', 'Statement is over 10MB — export a shorter date range and try again.');
+          return;
+        }
+        setScanning(false);
+        await analyseStatement([
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+          { type: 'text', text: buildAnalysisPrompt() },
+        ]);
+      }
+    } catch (e:any) {
+      console.log('[budget csv/pdf] read/analyse failed:', e?.message);
+      setScanning(false);
+      Alert.alert('Read error', "Couldn't read that file. Try a different export from your bank.");
+    }
   }
 
   // Apply accepted AI suggestions
@@ -542,7 +601,15 @@ Never invent variable category names outside the existing list — put those in 
         />
       )}
       {activeTab === 'categories' && (
-        <>
+        // Round B commit 31 — single parent ScrollView so ExpensesSection
+        // scrolls with the (optional) Legacy categories block. Previously
+        // ExpensesSection was a plain View, so any tall list of expenses
+        // was clipped and the whole tab looked frozen.
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 60 }}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Session 32 v2 Phase 08 UI — flat Expenses view (primary) */}
           <ExpensesSection
             expenses={expenses}
@@ -553,21 +620,23 @@ Never invent variable category names outside the existing list — put those in 
           />
           {/* Legacy nested categories — still shown if any exist */}
           {categories.length > 0 && (
-            <View style={{ marginTop: 32, paddingHorizontal: 16 }}>
-              <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: INK4, letterSpacing: 1, textTransform: 'uppercase' }}>Legacy categories</Text>
-              <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK5, marginTop: 4, marginBottom: 12 }}>
-                Older nested category setup — remove or migrate to the flat Expenses list above.
-              </Text>
-            </View>
+            <>
+              <View style={{ marginTop: 32, paddingHorizontal: 16 }}>
+                <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 11, color: INK4, letterSpacing: 1, textTransform: 'uppercase' }}>Legacy categories</Text>
+                <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK5, marginTop: 4, marginBottom: 12 }}>
+                  Older nested category setup — remove or migrate to the flat Expenses list above.
+                </Text>
+              </View>
+              <CategoriesTabInner
+                categories={categories}
+                lineItems={lineItems}
+                onOpenCategory={setCatDetail}
+                onAddFixed={() => setEditCatPayload('new-fixed')}
+                onAddVariable={() => setEditCatPayload('new-variable')}
+              />
+            </>
           )}
-          <CategoriesTab
-            categories={categories}
-            lineItems={lineItems}
-            onOpenCategory={setCatDetail}
-            onAddFixed={() => setEditCatPayload('new-fixed')}
-            onAddVariable={() => setEditCatPayload('new-variable')}
-          />
-        </>
+        </ScrollView>
       )}
       {activeTab === 'goals' && (
         <GoalsTab
@@ -877,6 +946,45 @@ function CategoriesTab(p: {
         <Text style={s.addCardTxt}>Add variable category</Text>
       </TouchableOpacity>
     </ScrollView>
+  );
+}
+
+// Round B commit 31 — same content as CategoriesTab but without the outer
+// ScrollView wrapper. Used when this section is nested inside a parent
+// ScrollView (the Expenses branch of the main tab render) so we don't
+// hit the nested-VirtualizedList/nested-ScrollView warning + broken
+// scrolling.
+function CategoriesTabInner(p: {
+  categories: Category[];
+  lineItems: LineItem[];
+  onOpenCategory: (c: Category) => void;
+  onAddFixed: () => void;
+  onAddVariable: () => void;
+}) {
+  const fixed = p.categories.filter(c => c.type === 'fixed').sort((a, b) => a.sortOrder - b.sortOrder);
+  const variable = p.categories.filter(c => c.type === 'variable').sort((a, b) => a.sortOrder - b.sortOrder);
+  return (
+    <View style={{ paddingTop: 4, paddingBottom: 8 }}>
+      <Text style={s.secLabel}>Fixed · {fixed.length} {fixed.length === 1 ? 'category' : 'categories'}</Text>
+      {fixed.length === 0 && <Text style={s.empty}>No fixed categories yet.</Text>}
+      {fixed.map(c => (
+        <CategoryCard key={c.id} cat={c} lineItems={p.lineItems} onPress={() => p.onOpenCategory(c)}/>
+      ))}
+      <TouchableOpacity style={s.addCard} activeOpacity={0.8} onPress={p.onAddFixed}>
+        <IcoPlus color={INK5}/>
+        <Text style={s.addCardTxt}>Add fixed category</Text>
+      </TouchableOpacity>
+
+      <Text style={[s.secLabel, { marginTop: 14 }]}>Variable · {variable.length} {variable.length === 1 ? 'category' : 'categories'}</Text>
+      {variable.length === 0 && <Text style={s.empty}>No variable categories yet.</Text>}
+      {variable.map(c => (
+        <CategoryCard key={c.id} cat={c} lineItems={p.lineItems} onPress={() => p.onOpenCategory(c)}/>
+      ))}
+      <TouchableOpacity style={s.addCard} activeOpacity={0.8} onPress={p.onAddVariable}>
+        <IcoPlus color={INK5}/>
+        <Text style={s.addCardTxt}>Add variable category</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
