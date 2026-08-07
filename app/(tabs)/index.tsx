@@ -58,7 +58,8 @@ import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
 import { getFamilyId } from '../../lib/family';
-import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, updateReminderVisibility, updateReminderTitle, parseLocalIsoAsDate, type Reminder, type Visibility } from '../../lib/reminders';
+import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, updateReminderVisibility, updateReminderTitle, updateReminderTime, parseLocalIsoAsDate, type Reminder, type Visibility } from '../../lib/reminders';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import * as AppleCal from '../../lib/apple-calendar';
 import { scheduleEventAlert, cancelEventAlert, cancelManyEventAlerts } from '../../lib/event-notifications';
 import { useSheetSwipeClose } from '../../lib/use-sheet-swipe-close';
@@ -1548,36 +1549,66 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
     try {
       const pad = (n:number) => String(n).padStart(2,'0');
       const sh24 = toH24(editStartH, editStartAp);
-      const eh24 = toH24(editEndH, editEndAp);
+      let eh24 = toH24(editEndH, editEndAp);
+      let eMin = editEndM;
       const dateStr = event.date || localDateStr();
+      // Round B commit 30 — auto-bump end to start+1hr if end fell before
+      // start. Silent failure was the norm previously; users had no idea
+      // why "Save changes" did nothing. Now we quietly fix it and save.
+      const startTotal = sh24 * 60 + editStartM;
+      const endTotal   = eh24 * 60 + eMin;
+      if (endTotal <= startTotal) {
+        const bumped = Math.min(startTotal + 60, 23 * 60 + 59);
+        eh24 = Math.floor(bumped / 60);
+        eMin = bumped % 60;
+      }
       const updates: any = {
         title: editTitle.trim() || event.title,
         notes: [editNotes.trim(), editLocation.trim()].filter(Boolean).join(' | '),
         repeat_rule: editRepeat, alert_rule: editAlert,
         assignees: editAssignees,
         start_time: `${dateStr}T${pad(sh24)}:${pad(editStartM)}:00`,
-        end_time:   `${dateStr}T${pad(eh24)}:${pad(editEndM)}:00`,
+        end_time:   `${dateStr}T${pad(eh24)}:${pad(eMin)}:00`,
       };
-      let { error } = await supabase.from('events').update(updates).eq('id', event.id);
-      if (error && (error.message?.includes('assignees') || error.code==='42703')) {
+      console.log('[cal-edit] updating id:', event.id, 'payload:', updates);
+      // Round B commit 30 — verify-with-select pattern (Session 28 lesson).
+      // Without .select(), a silent RLS block returns { error:null, data:null }
+      // and the UI closes as if success — but nothing changed. .select+id
+      // forces the row back so we know the update actually landed.
+      let updateRes = await supabase.from('events').update(updates).eq('id', event.id).select('id').maybeSingle();
+      if (updateRes.error && (updateRes.error.message?.includes('assignees') || updateRes.error.code==='42703')) {
         const { assignees: _a, ...slim } = updates;
-        const r2 = await supabase.from('events').update(slim).eq('id', event.id);
-        error = r2.error;
+        updateRes = await supabase.from('events').update(slim).eq('id', event.id).select('id').maybeSingle();
       }
-      if (!error) {
-        // Round B commit 29 — reschedule alert with the freshly saved values.
-        // scheduleEventAlert cancels the prior notif for this event id first.
-        scheduleEventAlert({
-          id: event.id,
-          title: updates.title,
-          date: dateStr,
-          start_time: updates.start_time,
-          alert_rule: updates.alert_rule,
-        }).catch(() => {});
-        onReload(); onClose();
+      if (updateRes.error) {
+        console.log('[cal-edit] update ERROR:', updateRes.error.message, 'code:', updateRes.error.code);
+        Alert.alert("Couldn't save", updateRes.error.message || 'Update failed — please try again.');
+        setSaving(false);
+        return;
       }
+      if (!updateRes.data?.id) {
+        console.log('[cal-edit] update returned no id — RLS block or event vanished. eventId:', event.id);
+        Alert.alert("Couldn't save", 'The event may have been removed. Reopen the calendar and try again.');
+        setSaving(false);
+        return;
+      }
+      // Success path — reschedule the alert then close.
+      console.log('[cal-edit] saved OK — id:', updateRes.data.id);
+      scheduleEventAlert({
+        id: event.id,
+        title: updates.title,
+        date: dateStr,
+        start_time: updates.start_time,
+        alert_rule: updates.alert_rule,
+      }).catch(() => {});
+      onReload();
+      onClose();
       setSaving(false);
-    } catch { setSaving(false); }
+    } catch (e:any) {
+      console.log('[cal-edit] threw:', e?.message);
+      Alert.alert("Couldn't save", e?.message || 'Something went wrong.');
+      setSaving(false);
+    }
   };
 
   const doDelete = async () => {
@@ -2476,6 +2507,19 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - MULTI-EVENT PHOTO UPLOADS — CRITICAL: When the user uploads one or more photos containing MULTIPLE calendar events (e.g. three parent-teacher interview slips, a school newsletter with several term dates, a screenshot of multiple calendar entries), you MUST emit a SEPARATE add_calendar_event tool call for EACH event visible. Do NOT add just one and skip the rest. If the images show 3 events, emit exactly 3 add_calendar_event tool_use blocks in that same turn. After the tool results come back, count how many actually succeeded (✅) and honestly report: "Added 3 of 3" or "Added 2 of 3 — the third failed because…". NEVER claim events are "in the system" that you didn't explicitly add via a tool call in this turn.
 
 - CALENDAR HONESTY — ABSOLUTE: Same rule as send_family_message. NEVER claim an event has been "added", "booked", "scheduled", "in the system", "confirmed", or any equivalent phrase unless a add_calendar_event tool call was actually made in this turn AND returned a "✅" response. If the user follows up with "did you add X and Y?" — check the tool_result history. If X and Y were NOT added via tool calls, say so honestly: "Only Gab's was added — I missed Poppy and Duke's. Want me to add them now?" Do NOT paraphrase absence as presence. Do NOT invent event details like teacher names or times you saw in images but didn't tool-add.
+
+- CONFIRM-THEN-ADD — CRITICAL (Round B commit 30): When you have just OFFERED to add an event ("Want me to add it now at 12:30 pm?") and the user responds with a SHORT confirmation — "Yep", "Yes", "Do it", "Go ahead", "Please", "Yep, edit", "Yes please", "Go for it", "Confirm", "Sure", "OK", "Yeah do it", etc. — you MUST call add_calendar_event in THIS SAME TURN. It is NEVER acceptable to reply "Done" or "Added" or "Set for..." without also making a tool call in the same turn. The user's short confirmation is the trigger for the tool call — not the trigger to describe an add that hasn't happened.
+    Failure example (do NOT do this):
+      User: "Did you add doWorkout at 12:30?"
+      You: "No — nothing came up. Want me to add it now?"
+      User: "Yep, edit."
+      You: "Done — 'doWorkout' is set for 12:30 pm."   ← WRONG. No tool call. Fabricated success.
+    Correct pattern:
+      User: "Yep, edit."
+      You: [call add_calendar_event with title="doWorkout", start_time="TODAY-DATET12:30:00"]
+      [after ✅ tool_result]
+      You: "Done — 'doWorkout' is on for today at 12:30 pm. ✓"
+    If you catch yourself about to write a success confirmation and you have NOT called the tool in this turn, STOP and call the tool first.
 
 - REMINDER HONESTY — ABSOLUTE (same rule as calendar + send_family_message):
     * NEVER claim a reminder has been "added", "saved", "set", "on your list", "in your reminders", or ANY equivalent phrase unless an add_reminder tool call was actually made in THIS TURN AND returned a "✅" response (never "TOOL_FAILED", never nothing).
@@ -3636,6 +3680,13 @@ function HomeScreen({
   // Round B commit 11 — tap-to-expand for edit + tier toggle
   const [remindExpandedId,   setRemindExpandedId]   = useState<string|null>(null);
   const [remindEditTitle,    setRemindEditTitle]    = useState<string>('');
+  // Round B commit 30 — time editor state. When an expanded row is opened,
+  // hydrateEditState() below sets these from the reminder's current shape.
+  // shape 'undated' = someday bucket · 'dated' = a day, no time · 'timed'
+  // = specific hour+minute. Save flows through updateReminderTime helper.
+  const [remindEditShape,    setRemindEditShape]    = useState<'timed'|'dated'|'undated'>('undated');
+  const [remindEditDate,     setRemindEditDate]     = useState<Date>(new Date());
+  const [remindEditPickerOpen, setRemindEditPickerOpen] = useState(false);
   // Round B commit 26 — bridges the ~5s gap between "user tapped Send on mic
   // recording pill" and "reminder appears in the list". Sequence during that
   // gap: audio uploads to Whisper (~2s) → transcript comes back → Sonnet parse
@@ -6178,7 +6229,16 @@ Only include events directly relevant to the question. Max 5 events.`;
   // time hint) fall back to Rich's old direct-save behaviour with the raw
   // text as title.
   function hasTimeHint(text: string): boolean {
-    return /\b(in\s+\d+\s*(min|minute|hour|hr|sec|day|week|month)|at\s+\d|(\d{1,2}(:\d{2})?\s*(am|pm))|(today|tonight|tomorrow|tmr|tmw|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun)\b|(morning|afternoon|evening|noon|midnight)|(next\s+(week|month|year|monday|tuesday|wednesday|thursday|friday|saturday|sunday))|(in|after)\s+(a\s+)?(few\s+)?(minute|hour|day|week))/i.test(text);
+    // Round B commit 30 — added word-form number matches ("five", "ten",
+    // "fifteen", etc.) after Anna caught "call Nigel in five minutes"
+    // falling through to fast-path save with the whole raw string as title.
+    // Also loosened the "in X min" alternation to accept spelled-out numbers.
+    const wordNum = '(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|twenty|thirty|forty|fifty|sixty|couple|few|several|half|quarter)';
+    const wordNumRelative = `\\bin\\s+${wordNum}\\s+(minute|min|hour|hr|sec|second|day|week)`;
+    return new RegExp(
+      `\\b(in\\s+\\d+\\s*(min|minute|hour|hr|sec|day|week|month)|at\\s+\\d|(\\d{1,2}(:\\d{2})?\\s*(am|pm))|(today|tonight|tomorrow|tmr|tmw|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun))\\b|(morning|afternoon|evening|noon|midnight)|(next\\s+(week|month|year|monday|tuesday|wednesday|thursday|friday|saturday|sunday))|(in|after)\\s+(a\\s+)?(few\\s+)?(minute|hour|day|week)|${wordNumRelative}`,
+      'i'
+    ).test(text);
   }
 
   // Round B commit 20 — Sonnet-driven smart parse for time-y inputs. Extracts
@@ -6198,12 +6258,23 @@ CURRENT_TIME (Brisbane local): ${nowIso}
 TODAY: ${todayStr}
 
 Rules:
-- title: WHAT to remember. Strip ALL time/date words. Never leave "in 30 min", "tomorrow", "3pm", "monday" in title.
-  Example: "get Gab's shin pads in 30 minutes" → title="Get Gab's shin pads"
-- remind_at: Brisbane wall-clock ISO "YYYY-MM-DDTHH:MM:SS" (no Z, no offset). Set when user mentioned a specific time.
+- title: WHAT to remember, as a short imperative. Strip ALL of:
+  * time/date words ("in 30 min", "tomorrow", "3pm", "monday", "five minutes")
+  * conversational prefaces ("can you add a reminder to", "please remind me to", "set a reminder for me to", "remind me", "i need to")
+  * trailing punctuation
+  Examples:
+    "get Gab's shin pads in 30 minutes" → title="Get Gab's shin pads"
+    "Can you add a reminder to call Nigel in five minutes?" → title="Call Nigel"
+    "remind me to pack Duke's lunchbox tomorrow" → title="Pack Duke's lunchbox"
+    "please set a reminder for me to feed the cat at 8pm" → title="Feed the cat"
+- remind_at: Brisbane wall-clock ISO "YYYY-MM-DDTHH:MM:SS" (no Z, no offset). Set when user mentioned a specific time OR a relative time ("in 5 minutes", "in five minutes", "in half an hour", "in a couple hours").
   Compute times locally from CURRENT_TIME. Never UTC-convert.
-- remind_on: "YYYY-MM-DD" when user said a specific day but no time.
-  Example: "tomorrow" → remind_on="<tomorrow's date>"
+  Spelled-out numbers count: "five"=5, "ten"=10, "half an hour"=30 minutes, "a couple"=2, "a few"=3, "quarter of an hour"=15.
+  Examples:
+    "in five minutes" from ${nowIso} → add 5 min to CURRENT_TIME, format as ISO
+    "in half an hour" → add 30 min
+    "at 3pm today" → "${todayStr}T15:00:00"
+- remind_on: "YYYY-MM-DD" when user said a specific DAY with no time (e.g. "tomorrow", "next Friday").
 - If no time or date info at all, omit both remind_at and remind_on.
 
 Output format: {"title": "...", "remind_at": "...", "remind_on": "..."} — omit remind_at/remind_on if absent. No markdown, no code fences, JSON only.`,
@@ -8546,6 +8617,19 @@ Rules:
                                   if (isExpanded) { setRemindExpandedId(null); return; }
                                   setRemindExpandedId(r.id);
                                   setRemindEditTitle(r.title);
+                                  // Round B commit 30 — hydrate time editor from current shape.
+                                  if (r.remindAt) {
+                                    setRemindEditShape('timed');
+                                    setRemindEditDate(parseLocalIsoAsDate(r.remindAt));
+                                  } else if (r.remindOn) {
+                                    setRemindEditShape('dated');
+                                    const [y, m, d] = r.remindOn.split('-').map(Number);
+                                    setRemindEditDate(new Date(y, m - 1, d, 9, 0, 0));
+                                  } else {
+                                    setRemindEditShape('undated');
+                                    setRemindEditDate(new Date());
+                                  }
+                                  setRemindEditPickerOpen(false);
                                 }}
                                 activeOpacity={0.75}
                                 style={{ flexDirection:'row', alignItems:'center', gap:12, padding:14 }}
@@ -8604,6 +8688,71 @@ Rules:
                                       style={{ backgroundColor:'#fff', borderWidth:1.5, borderColor:'#F0DC80', borderRadius:12, paddingHorizontal:12, paddingVertical:10, fontFamily:'Poppins_500Medium', fontSize:15, color:'#0A0A0A' }}
                                     />
                                   </View>
+                                  {/* Round B commit 30 — WHEN editor.
+                                      Three-shape chip: Someday · A day · Timed.
+                                      Timed and A-day both open a DateTimePicker
+                                      below (mode=datetime for Timed, mode=date
+                                      for A-day). Save flows through
+                                      updateReminderTime — which reschedules
+                                      the local notification too. */}
+                                  <View>
+                                    <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.5, color:'rgba(10,10,10,0.55)', textTransform:'uppercase', marginBottom:6 }}>When</Text>
+                                    <View style={{ flexDirection:'row', gap:6 }}>
+                                      {(['undated','dated','timed'] as const).map(sh => {
+                                        const label = sh==='undated' ? '💭 Someday' : sh==='dated' ? '📅 A day' : '🔔 Timed';
+                                        const active = remindEditShape === sh;
+                                        return (
+                                          <TouchableOpacity
+                                            key={sh}
+                                            onPress={() => {
+                                              setRemindEditShape(sh);
+                                              // If flipping from undated to dated/timed and the date is
+                                              // in the past, bump to today + 1hr so the picker doesn't
+                                              // land on a stale date.
+                                              if (sh !== 'undated' && remindEditDate.getTime() < Date.now()) {
+                                                const d = new Date();
+                                                d.setHours(d.getHours() + 1, 0, 0, 0);
+                                                setRemindEditDate(d);
+                                              }
+                                              setRemindEditPickerOpen(sh !== 'undated');
+                                            }}
+                                            style={{ flex:1, paddingVertical:9, borderRadius:10, backgroundColor: active ? '#F0DC80' : 'rgba(10,10,10,0.05)', alignItems:'center' }}
+                                            activeOpacity={0.75}
+                                          >
+                                            <Text style={{ fontFamily:'Poppins_700Bold', fontSize:11, color: active ? '#0A0A0A' : 'rgba(10,10,10,0.55)' }}>{label}</Text>
+                                          </TouchableOpacity>
+                                        );
+                                      })}
+                                    </View>
+                                    {remindEditShape !== 'undated' && (
+                                      <View style={{ marginTop:8, backgroundColor:'#fff', borderRadius:12, borderWidth:1.5, borderColor:'#F0DC80', overflow:'hidden' }}>
+                                        <TouchableOpacity
+                                          onPress={() => setRemindEditPickerOpen(v => !v)}
+                                          activeOpacity={0.75}
+                                          style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:12, paddingVertical:10 }}
+                                        >
+                                          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:13, color:'#0A0A0A' }}>
+                                            {remindEditShape === 'timed'
+                                              ? remindEditDate.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }) + ' · ' + remindEditDate.toLocaleTimeString('en-AU', { hour:'numeric', minute:'2-digit', hour12:true })
+                                              : remindEditDate.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' })}
+                                          </Text>
+                                          <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:12, color:'rgba(10,10,10,0.45)' }}>{remindEditPickerOpen ? 'Done' : 'Change'}</Text>
+                                        </TouchableOpacity>
+                                        {remindEditPickerOpen && (
+                                          <View style={{ borderTopWidth:1, borderTopColor:'rgba(10,10,10,0.06)' }}>
+                                            <DateTimePicker
+                                              value={remindEditDate}
+                                              mode={remindEditShape === 'timed' ? 'datetime' : 'date'}
+                                              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                              onChange={(_e, d) => { if (d) setRemindEditDate(d); }}
+                                              minimumDate={new Date(new Date().setHours(0,0,0,0))}
+                                              style={{ backgroundColor:'#fff' }}
+                                            />
+                                          </View>
+                                        )}
+                                      </View>
+                                    )}
+                                  </View>
                                   <View>
                                     <Text style={{ fontFamily:'Poppins_700Bold', fontSize:10, letterSpacing:0.5, color:'rgba(10,10,10,0.55)', textTransform:'uppercase', marginBottom:6 }}>Visibility</Text>
                                     <View style={{ flexDirection:'row', gap:8 }}>
@@ -8659,7 +8808,7 @@ Rules:
                                     </TouchableOpacity>
                                     <View style={{ flex:1 }}/>
                                     <TouchableOpacity
-                                      onPress={() => { setRemindExpandedId(null); setRemindEditTitle(''); }}
+                                      onPress={() => { setRemindExpandedId(null); setRemindEditTitle(''); setRemindEditPickerOpen(false); }}
                                       style={{ paddingVertical:10, paddingHorizontal:14, borderRadius:10, backgroundColor:'rgba(10,10,10,0.05)' }}
                                       activeOpacity={0.75}
                                     >
@@ -8668,16 +8817,58 @@ Rules:
                                     <TouchableOpacity
                                       onPress={async () => {
                                         const trimmed = remindEditTitle.trim();
-                                        if (!trimmed || trimmed === r.title) { setRemindExpandedId(null); return; }
-                                        const updated = await updateReminderTitle(r.id, trimmed);
-                                        if (updated) {
-                                          setRemindSheetItems(prev => prev.map(x => x.id === r.id ? updated : x));
-                                          setRemindExpandedId(null);
-                                          setRemindEditTitle('');
-                                          bumpHomeRefresh();
-                                        } else {
-                                          Alert.alert("Couldn't save", 'Try again in a moment.');
+                                        // Round B commit 30 — the Save button now covers BOTH title
+                                        // and time changes. Detect what changed and run only the
+                                        // updates that matter (title, or time, or both).
+                                        const titleChanged = !!trimmed && trimmed !== r.title;
+                                        // Detect time change by comparing new shape/value against
+                                        // the reminder's current shape.
+                                        const currentShape: 'timed'|'dated'|'undated' = r.remindAt ? 'timed' : r.remindOn ? 'dated' : 'undated';
+                                        let timeChanged = remindEditShape !== currentShape;
+                                        if (!timeChanged && remindEditShape === 'timed' && r.remindAt) {
+                                          // Same shape (timed) — check the actual date/time.
+                                          const existing = parseLocalIsoAsDate(r.remindAt).getTime();
+                                          timeChanged = Math.abs(existing - remindEditDate.getTime()) > 30_000;
                                         }
+                                        if (!timeChanged && remindEditShape === 'dated' && r.remindOn) {
+                                          const [yy, mm, dd] = r.remindOn.split('-').map(Number);
+                                          timeChanged = (yy !== remindEditDate.getFullYear() || (mm-1) !== remindEditDate.getMonth() || dd !== remindEditDate.getDate());
+                                        }
+                                        if (!titleChanged && !timeChanged) {
+                                          setRemindExpandedId(null);
+                                          return;
+                                        }
+
+                                        let workingRow: Reminder | null = r;
+                                        if (titleChanged) {
+                                          workingRow = await updateReminderTitle(r.id, trimmed);
+                                          if (!workingRow) {
+                                            Alert.alert("Couldn't save", 'Try again in a moment.');
+                                            return;
+                                          }
+                                        }
+                                        if (timeChanged) {
+                                          const pad = (n:number) => String(n).padStart(2,'0');
+                                          let remindAt: string | undefined;
+                                          let remindOn: string | undefined;
+                                          if (remindEditShape === 'timed') {
+                                            const d = remindEditDate;
+                                            remindAt = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+                                          } else if (remindEditShape === 'dated') {
+                                            const d = remindEditDate;
+                                            remindOn = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+                                          }
+                                          workingRow = await updateReminderTime(r.id, remindEditShape, remindAt, remindOn);
+                                          if (!workingRow) {
+                                            Alert.alert("Couldn't save", 'Time update failed — try again.');
+                                            return;
+                                          }
+                                        }
+                                        setRemindSheetItems(prev => prev.map(x => x.id === r.id ? (workingRow as Reminder) : x));
+                                        setRemindExpandedId(null);
+                                        setRemindEditTitle('');
+                                        setRemindEditPickerOpen(false);
+                                        bumpHomeRefresh();
                                       }}
                                       style={{ paddingVertical:10, paddingHorizontal:16, borderRadius:10, backgroundColor:'#0A0A0A' }}
                                       activeOpacity={0.85}

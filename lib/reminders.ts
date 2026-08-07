@@ -360,6 +360,94 @@ export async function updateReminderVisibility(id: string, visibility: Visibilit
   return data ? rowToReminder(data) : null;
 }
 
+// Round B commit 30 — time editor for the Reminders sheet.
+//
+// Handles the three reminder shapes:
+//   - 'timed'   → remindAt set (specific hour+minute), remindOn null
+//   - 'dated'   → remindOn set (a day, no time), remindAt null
+//   - 'undated' → both null (someday bucket)
+//
+// Also reschedules the local push notification — cancels any prior
+// notif_id for this reminder, and if the new shape is 'timed' AND the
+// current user is the creator (matches the saveReminder rule so we
+// don't spam other family members), schedules a fresh notif at the
+// new time.
+export async function updateReminderTime(
+  id: string,
+  shape: 'timed' | 'dated' | 'undated',
+  remindAt?: string,     // local ISO "YYYY-MM-DDTHH:MM:SS" — required for 'timed'
+  remindOn?: string,     // "YYYY-MM-DD" — required for 'dated'
+): Promise<Reminder | null> {
+  // Fetch existing row so we can cancel the prior notif + know who
+  // created it (only creator gets the push).
+  const { data: existing } = await supabase
+    .from('reminders')
+    .select('id, created_by, notif_id, title, notes')
+    .eq('id', id)
+    .maybeSingle();
+  if (!existing?.id) {
+    console.log('[reminders] update time — row not found:', id);
+    return null;
+  }
+
+  // Cancel prior notif regardless of new shape.
+  if (existing.notif_id) {
+    try { await Notifications.cancelScheduledNotificationAsync(existing.notif_id); } catch {}
+  }
+
+  const updates: any = {
+    updated_at: new Date().toISOString(),
+    notif_id: null,
+    remind_at: null,
+    remind_on: null,
+  };
+
+  if (shape === 'timed' && remindAt) {
+    const normalised = normaliseLocalIso(remindAt);
+    updates.remind_at = normalised;
+
+    // Schedule fresh notif if this user is the creator + time is in future.
+    const userId = await getCurrentUserId();
+    if (userId && existing.created_by === userId) {
+      try {
+        const trigger = parseLocalIsoAsDate(normalised);
+        if (trigger.getTime() > Date.now() + 1000) {
+          const notifId = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: existing.title,
+              body: existing.notes ?? 'Reminder',
+              sound: 'default',
+              data: { type: 'reminder', reminderId: id },
+            },
+            trigger: {
+              type: Notifications.SchedulableTriggerInputTypes.DATE,
+              date: trigger,
+            },
+          });
+          updates.notif_id = notifId;
+          console.log('[reminders/edit-time] rescheduled notif — id:', notifId, '· fires:', trigger.toString());
+        } else {
+          console.log('[reminders/edit-time] skipped notif — trigger in past');
+        }
+      } catch (e:any) {
+        console.log('[reminders/edit-time] schedule failed:', e?.message);
+      }
+    }
+  } else if (shape === 'dated' && remindOn) {
+    updates.remind_on = remindOn;
+  }
+  // 'undated' → both remain null (already set above).
+
+  const { data, error } = await supabase
+    .from('reminders')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .maybeSingle();
+  if (error) { console.log('[reminders] update time error:', error.message); return null; }
+  return data ? rowToReminder(data) : null;
+}
+
 // ── RECURRING (12-month horizon, matches calendar events pattern) ───────
 export function generateRecurrenceDates(startISO: string, rule: RepeatRule, horizonDays = 366, cap = 400): string[] {
   const dates: string[] = [];
