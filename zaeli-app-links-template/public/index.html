@@ -836,6 +836,16 @@
       text-align: center;
       background: linear-gradient(160deg, var(--peach-tint), var(--lav-tint));
     }
+    .beta .free-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--mint-tint);
+      color: var(--mint-deep);
+      padding: 8px 16px;
+      border-radius: 22px;
+      font-weight: 700; font-size: 14px;
+      margin-bottom: 20px;
+      border: 1.5px solid var(--mint);
+    }
     .beta .beta-form {
       max-width: 460px; margin: 24px auto 0;
       display: flex; gap: 10px;
@@ -850,10 +860,62 @@
       color: var(--ink);
     }
     .beta input:focus { outline: 2px solid var(--sky); }
+    .beta input:disabled { background: rgba(10,10,10,0.04); color: var(--ink3); cursor: not-allowed; }
     .beta .btn-primary { white-space: nowrap; }
+    .beta .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     .beta .beta-note {
       font-size: 13px; color: var(--ink3);
       margin-top: 14px;
+    }
+    /* Inline confirmation / error state, replaces the alert() UX. */
+    .beta .beta-status {
+      max-width: 460px; margin: 18px auto 0;
+      padding: 14px 20px;
+      border-radius: 16px;
+      font-size: 15px; font-weight: 600;
+      display: none;
+    }
+    .beta .beta-status.success {
+      display: block;
+      background: var(--mint-tint);
+      color: var(--mint-deep);
+      border: 1.5px solid var(--mint);
+    }
+    .beta .beta-status.error {
+      display: block;
+      background: var(--coral-tint);
+      color: var(--coral-deep);
+      border: 1.5px solid rgba(255,69,69,0.35);
+    }
+    /* "What happens next" micro-flow — 3 steps showing the beta journey. */
+    .beta .beta-steps {
+      max-width: 720px; margin: 40px auto 0;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      text-align: left;
+    }
+    @media (max-width: 720px) {
+      .beta .beta-steps { grid-template-columns: 1fr; gap: 14px; }
+    }
+    .beta .beta-step {
+      background: rgba(255,255,255,0.65);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px 20px;
+    }
+    .beta .step-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--sky); color: var(--sky-deep);
+      font-weight: 800; font-size: 13px;
+      margin-bottom: 10px;
+    }
+    .beta .step-title {
+      font-weight: 700; font-size: 15px; color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .beta .step-sub {
+      font-size: 13px; color: var(--ink3); line-height: 1.45;
     }
 
     /* ── Footer ───────────────────────────────────────────────────── */
@@ -1481,14 +1543,36 @@
   <section class="beta" id="beta">
     <div class="section-inner">
       <div class="wrap">
+        <div class="free-badge">🎁 3 months free · No card required</div>
         <span class="eyebrow">Limited beta</span>
         <h2 class="h2">Join the first families using Zaeli.</h2>
-        <p class="lede" style="margin: 0 auto; max-width: 520px;">Zaeli's in TestFlight now with a handful of Australian families. Drop your email to get an invite when the next round opens.</p>
-        <form class="beta-form" onsubmit="event.preventDefault(); alert('Thanks! We\'ll email you when the next round opens.'); this.reset();">
-          <input type="email" required placeholder="your.email@example.com" autocomplete="email">
-          <button type="submit" class="btn btn-primary">Request invite</button>
+        <p class="lede" style="margin: 0 auto; max-width: 540px;">
+          We're onboarding Australian families a few at a time. Beta users get the full app free for 3 months — no credit card, no strings. In return, we ask for your honest feedback.
+        </p>
+        <form class="beta-form" id="beta-form">
+          <input type="email" required placeholder="your.email@example.com" autocomplete="email" id="beta-email">
+          <button type="submit" class="btn btn-primary" id="beta-submit">Request invite</button>
         </form>
+        <div class="beta-status" id="beta-status" role="status" aria-live="polite"></div>
         <p class="beta-note">We'll only email you about your invite. No marketing. No noise.</p>
+
+        <div class="beta-steps" aria-label="What happens next">
+          <div class="beta-step">
+            <div class="step-num">1</div>
+            <div class="step-title">Drop your email</div>
+            <div class="step-sub">You go on the invite list. Takes 5 seconds.</div>
+          </div>
+          <div class="beta-step">
+            <div class="step-num">2</div>
+            <div class="step-title">TestFlight invite lands</div>
+            <div class="step-sub">Usually within a week. One tap to install on your iPhone.</div>
+          </div>
+          <div class="beta-step">
+            <div class="step-num">3</div>
+            <div class="step-title">3 months on us</div>
+            <div class="step-sub">Full app, whole family. After 3 months it's A$6.99/mo — or cancel any time.</div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -1505,6 +1589,81 @@
       </div>
     </div>
   </footer>
+
+  <!-- ── Beta signup handler ─────────────────────────────────────────
+       Posts to Supabase RPC register_beta_signup(email). Anon key is
+       safe to bundle client-side per Supabase's security model — RLS
+       on beta_signups blocks anon SELECT so submitted emails are not
+       publicly readable. See supabase-beta-signups.sql. ────────────── -->
+  <script>
+    (function() {
+      var SUPABASE_URL = 'https://rsvbzakyyrftezthlhtd.supabase.co';
+      var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzdmJ6YWt5eXJmdGV6dGhsaHRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NDk5NjUsImV4cCI6MjA4ODQyNTk2NX0.9ssTEwSxgY4B7nXxTEyKB3QDIoeCLh8yMo9jO-m5i-w';
+
+      var form   = document.getElementById('beta-form');
+      var input  = document.getElementById('beta-email');
+      var btn    = document.getElementById('beta-submit');
+      var status = document.getElementById('beta-status');
+      if (!form) return;
+
+      function showStatus(kind, text) {
+        status.className = 'beta-status ' + kind;
+        status.textContent = text;
+      }
+      function resetStatus() {
+        status.className = 'beta-status';
+        status.textContent = '';
+      }
+
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var email = (input.value || '').trim();
+        if (!email) return;
+
+        resetStatus();
+        btn.disabled = true;
+        input.disabled = true;
+        var originalLabel = btn.textContent;
+        btn.textContent = 'Sending…';
+
+        try {
+          var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/register_beta_signup', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({ p_email: email, p_source: 'website' })
+          });
+          var body = null;
+          try { body = await res.json(); } catch (_) {}
+
+          if (!res.ok) {
+            showStatus('error', "Couldn't sign you up right now — try again in a moment, or email hello@zaeli.ai.");
+          } else if (body && body.ok === false && body.error === 'invalid_email') {
+            showStatus('error', "That email doesn't look right — mind checking it?");
+          } else if (body && body.ok === true) {
+            if (body.existed) {
+              showStatus('success', "You're already on the list ✓ — we'll email as soon as an invite opens up.");
+            } else {
+              showStatus('success', "You're on the list ✓ — check your inbox for a TestFlight invite soon.");
+            }
+            input.value = '';
+          } else {
+            showStatus('success', "You're on the list ✓ — check your inbox for a TestFlight invite soon.");
+            input.value = '';
+          }
+        } catch (err) {
+          showStatus('error', "Couldn't reach the server. Check your connection or email hello@zaeli.ai.");
+        } finally {
+          btn.disabled = false;
+          input.disabled = false;
+          btn.textContent = originalLabel;
+        }
+      });
+    })();
+  </script>
 
 </body>
 </html>
