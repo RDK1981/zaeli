@@ -609,6 +609,20 @@ export default function SettingsScreen() {
               Alert.alert('🐛 reminder save diagnostic', lines.join('\n'));
             }
           }}
+          onTestReminderNotif={async () => {
+            // Round B commit 28 — verify commit 24's trigger API fix. Schedules
+            // a real 30s local notification via lib/reminders.scheduleTestNotification.
+            const { scheduleTestNotification } = await import('../../lib/reminders');
+            const res = await scheduleTestNotification();
+            if (res.ok) {
+              Alert.alert(
+                '✅ Scheduled',
+                `Notification will fire at ${res.scheduledFor}.\n\nLock your phone now and wait ~30s. If it pops, commit 24 fix works.\n\nIf nothing pops, the trigger API is still broken.`,
+              );
+            } else {
+              Alert.alert('❌ Failed to schedule', res.error ?? 'Unknown error');
+            }
+          }}
         />
       )}
 
@@ -753,6 +767,9 @@ function MainView(p: {
   onRegisterPushToken: () => void;
   onDirectPushTest: () => void;
   onTestReminderSave: () => void;
+  // Round B commit 28 — schedules a real 30s notification via the same
+  // trigger-API path saveReminder uses (verifies commit 24 end-to-end).
+  onTestReminderNotif: () => void;
 }) {
   // Round B commit 23 — Apple Calendar toggle state. Local to MainView (not
   // plumbed through top) because the pref persists device-side via
@@ -993,7 +1010,14 @@ function MainView(p: {
         <Row icon="🐛" iconBg="#FBF5D6" iconFg="#8B6914"
              title="Test reminder save"
              sub="Raw insert + helper + read-back — full trace in Alert"
-             onPress={p.onTestReminderSave} last/>
+             onPress={p.onTestReminderSave}/>
+        {/* Round B commit 28 — dev diagnostic for commit 24's trigger API fix.
+            Schedules a local notification 30s out via the same code path
+            saveReminder uses. Lock phone, wait 30s, confirm delivery. */}
+        <Row icon="🔔" iconBg="#FBF5D6" iconFg="#8B6914"
+             title="Test reminder in 30s"
+             sub="Schedules a real notif — lock phone + wait 30s"
+             onPress={p.onTestReminderNotif} last/>
       </View>
       </>
       )}

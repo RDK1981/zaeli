@@ -442,3 +442,37 @@ export async function deleteReminderSeries(groupId: string): Promise<boolean> {
   if (error) { console.log('[reminders] delete series error:', error.message); return false; }
   return true;
 }
+
+// Round B commit 28 — dev diagnostic. Schedules a local notification 30s
+// out via the same trigger API path saveReminder uses. Lets Rich verify
+// commit 24's SchedulableTriggerInputTypes.DATE fix works end-to-end in
+// isolation, without waiting for a real reminder to fire. Called from
+// Settings → Developer → "Test reminder in 30s".
+export async function scheduleTestNotification(): Promise<{ ok: boolean; error?: string; scheduledFor?: string }> {
+  try {
+    // Check permission first — no point trying to schedule if denied.
+    const perm = await Notifications.getPermissionsAsync();
+    if (perm.status !== 'granted') {
+      const req = await Notifications.requestPermissionsAsync();
+      if (req.status !== 'granted') {
+        return { ok: false, error: 'Notification permission denied. Grant in iOS Settings → Zaeli → Notifications.' };
+      }
+    }
+    const trigger = new Date(Date.now() + 30 * 1000);
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Zaeli test reminder',
+        body: 'Trigger API works — this is the expo-notifications 0.29+ shape from commit 24.',
+        sound: 'default',
+        data: { type: 'test' },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: trigger,
+      },
+    });
+    return { ok: true, scheduledFor: trigger.toLocaleTimeString() };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'Unknown error' };
+  }
+}
