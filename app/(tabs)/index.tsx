@@ -2891,8 +2891,20 @@ function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDel
     try {
       const pad = (n:number) => String(n).padStart(2,'0');
       const sh24 = toH24(startH, startAp);
-      const eh24 = toH24(endH, endAp);
+      let eh24 = toH24(endH, endAp);
+      let eMin = endM;
       const dateStr = ev.date || localDateStr();
+      // Round B commit 32 — auto-bump end if it fell before start (Rich's
+      // repro screenshot had START=12:30 PM, END=10:45 AM). Silent DB
+      // rejection was the mystery; forcing a sane end kills that failure
+      // mode before we even hit the server.
+      const startTotal = sh24 * 60 + startM;
+      const endTotal   = eh24 * 60 + eMin;
+      if (endTotal <= startTotal) {
+        const bumped = Math.min(startTotal + 60, 23 * 60 + 59);
+        eh24 = Math.floor(bumped / 60);
+        eMin = bumped % 60;
+      }
       const payload: any = {
         family_id: '00000000-0000-0000-0000-000000000001',
         title: title.trim() || 'New Event',
@@ -2905,18 +2917,31 @@ function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDel
         assignees,
         date: dateStr,
         start_time: `${dateStr}T${pad(sh24)}:${pad(startM)}:00`,
-        end_time:   `${dateStr}T${pad(eh24)}:${pad(endM)}:00`,
+        end_time:   `${dateStr}T${pad(eh24)}:${pad(eMin)}:00`,
       };
+      console.log('[cal-sheet-save] id:', ev.id || '(new)', 'payload:', payload);
+
       let error: any = null;
       let savedId: string | null = ev.id || null;
       if (ev.id) {
-        // Update existing
-        const { error: e } = await supabase.from('events').update(payload).eq('id', ev.id);
-        error = e;
-        if (error && (error.message?.includes('assignees') || error.code==='42703')) {
+        // Round B commit 32 — verify-with-select. The old shape
+        // `.update(payload).eq('id', ev.id)` swallowed silent RLS blocks
+        // (returns { error:null, data:null }). The UI showed nothing —
+        // no alert, no close — because setSaving(false) ran and the catch
+        // was empty. Now .select('id').maybeSingle() forces the row back
+        // so we can distinguish "row updated" from "policy blocked, no
+        // rows changed".
+        let upRes = await supabase.from('events').update(payload).eq('id', ev.id).select('id').maybeSingle();
+        if (upRes.error && (upRes.error.message?.includes('assignees') || upRes.error.code==='42703')) {
           const { assignees:_a, family_id:_f, ...slim } = payload;
-          const r2 = await supabase.from('events').update(slim).eq('id', ev.id);
-          error = r2.error;
+          upRes = await supabase.from('events').update(slim).eq('id', ev.id).select('id').maybeSingle();
+        }
+        error = upRes.error;
+        if (!error && !upRes.data?.id) {
+          console.log('[cal-sheet-save] update returned no id — RLS/vanished. eventId:', ev.id);
+          Alert.alert("Couldn't save", 'The event may have been removed. Reopen the calendar and try again.');
+          setSaving(false);
+          return;
         }
       } else {
         // Insert new — read back id so we can schedule the alert with it.
@@ -2929,20 +2954,28 @@ function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDel
         }
         if (!error) savedId = insRes.data?.id ?? null;
       }
-      if (!error) {
-        // Round B commit 29 — schedule the alert now that the row landed.
-        if (savedId) {
-          scheduleEventAlert({
-            id: savedId,
-            title: payload.title,
-            date: dateStr,
-            start_time: payload.start_time,
-            alert_rule: payload.alert_rule,
-          }).catch(() => {});
-        }
-        onSaved();
+      if (error) {
+        console.log('[cal-sheet-save] ERROR:', error.message, 'code:', error.code);
+        Alert.alert("Couldn't save", error.message || 'Update failed — please try again.');
+        setSaving(false);
+        return;
       }
-    } catch {}
+      // Round B commit 29 — schedule the alert now that the row landed.
+      if (savedId) {
+        scheduleEventAlert({
+          id: savedId,
+          title: payload.title,
+          date: dateStr,
+          start_time: payload.start_time,
+          alert_rule: payload.alert_rule,
+        }).catch(() => {});
+      }
+      console.log('[cal-sheet-save] OK — id:', savedId);
+      onSaved();
+    } catch (e:any) {
+      console.log('[cal-sheet-save] threw:', e?.message);
+      Alert.alert("Couldn't save", e?.message || 'Something went wrong.');
+    }
     setSaving(false);
   }
 
