@@ -659,6 +659,10 @@ function isCalendarLookupIntent(text: string): boolean {
 function isCalendarQuery(text: string): boolean {
   const lower = text.toLowerCase();
   if (isActionQuery(lower)) return false;
+  // Round B commit 33 — message intent short-circuits (see notes on
+  // isShoppingViewQuery). "Text Anna what's on today?" should route to
+  // send_family_message, not the calendar card intercept.
+  if (isMessageIntent(text)) return false;
   return CALENDAR_KEYWORDS.some(kw => lower.includes(kw));
 }
 
@@ -686,19 +690,30 @@ const TASKS_VIEW_KEYWORDS = [
   "what's outstanding", "whats outstanding", "what's overdue", "whats overdue",
   "show my tasks", "show tasks", "view tasks", "show todos",
 ];
+// Round B commit 33 — added isMessageIntent guard. Without it, a message
+// intent like "Send text to Anna. Are you happy with the shopping list?"
+// would trip the SHOPPING_VIEW_KEYWORDS match on "shopping list" (which
+// is the MESSAGE CONTENT, not the user's intent) and render the shopping
+// card instead of routing through Sonnet's send_family_message tool.
+// Same trap for meals ("text Anna what's for dinner?") and tasks
+// ("tell Rich my todo list is huge"). Message intent short-circuits
+// all three so the tool path always wins.
 function isShoppingViewQuery(text: string): boolean {
   const lower = text.toLowerCase();
   if (isActionQuery(lower)) return false;
+  if (isMessageIntent(text)) return false;
   return SHOPPING_VIEW_KEYWORDS.some(kw => lower.includes(kw));
 }
 function isMealsViewQuery(text: string): boolean {
   const lower = text.toLowerCase();
   if (isActionQuery(lower)) return false;
+  if (isMessageIntent(text)) return false;
   return MEALS_VIEW_KEYWORDS.some(kw => lower.includes(kw));
 }
 function isTasksViewQuery(text: string): boolean {
   const lower = text.toLowerCase();
   if (isActionQuery(lower)) return false;
+  if (isMessageIntent(text)) return false;
   return TASKS_VIEW_KEYWORDS.some(kw => lower.includes(kw));
 }
 function isFullCalendarRequest(text: string): boolean {
