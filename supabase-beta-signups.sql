@@ -1,21 +1,23 @@
 -- ═══════════════════════════════════════════════════════════════════════
--- supabase-beta-signups.sql — public website beta signup capture
+-- supabase-beta-signups.sql — public website beta signup capture (v2)
 -- ═══════════════════════════════════════════════════════════════════════
 --
--- The website's beta form at zaeli.app used to fake-succeed via a
--- browser alert(). This migration wires it to a real Supabase table
--- so Rich sees every signup in Studio and can send TestFlight invites.
+-- Wires the beta form at zaeli.app to a real Supabase table so Rich sees
+-- every signup in Studio + can trigger TestFlight invites.
+--
+-- v2 (Round B) — added `name` column so Rich can personalise TestFlight
+-- outreach emails. Beta signups are prospective customers; capturing
+-- name at first touch is cheap and pays off in later communication.
 --
 -- Design:
---   - beta_signups table with email UNIQUE (duplicate-tolerant — a
---     second submit from the same address bumps updated_at, does not
---     error).
---   - Anon-callable SECURITY DEFINER RPC register_beta_signup(email)
---     because the website has no user session — the anon role is
---     what the form uses. RLS on the table blocks direct anon SELECT
---     so submitted emails aren't publicly readable.
---   - Extra columns (source, family_size, notes) are optional metadata
---     the form can pass now or later without a schema change.
+--   - beta_signups table with email UNIQUE (case-insensitive dedup —
+--     Anna@X.com == anna@x.com).
+--   - Anon-callable SECURITY DEFINER RPC register_beta_signup(email, name).
+--     Called from public website JS (no user session — anon role).
+--   - RLS on the table blocks direct anon SELECT so submitted emails
+--     are not publicly readable. Rich reads via service_role in Studio.
+--   - Idempotent per email — a second submit updates updated_at + name
+--     if provided; does not error.
 --
 -- To run:
 --   Supabase Studio → SQL Editor → paste this whole file → Run.
@@ -25,6 +27,7 @@
 create table if not exists public.beta_signups (
   id           uuid primary key default gen_random_uuid(),
   email        text not null,
+  name         text,                             -- v2 — captured at signup
   source       text,                             -- e.g. 'website', 'friend-referral'
   family_size  integer,                          -- optional, if form later asks
   notes        text,                             -- optional, if form later asks
@@ -33,6 +36,9 @@ create table if not exists public.beta_signups (
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
+
+-- v2 — add column for existing databases that ran v1.
+alter table public.beta_signups add column if not exists name text;
 
 -- Case-insensitive uniqueness on email (Anna@X.com == anna@x.com).
 create unique index if not exists beta_signups_email_lower_idx
@@ -55,11 +61,17 @@ end $$;
 -- (Supabase Studio) or a future admin console query.
 -- (No policies = deny everything to anon + authenticated. Deliberate.)
 
+-- v2 — drop old signature before creating new one (Postgres treats
+-- functions with different param signatures as separate functions).
+drop function if exists public.register_beta_signup(text, text, integer, text);
+drop function if exists public.register_beta_signup(text, text, text, integer, text);
+
 -- Anon-callable RPC. Idempotent per email — a second submit updates
--- updated_at instead of erroring, so users don't see a scary "already
--- exists" message if they resubmit.
+-- updated_at + name instead of erroring, so users don't see a scary
+-- "already exists" message if they resubmit.
 create or replace function public.register_beta_signup(
   p_email       text,
+  p_name        text default null,
   p_source      text default 'website',
   p_family_size integer default null,
   p_notes       text default null
@@ -71,6 +83,7 @@ set search_path = public
 as $$
 declare
   clean_email text := lower(trim(p_email));
+  clean_name  text := nullif(trim(coalesce(p_name, '')), '');
   existed     boolean := false;
 begin
   if clean_email is null or clean_email = '' or clean_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then
@@ -80,11 +93,12 @@ begin
   perform 1 from public.beta_signups where lower(email) = clean_email;
   existed := found;
 
-  insert into public.beta_signups (email, source, family_size, notes)
-  values (clean_email, coalesce(p_source, 'website'), p_family_size, p_notes)
+  insert into public.beta_signups (email, name, source, family_size, notes)
+  values (clean_email, clean_name, coalesce(p_source, 'website'), p_family_size, p_notes)
   on conflict ((lower(email)))
   do update set
     updated_at  = now(),
+    name        = coalesce(excluded.name, public.beta_signups.name),
     source      = coalesce(excluded.source, public.beta_signups.source),
     family_size = coalesce(excluded.family_size, public.beta_signups.family_size),
     notes       = coalesce(excluded.notes, public.beta_signups.notes);
@@ -94,11 +108,11 @@ end;
 $$;
 
 -- Grant EXECUTE to anon so the public website (no session) can call it.
-grant execute on function public.register_beta_signup(text, text, integer, text) to anon;
+grant execute on function public.register_beta_signup(text, text, text, integer, text) to anon;
 
 -- ═══════════════════════════════════════════════════════════════════════
 -- Verify:
 --   select count(*) from public.beta_signups;
---   select register_beta_signup('test@example.com');
---   select * from public.beta_signups order by created_at desc limit 5;
+--   select register_beta_signup('test@example.com', 'Test User');
+--   select email, name, created_at from public.beta_signups order by created_at desc limit 5;
 -- ═══════════════════════════════════════════════════════════════════════

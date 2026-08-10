@@ -847,18 +847,18 @@
       border: 1.5px solid var(--mint);
     }
     .beta .beta-form {
-      max-width: 460px; margin: 24px auto 0;
-      display: flex; gap: 10px;
+      max-width: 480px; margin: 24px auto 0;
+      display: flex; flex-direction: column; gap: 10px;
     }
-    @media (max-width: 500px) { .beta .beta-form { flex-direction: column; } }
     .beta input {
-      flex: 1;
+      width: 100%;
       padding: 15px 20px; border-radius: 30px;
       border: 1.5px solid rgba(10,10,10,0.14);
       background: #fff;
       font-size: 16px;
       color: var(--ink);
     }
+    .beta .beta-form .btn-primary { align-self: stretch; }
     .beta input:focus { outline: 2px solid var(--sky); }
     .beta input:disabled { background: rgba(10,10,10,0.04); color: var(--ink3); cursor: not-allowed; }
     .beta .btn-primary { white-space: nowrap; }
@@ -1550,7 +1550,8 @@
           We're onboarding Australian families a few at a time. Beta users get the full app free for 3 months — no credit card, no strings. In return, we ask for your honest feedback.
         </p>
         <form class="beta-form" id="beta-form">
-          <input type="email" required placeholder="your.email@example.com" autocomplete="email" id="beta-email">
+          <input type="text"  required placeholder="Your name"                  autocomplete="name"  id="beta-name">
+          <input type="email" required placeholder="your.email@example.com"    autocomplete="email" id="beta-email">
           <button type="submit" class="btn btn-primary" id="beta-submit">Request invite</button>
         </form>
         <div class="beta-status" id="beta-status" role="status" aria-live="polite"></div>
@@ -1565,7 +1566,7 @@
           <div class="beta-step">
             <div class="step-num">2</div>
             <div class="step-title">TestFlight invite lands</div>
-            <div class="step-sub">Usually within a week. One tap to install on your iPhone.</div>
+            <div class="step-sub">Usually within 24 hours. One tap to install on your iPhone.</div>
           </div>
           <div class="beta-step">
             <div class="step-num">3</div>
@@ -1591,19 +1592,28 @@
   </footer>
 
   <!-- ── Beta signup handler ─────────────────────────────────────────
-       Posts to Supabase RPC register_beta_signup(email). Anon key is
-       safe to bundle client-side per Supabase's security model — RLS
-       on beta_signups blocks anon SELECT so submitted emails are not
-       publicly readable. See supabase-beta-signups.sql. ────────────── -->
+       Two-step submit:
+         1. POST to Supabase RPC register_beta_signup(email, name)
+            → saves to beta_signups table. Anon key is safe client-side
+            per Supabase's model — RLS blocks anon SELECT so emails
+            aren't publicly readable.
+         2. POST to Edge Function beta-notify
+            → sends 2 transactional emails via Zoho SMTP:
+              a. Welcome to the signup
+              b. Notification to Rich (hello@zaeli.ai)
+       Emails run AFTER the DB save so a Zoho outage still captures
+       the signup. Success/error UI reflects the DB step; email
+       failures are logged to console but don't block the form. ── -->
   <script>
     (function() {
       var SUPABASE_URL = 'https://rsvbzakyyrftezthlhtd.supabase.co';
       var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzdmJ6YWt5eXJmdGV6dGhsaHRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NDk5NjUsImV4cCI6MjA4ODQyNTk2NX0.9ssTEwSxgY4B7nXxTEyKB3QDIoeCLh8yMo9jO-m5i-w';
 
-      var form   = document.getElementById('beta-form');
-      var input  = document.getElementById('beta-email');
-      var btn    = document.getElementById('beta-submit');
-      var status = document.getElementById('beta-status');
+      var form      = document.getElementById('beta-form');
+      var nameInput = document.getElementById('beta-name');
+      var emailInput= document.getElementById('beta-email');
+      var btn       = document.getElementById('beta-submit');
+      var status    = document.getElementById('beta-status');
       if (!form) return;
 
       function showStatus(kind, text) {
@@ -1617,50 +1627,76 @@
 
       form.addEventListener('submit', async function(e) {
         e.preventDefault();
-        var email = (input.value || '').trim();
-        if (!email) return;
+        var name  = (nameInput.value  || '').trim();
+        var email = (emailInput.value || '').trim();
+        if (!email || !name) return;
 
         resetStatus();
-        btn.disabled = true;
-        input.disabled = true;
+        btn.disabled       = true;
+        nameInput.disabled = true;
+        emailInput.disabled= true;
         var originalLabel = btn.textContent;
         btn.textContent = 'Sending…';
 
+        var success = false;
+        var existed = false;
         try {
-          var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/register_beta_signup', {
+          // Step 1 — save to Supabase.
+          var rpcRes = await fetch(SUPABASE_URL + '/rest/v1/rpc/register_beta_signup', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY,
+              'Content-Type':  'application/json',
+              'apikey':        SUPABASE_ANON_KEY,
               'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
             },
-            body: JSON.stringify({ p_email: email, p_source: 'website' })
+            body: JSON.stringify({ p_email: email, p_name: name, p_source: 'website' })
           });
           var body = null;
-          try { body = await res.json(); } catch (_) {}
+          try { body = await rpcRes.json(); } catch (_) {}
 
-          if (!res.ok) {
+          if (!rpcRes.ok) {
             showStatus('error', "Couldn't sign you up right now — try again in a moment, or email hello@zaeli.ai.");
           } else if (body && body.ok === false && body.error === 'invalid_email') {
             showStatus('error', "That email doesn't look right — mind checking it?");
           } else if (body && body.ok === true) {
-            if (body.existed) {
-              showStatus('success', "You're already on the list ✓ — we'll email as soon as an invite opens up.");
-            } else {
-              showStatus('success', "You're on the list ✓ — check your inbox for a TestFlight invite soon.");
-            }
-            input.value = '';
+            success = true;
+            existed = !!body.existed;
           } else {
-            showStatus('success', "You're on the list ✓ — check your inbox for a TestFlight invite soon.");
-            input.value = '';
+            success = true;
           }
         } catch (err) {
           showStatus('error', "Couldn't reach the server. Check your connection or email hello@zaeli.ai.");
-        } finally {
-          btn.disabled = false;
-          input.disabled = false;
-          btn.textContent = originalLabel;
         }
+
+        // Step 2 — fire the two emails via Edge Function. Non-blocking:
+        // if SMTP fails, the signup is still saved and the user still
+        // sees a success confirmation.
+        if (success) {
+          if (existed) {
+            showStatus('success', "You're already on the list ✓ — we'll email as soon as an invite opens up.");
+          } else {
+            showStatus('success', "You're on the list ✓ — check your email for a confirmation. TestFlight invite lands within 24 hours.");
+          }
+          nameInput.value  = '';
+          emailInput.value = '';
+          // Fire and forget — user has already seen success.
+          fetch(SUPABASE_URL + '/functions/v1/beta-notify', {
+            method: 'POST',
+            headers: {
+              'Content-Type':  'application/json',
+              'apikey':        SUPABASE_ANON_KEY,
+              'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({ email: email, name: name })
+          }).catch(function(e) {
+            console.log('[beta] notify email failed:', e && e.message);
+          });
+        }
+
+        btn.disabled        = false;
+        nameInput.disabled  = false;
+        emailInput.disabled = false;
+        btn.textContent     = originalLabel;
       });
     })();
   </script>
