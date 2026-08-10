@@ -29,8 +29,13 @@
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 
 const FROM_ADDRESS   = 'hello@zaeli.ai';
-const FROM_NAME      = 'Rich at Zaeli';
-const NOTIFY_ADDRESS = 'hello@zaeli.ai';    // where Rich reads new-signup alerts
+const FROM_NAME      = 'Zaeli';
+// Rich set up a Zoho alias `signups@zaeli.ai` that routes to the hello@
+// inbox. Sending to the alias (not hello@) sidesteps Zoho SMTP's
+// anti-spoofing block on auth-user-to-self delivery — the first cut of
+// this Edge Function silently dropped every notification because
+// hello@ was both authenticated sender AND recipient.
+const NOTIFY_ADDRESS = 'signups@zaeli.ai';
 const SMTP_HOST      = 'smtp.zoho.com.au';
 const SMTP_PORT      = 465;                 // SSL
 
@@ -78,25 +83,38 @@ Deno.serve(async (req) => {
     });
 
     // 3. Welcome email → the signup
-    await client.send({
-      from:    `${FROM_NAME} <${FROM_ADDRESS}>`,
-      to:      email,
-      subject: `You're on the Zaeli beta list ✓`,
-      content: 'auto',
-      html:    welcomeHtml(greeting),
-    });
+    try {
+      await client.send({
+        from:    `${FROM_NAME} <${FROM_ADDRESS}>`,
+        to:      email,
+        subject: `You&#39;re on the Zaeli beta list &#10003;`,
+        content: 'auto',
+        html:    welcomeHtml(greeting),
+      });
+      console.log(`[beta-notify] welcome email sent to ${email}`);
+    } catch (e: any) {
+      console.log(`[beta-notify] welcome email FAILED to ${email}:`, e?.message ?? String(e));
+      throw e;
+    }
 
-    // 4. Notification email → Rich
-    await client.send({
-      from:    `Zaeli signups <${FROM_ADDRESS}>`,
-      to:      NOTIFY_ADDRESS,
-      subject: `New Zaeli beta signup — ${email}`,
-      content: 'auto',
-      html:    notifyHtml(email, name),
-    });
+    // 4. Notification email → Rich (via signups@zaeli.ai alias to sidestep
+    // Zoho's auth-user-to-self anti-spoofing block).
+    try {
+      await client.send({
+        from:    `${FROM_NAME} <${FROM_ADDRESS}>`,
+        to:      NOTIFY_ADDRESS,
+        subject: `New Zaeli beta signup &mdash; ${email}`,
+        content: 'auto',
+        html:    notifyHtml(email, name),
+      });
+      console.log(`[beta-notify] notify email sent to ${NOTIFY_ADDRESS} re: ${email}`);
+    } catch (e: any) {
+      console.log(`[beta-notify] notify email FAILED to ${NOTIFY_ADDRESS}:`, e?.message ?? String(e));
+      throw e;
+    }
 
     await client.close();
-    console.log(`[beta-notify] sent 2 emails for signup ${email}${name ? ` (${name})` : ''}`);
+    console.log(`[beta-notify] both emails sent for signup ${email}${name ? ` (${name})` : ''}`);
     return json({ ok: true });
   } catch (e: any) {
     console.log('[beta-notify] threw:', e?.message ?? String(e));
@@ -106,17 +124,22 @@ Deno.serve(async (req) => {
 
 // ── Email templates ─────────────────────────────────────────────────────────
 
+// Templates below use HTML entities (&mdash; &middot; &#10003; etc)
+// instead of raw multi-byte Unicode chars, because denomailer's default
+// SMTP encoding was serving up mangled "â€"" characters in some
+// clients (UTF-8 bytes displayed as CP-1252). Entities decode
+// correctly in every mail client regardless of charset.
 function welcomeHtml(greeting: string): string {
   return `
 <div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:520px;margin:0 auto;color:#0A0A0A;line-height:1.55;font-size:16px;">
   <p style="font-size:36px;font-weight:800;letter-spacing:-1.5px;line-height:1;margin:0 0 16px;">z<span style="color:#A8D8F0;">a</span>el<span style="color:#A8D8F0;">i</span></p>
   <p style="margin:0 0 20px;">${greeting}</p>
-  <p style="margin:0 0 20px;">Thanks for signing up to the Zaeli beta — you're on the list.</p>
+  <p style="margin:0 0 20px;">Thanks for signing up to the Zaeli beta &mdash; you&#39;re on the list.</p>
   <p style="margin:0 0 20px;"><strong>What happens next:</strong> Rich will send you a TestFlight invite within 24 hours. One tap to install Zaeli on your iPhone.</p>
-  <p style="margin:0 0 20px;">Beta users get the full app free for 3 months — no card, no strings. In return, we just ask for your honest feedback along the way.</p>
+  <p style="margin:0 0 20px;">Beta users get the full app free for 3 months &mdash; no card, no strings. In return, we just ask for your honest feedback along the way.</p>
   <p style="margin:0 0 8px;">Talk soon,</p>
-  <p style="margin:0;"><strong>Rich</strong><br>Zaeli · <a href="https://zaeli.app" style="color:#0A5C80;text-decoration:none;border-bottom:1px solid rgba(10,10,10,0.25);">zaeli.app</a></p>
-  <p style="margin:32px 0 0;font-size:12px;color:rgba(10,10,10,0.45);">Made with 💛 in Australia. Reply to this email anytime.</p>
+  <p style="margin:0;"><strong>Rich</strong><br>Zaeli &middot; <a href="https://zaeli.app" style="color:#0A5C80;text-decoration:none;border-bottom:1px solid rgba(10,10,10,0.25);">zaeli.app</a></p>
+  <p style="margin:32px 0 0;font-size:12px;color:rgba(10,10,10,0.45);">Made in Australia. Reply to this email anytime.</p>
 </div>
   `.trim();
 }
@@ -125,14 +148,14 @@ function notifyHtml(email: string, name: string | null): string {
   const displayName = name ?? '(no name provided)';
   return `
 <div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:520px;color:#0A0A0A;line-height:1.55;font-size:15px;">
-  <p style="font-size:20px;font-weight:700;margin:0 0 16px;">New Zaeli beta signup 🎉</p>
+  <p style="font-size:20px;font-weight:700;margin:0 0 16px;">New Zaeli beta signup</p>
   <table style="border-collapse:collapse;margin:0 0 20px;">
     <tr><td style="padding:4px 12px 4px 0;color:rgba(10,10,10,0.55);">Name</td><td style="padding:4px 0;"><strong>${escapeHtml(displayName)}</strong></td></tr>
     <tr><td style="padding:4px 12px 4px 0;color:rgba(10,10,10,0.55);">Email</td><td style="padding:4px 0;"><strong>${escapeHtml(email)}</strong></td></tr>
     <tr><td style="padding:4px 12px 4px 0;color:rgba(10,10,10,0.55);">Source</td><td style="padding:4px 0;">website</td></tr>
   </table>
   <p style="margin:0 0 8px;">Next step: send them a TestFlight invite within 24 hours.</p>
-  <p style="margin:0;font-size:13px;color:rgba(10,10,10,0.45);">Full signup list in Supabase → beta_signups table.</p>
+  <p style="margin:0;font-size:13px;color:rgba(10,10,10,0.45);">Full signup list in Supabase &rarr; beta_signups table.</p>
 </div>
   `.trim();
 }
