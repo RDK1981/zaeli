@@ -82,42 +82,41 @@ Deno.serve(async (req) => {
       },
     });
 
-    // 3. Welcome email → the signup
-    // Subject: plain ASCII only — no HTML entities (subjects aren't HTML;
-    // entities render literally). No special chars either — subjects
-    // travel via MIME Q-encoding + not every client displays it clean.
+    // 3. Single send — welcome to the signup, BCC signups@zaeli.ai so
+    // Rich gets a copy in Zoho.
+    //
+    // Why one send with BCC instead of two separate sends:
+    //   - Supabase Edge Functions cap CPU time at ~200ms per invocation.
+    //   - Each SMTP-over-TLS handshake burns significant CPU (TLS
+    //     negotiation is CPU-heavy in Deno). Two handshakes reliably
+    //     exceed the budget — first send lands in Zoho Sent, second
+    //     hangs mid-handshake, function killed with "CPU Time exceeded"
+    //     before it can complete. Notification never actually delivers.
+    //   - One send with BCC = one handshake = fits under budget.
+    //
+    // Tradeoff: Rich sees a Bcc'd copy of the WELCOME email (not a
+    // distinctly-formatted "New signup" notification). He can still see
+    // recipient email in To header + name in the "Hi X," greeting +
+    // timestamp — enough to trigger a TestFlight invite.
+    //
+    // If we want a distinct notification format later, migrate this
+    // Edge Function to Resend (HTTP API, no SMTP handshake, sub-100ms).
     try {
       await client.send({
         from:    `${FROM_NAME} <${FROM_ADDRESS}>`,
         to:      email,
+        bcc:     NOTIFY_ADDRESS,
         subject: `You're on the Zaeli beta list`,
         content: 'auto',
         html:    welcomeHtml(greeting),
       });
-      console.log(`[beta-notify] welcome email sent to ${email}`);
+      console.log(`[beta-notify] welcome email sent to ${email} (bcc ${NOTIFY_ADDRESS})`);
     } catch (e: any) {
-      console.log(`[beta-notify] welcome email FAILED to ${email}:`, e?.message ?? String(e));
-      throw e;
-    }
-
-    // 4. Notification email → Rich (via signups@zaeli.ai alias to sidestep
-    // Zoho's auth-user-to-self anti-spoofing block).
-    try {
-      await client.send({
-        from:    `${FROM_NAME} <${FROM_ADDRESS}>`,
-        to:      NOTIFY_ADDRESS,
-        subject: `New Zaeli beta signup: ${email}`,
-        content: 'auto',
-        html:    notifyHtml(email, name),
-      });
-      console.log(`[beta-notify] notify email sent to ${NOTIFY_ADDRESS} re: ${email}`);
-    } catch (e: any) {
-      console.log(`[beta-notify] notify email FAILED to ${NOTIFY_ADDRESS}:`, e?.message ?? String(e));
+      console.log(`[beta-notify] send FAILED to ${email}:`, e?.message ?? String(e));
       throw e;
     }
 
     await client.close();
-    console.log(`[beta-notify] both emails sent for signup ${email}${name ? ` (${name})` : ''}`);
     return json({ ok: true });
   } catch (e: any) {
     console.log('[beta-notify] threw:', e?.message ?? String(e));
@@ -147,21 +146,10 @@ function welcomeHtml(greeting: string): string {
   `.trim();
 }
 
-function notifyHtml(email: string, name: string | null): string {
-  const displayName = name ?? '(no name provided)';
-  return `
-<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:520px;color:#0A0A0A;line-height:1.55;font-size:15px;">
-  <p style="font-size:20px;font-weight:700;margin:0 0 16px;">New Zaeli beta signup</p>
-  <table style="border-collapse:collapse;margin:0 0 20px;">
-    <tr><td style="padding:4px 12px 4px 0;color:rgba(10,10,10,0.55);">Name</td><td style="padding:4px 0;"><strong>${escapeHtml(displayName)}</strong></td></tr>
-    <tr><td style="padding:4px 12px 4px 0;color:rgba(10,10,10,0.55);">Email</td><td style="padding:4px 0;"><strong>${escapeHtml(email)}</strong></td></tr>
-    <tr><td style="padding:4px 12px 4px 0;color:rgba(10,10,10,0.55);">Source</td><td style="padding:4px 0;">website</td></tr>
-  </table>
-  <p style="margin:0 0 8px;">Next step: send them a TestFlight invite within 24 hours.</p>
-  <p style="margin:0;font-size:13px;color:rgba(10,10,10,0.45);">Full signup list in Supabase &rarr; beta_signups table.</p>
-</div>
-  `.trim();
-}
+// notifyHtml removed — we no longer send a distinct notification email.
+// See the "Why one send with BCC" comment in the handler above.
+// If we migrate to Resend later and reintroduce a proper "New signup"
+// email, restore this template + the escapeHtml helper below.
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const corsHeaders = {
@@ -180,13 +168,4 @@ function json(body: unknown, status = 200): Response {
 function firstName(full: string): string {
   const first = full.trim().split(/\s+/)[0] ?? '';
   return first.charAt(0).toUpperCase() + first.slice(1);
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replaceAll('&',  '&amp;')
-    .replaceAll('<',  '&lt;')
-    .replaceAll('>',  '&gt;')
-    .replaceAll('"',  '&quot;')
-    .replaceAll("'",  '&#39;');
 }
