@@ -83,11 +83,14 @@ Deno.serve(async (req) => {
     });
 
     // 3. Welcome email → the signup
+    // Subject: plain ASCII only — no HTML entities (subjects aren't HTML;
+    // entities render literally). No special chars either — subjects
+    // travel via MIME Q-encoding + not every client displays it clean.
     try {
       await client.send({
         from:    `${FROM_NAME} <${FROM_ADDRESS}>`,
         to:      email,
-        subject: `You&#39;re on the Zaeli beta list &#10003;`,
+        subject: `You're on the Zaeli beta list`,
         content: 'auto',
         html:    welcomeHtml(greeting),
       });
@@ -103,7 +106,7 @@ Deno.serve(async (req) => {
       await client.send({
         from:    `${FROM_NAME} <${FROM_ADDRESS}>`,
         to:      NOTIFY_ADDRESS,
-        subject: `New Zaeli beta signup &mdash; ${email}`,
+        subject: `New Zaeli beta signup: ${email}`,
         content: 'auto',
         html:    notifyHtml(email, name),
       });
@@ -135,10 +138,10 @@ function welcomeHtml(greeting: string): string {
   <p style="font-size:36px;font-weight:800;letter-spacing:-1.5px;line-height:1;margin:0 0 16px;">z<span style="color:#A8D8F0;">a</span>el<span style="color:#A8D8F0;">i</span></p>
   <p style="margin:0 0 20px;">${greeting}</p>
   <p style="margin:0 0 20px;">Thanks for signing up to the Zaeli beta &mdash; you&#39;re on the list.</p>
-  <p style="margin:0 0 20px;"><strong>What happens next:</strong> Rich will send you a TestFlight invite within 24 hours. One tap to install Zaeli on your iPhone.</p>
+  <p style="margin:0 0 20px;"><strong>What happens next:</strong> we&#39;ll send you a TestFlight invite within 24 hours. One tap to install Zaeli on your iPhone.</p>
   <p style="margin:0 0 20px;">Beta users get the full app free for 3 months &mdash; no card, no strings. In return, we just ask for your honest feedback along the way.</p>
   <p style="margin:0 0 8px;">Talk soon,</p>
-  <p style="margin:0;"><strong>Rich</strong><br>Zaeli &middot; <a href="https://zaeli.app" style="color:#0A5C80;text-decoration:none;border-bottom:1px solid rgba(10,10,10,0.25);">zaeli.app</a></p>
+  <p style="margin:0;"><strong>Zaeli</strong> &middot; <a href="https://zaeli.app" style="color:#0A5C80;text-decoration:none;border-bottom:1px solid rgba(10,10,10,0.25);">zaeli.app</a></p>
   <p style="margin:32px 0 0;font-size:12px;color:rgba(10,10,10,0.45);">Made in Australia. Reply to this email anytime.</p>
 </div>
   `.trim();
