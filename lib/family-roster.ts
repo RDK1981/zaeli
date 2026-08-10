@@ -46,18 +46,23 @@ const PALETTE: Record<string, string> = {
   duke: '#F59E0B',
 };
 
-// Graceful fallback before the DB load resolves. Uses name-keyed ids so a
-// pre-load assignee write is obviously a seed value (real writes happen after
-// load with DB UUIDs). For the current family these match reality.
-const DEFAULT_ROSTER: RosterMember[] = [
-  { id: 'seed-anna',  name: 'Anna',    color: '#FF7B6B', role: 'parent', yearLevel: null, avatarEmoji: '👤', tutorActive: false },
-  { id: 'seed-rich',  name: 'Richard', color: '#4D8BFF', role: 'parent', yearLevel: null, avatarEmoji: '👤', tutorActive: false },
-  { id: 'seed-poppy', name: 'Poppy',   color: '#A855F7', role: 'child',  yearLevel: 6,    avatarEmoji: '👤', tutorActive: true },
-  { id: 'seed-gab',   name: 'Gab',     color: '#22C55E', role: 'child',  yearLevel: 4,    avatarEmoji: '👤', tutorActive: true },
-  { id: 'seed-duke',  name: 'Duke',    color: '#F59E0B', role: 'child',  yearLevel: 1,    avatarEmoji: '👤', tutorActive: true },
-];
+// Round B commit 34 — DEFAULT_ROSTER removed (CRITICAL data isolation fix).
+//
+// Prior behaviour: _roster initialised to a hardcoded list of Rich's real
+// family (Anna, Richard, Poppy, Gab, Duke) as a "graceful fallback" for
+// the pre-load flash. When apple-review@zaeli.ai signed up on the same
+// device, invalidateRosterCache() reset _roster to those same defaults;
+// loadRoster's `if (data.length > 0)` guard skipped the empty-result
+// assignment; so _roster stayed as Rich's family and apple-review saw
+// Rich's real family members in Our Family. That's a cross-user data
+// leak, and blocking for beta with real testers.
+//
+// New behaviour: empty roster by default. Screens must handle an empty
+// roster gracefully (they already do — "no family members yet" state).
+// A brief pre-load render with no avatars is a smaller UX cost than
+// showing someone else's family.
 
-let _roster: RosterMember[] = [...DEFAULT_ROSTER];
+let _roster: RosterMember[] = [];
 let _loaded = false;
 
 function colorFor(name: string, dbColour: string | null): string {
@@ -81,17 +86,22 @@ export async function loadRoster(familyId: string): Promise<RosterMember[]> {
       _loaded = true;
       return _roster;
     }
-    if (data && data.length > 0) {
-      _roster = data.map((r: any) => ({
-        id:          r.id,
-        name:        r.name,
-        color:       colorFor(r.name, r.colour),
-        role:        r.role || 'parent',
-        yearLevel:   r.year_level ?? null,
-        avatarEmoji: r.avatar_emoji || '👤',
-        tutorActive: !!r.tutor_active,
-      }));
-    }
+    // Round B commit 34 — CRITICAL: always assign the query result, even
+    // when empty. Previous `if (data.length > 0)` guard skipped empty
+    // results, leaving stale _roster from a prior user's family. That's
+    // how apple-review@zaeli.ai saw Rich's real family members in Our
+    // Family after Rich signed out and apple-review signed up on the
+    // same device (fresh family with no members → empty result → guard
+    // skipped assignment → cached Rich family survived).
+    _roster = (data ?? []).map((r: any) => ({
+      id:          r.id,
+      name:        r.name,
+      color:       colorFor(r.name, r.colour),
+      role:        r.role || 'parent',
+      yearLevel:   r.year_level ?? null,
+      avatarEmoji: r.avatar_emoji || '👤',
+      tutorActive: !!r.tutor_active,
+    }));
     _loaded = true;
   } catch (e: any) {
     console.log('[roster] load exception:', e?.message);
@@ -167,6 +177,8 @@ export function defaultAssigneeIds(): string[] {
 }
 
 export function invalidateRosterCache(): void {
+  // Round B commit 34 — reset to empty, NOT to DEFAULT_ROSTER (removed).
+  // See top-of-file comment for the cross-user data-leak this fixes.
   _loaded = false;
-  _roster = [...DEFAULT_ROSTER];
+  _roster = [];
 }

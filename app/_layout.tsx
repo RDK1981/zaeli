@@ -215,18 +215,45 @@ export default function RootLayout() {
           if (inAuth) router.replace('/(tabs)/swipe-world' as any)
           return
         }
-        const done = await AsyncStorage.getItem('onboarding_complete')
+        // Round B commit 34 — CRITICAL: AsyncStorage key MUST be scoped
+        // per-user. Previous device-wide key `onboarding_complete` meant
+        // a fresh signup on Rich's device (e.g. apple-review@zaeli.ai)
+        // read Rich's leftover 'true' flag and skipped onboarding
+        // entirely, dumping the new user straight into the Dashboard.
+        // Now scoped by profile.id so every account gets their own flag.
+        // Also honours a one-time migration of the old device-wide flag
+        // to Rich's profile (see below).
+        const userId = profile?.id ?? null
+        if (!userId) return
+        const perUserKey = `onboarding_complete_${userId}`
+        let done = await AsyncStorage.getItem(perUserKey)
+        // One-time migration: if the old device-wide key is 'true' AND
+        // the per-user key is unset AND this is the same profile that
+        // completed onboarding originally, honour it. We can't perfectly
+        // detect "same profile" here so we use the grandfather test
+        // below anyway — this migration just prevents an extra bounce
+        // for existing users.
+        if (done !== 'true') {
+          const legacyFlag = await AsyncStorage.getItem('onboarding_complete')
+          if (legacyFlag === 'true' && profile?.created_at) {
+            const ageMs = Date.now() - new Date(profile.created_at).getTime()
+            if (ageMs > 24 * 60 * 60 * 1000) {
+              done = 'true'
+              await AsyncStorage.setItem(perUserKey, 'true')
+            }
+          }
+        }
         // Grandfather clause — profiles created before this gate existed
         // never set the AsyncStorage flag, so we'd yank Rich (and any
         // other pre-gate user) into onboarding on next reload. If the
         // profile is more than 24h old, treat as completed and stamp
-        // the flag so this check is a no-op forever after.
+        // the per-user flag so this check is a no-op forever after.
         let effectiveDone = done === 'true'
         if (!effectiveDone && !inOnboarding && profile?.created_at) {
           const ageMs = Date.now() - new Date(profile.created_at).getTime()
           if (ageMs > 24 * 60 * 60 * 1000) {
             effectiveDone = true
-            await AsyncStorage.setItem('onboarding_complete', 'true')
+            await AsyncStorage.setItem(perUserKey, 'true')
           }
         }
         if (!effectiveDone && !inOnboarding) {

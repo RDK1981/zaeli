@@ -4133,7 +4133,10 @@ function HomeScreen({
     // next morning.
     (async () => {
       try {
-        const justCompleted = await AsyncStorage.getItem('onboarding_just_completed');
+        // Round B commit 34 — per-user key (see _layout.tsx onboarding gate).
+        const uid2 = getProfile()?.id ?? null;
+        const key = uid2 ? `onboarding_just_completed_${uid2}` : 'onboarding_just_completed';
+        const justCompleted = await AsyncStorage.getItem(key);
         const kind = getProfile()?.kind ?? 'owner';
         if (justCompleted === 'true' && kind !== 'owner') {
           const firstName = getProfile()?.name?.split(/\s+/)[0] || 'there';
@@ -4269,9 +4272,12 @@ function HomeScreen({
   // app/onboarding/index.tsx on finish, then read+cleared here.
   async function maybeFireTourOffer() {
     try {
-      const flag = await AsyncStorage.getItem('onboarding_just_completed');
+      // Round B commit 34 — per-user key.
+      const uidTour = getProfile()?.id ?? null;
+      const key = uidTour ? `onboarding_just_completed_${uidTour}` : 'onboarding_just_completed';
+      const flag = await AsyncStorage.getItem(key);
       if (flag !== 'true') return;
-      await AsyncStorage.removeItem('onboarding_just_completed');
+      await AsyncStorage.removeItem(key);
       // Effective tour size — kid invitee = 9, owner/adult = 11
       await loadTourState(); // ensures account loaded
       const total = tourEffectiveTotal();

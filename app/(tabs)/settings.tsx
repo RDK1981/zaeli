@@ -373,7 +373,12 @@ export default function SettingsScreen() {
           onReplayOnboarding={async () => {
             // Clear the completion flag so any future auto-redirect gate also fires,
             // then navigate. Matches fresh-install behaviour for testing.
-            try { await AsyncStorage.removeItem('onboarding_complete'); } catch {}
+            // Round B commit 34 — per-user key + also clear legacy device-wide.
+            try {
+              const uid = p.profile?.id;
+              if (uid) await AsyncStorage.removeItem(`onboarding_complete_${uid}`);
+              await AsyncStorage.removeItem('onboarding_complete');
+            } catch {}
             router.navigate('/onboarding' as any);
           }}
           onSimulateInviteAccept={async () => {
@@ -403,7 +408,12 @@ export default function SettingsScreen() {
           }}
           onResetAccount={async () => {
             await resetToOwner();
-            try { await AsyncStorage.removeItem('onboarding_just_completed'); } catch {}
+            try {
+              // Round B commit 34 — clear per-user + legacy device-wide.
+              const uid = p.profile?.id;
+              if (uid) await AsyncStorage.removeItem(`onboarding_just_completed_${uid}`);
+              await AsyncStorage.removeItem('onboarding_just_completed');
+            } catch {}
             Alert.alert('Reset', 'Switched back to the owner account (Rich).');
           }}
           onManageSubscription={async () => {

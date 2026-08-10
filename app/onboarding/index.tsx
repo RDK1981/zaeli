@@ -38,6 +38,7 @@ import * as Notifications from 'expo-notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import { loadPrefs, savePrefs } from '../../lib/user-prefs';
+import { getCurrentUserId } from '../../lib/auth';
 // v2 change — Audio, FileSystem, Location imports dropped along with
 // OpenerStep (voice pill) and Location permission. Audio + FileSystem
 // were only used by the ElevenLabs voice cache; Location was only used
@@ -361,8 +362,14 @@ export default function OnboardingScreen() {
 
   async function finishOnboarding() {
     try {
-      await AsyncStorage.setItem('onboarding_complete', 'true');
-      await AsyncStorage.setItem('onboarding_just_completed', 'true');
+      // Round B commit 34 — per-user AsyncStorage keys. Device-wide flags
+      // meant a fresh signup on the same device inherited the previous
+      // user's "onboarding done" state and skipped onboarding entirely.
+      // See the top of _layout.tsx onboarding gate for full context.
+      const userId = await getCurrentUserId();
+      const suffix = userId ? `_${userId}` : '';
+      await AsyncStorage.setItem(`onboarding_complete${suffix}`, 'true');
+      await AsyncStorage.setItem(`onboarding_just_completed${suffix}`, 'true');
       await AsyncStorage.setItem('onboarding_data', JSON.stringify({
         completedAt: new Date().toISOString(),
         name, email, family, rhythm, prefs, notifOK,

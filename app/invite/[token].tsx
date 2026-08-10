@@ -39,7 +39,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lookupInviteByToken, type Invite } from '../../lib/invite-state';
 import { setAccount } from '../../lib/account-state';
-import { signUpFromInvite, loadProfile } from '../../lib/auth';
+import { signUpFromInvite, loadProfile, getCurrentUserId } from '../../lib/auth';
 
 const BG = '#FAF8F5';
 const INK = '#0A0A0A';
@@ -131,8 +131,13 @@ async function finishAdult(
     await loadProfile();
     await setAccount({ kind: 'adult', name: invite.name.split(/\s+/)[0] });
     try {
-      await AsyncStorage.setItem('onboarding_complete', 'true');
-      await AsyncStorage.setItem('onboarding_just_completed', 'true');
+      // Round B commit 34 — per-user AsyncStorage keys so a fresh signup
+      // on the same device gets its own onboarding state. See _layout.tsx
+      // gate for full context on the data-isolation fix.
+      const uid = await getCurrentUserId();
+      const sfx = uid ? `_${uid}` : '';
+      await AsyncStorage.setItem(`onboarding_complete${sfx}`, 'true');
+      await AsyncStorage.setItem(`onboarding_just_completed${sfx}`, 'true');
     } catch {}
     router.replace('/(tabs)/swipe-world' as any);
   } catch (e: any) {
@@ -167,9 +172,12 @@ async function finishKid(
     await loadProfile();
     await setAccount({ kind: 'kid', name: invite.name.split(/\s+/)[0], avatar: extras.avatar });
     try {
-      await AsyncStorage.setItem('onboarding_complete', 'true');
+      // Round B commit 34 — per-user AsyncStorage keys (see adult flow above).
+      const uid = await getCurrentUserId();
+      const sfx = uid ? `_${uid}` : '';
+      await AsyncStorage.setItem(`onboarding_complete${sfx}`, 'true');
       // One-shot flag — Kids Hub reads + clears on mount, shows welcome banner
-      await AsyncStorage.setItem('kid_just_joined', 'true');
+      await AsyncStorage.setItem(`kid_just_joined${sfx}`, 'true');
     } catch {}
     router.replace('/(tabs)/kids' as any);
   } catch (e: any) {
