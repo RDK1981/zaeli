@@ -28,7 +28,7 @@ import React, { useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, Animated, Switch, Image,
-  KeyboardAvoidingView,
+  KeyboardAvoidingView, Share,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +39,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import { loadPrefs, savePrefs } from '../../lib/user-prefs';
 import { getCurrentUserId } from '../../lib/auth';
+import { createInvite } from '../../lib/invite-state';
 // v2 change — Audio, FileSystem, Location imports dropped along with
 // OpenerStep (voice pill) and Location permission. Audio + FileSystem
 // were only used by the ElevenLabs voice cache; Location was only used
@@ -403,10 +404,11 @@ export default function OnboardingScreen() {
     <View style={{ flex: 1, backgroundColor: BG, paddingTop: insets.top }}>
       <StatusBar style="dark"/>
 
-      {/* v2 onboarding — 8 steps per zaeli-v2-onboarding-mockup.html
-          (Session 32 v3, dropped: OpenerStep / PantryDemoStep / HomeworkDemoStep /
-          LifeDemoStep / BriefPreviewStep / DashboardRevealStep. All demoed hidden
-          features or duplicated the Lockscreen wow.) */}
+      {/* v2 onboarding — 9 steps (Round B commit 35 added ShareStep as
+          step 8, pushed ReadyStep to 9). ShareStep prompts the primary
+          user to invite family via iOS share sheet right after they've
+          finished setup — the highest-intent moment for network-effect
+          activation. */}
       {step === 1 && <WelcomeStep onNext={goNext}/>}
       {step === 2 && (
         <NameEmailStep
@@ -449,6 +451,12 @@ export default function OnboardingScreen() {
         />
       )}
       {step === 8 && (
+        <ShareStep
+          userName={name}
+          onNext={goNext} onBack={goBack}
+        />
+      )}
+      {step === 9 && (
         <ReadyStep name={name} rhythm={rhythm} onFinish={finishOnboarding}/>
       )}
     </View>
@@ -1523,6 +1531,137 @@ function DashRow(p: { emoji: string; bg: string; fg: string; title: string; sub:
 // ═══════════════════════════════════════════════════════════════════════════
 // STEP 13 — READY
 // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// ShareStep — Round B commit 35
+// ═══════════════════════════════════════════════════════════════════════════
+// Onboarding step 8: prompts the primary user to share Zaeli with their
+// family via the iOS share sheet. This is the highest-intent moment for
+// network-effect activation — they've just committed enough to complete
+// onboarding, and inviting others locks in the multi-user value prop.
+//
+// Flow:
+//   1. Tap "Share invite" → createInvite() generates a token
+//   2. Share.share() opens iOS system sheet (Messages / WhatsApp / etc)
+//   3. User picks contact → sends → returns to app
+//   4. Local state flips to "shared" → primary CTA becomes "Continue"
+//   5. Secondary "Share another" stays available for multi-invite
+//   6. "Skip for now" always available (Rich's Home banner nudge picks
+//      up if they skip — implemented separately as follow-up)
+//
+// Rôle defaulted to 'adult' — invite tokens work identically for
+// adult/kid; only the role label differs. Adult is the safe default for
+// a partner-oriented family share; the recipient can specify at signup.
+function ShareStep(p: {
+  userName: string;
+  onNext: () => void;
+  onBack: () => void;
+}) {
+  const [sharing, setSharing] = React.useState(false);
+  const [shareCount, setShareCount] = React.useState(0);
+  const inviterFirstName = (p.userName || '').trim().split(/\s+/)[0] || 'Rich';
+
+  async function handleShare() {
+    if (sharing) return;
+    setSharing(true);
+    try {
+      // We don't ask for name/phone at onboarding time — recipient details
+      // aren't captured, just the invite link. `name` field on the token
+      // stays as a generic placeholder; if we later add "who did you
+      // invite" tracking, we can extend the flow.
+      const { sms, link } = await createInvite({
+        role: 'adult',
+        name: 'Family',
+        inviterFirstName,
+      });
+      try {
+        await Share.share({
+          message: sms,
+          url: link,   // iOS only — Messages preview shows the URL card
+        });
+        setShareCount(n => n + 1);
+      } catch {
+        // User dismissed share sheet — invite is still saved as pending
+        // so they can resend later from Our Family. Don't bump count.
+      }
+    } catch (e: any) {
+      Alert.alert("Couldn't create invite", e?.message || 'Try again in a moment.');
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  const hasShared = shareCount > 0;
+
+  return (
+    <View style={{ flex: 1 }}>
+      <ChatHeader onBack={p.onBack}/>
+      <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+        <View style={{ alignItems: 'center', marginTop: 20 }}>
+          <Text style={{ fontSize: 48 }}>👨‍👩‍👧‍👦</Text>
+        </View>
+
+        <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 30, color: INK, textAlign: 'center', marginTop: 20, letterSpacing: -0.8, lineHeight: 36 }}>
+          One last thing.
+        </Text>
+        <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 17, color: INK2, textAlign: 'center', marginTop: 12, lineHeight: 25, paddingHorizontal: 8 }}>
+          Zaeli works best when the whole family's in. Share it with your partner (and anyone else planning the week with you) so it lands on their phone too.
+        </Text>
+
+        {hasShared && (
+          <View style={{ marginTop: 24, backgroundColor: MINT_BG, borderColor: MINT, borderWidth: 1.5, borderRadius: 14, padding: 14, alignItems: 'center' }}>
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 14, color: MINT_DARK }}>
+              {shareCount === 1 ? '✓ Invite shared' : `✓ ${shareCount} invites shared`}
+            </Text>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK3, textAlign: 'center', marginTop: 4 }}>
+              They'll get a link to install Zaeli and join your family.
+            </Text>
+          </View>
+        )}
+
+        <View style={{ gap: 10, marginTop: 32 }}>
+          <TouchableOpacity
+            onPress={handleShare}
+            disabled={sharing}
+            activeOpacity={0.85}
+            style={{
+              backgroundColor: INK, paddingVertical: 16, borderRadius: 32,
+              alignItems: 'center', opacity: sharing ? 0.6 : 1,
+            }}
+          >
+            <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#FFFFFF' }}>
+              {sharing ? 'Opening…' : hasShared ? '📤 Share another' : '📤 Share invite'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={p.onNext}
+            activeOpacity={0.75}
+            style={{
+              backgroundColor: hasShared ? MINT : 'transparent',
+              borderWidth: hasShared ? 0 : 1.5,
+              borderColor: 'rgba(10,10,10,0.14)',
+              paddingVertical: 15, borderRadius: 32,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{
+              fontFamily: hasShared ? 'Poppins_700Bold' : 'Poppins_600SemiBold',
+              fontSize: 15,
+              color: hasShared ? MINT_DARK : INK3,
+            }}>
+              {hasShared ? 'Continue →' : 'Skip for now'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK4, textAlign: 'center', marginTop: 20, lineHeight: 18, paddingHorizontal: 8 }}>
+          You can always invite more family later from Our Family.
+        </Text>
+      </ScrollView>
+    </View>
+  );
+}
+
 function ReadyStep(p: { name: string; rhythm: Rhythm; onFinish: () => void }) {
   // Round A — use user's chosen morning brief time, not a derived one.
   const briefTime = fmtTime12(p.rhythm.briefMorning);
