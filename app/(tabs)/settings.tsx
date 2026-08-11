@@ -34,6 +34,7 @@ import {
   clearAllMemory, type InsightRow, type MilestoneRow,
 } from '../../lib/zaeli-memory';
 import { getFamilyId } from '../../lib/family';
+import { loadRoster, getRoster } from '../../lib/family-roster';
 import { registerPushToken, debugPushToken, notifyFamily } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
 import { getSubscription, subscriptionLabel, fetchCustomerPortalUrl, shouldPromptSubscribe, getCheckoutUrl, isFamilyInBeta } from '../../lib/stripe';
@@ -781,6 +782,26 @@ function MainView(p: {
   // trigger-API path saveReminder uses (verifies commit 24 end-to-end).
   onTestReminderNotif: () => void;
 }) {
+  // Round B commit 36 — dynamic family names for the Our Family row sub.
+  // Was hardcoded "Anna, Poppy, Gab, Duke" which leaked Rich's family to
+  // every new signup on the Settings page (same class as the roster leak
+  // fixed in commit 34). Load roster on mount, compute sub as comma
+  // joined names. Falls back to "Invite your family" if empty.
+  const [familyNames, setFamilyNames] = useState<string>('');
+  useEffect(() => {
+    (async () => {
+      try {
+        const fid = getFamilyId();
+        if (fid) {
+          await loadRoster(fid);
+          const names = getRoster().map(m => m.name).join(', ');
+          setFamilyNames(names);
+        }
+      } catch {}
+    })();
+  }, []);
+  const ourFamilySub = familyNames || 'Invite your family →';
+
   // Round B commit 23 — Apple Calendar toggle state. Local to MainView (not
   // plumbed through top) because the pref persists device-side via
   // AsyncStorage in lib/apple-calendar.ts, not to profiles.user_preferences.
@@ -894,7 +915,7 @@ function MainView(p: {
       <SecLabel>Family</SecLabel>
       <View style={s.group}>
         <Row icon="👨‍👩‍👧‍👦" iconBg="#FFE4F1" iconFg="#D4006A"
-             title="Our Family" sub="Anna, Poppy, Gab, Duke"
+             title="Our Family" sub={ourFamilySub}
              onPress={p.onOurFamily} last/>
       </View>
 

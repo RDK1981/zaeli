@@ -22,6 +22,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { signInWithPassword, signUpOwner, loadProfile, getProfile, getSession } from '../../lib/auth';
+import { supabase } from '../../lib/supabase';
 
 const BG = '#FAF8F5';
 const INK = '#0A0A0A';
@@ -49,6 +50,10 @@ export default function SignInScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Round B commit 36 — confirm field + visibility toggle. Signup only.
+  // Sign-in stays single field (user already knows their password).
+  const [confirmPw, setConfirmPw] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pendingEmail, setPendingEmail] = useState('');
 
@@ -60,6 +65,19 @@ export default function SignInScreen() {
     if (mode === 'sign-up' && !name.trim()) {
       Alert.alert('Need your name', 'What should I call you?');
       return;
+    }
+    // Round B commit 36 — signup requires password confirmation to catch
+    // typos + minimum length. Sign-in skips these (user already has the
+    // real password + Supabase gives them a proper "incorrect" error).
+    if (mode === 'sign-up') {
+      if (password.length < 6) {
+        Alert.alert('Password too short', 'Use at least 6 characters.');
+        return;
+      }
+      if (password !== confirmPw) {
+        Alert.alert("Passwords don't match", 'Check both fields and try again.');
+        return;
+      }
     }
     setBusy(true);
     try {
@@ -82,6 +100,29 @@ export default function SignInScreen() {
           return;
         }
         await loadProfile();
+        // Round B commit 36 — welcome email + Rich notification via the
+        // beta-notify Edge Function. Same infrastructure the website beta
+        // form uses (Session 30). Fire-and-forget so signup UX isn't
+        // blocked by SMTP hiccups.
+        (async () => {
+          try {
+            const { data: { session: sess } } = await supabase.auth.getSession();
+            const jwt = sess?.access_token;
+            if (!jwt) return;
+            const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+            await fetch(`${SUPABASE_URL}/functions/v1/beta-notify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type':  'application/json',
+                'Authorization': `Bearer ${jwt}`,
+                'apikey':        process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+              },
+              body: JSON.stringify({ email: email.trim(), name: name.trim() }),
+            });
+          } catch (e:any) {
+            console.log('[signup] welcome email fire-and-forget failed:', e?.message);
+          }
+        })();
         router.replace('/(tabs)/swipe-world' as any);
       }
     } catch (e: any) {
@@ -165,17 +206,47 @@ export default function SignInScreen() {
                 </View>
                 <View>
                   <Text style={s.label}>Password</Text>
-                  <TextInput
-                    style={s.input}
-                    value={password}
-                    onChangeText={setPassword}
-                    placeholder={mode === 'sign-up' ? 'At least 6 characters' : '••••••••'}
-                    placeholderTextColor={INK4}
-                    secureTextEntry
-                    returnKeyType="done"
-                    onSubmitEditing={onSubmit}
-                  />
+                  <View style={{ position: 'relative' }}>
+                    <TextInput
+                      style={[s.input, { paddingRight: 52 }]}
+                      value={password}
+                      onChangeText={setPassword}
+                      placeholder={mode === 'sign-up' ? 'At least 6 characters' : '••••••••'}
+                      placeholderTextColor={INK4}
+                      secureTextEntry={!showPw}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType={mode === 'sign-up' ? 'next' : 'done'}
+                      onSubmitEditing={mode === 'sign-up' ? undefined : onSubmit}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPw(v => !v)}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                      style={{ position: 'absolute', right: 14, top: 0, bottom: 0, justifyContent: 'center' }}
+                    >
+                      <Text style={{ fontSize: 18 }}>{showPw ? '🙈' : '👁'}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
+                {/* Round B commit 36 — confirm password (signup only) */}
+                {mode === 'sign-up' && (
+                  <View>
+                    <Text style={s.label}>Confirm password</Text>
+                    <TextInput
+                      style={s.input}
+                      value={confirmPw}
+                      onChangeText={setConfirmPw}
+                      placeholder="Type it again"
+                      placeholderTextColor={INK4}
+                      secureTextEntry={!showPw}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                      onSubmitEditing={onSubmit}
+                    />
+                  </View>
+                )}
               </View>
 
               {/* Primary CTA */}

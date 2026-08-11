@@ -38,8 +38,10 @@ import * as Notifications from 'expo-notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Svg, { Path } from 'react-native-svg';
 import { loadPrefs, savePrefs } from '../../lib/user-prefs';
-import { getCurrentUserId } from '../../lib/auth';
+import { getCurrentUserId, getProfile } from '../../lib/auth';
 import { createInvite } from '../../lib/invite-state';
+import { supabase } from '../../lib/supabase';
+import { invalidateRosterCache } from '../../lib/family-roster';
 // v2 change — Audio, FileSystem, Location imports dropped along with
 // OpenerStep (voice pill) and Location permission. Audio + FileSystem
 // were only used by the ElevenLabs voice cache; Location was only used
@@ -331,8 +333,14 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState<number>(1);
 
   // Collected data — all blank, user fills in across the flow
-  const [name, setName]       = useState('');
-  const [email, setEmail]     = useState('');
+  // Round B commit 36 — pre-fill name/email from the signed-in profile
+  // if it's already there. Prior UX: user typed email at signup, then
+  // re-typed it again in step 2 (NameEmailStep) — Rich flagged as odd.
+  // Now the field is pre-filled with what they already gave us at
+  // signup; they can edit if wrong.
+  const initialProfile = getProfile();
+  const [name, setName]       = useState<string>(initialProfile?.name ?? '');
+  const [email, setEmail]     = useState<string>(initialProfile?.email ?? '');
   const [family, setFamily]   = useState<Member[]>([]);
   // Rhythm keeps sensible default times so the picker has something to start
   // from; user adjusts on Step 5.
@@ -363,6 +371,55 @@ export default function OnboardingScreen() {
 
   async function finishOnboarding() {
     try {
+      // Round B commit 36 — persist family_members captured during
+      // onboarding to the DB. Prior state: FamilyStep captured names/
+      // roles/years into local `family` state, but finishOnboarding
+      // never wrote to `family_members` table — so Our Family showed
+      // ZERO members after onboarding. That kills the reason the user
+      // just typed all those names in.
+      //
+      // Insert order: skip the 'me' auto-seed row (that user already
+      // has a profiles row; family_members is for OTHER family members,
+      // not the auth owner themselves).
+      //
+      // year_level column is INT — parse "Year 5" → 5, "Kinder" → null,
+      // "Prep" → 0, everything else numeric-parsed.
+      try {
+        const profile = getProfile();
+        const familyId = profile?.family_id;
+        if (familyId && family.length > 0) {
+          const otherMembers = family.filter(m => m.id !== 'me');
+          if (otherMembers.length > 0) {
+            const parseYearLevel = (s?: string): number | null => {
+              if (!s) return null;
+              if (s === 'Kinder') return null;
+              if (s === 'Prep') return 0;
+              const m = s.match(/(\d+)/);
+              return m ? parseInt(m[1], 10) : null;
+            };
+            const rows = otherMembers.map(m => ({
+              family_id:    familyId,
+              name:         m.name.trim(),
+              colour:       m.colour,
+              role:         m.role,
+              year_level:   parseYearLevel(m.yearLevel),
+              avatar_emoji: null,
+              tutor_active: false,
+            }));
+            const { error: memErr } = await supabase.from('family_members').insert(rows);
+            if (memErr) {
+              console.log('[onboarding] family_members insert failed:', memErr.message);
+            } else {
+              // Wipe the roster cache so a fresh loadRoster on next
+              // screen pulls the members we just inserted.
+              invalidateRosterCache();
+            }
+          }
+        }
+      } catch (e:any) {
+        console.log('[onboarding] family_members persist threw:', e?.message);
+      }
+
       // Round B commit 34 — per-user AsyncStorage keys. Device-wide flags
       // meant a fresh signup on the same device inherited the previous
       // user's "onboarding done" state and skipped onboarding entirely.
