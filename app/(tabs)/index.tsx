@@ -1771,7 +1771,7 @@ const TOOLS = [
   { name:'add_goal', description:'Add a personal goal', input_schema:{ type:'object', properties:{ title:{type:'string',description:'Goal title e.g. Run a half marathon'}, target_date:{type:'string',description:'Target date YYYY-MM-DD'}, detail:{type:'string',description:'Description of the goal and how to measure it'} }, required:['title'] } },
   { name:'update_goal', description:'Update a goal (progress, title, target date)', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Current goal title to search for'}, new_title:{type:'string'}, new_target_date:{type:'string'}, new_progress:{type:'number',description:'Progress percentage 0-100'}, new_detail:{type:'string'} }, required:['search_title'] } },
   { name:'delete_goal', description:'Delete a goal', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Goal title to search for'} }, required:['search_title'] } },
-  { name:'add_reminder', description:'Add a reminder. Three shapes: timed (remind_at set — fires a push notification to the creator at that instant), date-only (remind_on set — shows on that day, no push), undated (both omitted — "someday" bucket). Reminders are family-shared (everyone sees) but notifications go only to the person who created them. Use for personal to-remember things, NOT for calendar events (use add_calendar_event for shared events with a time). CRITICAL TITLE-vs-TIME RULE: title is the WHAT (the action to remember). remind_at / remind_on is the WHEN. NEVER leave time or date words ("tomorrow", "today", "3pm", "3:30pm", "9am", "Monday", "next week", "tonight", "in 10 min", etc.) INSIDE the title — extract them and put them in remind_at or remind_on. Example: user says "Pick up Gab 3:30pm tomorrow" → title="Pick up Gab", remind_at="<tomorrow>T15:30:00" (use TOMORROW\'s date, not today\'s). Example: user says "Take out the bins Sat 10pm" → title="Take out the bins", remind_at="<coming Saturday>T22:00:00". Example: user says "Call plumber tomorrow" → title="Call plumber", remind_on="<tomorrow YYYY-MM-DD>". CRITICAL TIME RULE: remind_at MUST be Brisbane wall-clock time (family is in AEST/UTC+10), format "YYYY-MM-DDTHH:MM:SS" with NO Z suffix and NO timezone offset. "Tomorrow" means CURRENT_TIME\'s date + 1 day — never today\'s date. Never convert to UTC yourself. The user\'s CURRENT_TIME + today\'s date are provided in the system context — use those to compute tomorrow / next Monday / etc.', input_schema:{ type:'object', properties:{ title:{type:'string',description:'What to remember — WITHOUT time/date words. e.g. "Pick up Gab" (NOT "Pick up Gab 3:30pm tomorrow"), "pay soccer registration", "call plumber back".'}, notes:{type:'string',description:'Optional detail — extra context if useful'}, remind_at:{type:'string',description:'Brisbane local wall-clock time as "YYYY-MM-DDTHH:MM:SS" — NO Z, NO offset. Example: "2026-08-15T09:00:00" for 9am Brisbane on 15 Aug. For "tomorrow at X" use TOMORROW\'s YYYY-MM-DD, not today\'s.'}, remind_on:{type:'string',description:'YYYY-MM-DD if user wants a date-only reminder (no specific time). Use this OR remind_at, not both. For "tomorrow" use TOMORROW\'s date (today+1), not today.'}, repeat:{type:'string',enum:['none','daily','weekdays','weekly','fortnightly','monthly'],description:'Recurring? Default none. Generates instances for ~12 months.'} }, required:['title'] } },
+  { name:'add_reminder', description:'Add a reminder. Three shapes: timed (remind_at set — fires a push notification to the creator at that instant), date-only (remind_on set — shows on that day, no push), undated (both omitted — "someday" bucket). Reminders can be personal (creator only sees) OR shared (whole family sees). Notifications always go only to the person who created them. Use for personal to-remember things, NOT for calendar events (use add_calendar_event for shared events with a time). CRITICAL TITLE-vs-TIME RULE: title is the WHAT (the action to remember). remind_at / remind_on is the WHEN. NEVER leave time or date words ("tomorrow", "today", "3pm", "3:30pm", "9am", "Monday", "next week", "tonight", "in 10 min", etc.) INSIDE the title — extract them and put them in remind_at or remind_on. Example: user says "Pick up Gab 3:30pm tomorrow" → title="Pick up Gab", remind_at="<tomorrow>T15:30:00" (use TOMORROW\'s date, not today\'s). Example: user says "Take out the bins Sat 10pm" → title="Take out the bins", remind_at="<coming Saturday>T22:00:00". Example: user says "Call plumber tomorrow" → title="Call plumber", remind_on="<tomorrow YYYY-MM-DD>". CRITICAL TIME RULE: remind_at MUST be Brisbane wall-clock time (family is in AEST/UTC+10), format "YYYY-MM-DDTHH:MM:SS" with NO Z suffix and NO timezone offset. "Tomorrow" means CURRENT_TIME\'s date + 1 day — never today\'s date. Never convert to UTC yourself. The user\'s CURRENT_TIME + today\'s date are provided in the system context — use those to compute tomorrow / next Monday / etc. FOR-SOMEONE-ELSE RULE (Round B commit 37): if the user creates a reminder FOR another family member ("remind Anna to X", "reminder for Anna to X", "Anna needs to X"), set for_member to that family member\'s first name. This auto-marks the reminder as SHARED so the recipient sees it in their own list. When the reminder is for the current user themselves, omit for_member.', input_schema:{ type:'object', properties:{ title:{type:'string',description:'What to remember — WITHOUT time/date words. e.g. "Pick up Gab" (NOT "Pick up Gab 3:30pm tomorrow"), "pay soccer registration", "call plumber back".'}, notes:{type:'string',description:'Optional detail — extra context if useful'}, remind_at:{type:'string',description:'Brisbane local wall-clock time as "YYYY-MM-DDTHH:MM:SS" — NO Z, NO offset. Example: "2026-08-15T09:00:00" for 9am Brisbane on 15 Aug. For "tomorrow at X" use TOMORROW\'s YYYY-MM-DD, not today\'s.'}, remind_on:{type:'string',description:'YYYY-MM-DD if user wants a date-only reminder (no specific time). Use this OR remind_at, not both. For "tomorrow" use TOMORROW\'s date (today+1), not today.'}, repeat:{type:'string',enum:['none','daily','weekdays','weekly','fortnightly','monthly'],description:'Recurring? Default none. Generates instances for ~12 months.'}, for_member:{type:'string',description:'Family member first name if the reminder is FOR someone else (not the current user). e.g. "Anna", "Gab", "Poppy". Auto-sets visibility to shared so the recipient sees it in their own list. Omit if the reminder is for the current user themselves.'} }, required:['title'] } },
 ];
 
 async function executeTool(name: string, input: any): Promise<string> {
@@ -2372,6 +2372,29 @@ async function executeTool(name: string, input: any): Promise<string> {
       }
       const repeat = (input.repeat as any) || 'none';
 
+      // Round B commit 37 \u2014 auto-shared when the reminder is FOR another
+      // family member. Before: everything defaulted to 'personal', so
+      // "remind Anna to call the plumber" landed in Rich's private list
+      // and Anna never saw it until Rich manually re-shared. Now: if
+      // for_member is passed AND resolves to a family member other than
+      // the current user, save with visibility='shared'. Notifications
+      // still go only to the creator (Zoho pattern), which is correct:
+      // Rich set the reminder, Rich's phone buzzes, but Anna sees the
+      // row in her Reminders list because it's shared.
+      let reminderVisibility: 'personal' | 'shared' = 'personal';
+      const forMemberRaw = typeof input.for_member === 'string' ? input.for_member.trim() : '';
+      if (forMemberRaw) {
+        const currentUserFirstName = (getProfile()?.name || '').trim().split(/\s+/)[0].toLowerCase();
+        const forNormalised = forMemberRaw.toLowerCase();
+        // If Sonnet passed for_member matching the current user (e.g.
+        // "remind me to X" \u2192 Sonnet incorrectly set for_member=Rich),
+        // treat as personal. Otherwise it's genuinely for someone else.
+        if (forNormalised !== currentUserFirstName) {
+          reminderVisibility = 'shared';
+          console.log('[add_reminder/tool] for_member=', forMemberRaw, '\u2192 visibility=shared');
+        }
+      }
+
       if (repeat !== 'none' && input.remind_at) {
         try {
           const saved = await (async () => {
@@ -2381,6 +2404,7 @@ async function executeTool(name: string, input: any): Promise<string> {
               notes: input.notes,
               firstOccurrenceISO: input.remind_at,
               rule: repeat,
+              visibility: reminderVisibility,
             });
           })();
           if (!saved.length) {
@@ -2404,6 +2428,7 @@ async function executeTool(name: string, input: any): Promise<string> {
           remindOn: input.remind_on,
           repeatRule: repeat,
           status: 'active',
+          visibility: reminderVisibility,
         });
       } catch (e:any) {
         console.log('[add_reminder/tool] saveReminder THREW:', e?.message);

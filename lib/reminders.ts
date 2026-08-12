@@ -496,6 +496,7 @@ export async function saveReminderSeries(input: {
   firstOccurrenceISO: string;   // e.g. '2026-08-15T09:00:00' local
   rule: RepeatRule;
   horizonDays?: number;
+  visibility?: Visibility;      // Round B commit 37 — auto-share when reminder is for someone else
 }): Promise<Reminder[]> {
   const groupId = uuidv4();
   const dates = generateRecurrenceDates(input.firstOccurrenceISO, input.rule, input.horizonDays ?? 366);
@@ -507,6 +508,7 @@ export async function saveReminderSeries(input: {
       remindAt:      iso,
       repeatRule:    input.rule,
       repeatGroupId: groupId,
+      visibility:    input.visibility,
     });
     if (r) saved.push(r);
   }
