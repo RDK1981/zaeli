@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Zaeli Beta Email Sequence v2 — Draft</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #F0EDE8;
+    --page: #FFFFFF;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.72);
+    --ink3: rgba(10,10,10,0.52);
+    --ink4: rgba(10,10,10,0.38);
+    --line: rgba(10,10,10,0.10);
+    --sky: #A8D8F0; --sky-deep: #0A4A6A;
+    --mint: #B8EDD0; --mint-deep: #0F5C3A;
+    --peach: #FAC8A8; --peach-deep: #8A3A00;
+    --gold: #F0DC80; --gold-deep: #8B6914;
+    --coral: #FF4545; --coral-deep: #B83333;
+    --lav: #D8CCFF; --lav-deep: #5020C0;
+  }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.5;
+    padding: 32px 20px;
+  }
+  .container { max-width: 720px; margin: 0 auto; }
+  h1.doc {
+    font-size: 32px; font-weight: 800; letter-spacing: -1px;
+    margin-bottom: 8px;
+  }
+  h1.doc .z { color: var(--ink); }
+  h1.doc .a, h1.doc .i { color: var(--sky-deep); }
+  .doc-sub {
+    font-size: 15px; color: var(--ink3); margin-bottom: 32px;
+  }
+  .doc-note {
+    background: var(--gold);
+    padding: 14px 18px; border-radius: 10px; margin-bottom: 32px;
+    font-size: 13px; color: var(--ink);
+  }
+  .email-block {
+    background: var(--page); border-radius: 16px;
+    padding: 28px; margin-bottom: 32px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+  }
+  .email-eyebrow {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--ink3); font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .email-title {
+    font-size: 22px; font-weight: 700; margin-bottom: 6px;
+  }
+  .email-meta {
+    font-size: 12px; color: var(--ink3); margin-bottom: 18px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--line);
+  }
+  .email-meta strong { color: var(--ink); }
+  .email-preview {
+    background: #F7F7F5; border-radius: 10px;
+    padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .zaeli-word {
+    font-size: 36px; font-weight: 800; letter-spacing: -1.5px;
+    line-height: 1; margin-bottom: 20px;
+  }
+  .zaeli-word .a, .zaeli-word .i { color: var(--sky); }
+  .email-body p, .email-body ul, .email-body ol {
+    margin-bottom: 18px; color: var(--ink); font-size: 16px;
+  }
+  .email-body ul, .email-body ol { padding-left: 22px; }
+  .email-body li { margin-bottom: 8px; }
+  .email-body strong { font-weight: 700; }
+  .email-body .cta {
+    display: inline-block; background: var(--ink); color: #FFFFFF;
+    padding: 14px 28px; border-radius: 10px;
+    font-weight: 600; text-decoration: none; font-size: 15px;
+  }
+  .email-body .cta-block { text-align: center; margin: 24px 0; }
+  .email-body .cta-secondary {
+    display: inline-block; background: transparent; color: var(--ink);
+    padding: 12px 20px; border: 1px solid var(--line);
+    border-radius: 10px; font-weight: 500; text-decoration: none; font-size: 14px;
+  }
+  .email-body .footer {
+    margin-top: 32px; font-size: 12px; color: var(--ink4);
+  }
+  .email-body .highlight-box {
+    background: var(--gold); background: rgba(240,220,128,0.35);
+    border-left: 3px solid var(--gold-deep);
+    padding: 14px 18px; border-radius: 6px;
+    margin-bottom: 18px;
+  }
+  .email-body .highlight-box p:last-child { margin-bottom: 0; }
+  .email-body .quote {
+    font-style: italic; color: var(--ink2);
+    padding-left: 16px; border-left: 3px solid var(--sky);
+    margin-bottom: 18px;
+  }
+  .change-note {
+    background: var(--sky); background: rgba(168,216,240,0.30);
+    padding: 12px 16px; border-radius: 8px; margin-top: 14px;
+    font-size: 12px; color: var(--ink2);
+  }
+  .change-note strong { color: var(--sky-deep); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1 class="doc"><span class="z">z</span><span class="a">a</span>el<span class="i">i</span></h1>
+  <p class="doc-sub">Beta email sequence v2 — draft copy for review before we ship</p>
+
+  <div class="doc-note">
+    <strong>What's different in v2:</strong> more human. Each email opens with genuine gratitude for testing, invites both good AND bad feedback, and signs off from Rich personally (not "Zaeli") so replies feel like they're going to a real person. Kept ASCII-only subjects + inline HTML (both non-negotiable per the deploy bugs we fixed earlier).
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- EMAIL 1: WELCOME TO BETA                                            -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="email-block">
+    <div class="email-eyebrow">Email 3 in sequence · auto-fires when Andrew installs (post trigger fix)</div>
+    <h2 class="email-title">Welcome to beta</h2>
+    <div class="email-meta">
+      <strong>From:</strong> Rich (Zaeli) &lt;hello@zaeli.ai&gt; &nbsp;·&nbsp;
+      <strong>Subject:</strong> You're in - welcome to Zaeli
+    </div>
+    <div class="email-preview">
+      <div class="zaeli-word">z<span class="a">a</span>el<span class="i">i</span></div>
+      <div class="email-body">
+        <p>Hi there,</p>
+        <p>You're in — thank you. Being an early beta tester for a small AU-built app is a real thing to say yes to, and I don't take it lightly.</p>
+
+        <div class="highlight-box">
+          <p><strong>Your 3 months free start now.</strong> No card on file, no auto-renew — just the full app, on you, for the whole trial. If Zaeli sticks, it's A$6.99/month after that. If it doesn't, no drama.</p>
+        </div>
+
+        <p><strong>What I actually need from you:</strong> honest feedback. Good, bad, weird, half-baked — all of it useful. The absolute best thing you can do is text me the moment something feels clunky, or reply to this email with a one-liner. I read every reply personally, no support desk.</p>
+
+        <p><strong>Three things to try in the first day or two:</strong></p>
+        <ul>
+          <li><strong>Tap the mic on the Home screen</strong> and say <em>"add tennis Tuesday at 5pm"</em> — that's the whole loop right there.</li>
+          <li><strong>Snap a photo of a school newsletter</strong> from the chat bar. Zaeli reads it and adds every event to your calendar in one tap.</li>
+          <li><strong>Invite your partner or older kids</strong> from More → Our Family. Then calendar, shopping, and reminders sync across everyone.</li>
+        </ul>
+
+        <p>Your morning and evening briefs will start landing on your lockscreen at times you can set in Settings. Read them there — most days you won't need to open the app.</p>
+
+        <p>Thanks again for being one of the first. Reply anytime.</p>
+
+        <p>Rich<br><span style="color:rgba(10,10,10,0.55);">Zaeli · <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></span></p>
+
+        <div class="footer">Made in Australia · reply to this email anytime, a real human reads every one.</div>
+      </div>
+    </div>
+    <div class="change-note">
+      <strong>Change from v1:</strong> opens with gratitude not "here's what Zaeli is". Explicit feedback ask. Signed off from Rich personally (not "Zaeli") so replies feel human. Removed TestFlight install button — assumes person is already installed (this fires after install).
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- EMAIL 2: 3-DAY CHECK-IN                                             -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="email-block">
+    <div class="email-eyebrow">Email 4 in sequence · auto-fires day 3 after beta grant</div>
+    <h2 class="email-title">3-day check-in</h2>
+    <div class="email-meta">
+      <strong>From:</strong> Rich (Zaeli) &lt;hello@zaeli.ai&gt; &nbsp;·&nbsp;
+      <strong>Subject:</strong> How is it going so far?
+    </div>
+    <div class="email-preview">
+      <div class="zaeli-word">z<span class="a">a</span>el<span class="i">i</span></div>
+      <div class="email-body">
+        <p>Hi there,</p>
+        <p>Three days in — how's Zaeli feeling?</p>
+        <p>No pressure to reply with anything polished. Even a one-liner is genuinely useful. A few prompts if it helps:</p>
+
+        <div class="quote">
+          "The bit that actually worked well was ___"<br>
+          "The bit that felt clunky was ___"<br>
+          "What I couldn't figure out was ___"<br>
+          "What I wish it would do is ___"
+        </div>
+
+        <p>If it's <strong>not clicking</strong>, tell me. That's more useful than polite silence — every single "this bit is weird" text I get shapes what I ship next week.</p>
+
+        <p>Two things worth trying if you haven't yet:</p>
+        <ul>
+          <li><strong>Photo → calendar</strong>: snap a school note, invitation, or fixture list in the chat. Zaeli extracts every event.</li>
+          <li><strong>Shared reminders</strong>: say <em>"remind Anna to pick up milk tomorrow at 3pm"</em>. It goes on her list too, not just yours.</li>
+        </ul>
+
+        <p>Cheers,</p>
+        <p>Rich<br><span style="color:rgba(10,10,10,0.55);">Zaeli · <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></span></p>
+
+        <div class="footer">Made in Australia · reply anytime.</div>
+      </div>
+    </div>
+    <div class="change-note">
+      <strong>Change from v1:</strong> The four "quote prompts" give people a starting shape for feedback — much easier than staring at a blank reply box. Explicit permission to say "it's not clicking".
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- EMAIL 3: 14-DAY TIPS                                                -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="email-block">
+    <div class="email-eyebrow">Email 5 in sequence · auto-fires day 14 after beta grant</div>
+    <h2 class="email-title">14-day tips</h2>
+    <div class="email-meta">
+      <strong>From:</strong> Rich (Zaeli) &lt;hello@zaeli.ai&gt; &nbsp;·&nbsp;
+      <strong>Subject:</strong> Two weeks in - a few things you might have missed
+    </div>
+    <div class="email-preview">
+      <div class="zaeli-word">z<span class="a">a</span>el<span class="i">i</span></div>
+      <div class="email-body">
+        <p>Hi there,</p>
+        <p>Two weeks in — thanks for sticking with it. A quick note on three habits I see from the families getting the most out of Zaeli:</p>
+
+        <ol>
+          <li><strong>Voice-first on the go.</strong> The mic on the home screen is faster than opening any other app for adding stuff. Try it walking to the car, at pickup, in the aisle at Woolies. It becomes muscle memory quickly.</li>
+          <li><strong>Read the brief on lockscreen, don't open the app.</strong> Around your morning brief time, a push lands with the full day's shape — meals, events, one nudge. Read it there and get on with your day. Zero-friction glance.</li>
+          <li><strong>Actually share with your partner.</strong> If they're still on Notes or the iCloud Calendar and you're on Zaeli, half the value is lost. More → Our Family → invite. Takes 90 seconds and unlocks the whole point.</li>
+        </ol>
+
+        <p><strong>Bonus:</strong> reminders can be personal (just you) OR shared (whole family). Say <em>"remind me to grab milk"</em> vs <em>"remind us bins out tonight"</em> — Zaeli picks up on the difference.</p>
+
+        <p><strong>Halfway through the beta — how's it holding up?</strong> If there's a feature you wish existed, or one that's clunky enough to be worth mentioning, hit reply. I'm still adjusting a lot based on what real families tell me.</p>
+
+        <p>Talk soon,</p>
+        <p>Rich<br><span style="color:rgba(10,10,10,0.55);">Zaeli · <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></span></p>
+
+        <div class="footer">Made in Australia · reply anytime.</div>
+      </div>
+    </div>
+    <div class="change-note">
+      <strong>Change from v1:</strong> Added AU-specific colour ("Woolies", "at pickup") — feels Aussie, not generic. Halfway-check ask at the end reinforces feedback loop.
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- EMAIL 4: BETA ENDING IN 14 DAYS                                     -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <div class="email-block">
+    <div class="email-eyebrow">Email 6 in sequence · auto-fires 14 days before beta_end_date</div>
+    <h2 class="email-title">Beta ending in 14 days</h2>
+    <div class="email-meta">
+      <strong>From:</strong> Rich (Zaeli) &lt;hello@zaeli.ai&gt; &nbsp;·&nbsp;
+      <strong>Subject:</strong> Your Zaeli beta ends in 2 weeks
+    </div>
+    <div class="email-preview">
+      <div class="zaeli-word">z<span class="a">a</span>el<span class="i">i</span></div>
+      <div class="email-body">
+        <p>Hi there,</p>
+        <p>Quick heads up — your Zaeli beta ends in <strong>2 weeks</strong>. First, thanks. Being one of the earliest families to trust an unfinished app is a genuinely generous thing to do, and it's shaped what Zaeli is today more than you probably realise.</p>
+
+        <p><strong>Two paths from here:</strong></p>
+
+        <div class="highlight-box">
+          <p><strong>Stay on:</strong> Zaeli is A$6.99/month, tax-inclusive. Whole family plan. Nothing extra to pay per kid. Cancel anytime from Settings. To subscribe: open the app → Settings → Subscribe.</p>
+        </div>
+
+        <p><strong>Not for you:</strong> completely fine. Zaeli will stop working for you when the beta ends — no card was ever saved, no auto-charge. But before you go, I'd love one last favour: <strong>tell me why</strong>. A one-line reply saying "it didn't stick because ___" is worth more to me than any five-star review. Genuinely, that shapes what I fix.</p>
+
+        <p><strong>Either way — thank you.</strong> Testing something raw takes patience and I don't forget it. If you know another family who might get something out of Zaeli, forwarding this email or sharing <a href="https://zaeli.app">zaeli.app</a> is the highest compliment.</p>
+
+        <p>Rich<br><span style="color:rgba(10,10,10,0.55);">Zaeli · <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></span></p>
+
+        <div class="footer">Made in Australia · reply anytime.</div>
+      </div>
+    </div>
+    <div class="change-note">
+      <strong>Change from v1:</strong> Grateful, not salesy. "Two paths" framing makes staying vs leaving feel equally OK — no guilt trip. Explicit ask for feedback from those who leave (usually the most valuable feedback you'll ever get). Soft referral ask at end without being pushy.
+    </div>
+  </div>
+
+  <div class="doc-note" style="background: var(--mint);">
+    <strong>Once you approve the copy</strong>, next steps are:
+    <br>1. Update the templates in <code>admin-actions</code> (welcome) and <code>email-lifecycle</code> (3-day, 14-day, beta-ending).
+    <br>2. Ship the DB trigger for auto-grant + auto-welcome on install.
+    <br>3. Test both by simulating a fresh signup (Andrew's flow) once build 44 lands.
+  </div>
+
+</div>
+</body>
+</html>

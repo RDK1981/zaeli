@@ -57,7 +57,7 @@ import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, 
 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
-import { getFamilyId } from '../../lib/family';
+import { getFamilyId, awaitFamilyId } from '../../lib/family';
 import { loadReminders, saveReminder, deleteReminder, markReminderDone, unmarkReminderDone, updateReminderVisibility, updateReminderTitle, updateReminderTime, parseLocalIsoAsDate, type Reminder, type Visibility } from '../../lib/reminders';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as AppleCal from '../../lib/apple-calendar';
@@ -585,6 +585,25 @@ const ACTION_KEYWORDS = [
   'add gab', 'add duke', 'assign ', 'invite ',
   'mark ', 'complete', 'done', 'finish', 'tick ', 'check off',
   'swap ', 'replace ', 'set ', 'plan ', 'goal',
+  // Aug 2026 — reminder verbs. Rich hit fabrication on "can you remind Anna
+  // tomorrow at 7.30 back-to-school drop-off" — no ACTION_KEYWORD matched,
+  // message fell through to GPT chat path (which has no tools), GPT hallucinated
+  // "Done" then admitted "reminder system isn't available in this chat" (true
+  // for GPT, false for Sonnet). These keywords route it to the Sonnet tool path
+  // where add_reminder actually exists.
+  'remind ', 'reminder', 'reminders',
+  'don\'t forget', 'dont forget', 'nudge me', 'nudge anna', 'nudge rich',
+  'ping me at', 'ping me tomorrow',
+  // Aug 26 — calendar UPDATE correction phrases. Rich hit fabrication on
+  // "Actually make it 8.30." after Zaeli confirmed a coffee event — no ACTION
+  // keyword matched, GPT chat path fabricated "Done" but DB stayed at 8am.
+  // These catch common correction shapes without the classic verbs (change/
+  // move/update) so Sonnet tool path fires with update_calendar_event available.
+  'make it ', 'change to ', 'change it to ',
+  'push back ', 'push it back ', 'push forward ', 'push it forward ',
+  'bring forward ', 'bring it forward ',
+  'instead of ', 'earlier by ', 'later by ',
+  'let\'s make it', 'lets make it',
   // Session 30 — correction phrases. Rich hit this on the Duke soccer
   // fixtures: after Zaeli mis-tagged them, his replies "they should be
   // tagged for Duke and Anna, not me" and "still tagged to me??" didn't
@@ -616,6 +635,17 @@ function isMessageIntent(text: string): boolean {
   const hasVerb = MESSAGE_VERBS.some(v => lower.includes(v));
   if (!hasVerb) return false;
   return FAMILY_NAME_TOKENS.some(n => lower.includes(' ' + n + ' ') || lower.includes(' ' + n + ',') || lower.includes(' ' + n + "'") || lower.endsWith(' ' + n));
+}
+
+// Aug 2026 — reminder-add intent. Mirrors calendarAddIntent + messageIntent.
+// Detects "remind [me/Anna/us] [about X] [at time]" style. When it fires we
+// force tool_choice on add_reminder so Sonnet cannot fabricate "Done" without
+// actually calling the tool (same fabrication pattern that broke calendar +
+// send_family_message before force-choice was added).
+const REMIND_VERBS = ['remind ', 'reminder', 'don\'t forget', 'dont forget', 'nudge me', 'nudge anna', 'nudge rich', 'nudge poppy', 'nudge gab', 'nudge duke'];
+function isReminderAddIntent(text: string): boolean {
+  const lower = ' ' + text.toLowerCase() + ' ';
+  return REMIND_VERBS.some(v => lower.includes(v));
 }
 
 // Session 30 — calendar-ADD intent. Detects "add/put/create/book/schedule
@@ -2546,7 +2576,13 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 
 - MULTI-EVENT PHOTO UPLOADS — CRITICAL: When the user uploads one or more photos containing MULTIPLE calendar events (e.g. three parent-teacher interview slips, a school newsletter with several term dates, a screenshot of multiple calendar entries), you MUST emit a SEPARATE add_calendar_event tool call for EACH event visible. Do NOT add just one and skip the rest. If the images show 3 events, emit exactly 3 add_calendar_event tool_use blocks in that same turn. After the tool results come back, count how many actually succeeded (✅) and honestly report: "Added 3 of 3" or "Added 2 of 3 — the third failed because…". NEVER claim events are "in the system" that you didn't explicitly add via a tool call in this turn.
 
-- CALENDAR HONESTY — ABSOLUTE: Same rule as send_family_message. NEVER claim an event has been "added", "booked", "scheduled", "in the system", "confirmed", or any equivalent phrase unless a add_calendar_event tool call was actually made in this turn AND returned a "✅" response. If the user follows up with "did you add X and Y?" — check the tool_result history. If X and Y were NOT added via tool calls, say so honestly: "Only Gab's was added — I missed Poppy and Duke's. Want me to add them now?" Do NOT paraphrase absence as presence. Do NOT invent event details like teacher names or times you saw in images but didn't tool-add.
+- CALENDAR HONESTY — ABSOLUTE: Same rule as send_family_message. NEVER claim an event has been "added", "booked", "scheduled", "in the system", "confirmed", or any equivalent phrase unless a add_calendar_event tool call was actually made in this turn AND returned a "✅" response. If the user follows up with "did you add X and Y?" — check the tool_result history. If X and Y were NOT added via tool calls, say so honestly: "Only one was added — I missed the others. Want me to add them now?" Do NOT paraphrase absence as presence. Do NOT invent event details like teacher names or times you saw in images but didn't tool-add.
+
+- NO META-COMMENTARY ON FAILURES — ABSOLUTE: Never write phrases like "the calendar doing its little vanishing act", "sounds like it never landed", "if it still doesn't show up", "the system might be being flaky", or any similar self-deprecating meta-commentary that blames external systems. If a tool call succeeded (✅), state the success plainly ("Done ✓") and stop. If a tool call failed (TOOL_FAILED), state the specific failure honestly ("That didn't save — the write was blocked. Want me to try again?") and offer a concrete next step. NEVER frame past failures as ongoing chaos — each turn starts CLEAN. If you notice earlier turns in this conversation went badly, do not reference them; execute this turn cleanly.
+
+- WHEN THE USER ASKS "DID YOU ADD X?" — do NOT assume it didn't save. Call find_calendar_events with the title as a keyword FIRST. Only claim it "didn't save" after the tool returns zero matches. Never guess. Never invent excuses about "vanishing".
+
+- RECURRING DEFAULTS: If the user gives you title + weekday + time (e.g. "Netball every Thursday 3:50pm"), that is ENOUGH to create the recurring event. Do NOT ask "who's it for" or "when should it end" — infer sensible defaults (assignee = family if unclear, open-ended = 12 months per repeat rules). Recurring events can always be edited after — offering to add is faster than asking three questions.
 
 - CONFIRM-THEN-ADD — CRITICAL (Round B commit 30): When you have just OFFERED to add an event ("Want me to add it now at 12:30 pm?") and the user responds with a SHORT confirmation — "Yep", "Yes", "Do it", "Go ahead", "Please", "Yep, edit", "Yes please", "Go for it", "Confirm", "Sure", "OK", "Yeah do it", etc. — you MUST call add_calendar_event in THIS SAME TURN. It is NEVER acceptable to reply "Done" or "Added" or "Set for..." without also making a tool call in the same turn. The user's short confirmation is the trigger for the tool call — not the trigger to describe an add that hasn't happened.
     Failure example (do NOT do this):
@@ -2929,6 +2965,20 @@ function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDel
   async function save() {
     setSaving(true);
     try {
+      // Aug 27 fix — was hardcoded DUMMY_FAMILY_ID literal. Session 21's
+      // family_id sweep (perl regex on the FAMILY_ID constant) missed this
+      // inline string. Andy hit "new row violates row-level security policy"
+      // on his first Add Event because DUMMY doesn't match his real family.
+      // awaitFamilyId() blocks briefly if the profile is still loading on
+      // cold-start (Session 30 optimisation) instead of falling back to DUMMY.
+      let realFamilyId: string;
+      try {
+        realFamilyId = await awaitFamilyId();
+      } catch (e: any) {
+        Alert.alert("Couldn't save", 'Profile still loading — give it a second and try again.');
+        setSaving(false);
+        return;
+      }
       const pad = (n:number) => String(n).padStart(2,'0');
       const sh24 = toH24(startH, startAp);
       let eh24 = toH24(endH, endAp);
@@ -2946,7 +2996,7 @@ function CalSheetEditForm({ ev, onBack, onClose, onEditWithZaeli, onSaved, onDel
         eMin = bumped % 60;
       }
       const payload: any = {
-        family_id: '00000000-0000-0000-0000-000000000001',
+        family_id: realFamilyId,
         title: title.trim() || 'New Event',
         notes: [noteParts[0]||'', location.trim()].filter(Boolean).join(' | '),
         repeat_rule: repeatRule,
@@ -4550,10 +4600,34 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
   }
 
   // ── Build live context ────────────────────────────────────────────────────
-  async function buildContext() {
+  // Batch 6 (Aug 26) — buildContext returns THREE strings:
+  //   staticSystem  = persona + FAMILY + RULES blocks (stable across turns,
+  //                   ~3-4k tokens — this is what caches reliably)
+  //   dynamicSystem = TIME + LIVE DATA + memory (changes every turn — never
+  //                   cached, must stay small to keep per-turn cost down)
+  //   system        = staticSystem + '\n\n' + dynamicSystem (backwards-compat
+  //                   for callers that don't care about caching)
+  //
+  // Trim rules for dynamicSystem:
+  //   - Pantry: 200 → 50 items (biggest single win; pantry_items rarely needs
+  //     the long tail — most queries are about the top-of-cupboard stuff)
+  //   - Calendar: 7-day window → 4-day (today + 3); most chat is near-term
+  //   - Shopping preview: 50 → 25 items
+  //   - Family regulars: 12 → 8
+  // Net token reduction: ~5-6k tokens saved on avg turn.
+  //
+  // Batch 6.1 (Aug 26 revision) — pantry keyword-gate REMOVED. Original design
+  // gated pantry loading on food-related keywords in the user's message to save
+  // another ~800 tokens on non-food chats. But: any pantry item Zaeli doesn't
+  // see, she'll say "not in pantry" for (regression of Session 29 pantry fix).
+  // The regex would need to know every possible pantry item ("maple syrup",
+  // "olive oil", "flour") to be safe. Not worth the risk for 800 tokens.
+  // Pantry always loads at 50 items now. userMsg param kept for future use.
+  async function buildContext(_userMsg?: string) {
     const td = localDateStr(now);
     const frame = h < 6 ? 'late night' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 21 ? 'evening' : 'night';
     const timeStr = now.toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit' });
+
     try {
       const [
         { count: shopCount },
@@ -4565,60 +4639,52 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         { data: familyRegulars },
       ] = await Promise.all([
         supabase.from('shopping_items').select('*',{count:'exact',head:true}).eq('family_id',getFamilyId()).eq('checked',false),
-        supabase.from('shopping_items').select('name').eq('family_id',getFamilyId()).eq('checked',false).limit(50),
-        supabase.from('events').select('title,date,start_time').eq('family_id',getFamilyId()).gte('date',td).lte('date', localDateStr(new Date(Date.now() + 7*24*60*60*1000))).order('date').order('start_time').limit(20),
+        supabase.from('shopping_items').select('name').eq('family_id',getFamilyId()).eq('checked',false).limit(25),
+        // Batch 6 — 4-day calendar window (today + 3) instead of 7-day. Most
+        // chat queries are today/tomorrow; longer horizons handled by Calendar sheet.
+        supabase.from('events').select('title,date,start_time').eq('family_id',getFamilyId()).gte('date',td).lte('date', localDateStr(new Date(Date.now() + 3*24*60*60*1000))).order('date').order('start_time').limit(15),
         supabase.from('todos').select('*',{count:'exact',head:true}).eq('family_id',getFamilyId()).eq('done',false),
-        supabase.from('meal_plans').select('meal_name,planned_date,day_key').eq('family_id',getFamilyId()).gte('planned_date',td).limit(7),
-        // Pantry — needed so Zaeli can answer "have we got maple syrup?" or
-        // "when did we last buy X?" instead of confabulating "not in pantry".
-        // Cap at 200 items with newest last_bought first so long lists stay
-        // token-affordable while keeping the most-recently-used items visible.
-        supabase.from('pantry_items').select('name,last_bought').eq('family_id',getFamilyId()).order('last_bought',{ascending:false,nullsFirst:false}).limit(200),
-        // Session 29 — family regulars (hearted recipes). Lets Zaeli suggest
-        // meals the family actually eats when asked "quick dinner idea?" or
-        // "what should we have tonight?" — pulling from THEIR recipes, not
-        // generic ideas. Matches the Session 29 pivot: meal planner is
-        // friction; recipes + regulars is where the value lives.
-        supabase.from('recipes').select('title,prep_mins,notes,tags').eq('family_id',getFamilyId()).contains('tags',['favourite']).limit(12),
+        supabase.from('meal_plans').select('meal_name,planned_date,day_key').eq('family_id',getFamilyId()).gte('planned_date',td).limit(4),
+        // Batch 6.1 — pantry always loaded, capped at 50 items (down from 200).
+        // Long tail was 1.5k+ tokens for well-stocked families; top 50 covers
+        // 99% of queries. Newest last_bought first, so recent purchases surface.
+        supabase.from('pantry_items').select('name,last_bought').eq('family_id',getFamilyId()).order('last_bought',{ascending:false,nullsFirst:false}).limit(50),
+        supabase.from('recipes').select('title,prep_mins,tags').eq('family_id',getFamilyId()).contains('tags',['favourite']).limit(8),
       ]);
+
       const shopNames = shopItems?.map((i:any) => i.name).join(', ') || '';
       const shopStr   = shopCount ? `${shopCount} items — ${shopNames}` : 'list is clear';
       const evStr     = events?.length ? events.map((e:any) => `${e.title} (${naturalDate(e.date,td)}${e.start_time?' at '+fmtTime(e.start_time):''})`).join(', ') : 'nothing on the calendar';
       const pantryStr = pantryItems?.length
-        ? pantryItems.map((p:any) => p.last_bought ? `${p.name} (last bought ${p.last_bought})` : p.name).join(', ')
+        ? pantryItems.map((p:any) => p.last_bought ? `${p.name} (${p.last_bought})` : p.name).join(', ')
         : 'pantry is empty (or not tracked yet)';
       const regularsStr = familyRegulars?.length
         ? familyRegulars.map((r:any) => r.prep_mins ? `${r.title} (${r.prep_mins} min)` : r.title).join(', ')
         : 'none saved yet';
       const mealToday = meals?.find((m:any) => m.planned_date===td || m.day_key===td)?.meal_name ?? null;
-      // Session 29 pivot — meal planner is friction; regulars fill the gap.
-      // Don't nudge to plan dinner on quiet days. Only mention meals if the
-      // user asks OR if there's a real planned meal to acknowledge.
       const dinnerRule = h < 19
-        ? mealToday ? `Dinner sorted — ${mealToday} tonight.` : "No dinner planned — that's fine. Do NOT nudge to plan. If asked for ideas, suggest from Family regulars first."
+        ? mealToday ? `Dinner sorted — ${mealToday} tonight.` : "No dinner planned — do NOT nudge to plan. If asked for ideas, suggest from Family regulars first."
         : "Don't mention dinner.";
       const nextDays: Record<string,string> = {};
-      for (let i = 0; i <= 7; i++) {
+      for (let i = 0; i <= 3; i++) {
         const d = new Date(now); d.setDate(d.getDate() + i);
         const key = i===0?'today':i===1?'tomorrow':d.toLocaleDateString('en-AU',{weekday:'long'}).toLowerCase();
         nextDays[key] = localDateStr(d);
       }
       const datesCtx = Object.entries(nextDays).map(([k,v]) => `${k} = ${v}`).join(', ');
-      const system = `You are Zaeli — a smart, warm, and quietly witty AI for a modern Australian family. Sharp, warm, genuinely enthusiastic. Finds the funny angle through delight, not detachment.
 
-FAMILY: Rich (logged in), Anna, Poppy (Yr6, age 12), Gab (Yr4, age 10, boy), Duke (Yr1, age 8, boy).
+      // ── STATIC SYSTEM PROMPT ──────────────────────────────────────────────
+      // Persona + all RULES blocks. Stable across every turn — this is what
+      // Anthropic caches at 90% discount. Keep it byte-for-byte stable.
+      // DO NOT include date/time, LIVE DATA, or ANYTHING FAMILY-SPECIFIC here —
+      // cache misses will follow, and worse, previously the FAMILY line was
+      // hardcoded with Rich's family names ("Anna, Poppy, Gab, Duke") which
+      // Andy saw when Zaeli asked him "who's it for (Poppy? Anna?)" for a
+      // Netball event — a real cross-family data leak (Aug 27). Family info
+      // now lives in the DYNAMIC block below, built from the real roster.
+      const staticSystem = `You are Zaeli — a smart, warm, and quietly witty AI for a modern Australian family. Sharp, warm, genuinely enthusiastic. Finds the funny angle through delight, not detachment.
 
-LIVE DATA:
-- Date: ${dateLabel} (${frame}, ${timeStr})
-- Dates: ${datesCtx}
-- Calendar: ${evStr}
-- Shopping list: ${shopStr}
-- Pantry (what's in stock, most recently used first): ${pantryStr}
-- Family regulars (hearted recipes — meals the family actually cooks): ${regularsStr}
-- To-dos: ${todoCount??0} open tasks
-- ${dinnerRule}
-
-CAPABILITIES: Add/update/delete calendar events, shopping items, todos DIRECTLY using tools. Today is ${td}. CURRENT_TIME (Brisbane wall-clock, fresh at this call): ${(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}T${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:00`; })()} — use exactly this shape when passing local times to any tool. Never convert to UTC. Never tell Rich to do it himself.
+CAPABILITIES: Add/update/delete calendar events, shopping items, todos DIRECTLY using tools. Never convert times to UTC. Never tell the user to do things they asked YOU to do.
 
 SHOPPING RULES:
 - When asked to add multiple items, call add_shopping_item ONCE PER ITEM — never combine items into one call.
@@ -4629,39 +4695,77 @@ SHOPPING RULES:
 
 MEAL IDEAS RULES:
 - When asked "what's for dinner?", "quick dinner idea?", "what should we cook tonight?", or anything similar — reach for the Family regulars line FIRST. These are meals THIS family actually cooks and likes.
-- Suggest 1-2 regulars by name. Cross-check against Pantry — mention which ingredients they've got and what they'd need to grab. Example: "Poppy's pasta works — pantry's got the basics, just need parsley. 15 min. Want the recipe?"
+- Suggest 1-2 regulars by name. Cross-check against Pantry — mention which ingredients they've got and what they'd need to grab. Example: "The bolognese works — pantry's got the basics, just need parsley. 15 min. Want the recipe?"
 - Only suggest generic ideas (things not in Family regulars) if the family has NO regulars saved yet, or if they explicitly ask for something new. Even then, keep it grounded in what's in the pantry.
 - Never nudge them to plan the week or fill in the meal planner. That's friction.
 
 PANTRY RULES:
-- The Pantry line in LIVE DATA above is the authoritative record of what's in the house. When asked "have we got X?", "when did we last buy X?", "do we still have X?", check that list FIRST.
+- The Pantry line in LIVE DATA below is the authoritative record of what's in the house. When asked "have we got X?", "when did we last buy X?", "do we still have X?", check that list FIRST.
 - If X appears in the Pantry line, confirm it's there and share the last_bought date if provided. Never say "we don't have any" for an item that is listed.
 - Match names fuzzily — "maple syrup" matches "Maple Syrup" or "Pure Maple Syrup 250ml", "milk" matches "Full Cream Milk 2L", etc.
-- If X is NOT in the Pantry line, say so honestly: "no maple syrup in the pantry — want me to add it to the shopping list?"
-- Never confabulate pantry contents. If unsure, say "not seeing it in the pantry — want to double-check?"
+- If X is NOT in the Pantry line, say so honestly: "not seeing it in the pantry — want me to add it to the shopping list?"
+- Never confabulate pantry contents.
 
 FORMAT: 2–4 sentences. Natural prose. No bullet points, no lists, no asterisks. Never start with "I". Never say "mate". Never say "Of course!" or any hollow affirmation.
 CURRENCY: Always Australian dollars (A$). Never £, US$, or bare $.`;
-      // ── Memory recall (Phase 2f) ──────────────────────────────────────────
-      // Inject learned family memory (routines / preferences / milestones)
-      // when the user has "learn from chats" enabled. Makes Zaeli actually
-      // remember the family across conversations — the Philosophy B promise.
-      let systemWithMemory = system;
+
+      // ── DYNAMIC BLOCK ────────────────────────────────────────────────────
+      // LIVE DATA + current time + memory + FAMILY (moved here Aug 27 to fix
+      // cross-family leak — see staticSystem comment). Changes turn-to-turn —
+      // never cached. Kept tight to minimise per-turn uncached cost.
+      const nowIso = (() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}T${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:00`; })();
+      const pantryLine = `\n- Pantry (top 50, most recent first): ${pantryStr}`;
+
+      // Build FAMILY line from the real roster of THIS user's family. Empty
+      // roster fallback: "just you". Owner tagged "(logged in)". Kids show
+      // year level + age if available.
+      const rosterNow = getRoster();
+      const meProfile = getProfile();
+      const primaryFirst = (meProfile?.name || 'you').trim().split(/\s+/)[0];
+      let familyLine: string;
+      if (!rosterNow.length) {
+        familyLine = `FAMILY: just ${primaryFirst} (logged in) for now — no other members added yet.`;
+      } else {
+        const parts = rosterNow.map(m => {
+          const isMe = meProfile?.id && m.id === meProfile.id;
+          const bits: string[] = [m.name];
+          if (isMe) bits.push('(logged in)');
+          if (m.role === 'child' && m.yearLevel != null) bits.push(`Yr${m.yearLevel}`);
+          return bits.join(' ');
+        });
+        familyLine = `FAMILY: ${parts.join(', ')}.`;
+      }
+
+      let dynamicSystem = `NOW: ${dateLabel} (${frame}, ${timeStr}). Today=${td}. CURRENT_TIME=${nowIso}. Dates: ${datesCtx}.
+
+${familyLine}
+
+LIVE DATA:
+- Calendar (next 4 days): ${evStr}
+- Shopping list: ${shopStr}${pantryLine}
+- Family regulars: ${regularsStr}
+- To-dos: ${todoCount??0} open
+- ${dinnerRule}`;
+
+      // Memory recall — appended to dynamic (changes as insights extract over time)
       try {
         const prefs = await loadPrefs();
         if (prefs.memoryLearningOn) {
           const mem = await buildMemoryContext(getFamilyId());
           if (mem && mem.trim()) {
-            systemWithMemory = `${system}
+            dynamicSystem += `
 
-BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, learned over time. This is NOT the calendar and NOT a to-do list. NEVER treat anything here as a scheduled event, booking, or task. NEVER say something is "already locked in", "already booked", or "already on the calendar" based on this. The LIVE DATA section above (calendar, shopping, meals, tasks) is the ONLY source of truth for what is actually scheduled or pending. Use this background only to be personal and helpful — e.g. suggesting an activity Poppy enjoys — never to claim something exists.${mem}`;
+BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Never claim something is "booked" or "on the calendar" based on this. LIVE DATA above is the only source of truth for what's scheduled.${mem}`;
           }
         }
       } catch {}
-      return { system: systemWithMemory, mealToday, shopCount:shopCount??0, shopStr, evStr, todoCount:todoCount??0, td };
+
+      const system = `${staticSystem}\n\n${dynamicSystem}`;
+      return { staticSystem, dynamicSystem, system, mealToday, shopCount:shopCount??0, shopStr, evStr, todoCount:todoCount??0, td };
     } catch {
       const td = localDateStr(now);
-      return { system:`You are Zaeli — smart, warm, witty AI teammate for Rich's Australian family. Today is ${td}.`, mealToday:null, shopCount:0, shopStr:'unknown', evStr:'nothing on calendar', todoCount:0, td };
+      const fallback = `You are Zaeli — smart, warm, witty AI teammate for Rich's Australian family. Today is ${td}.`;
+      return { staticSystem: fallback, dynamicSystem: '', system: fallback, mealToday:null, shopCount:0, shopStr:'unknown', evStr:'nothing on calendar', todoCount:0, td };
     }
   }
 
@@ -5540,7 +5644,10 @@ BACKGROUND KNOWLEDGE ABOUT THIS FAMILY — their likes, routines and patterns, l
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 500);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 800);
     try {
-      const { system, td } = await buildContext();
+      // Batch 6 — pass user text into buildContext so pantry gets keyword-gated
+      // (only loaded when the message hints at food/shopping topics — saves ~800 tokens
+      // per turn on non-food chat).
+      const { staticSystem, dynamicSystem, system, td } = await buildContext(text);
 
       // ── Read images (Session 29: supports up to MAX_CHAT_PHOTOS in one send) ──
       // Each entry is { base64, mimeType }. HEIC/HEIF converted to JPEG first.
@@ -5766,13 +5873,24 @@ Only include events directly relevant to the question. Max 5 events.`;
       // Session 30 — calendar-add intent forces tool_choice add_calendar_event so
       // Sonnet can't fabricate "Yep — added" without actually invoking the tool.
       const calendarAddIntent = isCalendarAddIntent(text);
-      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext || messageIntent || calendarLookupIntent || calendarAddIntent) {
+      const reminderAddIntent = isReminderAddIntent(text);
+      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext || messageIntent || calendarLookupIntent || calendarAddIntent || reminderAddIntent) {
         pendingCalendarAdd.current = false; // clear flag — one-shot
         // Session 30 Phase 5 — key lives server-side; no client-side check needed
 
-        const toolSys = `${system}${imgCtx}\n\n${CAPABILITY_RULES}`;
+        // Batch 6 — two-block system for cache discipline:
+        //   Block 1 (staticCached): staticSystem + CAPABILITY_RULES + imgCtx.
+        //     Stable content that Anthropic caches. cache_control marks the
+        //     end of the cacheable prefix. Tools schema (auto-included by API)
+        //     lives BEFORE this block in the request, so it caches too.
+        //   Block 2 (dynamicUncached): dynamicSystem — LIVE DATA + memory.
+        //     Changes turn-to-turn, never cached, billed at full input rate.
+        //     Kept tight in buildContext (pantry gated, 4-day calendar, etc).
+        // Also — history capped at last 4 turns (was 6) to reduce turn context.
+        const staticCached = `${staticSystem}${imgCtx}\n\n${CAPABILITY_RULES}`;
+        const dynamicUncached = dynamicSystem;
         const apiMessages: any[] = [];
-        history.slice(-6).forEach(m => {
+        history.slice(-4).forEach(m => {
           if (m.role === 'user') {
             // Session 29: attach ALL images from the current-send message. imageParts
             // was populated above from imageUris. For older history messages we can't
@@ -5805,14 +5923,14 @@ Only include events directly relevant to the question. Max 5 events.`;
         // betaHeaders forwards the prompt-caching header server-side.
         const data = await callAnthropic({
           model: 'claude-sonnet-4-6',
-          // Session 29: bumped 800 → 2000 after Anna's 13 July batch cut off the
-          // 10th event ("Last day of school term - 18 Sept"). Each add_calendar_event
-          // tool_use block is ~80 output tokens; a 10-event bulk paste at 800 max
-          // truncated the last one mid-JSON, silently dropped by the client parser.
-          // 2000 gives room for ~20-25 tool_use blocks per turn — covers any
-          // realistic bulk paste. Output tokens only bill on what's actually generated.
           max_tokens: 2000,
-          system: [{ type: 'text', text: toolSys, cache_control: { type: 'ephemeral' } }],
+          // Batch 6 — two-block system for cache discipline (see comment above).
+          // cache_control on block 1 → Anthropic caches TOOLS schema + block 1.
+          // Block 2 (dynamic) is uncached but small (~2-4k tokens vs old 8-10k).
+          system: [
+            { type: 'text', text: staticCached, cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: dynamicUncached },
+          ],
           tools: TOOLS,
           // Session 30 — when the user's phrasing clearly means "text/notify
           // <family member>", FORCE Sonnet to call send_family_message. Prompt
@@ -5822,10 +5940,16 @@ Only include events directly relevant to the question. Max 5 events.`;
           // Priority order matters: calendarAddIntent wins over messageIntent
           // when both fire (e.g. "add calendar entry for Anna" — that's a
           // calendar add, not a message).
+          // Priority: calendar-add > message > reminder-add > free choice.
+          // Calendar wins when both fire (e.g. "add calendar entry for Anna" —
+          // that's a calendar add, not a reminder). Reminder-add force-chooses
+          // add_reminder to block the "Done" fabrication pattern (Aug 2026 fix).
           ...(calendarAddIntent
             ? { tool_choice: { type: 'tool', name: 'add_calendar_event' } }
             : messageIntent
             ? { tool_choice: { type: 'tool', name: 'send_family_message' } }
+            : reminderAddIntent
+            ? { tool_choice: { type: 'tool', name: 'add_reminder' } }
             : {}),
           messages: apiMessages,
         }, { betaHeaders: ['prompt-caching-2024-07-31'] });
@@ -5842,7 +5966,12 @@ Only include events directly relevant to the question. Max 5 events.`;
           + (cacheWrite / 1_000_000 * CLAUDE_IN_PER_M * 1.25)
           + (outTok     / 1_000_000 * CLAUDE_OUT_PER_M);
         if (cacheRead > 0) console.log('[send] Cache hit:', cacheRead, 'read,', inTok, 'uncached,', cacheWrite, 'written');
-        logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:inTok + cacheRead + cacheWrite, output_tokens:outTok, cost_usd:claudeCost });
+        // Batch 6 — log uncached input only (matches lib/api-logger.ts convention).
+        // Previously logged inTok+cacheRead+cacheWrite (total), which made
+        // home_chat rows in api_logs incomparable to home_brief rows — SQL
+        // analytics gave misleading "13k avg input" when actual uncached was
+        // often 1-2k with 10k cached.
+        logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:claudeCost });
 
         const toolUses = (data.content||[]).filter((b:any) => b.type==='tool_use');
         if (toolUses.length > 0) {
@@ -5860,13 +5989,15 @@ Only include events directly relevant to the question. Max 5 events.`;
           // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
           const followData = await callAnthropic({
             model: 'claude-sonnet-4-6',
-            // Session 29: bumped 500 → 1500 to match the initial call's headroom.
-            // Followup fires after tool results and typically writes a short
-            // confirmation ("Added 10 events to your calendar."), but if Sonnet
-            // wants to emit ADDITIONAL tool_use blocks after seeing results
-            // (e.g. move a clashing event she noticed) she now has room.
             max_tokens: 1500,
-            system: [{ type: 'text', text: toolSys, cache_control: { type: 'ephemeral' } }],
+            // Batch 6 — two-block system (same as initial call). Cache reads
+            // the same prefix written seconds earlier — near-guaranteed hit.
+            // dynamicUncached is unchanged from initial call so this block
+            // is same bytes → doesn't cause additional token cost.
+            system: [
+              { type: 'text', text: staticCached, cache_control: { type: 'ephemeral' } },
+              { type: 'text', text: dynamicUncached },
+            ],
             tools: TOOLS,
             messages: [...apiMessages, { role: 'assistant', content: data.content }, { role: 'user', content: toolResultContent }],
           }, { betaHeaders: ['prompt-caching-2024-07-31'] });
@@ -5880,7 +6011,9 @@ Only include events directly relevant to the question. Max 5 events.`;
             + (fCacheRead  / 1_000_000 * CLAUDE_IN_PER_M * 0.10)
             + (fCacheWrite / 1_000_000 * CLAUDE_IN_PER_M * 1.25)
             + (fOutTok     / 1_000_000 * CLAUDE_OUT_PER_M);
-          logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:fInTok + fCacheRead + fCacheWrite, output_tokens:fOutTok, cost_usd:followCost });
+          // Batch 6 — uncached-only logging (see note on initial call)
+          if (fCacheRead > 0) console.log('[send] Followup cache hit:', fCacheRead, 'read,', fInTok, 'uncached');
+          logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:fInTok, output_tokens:fOutTok, cost_usd:followCost });
           const followText = followData.content?.find((b:any) => b.type==='text')?.text ?? toolResults.join('\n');
 
           // For add_calendar_event — fetch the newly created event and inject as inline card

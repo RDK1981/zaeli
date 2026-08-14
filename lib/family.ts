@@ -35,6 +35,38 @@ export function getFamilyId(): string {
   return DUMMY_FAMILY_ID;
 }
 
+// Aug 27 fix — cold-start race that hit Andy on first install. Session 30's
+// splash latency fix marks the app authed as soon as the session is verified
+// (fast AsyncStorage read) and loads the profile in the background. That's
+// fine for READ paths (worst case: empty results for a moment) but WRITES
+// need the real family_id — otherwise the row ends up with DUMMY_FAMILY_ID,
+// RLS blocks the insert, and the user sees "new row violates row-level
+// security policy" (or worse, silently loses the write pre-Session-28).
+//
+// Any code path that WRITES to a family-scoped table must call this instead
+// of getFamilyId(). It:
+//   1. Returns immediately if the profile is already loaded (~zero cost)
+//   2. Otherwise triggers loadProfile() and polls until it resolves
+//   3. Times out after ~4s and throws — caller should show a friendly error
+//      rather than fall back to DUMMY_FAMILY_ID (which is what caused the bug)
+export async function awaitFamilyId(timeoutMs = 4000): Promise<string> {
+  const immediate = getCurrentFamilyId();
+  if (immediate) return immediate;
+
+  // Kick off a fresh load if we have a session
+  const session = await getSession();
+  if (!session) throw new Error('not signed in');
+  loadProfile().catch(() => {}); // fire-and-forget, we poll below
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const now = getCurrentFamilyId();
+    if (now) return now;
+    await new Promise(r => setTimeout(r, 60));
+  }
+  throw new Error('profile not ready — try again in a moment');
+}
+
 // For debugging — call from anywhere to see current state
 export function debugFamily(): { hasProfile: boolean; familyId: string } {
   return {

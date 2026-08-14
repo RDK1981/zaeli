@@ -39,7 +39,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { lookupInviteByToken, type Invite } from '../../lib/invite-state';
 import { setAccount } from '../../lib/account-state';
-import { signUpFromInvite, loadProfile, getCurrentUserId } from '../../lib/auth';
+import { signUpFromInvite, loadProfile, getCurrentUserId, getProfile } from '../../lib/auth';
+import { ensureOwnMembership } from '../../lib/family-roster';
 
 const BG = '#FAF8F5';
 const INK = '#0A0A0A';
@@ -129,6 +130,20 @@ async function finishAdult(
     // Trigger created profile + marked invite accepted in same transaction.
     // Now load profile so getCurrentFamilyId() resolves on the next screen.
     await loadProfile();
+    // Aug 27 fix — create the invitee's own family_members row so they show
+    // up in Our Family, calendar avatars, meal cook picker, etc. Idempotent.
+    try {
+      const profile = getProfile();
+      if (profile?.id && profile?.family_id) {
+        await ensureOwnMembership({
+          id: profile.id,
+          family_id: profile.family_id,
+          name: creds.name,
+          colour: (profile as any).colour,
+          kind: (profile as any).kind ?? 'adult',
+        });
+      }
+    } catch {}
     await setAccount({ kind: 'adult', name: invite.name.split(/\s+/)[0] });
     try {
       // Round B commit 34 — per-user AsyncStorage keys so a fresh signup
@@ -170,6 +185,20 @@ async function finishKid(
       name:        invite.name,
     });
     await loadProfile();
+    // Aug 27 fix — kid also gets their own family_members row so they show
+    // up in Our Family list + can be tagged as assignee on events.
+    try {
+      const profile = getProfile();
+      if (profile?.id && profile?.family_id) {
+        await ensureOwnMembership({
+          id: profile.id,
+          family_id: profile.family_id,
+          name: invite.name,
+          colour: (profile as any).colour,
+          kind: 'kid',
+        });
+      }
+    } catch {}
     await setAccount({ kind: 'kid', name: invite.name.split(/\s+/)[0], avatar: extras.avatar });
     try {
       // Round B commit 34 — per-user AsyncStorage keys (see adult flow above).

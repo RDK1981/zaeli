@@ -26,8 +26,9 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, TextInput,
   Dimensions, Modal, Alert, Share, Clipboard, StatusBar as RNStatusBar,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -36,7 +37,11 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { supabase } from '../../lib/supabase';
 import { getProfile, waitForProfile } from '../../lib/auth';
-import { loadRoster, getRoster, type RosterMember } from '../../lib/family-roster';
+import {
+  loadRoster, getRoster, type RosterMember,
+  updateMemberName, updateMemberColor, removeMember,
+  getBudgetAccess, setBudgetAccess, ensureOwnMembership,
+} from '../../lib/family-roster';
 import {
   loadInvites, getPendingInvites, resendInvite, revokeInvite,
   relTime, type Invite,
@@ -86,8 +91,14 @@ export default function FamilyScreen() {
   const [loading, setLoading] = useState(true);
   const [showQR, setShowQR] = useState<Invite | null>(null);
 
-  // Kid budget access — deferred backend. UI wires to local state for now.
+  // Option C (Aug 27) — persisted kid Budget access. Loaded from
+  // profiles.budget_access on mount; writes fire-and-forget via
+  // setBudgetAccess(), with optimistic local UI update.
   const [kidBudgetAccess, setKidBudgetAccess] = useState<Record<string, boolean>>({});
+
+  // Option C — inline edit sheets (Name + Colour). Non-null = visible.
+  const [editingName, setEditingName] = useState<RosterMember | null>(null);
+  const [pickingColorFor, setPickingColorFor] = useState<RosterMember | null>(null);
 
   // Origin for back button — Settings sometimes links here
   const [fromSettings] = useState(() => consumeFamilyFrom() === 'settings');
@@ -99,7 +110,27 @@ export default function FamilyScreen() {
     if (!profile) { setLoading(false); return; }
     setMeId(profile.id);
     await loadRoster(profile.family_id);
-    setRoster(getRoster());
+    let currentRoster = getRoster();
+
+    // Aug 27 hotfix — auto-heal the signed-in user's family_members row.
+    // Andy hit "I don't appear in my own family list" because onboarding
+    // filtered out `id === 'me'` from the family_members insert. This
+    // ensures every screen that reads family_members can find the signed-in
+    // user, and it's idempotent (no-op if row already exists).
+    if (!currentRoster.find(m => m.id === profile.id)) {
+      const healed = await ensureOwnMembership({
+        id: profile.id,
+        family_id: profile.family_id,
+        name: (profile as any).name,
+        colour: (profile as any).colour,
+        kind: (profile as any).kind,
+      });
+      if (healed.created) {
+        await loadRoster(profile.family_id);
+        currentRoster = getRoster();
+      }
+    }
+    setRoster(currentRoster);
     await loadInvites();
     setInvites(getPendingInvites());
     // Find owner
@@ -111,6 +142,20 @@ export default function FamilyScreen() {
         .eq('kind', 'owner')
         .maybeSingle();
       if (data?.id) setOwnerId(data.id);
+    } catch {}
+    // Option C — hydrate kid Budget access from profiles.budget_access.
+    // Only kids need this; owner/adult always have access.
+    try {
+      const kids = currentRoster.filter(m => m.role === 'child');
+      if (kids.length) {
+        const { data: kidProfiles } = await supabase
+          .from('profiles')
+          .select('id, budget_access')
+          .in('id', kids.map(k => k.id));
+        const map: Record<string, boolean> = {};
+        (kidProfiles ?? []).forEach((p: any) => { map[p.id] = !!p.budget_access; });
+        setKidBudgetAccess(map);
+      }
     } catch {}
     setLoading(false);
   }, []);
@@ -171,11 +216,66 @@ export default function FamilyScreen() {
       ]
     );
   }
-  function onToggleKidBudget(kidId: string) {
-    // Round B commit 9 — local state only for now. Persist to profiles
-    // row via a new can_access_budget column (needs SQL migration + RLS
-    // policy allowing owner to write this field on children). Deferred.
-    setKidBudgetAccess(prev => ({ ...prev, [kidId]: !prev[kidId] }));
+  async function onToggleKidBudget(kidId: string) {
+    // Option C (Aug 27) — persisted to profiles.budget_access via the
+    // setBudgetAccess helper. Optimistic UI: flip local state first,
+    // then fire the DB write; if it fails, revert + alert.
+    const prev = !!kidBudgetAccess[kidId];
+    const next = !prev;
+    setKidBudgetAccess(m => ({ ...m, [kidId]: next }));
+    const res = await setBudgetAccess(kidId, next);
+    if (!res.ok) {
+      setKidBudgetAccess(m => ({ ...m, [kidId]: prev }));
+      Alert.alert("Couldn't save", res.error ?? 'Try again in a moment.');
+    }
+  }
+
+  // Option C — name / colour / remove handlers, wired through the
+  // family-roster helpers (which handle Supabase + local cache invalidation).
+  async function onSaveName(member: RosterMember, newName: string) {
+    const res = await updateMemberName(member.id, newName);
+    if (!res.ok) {
+      Alert.alert("Couldn't save", res.error ?? 'Try again in a moment.');
+      return;
+    }
+    setEditingName(null);
+    // Reload roster from cache (helper already updated it in place).
+    setRoster([...getRoster()]);
+  }
+
+  async function onSaveColor(member: RosterMember, newColor: string) {
+    const res = await updateMemberColor(member.id, newColor);
+    if (!res.ok) {
+      Alert.alert("Couldn't save", res.error ?? 'Try again in a moment.');
+      return;
+    }
+    setPickingColorFor(null);
+    setRoster([...getRoster()]);
+  }
+
+  function onRemoveMember(member: RosterMember) {
+    Alert.alert(
+      `Remove ${member.name} from family?`,
+      `${member.name} will lose access to the family app immediately. Their account stays intact — you can re-invite them later if needed.`,
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            const res = await removeMember(member.id);
+            if (!res.ok) {
+              Alert.alert("Couldn't remove", res.error ?? 'Try again in a moment.');
+              return;
+            }
+            // Go back to main view + refresh roster
+            setView('main');
+            setSelectedId(null);
+            setRoster([...getRoster()]);
+          },
+        },
+      ]
+    );
   }
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -237,8 +337,25 @@ export default function FamilyScreen() {
           onToggleBudget={() => onToggleKidBudget(selected.id)}
           onInvite={openInvite}
           onBack={goBack}
+          onEditName={() => setEditingName(selected)}
+          onEditColor={() => setPickingColorFor(selected)}
+          onRemove={() => onRemoveMember(selected)}
         />
       )}
+
+      {/* Option C — Edit name sheet */}
+      <EditNameSheet
+        member={editingName}
+        onClose={() => setEditingName(null)}
+        onSave={onSaveName}
+      />
+
+      {/* Option C — Colour picker sheet */}
+      <ColorPickerSheet
+        member={pickingColorFor}
+        onClose={() => setPickingColorFor(null)}
+        onSave={onSaveColor}
+      />
 
       {/* QR modal (for pending invite QR share on same-device tests) */}
       <Modal visible={!!showQR} transparent animationType="fade" onRequestClose={() => setShowQR(null)}>
@@ -432,6 +549,9 @@ function MemberDetailView(p: {
   onToggleBudget: () => void;
   onInvite: () => void;
   onBack: () => void;
+  onEditName: () => void;
+  onEditColor: () => void;
+  onRemove: () => void;
 }) {
   // Round B commit 11 — family_members.role is 'parent'|'child'; owner is
   // identified separately via profiles.kind='owner' (passed as p.ownerId).
@@ -467,20 +587,42 @@ function MemberDetailView(p: {
       {/* Basics */}
       <Text style={s.secLbl}>Basics</Text>
       <View style={s.rowGroup}>
-        <View style={s.row}>
-          <Text style={s.rowLbl}>Name</Text>
-          <Text style={s.rowVal}>{p.member.name}</Text>
-        </View>
+        {/* Option C — Name is now tappable (owner or self can edit) */}
+        {canEdit ? (
+          <TouchableOpacity style={s.row} activeOpacity={0.7} onPress={p.onEditName}>
+            <Text style={s.rowLbl}>Name</Text>
+            <View style={{ flexDirection:'row', alignItems:'center', gap: 6 }}>
+              <Text style={s.rowVal}>{p.member.name}</Text>
+              <Text style={{ fontSize:14, color: INK3 }}>›</Text>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={s.row}>
+            <Text style={s.rowLbl}>Name</Text>
+            <Text style={s.rowVal}>{p.member.name}</Text>
+          </View>
+        )}
         {isKid && p.member.yearLevel && (
           <View style={s.row}>
             <Text style={s.rowLbl}>Year level</Text>
             <Text style={s.rowVal}>Year {p.member.yearLevel}</Text>
           </View>
         )}
-        <View style={s.row}>
-          <Text style={s.rowLbl}>Colour</Text>
-          <View style={{ width:18, height:18, borderRadius:9, backgroundColor: p.member.color }}/>
-        </View>
+        {/* Option C — Colour is now tappable (owner or self can edit) */}
+        {canEdit ? (
+          <TouchableOpacity style={s.row} activeOpacity={0.7} onPress={p.onEditColor}>
+            <Text style={s.rowLbl}>Colour</Text>
+            <View style={{ flexDirection:'row', alignItems:'center', gap: 8 }}>
+              <View style={{ width:20, height:20, borderRadius:10, backgroundColor: p.member.color, borderWidth: 1, borderColor: 'rgba(10,10,10,0.10)' }}/>
+              <Text style={{ fontSize:14, color: INK3 }}>›</Text>
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={s.row}>
+            <Text style={s.rowLbl}>Colour</Text>
+            <View style={{ width:18, height:18, borderRadius:9, backgroundColor: p.member.color }}/>
+          </View>
+        )}
         {isKid && p.isOwner && !p.isMe && (
           <View style={s.row}>
             <Text style={s.rowLbl}>Reset PIN</Text>
@@ -541,9 +683,6 @@ function MemberDetailView(p: {
                 <Text style={{ fontWeight:'800', color: INK }}>{p.member.name} can now open Our Budget.</Text>
                 {' '}They'll see income, expenses, and savings — same as you.
               </Text>
-              <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 10, color: INK3, marginTop: 6 }}>
-                Note: this toggle isn't persisted to the database yet — a future backend pass will wire it. For now, it resets when you close the app.
-              </Text>
             </View>
           )}
         </>
@@ -578,20 +717,168 @@ function MemberDetailView(p: {
         </>
       )}
 
-      {/* Danger — owner can remove others (except self); user can leave */}
+      {/* Danger — owner can remove others (except self). Option C wired to
+          the real remove_family_member RPC — deletes family_members row +
+          nulls profiles.family_id (revokes RLS access to all family data). */}
       {canEdit && !p.isMe && p.isOwner && (
         <TouchableOpacity
           style={s.dangerRow}
-          onPress={() => Alert.alert('Remove from family?', `${p.member.name} will lose access to the family app. This can't be undone.`, [
-            { text: 'Keep', style: 'cancel' },
-            { text: 'Remove', style: 'destructive', onPress: () => Alert.alert('Not wired yet', 'Backend hook for remove-member is deferred to the next pass.') },
-          ])}
+          onPress={p.onRemove}
           activeOpacity={0.75}
         >
           <Text style={s.dangerRowText}>Remove {p.member.name} from family</Text>
         </TouchableOpacity>
       )}
     </ScrollView>
+  );
+}
+
+// ── Option C — Edit name sheet (inline text input modal) ────────────────
+function EditNameSheet(p: {
+  member: RosterMember | null;
+  onClose: () => void;
+  onSave: (member: RosterMember, newName: string) => void;
+}) {
+  const [value, setValue] = useState('');
+  useEffect(() => {
+    if (p.member) setValue(p.member.name);
+  }, [p.member?.id]);
+
+  if (!p.member) return null;
+  const member = p.member;
+  const trimmed = value.trim();
+  const dirty = trimmed !== member.name;
+  const valid = trimmed.length > 0 && trimmed.length <= 40;
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={p.onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={p.onClose}
+          style={{ flex:1, backgroundColor:'rgba(0,0,0,0.55)', alignItems:'center', justifyContent:'center', padding: 20 }}
+        >
+          <TouchableOpacity activeOpacity={1} style={{ backgroundColor:'white', borderRadius:20, padding:22, width:'100%', maxWidth: 340 }}>
+            <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:18, color: INK, marginBottom: 4 }}>Edit name</Text>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color: INK3, marginBottom: 16 }}>Used across the family app — calendar, brief, chat.</Text>
+            <TextInput
+              value={value}
+              onChangeText={setValue}
+              placeholder="Name"
+              placeholderTextColor={INK4}
+              maxLength={40}
+              autoFocus
+              style={{
+                borderWidth:1, borderColor:'rgba(10,10,10,0.14)', borderRadius:12,
+                paddingHorizontal:14, paddingVertical:12,
+                fontFamily:'Poppins_600SemiBold', fontSize:16, color: INK,
+                backgroundColor: BG,
+              }}
+            />
+            <View style={{ flexDirection:'row', gap: 10, marginTop: 18, justifyContent:'flex-end' }}>
+              <TouchableOpacity onPress={p.onClose} style={{ paddingHorizontal:18, paddingVertical:10, borderRadius:12, backgroundColor:'rgba(10,10,10,0.06)' }}>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color: INK2 }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                disabled={!dirty || !valid}
+                onPress={() => p.onSave(member, trimmed)}
+                style={{
+                  paddingHorizontal:20, paddingVertical:10, borderRadius:12,
+                  backgroundColor: (dirty && valid) ? INK : 'rgba(10,10,10,0.18)',
+                }}
+              >
+                <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'white' }}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ── Option C — Colour picker sheet ──────────────────────────────────────
+// Palette matches the canonical family channel colours + a few extras
+// covering the range without becoming overwhelming.
+const COLOR_PALETTE: { name: string; value: string }[] = [
+  { name: 'Blue',    value: '#4D8BFF' },
+  { name: 'Coral',   value: '#FF7B6B' },
+  { name: 'Purple',  value: '#A855F7' },
+  { name: 'Green',   value: '#22C55E' },
+  { name: 'Amber',   value: '#F59E0B' },
+  { name: 'Magenta', value: '#D4006A' },
+  { name: 'Teal',    value: '#06B6D4' },
+  { name: 'Slate',   value: '#64748B' },
+];
+
+function ColorPickerSheet(p: {
+  member: RosterMember | null;
+  onClose: () => void;
+  onSave: (member: RosterMember, newColor: string) => void;
+}) {
+  const [picked, setPicked] = useState<string>('');
+  useEffect(() => {
+    if (p.member) setPicked(p.member.color);
+  }, [p.member?.id]);
+
+  if (!p.member) return null;
+  const member = p.member;
+  const dirty = picked.toLowerCase() !== member.color.toLowerCase();
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={p.onClose}>
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={p.onClose}
+        style={{ flex:1, backgroundColor:'rgba(0,0,0,0.55)', alignItems:'center', justifyContent:'center', padding: 20 }}
+      >
+        <TouchableOpacity activeOpacity={1} style={{ backgroundColor:'white', borderRadius:20, padding:22, width:'100%', maxWidth: 340 }}>
+          <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize:18, color: INK, marginBottom: 4 }}>Pick a colour</Text>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize:12, color: INK3, marginBottom: 16 }}>Used in calendar avatars, family list, and chat mentions.</Text>
+          <View style={{ flexDirection:'row', flexWrap:'wrap', gap: 12, justifyContent:'center' }}>
+            {COLOR_PALETTE.map(c => {
+              const isPicked = picked.toLowerCase() === c.value.toLowerCase();
+              return (
+                <TouchableOpacity
+                  key={c.value}
+                  onPress={() => setPicked(c.value)}
+                  activeOpacity={0.7}
+                  style={{
+                    width: 54, height: 54, borderRadius: 27,
+                    backgroundColor: c.value,
+                    borderWidth: isPicked ? 3 : 0,
+                    borderColor: INK,
+                    alignItems:'center', justifyContent:'center',
+                  }}
+                >
+                  {isPicked && (
+                    <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: 22, color:'white' }}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={{ flexDirection:'row', gap: 10, marginTop: 22, justifyContent:'flex-end' }}>
+            <TouchableOpacity onPress={p.onClose} style={{ paddingHorizontal:18, paddingVertical:10, borderRadius:12, backgroundColor:'rgba(10,10,10,0.06)' }}>
+              <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color: INK2 }}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              disabled={!dirty}
+              onPress={() => p.onSave(member, picked)}
+              style={{
+                paddingHorizontal:20, paddingVertical:10, borderRadius:12,
+                backgroundColor: dirty ? INK : 'rgba(10,10,10,0.18)',
+              }}
+            >
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize:14, color:'white' }}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   );
 }
 

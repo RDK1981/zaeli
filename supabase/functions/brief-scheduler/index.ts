@@ -79,12 +79,16 @@ Deno.serve(async (req) => {
     // Fetch all owner/adult profiles + prefs. Server-side, no RLS.
     const { data: profiles, error: pErr } = await supabaseAdmin
       .from('profiles')
-      .select('id, family_id, name, user_preferences, kind')
+      .select('id, family_id, name, user_preferences, kind, created_at')
       .in('kind', ['owner', 'adult']);
     if (pErr) return json({ error: 'profile query failed', detail: pErr.message }, 500);
 
-    // Group by family (one brief per family per window per day)
+    // Group by family (one brief per family per window per day) + track fresh
+    // signups so the dormant gate below can let brand-new users through even
+    // before their first api_log row exists.
     const familyPrimary: Record<string, { firstName: string; morningTime: string; eveningTime: string; morningOn: boolean; eveningOn: boolean }> = {};
+    const freshFamilyIds = new Set<string>();
+    const freshCutoffMs = Date.now() - 7 * 24 * 3600 * 1000;
     for (const p of profiles ?? []) {
       const prefs = (p.user_preferences as any) ?? {};
       const morningTime = typeof prefs.briefMorningTime === 'string' ? prefs.briefMorningTime : '07:00';
@@ -97,6 +101,11 @@ Deno.serve(async (req) => {
         const first = (p.name ?? 'Rich').split(/\s+/)[0];
         familyPrimary[p.family_id] = { firstName: first, morningTime, eveningTime, morningOn, eveningOn };
       }
+      // Any profile in the family created in the last 7 days marks the
+      // family as "fresh" — dormant gate exempts them (they can't have
+      // api_logs yet if they've barely opened the app).
+      const createdMs = p.created_at ? new Date(p.created_at as string).getTime() : 0;
+      if (createdMs >= freshCutoffMs) freshFamilyIds.add(p.family_id);
     }
 
     const toBrief: FamilyToBrief[] = [];
@@ -126,7 +135,33 @@ Deno.serve(async (req) => {
       timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit'
     }).format(now);
 
+    // Batch 6 — dormant-family gate. Skip briefs for families with no api_logs
+    // activity in the last 7 days. Prevents burning Sonnet cycles on abandoned
+    // test accounts + dormant beta users who never open the app. Family
+    // reactivates automatically the next time anyone chats / triggers any AI
+    // call (which writes to api_logs), so briefs resume from the next cron cycle.
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+    const activeFamilyIds = new Set<string>();
+    {
+      const familyIds = Array.from(new Set(toBrief.map(f => f.familyId)));
+      if (familyIds.length) {
+        const { data: activityRows } = await supabaseAdmin
+          .from('api_logs')
+          .select('family_id')
+          .in('family_id', familyIds)
+          .gte('created_at', sevenDaysAgo)
+          .limit(500);
+        (activityRows ?? []).forEach(r => activeFamilyIds.add(r.family_id));
+      }
+    }
+
     for (const f of toBrief) {
+      // Dormant-family skip (Batch 6). Cheap early exit before any expensive work.
+      if (!activeFamilyIds.has(f.familyId)) {
+        results.push({ familyId: f.familyId, window: f.window, status: 'skipped_dormant' });
+        continue;
+      }
+
       const { data: existing } = await supabaseAdmin
         .from('zaeli_briefs')
         .select('id')
@@ -272,7 +307,7 @@ FORMAT (strict 2-3 paragraphs):
 [BODY] 2 sentences naming what's coming (from LIVE DATA)
 [ONE THING] optional single nudge (omit if nothing warrants)
 
-WHOLE-FAMILY LENS — parents drive kids' events. Any event with [Duke], [Poppy], [Gab] or any kid name in brackets is something ${primaryUser} probably has to drive to, pick up from, or supervise. NEVER call the day "quiet" if kids have things on. Name the kid + activity: "Duke's soccer at 4" not "an event at 4".
+WHOLE-FAMILY LENS — parents drive kids' events. Any event with a kid's name in brackets (e.g. "[<kid>]") is something ${primaryUser} probably has to drive to, pick up from, or supervise. NEVER call the day "quiet" if kids have things on. Name the actual kid + activity from the LIVE DATA — e.g. "<kid>'s soccer at 4" not "an event at 4". Use only real names from the data; never invent names.
 
 Family reminders (if listed) are things a family member has already flagged — surface the most relevant one if it matters today.
 

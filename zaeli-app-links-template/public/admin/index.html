@@ -1,0 +1,3723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zaeli Admin Console</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E⚙️%3C/text%3E%3C/svg%3E">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:         #F7F7F5;
+    --panel:      #FFFFFF;
+    --sidebar-bg: #101014;
+    --sidebar-hi: rgba(255,255,255,0.06);
+    --sidebar-tx: rgba(255,255,255,0.72);
+    --sidebar-mu: rgba(255,255,255,0.42);
+    --ink:        #0A0A0A;
+    --ink2:       rgba(10,10,10,0.72);
+    --ink3:       rgba(10,10,10,0.52);
+    --ink4:       rgba(10,10,10,0.38);
+    --ink5:       rgba(10,10,10,0.20);
+    --line:       rgba(10,10,10,0.08);
+    --line2:      rgba(10,10,10,0.14);
+    --sky:        #A8D8F0; --sky-tint: #E8F4FD; --sky-deep: #0A4A6A;
+    --mint:       #B8EDD0; --mint-tint: #E6F7EF; --mint-deep: #0F5C3A;
+    --peach:      #FAC8A8; --peach-tint: #FDF1E5; --peach-deep: #8A3A00;
+    --coral:      #FF4545; --coral-tint: #FFE4E0; --coral-deep: #B83333;
+    --gold:       #F0DC80; --gold-tint: #FBF5D6; --gold-deep: #8B6914;
+    --lav:        #D8CCFF; --lav-tint: #F0EBFF; --lav-deep: #5020C0;
+  }
+  html, body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.4;
+    font-size: 14px;
+    min-height: 100vh;
+  }
+  a { color: inherit; text-decoration: none; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  /* ── App shell ──────────────────────────────────────────────── */
+  .app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+  .sidebar {
+    background: var(--sidebar-bg); color: var(--sidebar-tx);
+    padding: 20px 12px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .sidebar-brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px 20px; color: #FFFFFF;
+  }
+  .sidebar-brand .word { font-size: 22px; font-weight: 800; letter-spacing: -1px; }
+  .sidebar-brand .word .a, .sidebar-brand .word .i { color: var(--sky); }
+  .sidebar-brand .tag {
+    font-size: 10px; background: rgba(168,216,240,0.20); color: var(--sky);
+    padding: 2px 8px; border-radius: 6px; font-weight: 700; letter-spacing: 0.5px;
+  }
+  .nav-group-label {
+    padding: 12px 12px 4px; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.8px; color: var(--sidebar-mu); font-weight: 600;
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 8px;
+    color: var(--sidebar-tx); font-size: 13px; cursor: pointer;
+  }
+  .nav-item:hover { background: var(--sidebar-hi); color: #FFFFFF; }
+  .nav-item.active { background: var(--sidebar-hi); color: #FFFFFF; }
+  .nav-item .icon { width: 16px; text-align: center; opacity: 0.85; }
+  .nav-item .count {
+    margin-left: auto; font-size: 11px;
+    background: rgba(255,255,255,0.10); padding: 1px 8px;
+    border-radius: 10px; font-weight: 500;
+  }
+  .nav-item.hot .count { background: rgba(255,69,69,0.18); color: #FF9E9E; }
+  .nav-item.wip { opacity: 0.5; cursor: not-allowed; }
+  .nav-item.wip .wip-tag {
+    margin-left: auto; font-size: 9px;
+    background: rgba(240,220,128,0.15); color: var(--gold);
+    padding: 1px 6px; border-radius: 4px; font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .sidebar-footer {
+    margin-top: auto; padding: 12px;
+    font-size: 11px; color: var(--sidebar-mu);
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 24px;
+    background: #FFFFFF; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .topbar .search { flex: 1; max-width: 480px; position: relative; }
+  .topbar .search input {
+    width: 100%; padding: 8px 12px 8px 32px;
+    border: 1px solid var(--line2); border-radius: 8px;
+    background: #F7F7F5; font-size: 13px; outline: none;
+  }
+  .topbar .search input:focus { border-color: var(--sky-deep); background: #FFFFFF; }
+  .topbar .search::before {
+    content: "🔍"; position: absolute; left: 10px; top: 50%;
+    transform: translateY(-50%); font-size: 12px; opacity: 0.4;
+  }
+  .env-pill {
+    padding: 4px 10px; background: var(--mint-tint); color: var(--mint-deep);
+    border-radius: 6px; font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+  }
+  .user {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px; border-radius: 8px; cursor: pointer;
+    position: relative;
+  }
+  .user:hover { background: var(--sky-tint); }
+  .user .av {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--sky); color: var(--sky-deep);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 12px;
+  }
+  .user .name { font-size: 13px; color: var(--ink); font-weight: 500; }
+  .user .caret { font-size: 10px; color: var(--ink3); }
+  .user-dd {
+    position: absolute; top: 40px; right: 0;
+    background: #FFFFFF; border: 1px solid var(--line);
+    border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    min-width: 220px; padding: 6px; z-index: 100;
+    display: none;
+  }
+  .user.open .user-dd { display: block; }
+  .user-dd .dd-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 6px; font-size: 13px;
+  }
+  .user-dd .dd-item:hover { background: var(--sky-tint); }
+  .user-dd .dd-item.danger { color: var(--coral-deep); }
+  .user-dd .dd-item.danger:hover { background: var(--coral-tint); }
+  .user-dd .dd-divider { height: 1px; background: var(--line); margin: 4px 0; }
+  .user-dd .dd-meta { padding: 8px 10px; font-size: 11px; color: var(--ink3); }
+
+  .content { padding: 24px; flex: 1; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  .page-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .page-h h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  .page-h .h-sub { font-size: 13px; color: var(--ink3); margin-top: 2px; }
+  .page-h .h-actions { display: flex; gap: 8px; }
+
+  /* ── Buttons ──────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 8px;
+    font-size: 13px; font-weight: 600;
+    border: none; transition: opacity 0.15s ease;
+  }
+  .btn:hover:not(:disabled) { opacity: 0.9; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--ink); color: #FFFFFF; }
+  .btn-secondary { background: #FFFFFF; color: var(--ink2); border: 1px solid var(--line2); }
+  .btn-secondary:hover { color: var(--ink); border-color: var(--ink5); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; font-weight: 500; }
+
+  /* ── KPI cards ────────────────────────────────────────────── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 24px; }
+  .kpi {
+    background: #FFFFFF; border-radius: 12px; padding: 16px;
+    border: 1px solid var(--line);
+  }
+  .kpi .kpi-label {
+    font-size: 11px; color: var(--ink3);
+    text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .kpi .kpi-value { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.1; }
+  .kpi .kpi-value .unit { font-size: 12px; color: var(--ink3); font-weight: 500; margin-left: 3px; }
+  .kpi .kpi-delta { font-size: 11px; margin-top: 6px; font-weight: 600; }
+  .kpi .kpi-delta.up { color: var(--mint-deep); }
+  .kpi .kpi-delta.down { color: var(--coral-deep); }
+  .kpi .kpi-delta.flat { color: var(--ink4); }
+  .kpi .kpi-value.loading, .kpi .kpi-delta.loading {
+    color: var(--ink5);
+  }
+
+  /* ── Panels + charts ──────────────────────────────────────── */
+  .panel {
+    background: #FFFFFF; border-radius: 12px; border: 1px solid var(--line);
+    padding: 20px; margin-bottom: 16px;
+  }
+  .panel-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .panel-h h3 { font-size: 15px; font-weight: 700; }
+  .panel-h .panel-sub { font-size: 12px; color: var(--ink3); margin-top: 2px; }
+  .panel-h .panel-actions { display: flex; gap: 8px; }
+  .cols-2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+
+  .chart-bars {
+    display: flex; align-items: flex-end; gap: 12px; height: 160px;
+    padding: 10px 0 20px; border-bottom: 1px solid var(--line);
+  }
+  .chart-bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .chart-bar .bar {
+    width: 100%; background: var(--sky-tint);
+    border: 1px solid var(--sky); border-radius: 6px 6px 0 0;
+    position: relative; min-height: 4px;
+    transition: height 0.3s ease;
+  }
+  .chart-bar .bar.current { background: var(--sky); }
+  .chart-bar .bar-lbl { font-size: 10px; color: var(--ink4); text-transform: uppercase; letter-spacing: 0.4px; }
+  .chart-bar .bar-val {
+    position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; color: var(--ink2); font-weight: 600; white-space: nowrap;
+  }
+
+  /* ── Activity feed ────────────────────────────────────────── */
+  .activity-item {
+    display: flex; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-item .a-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--sky); margin-top: 6px; flex-shrink: 0;
+  }
+  .activity-item .a-dot.mint { background: var(--mint); }
+  .activity-item .a-dot.peach { background: var(--peach); }
+  .activity-item .a-dot.coral { background: var(--coral); }
+  .activity-item .a-dot.gold { background: var(--gold); }
+  .activity-item .a-body { flex: 1; }
+  .activity-item .a-title { color: var(--ink); }
+  .activity-item .a-meta { color: var(--ink3); font-size: 12px; margin-top: 1px; }
+  .empty-state {
+    padding: 40px 20px; text-align: center;
+    color: var(--ink3); font-size: 13px;
+  }
+  .empty-state .ico { font-size: 28px; opacity: 0.5; margin-bottom: 10px; }
+
+  /* ── WIP placeholder for un-built pages ───────────────────── */
+  .wip-page {
+    background: #FFFFFF; border-radius: 12px; border: 1px solid var(--line);
+    padding: 60px 30px; text-align: center;
+  }
+  .wip-page .wip-emoji { font-size: 48px; margin-bottom: 16px; }
+  .wip-page h3 { font-size: 20px; margin-bottom: 8px; }
+  .wip-page p { font-size: 14px; color: var(--ink3); max-width: 400px; margin: 0 auto; line-height: 1.6; }
+  .wip-page .wip-batch {
+    display: inline-block; margin-top: 14px;
+    background: var(--gold-tint); color: var(--gold-deep);
+    padding: 4px 12px; border-radius: 6px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+  }
+
+  /* ── Sign-in gate ─────────────────────────────────────────── */
+  .signin {
+    min-height: 100vh; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px; position: relative; overflow: hidden;
+  }
+  .signin::before, .signin::after {
+    content: ""; position: absolute; border-radius: 50%; filter: blur(4px);
+  }
+  .signin::before {
+    width: 280px; height: 280px; background: var(--sky); opacity: 0.30;
+    top: -60px; right: -60px;
+  }
+  .signin::after {
+    width: 240px; height: 240px; background: var(--mint); opacity: 0.30;
+    bottom: -60px; left: -80px;
+  }
+  .signin-card {
+    background: #FFFFFF; border-radius: 16px; padding: 36px;
+    max-width: 400px; width: 100%; position: relative; z-index: 1;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.10);
+  }
+  .signin-card .word { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+  .signin-card .word .a, .signin-card .word .i { color: var(--sky-deep); }
+  .signin-card .tag {
+    display: inline-block; font-size: 10px; background: var(--ink); color: #FFFFFF;
+    padding: 3px 8px; border-radius: 6px; letter-spacing: 0.6px;
+    font-weight: 700; margin-left: 8px; vertical-align: 4px;
+  }
+  .signin-card h2 { font-size: 18px; margin-top: 20px; margin-bottom: 4px; }
+  .signin-card .sub { font-size: 13px; color: var(--ink3); margin-bottom: 22px; }
+  .signin-card label {
+    display: block; font-size: 11px; font-weight: 600; color: var(--ink3);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 6px; margin-top: 12px;
+  }
+  .signin-card input {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--line2); border-radius: 8px;
+    background: #F7F7F5; outline: none; font-size: 13px;
+  }
+  .signin-card input:focus { background: #FFFFFF; border-color: var(--sky-deep); }
+  .signin-card .signin-cta {
+    margin-top: 20px; width: 100%; padding: 12px;
+    background: var(--ink); color: #FFFFFF;
+    border: none; border-radius: 10px; font-weight: 600;
+  }
+  .signin-card .signin-cta:disabled { opacity: 0.5; cursor: wait; }
+  .signin-card .note {
+    margin-top: 18px; font-size: 11px; color: var(--ink4);
+    text-align: center; line-height: 1.5;
+  }
+  .signin-error {
+    margin-top: 14px; padding: 10px 12px;
+    background: var(--coral-tint); color: var(--coral-deep);
+    border-radius: 8px; font-size: 12px; font-weight: 500;
+    display: none;
+  }
+  .signin-error.show { display: block; }
+
+  /* ── Loading spinner ──────────────────────────────────────── */
+  .loader {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--line2); border-top-color: var(--sky-deep);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .fullscreen-loader {
+    position: fixed; inset: 0;
+    background: var(--bg); display: none;
+    align-items: center; justify-content: center;
+    z-index: 200;
+  }
+  .fullscreen-loader.show { display: flex; }
+  .fullscreen-loader .fl-inner { text-align: center; }
+  .fullscreen-loader .fl-inner .loader { width: 24px; height: 24px; border-width: 3px; }
+  .fullscreen-loader .fl-inner p { margin-top: 12px; color: var(--ink3); font-size: 13px; }
+
+  /* ── Filter chips ─────────────────────────────────────────── */
+  .filter-chips { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 999px;
+    background: #FFFFFF; color: var(--ink2);
+    border: 1px solid var(--line2); font-size: 12px; font-weight: 500;
+    cursor: pointer; user-select: none;
+  }
+  .chip:hover { border-color: var(--ink5); color: var(--ink); }
+  .chip.active { background: var(--ink); color: #FFFFFF; border-color: var(--ink); }
+  .chip .cn { font-size: 11px; opacity: 0.7; }
+  .chip.active .cn { opacity: 0.85; }
+
+  /* ── Data table ───────────────────────────────────────────── */
+  .table-wrap {
+    background: #FFFFFF; border: 1px solid var(--line);
+    border-radius: 12px; overflow: hidden;
+  }
+  table.data { width: 100%; border-collapse: collapse; }
+  table.data thead {
+    background: #FAFAF8;
+    border-bottom: 1px solid var(--line);
+  }
+  table.data th {
+    text-align: left; padding: 10px 14px;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--ink3); font-weight: 600;
+    white-space: nowrap;
+  }
+  table.data th.num, table.data td.num { text-align: right; }
+  table.data td {
+    padding: 12px 14px; font-size: 13px;
+    border-bottom: 1px solid var(--line); vertical-align: middle;
+  }
+  table.data tbody tr { cursor: pointer; transition: background 0.1s; }
+  table.data tbody tr:hover { background: #FAFAF8; }
+  table.data tbody tr:last-child td { border-bottom: none; }
+  table.data td.muted { color: var(--ink3); }
+  table.data td strong { color: var(--ink); font-weight: 600; }
+
+  /* ── Status pills ─────────────────────────────────────────── */
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 9px; border-radius: 12px;
+    font-size: 11px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .status-pill .dot {
+    width: 6px; height: 6px; border-radius: 50%; display: inline-block;
+  }
+  .status-pill.beta { background: var(--gold-tint); color: var(--gold-deep); }
+  .status-pill.beta .dot { background: var(--gold-deep); }
+  .status-pill.paid { background: var(--mint-tint); color: var(--mint-deep); }
+  .status-pill.paid .dot { background: var(--mint-deep); }
+  .status-pill.trial { background: var(--sky-tint); color: var(--sky-deep); }
+  .status-pill.trial .dot { background: var(--sky-deep); }
+  .status-pill.past-due { background: var(--coral-tint); color: var(--coral-deep); }
+  .status-pill.past-due .dot { background: var(--coral-deep); }
+  .status-pill.cancelled { background: var(--line); color: var(--ink3); }
+  .status-pill.cancelled .dot { background: var(--ink4); }
+  .status-pill.expired { background: var(--peach-tint); color: var(--peach-deep); }
+  .status-pill.expired .dot { background: var(--peach-deep); }
+  .status-pill.none { background: var(--line); color: var(--ink3); }
+  .status-pill.none .dot { background: var(--ink4); }
+
+  .push-dot {
+    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+    margin-right: 5px; vertical-align: middle;
+  }
+  .push-dot.ok { background: var(--mint-deep); }
+  .push-dot.no { background: var(--coral-deep); }
+  .push-dot.pending { background: var(--ink4); }
+
+  /* ── Row actions ──────────────────────────────────────────── */
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .row-actions button { padding: 4px 10px; }
+  .btn-mint { background: var(--mint-deep); color: #FFFFFF; }
+  .btn-coral { background: var(--coral); color: #FFFFFF; }
+
+  /* ── Bulk bar ─────────────────────────────────────────────── */
+  .bulk-bar {
+    background: var(--gold-tint); border: 1px dashed var(--gold-deep);
+    border-radius: 12px; padding: 16px; margin-bottom: 16px;
+  }
+  .bulk-h { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .bulk-h h4 { font-size: 13px; font-weight: 700; color: var(--gold-deep); }
+  .bulk-h .hint { font-size: 12px; color: var(--ink3); }
+  .bulk-bar textarea {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--line2); border-radius: 8px;
+    background: #FFFFFF; font-family: ui-monospace, monospace;
+    font-size: 12px; min-height: 70px; outline: none; resize: vertical;
+  }
+  .bulk-bar textarea:focus { border-color: var(--gold-deep); }
+  .bulk-actions {
+    display: flex; align-items: center; gap: 10px; margin-top: 10px;
+  }
+
+  /* ── Customer detail drawer layout ────────────────────────── */
+  .drawer-wrap { display: grid; grid-template-columns: 280px 1fr; gap: 16px; }
+  .drawer-panel {
+    background: #FFFFFF; border: 1px solid var(--line);
+    border-radius: 12px; padding: 20px;
+  }
+  .detail-hero {
+    text-align: center; padding: 4px 0 18px;
+    border-bottom: 1px solid var(--line); margin-bottom: 16px;
+  }
+  .detail-hero .fav {
+    width: 64px; height: 64px; border-radius: 20px;
+    background: var(--sky); color: var(--sky-deep);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .detail-hero h3 { font-size: 17px; font-weight: 700; }
+  .detail-hero .fam-email { font-size: 12px; color: var(--ink3); margin-top: 4px; }
+
+  .member-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; font-size: 13px;
+  }
+  .member-row .mav {
+    width: 30px; height: 30px; border-radius: 50%;
+    color: #FFFFFF; font-weight: 700; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .member-row .mn { color: var(--ink); font-weight: 500; }
+  .member-row .mr { margin-left: auto; color: var(--ink3); font-size: 12px; }
+
+  .kv-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; font-size: 13px;
+    border-bottom: 1px solid var(--line);
+  }
+  .kv-row:last-child { border-bottom: none; }
+  .kv-row .k { color: var(--ink3); }
+  .kv-row .v { color: var(--ink); font-weight: 500; text-align: right; }
+
+  .action-block { display: flex; flex-direction: column; gap: 8px; }
+  .notes-box {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--line2); border-radius: 8px;
+    background: #F7F7F5; min-height: 90px; outline: none;
+    font-size: 13px; resize: vertical;
+  }
+  .notes-box:focus { background: #FFFFFF; border-color: var(--sky-deep); }
+
+  .danger-zone {
+    background: var(--coral-tint); border: 1px solid var(--coral);
+    border-radius: 12px; padding: 16px;
+  }
+  .danger-zone h4 {
+    font-size: 13px; font-weight: 700; color: var(--coral-deep);
+    margin-bottom: 6px;
+  }
+  .danger-zone p {
+    font-size: 12px; color: var(--ink2); line-height: 1.6; margin-bottom: 12px;
+  }
+
+  /* ── Modal ────────────────────────────────────────────────── */
+  .modal-scrim {
+    position: fixed; inset: 0; background: rgba(10,10,10,0.42);
+    display: none; align-items: center; justify-content: center;
+    z-index: 500; padding: 20px;
+  }
+  .modal-scrim.show { display: flex; }
+  .modal {
+    background: #FFFFFF; border-radius: 16px; padding: 24px;
+    max-width: 460px; width: 100%;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.28);
+  }
+  .modal h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .modal .modal-sub { font-size: 13px; color: var(--ink3); margin-bottom: 16px; line-height: 1.5; }
+  .modal .modal-body { margin-bottom: 20px; }
+  .modal label {
+    display: block; font-size: 11px; font-weight: 600; color: var(--ink3);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 6px; margin-top: 10px;
+  }
+  .modal input, .modal select {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--line2); border-radius: 8px;
+    background: #F7F7F5; outline: none; font-size: 13px;
+  }
+  .modal input:focus, .modal select:focus { background: #FFFFFF; border-color: var(--sky-deep); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-error {
+    margin-top: 12px; padding: 8px 10px;
+    background: var(--coral-tint); color: var(--coral-deep);
+    border-radius: 6px; font-size: 12px; display: none;
+  }
+  .modal-error.show { display: block; }
+  .modal-ok {
+    margin-top: 12px; padding: 8px 10px;
+    background: var(--mint-tint); color: var(--mint-deep);
+    border-radius: 6px; font-size: 12px; display: none;
+  }
+  .modal-ok.show { display: block; }
+
+  /* ── Toast ────────────────────────────────────────────────── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--ink); color: #FFFFFF;
+    padding: 12px 18px; border-radius: 10px;
+    font-size: 13px; font-weight: 500;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+    z-index: 1000; opacity: 0; transform: translateY(10px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.err { background: var(--coral-deep); }
+  .toast.ok { background: var(--mint-deep); }
+
+  /* ── Mobile hamburger ─────────────────────────────────────── */
+  .mobile-menu-btn {
+    display: none; background: transparent; border: none;
+    padding: 6px 8px; margin-right: 4px; font-size: 20px; color: var(--ink);
+  }
+  .sidebar-scrim {
+    position: fixed; inset: 0; background: rgba(10,10,10,0.42);
+    z-index: 199; display: none;
+  }
+  .sidebar-scrim.show { display: block; }
+
+  /* ── Mobile ───────────────────────────────────────────────── */
+  @media (max-width: 720px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: 260px; z-index: 200;
+      transform: translateX(-100%); transition: transform 0.2s ease;
+      overflow-y: auto;
+    }
+    .sidebar.open { transform: translateX(0); }
+    .mobile-menu-btn { display: inline-flex; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .cols-2 { grid-template-columns: 1fr; }
+    .drawer-wrap { grid-template-columns: 1fr; }
+    .content { padding: 16px; }
+    .topbar { padding: 12px 16px; }
+    .table-wrap { overflow-x: auto; }
+    table.data { min-width: 760px; }
+    .kpi-grid[style*="repeat(4"] { grid-template-columns: 1fr 1fr !important; }
+    .filter-chips { overflow-x: auto; flex-wrap: nowrap; }
+    .filter-chips .chip { white-space: nowrap; }
+    .page-h { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .page-h .h-actions { flex-wrap: wrap; }
+  }
+
+  /* ── Form fields ──────────────────────────────────────────── */
+  .field-label {
+    display: block; font-size: 11px; font-weight: 600; color: var(--ink3);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 6px; margin-top: 14px;
+  }
+  .field-input {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--line2); border-radius: 8px;
+    background: #F7F7F5; outline: none; font-size: 13px;
+  }
+  .field-input:focus { background: #FFFFFF; border-color: var(--sky-deep); }
+  .field-textarea {
+    width: 100%; padding: 12px;
+    border: 1px solid var(--line2); border-radius: 8px;
+    background: #F7F7F5; outline: none; font-size: 13px;
+    font-family: inherit; resize: vertical; min-height: 260px;
+    line-height: 1.55;
+  }
+  .field-textarea:focus { background: #FFFFFF; border-color: var(--sky-deep); }
+  .field-textarea.html-mode {
+    font-family: ui-monospace, monospace; font-size: 12px;
+  }
+
+  /* ── Health indicators ────────────────────────────────────── */
+  .health-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--line);
+  }
+  .health-row:last-child { border-bottom: none; }
+  .health-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0; background: var(--ink4);
+  }
+  .health-dot.ok { background: var(--mint-deep); }
+  .health-dot.warn { background: var(--gold-deep); }
+  .health-dot.err { background: var(--coral-deep); }
+  .health-dot.loading {
+    background: var(--ink4);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.4; } }
+  .health-name { font-weight: 600; font-size: 13px; flex-shrink: 0; }
+  .health-detail { font-size: 12px; color: var(--ink3); flex: 1; }
+
+  /* ── Segment chips ────────────────────────────────────────── */
+  .segment-list { display: flex; flex-direction: column; gap: 8px; }
+  .segment-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; background: #FFFFFF;
+    border: 1px solid var(--line2); border-radius: 10px;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .segment-item:hover { border-color: var(--ink5); }
+  .segment-item.selected { border-color: var(--sky-deep); background: var(--sky-tint); }
+  .segment-item .seg-radio {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid var(--line2); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .segment-item.selected .seg-radio {
+    border-color: var(--sky-deep);
+  }
+  .segment-item.selected .seg-radio::after {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--sky-deep);
+  }
+  .segment-item .seg-body { flex: 1; }
+  .segment-item .seg-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .segment-item .seg-sub { font-size: 12px; color: var(--ink3); margin-top: 2px; }
+  .segment-item .seg-count {
+    font-size: 12px; color: var(--ink2); font-weight: 600;
+    background: var(--line); padding: 3px 10px; border-radius: 999px;
+  }
+
+  /* ── Template picker ──────────────────────────────────────── */
+  .template-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+  }
+  .template-card {
+    background: #FFFFFF; border: 1px solid var(--line2); border-radius: 10px;
+    padding: 14px; cursor: pointer; transition: border-color 0.15s;
+  }
+  .template-card:hover { border-color: var(--ink5); }
+  .template-card.selected { border-color: var(--sky-deep); background: var(--sky-tint); }
+  .template-card .tpl-icon { font-size: 22px; margin-bottom: 6px; }
+  .template-card .tpl-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+  .template-card .tpl-desc { font-size: 11px; color: var(--ink3); margin-top: 4px; line-height: 1.4; }
+
+  /* ── Announce columns ─────────────────────────────────────── */
+  .announce-grid { display: grid; grid-template-columns: 380px 1fr; gap: 16px; }
+  @media (max-width: 900px) { .announce-grid { grid-template-columns: 1fr; } }
+  .announce-preview {
+    background: #FFFFFF; border: 1px solid var(--line);
+    border-radius: 10px; padding: 20px; min-height: 380px;
+  }
+  .preview-frame {
+    background: #F7F7F5; border-radius: 8px; padding: 20px;
+    max-height: 480px; overflow-y: auto;
+  }
+
+  /* ── Send progress ────────────────────────────────────────── */
+  .send-progress {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 12px 14px; background: var(--sky-tint);
+    border: 1px solid var(--sky-deep); border-radius: 8px;
+    font-size: 13px; margin-top: 12px;
+  }
+  .send-progress .sp-bar {
+    height: 6px; background: rgba(10,74,106,0.15); border-radius: 3px; overflow: hidden;
+    margin-top: 6px;
+  }
+  .send-progress .sp-bar-fill {
+    height: 100%; background: var(--sky-deep); border-radius: 3px;
+    transition: width 0.25s ease;
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Fullscreen loader (checking session on load) ──────────── -->
+<div class="fullscreen-loader show" id="boot-loader">
+  <div class="fl-inner">
+    <div class="loader"></div>
+    <p>Checking session…</p>
+  </div>
+</div>
+
+<!-- ── Sign-in gate ──────────────────────────────────────────── -->
+<div class="signin" id="signin-view" style="display: none;">
+  <div class="signin-card">
+    <div class="word">z<span class="a">a</span>el<span class="i">i</span><span class="tag">ADMIN</span></div>
+    <h2>Sign in to the admin console</h2>
+    <p class="sub">Restricted to registered Zaeli admin accounts.</p>
+    <form id="signin-form">
+      <label for="signin-email">Email</label>
+      <input id="signin-email" type="email" autocomplete="email" required placeholder="you@example.com">
+      <label for="signin-password">Password</label>
+      <input id="signin-password" type="password" autocomplete="current-password" required placeholder="Your Zaeli password">
+      <button type="submit" class="signin-cta" id="signin-submit">Sign in</button>
+      <div class="signin-error" id="signin-error"></div>
+    </form>
+    <p class="note">Uses your existing Zaeli account. Only whitelisted emails see admin data — others are signed straight back out.</p>
+  </div>
+</div>
+
+<!-- ── App shell (authenticated) ─────────────────────────────── -->
+<div class="app" id="app-view" style="display: none;">
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="word">z<span class="a">a</span>el<span class="i">i</span></div>
+      <span class="tag">ADMIN</span>
+    </div>
+    <div class="nav-group-label">Monitor</div>
+    <div class="nav-item active" data-page="overview"><span class="icon">▤</span> Overview</div>
+    <div class="nav-item" data-page="customers"><span class="icon">👤</span> Customers <span class="count" id="nav-customers-count">—</span></div>
+    <div class="nav-item" data-page="signups"><span class="icon">✉️</span> Signup queue <span class="count" id="nav-signups-count">—</span></div>
+    <div class="nav-item" data-page="costs"><span class="icon">$</span> Costs & Revenue</div>
+    <div class="nav-item" data-page="alerts"><span class="icon">⚠</span> Alerts <span class="count" id="nav-alerts-count">—</span></div>
+    <div class="nav-group-label">Do</div>
+    <div class="nav-item" data-page="announce"><span class="icon">📢</span> Send announcement</div>
+    <div class="nav-group-label">Configure</div>
+    <div class="nav-item" data-page="settings"><span class="icon">⚙</span> Settings</div>
+    <div class="sidebar-footer">
+      v3.0 · Batch 1 of 4<br>
+      <span id="deploy-info">Loading…</span>
+    </div>
+  </aside>
+
+  <div class="sidebar-scrim" id="sidebar-scrim"></div>
+  <div class="main">
+    <div class="topbar">
+      <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menu">☰</button>
+      <div class="search"><input type="text" placeholder="Search…"></div>
+      <span class="env-pill" id="env-pill">LIVE</span>
+      <div class="user" id="user-menu">
+        <div class="av" id="user-av">?</div>
+        <div class="name" id="user-name">…</div>
+        <div class="caret">▾</div>
+        <div class="user-dd">
+          <div class="dd-meta" id="user-email">…</div>
+          <div class="dd-divider"></div>
+          <div class="dd-item" onclick="location.reload()">🔄 Refresh</div>
+          <a class="dd-item" href="https://console.anthropic.com" target="_blank">📊 Anthropic dashboard ↗</a>
+          <a class="dd-item" href="https://dashboard.stripe.com" target="_blank">💳 Stripe dashboard ↗</a>
+          <a class="dd-item" href="https://supabase.com/dashboard/project/rsvbzakyyrftezthlhtd" target="_blank">🗄 Supabase ↗</a>
+          <div class="dd-divider"></div>
+          <div class="dd-item danger" id="signout-btn">⤴ Sign out</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ── OVERVIEW PAGE ─────────────────────────────────── -->
+      <section class="page active" id="page-overview">
+        <div class="page-h">
+          <div>
+            <h2>Overview</h2>
+            <div class="h-sub">Snapshot of live status across all Zaeli families.</div>
+          </div>
+          <div class="h-actions">
+            <button class="btn btn-secondary btn-sm" id="refresh-overview">Refresh</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi">
+            <div class="kpi-label">Total families</div>
+            <div class="kpi-value loading" id="kpi-families">—</div>
+            <div class="kpi-delta loading" id="kpi-families-delta">loading…</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Active beta</div>
+            <div class="kpi-value loading" id="kpi-beta">—</div>
+            <div class="kpi-delta loading" id="kpi-beta-delta">loading…</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Paid subscribers</div>
+            <div class="kpi-value loading" id="kpi-paid">—</div>
+            <div class="kpi-delta loading" id="kpi-paid-delta">loading…</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">MRR</div>
+            <div class="kpi-value loading" id="kpi-mrr">—</div>
+            <div class="kpi-delta loading" id="kpi-mrr-delta">rough est.</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">API spend (this mo)</div>
+            <div class="kpi-value loading" id="kpi-spend">—</div>
+            <div class="kpi-delta loading" id="kpi-spend-delta">loading…</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Signup queue</div>
+            <div class="kpi-value loading" id="kpi-queue">—</div>
+            <div class="kpi-delta loading" id="kpi-queue-delta">loading…</div>
+          </div>
+        </div>
+
+        <div class="cols-2">
+          <div class="panel">
+            <div class="panel-h">
+              <div>
+                <h3>Families over time</h3>
+                <div class="panel-sub">Last 6 months · monthly signups</div>
+              </div>
+            </div>
+            <div class="chart-bars" id="trend-chart">
+              <div class="empty-state" style="flex: 1;"><div class="loader"></div></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h">
+              <div>
+                <h3>Revenue vs API cost</h3>
+                <div class="panel-sub">This month · rough MRR est.</div>
+              </div>
+            </div>
+            <div id="margin-panel" style="text-align: center; padding: 24px 0;">
+              <div class="loader"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">
+            <div>
+              <h3>Recent activity</h3>
+              <div class="panel-sub">Latest signups + beta grants + API events</div>
+            </div>
+          </div>
+          <div id="activity-feed">
+            <div class="empty-state"><div class="loader"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── CUSTOMERS PAGE ──────────────────────────────── -->
+      <section class="page" id="page-customers">
+        <div class="page-h">
+          <div>
+            <h2>Customers</h2>
+            <div class="h-sub" id="cust-sub">Loading families…</div>
+          </div>
+          <div class="h-actions">
+            <button class="btn btn-secondary btn-sm" id="cust-refresh">Refresh</button>
+            <button class="btn btn-primary btn-sm" id="cust-grant-by-email">+ Grant beta by email</button>
+          </div>
+        </div>
+
+        <div class="filter-chips" id="cust-filters">
+          <div class="chip active" data-filter="all">All <span class="cn" id="cnt-all">0</span></div>
+          <div class="chip" data-filter="beta">Beta <span class="cn" id="cnt-beta">0</span></div>
+          <div class="chip" data-filter="paid">Paid <span class="cn" id="cnt-paid">0</span></div>
+          <div class="chip" data-filter="trial">Trial <span class="cn" id="cnt-trial">0</span></div>
+          <div class="chip" data-filter="past-due">Past-due <span class="cn" id="cnt-past-due">0</span></div>
+          <div class="chip" data-filter="cancelled">Cancelled <span class="cn" id="cnt-cancelled">0</span></div>
+          <div class="chip" data-filter="expired">Beta expired <span class="cn" id="cnt-expired">0</span></div>
+          <div class="chip" data-filter="no-push">No push <span class="cn" id="cnt-no-push">0</span></div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Family</th>
+                <th>Owner</th>
+                <th>Plan</th>
+                <th>Push</th>
+                <th class="num">Cost this mo</th>
+                <th>Status detail</th>
+                <th>Last active</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="cust-tbody">
+              <tr><td colspan="8"><div class="empty-state"><div class="loader"></div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="text-align: center; padding: 14px 0; font-size: 12px; color: var(--ink3);" id="cust-footer">—</div>
+      </section>
+
+      <!-- ── CUSTOMER DETAIL PAGE ──────────────────────────── -->
+      <section class="page" id="page-detail">
+        <div class="page-h">
+          <div>
+            <div style="font-size: 12px; color: var(--ink3); margin-bottom: 4px; cursor: pointer;" id="detail-back">← Back to Customers</div>
+            <h2 id="detail-title">Loading…</h2>
+            <div class="h-sub" id="detail-sub">—</div>
+          </div>
+          <div class="h-actions">
+            <button class="btn btn-mint btn-sm" id="detail-extend">Extend beta 3 months</button>
+            <button class="btn btn-secondary btn-sm" id="detail-stripe" style="display: none;">Open in Stripe ↗</button>
+          </div>
+        </div>
+
+        <div class="drawer-wrap">
+          <!-- Left column -->
+          <div class="drawer-panel">
+            <div class="detail-hero">
+              <div class="fav" id="detail-fav">?</div>
+              <h3 id="detail-fam-name">—</h3>
+              <div class="fam-email" id="detail-fam-email">—</div>
+              <div style="margin-top: 12px;" id="detail-fam-pill"></div>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+              <div style="font-size: 11px; color: var(--ink3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Family (<span id="detail-member-count">0</span>)</div>
+              <div id="detail-members"></div>
+            </div>
+
+            <div style="margin-top: 20px;">
+              <div style="font-size: 11px; color: var(--ink3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Technical</div>
+              <div id="detail-technical"></div>
+            </div>
+          </div>
+
+          <!-- Right column -->
+          <div>
+            <div class="panel">
+              <div class="panel-h">
+                <div>
+                  <h3>Subscription</h3>
+                  <div class="panel-sub" id="detail-sub-header">—</div>
+                </div>
+              </div>
+              <div id="detail-sub-body"></div>
+              <div class="action-block" style="margin-top: 14px;" id="detail-sub-actions"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-h">
+                <div>
+                  <h3>API cost this month</h3>
+                  <div class="panel-sub" id="detail-cost-header">—</div>
+                </div>
+              </div>
+              <div id="detail-cost-body"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-h">
+                <div>
+                  <h3>Recent activity</h3>
+                  <div class="panel-sub">Last 8 events from api_logs</div>
+                </div>
+              </div>
+              <div id="detail-activity"></div>
+            </div>
+
+            <div class="danger-zone">
+              <h4>⚠ Danger zone</h4>
+              <p>Deletes the family + all data (calendar, shopping, reminders, budget, chat history, memory) AND the associated Supabase auth users so their emails free up. Runs server-side via admin-actions Edge Function. Cannot be undone.</p>
+              <button class="btn btn-coral btn-sm" id="detail-delete">Delete family account…</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <!-- ── SIGNUP QUEUE PAGE ──────────────────────────────── -->
+      <section class="page" id="page-signups">
+        <div class="page-h">
+          <div>
+            <h2>Signup queue</h2>
+            <div class="h-sub" id="signups-sub">Loading…</div>
+          </div>
+          <div class="h-actions">
+            <button class="btn btn-secondary btn-sm" id="signups-refresh">Refresh</button>
+            <button class="btn btn-secondary btn-sm" id="signups-copy-pending">Copy pending emails</button>
+            <a class="btn btn-primary btn-sm" href="https://appstoreconnect.apple.com/apps" target="_blank">→ Open TestFlight ↗</a>
+          </div>
+        </div>
+
+        <div class="filter-chips" id="signups-filters">
+          <div class="chip active" data-filter="all">All <span class="cn" id="sig-cnt-all">0</span></div>
+          <div class="chip" data-filter="pending">Not invited <span class="cn" id="sig-cnt-pending">0</span></div>
+          <div class="chip" data-filter="invited">Invited · not installed <span class="cn" id="sig-cnt-invited">0</span></div>
+          <div class="chip" data-filter="installed">Installed · needs beta grant <span class="cn" id="sig-cnt-installed">0</span></div>
+          <div class="chip" data-filter="active">Active <span class="cn" id="sig-cnt-active">0</span></div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Signed up</th>
+                <th>Email</th>
+                <th>Name</th>
+                <th>Source</th>
+                <th>Status</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="signups-tbody">
+              <tr><td colspan="6"><div class="empty-state"><div class="loader"></div></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="text-align: center; padding: 14px 0; font-size: 12px; color: var(--ink3);" id="signups-footer">—</div>
+      </section>
+
+      <!-- ── COSTS & REVENUE PAGE ──────────────────────────── -->
+      <section class="page" id="page-costs">
+        <div class="page-h">
+          <div>
+            <h2>Costs & Revenue</h2>
+            <div class="h-sub" id="costs-sub">Loading financial snapshot…</div>
+          </div>
+          <div class="h-actions">
+            <button class="btn btn-secondary btn-sm" id="costs-refresh">Refresh</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="kpi">
+            <div class="kpi-label">MRR (recurring)</div>
+            <div class="kpi-value loading" id="cost-mrr">—</div>
+            <div class="kpi-delta loading" id="cost-mrr-sub">A$6.99 × paid</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">API spend (this mo)</div>
+            <div class="kpi-value loading" id="cost-spend">—</div>
+            <div class="kpi-delta loading" id="cost-spend-sub">loading…</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Net margin</div>
+            <div class="kpi-value loading" id="cost-margin">—</div>
+            <div class="kpi-delta loading" id="cost-margin-pct">—</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Cost / active family</div>
+            <div class="kpi-value loading" id="cost-per-family">—</div>
+            <div class="kpi-delta loading" id="cost-per-family-sub">median</div>
+          </div>
+        </div>
+
+        <div class="cols-2">
+          <div class="panel">
+            <div class="panel-h">
+              <div>
+                <h3>Cost by feature (this month)</h3>
+                <div class="panel-sub">Grouped from api_logs.feature</div>
+              </div>
+            </div>
+            <div id="cost-by-feature"><div class="empty-state"><div class="loader"></div></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-h">
+              <div>
+                <h3>Cost trend</h3>
+                <div class="panel-sub">Last 6 months</div>
+              </div>
+            </div>
+            <div class="chart-bars" id="cost-trend"><div class="empty-state" style="flex: 1;"><div class="loader"></div></div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">
+            <div>
+              <h3>Top spenders this month</h3>
+              <div class="panel-sub">Families ranked by API cost — investigate outliers before they compound</div>
+            </div>
+          </div>
+          <div class="table-wrap" style="border: none;">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Family</th>
+                  <th>Owner</th>
+                  <th class="num">Cost this mo</th>
+                  <th class="num">× median</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="cost-top-tbody">
+                <tr><td colspan="5"><div class="empty-state"><div class="loader"></div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">
+            <div>
+              <h3>Projection</h3>
+              <div class="panel-sub">If we scale to N families at current per-family cost</div>
+            </div>
+          </div>
+          <div id="cost-projection"><div class="empty-state"><div class="loader"></div></div></div>
+        </div>
+      </section>
+
+      <!-- ── ALERTS PAGE ───────────────────────────────────── -->
+      <section class="page" id="page-alerts">
+        <div class="page-h">
+          <div>
+            <h2>Alerts</h2>
+            <div class="h-sub" id="alerts-sub">Computing…</div>
+          </div>
+          <div class="h-actions">
+            <button class="btn btn-secondary btn-sm" id="alerts-refresh">Refresh</button>
+          </div>
+        </div>
+
+        <div id="alerts-list">
+          <div class="empty-state" style="padding: 60px 20px;"><div class="loader"></div></div>
+        </div>
+      </section>
+      <!-- ── SEND ANNOUNCEMENT PAGE ────────────────────────── -->
+      <section class="page" id="page-announce">
+        <div class="page-h">
+          <div>
+            <h2>Send announcement</h2>
+            <div class="h-sub">Broadcast an email to a segment of users via Zoho SMTP. Recipients hidden via BCC.</div>
+          </div>
+        </div>
+
+        <div class="announce-grid">
+          <!-- LEFT: template + segment + editor -->
+          <div>
+            <div class="panel">
+              <div class="panel-h">
+                <div><h3>1. Pick a template</h3><div class="panel-sub">Edit the copy before sending — templates are starting points.</div></div>
+              </div>
+              <div class="template-grid" id="tpl-grid"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-h">
+                <div><h3>2. Choose recipients</h3><div class="panel-sub">Counts update on refresh.</div></div>
+              </div>
+              <div class="segment-list" id="segment-list"></div>
+              <div id="custom-emails-wrap" style="display: none; margin-top: 10px;">
+                <label class="field-label">Custom email list</label>
+                <textarea class="field-textarea" id="custom-emails" style="min-height: 100px; font-family: ui-monospace, monospace; font-size: 12px;" placeholder="one email per line, or comma-separated"></textarea>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-h">
+                <div><h3>3. Edit + send</h3><div class="panel-sub">Preview updates live on the right.</div></div>
+                <button class="btn btn-secondary btn-sm" id="tpl-mode-toggle">HTML mode</button>
+              </div>
+              <label class="field-label">Subject line</label>
+              <input class="field-input" id="tpl-subject" placeholder="Subject line…">
+              <label class="field-label">Body (HTML)</label>
+              <textarea class="field-textarea html-mode" id="tpl-body"></textarea>
+              <p style="font-size: 11px; color: var(--ink3); margin-top: 6px;">Placeholder <code>{{name}}</code> is not personalized in bulk sends (BCC pattern). Use "Hi there" or similar.</p>
+
+              <div style="display: flex; gap: 8px; margin-top: 16px; align-items: center;">
+                <button class="btn btn-secondary btn-sm" id="tpl-test-send">Test-send to me</button>
+                <button class="btn btn-primary btn-sm" id="tpl-send" style="margin-left: auto;">Send to <span id="tpl-send-count">0</span> recipients</button>
+              </div>
+              <div id="tpl-progress" style="display: none;"></div>
+            </div>
+          </div>
+
+          <!-- RIGHT: live preview -->
+          <div>
+            <div class="panel" style="position: sticky; top: 72px;">
+              <div class="panel-h">
+                <div><h3>Preview</h3><div class="panel-sub">Rendered HTML, no personalisation</div></div>
+              </div>
+              <div style="margin-bottom: 10px; padding: 10px 12px; background: #FAFAF8; border-radius: 8px; font-size: 12px; color: var(--ink3);">
+                <strong style="color: var(--ink);">From:</strong> Zaeli &lt;hello@zaeli.ai&gt;<br>
+                <strong style="color: var(--ink);">Subject:</strong> <span id="preview-subject" style="color: var(--ink);">—</span>
+              </div>
+              <div class="preview-frame" id="preview-frame">
+                <p style="color: var(--ink3); font-size: 13px; text-align: center; padding: 40px 20px;">Pick a template →</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── SETTINGS PAGE ─────────────────────────────────── -->
+      <section class="page" id="page-settings">
+        <div class="page-h">
+          <div>
+            <h2>Settings</h2>
+            <div class="h-sub">Infra health · admin utilities · whitelist management.</div>
+          </div>
+          <div class="h-actions">
+            <button class="btn btn-secondary btn-sm" id="settings-refresh">Refresh health</button>
+          </div>
+        </div>
+
+        <div class="cols-2">
+          <div class="panel">
+            <div class="panel-h">
+              <div><h3>Infra health</h3><div class="panel-sub">Live status of external services</div></div>
+            </div>
+            <div id="health-list">
+              <div class="health-row"><div class="health-dot loading"></div><div class="health-name">Supabase</div><div class="health-detail">Checking…</div></div>
+              <div class="health-row"><div class="health-dot loading"></div><div class="health-name">Anthropic</div><div class="health-detail">Checking…</div></div>
+              <div class="health-row"><div class="health-dot loading"></div><div class="health-name">Stripe</div><div class="health-detail">Checking…</div></div>
+              <div class="health-row"><div class="health-dot loading"></div><div class="health-name">Zoho SMTP</div><div class="health-detail">Checking…</div></div>
+              <div class="health-row"><div class="health-dot loading"></div><div class="health-name">Push tokens</div><div class="health-detail">Checking…</div></div>
+              <div class="health-row"><div class="health-dot loading"></div><div class="health-name">Brief scheduler</div><div class="health-detail">Checking…</div></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h">
+              <div><h3>Admin utilities</h3><div class="panel-sub">Per-user overrides</div></div>
+            </div>
+            <label class="field-label">Resend welcome email</label>
+            <div style="display: flex; gap: 8px;">
+              <input class="field-input" id="util-resend-email" placeholder="user@example.com" style="flex: 1;">
+              <button class="btn btn-secondary btn-sm" id="util-resend-btn">Resend</button>
+            </div>
+            <p style="font-size: 11px; color: var(--ink3); margin-top: 6px;">Sends the same welcome email as `beta-notify`. User must already have a profile row.</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">
+            <div><h3>Admin whitelist</h3><div class="panel-sub">Emails that can access this console. is_admin() checks this list.</div></div>
+            <button class="btn btn-primary btn-sm" id="wl-add-btn">+ Add admin</button>
+          </div>
+          <div id="wl-list"><div class="empty-state"><div class="loader"></div></div></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">
+            <div><h3>Email lifecycle</h3><div class="panel-sub">Daily cron auto-fires welcome, 3-day check-in, 14-day tips, beta ending in 14 days</div></div>
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-secondary btn-sm" id="lc-dry-run">Dry-run sweep</button>
+              <button class="btn btn-primary btn-sm" id="lc-real-run">Run sweep now</button>
+            </div>
+          </div>
+          <div id="lc-result" style="display: none; padding: 10px 12px; background: var(--sky-tint); border-radius: 8px; font-size: 12px; margin-bottom: 12px;"></div>
+          <div style="font-size: 12px; color: var(--ink3); margin-bottom: 6px;">Recent activity (last 20)</div>
+          <div id="lc-log"><div class="empty-state"><div class="loader"></div></div></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h">
+            <div><h3>Deploy info</h3><div class="panel-sub">Environment + versioning</div></div>
+          </div>
+          <div class="kv-row"><span class="k">Environment</span><span class="v">Production (LIVE)</span></div>
+          <div class="kv-row"><span class="k">Supabase project</span><span class="v" style="font-family: ui-monospace, monospace; font-size: 11px;">rsvbzakyyrftezthlhtd</span></div>
+          <div class="kv-row"><span class="k">Admin console URL</span><span class="v"><a href="https://zaeli.app/admin/" style="color: var(--sky-deep);">zaeli.app/admin/</a></span></div>
+          <div class="kv-row"><span class="k">Version</span><span class="v">v3.0 · All 5 batches shipped</span></div>
+          <div class="kv-row"><span class="k">Signed in as</span><span class="v" id="settings-caller">—</span></div>
+        </div>
+      </section>
+
+      <!-- Add-admin modal (Settings) -->
+      <div class="modal-scrim" id="modal-wl-add">
+        <div class="modal">
+          <h3>Add admin</h3>
+          <p class="modal-sub">Grant admin console access. Email must correspond to an existing Zaeli auth user for is_admin() to return true when they sign in here.</p>
+          <div class="modal-body">
+            <label>Email</label>
+            <input id="wl-email" type="email" placeholder="new-admin@example.com">
+            <label>Notes (optional)</label>
+            <input id="wl-notes" type="text" placeholder="e.g. co-founder, contract dev">
+            <div class="modal-error" id="wl-err"></div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary btn-sm" data-close="modal-wl-add">Cancel</button>
+            <button class="btn btn-primary btn-sm" id="wl-submit">Add</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Modals ────────────────────────────────────────────────── -->
+<div class="modal-scrim" id="modal-grant-email">
+  <div class="modal">
+    <h3>Grant beta by email</h3>
+    <p class="modal-sub">Owner must already exist in profiles (they've signed up). Grants beta for the selected duration from today.</p>
+    <div class="modal-body">
+      <label for="ge-email">Owner email</label>
+      <input id="ge-email" type="email" placeholder="anna@example.com">
+      <label for="ge-months">Months</label>
+      <select id="ge-months">
+        <option value="1">1 month</option>
+        <option value="2">2 months</option>
+        <option value="3" selected>3 months</option>
+        <option value="6">6 months</option>
+        <option value="12">12 months</option>
+      </select>
+      <div class="modal-error" id="ge-err"></div>
+      <div class="modal-ok" id="ge-ok"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-sm" data-close="modal-grant-email">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="ge-submit">Grant</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-scrim" id="modal-extend">
+  <div class="modal">
+    <h3 id="ex-title">Extend beta</h3>
+    <p class="modal-sub" id="ex-sub">—</p>
+    <div class="modal-body">
+      <label for="ex-months">Extend by</label>
+      <select id="ex-months">
+        <option value="1">1 month</option>
+        <option value="2">2 months</option>
+        <option value="3" selected>3 months</option>
+        <option value="6">6 months</option>
+        <option value="12">12 months</option>
+      </select>
+      <div class="modal-error" id="ex-err"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-sm" data-close="modal-extend">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="ex-submit">Extend</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-scrim" id="modal-revoke">
+  <div class="modal">
+    <h3>Revoke beta?</h3>
+    <p class="modal-sub" id="rv-sub">Sets beta_end_date to now — the family will lose beta access immediately. They'll fall back to whatever Stripe state applies (usually cancelled).</p>
+    <div class="modal-body">
+      <div class="modal-error" id="rv-err"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-sm" data-close="modal-revoke">Cancel</button>
+      <button class="btn btn-coral btn-sm" id="rv-submit">Revoke now</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-scrim" id="modal-delete">
+  <div class="modal">
+    <h3>Delete family?</h3>
+    <p class="modal-sub">This permanently removes <strong id="del-name">this family</strong> and everything they own: calendar, shopping, reminders, budget, chat history, memory, all family members. Their Supabase auth logins are also deleted so their emails free up for re-signup. <strong>Cannot be undone.</strong></p>
+    <div class="modal-body">
+      <label>To confirm, type the family name exactly:</label>
+      <input id="del-confirm-input" type="text" placeholder="Family name">
+      <div class="modal-error" id="del-err"></div>
+      <div id="del-result" style="display:none; margin-top:12px; padding:10px 12px; background:var(--sky-tint); border-radius:8px; font-size:12px; color:var(--sky-deep); max-height:200px; overflow-y:auto;"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-sm" data-close="modal-delete">Cancel</button>
+      <button class="btn btn-coral btn-sm" id="del-submit">Delete family</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ─────────────────────────────────────────────────── -->
+<div class="toast" id="toast">—</div>
+
+<!-- Supabase JS via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+<script>
+(function() {
+  // ── Config ──────────────────────────────────────────────────
+  const SUPABASE_URL = 'https://rsvbzakyyrftezthlhtd.supabase.co';
+  // Anon key — safe to bundle. Same key the website beta form uses.
+  // Actual data access gated by is_admin() RLS policies on the server.
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzdmJ6YWt5eXJmdGV6dGhsaHRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NDk5NjUsImV4cCI6MjA4ODQyNTk2NX0.9ssTEwSxgY4B7nXxTEyKB3QDIoeCLh8yMo9jO-m5i-w';
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ── State ───────────────────────────────────────────────────
+  let currentUser = null;
+
+  // ── DOM helpers ─────────────────────────────────────────────
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
+  function fmtAud(n) { return 'A$' + (Math.round(n * 100) / 100).toFixed(2); }
+  function fmtInt(n) { return n.toLocaleString('en-AU'); }
+  function relTime(iso) {
+    const then = new Date(iso).getTime();
+    const now = Date.now();
+    const s = Math.floor((now - then) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + ' min ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    if (s < 604800) return Math.floor(s / 86400) + 'd ago';
+    return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  }
+
+  // ── Boot: check existing session ────────────────────────────
+  async function boot() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) {
+      const isAdmin = await checkAdmin();
+      if (isAdmin) {
+        currentUser = session.user;
+        showApp();
+      } else {
+        // Signed in but not admin — sign out + show gate with error
+        await sb.auth.signOut();
+        showSignIn('Access denied — this email is not on the admin whitelist.');
+      }
+    } else {
+      showSignIn();
+    }
+  }
+
+  async function checkAdmin() {
+    try {
+      const { data, error } = await sb.rpc('is_admin');
+      if (error) { console.error('[admin] is_admin RPC failed:', error); return false; }
+      return !!data;
+    } catch (e) {
+      console.error('[admin] is_admin threw:', e);
+      return false;
+    }
+  }
+
+  function hideBootLoader() { $('#boot-loader').classList.remove('show'); }
+  function showSignIn(err) {
+    hideBootLoader();
+    $('#signin-view').style.display = 'flex';
+    $('#app-view').style.display = 'none';
+    if (err) {
+      const e = $('#signin-error');
+      e.textContent = err;
+      e.classList.add('show');
+    }
+  }
+  function showApp() {
+    hideBootLoader();
+    $('#signin-view').style.display = 'none';
+    $('#app-view').style.display = 'grid';
+    const email = currentUser?.email || '';
+    const initial = (email[0] || '?').toUpperCase();
+    $('#user-av').textContent = initial;
+    $('#user-name').textContent = email.split('@')[0];
+    $('#user-email').textContent = email;
+    $('#deploy-info').textContent = 'Deployed ' + new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+    loadOverview();
+    // Background-populate sidebar badges without rendering their pages
+    loadSignups().catch(() => {});
+    loadCustomers().then(() => { if (document.querySelector('.page.active')?.id !== 'page-alerts') return; loadAlerts(); }).catch(() => {});
+  }
+
+  // ── Sign-in form ────────────────────────────────────────────
+  $('#signin-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = $('#signin-email').value.trim();
+    const password = $('#signin-password').value;
+    const btn = $('#signin-submit');
+    const errEl = $('#signin-error');
+    errEl.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    try {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      const isAdmin = await checkAdmin();
+      if (!isAdmin) {
+        await sb.auth.signOut();
+        throw new Error('Access denied — this email is not on the admin whitelist.');
+      }
+      const { data: { session } } = await sb.auth.getSession();
+      currentUser = session?.user || null;
+      showApp();
+    } catch (e) {
+      errEl.textContent = e.message || 'Sign-in failed.';
+      errEl.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sign in';
+    }
+  });
+
+  // ── User menu ───────────────────────────────────────────────
+  $('#user-menu').addEventListener('click', (e) => {
+    e.stopPropagation();
+    $('#user-menu').classList.toggle('open');
+  });
+  document.addEventListener('click', () => $('#user-menu').classList.remove('open'));
+  $('#signout-btn').addEventListener('click', async () => {
+    await sb.auth.signOut();
+    location.reload();
+  });
+
+  // ── Sidebar nav ─────────────────────────────────────────────
+  $$('.nav-item').forEach(nav => {
+    nav.addEventListener('click', () => {
+      if (nav.classList.contains('wip')) {
+        // WIP page — still switch to it (shows placeholder card)
+      }
+      const page = nav.dataset.page;
+      if (!page) return;
+      switchPage(page);
+    });
+  });
+  function switchPage(page) {
+    $$('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+    $$('.page').forEach(p => p.classList.remove('active'));
+    $(`#page-${page}`)?.classList.add('active');
+  }
+
+  // ── Overview: real data ─────────────────────────────────────
+  $('#refresh-overview').addEventListener('click', loadOverview);
+
+  async function loadOverview() {
+    // Mark all KPIs as loading
+    ['families', 'beta', 'paid', 'mrr', 'spend', 'queue'].forEach(k => {
+      $('#kpi-' + k).textContent = '—';
+      $('#kpi-' + k).classList.add('loading');
+      $('#kpi-' + k + '-delta').textContent = 'loading…';
+      $('#kpi-' + k + '-delta').className = 'kpi-delta loading';
+    });
+
+    try {
+      // Run all queries in parallel
+      const [famCount, betaProfs, paidProfs, spend, queue, growth, activity] = await Promise.all([
+        countFamilies(),
+        countActiveBeta(),
+        countPaid(),
+        sumApiSpendThisMonth(),
+        countPendingSignups(),
+        familyGrowth6mo(),
+        recentActivity(),
+      ]);
+
+      renderKpi('families', famCount.total, famCount.thisMonth ? `+${famCount.thisMonth} this month` : 'none this month', famCount.thisMonth > 0 ? 'up' : 'flat');
+      renderKpi('beta', betaProfs, 'currently active', 'flat');
+      renderKpi('paid', paidProfs, paidProfs > 0 ? 'active subs' : 'awaiting first', paidProfs > 0 ? 'up' : 'flat');
+      renderKpi('mrr', fmtAud(paidProfs * 6.99), 'at A$6.99/family', paidProfs > 0 ? 'up' : 'flat');
+      renderKpi('spend', fmtAud(spend), spend > 0 ? `${famCount.total ? fmtAud(spend / famCount.total) : 'A$0'}/family avg` : 'nothing yet', 'flat');
+      renderKpi('queue', queue.total, queue.oldest || 'no pending', queue.total > 0 ? 'down' : 'flat');
+
+      renderTrend(growth);
+      renderMargin(paidProfs * 6.99, spend);
+      renderActivity(activity);
+    } catch (e) {
+      console.error('[overview] load failed:', e);
+      $('#activity-feed').innerHTML = `<div class="empty-state">Load failed: ${e.message}</div>`;
+    }
+  }
+
+  function renderKpi(id, value, deltaText, tone) {
+    const v = $('#kpi-' + id);
+    v.textContent = value;
+    v.classList.remove('loading');
+    const d = $('#kpi-' + id + '-delta');
+    d.textContent = deltaText;
+    d.className = 'kpi-delta ' + (tone || 'flat');
+  }
+
+  async function countFamilies() {
+    const { count: total } = await sb.from('families').select('*', { count: 'exact', head: true });
+    // Families created this month
+    const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+    const { count: thisMonth } = await sb.from('families')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', firstOfMonth);
+    return { total: total || 0, thisMonth: thisMonth || 0 };
+  }
+
+  async function countActiveBeta() {
+    const nowIso = new Date().toISOString();
+    const { count } = await sb.from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('kind', 'owner')
+      .gt('beta_end_date', nowIso);
+    return count || 0;
+  }
+
+  async function countPaid() {
+    const { count } = await sb.from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('kind', 'owner')
+      .eq('subscription_status', 'active');
+    return count || 0;
+  }
+
+  async function sumApiSpendThisMonth() {
+    const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+    const { data, error } = await sb.from('api_logs')
+      .select('cost_usd')
+      .gte('created_at', firstOfMonth);
+    if (error || !data) return 0;
+    // Sum cost_usd, convert to AUD rough (0.66 USD → AUD ~1.51)
+    const usdTotal = data.reduce((sum, r) => sum + (parseFloat(r.cost_usd) || 0), 0);
+    return usdTotal * 1.51;
+  }
+
+  async function countPendingSignups() {
+    const { data, count } = await sb.from('beta_signups')
+      .select('created_at', { count: 'exact' })
+      .is('invited_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1);
+    let oldest = null;
+    if (data && data[0]) {
+      const days = Math.floor((Date.now() - new Date(data[0].created_at).getTime()) / 86400000);
+      oldest = days > 0 ? `oldest ${days}d waiting` : 'oldest today';
+    }
+    return { total: count || 0, oldest };
+  }
+
+  async function familyGrowth6mo() {
+    // 6 months of buckets
+    const buckets = [];
+    for (let i = 5; i >= 0; i--) {
+      const start = new Date();
+      start.setMonth(start.getMonth() - i);
+      start.setDate(1); start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setMonth(end.getMonth() + 1);
+      const { count } = await sb.from('families')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', start.toISOString())
+        .lt('created_at', end.toISOString());
+      buckets.push({
+        label: start.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase(),
+        count: count || 0,
+      });
+    }
+    return buckets;
+  }
+
+  function renderTrend(buckets) {
+    const max = Math.max(...buckets.map(b => b.count), 1);
+    $('#trend-chart').innerHTML = buckets.map((b, i) => {
+      const height = Math.max(4, Math.round((b.count / max) * 100));
+      const isCurrent = i === buckets.length - 1;
+      return `
+        <div class="chart-bar">
+          <div class="bar ${isCurrent ? 'current' : ''}" style="height: ${height}%;">
+            <span class="bar-val">${b.count}</span>
+          </div>
+          <span class="bar-lbl">${b.label}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function renderMargin(revenue, cost) {
+    const margin = revenue - cost;
+    const marginPct = revenue > 0 ? Math.round((margin / revenue) * 100) : 0;
+    $('#margin-panel').innerHTML = `
+      <div style="font-size: 30px; font-weight: 700; color: ${margin >= 0 ? 'var(--mint-deep)' : 'var(--coral-deep)'}; letter-spacing: -0.5px;">${fmtAud(margin)}</div>
+      <div style="font-size: 12px; color: var(--ink3); margin-top: 4px;">Net margin (MRR &minus; API)</div>
+      <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line);">
+        <div style="text-align: left;">
+          <div style="font-size: 10px; color: var(--ink3); text-transform: uppercase; font-weight: 600;">Revenue</div>
+          <div style="font-size: 18px; font-weight: 700;">${fmtAud(revenue)}</div>
+        </div>
+        <div style="text-align: left;">
+          <div style="font-size: 10px; color: var(--ink3); text-transform: uppercase; font-weight: 600;">API cost</div>
+          <div style="font-size: 18px; font-weight: 700; color: var(--peach-deep);">${fmtAud(cost)}</div>
+        </div>
+        <div style="text-align: left;">
+          <div style="font-size: 10px; color: var(--ink3); text-transform: uppercase; font-weight: 600;">Margin</div>
+          <div style="font-size: 18px; font-weight: 700;">${marginPct}%</div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function recentActivity() {
+    // Recent profile creates (new families/members) + recent beta_signups + recent api_logs
+    const [profiles, signups] = await Promise.all([
+      sb.from('profiles')
+        .select('id, name, email, kind, created_at')
+        .order('created_at', { ascending: false })
+        .limit(5),
+      sb.from('beta_signups')
+        .select('email, name, source, created_at, invited_at')
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ]);
+    const events = [];
+    (profiles.data || []).forEach(p => {
+      events.push({
+        type: 'profile', ts: p.created_at,
+        title: `<strong>${p.name || p.email || '(no name)'}</strong> ${p.kind === 'owner' ? 'created a family' : 'joined as ' + (p.kind || 'member')}`,
+        meta: p.email || '',
+        dot: p.kind === 'owner' ? 'mint' : 'sky',
+      });
+    });
+    (signups.data || []).forEach(s => {
+      events.push({
+        type: 'signup', ts: s.created_at,
+        title: `<strong>${s.name || s.email}</strong> signed up ${s.invited_at ? '· TestFlight invited' : '· awaiting invite'}`,
+        meta: `${s.email} · via ${s.source || 'website'}`,
+        dot: s.invited_at ? 'gold' : 'sky',
+      });
+    });
+    events.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+    return events.slice(0, 10);
+  }
+
+  function renderActivity(events) {
+    if (!events.length) {
+      $('#activity-feed').innerHTML = `<div class="empty-state"><div class="ico">📭</div>Nothing to report yet.</div>`;
+      return;
+    }
+    $('#activity-feed').innerHTML = events.map(e => `
+      <div class="activity-item">
+        <div class="a-dot ${e.dot}"></div>
+        <div class="a-body">
+          <div class="a-title">${e.title}</div>
+          <div class="a-meta">${e.meta} · ${relTime(e.ts)}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // ── CUSTOMERS PAGE ──────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════
+  let customersRaw = [];   // enriched family rows
+  let customersFilter = 'all';
+
+  const MEMBER_PALETTE = ['#4D8BFF', '#FF7B6B', '#A855F7', '#22C55E', '#F59E0B', '#0EA5E9', '#EC4899', '#14B8A6'];
+  function memberColor(name) {
+    const s = (name || '?').toLowerCase();
+    let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return MEMBER_PALETTE[Math.abs(h) % MEMBER_PALETTE.length];
+  }
+
+  function computeStatus(owner) {
+    // Returns { key, label, pill } where key is one of: beta, paid, trial, past-due, cancelled, expired, none
+    if (!owner) return { key: 'none', label: 'No owner', pill: 'none' };
+    const nowMs = Date.now();
+    const betaEnd = owner.beta_end_date ? new Date(owner.beta_end_date).getTime() : null;
+    if (betaEnd && betaEnd > nowMs) {
+      const days = Math.ceil((betaEnd - nowMs) / 86400000);
+      return { key: 'beta', label: days > 30 ? `Beta · ${Math.round(days/30)}mo left` : `Beta · ${days}d left`, pill: 'beta' };
+    }
+    if (betaEnd && betaEnd <= nowMs && owner.subscription_status !== 'active') {
+      return { key: 'expired', label: 'Beta expired', pill: 'expired' };
+    }
+    const s = owner.subscription_status;
+    if (s === 'active') return { key: 'paid', label: 'Paid', pill: 'paid' };
+    if (s === 'trialing') return { key: 'trial', label: 'Trial', pill: 'trial' };
+    if (s === 'past_due') return { key: 'past-due', label: 'Past-due', pill: 'past-due' };
+    if (s === 'cancelled' || s === 'canceled') return { key: 'cancelled', label: 'Cancelled', pill: 'cancelled' };
+    if (s === 'incomplete') return { key: 'cancelled', label: 'Incomplete', pill: 'cancelled' };
+    return { key: 'none', label: 'No plan', pill: 'none' };
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function fmtDateShort(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  }
+
+  async function loadCustomers() {
+    $('#cust-sub').textContent = 'Loading families…';
+    $('#cust-tbody').innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="loader"></div></div></td></tr>`;
+
+    try {
+      // 1. All families
+      const { data: fams, error: fErr } = await sb.from('families')
+        .select('id, name, created_at')
+        .order('created_at', { ascending: false });
+      if (fErr) throw fErr;
+      const familyIds = (fams || []).map(f => f.id);
+      if (!familyIds.length) {
+        $('#cust-tbody').innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="ico">📭</div>No families yet.</div></td></tr>`;
+        $('#cust-sub').textContent = '0 families.';
+        $('#cust-footer').textContent = '';
+        $('#nav-customers-count').textContent = '0';
+        updateFilterCounts([]);
+        return;
+      }
+
+      // 2. All profiles for those families (owners + members)
+      const { data: profs, error: pErr } = await sb.from('profiles')
+        .select('id, name, email, kind, family_id, avatar, colour, year_level, beta_end_date, subscription_status, subscription_plan, subscription_renews_at, trial_ends_at, stripe_customer_id, expo_push_token, created_at')
+        .in('family_id', familyIds);
+      if (pErr) throw pErr;
+
+      // 3. This month's api_logs (family_id + cost_usd + created_at) — for cost + last active
+      const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const { data: logs } = await sb.from('api_logs')
+        .select('family_id, cost_usd, created_at')
+        .in('family_id', familyIds)
+        .gte('created_at', firstOfMonth);
+
+      // 4. Recent api_logs for last-active fallback (older than this month)
+      const { data: recent } = await sb.from('api_logs')
+        .select('family_id, created_at')
+        .in('family_id', familyIds)
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      // Build lookup maps
+      const profByFam = new Map();
+      const membersByFam = new Map();
+      (profs || []).forEach(p => {
+        if (!membersByFam.has(p.family_id)) membersByFam.set(p.family_id, []);
+        membersByFam.get(p.family_id).push(p);
+        if (p.kind === 'owner') profByFam.set(p.family_id, p);
+      });
+      const costByFam = new Map();
+      const lastByFam = new Map();
+      (logs || []).forEach(l => {
+        costByFam.set(l.family_id, (costByFam.get(l.family_id) || 0) + (parseFloat(l.cost_usd) || 0));
+      });
+      (recent || []).forEach(l => {
+        if (!lastByFam.has(l.family_id)) lastByFam.set(l.family_id, l.created_at);
+      });
+
+      // Enrich
+      customersRaw = (fams || []).map(f => {
+        const owner = profByFam.get(f.id) || null;
+        const members = membersByFam.get(f.id) || [];
+        const status = computeStatus(owner);
+        const costUsd = costByFam.get(f.id) || 0;
+        const lastActive = lastByFam.get(f.id) || null;
+        const pushCount = members.filter(m => m.expo_push_token).length;
+        const adultCount = members.filter(m => m.kind === 'owner' || m.kind === 'adult').length;
+        return {
+          family: f,
+          owner,
+          members,
+          status,
+          costUsd,
+          costAud: costUsd * 1.51,
+          lastActive,
+          pushCount, adultCount,
+          missingPush: adultCount > 0 && pushCount === 0,
+        };
+      });
+
+      $('#nav-customers-count').textContent = customersRaw.length;
+      $('#cust-sub').textContent = `${customersRaw.length} families across all states.`;
+      updateFilterCounts(customersRaw);
+      renderCustomers();
+    } catch (e) {
+      console.error('[customers] load failed:', e);
+      $('#cust-tbody').innerHTML = `<tr><td colspan="8"><div class="empty-state">Load failed: ${e.message}</div></td></tr>`;
+      $('#cust-sub').textContent = 'Load failed.';
+    }
+  }
+
+  function updateFilterCounts(list) {
+    $('#cnt-all').textContent = list.length;
+    $('#cnt-beta').textContent = list.filter(c => c.status.key === 'beta').length;
+    $('#cnt-paid').textContent = list.filter(c => c.status.key === 'paid').length;
+    $('#cnt-trial').textContent = list.filter(c => c.status.key === 'trial').length;
+    $('#cnt-past-due').textContent = list.filter(c => c.status.key === 'past-due').length;
+    $('#cnt-cancelled').textContent = list.filter(c => c.status.key === 'cancelled').length;
+    $('#cnt-expired').textContent = list.filter(c => c.status.key === 'expired').length;
+    $('#cnt-no-push').textContent = list.filter(c => c.missingPush).length;
+  }
+
+  function currentSearchQuery() {
+    return ($('#topbar-search')?.value || '').trim().toLowerCase();
+  }
+
+  function renderCustomers() {
+    const q = currentSearchQuery();
+    let list = customersRaw.slice();
+    if (customersFilter === 'no-push') list = list.filter(c => c.missingPush);
+    else if (customersFilter !== 'all') list = list.filter(c => c.status.key === customersFilter);
+    if (q) list = list.filter(c => {
+      const fam = (c.family.name || '').toLowerCase();
+      const ownerName = (c.owner?.name || '').toLowerCase();
+      const ownerEmail = (c.owner?.email || '').toLowerCase();
+      const fid = (c.family.id || '').toLowerCase();
+      return fam.includes(q) || ownerName.includes(q) || ownerEmail.includes(q) || fid.startsWith(q);
+    });
+
+    if (!list.length) {
+      $('#cust-tbody').innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="ico">🔍</div>No matches.</div></td></tr>`;
+      $('#cust-footer').textContent = `Showing 0 of ${customersRaw.length}`;
+      return;
+    }
+
+    $('#cust-tbody').innerHTML = list.map(c => {
+      const famName = c.family.name || (c.owner?.name ? `${c.owner.name}'s family` : '(unnamed)');
+      const ownerEmail = c.owner?.email || '—';
+      const ownerName = c.owner?.name || '—';
+      const statusDetail = statusDetailText(c);
+      const pushBadge = c.missingPush
+        ? `<span class="push-dot no"></span><span style="font-size:12px;color:var(--coral-deep);">${c.pushCount}/${c.adultCount}</span>`
+        : c.adultCount === 0 ? `<span class="push-dot pending"></span>—`
+        : `<span class="push-dot ok"></span><span style="font-size:12px;">${c.pushCount}/${c.adultCount}</span>`;
+      const cost = c.costUsd > 0 ? fmtAud(c.costAud) : '—';
+      const lastActive = c.lastActive ? relTime(c.lastActive) : '—';
+      const actions = actionsForRow(c);
+      return `
+        <tr data-family-id="${c.family.id}">
+          <td><strong>${famName}</strong> <span style="color: var(--ink3);">· ${c.members.length}</span></td>
+          <td class="muted">${ownerName}<br><span style="font-size:11px;">${ownerEmail}</span></td>
+          <td><span class="status-pill ${c.status.pill}"><span class="dot"></span> ${c.status.label}</span></td>
+          <td>${pushBadge}</td>
+          <td class="num">${cost}</td>
+          <td class="muted" style="font-size: 12px;">${statusDetail}</td>
+          <td class="muted">${lastActive}</td>
+          <td onclick="event.stopPropagation();"><div class="row-actions">${actions}</div></td>
+        </tr>
+      `;
+    }).join('');
+
+    // Row click → detail
+    $$('#cust-tbody tr[data-family-id]').forEach(tr => {
+      tr.addEventListener('click', () => showDetail(tr.dataset.familyId));
+    });
+    // Action buttons within rows
+    $$('#cust-tbody [data-action]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        const fid = btn.dataset.familyId;
+        const c = customersRaw.find(x => x.family.id === fid);
+        if (!c || !c.owner) return;
+        if (action === 'extend') openExtendModal(c);
+        else if (action === 'revoke') openRevokeModal(c);
+        else if (action === 'view') showDetail(fid);
+      });
+    });
+
+    $('#cust-footer').textContent = `Showing ${list.length} of ${customersRaw.length}`;
+  }
+
+  function statusDetailText(c) {
+    if (c.status.key === 'beta') {
+      return `Beta ends ${fmtDateShort(c.owner.beta_end_date)}`;
+    }
+    if (c.status.key === 'paid') {
+      return c.owner.subscription_renews_at
+        ? `Renews ${fmtDateShort(c.owner.subscription_renews_at)}`
+        : 'Active';
+    }
+    if (c.status.key === 'trial') {
+      return c.owner.trial_ends_at
+        ? `Trial ends ${fmtDateShort(c.owner.trial_ends_at)}`
+        : 'Trialing';
+    }
+    if (c.status.key === 'past-due') return 'Payment failed';
+    if (c.status.key === 'cancelled') return 'No sub';
+    if (c.status.key === 'expired') return `Beta ended ${fmtDateShort(c.owner.beta_end_date)}`;
+    return c.family.created_at ? `Signed up ${fmtDateShort(c.family.created_at)}` : '';
+  }
+
+  function actionsForRow(c) {
+    if (!c.owner) return `<button class="btn btn-secondary btn-sm" data-action="view" data-family-id="${c.family.id}">View</button>`;
+    const parts = [];
+    if (c.status.key === 'beta' || c.status.key === 'expired') {
+      parts.push(`<button class="btn btn-mint btn-sm" data-action="extend" data-family-id="${c.family.id}">${c.status.key === 'expired' ? 'Grant beta' : 'Extend'}</button>`);
+    }
+    parts.push(`<button class="btn btn-secondary btn-sm" data-action="view" data-family-id="${c.family.id}">View</button>`);
+    return parts.join('');
+  }
+
+  // Filter chip click
+  $$('#cust-filters .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      $$('#cust-filters .chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      customersFilter = chip.dataset.filter;
+      renderCustomers();
+    });
+  });
+
+  // Search integration (topbar input filters when on customers page)
+  const searchInput = document.querySelector('.topbar .search input');
+  if (searchInput) {
+    searchInput.id = 'topbar-search';
+    searchInput.placeholder = 'Search families by name, email, or family_id…';
+    searchInput.addEventListener('input', () => {
+      const currentPage = document.querySelector('.page.active')?.id;
+      if (currentPage === 'page-customers') renderCustomers();
+    });
+  }
+
+  $('#cust-refresh').addEventListener('click', loadCustomers);
+
+  // ═════════════════════════════════════════════════════════════
+  // ── CUSTOMER DETAIL ─────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════
+  let detailCurrent = null;
+
+  async function showDetail(familyId) {
+    switchPage('detail');
+    const c = customersRaw.find(x => x.family.id === familyId);
+    if (!c) {
+      $('#detail-title').textContent = 'Family not found';
+      $('#detail-sub').textContent = 'Refresh the list and try again.';
+      return;
+    }
+    detailCurrent = c;
+
+    const famName = c.family.name || (c.owner?.name ? `${c.owner.name}'s family` : '(unnamed)');
+    const ownerEmail = c.owner?.email || '—';
+    const initial = (famName[0] || '?').toUpperCase();
+
+    $('#detail-title').textContent = famName;
+    $('#detail-sub').textContent = `${ownerEmail} · Signed up ${fmtDate(c.family.created_at)} · ${c.members.length} members`;
+    $('#detail-fav').textContent = initial;
+    $('#detail-fam-name').textContent = famName;
+    $('#detail-fam-email').textContent = ownerEmail;
+    $('#detail-fam-pill').innerHTML = `<span class="status-pill ${c.status.pill}"><span class="dot"></span> ${c.status.label}</span>`;
+
+    // Members
+    $('#detail-member-count').textContent = c.members.length;
+    const sortedMembers = c.members.slice().sort((a, b) => {
+      const rank = k => k === 'owner' ? 0 : k === 'adult' ? 1 : 2;
+      return rank(a.kind) - rank(b.kind);
+    });
+    $('#detail-members').innerHTML = sortedMembers.map(m => {
+      const name = m.name || m.email || '(no name)';
+      const initial = (name[0] || '?').toUpperCase();
+      const roleLabel = m.kind === 'owner' ? 'Owner · Parent'
+        : m.kind === 'adult' ? 'Adult'
+        : m.kind === 'kid' ? `Kid${m.year_level ? ` · Year ${m.year_level}` : ''}`
+        : (m.kind || 'Member');
+      return `
+        <div class="member-row">
+          <div class="mav" style="background: ${memberColor(name)};">${initial}</div>
+          <div class="mn">${name}</div>
+          <div class="mr">${roleLabel}</div>
+        </div>
+      `;
+    }).join('');
+
+    // Technical
+    const owner = c.owner;
+    $('#detail-technical').innerHTML = `
+      <div class="kv-row"><span class="k">Push tokens</span><span class="v">${c.pushCount}/${c.adultCount} adults registered</span></div>
+      <div class="kv-row"><span class="k">Family ID</span><span class="v" style="font-family: ui-monospace, monospace; font-size: 11px;">${c.family.id.slice(0, 12)}…</span></div>
+      <div class="kv-row"><span class="k">Owner ID</span><span class="v" style="font-family: ui-monospace, monospace; font-size: 11px;">${owner ? owner.id.slice(0, 12) + '…' : '—'}</span></div>
+      <div class="kv-row"><span class="k">Created</span><span class="v">${fmtDate(c.family.created_at)}</span></div>
+    `;
+
+    // Subscription panel
+    const subHeader = owner?.stripe_customer_id
+      ? `Stripe customer ${owner.stripe_customer_id.slice(0, 14)}…`
+      : owner?.beta_end_date ? `Beta granted (no Stripe customer yet)` : 'No subscription record';
+    $('#detail-sub-header').textContent = subHeader;
+
+    const subKv = [];
+    subKv.push(`<div class="kv-row"><span class="k">Current state</span><span class="v"><span class="status-pill ${c.status.pill}"><span class="dot"></span> ${c.status.label}</span></span></div>`);
+    if (owner?.beta_end_date) subKv.push(`<div class="kv-row"><span class="k">Beta ends</span><span class="v">${fmtDate(owner.beta_end_date)}</span></div>`);
+    if (owner?.subscription_status) subKv.push(`<div class="kv-row"><span class="k">Stripe status</span><span class="v">${owner.subscription_status}</span></div>`);
+    if (owner?.subscription_plan) subKv.push(`<div class="kv-row"><span class="k">Plan</span><span class="v">${owner.subscription_plan}</span></div>`);
+    if (owner?.subscription_renews_at) subKv.push(`<div class="kv-row"><span class="k">Renews</span><span class="v">${fmtDate(owner.subscription_renews_at)}</span></div>`);
+    if (owner?.trial_ends_at) subKv.push(`<div class="kv-row"><span class="k">Trial ends</span><span class="v">${fmtDate(owner.trial_ends_at)}</span></div>`);
+    subKv.push(`<div class="kv-row"><span class="k">Post-beta plan</span><span class="v">A$6.99/month (Family)</span></div>`);
+    $('#detail-sub-body').innerHTML = subKv.join('');
+
+    // Sub actions
+    const acts = [];
+    if (c.status.key === 'beta' || c.status.key === 'expired') {
+      acts.push(`<button class="btn btn-mint btn-sm" style="justify-content: center;" data-detail-action="extend">${c.status.key === 'expired' ? 'Grant 3-month beta' : 'Extend beta 3 more months'}</button>`);
+      if (c.status.key === 'beta') {
+        acts.push(`<button class="btn btn-secondary btn-sm" style="justify-content: center;" data-detail-action="revoke">Revoke beta (end today)</button>`);
+      }
+    } else if (owner) {
+      acts.push(`<button class="btn btn-mint btn-sm" style="justify-content: center;" data-detail-action="extend">Grant 3-month beta</button>`);
+    }
+    $('#detail-sub-actions').innerHTML = acts.join('');
+    $$('#detail-sub-actions [data-detail-action]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const a = btn.dataset.detailAction;
+        if (a === 'extend') openExtendModal(c);
+        else if (a === 'revoke') openRevokeModal(c);
+      });
+    });
+
+    // Stripe button visibility
+    if (owner?.stripe_customer_id) {
+      $('#detail-stripe').style.display = '';
+      $('#detail-stripe').onclick = () => window.open(`https://dashboard.stripe.com/customers/${owner.stripe_customer_id}`, '_blank');
+    } else {
+      $('#detail-stripe').style.display = 'none';
+    }
+
+    // Extend button in header
+    $('#detail-extend').onclick = () => openExtendModal(c);
+    if (c.status.key === 'paid' || c.status.key === 'cancelled') {
+      $('#detail-extend').textContent = 'Grant 3-month beta';
+    } else {
+      $('#detail-extend').textContent = c.status.key === 'expired' ? 'Grant 3-month beta' : 'Extend beta 3 months';
+    }
+
+    // Cost panel + activity — async
+    loadDetailCost(c.family.id);
+    loadDetailActivity(c.family.id);
+  }
+
+  async function loadDetailCost(familyId) {
+    $('#detail-cost-body').innerHTML = `<div class="empty-state"><div class="loader"></div></div>`;
+    try {
+      const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const { data, error } = await sb.from('api_logs')
+        .select('cost_usd, feature, created_at')
+        .eq('family_id', familyId)
+        .gte('created_at', firstOfMonth);
+      if (error) throw error;
+      const rows = data || [];
+      const totalUsd = rows.reduce((s, r) => s + (parseFloat(r.cost_usd) || 0), 0);
+      const totalAud = totalUsd * 1.51;
+
+      // Bucket by feature (rough grouping)
+      const buckets = { briefs: 0, chat: 0, vision: 0, whisper: 0, other: 0 };
+      rows.forEach(r => {
+        const f = (r.feature || '').toLowerCase();
+        const usd = parseFloat(r.cost_usd) || 0;
+        if (f.includes('brief')) buckets.briefs += usd;
+        else if (f.includes('chat') || f.includes('tutor')) buckets.chat += usd;
+        else if (f.includes('vision') || f.includes('scan') || f.includes('receipt') || f.includes('pantry')) buckets.vision += usd;
+        else if (f.includes('whisper') || f.includes('voice')) buckets.whisper += usd;
+        else buckets.other += usd;
+      });
+
+      // Weekly buckets (this month)
+      const now = new Date();
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const weekBuckets = [0, 0, 0, 0];
+      rows.forEach(r => {
+        const d = new Date(r.created_at).getDate();
+        const w = Math.min(3, Math.floor((d - 1) / 7));
+        weekBuckets[w] += (parseFloat(r.cost_usd) || 0);
+      });
+      const currentWeek = Math.min(3, Math.floor((now.getDate() - 1) / 7));
+      const maxW = Math.max(...weekBuckets, 0.0001);
+
+      $('#detail-cost-header').textContent = `${fmtAud(totalAud)} · ${rows.length} API calls this month`;
+      $('#detail-cost-body').innerHTML = `
+        <div class="chart-bars" style="height: 120px;">
+          ${weekBuckets.map((v, i) => {
+            const h = Math.max(4, Math.round((v / maxW) * 100));
+            return `<div class="chart-bar"><div class="bar ${i === currentWeek ? 'current' : ''}" style="height: ${h}%;"><span class="bar-val">${fmtAud(v * 1.51)}</span></div><span class="bar-lbl">W${i + 1}</span></div>`;
+          }).join('')}
+        </div>
+        <div style="display: flex; justify-content: space-around; margin-top: 12px; font-size: 12px;">
+          <div><span style="color: var(--ink3);">Briefs</span> <strong>${fmtAud(buckets.briefs * 1.51)}</strong></div>
+          <div><span style="color: var(--ink3);">Chat</span> <strong>${fmtAud(buckets.chat * 1.51)}</strong></div>
+          <div><span style="color: var(--ink3);">Vision</span> <strong>${fmtAud(buckets.vision * 1.51)}</strong></div>
+          <div><span style="color: var(--ink3);">Whisper</span> <strong>${fmtAud(buckets.whisper * 1.51)}</strong></div>
+          <div><span style="color: var(--ink3);">Other</span> <strong>${fmtAud(buckets.other * 1.51)}</strong></div>
+        </div>
+      `;
+    } catch (e) {
+      console.error('[detail-cost] failed:', e);
+      $('#detail-cost-body').innerHTML = `<div class="empty-state">Load failed: ${e.message}</div>`;
+    }
+  }
+
+  async function loadDetailActivity(familyId) {
+    $('#detail-activity').innerHTML = `<div class="empty-state"><div class="loader"></div></div>`;
+    try {
+      const { data, error } = await sb.from('api_logs')
+        .select('feature, model, cost_usd, created_at')
+        .eq('family_id', familyId)
+        .order('created_at', { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      if (!data?.length) {
+        $('#detail-activity').innerHTML = `<div class="empty-state" style="padding: 20px;"><div class="ico">📭</div>No activity yet.</div>`;
+        return;
+      }
+      $('#detail-activity').innerHTML = data.map(r => `
+        <div class="activity-item">
+          <div class="a-dot sky"></div>
+          <div class="a-body">
+            <div class="a-title"><strong>${r.feature || 'api call'}</strong> ${r.model ? '· ' + r.model : ''}</div>
+            <div class="a-meta">${fmtAud((parseFloat(r.cost_usd) || 0) * 1.51)} · ${relTime(r.created_at)}</div>
+          </div>
+        </div>
+      `).join('');
+    } catch (e) {
+      console.error('[detail-activity] failed:', e);
+      $('#detail-activity').innerHTML = `<div class="empty-state">Load failed: ${e.message}</div>`;
+    }
+  }
+
+  $('#detail-back').addEventListener('click', () => switchPage('customers'));
+
+  let deleteTargetFamily = null;
+  $('#detail-delete').addEventListener('click', () => {
+    if (!detailCurrent) return;
+    const c = detailCurrent;
+    const famName = c.family.name || (c.owner?.name ? `${c.owner.name}'s family` : '(unnamed)');
+    deleteTargetFamily = { id: c.family.id, name: famName };
+    $('#del-name').textContent = famName;
+    $('#del-confirm-input').value = '';
+    $('#del-confirm-input').placeholder = famName;
+    $('#del-err').classList.remove('show');
+    $('#del-result').style.display = 'none';
+    $('#del-submit').disabled = false;
+    $('#del-submit').textContent = 'Delete family';
+    openModal('modal-delete');
+    setTimeout(() => $('#del-confirm-input').focus(), 50);
+  });
+
+  $('#del-submit').addEventListener('click', async () => {
+    if (!deleteTargetFamily) return;
+    const typed = ($('#del-confirm-input').value || '').trim();
+    if (typed.toLowerCase() !== deleteTargetFamily.name.toLowerCase()) {
+      $('#del-err').textContent = `Name doesn't match. Type "${deleteTargetFamily.name}" exactly to confirm.`;
+      $('#del-err').classList.add('show');
+      return;
+    }
+    $('#del-err').classList.remove('show');
+    const btn = $('#del-submit');
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    $('#del-result').style.display = 'block';
+    $('#del-result').textContent = 'Working…';
+    try {
+      const res = await callAdminAction('delete_family', {
+        family_id: deleteTargetFamily.id,
+        confirm_name: deleteTargetFamily.name,
+      });
+      const counts = res.counts || {};
+      const authRes = res.auth_users_deleted || {};
+      const totalRows = Object.values(counts).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+      const authDeleted = Object.values(authRes).filter(v => v === 'deleted').length;
+      $('#del-result').innerHTML = `<strong>Done.</strong> Deleted <strong>${totalRows}</strong> rows across ${Object.keys(counts).length} tables + <strong>${authDeleted}</strong> auth users.<br><br>` +
+        Object.entries(counts).map(([t, v]) => `${t}: ${v}`).join(' &middot; ');
+      showToast(`Deleted ${deleteTargetFamily.name}`, 'ok');
+      // Refresh customers list, close modal after 1.5s
+      loadCustomers();
+      setTimeout(() => {
+        closeModal('modal-delete');
+        switchPage('customers');
+      }, 1800);
+    } catch (e) {
+      $('#del-result').style.background = 'var(--coral-tint)';
+      $('#del-result').style.color = 'var(--coral-deep)';
+      $('#del-result').textContent = `Failed: ${e.message}`;
+      btn.disabled = false; btn.textContent = 'Delete family';
+    }
+  });
+
+  // ═════════════════════════════════════════════════════════════
+  // ── MODALS + ACTIONS ────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════
+  function openModal(id) { $('#' + id).classList.add('show'); }
+  function closeModal(id) {
+    const m = $('#' + id);
+    m.classList.remove('show');
+    m.querySelectorAll('.modal-error, .modal-ok').forEach(e => e.classList.remove('show'));
+  }
+  $$('[data-close]').forEach(b => b.addEventListener('click', () => closeModal(b.dataset.close)));
+  $$('.modal-scrim').forEach(s => s.addEventListener('click', (e) => {
+    if (e.target === s) closeModal(s.id);
+  }));
+
+  function showToast(msg, tone) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (tone ? ' ' + tone : '');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  // Grant-by-email
+  $('#cust-grant-by-email').addEventListener('click', () => {
+    $('#ge-email').value = '';
+    $('#ge-months').value = '3';
+    openModal('modal-grant-email');
+    setTimeout(() => $('#ge-email').focus(), 50);
+  });
+  $('#ge-submit').addEventListener('click', async () => {
+    const email = $('#ge-email').value.trim().toLowerCase();
+    const months = parseInt($('#ge-months').value, 10);
+    $('#ge-err').classList.remove('show');
+    $('#ge-ok').classList.remove('show');
+    if (!email) { $('#ge-err').textContent = 'Enter an email.'; $('#ge-err').classList.add('show'); return; }
+    const btn = $('#ge-submit');
+    btn.disabled = true; btn.textContent = 'Granting…';
+    try {
+      const res = await callAdminAction('grant_beta_by_email', { email, months });
+      $('#ge-ok').textContent = `Granted. Beta ends ${fmtDate(res.beta_end_date)}.`;
+      $('#ge-ok').classList.add('show');
+      showToast('Beta granted', 'ok');
+      loadCustomers();
+      setTimeout(() => closeModal('modal-grant-email'), 1400);
+    } catch (e) {
+      $('#ge-err').textContent = e.message;
+      $('#ge-err').classList.add('show');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Grant';
+    }
+  });
+
+  // Extend
+  let extendTarget = null;
+  function openExtendModal(c) {
+    if (!c.owner) return;
+    extendTarget = c;
+    const famName = c.family.name || (c.owner?.name ? `${c.owner.name}'s family` : '(unnamed)');
+    $('#ex-title').textContent = c.status.key === 'expired' ? `Grant beta — ${famName}` : `Extend beta — ${famName}`;
+    const currentEnd = c.owner.beta_end_date && new Date(c.owner.beta_end_date) > new Date()
+      ? `Currently ends ${fmtDate(c.owner.beta_end_date)}.`
+      : 'No active beta — this will grant a fresh one from today.';
+    $('#ex-sub').textContent = currentEnd;
+    $('#ex-months').value = '3';
+    openModal('modal-extend');
+  }
+  $('#ex-submit').addEventListener('click', async () => {
+    if (!extendTarget) return;
+    const months = parseInt($('#ex-months').value, 10);
+    $('#ex-err').classList.remove('show');
+    const btn = $('#ex-submit');
+    btn.disabled = true; btn.textContent = 'Working…';
+    try {
+      const action = extendTarget.status.key === 'beta' ? 'extend_beta' : 'grant_beta';
+      const res = await callAdminAction(action, { user_id: extendTarget.owner.id, months });
+      showToast(action === 'extend_beta' ? `Extended by ${months} months` : 'Beta granted', 'ok');
+      closeModal('modal-extend');
+      await loadCustomers();
+      // Refresh detail if we're on it
+      const updated = customersRaw.find(x => x.family.id === extendTarget.family.id);
+      if (updated && document.querySelector('.page.active')?.id === 'page-detail') showDetail(updated.family.id);
+      extendTarget = null;
+    } catch (e) {
+      $('#ex-err').textContent = e.message;
+      $('#ex-err').classList.add('show');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Extend';
+    }
+  });
+
+  // Revoke
+  let revokeTarget = null;
+  function openRevokeModal(c) {
+    if (!c.owner) return;
+    revokeTarget = c;
+    const famName = c.family.name || (c.owner?.name ? `${c.owner.name}'s family` : '(unnamed)');
+    $('#rv-sub').textContent = `Revoking beta for ${famName}. They'll lose access immediately unless they have an active Stripe subscription.`;
+    openModal('modal-revoke');
+  }
+  $('#rv-submit').addEventListener('click', async () => {
+    if (!revokeTarget) return;
+    $('#rv-err').classList.remove('show');
+    const btn = $('#rv-submit');
+    btn.disabled = true; btn.textContent = 'Revoking…';
+    try {
+      await callAdminAction('revoke_beta', { user_id: revokeTarget.owner.id });
+      showToast('Beta revoked', 'ok');
+      closeModal('modal-revoke');
+      await loadCustomers();
+      const updated = customersRaw.find(x => x.family.id === revokeTarget.family.id);
+      if (updated && document.querySelector('.page.active')?.id === 'page-detail') showDetail(updated.family.id);
+      revokeTarget = null;
+    } catch (e) {
+      $('#rv-err').textContent = e.message;
+      $('#rv-err').classList.add('show');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Revoke now';
+    }
+  });
+
+  // ── Admin action Edge Function caller ───────────────────────
+  async function callAdminAction(action, payload) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) throw new Error('Not signed in.');
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-actions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
+    return body;
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // ── SIGNUP QUEUE ────────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════
+  let signupsRaw = [];
+  let signupsFilter = 'all';
+
+  function signupStatus(s) {
+    // pending: no invited_at, no matching profile
+    // invited: invited_at set, no matching profile
+    // installed: matching profile exists, owner has no beta_end_date > now, no active sub
+    // active: matching profile exists AND (beta active OR sub active)
+    const hasProfile = !!s.matchedProfile;
+    const nowMs = Date.now();
+    const isActiveBeta = s.matchedProfile?.beta_end_date && new Date(s.matchedProfile.beta_end_date).getTime() > nowMs;
+    const isActiveSub = s.matchedProfile?.subscription_status === 'active';
+    if (hasProfile && (isActiveBeta || isActiveSub)) return 'active';
+    if (hasProfile) return 'installed';
+    if (s.invited_at) return 'invited';
+    return 'pending';
+  }
+
+  function signupStatusPill(status) {
+    switch (status) {
+      case 'pending':   return `<span class="status-pill none"><span class="dot"></span> Not invited</span>`;
+      case 'invited':   return `<span class="status-pill trial"><span class="dot"></span> Invited · awaiting install</span>`;
+      case 'installed': return `<span class="status-pill peach" style="background: var(--peach-tint); color: var(--peach-deep);"><span class="dot" style="background: var(--peach-deep);"></span> Installed · needs beta</span>`;
+      case 'active':    return `<span class="status-pill paid"><span class="dot"></span> Active</span>`;
+    }
+    return '';
+  }
+
+  async function loadSignups() {
+    $('#signups-sub').textContent = 'Loading…';
+    $('#signups-tbody').innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="loader"></div></div></td></tr>`;
+    try {
+      const { data: sigs, error: sErr } = await sb.from('beta_signups')
+        .select('id, email, name, source, invited_at, activated_at, created_at')
+        .order('created_at', { ascending: false });
+      if (sErr) throw sErr;
+
+      // Also fetch owner profiles so we can detect who's installed/active
+      const { data: ownerProfs } = await sb.from('profiles')
+        .select('id, email, name, beta_end_date, subscription_status, family_id')
+        .eq('kind', 'owner');
+
+      const profByEmail = new Map();
+      (ownerProfs || []).forEach(p => {
+        if (p.email) profByEmail.set(p.email.toLowerCase(), p);
+      });
+
+      signupsRaw = (sigs || []).map(s => {
+        const matched = s.email ? profByEmail.get(s.email.toLowerCase()) : null;
+        const withMatch = { ...s, matchedProfile: matched };
+        return { ...withMatch, status: signupStatus(withMatch) };
+      });
+
+      const counts = { all: signupsRaw.length, pending: 0, invited: 0, installed: 0, active: 0 };
+      signupsRaw.forEach(s => counts[s.status]++);
+      $('#sig-cnt-all').textContent = counts.all;
+      $('#sig-cnt-pending').textContent = counts.pending;
+      $('#sig-cnt-invited').textContent = counts.invited;
+      $('#sig-cnt-installed').textContent = counts.installed;
+      $('#sig-cnt-active').textContent = counts.active;
+      $('#nav-signups-count').textContent = counts.pending + counts.installed;
+      $('#signups-sub').textContent = `${counts.all} signups · ${counts.pending} awaiting invite · ${counts.installed} awaiting beta grant`;
+      renderSignups();
+    } catch (e) {
+      console.error('[signups] load failed:', e);
+      $('#signups-tbody').innerHTML = `<tr><td colspan="6"><div class="empty-state">Load failed: ${e.message}</div></td></tr>`;
+      $('#signups-sub').textContent = 'Load failed.';
+    }
+  }
+
+  function renderSignups() {
+    let list = signupsRaw.slice();
+    if (signupsFilter !== 'all') list = list.filter(s => s.status === signupsFilter);
+    if (!list.length) {
+      $('#signups-tbody').innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="ico">📭</div>No signups match.</div></td></tr>`;
+      $('#signups-footer').textContent = `Showing 0 of ${signupsRaw.length}`;
+      return;
+    }
+    $('#signups-tbody').innerHTML = list.map(s => {
+      const acts = signupActions(s);
+      return `
+        <tr>
+          <td class="muted">${relTime(s.created_at)}</td>
+          <td>${s.email || '—'}</td>
+          <td class="muted">${s.name || '—'}</td>
+          <td class="muted">${s.source || 'website'}</td>
+          <td>${signupStatusPill(s.status)}</td>
+          <td><div class="row-actions">${acts}</div></td>
+        </tr>
+      `;
+    }).join('');
+    $$('#signups-tbody [data-sig-action]').forEach(btn => {
+      btn.addEventListener('click', () => handleSignupAction(btn.dataset.sigAction, btn.dataset.sigId, btn.dataset.email));
+    });
+    $('#signups-footer').textContent = `Showing ${list.length} of ${signupsRaw.length}`;
+  }
+
+  function signupActions(s) {
+    const parts = [];
+    if (s.status === 'pending') {
+      // Batch 7 — primary action sends TestFlight-invite email + marks invited
+      parts.push(`<button class="btn btn-mint btn-sm" data-sig-action="send-testflight" data-sig-id="${s.id}">Send TestFlight invite</button>`);
+      parts.push(`<button class="btn btn-secondary btn-sm" data-sig-action="mark-invited" data-sig-id="${s.id}" title="Mark invited without sending an email (if you invited them another way)">Mark only</button>`);
+      parts.push(`<button class="btn btn-secondary btn-sm" data-sig-action="copy" data-email="${s.email || ''}">Copy email</button>`);
+    } else if (s.status === 'invited') {
+      parts.push(`<button class="btn btn-secondary btn-sm" data-sig-action="undo-invited" data-sig-id="${s.id}">Undo invited</button>`);
+      parts.push(`<button class="btn btn-secondary btn-sm" data-sig-action="copy" data-email="${s.email || ''}">Copy email</button>`);
+    } else if (s.status === 'installed') {
+      parts.push(`<button class="btn btn-mint btn-sm" data-sig-action="grant-beta" data-email="${s.email || ''}">Grant 3-mo beta</button>`);
+      parts.push(`<button class="btn btn-secondary btn-sm" data-sig-action="view" data-email="${s.email || ''}">View family</button>`);
+    } else if (s.status === 'active') {
+      parts.push(`<button class="btn btn-secondary btn-sm" data-sig-action="view" data-email="${s.email || ''}">View family</button>`);
+    }
+    return parts.join('');
+  }
+
+  async function handleSignupAction(action, sigId, email) {
+    if (action === 'copy') {
+      if (!email) return;
+      navigator.clipboard.writeText(email).then(() => showToast(`Copied ${email}`, 'ok'));
+      return;
+    }
+    if (action === 'mark-invited') {
+      try {
+        await callAdminAction('mark_signup_invited', { signup_id: sigId });
+        showToast('Marked invited (no email sent)', 'ok');
+        await loadSignups();
+      } catch (e) { showToast(e.message, 'err'); }
+      return;
+    }
+    if (action === 'send-testflight') {
+      const row = signupsRaw.find(s => s.id === sigId);
+      const rowEmail = row?.email || 'this signup';
+      if (!confirm(`Send the TestFlight invite email to ${rowEmail}?\n\nThey get a Zaeli email with the install link + "3 months free" copy, then need to install via TestFlight.\n\nAlso marks them as invited in the queue.`)) return;
+      try {
+        const res = await callAdminAction('send_testflight_invite', { signup_id: sigId });
+        if (res?.already_sent) {
+          showToast(`Already sent — marked invited`, 'ok');
+        } else {
+          showToast(`Invite sent to ${rowEmail}`, 'ok');
+        }
+        await loadSignups();
+      } catch (e) { showToast(e.message, 'err'); }
+      return;
+    }
+    if (action === 'undo-invited') {
+      try {
+        await callAdminAction('mark_signup_uninvited', { signup_id: sigId });
+        showToast('Undone', 'ok');
+        await loadSignups();
+      } catch (e) { showToast(e.message, 'err'); }
+      return;
+    }
+    if (action === 'grant-beta') {
+      try {
+        const res = await callAdminAction('grant_beta_by_email', { email, months: 3 });
+        showToast(`Beta granted · ends ${fmtDateShort(res.beta_end_date)}`, 'ok');
+        await loadSignups();
+      } catch (e) { showToast(e.message, 'err'); }
+      return;
+    }
+    if (action === 'view') {
+      const owner = signupsRaw.find(s => s.email?.toLowerCase() === email.toLowerCase())?.matchedProfile;
+      if (owner?.family_id) {
+        // Ensure customers loaded so detail can find the family
+        if (customersRaw.length === 0) await loadCustomers();
+        showDetail(owner.family_id);
+      } else {
+        showToast('Family not found — refresh Customers first', 'err');
+      }
+      return;
+    }
+  }
+
+  $$('#signups-filters .chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      $$('#signups-filters .chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      signupsFilter = chip.dataset.filter;
+      renderSignups();
+    });
+  });
+  $('#signups-refresh').addEventListener('click', loadSignups);
+  $('#signups-copy-pending').addEventListener('click', () => {
+    const pending = signupsRaw.filter(s => s.status === 'pending' || s.status === 'installed').map(s => s.email).filter(Boolean);
+    if (!pending.length) { showToast('Nothing pending', 'err'); return; }
+    navigator.clipboard.writeText(pending.join('\n')).then(() => showToast(`Copied ${pending.length} emails`, 'ok'));
+  });
+
+  // ═════════════════════════════════════════════════════════════
+  // ── COSTS & REVENUE ─────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════
+  async function loadCosts() {
+    $('#costs-sub').textContent = 'Loading financial snapshot…';
+    ['mrr', 'spend', 'margin', 'per-family'].forEach(k => {
+      $('#cost-' + k).classList.add('loading');
+      $('#cost-' + k).textContent = '—';
+    });
+    $('#cost-by-feature').innerHTML = `<div class="empty-state"><div class="loader"></div></div>`;
+    $('#cost-trend').innerHTML = `<div class="empty-state" style="flex: 1;"><div class="loader"></div></div>`;
+    $('#cost-top-tbody').innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="loader"></div></div></td></tr>`;
+    $('#cost-projection').innerHTML = `<div class="empty-state"><div class="loader"></div></div>`;
+
+    try {
+      // Ensure customer data available for owner lookups + status
+      if (customersRaw.length === 0) await loadCustomers();
+
+      const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+      // Parallel fetches: paid count, this-month api_logs, 6-mo trend base query
+      const [paidRes, logsRes] = await Promise.all([
+        sb.from('profiles').select('*', { count: 'exact', head: true })
+          .eq('kind', 'owner').eq('subscription_status', 'active'),
+        sb.from('api_logs').select('family_id, feature, cost_usd, created_at')
+          .gte('created_at', firstOfMonth),
+      ]);
+
+      const paid = paidRes.count || 0;
+      const rows = logsRes.data || [];
+
+      // Group by feature
+      const byFeature = { briefs: 0, chat: 0, tutor: 0, vision: 0, whisper: 0, other: 0 };
+      const byFamily = new Map();
+      rows.forEach(r => {
+        const f = (r.feature || '').toLowerCase();
+        const usd = parseFloat(r.cost_usd) || 0;
+        if (f.includes('brief')) byFeature.briefs += usd;
+        else if (f.includes('tutor')) byFeature.tutor += usd;
+        else if (f.includes('chat')) byFeature.chat += usd;
+        else if (f.includes('vision') || f.includes('scan') || f.includes('receipt') || f.includes('pantry')) byFeature.vision += usd;
+        else if (f.includes('whisper') || f.includes('voice')) byFeature.whisper += usd;
+        else byFeature.other += usd;
+        if (r.family_id) byFamily.set(r.family_id, (byFamily.get(r.family_id) || 0) + usd);
+      });
+
+      const totalUsd = Object.values(byFeature).reduce((s, v) => s + v, 0);
+      const totalAud = totalUsd * 1.51;
+      const mrr = paid * 6.99;
+      const margin = mrr - totalAud;
+      const marginPct = mrr > 0 ? Math.round((margin / mrr) * 100) : 0;
+
+      // Median per family
+      const perFamValues = Array.from(byFamily.values()).map(v => v * 1.51).sort((a, b) => a - b);
+      const median = perFamValues.length
+        ? perFamValues[Math.floor(perFamValues.length / 2)]
+        : 0;
+      const activeCount = byFamily.size;
+
+      // KPIs
+      $('#cost-mrr').textContent = fmtAud(mrr);
+      $('#cost-mrr').classList.remove('loading');
+      $('#cost-mrr-sub').textContent = `${paid} paid × A$6.99`;
+      $('#cost-mrr-sub').className = 'kpi-delta ' + (paid ? 'up' : 'flat');
+
+      $('#cost-spend').textContent = fmtAud(totalAud);
+      $('#cost-spend').classList.remove('loading');
+      $('#cost-spend-sub').textContent = `${rows.length} API calls`;
+      $('#cost-spend-sub').className = 'kpi-delta flat';
+
+      $('#cost-margin').textContent = fmtAud(margin);
+      $('#cost-margin').classList.remove('loading');
+      $('#cost-margin').style.color = margin >= 0 ? 'var(--mint-deep)' : 'var(--coral-deep)';
+      $('#cost-margin-pct').textContent = mrr > 0 ? `${marginPct}% of MRR` : 'no MRR yet';
+      $('#cost-margin-pct').className = 'kpi-delta ' + (margin >= 0 ? 'up' : 'down');
+
+      $('#cost-per-family').textContent = fmtAud(median);
+      $('#cost-per-family').classList.remove('loading');
+      $('#cost-per-family-sub').textContent = `${activeCount} active families`;
+      $('#cost-per-family-sub').className = 'kpi-delta flat';
+
+      // Feature breakdown horizontal bars
+      const featMax = Math.max(...Object.values(byFeature), 0.0001);
+      const featLabels = { briefs: 'Briefs (Sonnet)', chat: 'Chat (Sonnet + GPT)', tutor: 'Tutor', vision: 'Vision (scans)', whisper: 'Whisper (voice)', other: 'Other' };
+      const featColors = { briefs: 'var(--peach-deep)', chat: 'var(--sky-deep)', tutor: 'var(--lav-deep)', vision: 'var(--mint-deep)', whisper: 'var(--gold-deep)', other: 'var(--ink3)' };
+      $('#cost-by-feature').innerHTML = Object.entries(byFeature).map(([k, v]) => {
+        const w = Math.max(2, Math.round((v / featMax) * 100));
+        const pct = totalUsd > 0 ? Math.round((v / totalUsd) * 100) : 0;
+        return `
+          <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+              <span style="color: var(--ink2); font-weight: 500;">${featLabels[k]}</span>
+              <span style="color: var(--ink3);">${fmtAud(v * 1.51)} · ${pct}%</span>
+            </div>
+            <div style="height: 10px; background: var(--line); border-radius: 5px; overflow: hidden;">
+              <div style="height: 100%; width: ${w}%; background: ${featColors[k]}; border-radius: 5px;"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // 6-month cost trend
+      const trend = await costTrend6mo();
+      const trendMax = Math.max(...trend.map(t => t.aud), 0.0001);
+      const curIdx = trend.length - 1;
+      $('#cost-trend').innerHTML = trend.map((t, i) => {
+        const h = Math.max(4, Math.round((t.aud / trendMax) * 100));
+        return `<div class="chart-bar"><div class="bar ${i === curIdx ? 'current' : ''}" style="height: ${h}%;"><span class="bar-val">${fmtAud(t.aud)}</span></div><span class="bar-lbl">${t.label}</span></div>`;
+      }).join('');
+
+      // Top spenders
+      const topEntries = Array.from(byFamily.entries())
+        .map(([fid, usd]) => ({ fid, aud: usd * 1.51 }))
+        .sort((a, b) => b.aud - a.aud)
+        .slice(0, 10);
+      if (!topEntries.length) {
+        $('#cost-top-tbody').innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="ico">📭</div>No API activity this month.</div></td></tr>`;
+      } else {
+        $('#cost-top-tbody').innerHTML = topEntries.map(e => {
+          const c = customersRaw.find(x => x.family.id === e.fid);
+          const famName = c?.family.name || c?.owner?.name ? (c.family.name || c.owner.name + "'s family") : '(unknown)';
+          const ownerEmail = c?.owner?.email || '—';
+          const mult = median > 0 ? (e.aud / median).toFixed(1) + '×' : '—';
+          const statusPill = c ? `<span class="status-pill ${c.status.pill}"><span class="dot"></span> ${c.status.label}</span>` : '';
+          const openable = !!c;
+          return `<tr ${openable ? `data-family-id="${e.fid}" style="cursor:pointer;"` : ''}>
+            <td><strong>${famName}</strong></td>
+            <td class="muted" style="font-size: 12px;">${ownerEmail}</td>
+            <td class="num"><strong>${fmtAud(e.aud)}</strong></td>
+            <td class="num muted">${mult}</td>
+            <td>${statusPill}</td>
+          </tr>`;
+        }).join('');
+        $$('#cost-top-tbody tr[data-family-id]').forEach(tr => {
+          tr.addEventListener('click', () => showDetail(tr.dataset.familyId));
+        });
+      }
+
+      // Projection baseline — use MEAN of ENGAGED families (>20 API calls this
+      // month), NOT median across all. Median across a handful of near-zero
+      // test accounts + one real user gives A$0.05 baseline (Anna+Rich real
+      // cost is ~A$3.50). Filtering by call count excludes throwaway signups
+      // + Apple review accounts. Fallback to max-seen if no engaged families.
+      const callsByFamily = new Map();
+      rows.forEach(r => {
+        if (r.family_id) callsByFamily.set(r.family_id, (callsByFamily.get(r.family_id) || 0) + 1);
+      });
+      const engagedCosts = [];
+      byFamily.forEach((usd, fid) => {
+        if ((callsByFamily.get(fid) || 0) >= 20) engagedCosts.push(usd * 1.51);
+      });
+      const engagedMean = engagedCosts.length
+        ? engagedCosts.reduce((s, v) => s + v, 0) / engagedCosts.length
+        : (perFamValues.length ? perFamValues[perFamValues.length - 1] : 0); // fallback = max seen
+      renderProjection(engagedMean, engagedCosts.length, mrr, activeCount);
+
+      $('#costs-sub').textContent = `${activeCount} active · A$${totalAud.toFixed(2)} spent this month · ${paid} paid subs`;
+    } catch (e) {
+      console.error('[costs] load failed:', e);
+      $('#costs-sub').textContent = 'Load failed.';
+    }
+  }
+
+  async function costTrend6mo() {
+    const buckets = [];
+    for (let i = 5; i >= 0; i--) {
+      const start = new Date();
+      start.setMonth(start.getMonth() - i);
+      start.setDate(1); start.setHours(0, 0, 0, 0);
+      const end = new Date(start); end.setMonth(end.getMonth() + 1);
+      const { data } = await sb.from('api_logs')
+        .select('cost_usd')
+        .gte('created_at', start.toISOString())
+        .lt('created_at', end.toISOString());
+      const usd = (data || []).reduce((s, r) => s + (parseFloat(r.cost_usd) || 0), 0);
+      buckets.push({
+        label: start.toLocaleDateString('en-AU', { month: 'short' }).toUpperCase(),
+        aud: usd * 1.51,
+      });
+    }
+    return buckets;
+  }
+
+  function renderProjection(engagedMeanCostAud, engagedCount, currentMrr, currentActive) {
+    const scenarios = [10, 50, 100, 500, 1000, 5000];
+    const revenuePerFam = 6.99;
+    const paidRate = 0.6;  // beta → paid conversion assumption
+    // Three cost scenarios so Rich sees a range, not one fragile figure:
+    //   Light      = 0.5× engaged mean (well-cached, casual usage)
+    //   Realistic  = 1.0× engaged mean (what real engaged families actually cost)
+    //   Heavy      = 2.0× engaged mean (power users, chat-heavy)
+    const costScenarios = [
+      { label: 'Light',     mult: 0.5, tone: 'var(--mint-deep)' },
+      { label: 'Realistic', mult: 1.0, tone: 'var(--ink)' },
+      { label: 'Heavy',     mult: 2.0, tone: 'var(--peach-deep)' },
+    ];
+
+    const baselineNote = engagedCount > 0
+      ? `Baseline: <strong>A$${engagedMeanCostAud.toFixed(2)}/family/mo</strong> mean cost across ${engagedCount} engaged famil${engagedCount === 1 ? 'y' : 'ies'} (>20 API calls this month, excludes test accounts). A$6.99 plan · 60% beta→paid conversion.`
+      : `Baseline: <strong>A$${engagedMeanCostAud.toFixed(2)}/family/mo</strong> (no engaged families yet — using max-seen as fallback). A$6.99 plan · 60% beta→paid conversion.`;
+
+    const rows = scenarios.map(n => {
+      const paidCount = Math.round(n * paidRate);
+      const revenue = n * revenuePerFam * paidRate;
+      const costCells = costScenarios.map(sc => {
+        const cost = n * engagedMeanCostAud * sc.mult;
+        const margin = revenue - cost;
+        return `<td class="num" style="color: ${margin >= 0 ? 'var(--mint-deep)' : 'var(--coral-deep)'};">${fmtAud(margin)}<br><span style="font-size:10px;color:var(--ink3);font-weight:400;">(cost ${fmtAud(cost)})</span></td>`;
+      }).join('');
+      return `
+        <tr>
+          <td><strong>${n.toLocaleString()}</strong> families<br><span style="font-size:10px;color:var(--ink3);font-weight:400;">${paidCount.toLocaleString()} paying</span></td>
+          <td class="num">${fmtAud(revenue)}<br><span style="font-size:10px;color:var(--ink3);font-weight:400;">${paidCount} × A$6.99</span></td>
+          ${costCells}
+        </tr>
+      `;
+    }).join('');
+    $('#cost-projection').innerHTML = `
+      <p style="font-size: 12px; color: var(--ink3); margin-bottom: 12px;">${baselineNote}</p>
+      <div class="table-wrap" style="border: none;">
+        <table class="data">
+          <thead>
+            <tr>
+              <th>Scale</th>
+              <th class="num">MRR</th>
+              <th class="num" title="0.5× baseline — well-cached casual usage">Light (0.5×)</th>
+              <th class="num" title="1.0× baseline — actual engaged-family average">Realistic (1.0×)</th>
+              <th class="num" title="2.0× baseline — chat-heavy power users">Heavy (2.0×)</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  $('#costs-refresh').addEventListener('click', loadCosts);
+
+  // ═════════════════════════════════════════════════════════════
+  // ── ALERTS ──────────────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════
+  async function loadAlerts() {
+    $('#alerts-sub').textContent = 'Computing…';
+    $('#alerts-list').innerHTML = `<div class="empty-state" style="padding: 60px 20px;"><div class="loader"></div></div>`;
+
+    try {
+      if (customersRaw.length === 0) await loadCustomers();
+
+      const nowMs = Date.now();
+      const in7Days = nowMs + 7 * 86400000;
+
+      // Compute alert groups
+      const groups = [];
+
+      // Past-due Stripe
+      const pastDue = customersRaw.filter(c => c.status.key === 'past-due');
+      if (pastDue.length) groups.push({
+        severity: 'coral', icon: '💳', title: `${pastDue.length} past-due Stripe subscription${pastDue.length > 1 ? 's' : ''}`,
+        sub: 'Payment failed. Customer may lose access. Reach out or check Stripe.',
+        items: pastDue,
+      });
+
+      // Beta expiring in <7 days
+      const betaExpiring = customersRaw.filter(c => c.status.key === 'beta' && c.owner?.beta_end_date && new Date(c.owner.beta_end_date).getTime() < in7Days);
+      if (betaExpiring.length) groups.push({
+        severity: 'peach', icon: '⏳', title: `${betaExpiring.length} beta${betaExpiring.length > 1 ? 's' : ''} expiring in <7 days`,
+        sub: 'Extend if they\'re engaged, or send a paid-conversion nudge email.',
+        items: betaExpiring,
+      });
+
+      // Beta expired (fell off, not paid)
+      const betaExpired = customersRaw.filter(c => c.status.key === 'expired');
+      if (betaExpired.length) groups.push({
+        severity: 'peach', icon: '🕰', title: `${betaExpired.length} beta${betaExpired.length > 1 ? 's' : ''} expired without converting`,
+        sub: 'These families lost access when their beta ended without paying. Follow up?',
+        items: betaExpired,
+      });
+
+      // Missing push tokens
+      const missingPush = customersRaw.filter(c => c.missingPush && (c.status.key === 'beta' || c.status.key === 'paid' || c.status.key === 'trial'));
+      if (missingPush.length) groups.push({
+        severity: 'gold', icon: '🔔', title: `${missingPush.length} active famil${missingPush.length > 1 ? 'ies' : 'y'} with no push tokens`,
+        sub: 'They won\'t receive briefs on lockscreen. Might be new installs — check activity.',
+        items: missingPush,
+      });
+
+      // High spenders — >2x median
+      const medianAud = median(customersRaw.filter(c => c.costUsd > 0).map(c => c.costAud));
+      const highSpenders = customersRaw.filter(c => medianAud > 0 && c.costAud > medianAud * 2);
+      if (highSpenders.length) groups.push({
+        severity: 'gold', icon: '📊', title: `${highSpenders.length} high spender${highSpenders.length > 1 ? 's' : ''} (>2× median A$${medianAud.toFixed(2)})`,
+        sub: 'Investigate patterns — could be a runaway loop, heavy engagement, or a bug.',
+        items: highSpenders,
+      });
+
+      // Stale families — no activity in 14 days, older than 14 days
+      const fourteenDaysAgo = nowMs - 14 * 86400000;
+      const stale = customersRaw.filter(c => {
+        if (!c.family.created_at) return false;
+        const createdMs = new Date(c.family.created_at).getTime();
+        if (createdMs > fourteenDaysAgo) return false; // too new
+        const lastMs = c.lastActive ? new Date(c.lastActive).getTime() : 0;
+        return lastMs < fourteenDaysAgo;
+      });
+      if (stale.length) groups.push({
+        severity: 'sky', icon: '💤', title: `${stale.length} famil${stale.length > 1 ? 'ies' : 'y'} inactive for 14+ days`,
+        sub: 'Check-in nudge? Or ask why they stopped. Silent churn risk.',
+        items: stale,
+      });
+
+      // Signup queue reminder
+      const pendingSigs = signupsRaw.filter(s => s.status === 'pending' || s.status === 'installed');
+      if (pendingSigs.length === 0 && signupsRaw.length === 0) {
+        // load signups if not loaded
+        try { await loadSignups(); } catch {}
+        const nowPending = signupsRaw.filter(s => s.status === 'pending' || s.status === 'installed');
+        if (nowPending.length) groups.push({
+          severity: 'sky', icon: '✉️', title: `${nowPending.length} signup${nowPending.length > 1 ? 's' : ''} awaiting action`,
+          sub: 'Beta signups need TestFlight invite or beta grant.',
+          items: [], link: 'signups',
+        });
+      } else if (pendingSigs.length) {
+        groups.push({
+          severity: 'sky', icon: '✉️', title: `${pendingSigs.length} signup${pendingSigs.length > 1 ? 's' : ''} awaiting action`,
+          sub: 'Beta signups need TestFlight invite or beta grant.',
+          items: [], link: 'signups',
+        });
+      }
+
+      $('#nav-alerts-count').textContent = groups.length;
+      $('#alerts-sub').textContent = groups.length
+        ? `${groups.length} alert group${groups.length > 1 ? 's' : ''} across ${customersRaw.length} families.`
+        : `All clear — nothing needs attention across ${customersRaw.length} families.`;
+
+      if (!groups.length) {
+        $('#alerts-list').innerHTML = `<div class="panel" style="text-align: center; padding: 40px 20px;">
+          <div style="font-size: 42px; margin-bottom: 12px;">✨</div>
+          <h3 style="font-size: 18px; margin-bottom: 6px;">All clear.</h3>
+          <p style="font-size: 13px; color: var(--ink3);">Nothing needs your attention right now. Refresh to re-check.</p>
+        </div>`;
+        return;
+      }
+
+      $('#alerts-list').innerHTML = groups.map((g, i) => renderAlertGroup(g, i)).join('');
+      // Expand toggles
+      $$('#alerts-list [data-alert-toggle]').forEach(el => {
+        el.addEventListener('click', () => {
+          const idx = el.dataset.alertToggle;
+          const body = document.querySelector(`[data-alert-body="${idx}"]`);
+          if (body) body.style.display = body.style.display === 'block' ? 'none' : 'block';
+        });
+      });
+      // Family row clicks in expanded lists
+      $$('#alerts-list [data-family-id]').forEach(row => {
+        row.addEventListener('click', () => showDetail(row.dataset.familyId));
+      });
+      // Nav-to-page links (Signup queue jump)
+      $$('#alerts-list [data-alert-link]').forEach(btn => {
+        btn.addEventListener('click', () => switchPage(btn.dataset.alertLink));
+      });
+    } catch (e) {
+      console.error('[alerts] failed:', e);
+      $('#alerts-sub').textContent = 'Load failed.';
+      $('#alerts-list').innerHTML = `<div class="empty-state">Load failed: ${e.message}</div>`;
+    }
+  }
+
+  function median(arr) {
+    if (!arr.length) return 0;
+    const sorted = arr.slice().sort((a, b) => a - b);
+    const m = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+  }
+
+  function renderAlertGroup(g, i) {
+    const sevBg = { coral: 'var(--coral-tint)', peach: 'var(--peach-tint)', gold: 'var(--gold-tint)', sky: 'var(--sky-tint)' }[g.severity] || 'var(--line)';
+    const sevBorder = { coral: 'var(--coral)', peach: 'var(--peach-deep)', gold: 'var(--gold-deep)', sky: 'var(--sky-deep)' }[g.severity] || 'var(--ink3)';
+    const itemsHtml = g.items.length ? g.items.map(c => {
+      const famName = c.family.name || (c.owner?.name ? `${c.owner.name}'s family` : '(unnamed)');
+      const meta = alertMeta(c, g);
+      return `<div class="member-row" data-family-id="${c.family.id}" style="cursor: pointer; padding: 8px 4px; border-bottom: 1px solid var(--line);">
+        <div class="mav" style="background: ${sevBorder}; width: 26px; height: 26px; font-size: 11px;">${(famName[0] || '?').toUpperCase()}</div>
+        <div style="flex: 1;">
+          <div style="font-size: 13px; color: var(--ink); font-weight: 500;">${famName}</div>
+          <div style="font-size: 11px; color: var(--ink3);">${c.owner?.email || '—'}</div>
+        </div>
+        <div style="font-size: 12px; color: var(--ink3); text-align: right;">${meta}</div>
+      </div>`;
+    }).join('') : '';
+    const linkBtn = g.link ? `<button class="btn btn-secondary btn-sm" data-alert-link="${g.link}" style="margin-top: 10px;">Open Signup queue →</button>` : '';
+    const toggleBtn = g.items.length ? `<button class="btn btn-secondary btn-sm" data-alert-toggle="${i}" style="margin-top: 10px;">Show ${g.items.length} famil${g.items.length > 1 ? 'ies' : 'y'} ↓</button>` : '';
+
+    return `
+      <div class="panel" style="border-left: 4px solid ${sevBorder}; background: linear-gradient(90deg, ${sevBg} 0%, #FFFFFF 40%);">
+        <div style="display: flex; align-items: flex-start; gap: 14px;">
+          <div style="font-size: 28px; flex-shrink: 0;">${g.icon}</div>
+          <div style="flex: 1;">
+            <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">${g.title}</h3>
+            <p style="font-size: 13px; color: var(--ink3); line-height: 1.5;">${g.sub}</p>
+            ${toggleBtn}
+            ${linkBtn}
+            <div data-alert-body="${i}" style="display: none; margin-top: 12px; background: #FFFFFF; border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px;">${itemsHtml}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function alertMeta(c, g) {
+    if (g.title.startsWith('') && g.icon === '⏳' && c.owner?.beta_end_date) {
+      const days = Math.ceil((new Date(c.owner.beta_end_date).getTime() - Date.now()) / 86400000);
+      return `${days}d left`;
+    }
+    if (g.icon === '🕰' && c.owner?.beta_end_date) {
+      return `Ended ${fmtDateShort(c.owner.beta_end_date)}`;
+    }
+    if (g.icon === '💳') return 'Payment failed';
+    if (g.icon === '🔔') return `${c.pushCount}/${c.adultCount} adults`;
+    if (g.icon === '📊') return fmtAud(c.costAud);
+    if (g.icon === '💤') return c.lastActive ? relTime(c.lastActive) : 'never';
+    return '';
+  }
+
+  $('#alerts-refresh').addEventListener('click', loadAlerts);
+
+  // ═════════════════════════════════════════════════════════════
+  // ── SEND ANNOUNCEMENT ───────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════
+  const TEMPLATES = [
+    {
+      id: 'welcome',
+      icon: '👋',
+      title: 'Welcome to beta',
+      desc: 'First-touch email after granting beta access.',
+      subject: 'You\'re in - welcome to Zaeli',
+      body: welcomeBodyHtml(),
+    },
+    {
+      id: 'checkin-3day',
+      icon: '☕',
+      title: '3-day check-in',
+      desc: 'Ask how the first few days are going.',
+      subject: 'How is it going so far?',
+      body: checkin3dayHtml(),
+    },
+    {
+      id: 'tips-14day',
+      icon: '💡',
+      title: '14-day tips',
+      desc: 'Best-practice nudges after 2 weeks of use.',
+      subject: 'Two weeks in - a few things you might have missed',
+      body: tips14dayHtml(),
+    },
+    {
+      id: 'beta-ending',
+      icon: '⏳',
+      title: 'Beta ending in 14 days',
+      desc: 'Nudge before beta expires. Soft ask, no hard sell.',
+      subject: 'Your Zaeli beta ends in 2 weeks',
+      body: betaEndingHtml(),
+    },
+    {
+      id: 'android-waitlist',
+      icon: '🤖',
+      title: 'Android waitlist',
+      desc: 'For Android signups — 6-8 weeks out, holding line.',
+      subject: 'Zaeli on Android - you\'re on the list',
+      body: androidWaitlistHtml(),
+    },
+    {
+      id: 'android-backdoor',
+      icon: '🚪',
+      title: 'Android back door',
+      desc: 'Direct-install APK invite for close family / friends only.',
+      subject: 'The Android back door - only if you\'re up for it',
+      body: androidBackdoorHtml(),
+    },
+    {
+      id: 'custom',
+      icon: '✏️',
+      title: 'Custom',
+      desc: 'Blank slate — write your own.',
+      subject: '',
+      body: customHtml(),
+    },
+  ];
+
+  const SEGMENTS = [
+    { id: 'active-beta', title: 'Active beta users', sub: 'Owners with beta_end_date in the future', filter: c => c.status.key === 'beta' },
+    { id: 'expiring-30d', title: 'Beta expiring in 30 days', sub: 'Nudge candidates before they fall off', filter: c => c.status.key === 'beta' && c.owner?.beta_end_date && (new Date(c.owner.beta_end_date).getTime() - Date.now()) < 30 * 86400000 },
+    { id: 'expired', title: 'Beta expired, not paid', sub: 'Re-engage or ask for feedback', filter: c => c.status.key === 'expired' },
+    { id: 'paid', title: 'Paid subscribers', sub: 'Currently active Stripe subs', filter: c => c.status.key === 'paid' },
+    { id: 'all-owners', title: 'All owners', sub: 'Every family owner', filter: c => !!c.owner },
+    { id: 'signup-pending', title: 'Signup queue (not invited)', sub: 'Prospects awaiting TestFlight invite', filter: null, source: 'signups-pending' },
+    { id: 'custom', title: 'Custom email list', sub: 'Paste your own — one per line', filter: null, source: 'custom' },
+  ];
+
+  let selectedTemplateId = null;
+  let selectedSegmentId = 'active-beta';
+  let htmlMode = true;
+  let currentRecipients = [];
+
+  function renderTemplates() {
+    $('#tpl-grid').innerHTML = TEMPLATES.map(t => `
+      <div class="template-card${t.id === selectedTemplateId ? ' selected' : ''}" data-tpl="${t.id}">
+        <div class="tpl-icon">${t.icon}</div>
+        <div class="tpl-title">${t.title}</div>
+        <div class="tpl-desc">${t.desc}</div>
+      </div>
+    `).join('');
+    $$('#tpl-grid .template-card').forEach(card => {
+      card.addEventListener('click', () => selectTemplate(card.dataset.tpl));
+    });
+  }
+
+  function selectTemplate(id) {
+    const t = TEMPLATES.find(x => x.id === id);
+    if (!t) return;
+    selectedTemplateId = id;
+    $('#tpl-subject').value = t.subject;
+    $('#tpl-body').value = t.body;
+    renderTemplates();
+    renderPreview();
+  }
+
+  function renderSegments() {
+    $('#segment-list').innerHTML = SEGMENTS.map(s => {
+      const count = segmentCount(s);
+      const countLabel = s.source === 'custom' ? '—' : (count === null ? '…' : count);
+      return `
+        <div class="segment-item${s.id === selectedSegmentId ? ' selected' : ''}" data-seg="${s.id}">
+          <div class="seg-radio"></div>
+          <div class="seg-body">
+            <div class="seg-title">${s.title}</div>
+            <div class="seg-sub">${s.sub}</div>
+          </div>
+          <div class="seg-count">${countLabel}</div>
+        </div>
+      `;
+    }).join('');
+    $$('#segment-list .segment-item').forEach(item => {
+      item.addEventListener('click', () => selectSegment(item.dataset.seg));
+    });
+  }
+
+  function segmentCount(seg) {
+    if (seg.source === 'custom') return null;
+    if (seg.source === 'signups-pending') return signupsRaw.filter(s => s.status === 'pending' || s.status === 'installed').length;
+    if (customersRaw.length === 0) return null;
+    return customersRaw.filter(seg.filter).length;
+  }
+
+  function selectSegment(id) {
+    selectedSegmentId = id;
+    $('#custom-emails-wrap').style.display = id === 'custom' ? 'block' : 'none';
+    renderSegments();
+    updateRecipients();
+  }
+
+  function currentSegment() {
+    return SEGMENTS.find(s => s.id === selectedSegmentId);
+  }
+
+  function resolveRecipients() {
+    const seg = currentSegment();
+    if (!seg) return [];
+    if (seg.source === 'custom') {
+      const raw = $('#custom-emails').value || '';
+      return Array.from(new Set(
+        raw.split(/[\s,;]+/)
+          .map(s => s.trim().toLowerCase())
+          .filter(s => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s))
+      ));
+    }
+    if (seg.source === 'signups-pending') {
+      return signupsRaw
+        .filter(s => s.status === 'pending' || s.status === 'installed')
+        .map(s => (s.email || '').toLowerCase())
+        .filter(Boolean);
+    }
+    return customersRaw
+      .filter(seg.filter)
+      .map(c => (c.owner?.email || '').toLowerCase())
+      .filter(Boolean);
+  }
+
+  function updateRecipients() {
+    currentRecipients = resolveRecipients();
+    $('#tpl-send-count').textContent = currentRecipients.length;
+  }
+
+  function renderPreview() {
+    $('#preview-subject').textContent = $('#tpl-subject').value.trim() || '—';
+    const bodyHtml = $('#tpl-body').value;
+    $('#preview-frame').innerHTML = bodyHtml || `<p style="color: var(--ink3); font-size: 13px; text-align: center; padding: 40px 20px;">(empty body)</p>`;
+  }
+
+  $('#tpl-subject').addEventListener('input', renderPreview);
+  $('#tpl-body').addEventListener('input', renderPreview);
+  $('#custom-emails').addEventListener('input', updateRecipients);
+  $('#tpl-mode-toggle').addEventListener('click', () => {
+    htmlMode = !htmlMode;
+    $('#tpl-body').classList.toggle('html-mode', htmlMode);
+    $('#tpl-mode-toggle').textContent = htmlMode ? 'HTML mode' : 'Rich text';
+  });
+
+  $('#tpl-test-send').addEventListener('click', async () => {
+    const email = currentUser?.email;
+    if (!email) { showToast('Not signed in', 'err'); return; }
+    const subject = $('#tpl-subject').value.trim();
+    const bodyHtml = $('#tpl-body').value.trim();
+    if (!subject || !bodyHtml) { showToast('Subject and body required', 'err'); return; }
+    const btn = $('#tpl-test-send');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      await callAnnounce({ subject: '[TEST] ' + subject, body_html: bodyHtml, recipients: [email] });
+      showToast(`Test sent to ${email}`, 'ok');
+    } catch (e) { showToast(e.message, 'err'); }
+    finally { btn.disabled = false; btn.textContent = 'Test-send to me'; }
+  });
+
+  $('#tpl-send').addEventListener('click', async () => {
+    updateRecipients();
+    const subject = $('#tpl-subject').value.trim();
+    const bodyHtml = $('#tpl-body').value.trim();
+    if (!subject || !bodyHtml) { showToast('Subject and body required', 'err'); return; }
+    if (!currentRecipients.length) { showToast('No recipients', 'err'); return; }
+    const ok = confirm(`Send "${subject}" to ${currentRecipients.length} recipient${currentRecipients.length > 1 ? 's' : ''}?\n\nThis is a real send via Zoho SMTP. There's no undo.`);
+    if (!ok) return;
+
+    const BATCH_SIZE = 50;
+    const batches = [];
+    for (let i = 0; i < currentRecipients.length; i += BATCH_SIZE) {
+      batches.push(currentRecipients.slice(i, i + BATCH_SIZE));
+    }
+
+    const prog = $('#tpl-progress');
+    prog.style.display = 'block';
+    let sent = 0, failed = 0;
+    const btn = $('#tpl-send');
+    btn.disabled = true;
+    for (let i = 0; i < batches.length; i++) {
+      const batch = batches[i];
+      renderProgress(sent, failed, currentRecipients.length, `Sending batch ${i + 1} of ${batches.length}…`);
+      try {
+        const res = await callAnnounce({ subject, body_html: bodyHtml, recipients: batch });
+        sent += (res.sent || batch.length);
+      } catch (e) {
+        console.error('[announce] batch failed:', e);
+        failed += batch.length;
+      }
+    }
+    renderProgress(sent, failed, currentRecipients.length, sent === currentRecipients.length ? 'Done.' : (failed ? `Done — ${failed} failed.` : 'Done.'));
+    btn.disabled = false;
+    if (failed === 0) showToast(`Sent to ${sent} recipients`, 'ok');
+    else showToast(`Sent ${sent}, ${failed} failed`, 'err');
+  });
+
+  function renderProgress(sent, failed, total, status) {
+    const pct = Math.round(((sent + failed) / total) * 100);
+    $('#tpl-progress').innerHTML = `
+      <div class="send-progress">
+        <div><strong>${status}</strong></div>
+        <div style="font-size: 12px; color: var(--ink3);">${sent} sent · ${failed} failed · ${total - sent - failed} pending</div>
+        <div class="sp-bar"><div class="sp-bar-fill" style="width: ${pct}%;"></div></div>
+      </div>
+    `;
+  }
+
+  async function callAnnounce(payload) {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) throw new Error('Not signed in.');
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-announce`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
+    return body;
+  }
+
+  function initAnnounce() {
+    renderTemplates();
+    renderSegments();
+    updateRecipients();
+    if (!selectedTemplateId) selectTemplate('welcome');
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // ── SETTINGS ────────────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════
+  async function loadSettings() {
+    $('#settings-caller').textContent = currentUser?.email || '—';
+    loadHealth();
+    loadWhitelist();
+    loadEmailLog();
+  }
+
+  async function loadEmailLog() {
+    $('#lc-log').innerHTML = `<div class="empty-state"><div class="loader"></div></div>`;
+    try {
+      const { data, error } = await sb.from('email_log')
+        .select('recipient_email, template_id, subject, triggered_by, status, error, sent_at')
+        .order('sent_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      if (!data?.length) {
+        $('#lc-log').innerHTML = `<div class="empty-state" style="padding: 20px;">No emails sent yet.</div>`;
+        return;
+      }
+      $('#lc-log').innerHTML = data.map(row => {
+        const dot = row.status === 'sent' ? 'mint' : row.status === 'failed' ? 'coral' : 'gold';
+        const trig = row.triggered_by === 'lifecycle' ? '🔁 auto'
+          : row.triggered_by === 'grant' ? '✨ on grant'
+          : row.triggered_by === 'manual' ? '📢 manual'
+          : row.triggered_by;
+        return `<div class="activity-item">
+          <div class="a-dot ${dot}"></div>
+          <div class="a-body">
+            <div class="a-title"><strong>${row.template_id}</strong> ${trig} · ${row.recipient_email}</div>
+            <div class="a-meta">${row.subject || '—'} · ${relTime(row.sent_at)}${row.error ? ' · ' + row.error : ''}</div>
+          </div>
+        </div>`;
+      }).join('');
+    } catch (e) {
+      $('#lc-log').innerHTML = `<div class="empty-state">Load failed: ${e.message}</div>`;
+    }
+  }
+
+  async function runLifecycleSweep(dryRun) {
+    const resultBox = $('#lc-result');
+    const btnDry = $('#lc-dry-run');
+    const btnReal = $('#lc-real-run');
+    btnDry.disabled = true; btnReal.disabled = true;
+    resultBox.style.display = 'block';
+    resultBox.textContent = dryRun ? 'Running dry sweep…' : 'Sending sweep — this is real…';
+    try {
+      const res = await callAdminAction('run_lifecycle_sweep', { dry_run: dryRun });
+      if (dryRun) {
+        const plan = res.plan || [];
+        if (!plan.length) {
+          resultBox.textContent = 'Nothing to send — no users match day-3/14/beta-ending thresholds today.';
+        } else {
+          resultBox.innerHTML = `<strong>${plan.length} email${plan.length > 1 ? 's' : ''} would send:</strong><br>` +
+            plan.map(p => `• ${p.template_id} → ${p.email} (${p.reason})`).join('<br>');
+        }
+      } else {
+        resultBox.textContent = `Done: ${res.sent || 0} sent, ${res.failed || 0} failed, ${res.skipped || 0} skipped (already sent).`;
+        loadEmailLog();
+      }
+    } catch (e) {
+      resultBox.textContent = `Failed: ${e.message}`;
+      resultBox.style.background = 'var(--coral-tint)';
+    } finally {
+      btnDry.disabled = false; btnReal.disabled = false;
+    }
+  }
+
+  $('#lc-dry-run').addEventListener('click', () => runLifecycleSweep(true));
+  $('#lc-real-run').addEventListener('click', () => {
+    if (!confirm('Run the lifecycle sweep for REAL? This sends actual emails to any users matching thresholds. Dry-run first if unsure.')) return;
+    runLifecycleSweep(false);
+  });
+
+  async function loadHealth() {
+    const rows = [
+      { name: 'Supabase',        check: healthSupabase },
+      { name: 'Anthropic',       check: healthAnthropic },
+      { name: 'Stripe',          check: healthStripe },
+      { name: 'Zoho SMTP',       check: healthZoho },
+      { name: 'Push tokens',     check: healthPush },
+      { name: 'Brief scheduler', check: healthBriefs },
+    ];
+    // Reset UI
+    $('#health-list').innerHTML = rows.map(r => `
+      <div class="health-row" data-check="${r.name}">
+        <div class="health-dot loading"></div>
+        <div class="health-name">${r.name}</div>
+        <div class="health-detail">Checking…</div>
+      </div>
+    `).join('');
+    for (const r of rows) {
+      try {
+        const result = await r.check();
+        setHealth(r.name, result.status, result.detail);
+      } catch (e) {
+        setHealth(r.name, 'err', e?.message || 'failed');
+      }
+    }
+  }
+
+  function setHealth(name, status, detail) {
+    const row = document.querySelector(`.health-row[data-check="${name}"]`);
+    if (!row) return;
+    row.querySelector('.health-dot').className = 'health-dot ' + status;
+    row.querySelector('.health-detail').textContent = detail;
+  }
+
+  async function healthSupabase() {
+    const t0 = Date.now();
+    const { error } = await sb.from('families').select('id', { count: 'exact', head: true });
+    if (error) return { status: 'err', detail: `error — ${error.message}` };
+    return { status: 'ok', detail: `OK · ${Date.now() - t0}ms round-trip` };
+  }
+
+  async function healthAnthropic() {
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const { data, error } = await sb.from('api_logs').select('created_at, model')
+      .gte('created_at', since).order('created_at', { ascending: false }).limit(1);
+    if (error) return { status: 'err', detail: `logs unreachable — ${error.message}` };
+    if (!data?.length) return { status: 'warn', detail: 'no calls in last 24h — no traffic or proxy down' };
+    return { status: 'ok', detail: `last call ${relTime(data[0].created_at)} · ${data[0].model || 'unknown model'}` };
+  }
+
+  async function healthStripe() {
+    const { data, error } = await sb.from('profiles').select('subscription_status', { count: 'exact' })
+      .in('subscription_status', ['active', 'trialing', 'past_due']).limit(1);
+    if (error) return { status: 'err', detail: `read failed — ${error.message}` };
+    const total = data?.length || 0;
+    return { status: 'ok', detail: total ? `${total}+ Stripe-linked profiles present · webhook OK` : 'no active subs yet' };
+  }
+
+  async function healthZoho() {
+    // No cheap ping. Report last known signup as heartbeat.
+    const { data, error } = await sb.from('beta_signups').select('created_at').order('created_at', { ascending: false }).limit(1);
+    if (error) return { status: 'warn', detail: `signups read failed — ${error.message}` };
+    if (!data?.length) return { status: 'warn', detail: 'no signup activity to verify against' };
+    return { status: 'ok', detail: `beta-notify wired · last signup ${relTime(data[0].created_at)}` };
+  }
+
+  async function healthPush() {
+    const { data, error } = await sb.from('profiles').select('expo_push_token').in('kind', ['owner', 'adult']);
+    if (error) return { status: 'err', detail: `read failed — ${error.message}` };
+    const total = data?.length || 0;
+    const withTokens = (data || []).filter(p => !!p.expo_push_token).length;
+    const pct = total ? Math.round((withTokens / total) * 100) : 0;
+    const status = pct === 0 && total > 0 ? 'err' : pct < 60 ? 'warn' : 'ok';
+    return { status, detail: `${withTokens}/${total} adults registered (${pct}%)` };
+  }
+
+  async function healthBriefs() {
+    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const { data, error } = await sb.from('zaeli_briefs').select('created_at').gte('created_at', since).order('created_at', { ascending: false }).limit(1);
+    if (error) return { status: 'warn', detail: `read failed — ${error.message}` };
+    if (!data?.length) return { status: 'warn', detail: 'no briefs cached in last 24h — scheduler idle or no active families' };
+    return { status: 'ok', detail: `last brief cached ${relTime(data[0].created_at)}` };
+  }
+
+  async function loadWhitelist() {
+    $('#wl-list').innerHTML = `<div class="empty-state"><div class="loader"></div></div>`;
+    try {
+      const { data, error } = await sb.from('admin_whitelist').select('email, notes, created_at').order('created_at', { ascending: true });
+      if (error) throw error;
+      if (!data?.length) {
+        $('#wl-list').innerHTML = `<div class="empty-state" style="padding: 20px;">No admins.</div>`;
+        return;
+      }
+      $('#wl-list').innerHTML = data.map(w => `
+        <div class="member-row" style="border-bottom: 1px solid var(--line); padding: 10px 4px;">
+          <div class="mav" style="background: var(--sky-deep); width: 30px; height: 30px; font-size: 12px;">${(w.email[0] || '?').toUpperCase()}</div>
+          <div style="flex: 1;">
+            <div style="font-size: 13px; font-weight: 500;">${w.email}</div>
+            <div style="font-size: 11px; color: var(--ink3);">${w.notes || '—'} · added ${fmtDateShort(w.created_at)}</div>
+          </div>
+          ${w.email.toLowerCase() === currentUser?.email?.toLowerCase()
+            ? `<span style="font-size: 11px; color: var(--ink3); font-style: italic;">you</span>`
+            : `<button class="btn btn-secondary btn-sm" data-wl-remove="${w.email}">Remove</button>`}
+        </div>
+      `).join('');
+      $$('#wl-list [data-wl-remove]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const email = btn.dataset.wlRemove;
+          if (!confirm(`Remove ${email} from admin whitelist? They'll lose console access on next sign-in.`)) return;
+          btn.disabled = true;
+          try {
+            await callAdminAction('admin_whitelist_remove', { email });
+            showToast(`Removed ${email}`, 'ok');
+            loadWhitelist();
+          } catch (e) { showToast(e.message, 'err'); btn.disabled = false; }
+        });
+      });
+    } catch (e) {
+      $('#wl-list').innerHTML = `<div class="empty-state">Load failed: ${e.message}</div>`;
+    }
+  }
+
+  $('#wl-add-btn').addEventListener('click', () => {
+    $('#wl-email').value = '';
+    $('#wl-notes').value = '';
+    openModal('modal-wl-add');
+    setTimeout(() => $('#wl-email').focus(), 50);
+  });
+  $('#wl-submit').addEventListener('click', async () => {
+    const email = $('#wl-email').value.trim().toLowerCase();
+    const notes = $('#wl-notes').value.trim();
+    $('#wl-err').classList.remove('show');
+    if (!email) { $('#wl-err').textContent = 'Enter an email.'; $('#wl-err').classList.add('show'); return; }
+    const btn = $('#wl-submit');
+    btn.disabled = true; btn.textContent = 'Adding…';
+    try {
+      await callAdminAction('admin_whitelist_add', { email, notes });
+      showToast(`Added ${email}`, 'ok');
+      closeModal('modal-wl-add');
+      loadWhitelist();
+    } catch (e) {
+      $('#wl-err').textContent = e.message;
+      $('#wl-err').classList.add('show');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Add';
+    }
+  });
+
+  $('#util-resend-btn').addEventListener('click', async () => {
+    const email = $('#util-resend-email').value.trim().toLowerCase();
+    if (!email) { showToast('Enter an email', 'err'); return; }
+    const btn = $('#util-resend-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      // Look up the profile by email first (owners preferred; fallback any)
+      let { data: matches } = await sb.from('profiles').select('id, email, kind').ilike('email', email).eq('kind', 'owner').limit(1);
+      if (!matches?.length) {
+        const fallback = await sb.from('profiles').select('id, email, kind').ilike('email', email).limit(1);
+        matches = fallback.data;
+      }
+      if (!matches?.length) throw new Error(`No profile found with email ${email}`);
+      await callAdminAction('resend_welcome', { user_id: matches[0].id });
+      showToast(`Welcome email re-sent to ${matches[0].email}`, 'ok');
+      $('#util-resend-email').value = '';
+    } catch (e) { showToast(e.message, 'err'); }
+    finally { btn.disabled = false; btn.textContent = 'Resend'; }
+  });
+
+  $('#settings-refresh').addEventListener('click', () => {
+    loadHealth();
+    loadWhitelist();
+  });
+
+  // ── Mobile hamburger ────────────────────────────────────────
+  $('#mobile-menu-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    $('.sidebar').classList.add('open');
+    $('#sidebar-scrim').classList.add('show');
+  });
+  $('#sidebar-scrim').addEventListener('click', () => {
+    $('.sidebar').classList.remove('open');
+    $('#sidebar-scrim').classList.remove('show');
+  });
+  // Close drawer when a nav item is tapped
+  $$('.nav-item[data-page]').forEach(nav => {
+    nav.addEventListener('click', () => {
+      $('.sidebar').classList.remove('open');
+      $('#sidebar-scrim').classList.remove('show');
+    });
+  });
+
+  // ── Auto-load pages when switching ──────────────────────────
+  const _switchPage = switchPage;
+  switchPage = function(page) {
+    _switchPage(page);
+    if (page === 'customers' && customersRaw.length === 0) loadCustomers();
+    if (page === 'signups' && signupsRaw.length === 0) loadSignups();
+    if (page === 'costs') loadCosts();
+    if (page === 'alerts') loadAlerts();
+    if (page === 'announce') {
+      // ensure customers + signups loaded for segment counts
+      const chain = [];
+      if (customersRaw.length === 0) chain.push(loadCustomers());
+      if (signupsRaw.length === 0) chain.push(loadSignups());
+      Promise.all(chain).then(() => { initAnnounce(); });
+      if (!chain.length) initAnnounce();
+    }
+    if (page === 'settings') loadSettings();
+  };
+
+  // ═════════════════════════════════════════════════════════════
+  // ── EMAIL TEMPLATE BODIES ───────────────────────────────────
+  // ═════════════════════════════════════════════════════════════
+  // IMPORTANT: templates are flat single-line strings, NO indentation, NO
+  // leading whitespace on any interior line. denomailer sends HTML as
+  // quoted-printable; any space at end of line becomes `=20\n` and can
+  // leak literally into some mail clients. Flat strings sidestep this.
+  // Also NO em-dashes/en-dashes/curly quotes in SUBJECT lines — those
+  // trigger RFC 2047 =?utf-8?Q?...?= encoded-word headers which some
+  // clients render raw. HTML entities (&mdash; &ldquo; etc) in BODY are
+  // fine — the body is HTML, entities decode in every mail client.
+  function emailShell(inner) {
+    return `<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;max-width:520px;margin:0 auto;color:#0A0A0A;line-height:1.55;font-size:16px;">` +
+      `<p style="font-size:36px;font-weight:800;letter-spacing:-1.5px;line-height:1;margin:0 0 20px;">z<span style="color:#A8D8F0;">a</span>el<span style="color:#A8D8F0;">i</span></p>` +
+      inner +
+      `<p style="margin:32px 0 0;font-size:12px;color:rgba(10,10,10,0.45);">Made in Australia &middot; reply anytime &middot; <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></p>` +
+      `</div>`;
+  }
+
+  // Batch 8 — new copy synced with Edge Function templates. All signed off
+  // "Rich" personally. Kept identical to supabase/functions/admin-actions
+  // WELCOME_BODY + supabase/functions/email-lifecycle CHECKIN_3DAY_BODY etc.
+  function welcomeBodyHtml() {
+    return emailShell(
+      `<p style="margin:0 0 18px;">Hi there,</p>` +
+      `<p style="margin:0 0 18px;">You&#39;re in &mdash; thank you. Being an early beta tester for a small AU-built app is a real thing to say yes to, and I don&#39;t take it lightly.</p>` +
+      `<div style="background:rgba(240,220,128,0.35);border-left:3px solid #8B6914;padding:14px 18px;border-radius:6px;margin-bottom:18px;">` +
+      `<p style="margin:0;"><strong>Your 3 months free start now.</strong> No card on file, no auto-renew &mdash; just the full app, on you, for the whole trial. If Zaeli sticks, it&#39;s A$6.99/month after that. If it doesn&#39;t, no drama.</p>` +
+      `</div>` +
+      `<p style="margin:0 0 18px;"><strong>What I actually need from you:</strong> honest feedback. Good, bad, weird, half-baked &mdash; all of it useful. The absolute best thing you can do is text me the moment something feels clunky, or reply to this email with a one-liner. I read every reply personally, no support desk.</p>` +
+      `<p style="margin:0 0 18px;"><strong>Three things to try in the first day or two:</strong></p>` +
+      `<ul style="margin:0 0 18px;padding-left:20px;">` +
+      `<li style="margin-bottom:8px;"><strong>Tap the mic on the Home screen</strong> and say &ldquo;add tennis Tuesday at 5pm&rdquo; &mdash; that&#39;s the whole loop right there.</li>` +
+      `<li style="margin-bottom:8px;"><strong>Snap a photo of a school newsletter</strong> from the chat bar. Zaeli reads it and adds every event to your calendar in one tap.</li>` +
+      `<li style="margin-bottom:8px;"><strong>Invite your partner or older kids</strong> from More &rarr; Our Family. Then calendar, shopping, and reminders sync across everyone.</li>` +
+      `</ul>` +
+      `<p style="margin:0 0 18px;">Your morning and evening briefs will start landing on your lockscreen at times you can set in Settings. Read them there &mdash; most days you won&#39;t need to open the app.</p>` +
+      `<p style="margin:0 0 18px;">Thanks again for being one of the first. Reply anytime.</p>` +
+      `<p style="margin:0 0 4px;">Rich</p>` +
+      `<p style="margin:0;color:rgba(10,10,10,0.55);font-size:14px;">Zaeli &middot; <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></p>`
+    );
+  }
+
+  function checkin3dayHtml() {
+    return emailShell(
+      `<p style="margin:0 0 18px;">Hi there,</p>` +
+      `<p style="margin:0 0 18px;">Three days in &mdash; how&#39;s Zaeli feeling?</p>` +
+      `<p style="margin:0 0 18px;">No pressure to reply with anything polished. Even a one-liner is genuinely useful. A few prompts if it helps:</p>` +
+      `<div style="font-style:italic;color:rgba(10,10,10,0.72);padding-left:16px;border-left:3px solid #A8D8F0;margin-bottom:18px;">` +
+      `&ldquo;The bit that actually worked well was ___&rdquo;<br>` +
+      `&ldquo;The bit that felt clunky was ___&rdquo;<br>` +
+      `&ldquo;What I couldn&#39;t figure out was ___&rdquo;<br>` +
+      `&ldquo;What I wish it would do is ___&rdquo;` +
+      `</div>` +
+      `<p style="margin:0 0 18px;">If it&#39;s <strong>not clicking</strong>, tell me. That&#39;s more useful than polite silence &mdash; every single &ldquo;this bit is weird&rdquo; text I get shapes what I ship next week.</p>` +
+      `<p style="margin:0 0 18px;">Two things worth trying if you haven&#39;t yet:</p>` +
+      `<ul style="margin:0 0 18px;padding-left:20px;">` +
+      `<li style="margin-bottom:8px;"><strong>Photo &rarr; calendar</strong>: snap a school note, invitation, or fixture list in the chat. Zaeli extracts every event.</li>` +
+      `<li style="margin-bottom:8px;"><strong>Shared reminders</strong>: say &ldquo;remind Anna to pick up milk tomorrow at 3pm&rdquo;. It goes on her list too, not just yours.</li>` +
+      `</ul>` +
+      `<p style="margin:0 0 18px;">Cheers,</p>` +
+      `<p style="margin:0 0 4px;">Rich</p>` +
+      `<p style="margin:0;color:rgba(10,10,10,0.55);font-size:14px;">Zaeli &middot; <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></p>`
+    );
+  }
+
+  function tips14dayHtml() {
+    return emailShell(
+      `<p style="margin:0 0 18px;">Hi there,</p>` +
+      `<p style="margin:0 0 18px;">Two weeks in &mdash; thanks for sticking with it. A quick note on three habits I see from the families getting the most out of Zaeli:</p>` +
+      `<ol style="margin:0 0 18px;padding-left:20px;">` +
+      `<li style="margin-bottom:12px;"><strong>Voice-first on the go.</strong> The mic on the home screen is faster than opening any other app for adding stuff. Try it walking to the car, at pickup, in the aisle at Woolies. It becomes muscle memory quickly.</li>` +
+      `<li style="margin-bottom:12px;"><strong>Read the brief on lockscreen, don&#39;t open the app.</strong> Around your morning brief time, a push lands with the full day&#39;s shape &mdash; meals, events, one nudge. Read it there and get on with your day. Zero-friction glance.</li>` +
+      `<li style="margin-bottom:12px;"><strong>Actually share with your partner.</strong> If they&#39;re still on Notes or the iCloud Calendar and you&#39;re on Zaeli, half the value is lost. More &rarr; Our Family &rarr; invite. Takes 90 seconds and unlocks the whole point.</li>` +
+      `</ol>` +
+      `<p style="margin:0 0 18px;"><strong>Bonus:</strong> reminders can be personal (just you) OR shared (whole family). Say &ldquo;remind me to grab milk&rdquo; vs &ldquo;remind us bins out tonight&rdquo; &mdash; Zaeli picks up on the difference.</p>` +
+      `<p style="margin:0 0 18px;"><strong>Halfway through the beta &mdash; how&#39;s it holding up?</strong> If there&#39;s a feature you wish existed, or one that&#39;s clunky enough to be worth mentioning, hit reply. I&#39;m still adjusting a lot based on what real families tell me.</p>` +
+      `<p style="margin:0 0 18px;">Talk soon,</p>` +
+      `<p style="margin:0 0 4px;">Rich</p>` +
+      `<p style="margin:0;color:rgba(10,10,10,0.55);font-size:14px;">Zaeli &middot; <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></p>`
+    );
+  }
+
+  function betaEndingHtml() {
+    return emailShell(
+      `<p style="margin:0 0 18px;">Hi there,</p>` +
+      `<p style="margin:0 0 18px;">Quick heads up &mdash; your Zaeli beta ends in <strong>2 weeks</strong>. First, thanks. Being one of the earliest families to trust an unfinished app is a genuinely generous thing to do, and it&#39;s shaped what Zaeli is today more than you probably realise.</p>` +
+      `<p style="margin:0 0 18px;"><strong>Two paths from here:</strong></p>` +
+      `<div style="background:rgba(240,220,128,0.35);border-left:3px solid #8B6914;padding:14px 18px;border-radius:6px;margin-bottom:18px;">` +
+      `<p style="margin:0;"><strong>Stay on:</strong> Zaeli is A$6.99/month, tax-inclusive. Whole family plan. Nothing extra to pay per kid. Cancel anytime from Settings. To subscribe: open the app &rarr; Settings &rarr; Subscribe.</p>` +
+      `</div>` +
+      `<p style="margin:0 0 18px;"><strong>Not for you:</strong> completely fine. Zaeli will stop working for you when the beta ends &mdash; no card was ever saved, no auto-charge. But before you go, I&#39;d love one last favour: <strong>tell me why</strong>. A one-line reply saying &ldquo;it didn&#39;t stick because ___&rdquo; is worth more to me than any five-star review. Genuinely, that shapes what I fix.</p>` +
+      `<p style="margin:0 0 18px;"><strong>Either way &mdash; thank you.</strong> Testing something raw takes patience and I don&#39;t forget it. If you know another family who might get something out of Zaeli, forwarding this email or sharing <a href="https://zaeli.app">zaeli.app</a> is the highest compliment.</p>` +
+      `<p style="margin:0 0 4px;">Rich</p>` +
+      `<p style="margin:0;color:rgba(10,10,10,0.55);font-size:14px;">Zaeli &middot; <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></p>`
+    );
+  }
+
+  function androidWaitlistHtml() {
+    return emailShell(
+      `<p style="margin:0 0 18px;">Hi there,</p>` +
+      `<p style="margin:0 0 18px;">Thanks for signing up &mdash; Android&#39;s coming, just not quite yet.</p>` +
+      `<p style="margin:0 0 18px;">Zaeli&#39;s currently in iOS-only beta while we get the core right with a small group of families. Realistically, the Android build is <strong>6-8 weeks out</strong> &mdash; we want to ship it feeling as polished as the iPhone version, not a rushed port.</p>` +
+      `<p style="margin:0 0 18px;">You&#39;re on the Android waitlist. As soon as the first beta build is ready, I&#39;ll email you an install link. No app-store waiting rooms, no forms to refill.</p>` +
+      `<p style="margin:0 0 18px;">Thanks for your patience,</p>` +
+      `<p style="margin:0 0 4px;">Rich</p>` +
+      `<p style="margin:0;color:rgba(10,10,10,0.55);font-size:14px;">Zaeli &middot; <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></p>`
+    );
+  }
+
+  function androidBackdoorHtml() {
+    return emailShell(
+      `<p style="margin:0 0 18px;">Hi there,</p>` +
+      `<p style="margin:0 0 18px;">You know how the official line is &ldquo;Zaeli is iPhone-only right now&rdquo;?</p>` +
+      `<p style="margin:0 0 18px;">That&#39;s true &mdash; for strangers. But you&#39;re not a stranger, and it turns out I can smuggle you a working Android version through the back door if you&#39;re up for a bit of chaos.</p>` +
+      `<p style="margin:0 0 18px;"><strong>Here&#39;s the honest deal:</strong></p>` +
+      `<ul style="margin:0 0 18px;padding-left:20px;">` +
+      `<li style="margin-bottom:10px;"><strong>Real app.</strong> Same Zaeli the iPhone families are on. No shortcuts, no watered-down version.</li>` +
+      `<li style="margin-bottom:10px;"><strong>Installs directly from a link I&#39;ll text you</strong> &mdash; not from the Play Store. Android will show a &ldquo;install from unknown sources&rdquo; warning. That&#39;s normal for this method. Click through it.</li>` +
+      `<li style="margin-bottom:10px;"><strong>Push notifications won&#39;t work yet</strong> (Android push needs Firebase setup, which is on the list). Everything else &mdash; chat, calendar, shopping, reminders, in-app briefs &mdash; all works.</li>` +
+      `<li style="margin-bottom:10px;"><strong>Every few weeks I&#39;ll text you a new install link</strong> when I ship an update. Manual reinstall. Not elegant, but it&#39;s the price of the back door.</li>` +
+      `<li style="margin-bottom:10px;"><strong>Your job:</strong> use it, and text me the moment something feels weird or broken. That&#39;s it. You&#39;re the Android guinea pig.</li>` +
+      `</ul>` +
+      `<p style="margin:0 0 18px;">Meanwhile the proper Google Play version is being built in the background &mdash; 6-8 weeks away. When it lands, you get first dibs and switch to the auto-updating version like everyone else.</p>` +
+      `<p style="margin:0 0 18px;">If you&#39;re in, reply &ldquo;in&rdquo; and I&#39;ll send the install link + a proper walk-through. If Android reinstall admin sounds like too much, just sit tight for the Play Store version.</p>` +
+      `<p style="margin:0 0 18px;">Either way, cheers for being the kind of person who&#39;d say yes to this.</p>` +
+      `<p style="margin:0 0 4px;">Rich</p>` +
+      `<p style="margin:0;color:rgba(10,10,10,0.55);font-size:14px;">Zaeli &middot; <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></p>`
+    );
+  }
+
+  function customHtml() {
+    return emailShell(
+      `<p style="margin:0 0 18px;">Hi there,</p>` +
+      `<p style="margin:0 0 18px;">Your message here.</p>` +
+      `<p style="margin:0 0 8px;">Cheers,</p>` +
+      `<p style="margin:0 0 4px;">Rich</p>` +
+      `<p style="margin:0;color:rgba(10,10,10,0.55);font-size:14px;">Zaeli &middot; <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></p>`
+    );
+  }
+
+  // ── Kick off ────────────────────────────────────────────────
+  boot();
+})();
+</script>
+
+</body>
+</html>

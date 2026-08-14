@@ -13,7 +13,7 @@ import { invalidateAccount } from '../lib/account-state'
 import { invalidateCache as invalidateTourCache } from '../lib/tour-state'
 import { invalidateCache as invalidatePrefsCache, loadPrefs } from '../lib/user-prefs'
 import { resetCache as invalidateInvitesCache } from '../lib/invite-state'
-import { invalidateRosterCache, loadRoster } from '../lib/family-roster'
+import { invalidateRosterCache, loadRoster, ensureOwnMembership, getRoster } from '../lib/family-roster'
 import { getCurrentFamilyId } from '../lib/auth'
 import { requestNotificationPermission, cancelBriefNotifications, registerPushToken } from '../lib/notifications'
 
@@ -68,9 +68,31 @@ export default function RootLayout() {
         // no avatars show until the parent re-renders — feels like tags
         // "went missing" for a couple minutes.
         loadProfile()
-          .then(() => {
+          .then(async () => {
             const fid = getCurrentFamilyId()
-            if (fid) return loadRoster(fid)
+            if (!fid) return
+            await loadRoster(fid)
+            // Aug 27 hotfix — auto-heal the signed-in user's family_members
+            // row on every app open. Andy hit "I don't appear in my own
+            // family list" because onboarding filtered out `id === 'me'`
+            // from the family_members insert. Doing this in _layout means
+            // ALL downstream screens (not just Our Family) can find him:
+            // calendar avatars, meal cook picker, event assignment, etc.
+            // Idempotent — no-op if row already exists.
+            const profile = getProfile()
+            if (profile?.id && profile?.family_id) {
+              const inRoster = getRoster().find(m => m.id === profile.id)
+              if (!inRoster) {
+                const healed = await ensureOwnMembership({
+                  id: profile.id,
+                  family_id: profile.family_id,
+                  name: (profile as any).name,
+                  colour: (profile as any).colour,
+                  kind: (profile as any).kind,
+                })
+                if (healed.created) await loadRoster(fid)
+              }
+            }
           })
           .catch(e => console.log('[auth] background profile/roster load failed:', e?.message))
       } else {

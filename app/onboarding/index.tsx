@@ -375,12 +375,16 @@ export default function OnboardingScreen() {
       // onboarding to the DB. Prior state: FamilyStep captured names/
       // roles/years into local `family` state, but finishOnboarding
       // never wrote to `family_members` table — so Our Family showed
-      // ZERO members after onboarding. That kills the reason the user
-      // just typed all those names in.
+      // ZERO members after onboarding.
       //
-      // Insert order: skip the 'me' auto-seed row (that user already
-      // has a profiles row; family_members is for OTHER family members,
-      // not the auth owner themselves).
+      // Aug 27 fix — was filtering out `m.id !== 'me'` (the owner) with
+      // the reasoning "family_members is for OTHER family members". WRONG.
+      // Every screen that reads family_members (Our Family, Calendar
+      // avatars, Meal cook picker) treats it as THE authoritative roster.
+      // Andy hit this on first install — he wasn't in his own family list.
+      //
+      // Now the owner IS inserted with id=profile.id (matching auth.uid)
+      // so `roster.find(m => m.id === meId)` resolves cleanly downstream.
       //
       // year_level column is INT — parse "Year 5" → 5, "Kinder" → null,
       // "Prep" → 0, everything else numeric-parsed.
@@ -388,16 +392,15 @@ export default function OnboardingScreen() {
         const profile = getProfile();
         const familyId = profile?.family_id;
         if (familyId && family.length > 0) {
-          const otherMembers = family.filter(m => m.id !== 'me');
-          if (otherMembers.length > 0) {
-            const parseYearLevel = (s?: string): number | null => {
-              if (!s) return null;
-              if (s === 'Kinder') return null;
-              if (s === 'Prep') return 0;
-              const m = s.match(/(\d+)/);
-              return m ? parseInt(m[1], 10) : null;
-            };
-            const rows = otherMembers.map(m => ({
+          const parseYearLevel = (s?: string): number | null => {
+            if (!s) return null;
+            if (s === 'Kinder') return null;
+            if (s === 'Prep') return 0;
+            const m = s.match(/(\d+)/);
+            return m ? parseInt(m[1], 10) : null;
+          };
+          const rows = family.map(m => {
+            const base: any = {
               family_id:    familyId,
               name:         m.name.trim(),
               colour:       m.colour,
@@ -405,15 +408,20 @@ export default function OnboardingScreen() {
               year_level:   parseYearLevel(m.yearLevel),
               avatar_emoji: null,
               tutor_active: false,
-            }));
-            const { error: memErr } = await supabase.from('family_members').insert(rows);
-            if (memErr) {
-              console.log('[onboarding] family_members insert failed:', memErr.message);
-            } else {
-              // Wipe the roster cache so a fresh loadRoster on next
-              // screen pulls the members we just inserted.
-              invalidateRosterCache();
-            }
+            };
+            // Owner row: pin the id to profile.id so downstream lookups match.
+            // Others: let Supabase auto-generate (invitees will reconcile
+            // their own row when they accept the invite).
+            if (m.id === 'me' && profile?.id) base.id = profile.id;
+            return base;
+          });
+          const { error: memErr } = await supabase.from('family_members').insert(rows);
+          if (memErr) {
+            console.log('[onboarding] family_members insert failed:', memErr.message);
+          } else {
+            // Wipe the roster cache so a fresh loadRoster on next
+            // screen pulls the members we just inserted.
+            invalidateRosterCache();
           }
         }
       } catch (e:any) {

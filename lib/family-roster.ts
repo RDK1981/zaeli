@@ -182,3 +182,186 @@ export function invalidateRosterCache(): void {
   _loaded = false;
   _roster = [];
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Option C (Aug 27) — member edit helpers. Wired from Our Family →
+// member profile view when Andy discovered every row was inert.
+//
+// RLS invariant: family_members.id === profiles.id === auth.uid() for the
+// same person. `supabase-family-editing.sql` tightens UPDATE policy to
+// (owner OR self) — client-side we ALSO gate the buttons on isOwner /
+// isMe, so the two layers agree. Adults calling update on someone else's
+// row will hit RLS deny.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Update a member's display name. Writes to family_members.name AND to
+// profiles.name if the row belongs to a signed-in user (so identity stays
+// consistent across surfaces — Settings hero, brief prompts etc.).
+export async function updateMemberName(memberId: string, newName: string): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = (newName || '').trim();
+  if (!trimmed) return { ok: false, error: 'Name cannot be empty' };
+  if (trimmed.length > 40) return { ok: false, error: 'Name is too long' };
+
+  try {
+    const { error: rmErr } = await supabase
+      .from('family_members')
+      .update({ name: trimmed })
+      .eq('id', memberId);
+    if (rmErr) return { ok: false, error: rmErr.message };
+
+    // Best-effort: also update the profile row if one exists. If it doesn't
+    // (e.g. a legacy roster-only entry with no auth user), the update just
+    // matches zero rows — not an error.
+    await supabase.from('profiles').update({ name: trimmed, updated_at: new Date().toISOString() }).eq('id', memberId);
+
+    // Update cache in place so screens re-render fast without waiting for
+    // a full reload.
+    _roster = _roster.map(m => (m.id === memberId ? { ...m, name: trimmed, color: colorFor(trimmed, m.color) } : m));
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'unknown error' };
+  }
+}
+
+// Update a member's colour. Writes to family_members.colour.
+export async function updateMemberColor(memberId: string, newColor: string): Promise<{ ok: boolean; error?: string }> {
+  const c = (newColor || '').trim();
+  if (!/^#[0-9A-Fa-f]{6}$/.test(c)) return { ok: false, error: 'Invalid colour format' };
+
+  try {
+    const { error } = await supabase
+      .from('family_members')
+      .update({ colour: c })
+      .eq('id', memberId);
+    if (error) return { ok: false, error: error.message };
+
+    _roster = _roster.map(m => (m.id === memberId ? { ...m, color: c } : m));
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'unknown error' };
+  }
+}
+
+// Remove a member from the family. Owner-only, enforced server-side by the
+// remove_family_member SECURITY DEFINER RPC (see supabase-family-editing.sql).
+// The RPC deletes the family_members row + nulls profiles.family_id, so the
+// removed user loses RLS access to all family data but keeps their auth user
+// (can be re-invited later).
+export async function removeMember(memberId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('remove_family_member', { target_id: memberId });
+    if (error) return { ok: false, error: error.message };
+    if (data && typeof data === 'object' && data.ok === false) {
+      return { ok: false, error: (data as any).error ?? 'remove failed' };
+    }
+    _roster = _roster.filter(m => m.id !== memberId);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'unknown error' };
+  }
+}
+
+// Read a kid's Budget access flag from profiles.budget_access.
+export async function getBudgetAccess(profileId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('budget_access')
+      .eq('id', profileId)
+      .maybeSingle();
+    if (error || !data) return false;
+    return !!data.budget_access;
+  } catch {
+    return false;
+  }
+}
+
+// Set a kid's Budget access flag. RLS policy on profiles requires owner
+// permission to update someone else's row — enforced by the tightened
+// policies in supabase-data-rls.sql (Session 21).
+export async function setBudgetAccess(profileId: string, value: boolean): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ budget_access: value, updated_at: new Date().toISOString() })
+      .eq('id', profileId);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'unknown error' };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Aug 27 hotfix — owner/invitee auto-heal into family_members.
+//
+// Andy reported he wasn't in his own family list. Root cause:
+// onboarding/index.tsx:391 explicitly filtered out `id === 'me'` when
+// persisting family_members. Comment justified it as "family_members is for
+// OTHER family members" — but every screen that reads family_members
+// (Our Family, Calendar avatars, Meal cook picker) treats it as THE
+// authoritative roster. So the owner was invisible.
+//
+// Same problem exists for invitees who join via app/invite/[token].tsx —
+// the invitee flow never creates a family_members row for them, so they'd
+// see themselves missing too.
+//
+// This helper is called from family.tsx on load. If the signed-in user has
+// a profile but NO family_members row keyed by their auth.uid, it INSERTs
+// one using profile data. Idempotent — calling on a healthy account is a
+// no-op after the check.
+//
+// Invariant established: family_members.id === profiles.id === auth.uid()
+// for the person themselves. This lets `roster.find(m => m.id === meId)`
+// resolve cleanly across all future queries.
+export async function ensureOwnMembership(profile: {
+  id: string;
+  family_id: string;
+  name?: string | null;
+  colour?: string | null;
+  kind?: string | null;
+}): Promise<{ ok: boolean; created: boolean; error?: string }> {
+  if (!profile?.id || !profile?.family_id) {
+    return { ok: false, created: false, error: 'missing profile.id or family_id' };
+  }
+
+  try {
+    // Check if a row already exists for this user
+    const { data: existing } = await supabase
+      .from('family_members')
+      .select('id')
+      .eq('id', profile.id)
+      .eq('family_id', profile.family_id)
+      .maybeSingle();
+    if (existing?.id) return { ok: true, created: false };
+
+    // Insert a row using profile data
+    const displayName = (profile.name || '').trim() || 'You';
+    const colour = profile.colour || colorFor(displayName, null);
+    const role = profile.kind === 'kid' ? 'child' : 'parent';
+
+    const { error } = await supabase
+      .from('family_members')
+      .insert({
+        id: profile.id,
+        family_id: profile.family_id,
+        name: displayName,
+        colour,
+        role,
+        year_level: null,
+        avatar_emoji: null,
+        tutor_active: false,
+      });
+    if (error) {
+      // If it's a unique-violation on id, the row got created by another
+      // process in the meantime — treat as success.
+      if (error.code === '23505') return { ok: true, created: false };
+      return { ok: false, created: false, error: error.message };
+    }
+    // Invalidate cache so next loadRoster picks up the new row
+    _loaded = false;
+    return { ok: true, created: true };
+  } catch (e: any) {
+    return { ok: false, created: false, error: e?.message ?? 'unknown error' };
+  }
+}
