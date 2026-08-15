@@ -59,7 +59,7 @@ const SUCCESS = '#34C759';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 // Round B commit 10 — added subscription/password/colour/pin sub-pages.
-type Screen = 'main' | 'notifications' | 'memory' | 'tour' | 'subscription' | 'password' | 'colour' | 'pin';
+type Screen = 'main' | 'notifications' | 'memory' | 'tour' | 'subscription' | 'password' | 'colour' | 'pin' | 'calendar-sync';
 // Prefs / DEFAULT_PREFS imported from lib/user-prefs (Phase 2c — Supabase-backed)
 
 // '07:00' -> '7:00 am' · '12:30' -> '12:30 pm' · '18:30' -> '6:30 pm'
@@ -320,6 +320,7 @@ export default function SettingsScreen() {
     : view === 'password' ? 'Password'
     : view === 'colour' ? 'Your colour'
     : view === 'pin' ? 'Change PIN'
+    : view === 'calendar-sync' ? 'iPhone Calendar sync'
     : 'Replay tour';
   const handleBack = () => {
     if (view !== 'main') setView('main');
@@ -342,6 +343,7 @@ export default function SettingsScreen() {
           onNavPassword={() => setView('password')}
           onNavColour={() => setView('colour')}
           onNavPin={() => setView('pin')}
+          onNavCalendarSync={() => setView('calendar-sync')}
           onPlaceholder={handleRowPlaceholder}
           onSignOut={() => Alert.alert(
             'Sign out?',
@@ -703,6 +705,10 @@ export default function SettingsScreen() {
         <PinResetView onDone={() => setView('main')}/>
       )}
 
+      {loaded && view === 'calendar-sync' && (
+        <CalendarSyncView profile={profile}/>
+      )}
+
       {/* Time picker modal */}
       <Modal
         visible={!!editingTimeKey}
@@ -764,6 +770,8 @@ function MainView(p: {
   onNavPassword: () => void;
   onNavColour: () => void;
   onNavPin: () => void;
+  // Build 49 — iCal sync
+  onNavCalendarSync: () => void;
   onPlaceholder: (label: string) => void;
   onSignOut: () => void;
   onDelete: () => void;
@@ -956,24 +964,11 @@ function MainView(p: {
           IN sync: iPhone Calendar events show up in Zaeli's Calendar sheet
           with a "📱 iPhone" badge, read-only. Zaeli events stay in Zaeli.
           Off by default; toggle-on triggers iOS permission prompt.
-          Google + Outlook come later — each needs its own OAuth setup. */}
-      {Platform.OS === 'ios' && (
-        <>
-          <SecLabel>Integrations</SecLabel>
-          <View style={s.group}>
-            <Row icon="📱" iconBg="rgba(10,10,10,0.05)" iconFg="#0A0A0A"
-                 title="iPhone Calendar"
-                 sub={appleCalOn && appleCalPerm === 'granted'
-                   ? 'Read-only · showing your iPhone events'
-                   : appleCalPerm === 'denied'
-                   ? 'Permission denied — enable in iOS Settings → Zaeli'
-                   : 'Show your iPhone Calendar events alongside Zaeli'}
-                 toggle toggleValue={appleCalOn && appleCalPerm === 'granted'}
-                 onToggle={toggleAppleCal}
-                 last/>
-          </View>
-        </>
-      )}
+          Google + Outlook come later — each needs its own OAuth setup.
+          Session 34 — this old read-only toggle superseded by the new
+          full two-way sync detail page under Preferences → iPhone Calendar
+          sync. Block removed. lib/apple-calendar.ts still lives for now;
+          may be deprecated once nothing references it. */}
 
       {/* Preferences */}
       <SecLabel>Preferences</SecLabel>
@@ -981,6 +976,9 @@ function MainView(p: {
         <Row icon="🔔" iconBg="#FFF4E0" iconFg="#D97706"
              title="Notifications" sub="Briefs, reminders, kids, shopping"
              onPress={p.onNavNotifications}/>
+        <Row icon="📅" iconBg="#E8F4FD" iconFg="#0A5C80"
+             title="iPhone Calendar sync" sub="Two-way sync with your iPhone calendars"
+             onPress={p.onNavCalendarSync}/>
         <Row icon="✦" iconBg="#EDE8FF" iconFg="#6B35D9"
              title="Zaeli's memory" sub="What I remember about your family"
              onPress={p.onNavMemory} last/>
@@ -1726,6 +1724,283 @@ function PinResetView(p: { onDone: () => void }) {
     </View>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// iPhone Calendar sync view (Build 49 — two-way sync, per-calendar picker)
+// ═══════════════════════════════════════════════════════════════════════════
+function CalendarSyncView(p: { profile: Profile | null }) {
+  const [perm, setPerm] = useState<'granted' | 'limited' | 'denied' | 'undetermined' | 'checking'>('checking');
+  const [calendars, setCalendars] = useState<Array<{ id: string; title: string; color: string; source: string; sync_enabled: boolean }>>([]);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  async function refresh() {
+    if (Platform.OS !== 'ios') {
+      setPerm('denied');
+      return;
+    }
+    try {
+      const CS = await import('../../lib/calendar-sync');
+      const currentPerm = await CS.getCurrentPermission();
+      setPerm(currentPerm);
+      const uid = await getCurrentUserId();
+      if (!uid) return;
+      if (currentPerm === 'granted' || currentPerm === 'limited') {
+        const cals = await CS.listUserCalendars(uid);
+        setCalendars(cals);
+        const cfg = await CS.loadSyncConfig(uid);
+        setLastSynced(cfg?.last_synced_at ?? null);
+      }
+    } catch (e: any) {
+      console.log('[calendar-sync-view] refresh error:', e?.message);
+    }
+  }
+
+  useEffect(() => { refresh(); }, []);
+
+  async function onRequestPermission() {
+    if (Platform.OS !== 'ios') {
+      Alert.alert('iOS only', 'iPhone Calendar sync is only available on iPhone right now. Android support is coming.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const CS = await import('../../lib/calendar-sync');
+      const status = await CS.requestCalendarPermission();
+      setPerm(status);
+      if (status === 'granted' || status === 'limited') {
+        await refresh();
+      } else if (status === 'denied') {
+        Alert.alert(
+          'Permission needed',
+          'To sync your iPhone Calendar, Zaeli needs Calendar access. Enable it in iOS Settings → Zaeli → Calendars.',
+          [{ text: 'OK' }],
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onToggleCalendar(calId: string, next: boolean) {
+    const uid = await getCurrentUserId();
+    const familyId = getFamilyId();
+    if (!uid || !familyId) return;
+    // Optimistic
+    setCalendars(prev => prev.map(c => c.id === calId ? { ...c, sync_enabled: next } : c));
+    const CS = await import('../../lib/calendar-sync');
+    const res = await CS.setCalendarSyncEnabled(uid, familyId, calId, next);
+    if (!res.ok) {
+      setCalendars(prev => prev.map(c => c.id === calId ? { ...c, sync_enabled: !next } : c));
+      Alert.alert("Couldn't save", res.error ?? 'Try again in a moment.');
+    }
+  }
+
+  async function onSyncNow() {
+    const uid = await getCurrentUserId();
+    const familyId = getFamilyId();
+    if (!uid || !familyId) return;
+    setSyncing(true);
+    try {
+      const CS = await import('../../lib/calendar-sync');
+      const res = await CS.syncNow(uid, familyId);
+      if (!res.ok) {
+        Alert.alert(
+          'Sync incomplete',
+          res.error === 'no calendars enabled'
+            ? 'Tick at least one calendar above, then try again.'
+            : res.error ?? 'Something went wrong. Try again in a moment.',
+        );
+      } else {
+        Alert.alert(
+          'Synced ✓',
+          `${res.inserted} new, ${res.updated} updated, ${res.deleted} removed across ${res.perCalendar.length} calendar${res.perCalendar.length === 1 ? '' : 's'}.`,
+        );
+        setLastSynced(new Date().toISOString());
+      }
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function onDisconnect() {
+    Alert.alert(
+      'Disconnect sync?',
+      "All external events imported from your iPhone Calendar will be removed from Zaeli. Your iPhone Calendar itself is untouched.",
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            const uid = await getCurrentUserId();
+            if (!uid) return;
+            setBusy(true);
+            try {
+              const CS = await import('../../lib/calendar-sync');
+              const res = await CS.disconnectSync(uid);
+              if (!res.ok) {
+                Alert.alert("Couldn't disconnect", res.error ?? 'Try again in a moment.');
+              } else {
+                Alert.alert('Disconnected', `${res.deleted} imported event${res.deleted === 1 ? '' : 's'} removed.`);
+                setCalendars(prev => prev.map(c => ({ ...c, sync_enabled: false })));
+                setLastSynced(null);
+              }
+            } finally {
+              setBusy(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingTop: 14, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+
+      {/* Info hero */}
+      <View style={{ marginHorizontal: 14, marginBottom: 16, padding: 18, backgroundColor: '#E8F4FD', borderRadius: 16 }}>
+        <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: 16, color: INK, marginBottom: 6 }}>Two-way iPhone Calendar sync</Text>
+        <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 13, color: INK2, lineHeight: 20 }}>
+          Pick which iPhone calendars you want to see in Zaeli — those events show up here, personal to you (other family members don't see them). Your Zaeli events also appear on your iPhone Calendar in a dedicated "Zaeli" calendar. Sync runs automatically on every app open — tap "Sync now" to force it.
+        </Text>
+      </View>
+
+      {/* Permission gate */}
+      {perm === 'checking' && (
+        <View style={{ marginHorizontal: 14, marginBottom: 20, padding: 18, alignItems:'center' }}>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 13, color: INK3 }}>Checking Calendar permission...</Text>
+        </View>
+      )}
+
+      {(perm === 'undetermined' || perm === 'denied') && (
+        <View style={{ marginHorizontal: 14, marginBottom: 20, padding: 20, backgroundColor: CARD, borderRadius: 16 }}>
+          <Text style={{ fontFamily:'Poppins_800ExtraBold', fontSize: 15, color: INK, marginBottom: 8 }}>
+            {perm === 'denied' ? 'Permission denied' : 'Calendar access needed'}
+          </Text>
+          <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 13, color: INK2, lineHeight: 20, marginBottom: 14 }}>
+            {perm === 'denied'
+              ? 'Zaeli needs Calendar access to sync. Enable it in iOS Settings → Zaeli → Calendars, then come back here.'
+              : "Zaeli will ask iOS for permission to read + write your calendars. You'll pick which ones to sync on the next screen."}
+          </Text>
+          {perm === 'undetermined' && (
+            <TouchableOpacity
+              disabled={busy}
+              onPress={onRequestPermission}
+              style={{ backgroundColor: INK, borderRadius: 12, paddingVertical: 12, alignItems:'center', opacity: busy ? 0.5 : 1 }}
+              activeOpacity={0.85}
+            >
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 14, color:'white' }}>
+                {busy ? 'Asking...' : 'Grant Calendar access'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {perm === 'denied' && (
+            <TouchableOpacity
+              onPress={() => Linking.openSettings().catch(() => {})}
+              style={{ backgroundColor: '#E8F4FD', borderRadius: 12, paddingVertical: 12, alignItems:'center' }}
+              activeOpacity={0.85}
+            >
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 14, color: '#0A5C80' }}>Open iOS Settings</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {(perm === 'granted' || perm === 'limited') && (
+        <>
+          {perm === 'limited' && (
+            <View style={{ marginHorizontal: 14, marginBottom: 14, padding: 14, backgroundColor: '#FBF5D6', borderRadius: 12 }}>
+              <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 12, color: '#8B6914', lineHeight: 18 }}>
+                Limited access — you're only sharing some of your calendars. That's fine — Zaeli only syncs the ones you tick below. To share more, go to iOS Settings → Zaeli → Calendars.
+              </Text>
+            </View>
+          )}
+
+          {/* Calendar picker */}
+          <View style={{ paddingHorizontal: 14, marginBottom: 8 }}>
+            <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 11, letterSpacing: 0.5, textTransform:'uppercase', color: INK3 }}>
+              Your calendars — pick what to sync
+            </Text>
+          </View>
+          <View style={s.group}>
+            {calendars.length === 0 && (
+              <View style={{ padding: 20, alignItems:'center' }}>
+                <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 13, color: INK3 }}>No calendars found on this iPhone.</Text>
+              </View>
+            )}
+            {calendars.map((cal, i) => (
+              <TouchableOpacity
+                key={cal.id}
+                onPress={() => onToggleCalendar(cal.id, !cal.sync_enabled)}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection:'row', alignItems:'center',
+                  paddingVertical: 14, paddingHorizontal: 16,
+                  borderBottomWidth: i === calendars.length - 1 ? 0 : StyleSheet.hairlineWidth,
+                  borderBottomColor: 'rgba(10,10,10,0.08)',
+                }}
+              >
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: cal.color, marginRight: 12 }}/>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize: 14, color: INK }}>{cal.title}</Text>
+                  <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 11, color: INK3, marginTop: 2 }}>{cal.source}</Text>
+                </View>
+                <View style={{
+                  width: 44, height: 26, borderRadius: 13,
+                  backgroundColor: cal.sync_enabled ? MINT_DEEP : 'rgba(10,10,10,0.12)',
+                  padding: 2, justifyContent:'center',
+                }}>
+                  <View style={{
+                    width: 22, height: 22, borderRadius: 11, backgroundColor: 'white',
+                    alignSelf: cal.sync_enabled ? 'flex-end' : 'flex-start',
+                  }}/>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Actions */}
+          <View style={{ paddingHorizontal: 14, marginTop: 20, gap: 10 }}>
+            <TouchableOpacity
+              disabled={syncing}
+              onPress={onSyncNow}
+              style={{ backgroundColor: INK, borderRadius: 12, paddingVertical: 14, alignItems:'center', opacity: syncing ? 0.6 : 1 }}
+              activeOpacity={0.85}
+            >
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 14, color:'white' }}>
+                {syncing ? 'Syncing...' : 'Sync now'}
+              </Text>
+            </TouchableOpacity>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 11, color: INK3, textAlign:'center' }}>
+              {lastSynced
+                ? `Last synced ${new Date(lastSynced).toLocaleString('en-AU', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })}`
+                : 'Never synced'}
+            </Text>
+          </View>
+
+          {/* Disconnect */}
+          <View style={{ paddingHorizontal: 14, marginTop: 28 }}>
+            <TouchableOpacity
+              disabled={busy}
+              onPress={onDisconnect}
+              style={{ backgroundColor: 'rgba(197,48,48,0.08)', borderRadius: 12, paddingVertical: 12, alignItems:'center' }}
+              activeOpacity={0.75}
+            >
+              <Text style={{ fontFamily:'Poppins_700Bold', fontSize: 13, color: '#B83333' }}>Disconnect sync</Text>
+            </TouchableOpacity>
+            <Text style={{ fontFamily:'Poppins_400Regular', fontSize: 10, color: INK4, textAlign:'center', marginTop: 8, lineHeight: 15, paddingHorizontal: 20 }}>
+              Removes all imported events from Zaeli. Your iPhone Calendar is untouched.
+            </Text>
+          </View>
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
+const MINT_DEEP = '#2D7A52';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Styles

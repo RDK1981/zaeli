@@ -41,6 +41,7 @@ import MoreSheet from '../components/MoreSheet';
 import { getProfile, waitForProfile } from '../../lib/auth';
 import { loadRoster, getRoster } from '../../lib/family-roster';
 import { setPendingChatContext, setChatIntent, subscribeHomeRefresh, getHomeRefreshVersion } from '../../lib/navigation-store';
+import { loadTile, saveTile, saveLastFamilyId, getLastFamilyId, CACHE_KEYS } from '../../lib/home-cache';
 // (onAuthChange removed Commit 6 — polling for profile-ready is the fix)
 import Svg, { Path, Rect, Circle, Line, Polyline } from 'react-native-svg';
 
@@ -215,10 +216,17 @@ export default function DashboardScreen({
       loadReminders(),
     ]);
 
-    setTodayEvents((evRes.data ?? []).slice(0, 3));
-    setEventCountToday((evRes.data ?? []).length);
-    setShopItems((shopRes.data ?? []).slice(0, 3));
-    setShopCount((shopRes.data ?? []).length);
+    const evList = (evRes.data ?? []).slice(0, 3);
+    const evCount = (evRes.data ?? []).length;
+    const shopList = (shopRes.data ?? []).slice(0, 3);
+    const shopCnt = (shopRes.data ?? []).length;
+    setTodayEvents(evList);
+    setEventCountToday(evCount);
+    setShopItems(shopList);
+    setShopCount(shopCnt);
+    // Build 53 — save to cache so next cold-start paints instantly.
+    saveTile(fid, CACHE_KEYS.eventsToday, { items: evList, count: evCount });
+    saveTile(fid, CACHE_KEYS.shoppingSummary, { items: shopList, count: shopCnt });
 
     // Round B — home tile shows DATED items in the primary "up next" list.
     // Undated to-dos surface as a small count in the sub-line (see todoCount)
@@ -257,8 +265,47 @@ export default function DashboardScreen({
           tier: r.visibility ?? 'personal',
         };
       });
-    setRemindItems(rems.slice(0, 3));
+    const remsTop3 = rems.slice(0, 3);
+    setRemindItems(remsTop3);
     setRemindCount(rems.length);
+    // Build 53 — save reminders + last-family-id to cache
+    saveTile(fid, CACHE_KEYS.remindersSummary, {
+      items: remsTop3,
+      count: rems.length,
+      todoCount: undated.length,
+    });
+    saveLastFamilyId(fid);
+  }, []);
+
+  // Build 53 — hydrate tiles from AsyncStorage cache on mount BEFORE the
+  // Supabase fetch completes. Fixes the 2-3s "blank shell" flash on every
+  // cold-start. Reads the last-active family_id from cache (since profile
+  // may not be loaded yet — Session 30 splash-latency fix loads profile in
+  // the background after setAuthed=true). If cache hits, tiles paint in
+  // ~50ms; loadData then fetches fresh and silently updates on divergence.
+  useEffect(() => {
+    (async () => {
+      const fid = await getLastFamilyId();
+      if (!fid) return;
+      const [cachedEvents, cachedShop, cachedRems] = await Promise.all([
+        loadTile<{ items: EventLite[]; count: number }>(fid, CACHE_KEYS.eventsToday),
+        loadTile<{ items: ShopItem[]; count: number }>(fid, CACHE_KEYS.shoppingSummary),
+        loadTile<{ items: any[]; count: number; todoCount: number }>(fid, CACHE_KEYS.remindersSummary),
+      ]);
+      if (cachedEvents) {
+        setTodayEvents(cachedEvents.items ?? []);
+        setEventCountToday(cachedEvents.count ?? 0);
+      }
+      if (cachedShop) {
+        setShopItems(cachedShop.items ?? []);
+        setShopCount(cachedShop.count ?? 0);
+      }
+      if (cachedRems) {
+        setRemindItems(cachedRems.items ?? []);
+        setRemindCount(cachedRems.count ?? 0);
+        setTodoCount(cachedRems.todoCount ?? 0);
+      }
+    })();
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);

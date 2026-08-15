@@ -469,11 +469,10 @@ export default function OnboardingScreen() {
     <View style={{ flex: 1, backgroundColor: BG, paddingTop: insets.top }}>
       <StatusBar style="dark"/>
 
-      {/* v2 onboarding — 9 steps (Round B commit 35 added ShareStep as
-          step 8, pushed ReadyStep to 9). ShareStep prompts the primary
-          user to invite family via iOS share sheet right after they've
-          finished setup — the highest-intent moment for network-effect
-          activation. */}
+      {/* v2 onboarding — 10 steps as of Build 52 (added CalendarSyncStep
+          as step 7, pushed existing 7-9 down to 8-10). Prior: Round B
+          commit 35 added ShareStep. Calendar sync sits right after
+          Permissions since both are iOS-level integrations — pair well. */}
       {step === 1 && <WelcomeStep onNext={goNext}/>}
       {step === 2 && (
         <NameEmailStep
@@ -510,18 +509,23 @@ export default function OnboardingScreen() {
         />
       )}
       {step === 7 && (
+        <CalendarSyncStep
+          onNext={goNext} onBack={goBack}
+        />
+      )}
+      {step === 8 && (
         <LockscreenPreviewStep
           name={name} family={family} rhythm={rhythm}
           onNext={goNext} onBack={goBack}
         />
       )}
-      {step === 8 && (
+      {step === 9 && (
         <ShareStep
           userName={name}
           onNext={goNext} onBack={goBack}
         />
       )}
-      {step === 9 && (
+      {step === 10 && (
         <ReadyStep name={name} rhythm={rhythm} onFinish={finishOnboarding}/>
       )}
     </View>
@@ -858,6 +862,7 @@ function RhythmStep(p: { rhythm: Rhythm; setRhythm: (r: Rhythm) => void; family:
             <DateTimePicker
               value={pickDate} mode="time" display="spinner"
               onChange={(_: any, d?: Date) => { if (d) setPickDate(d); }}
+              themeVariant="light"
             />
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
               <TouchableOpacity style={[s.ghostBtn, { flex: 1 }]} onPress={() => setEditing(null)} activeOpacity={0.85}>
@@ -1616,6 +1621,68 @@ function DashRow(p: { emoji: string; bg: string; fg: string; title: string; sub:
 // Rôle defaulted to 'adult' — invite tokens work identically for
 // adult/kid; only the role label differs. Adult is the safe default for
 // a partner-oriented family share; the recipient can specify at signup.
+// ─────────────────────────────────────────────────────────────────────
+// CalendarSyncStep (Build 52) — introduce iPhone Calendar sync feature.
+// Informational only — doesn't request permission or set anything up.
+// User enables from Settings when ready. Beta-friendly light touch that
+// teaches them the feature exists without adding permission-dialog burden
+// during onboarding.
+// ─────────────────────────────────────────────────────────────────────
+function CalendarSyncStep(p: {
+  onNext: () => void;
+  onBack: () => void;
+}) {
+  const isIOS = Platform.OS === 'ios';
+
+  return (
+    <View style={{ flex: 1 }}>
+      <ChatHeader onBack={p.onBack}/>
+      <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+        <View style={{ alignItems: 'center', marginTop: 20 }}>
+          <Text style={{ fontSize: 48 }}>📅</Text>
+        </View>
+
+        <Text style={{ fontFamily: 'Poppins_800ExtraBold', fontSize: 30, color: INK, textAlign: 'center', marginTop: 20, letterSpacing: -0.8, lineHeight: 36 }}>
+          Your calendars, one place.
+        </Text>
+        <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 17, color: INK2, textAlign: 'center', marginTop: 12, lineHeight: 25, paddingHorizontal: 8 }}>
+          Zaeli syncs with your iPhone Calendar — including any Gmail, Outlook, or iCloud calendars you've hooked up.
+        </Text>
+        <Text style={{ fontFamily: 'Poppins_500Medium', fontSize: 17, color: INK2, textAlign: 'center', marginTop: 12, lineHeight: 25, paddingHorizontal: 8 }}>
+          Your Zaeli events also appear on your iPhone Calendar in a dedicated "Zaeli" calendar.
+        </Text>
+
+        <View style={{ marginTop: 26, backgroundColor: '#E8F4FD', borderRadius: 14, padding: 16 }}>
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 13, color: '#0A5C80', marginBottom: 6 }}>How to turn it on</Text>
+          <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 13, color: INK2, lineHeight: 20 }}>
+            Once you're in the app: <Text style={{ fontFamily: 'Poppins_700Bold' }}>Settings → Preferences → iPhone Calendar sync</Text>. Pick which calendars to sync. Runs automatically on every app open after that.
+          </Text>
+        </View>
+
+        {!isIOS && (
+          <View style={{ marginTop: 14, backgroundColor: '#FBF5D6', borderRadius: 12, padding: 14 }}>
+            <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: '#8B6914', lineHeight: 18 }}>
+              Android sync is coming soon. iPhone-only for now.
+            </Text>
+          </View>
+        )}
+
+        <Text style={{ fontFamily: 'Poppins_400Regular', fontSize: 12, color: INK4, textAlign: 'center', marginTop: 22, lineHeight: 18, paddingHorizontal: 12 }}>
+          Your synced events stay personal to you — other family members don't see them.
+        </Text>
+
+        <TouchableOpacity
+          onPress={p.onNext}
+          style={{ backgroundColor: INK, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 30 }}
+          activeOpacity={0.85}
+        >
+          <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 16, color: '#fff' }}>Got it</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
+  );
+}
+
 function ShareStep(p: {
   userName: string;
   onNext: () => void;

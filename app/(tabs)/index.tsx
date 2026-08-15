@@ -2652,7 +2652,10 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
   // Round B commit 23 — external Apple Calendar events render read-only. Use
   // the iPhone calendar's own colour for the left border (falls back to grey
   // if colour missing), and skip Edit/Delete on expand entirely.
-  const isExternal = !!ev._external;
+  // Build 49 (Session 34) — also treat any DB row with source='apple-ical'
+  // as external, since the new two-way sync path stores iCal events with
+  // that marker in the events table (see lib/calendar-sync.ts).
+  const isExternal = !!ev._external || ev.source === 'apple-ical';
   const members = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
   const borderColor = isExternal
     ? (ev._calendarColour || 'rgba(0,0,0,0.15)')
@@ -6378,8 +6381,8 @@ Only include events directly relevant to the question. Max 5 events.`;
     const rangeEnd   = new Date(today + 'T00:00:00');
     rangeEnd.setDate(rangeEnd.getDate() + 2); // today + tomorrow
     const [todRes, tomRes, appleEvs] = await Promise.all([
-      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes').eq('family_id', getFamilyId()).eq('date', today).order('start_time').limit(20),
-      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes').eq('family_id', getFamilyId()).eq('date', tomorrow).order('start_time').limit(20),
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes,source,external_calendar_id').eq('family_id', getFamilyId()).eq('date', today).order('start_time').limit(20),
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes,source,external_calendar_id').eq('family_id', getFamilyId()).eq('date', tomorrow).order('start_time').limit(20),
       AppleCal.fetchEvents(rangeStart, rangeEnd),
     ]);
     // Merge Zaeli + Apple, sort by start_time so mixed lists read chronologically.
@@ -8959,6 +8962,7 @@ Rules:
                                               onChange={(_e, d) => { if (d) setRemindEditDate(d); }}
                                               minimumDate={new Date(new Date().setHours(0,0,0,0))}
                                               style={{ backgroundColor:'#fff' }}
+                                              themeVariant="light"
                                             />
                                           </View>
                                         )}

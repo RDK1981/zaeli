@@ -1607,6 +1607,7 @@ function EditGoalSheet(p: {
                   setShowDatePicker(Platform.OS === 'ios');
                   if (d) setDateValue(d);
                 }}
+                themeVariant="light"
               />
             )}
           </>

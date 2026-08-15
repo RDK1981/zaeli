@@ -23,6 +23,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Zaeli uses your camera to scan products and receipts.",
         "NSPhotoLibraryUsageDescription": "Zaeli can add items from photos in your library.",
+        "NSCalendarsUsageDescription": "Zaeli syncs with your iPhone Calendar so you see all your events in one place — and your Zaeli events appear on your iPhone Calendar too.",
+        "NSCalendarsFullAccessUsageDescription": "Zaeli reads events from calendars you choose and writes Zaeli events into a dedicated Zaeli calendar on your phone. Two-way sync — you stay in control of which calendars.",
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.zaeli.app",
@@ -97,7 +99,7 @@
       [
         "expo-calendar",
         {
-          "calendarPermission": "Zaeli shows your iPhone Calendar events alongside family events, so you see everything in one place. Read-only — Zaeli doesn't change or delete your iPhone events."
+          "calendarPermission": "Zaeli syncs with your iPhone Calendar so you see all your events in one place — and your Zaeli events appear on your iPhone Calendar too."
         }
       ]
     ],

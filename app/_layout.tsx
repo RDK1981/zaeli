@@ -14,6 +14,7 @@ import { invalidateCache as invalidateTourCache } from '../lib/tour-state'
 import { invalidateCache as invalidatePrefsCache, loadPrefs } from '../lib/user-prefs'
 import { resetCache as invalidateInvitesCache } from '../lib/invite-state'
 import { invalidateRosterCache, loadRoster, ensureOwnMembership, getRoster } from '../lib/family-roster'
+import { clearAllHomeCache } from '../lib/home-cache'
 import { getCurrentFamilyId } from '../lib/auth'
 import { requestNotificationPermission, cancelBriefNotifications, registerPushToken } from '../lib/notifications'
 
@@ -93,6 +94,35 @@ export default function RootLayout() {
                 if (healed.created) await loadRoster(fid)
               }
             }
+
+            // Build 50 — auto-sync iPhone Calendar in both directions on
+            // every app open if user has sync enabled + permission granted.
+            // Silent background sync — no UI feedback, no alerts. If it
+            // fails, next open tries again. User can also tap "Sync now"
+            // in Settings for on-demand sync.
+            if (profile?.id && profile?.family_id) {
+              try {
+                const CS = await import('../lib/calendar-sync')
+                const cfg = await CS.loadSyncConfig(profile.id)
+                if (cfg?.sync_enabled && cfg?.permission_granted) {
+                  const perm = await CS.getCurrentPermission()
+                  if (perm === 'granted' || perm === 'limited') {
+                    // Fire-and-forget — don't block anything on this
+                    CS.syncNow(profile.id, profile.family_id)
+                      .then(res => {
+                        if (res.ok) {
+                          console.log('[auth] auto-sync done: +' + res.inserted + ' ~' + res.updated + ' -' + res.deleted)
+                        } else {
+                          console.log('[auth] auto-sync skipped:', res.error)
+                        }
+                      })
+                      .catch(e => console.log('[auth] auto-sync threw:', e?.message))
+                  }
+                }
+              } catch (e: any) {
+                console.log('[auth] auto-sync setup threw:', e?.message)
+              }
+            }
           })
           .catch(e => console.log('[auth] background profile/roster load failed:', e?.message))
       } else {
@@ -113,6 +143,7 @@ export default function RootLayout() {
         invalidatePrefsCache()
         invalidateInvitesCache().catch(() => {})
         invalidateRosterCache()
+        clearAllHomeCache().catch(() => {})
         await loadProfile()
         // Session 30 — chain roster load after profile so signed-in users
         // get real member UUIDs cached before any calendar sheet renders.
@@ -127,6 +158,7 @@ export default function RootLayout() {
         invalidatePrefsCache()
         invalidateInvitesCache().catch(() => {})
         invalidateRosterCache()
+        clearAllHomeCache().catch(() => {})
         setAuthed(false)
       }
     })
@@ -157,6 +189,30 @@ export default function RootLayout() {
       appStateRef.current = next
       if (next === 'active' && prev !== 'active' && authed) {
         try { await loadProfile() } catch (e: any) { console.log('[foreground] profile refresh failed:', e?.message) }
+
+        // Build 53 — also re-sync iPhone Calendar on foreground return.
+        // Rich reported switching from iPhone Calendar → Zaeli didn't
+        // reflect a time edit until he force-quit + reopened. Fires the
+        // sync silently in the background so switching apps just works.
+        try {
+          const profile = getProfile()
+          if (profile?.id && profile?.family_id) {
+            const CS = await import('../lib/calendar-sync')
+            const cfg = await CS.loadSyncConfig(profile.id)
+            if (cfg?.sync_enabled && cfg?.permission_granted) {
+              const perm = await CS.getCurrentPermission()
+              if (perm === 'granted' || perm === 'limited') {
+                CS.syncNow(profile.id, profile.family_id)
+                  .then(res => {
+                    if (res.ok) console.log('[foreground] sync done: +' + res.inserted + ' ~' + res.updated + ' -' + res.deleted)
+                  })
+                  .catch(e => console.log('[foreground] sync threw:', e?.message))
+              }
+            }
+          }
+        } catch (e: any) {
+          console.log('[foreground] sync setup threw:', e?.message)
+        }
       }
     })
     return () => sub.remove()

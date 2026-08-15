@@ -326,7 +326,8 @@ export async function ensureOwnMembership(profile: {
   }
 
   try {
-    // Check if a row already exists for this user
+    // Step 1: Perfect match — row already exists with id = profile.id.
+    // Nothing to do.
     const { data: existing } = await supabase
       .from('family_members')
       .select('id')
@@ -335,8 +336,36 @@ export async function ensureOwnMembership(profile: {
       .maybeSingle();
     if (existing?.id) return { ok: true, created: false };
 
-    // Insert a row using profile data
     const displayName = (profile.name || '').trim() || 'You';
+
+    // Step 2: Name-match check — Aug 15 fix. Rich saw a duplicate "Richard"
+    // row after ensureOwnMembership() fired for him: the old family_members
+    // row (from his onboarding, with a random-UUID id that didn't match his
+    // auth.uid) survived, and the auto-heal INSERTed a fresh Richard row.
+    // Two Richards. Also would have hit Anna the next time she opened the
+    // app on Build 48+.
+    //
+    // Fix: if a row exists with the same name (case-insensitive) but a
+    // different id, treat that as the existing entity — don't create a
+    // duplicate. Skipping the insert means `roster.find(m => m.id === meId)`
+    // will still fail for this user (permission checks may misfire), but
+    // at least we don't accumulate ghost rows on every app open.
+    //
+    // Proper reconciliation (SWAP the old row's id → profile.id, migrate
+    // events.assignees) is a separate cleanup migration deferred until we
+    // have a clean strategy for the auth/name-lookup interaction.
+    const { data: nameMatch } = await supabase
+      .from('family_members')
+      .select('id')
+      .eq('family_id', profile.family_id)
+      .ilike('name', displayName)
+      .maybeSingle();
+    if (nameMatch?.id) {
+      console.log('[roster] ensureOwnMembership: name-match found for', displayName, '— skipping insert to avoid duplicate. old id=', nameMatch.id, 'auth.uid=', profile.id);
+      return { ok: true, created: false };
+    }
+
+    // Step 3: Genuinely missing — insert with id = profile.id.
     const colour = profile.colour || colorFor(displayName, null);
     const role = profile.kind === 'kid' ? 'child' : 'parent';
 
