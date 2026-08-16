@@ -229,16 +229,40 @@ export async function setCalendarSyncEnabled(
 const WINDOW_BACK_DAYS = 30;
 const WINDOW_FORWARD_DAYS = 90;
 
-// Fetch events from enabled iOS calendars → upsert to Supabase events
-// table. Returns per-calendar counts + total inserted/updated/deleted.
-export async function syncNow(userId: string, familyId: string): Promise<{
+// Build 54 (Session 36) — in-flight guard. Rich hit a nasty flicker: mount
+// fires syncNow AND every foreground transition fires syncNow, with no
+// debounce or reentrancy guard. Concurrent syncs raced through the DELETE
+// step (below) → events flickered between deleted and re-created every open.
+// Fix: coalesce concurrent syncNow calls per-user. Second caller gets the
+// same promise the first is already awaiting. NO extra Supabase round-trips.
+const _syncInFlight = new Map<string, Promise<SyncNowResult>>();
+
+type SyncNowResult = {
   ok: boolean;
   inserted: number;
   updated: number;
   deleted: number;
   perCalendar: Array<{ id: string; title: string; count: number }>;
   error?: string;
-}> {
+};
+
+// Fetch events from enabled iOS calendars → upsert to Supabase events
+// table. Returns per-calendar counts + total inserted/updated/deleted.
+export async function syncNow(userId: string, familyId: string): Promise<SyncNowResult> {
+  // In-flight guard — coalesce concurrent calls per user.
+  const inFlight = _syncInFlight.get(userId);
+  if (inFlight) {
+    console.log('[calendar-sync] syncNow already in-flight for user', userId, '— reusing promise');
+    return inFlight;
+  }
+  const p = _syncNowImpl(userId, familyId).finally(() => {
+    _syncInFlight.delete(userId);
+  });
+  _syncInFlight.set(userId, p);
+  return p;
+}
+
+async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowResult> {
   try {
     // 1. Permission check
     const perm = await getCurrentPermission();
@@ -269,6 +293,16 @@ export async function syncNow(userId: string, familyId: string): Promise<{
     const perCalendar: Array<{ id: string; title: string; count: number }> = [];
     let inserted = 0;
     let updated = 0;
+    // Build 54 (Session 36) — track per-calendar read success. If ANY calendar
+    // read fails, we CANNOT safely delete-stale below: a transient EventKit
+    // read failure would make allExternalIds miss real events → the delete
+    // step wipes them from Supabase → next sync re-inserts → flicker. Better
+    // to have a stale row for one sync than yo-yo events between deleted +
+    // present. Recurring events ("Albert Lumines - Monthly 1:1") are the
+    // typical failure case — EventKit occasionally throws on their instance
+    // materialisation.
+    let allReadsSucceeded = true;
+    const failedCalendars: string[] = [];
 
     for (const cal of enabledCals) {
       let iosEvents: Calendar.Event[] = [];
@@ -276,6 +310,8 @@ export async function syncNow(userId: string, familyId: string): Promise<{
         iosEvents = await Calendar.getEventsAsync([cal.id], start, end);
       } catch (e: any) {
         console.log(`[calendar-sync] getEventsAsync for ${cal.title} threw:`, e?.message);
+        allReadsSucceeded = false;
+        failedCalendars.push(cal.title);
         continue;
       }
       perCalendar.push({ id: cal.id, title: cal.title, count: iosEvents.length });
@@ -315,9 +351,15 @@ export async function syncNow(userId: string, familyId: string): Promise<{
           .maybeSingle();
 
         if (existing?.id) {
+          // Build 54 (Session 36) — DON'T reset privacy_scope on update.
+          // If the user has manually shared this imported event with the
+          // family (via CalSheetEventCard toggle), we need to preserve
+          // that. Only INSERT gets privacy_scope='personal' as the default;
+          // subsequent syncs leave it alone.
+          const { privacy_scope: _drop, ...updateRow } = row;
           const { error: upErr } = await supabase
             .from('events')
-            .update(row)
+            .update(updateRow)
             .eq('id', existing.id);
           if (!upErr) updated++;
           else console.log('[calendar-sync] update failed:', upErr.message);
@@ -332,26 +374,36 @@ export async function syncNow(userId: string, familyId: string): Promise<{
     // 5. Delete stale rows — events in Supabase with source='apple-ical'
     // and imported_by_user_id=userId whose external_id is no longer present
     // in the iOS pull (user deleted from iPhone Calendar).
-    const { data: existingRows } = await supabase
-      .from('events')
-      .select('id, external_id')
-      .eq('imported_by_user_id', userId)
-      .eq('source', 'apple-ical')
-      .gte('date', localDateStr(start))
-      .lte('date', localDateStr(end));
-
+    //
+    // Build 54 (Session 36) — CRITICAL: skip the delete step entirely if
+    // ANY calendar read failed above. `allExternalIds` doesn't include the
+    // failed calendars' events, so deleting-what's-not-in-the-set would wipe
+    // real rows and re-create them next sync → flicker. One skipped delete
+    // cycle is fine; the next successful sync catches genuine deletes.
     let deleted = 0;
-    const staleIds = (existingRows ?? [])
-      .filter(r => r.external_id && !allExternalIds.has(r.external_id))
-      .map(r => r.id);
-
-    if (staleIds.length > 0) {
-      const { error: delErr } = await supabase
+    if (allReadsSucceeded) {
+      const { data: existingRows } = await supabase
         .from('events')
-        .delete()
-        .in('id', staleIds);
-      if (!delErr) deleted = staleIds.length;
-      else console.log('[calendar-sync] delete stale failed:', delErr.message);
+        .select('id, external_id')
+        .eq('imported_by_user_id', userId)
+        .eq('source', 'apple-ical')
+        .gte('date', localDateStr(start))
+        .lte('date', localDateStr(end));
+
+      const staleIds = (existingRows ?? [])
+        .filter(r => r.external_id && !allExternalIds.has(r.external_id))
+        .map(r => r.id);
+
+      if (staleIds.length > 0) {
+        const { error: delErr } = await supabase
+          .from('events')
+          .delete()
+          .in('id', staleIds);
+        if (!delErr) deleted = staleIds.length;
+        else console.log('[calendar-sync] delete stale failed:', delErr.message);
+      }
+    } else {
+      console.log(`[calendar-sync] skipping delete-stale — ${failedCalendars.length} calendar(s) failed to read (${failedCalendars.join(', ')}). Would re-flicker deleted rows on next sync.`);
     }
 
     // 6. Auto-remediation (Build 52) — if user's stored mirror_schema_version

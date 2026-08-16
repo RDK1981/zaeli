@@ -1,16 +1,26 @@
 /**
- * brief-scheduler — Session 32 v2 Phase 07
+ * brief-scheduler — Session 32 v2 Phase 07 · rewritten Build 54 (Session 36)
+ *   for per-user brief generation.
  *
- * Runs on cron (every 15 minutes via pg_cron). For each family whose
- * morning or evening brief time falls in the last 15 minutes AND
- * hasn't fired yet today for that window:
- *   1. Gather LIVE DATA (events, meals, shopping, tasks) same shape as
- *      client-side buildBriefContext
+ * WHAT CHANGED (Build 54):
+ *   Before: one brief per FAMILY per window per day, cached by (family, date,
+ *     window). Every family adult received the same brief. Personal iCal
+ *     events (privacy_scope='personal', imported_by_user_id=X) were INVISIBLE
+ *     to the shared brief — Andy would see "clear day" while his iPhone
+ *     Calendar was full of work meetings. Trust-breaking.
+ *   Now: one brief per ADULT USER per window per day, cached by (family, user,
+ *     date, window). Each adult gets a personalised brief that includes their
+ *     own personal iCal events + all family shared events. Push goes only to
+ *     that user's token.
+ *
+ * Runs on cron (every 15 minutes via pg_cron). For each adult profile whose
+ * morning or evening brief time falls in the last 15 minutes AND hasn't
+ * fired yet today for that window:
+ *   1. Gather LIVE DATA (this user's events — personal + shared, meals,
+ *      shopping, tasks, family reminders)
  *   2. Call Anthropic Sonnet with the brief system prompt
- *   3. Upsert to zaeli_briefs cache
- *   4. Send rich lockscreen push to every family adult with push token —
- *      the brief prose goes in the notification body so families read it
- *      on the lockscreen without opening the app
+ *   3. Upsert to zaeli_briefs cache (keyed by family_id + user_id + date + window)
+ *   4. Send rich lockscreen push to that user's device only
  *
  * Deploy:
  *   supabase functions deploy brief-scheduler
@@ -22,13 +32,17 @@
  * Schedule (pg_cron):
  *   See supabase-brief-scheduler.sql for the setup — runs every 15 min.
  *
+ * Migration prerequisite:
+ *   supabase-zaeli-briefs-per-user.sql (adds user_id column + swaps unique
+ *   constraint). MUST be run BEFORE deploying this version.
+ *
  * Design notes:
- *   - Idempotent: checks zaeli_briefs for existing row before generating,
- *     no double-sends even if cron fires multiple times in a window.
- *   - Time zone: uses Australia/Brisbane fixed for now (matches project
- *     dev context). When we go multi-region, move to profile.timezone.
- *   - Push body carries the [BODY] paragraph of the brief text, so users
- *     read a meaningful preview on lockscreen without opening.
+ *   - Idempotent per-user: checks zaeli_briefs for existing row keyed on
+ *     (family, user, date, window) before generating.
+ *   - Time zone: uses Australia/Brisbane fixed for now.
+ *   - Push body carries the [BODY] paragraph of the brief text.
+ *   - Cost: 2× briefs per family with 2 adults. At beta scale (~5 families,
+ *     mostly single-adult) negligible. Per-brief cost ~A$0.005 with caching.
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -45,11 +59,13 @@ const SONNET_MODEL = 'claude-sonnet-4-6';
 // Fixed to Brisbane for v1 — swap to per-profile timezone later.
 const TZ = 'Australia/Brisbane';
 
-interface FamilyToBrief {
-  familyId: string;
-  window:   'morning' | 'evening';
-  primaryUser: string;
+interface UserToBrief {
+  userId:      string;
+  familyId:    string;
+  firstName:   string;
+  window:      'morning' | 'evening';
   scheduledAt: string;  // human "07:00" for logging
+  pushToken:   string | null;
 }
 
 // ── Handler ─────────────────────────────────────────────────────────────
@@ -60,12 +76,10 @@ Deno.serve(async (req) => {
   const results: any[] = [];
 
   try {
-    // Session 32 v2 — pg_cron POSTs here with no body. Occasional manual
-    // testing via curl can pass { dry_run: true } to skip Anthropic + push.
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
     const dryRun = !!body?.dry_run;
 
-    // 1. Find families whose brief time falls in the last 15 minutes.
+    // 1. Find adults whose brief time falls in the last 45 minutes.
     // profiles.user_preferences JSONB stores briefMorningTime/briefEveningTime
     // as "HH:MM" strings. We compare against current local time in TZ.
     const now = new Date();
@@ -76,70 +90,64 @@ Deno.serve(async (req) => {
     const [nowH, nowM] = localHM.split(':').map(Number);
     const nowMinutes = nowH * 60 + nowM;
 
-    // Fetch all owner/adult profiles + prefs. Server-side, no RLS.
+    // Fetch all owner/adult profiles + prefs + push token. Server-side, no RLS.
     const { data: profiles, error: pErr } = await supabaseAdmin
       .from('profiles')
-      .select('id, family_id, name, user_preferences, kind, created_at')
+      .select('id, family_id, name, user_preferences, kind, created_at, expo_push_token')
       .in('kind', ['owner', 'adult']);
     if (pErr) return json({ error: 'profile query failed', detail: pErr.message }, 500);
 
-    // Group by family (one brief per family per window per day) + track fresh
-    // signups so the dormant gate below can let brand-new users through even
-    // before their first api_log row exists.
-    const familyPrimary: Record<string, { firstName: string; morningTime: string; eveningTime: string; morningOn: boolean; eveningOn: boolean }> = {};
+    // Track fresh signups so the dormant gate below lets brand-new users
+    // through even before their first api_log row exists.
     const freshFamilyIds = new Set<string>();
     const freshCutoffMs = Date.now() - 7 * 24 * 3600 * 1000;
+    for (const p of profiles ?? []) {
+      const createdMs = p.created_at ? new Date(p.created_at as string).getTime() : 0;
+      if (createdMs >= freshCutoffMs) freshFamilyIds.add(p.family_id);
+    }
+
+    // Build the per-user brief candidate list. Each adult with brief times
+    // set in their user_preferences produces up to 2 candidates (morning,
+    // evening) if they fall in the firing window.
+    const toBrief: UserToBrief[] = [];
     for (const p of profiles ?? []) {
       const prefs = (p.user_preferences as any) ?? {};
       const morningTime = typeof prefs.briefMorningTime === 'string' ? prefs.briefMorningTime : '07:00';
       const eveningTime = typeof prefs.briefEveningTime === 'string' ? prefs.briefEveningTime : '17:00';
       const morningOn = prefs.briefMorningOn !== false;
       const eveningOn = prefs.briefEveningOn !== false;
-      // Owner wins as primary; else first adult
-      const existing = familyPrimary[p.family_id];
-      if (!existing || p.kind === 'owner') {
-        const first = (p.name ?? 'Rich').split(/\s+/)[0];
-        familyPrimary[p.family_id] = { firstName: first, morningTime, eveningTime, morningOn, eveningOn };
-      }
-      // Any profile in the family created in the last 7 days marks the
-      // family as "fresh" — dormant gate exempts them (they can't have
-      // api_logs yet if they've barely opened the app).
-      const createdMs = p.created_at ? new Date(p.created_at as string).getTime() : 0;
-      if (createdMs >= freshCutoffMs) freshFamilyIds.add(p.family_id);
-    }
 
-    const toBrief: FamilyToBrief[] = [];
-    for (const [familyId, info] of Object.entries(familyPrimary)) {
-      const morningTarget = parseHM(info.morningTime);
-      const eveningTarget = parseHM(info.eveningTime);
-      // Round A fix — wider firing window. Previously "< 15" meant only ONE
-      // cron slot per brief time (the exact target minute) fired. If that
-      // cron missed for any reason (Supabase pg_cron latency), the user got
-      // no brief that day. New rule: fire if we're AT or PAST the target
-      // by up to 45 minutes AND today's brief hasn't already been generated
-      // (the idempotent check below prevents duplicates). Gives 3 cron slots
-      // to succeed per brief window.
+      const firstName = (p.name ?? 'there').split(/\s+/)[0];
+
+      const morningTarget = parseHM(morningTime);
+      const eveningTarget = parseHM(eveningTime);
       const morningDelta = nowMinutes - morningTarget;
       const eveningDelta = nowMinutes - eveningTarget;
-      if (info.morningOn && morningDelta >= 0 && morningDelta <= 45) {
-        toBrief.push({ familyId, window: 'morning', primaryUser: info.firstName, scheduledAt: info.morningTime });
+      if (morningOn && morningDelta >= 0 && morningDelta <= 45) {
+        toBrief.push({
+          userId: p.id, familyId: p.family_id, firstName,
+          window: 'morning', scheduledAt: morningTime,
+          pushToken: p.expo_push_token ?? null,
+        });
       }
-      if (info.eveningOn && eveningDelta >= 0 && eveningDelta <= 45) {
-        toBrief.push({ familyId, window: 'evening', primaryUser: info.firstName, scheduledAt: info.eveningTime });
+      if (eveningOn && eveningDelta >= 0 && eveningDelta <= 45) {
+        toBrief.push({
+          userId: p.id, familyId: p.family_id, firstName,
+          window: 'evening', scheduledAt: eveningTime,
+          pushToken: p.expo_push_token ?? null,
+        });
       }
     }
-    console.log(`[brief-scheduler] now_local=${localHM}, profiles_checked=${profiles?.length ?? 0}, families=${Object.keys(familyPrimary).length}, candidates=${toBrief.length}`);
+    console.log(`[brief-scheduler] now_local=${localHM}, profiles_checked=${profiles?.length ?? 0}, candidates=${toBrief.length}`);
 
-    // 2. For each family+window, check if brief already generated today
+    // 2. Compute today's date key
     const todayKey = new Intl.DateTimeFormat('en-CA', {
       timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit'
     }).format(now);
 
-    // Batch 6 — dormant-family gate. Skip briefs for families with no api_logs
-    // activity in the last 7 days. Prevents burning Sonnet cycles on abandoned
-    // test accounts + dormant beta users who never open the app. Family
-    // reactivates automatically the next time anyone chats / triggers any AI
-    // call (which writes to api_logs), so briefs resume from the next cron cycle.
+    // 3. Dormant-family gate. Skip briefs for families with no api_logs
+    // activity in the last 7 days. Fresh families (any adult profile <7d
+    // old) are exempt so brand-new signups get their first-ever brief.
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
     const activeFamilyIds = new Set<string>();
     {
@@ -156,69 +164,73 @@ Deno.serve(async (req) => {
     }
 
     for (const f of toBrief) {
-      // Dormant-family skip (Batch 6). Cheap early exit before any expensive work.
-      if (!activeFamilyIds.has(f.familyId)) {
-        results.push({ familyId: f.familyId, window: f.window, status: 'skipped_dormant' });
+      // Dormant-family skip. Cheap early exit before any expensive work.
+      // Fresh signups (family <7d old) exempt.
+      if (!activeFamilyIds.has(f.familyId) && !freshFamilyIds.has(f.familyId)) {
+        results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'skipped_dormant' });
         continue;
       }
 
+      // Per-user idempotency check
       const { data: existing } = await supabaseAdmin
         .from('zaeli_briefs')
         .select('id')
         .eq('family_id', f.familyId)
+        .eq('user_id', f.userId)
         .eq('date_key', todayKey)
         .eq('time_window', f.window)
         .maybeSingle();
       if (existing?.id) {
-        results.push({ familyId: f.familyId, window: f.window, status: 'skipped_cached' });
+        results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'skipped_cached' });
         continue;
       }
 
-      // 3. Gather LIVE DATA for the family
-      const liveData = await gatherLiveData(f.familyId, todayKey);
+      // Gather LIVE DATA for this user (personal events + family shared)
+      const liveData = await gatherLiveData(f.userId, f.familyId, todayKey);
 
-      // 4. Call Anthropic Sonnet
       if (dryRun) {
-        results.push({ familyId: f.familyId, window: f.window, status: 'dry_run', liveData });
+        results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'dry_run', liveData });
         continue;
       }
       if (!ANTHROPIC_API_KEY) {
-        results.push({ familyId: f.familyId, window: f.window, status: 'no_api_key' });
+        results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'no_api_key' });
         continue;
       }
 
       let briefText = '';
       try {
-        briefText = await generateBriefText(f.window, f.primaryUser, liveData);
+        briefText = await generateBriefText(f.window, f.firstName, liveData);
       } catch (e:any) {
-        results.push({ familyId: f.familyId, window: f.window, status: 'anthropic_failed', error: e?.message });
+        results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'anthropic_failed', error: e?.message });
         continue;
       }
 
-      // 5. Upsert to zaeli_briefs cache (client reads on chat open)
+      // Upsert to zaeli_briefs cache (per-user)
       const { error: upErr } = await supabaseAdmin
         .from('zaeli_briefs')
         .upsert({
-          family_id:    f.familyId,
-          date_key:     todayKey,
-          time_window:  f.window,
-          text:         briefText,
-          chips:        [],
+          family_id:      f.familyId,
+          user_id:        f.userId,
+          date_key:       todayKey,
+          time_window:    f.window,
+          brief_text:     briefText,
+          chips:          [],
           data_signature: 'server-scheduled',
-          generated_at: new Date().toISOString(),
-        }, { onConflict: 'family_id,date_key,time_window' });
+          generated_at:   new Date().toISOString(),
+        }, { onConflict: 'family_id,user_id,date_key,time_window' });
       if (upErr) {
-        results.push({ familyId: f.familyId, window: f.window, status: 'upsert_failed', error: upErr.message });
+        results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'upsert_failed', error: upErr.message });
         continue;
       }
 
-      // 6. Send lockscreen push with the BODY paragraph of the brief
+      // Send lockscreen push to THIS user only
       const bodyPara = extractBodyParagraph(briefText);
-      const pushResult = await sendBriefPush(f.familyId, f.window, bodyPara || briefText.slice(0, 300));
+      const pushResult = await sendUserPush(f.pushToken, f.window, bodyPara || briefText.slice(0, 300));
       results.push({
+        userId: f.userId,
         familyId: f.familyId,
         window: f.window,
-        status: pushResult.sent > 0 ? 'sent' : 'generated_but_no_push',
+        status: pushResult.sent > 0 ? 'sent' : (f.pushToken ? 'generated_but_no_push' : 'generated_no_token'),
         briefLen: briefText.length,
         bodyLen: (bodyPara || briefText).length,
         push: pushResult,
@@ -245,23 +257,40 @@ function parseHM(hm: string): number {
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
 }
 
-async function gatherLiveData(familyId: string, dateKey: string) {
-  // Match the shape of client-side buildBriefContext — enough for Sonnet
-  // to write a competent, honest brief. Empty domains omitted (invisible-
-  // domain rule from Session 26 — don't invite Sonnet to nudge on missing
-  // data).
+async function gatherLiveData(userId: string, familyId: string, dateKey: string) {
+  // Per-user LIVE DATA (Build 54). Events are the split:
+  //   - Family SHARED events (source IS NULL — Zaeli-authored; OR
+  //     privacy_scope='shared' — imported iCal that a user has explicitly
+  //     shared with the family)
+  //   - This user's PERSONAL events (source='apple-ical' + imported_by_user_id
+  //     = this user + privacy_scope='personal' — their imported iPhone
+  //     calendar events)
+  // Shopping/meals/tasks stay family-shared; family_reminders too (which
+  // are already scoped to shared visibility only).
   //
-  // Round B additions:
-  //  - resolve event assignee UUIDs to first names via family_members lookup
-  //    (so brief can say "Duke has soccer" not "quiet day" when only Duke is
-  //     tagged) — fixes Anna Round 2 bug where kids' events didn't surface
-  //  - include SHARED reminders (personal reminders are user-scoped, can't
-  //    fit in a family-wide server brief — those live in the client brief)
+  // Events include a `_source` field so the brief prompt can distinguish
+  // "family calendar" from "your iPhone calendar" if it wants to. For MVP
+  // Sonnet just treats them all as "your day" — mixed presentation is
+  // fine, and matches how the user actually experiences their calendar.
   const tomorrowKey = new Date(new Date(dateKey + 'T00:00:00').getTime() + 24*3600*1000).toISOString().slice(0,10);
 
+  // Two queries per day (today + tomorrow) — each fetches shared + this-user's-personal
+  // in a single call using .or() so we don't double round-trip.
+  const eventFilter = `and(source.is.null),and(privacy_scope.eq.shared),and(source.eq.apple-ical,imported_by_user_id.eq.${userId},privacy_scope.eq.personal)`;
+
   const [evTodayRes, evTmwRes, mealRes, shopRes, tasksRes, membersRes, remRes] = await Promise.all([
-    supabaseAdmin.from('events').select('title,start_time,assignees').eq('family_id', familyId).eq('date', dateKey).order('start_time'),
-    supabaseAdmin.from('events').select('title,start_time,assignees').eq('family_id', familyId).eq('date', tomorrowKey).order('start_time'),
+    supabaseAdmin.from('events')
+      .select('title,start_time,assignees,source,privacy_scope,imported_by_user_id')
+      .eq('family_id', familyId)
+      .eq('date', dateKey)
+      .or(eventFilter)
+      .order('start_time'),
+    supabaseAdmin.from('events')
+      .select('title,start_time,assignees,source,privacy_scope,imported_by_user_id')
+      .eq('family_id', familyId)
+      .eq('date', tomorrowKey)
+      .or(eventFilter)
+      .order('start_time'),
     supabaseAdmin.from('meal_plans').select('meal_name').eq('family_id', familyId).eq('date', dateKey).limit(1),
     supabaseAdmin.from('shopping_items').select('id').eq('family_id', familyId).neq('checked', true),
     supabaseAdmin.from('personal_tasks').select('id, title').eq('family_id', familyId).eq('status', 'active').order('due_date', { ascending: true }).limit(5),
@@ -276,7 +305,13 @@ async function gatherLiveData(familyId: string, dateKey: string) {
   const attachNames = (ev: any) => {
     const ids = Array.isArray(ev?.assignees) ? ev.assignees : [];
     const names = ids.map((id: any) => nameById.get(id) ?? '').filter(Boolean);
-    return { ...ev, assignees: names };
+    const isPersonal = ev?.source === 'apple-ical' && ev?.privacy_scope === 'personal';
+    return {
+      title: ev.title,
+      start_time: ev.start_time,
+      assignees: names,
+      _source: isPersonal ? 'iphone' : 'family',
+    };
   };
 
   const shape: Record<string, any> = {};
@@ -307,7 +342,9 @@ FORMAT (strict 2-3 paragraphs):
 [BODY] 2 sentences naming what's coming (from LIVE DATA)
 [ONE THING] optional single nudge (omit if nothing warrants)
 
-WHOLE-FAMILY LENS — parents drive kids' events. Any event with a kid's name in brackets (e.g. "[<kid>]") is something ${primaryUser} probably has to drive to, pick up from, or supervise. NEVER call the day "quiet" if kids have things on. Name the actual kid + activity from the LIVE DATA — e.g. "<kid>'s soccer at 4" not "an event at 4". Use only real names from the data; never invent names.
+WHOLE-DAY LENS — mix events from the shared family calendar (_source='family') and ${primaryUser}'s own iPhone calendar (_source='iphone') into a single coherent "your day" picture. Don't label them differently in the brief — Zaeli should treat them as one calendar from ${primaryUser}'s perspective.
+
+Parents drive kids' events. Any event with a kid's name in "assignees" is something ${primaryUser} probably has to drive to, pick up from, or supervise. NEVER call the day "quiet" if there are events on. Name specifics from LIVE DATA — e.g. "<kid>'s soccer at 4" not "an event at 4". Use only real names from the data; never invent names.
 
 Family reminders (if listed) are things a family member has already flagged — surface the most relevant one if it matters today.
 
@@ -349,43 +386,32 @@ function extractBodyParagraph(brief: string): string {
   return paras[1] ?? paras[0] ?? brief;
 }
 
-async function sendBriefPush(familyId: string, window: 'morning' | 'evening', body: string): Promise<{ sent: number; failed: number; reason?: string; ticketErrors?: string[] }> {
-  const { data: profiles, error: pErr } = await supabaseAdmin
-    .from('profiles')
-    .select('expo_push_token')
-    .eq('family_id', familyId)
-    .in('kind', ['owner', 'adult'])
-    .not('expo_push_token', 'is', null);
-
-  if (pErr) {
-    console.error(`[brief-scheduler] family=${familyId} token query error:`, pErr.message);
-    return { sent: 0, failed: 0, reason: 'token_query_failed' };
-  }
-
-  const tokens = (profiles ?? []).map(p => p.expo_push_token).filter(Boolean);
-  console.log(`[brief-scheduler] family=${familyId} tokens_found=${tokens.length}`);
-  if (tokens.length === 0) return { sent: 0, failed: 0, reason: 'no_registered_tokens' };
+// Build 54 (Session 36) — send push to a SINGLE user's token. Was
+// sendBriefPush(familyId) which fanned out to every family adult with the
+// same brief body. Now each user gets a brief written FOR them.
+async function sendUserPush(pushToken: string | null, window: 'morning' | 'evening', body: string): Promise<{ sent: number; failed: number; reason?: string; ticketErrors?: string[] }> {
+  if (!pushToken) return { sent: 0, failed: 0, reason: 'no_registered_token' };
 
   const title = window === 'morning' ? '☀️ Morning brief from Zaeli' : '🌙 Evening brief from Zaeli';
 
-  const messages = tokens.map(t => ({
-    to:    t,
+  const message = {
+    to:    pushToken,
     title,
     body:  body.slice(0, 300),
     sound: 'default',
     data:  { type: 'brief', window },
-  }));
+  };
 
   try {
     const r = await fetch(EXPO_PUSH_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify(messages),
+      body: JSON.stringify([message]),
     });
     if (!r.ok) {
       const txt = await r.text().catch(() => '');
-      console.error(`[brief-scheduler] family=${familyId} Expo push API ${r.status}:`, txt.slice(0, 200));
-      return { sent: 0, failed: tokens.length, reason: `expo_${r.status}` };
+      console.error(`[brief-scheduler] Expo push API ${r.status}:`, txt.slice(0, 200));
+      return { sent: 0, failed: 1, reason: `expo_${r.status}` };
     }
     const j = await r.json();
     const tickets = (j?.data ?? []) as any[];
@@ -393,12 +419,12 @@ async function sendBriefPush(familyId: string, window: 'morning' | 'evening', bo
     const failed = tickets.length - sent;
     const ticketErrors = tickets.filter(t => t?.status !== 'ok').map(t => t?.message ?? 'unknown').slice(0, 5);
     if (failed > 0) {
-      console.error(`[brief-scheduler] family=${familyId} push errors:`, ticketErrors.join(' | '));
+      console.error(`[brief-scheduler] push errors:`, ticketErrors.join(' | '));
     }
     return { sent, failed, ticketErrors: failed > 0 ? ticketErrors : undefined };
   } catch (e:any) {
-    console.error(`[brief-scheduler] family=${familyId} push threw:`, e?.message);
-    return { sent: 0, failed: tokens.length, reason: `exception:${e?.message ?? 'unknown'}` };
+    console.error(`[brief-scheduler] push threw:`, e?.message);
+    return { sent: 0, failed: 1, reason: `exception:${e?.message ?? 'unknown'}` };
   }
 }
 

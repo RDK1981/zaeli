@@ -1788,7 +1788,7 @@ const TOOLS = [
   { name:'delete_calendar_event', description:'Delete a calendar event. Set delete_all:true to remove a whole recurring series.', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, date:{type:'string'}, delete_all:{type:'boolean',description:'true = delete all upcoming events with this title (the whole recurring series)'} }, required:['search_title'] } },
   { name:'extend_recurring_event', description:'Roll a recurring event series on by another ~12 months from where it currently ends. Use when a series is running out or the user asks to extend/keep it going.', input_schema:{ type:'object', properties:{ search_title:{type:'string'} }, required:['search_title'] } },
   { name:'find_calendar_events', description:'Search the calendar for events by title keyword and/or date range. USE THIS WHEN the user asks about anything not in the LIVE DATA today/tomorrow window — "when is X?", "what\'s on next month?", "are we away in September?", "what did we have planned for Poppy\'s birthday?". Returns up to 20 matching events with date + time. Prefer this over saying "not in the calendar" — the calendar data goes months ahead but only today+tomorrow are pre-loaded.', input_schema:{ type:'object', properties:{ title_contains:{type:'string',description:'Case-insensitive keyword in the event title, e.g. "broken head" or "soccer" or "birthday". Optional if from_date/to_date narrow enough.'}, from_date:{type:'string',description:'Start of date window, YYYY-MM-DD. Defaults to today if omitted.'}, to_date:{type:'string',description:'End of date window, YYYY-MM-DD. Defaults to +365 days if omitted.'} } } },
-  { name:'add_todo', description:'Add a todo item', input_schema:{ type:'object', properties:{ title:{type:'string'}, priority:{type:'string',enum:['low','normal','high','urgent']}, due_date:{type:'string'} }, required:['title'] } },
+  { name:'add_todo', description:'Add a todo item (loose task with optional priority + due date, no push notification). Use ONLY for items that are genuine tasks/to-dos, NOT for reminders. If the user says "remind me to X" / "don\'t forget to X" / "at Xam/pm" / any time-based reminder phrasing → use add_reminder instead. add_todo is for things like: "add \'renew rego\' to my to-dos", "add \'call the school\' as a task". Rule of thumb: if a time/date is involved OR the user used the word "remind" → add_reminder. Otherwise → add_todo.', input_schema:{ type:'object', properties:{ title:{type:'string'}, priority:{type:'string',enum:['low','normal','high','urgent']}, due_date:{type:'string'} }, required:['title'] } },
   { name:'add_shopping_item', description:'Add item to shopping list. ALWAYS adds first (pantry pre-blocking removed per Rich\'s rule — pantry isn\'t 100% accurate). Response may include a "NOTE:" mentioning the item is also in pantry — relay softly in your reply so user can tap-to-remove if they don\'t need it.', input_schema:{ type:'object', properties:{ name:{type:'string'}, category:{type:'string'}, quantity:{type:'string'} }, required:['name'] } },
   { name:'add_meal', description:'Add a meal to the weekly meal planner', input_schema:{ type:'object', properties:{ meal_name:{type:'string',description:'Name of the meal e.g. Spaghetti Bolognese'}, date:{type:'string',description:'Date in YYYY-MM-DD format'}, day_label:{type:'string',description:'Day abbreviation e.g. Mon, Tue, Wed'}, prep_mins:{type:'number',description:'Estimated prep time in minutes'} }, required:['meal_name','date'] } },
   { name:'update_todo', description:'Update a todo item (title, priority, due date, or mark done)', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Current title to search for'}, new_title:{type:'string'}, new_priority:{type:'string',enum:['low','normal','high','urgent']}, new_due_date:{type:'string'}, mark_done:{type:'boolean'} }, required:['search_title'] } },
@@ -1801,7 +1801,7 @@ const TOOLS = [
   { name:'add_goal', description:'Add a personal goal', input_schema:{ type:'object', properties:{ title:{type:'string',description:'Goal title e.g. Run a half marathon'}, target_date:{type:'string',description:'Target date YYYY-MM-DD'}, detail:{type:'string',description:'Description of the goal and how to measure it'} }, required:['title'] } },
   { name:'update_goal', description:'Update a goal (progress, title, target date)', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Current goal title to search for'}, new_title:{type:'string'}, new_target_date:{type:'string'}, new_progress:{type:'number',description:'Progress percentage 0-100'}, new_detail:{type:'string'} }, required:['search_title'] } },
   { name:'delete_goal', description:'Delete a goal', input_schema:{ type:'object', properties:{ search_title:{type:'string',description:'Goal title to search for'} }, required:['search_title'] } },
-  { name:'add_reminder', description:'Add a reminder. Three shapes: timed (remind_at set — fires a push notification to the creator at that instant), date-only (remind_on set — shows on that day, no push), undated (both omitted — "someday" bucket). Reminders can be personal (creator only sees) OR shared (whole family sees). Notifications always go only to the person who created them. Use for personal to-remember things, NOT for calendar events (use add_calendar_event for shared events with a time). CRITICAL TITLE-vs-TIME RULE: title is the WHAT (the action to remember). remind_at / remind_on is the WHEN. NEVER leave time or date words ("tomorrow", "today", "3pm", "3:30pm", "9am", "Monday", "next week", "tonight", "in 10 min", etc.) INSIDE the title — extract them and put them in remind_at or remind_on. Example: user says "Pick up Gab 3:30pm tomorrow" → title="Pick up Gab", remind_at="<tomorrow>T15:30:00" (use TOMORROW\'s date, not today\'s). Example: user says "Take out the bins Sat 10pm" → title="Take out the bins", remind_at="<coming Saturday>T22:00:00". Example: user says "Call plumber tomorrow" → title="Call plumber", remind_on="<tomorrow YYYY-MM-DD>". CRITICAL TIME RULE: remind_at MUST be Brisbane wall-clock time (family is in AEST/UTC+10), format "YYYY-MM-DDTHH:MM:SS" with NO Z suffix and NO timezone offset. "Tomorrow" means CURRENT_TIME\'s date + 1 day — never today\'s date. Never convert to UTC yourself. The user\'s CURRENT_TIME + today\'s date are provided in the system context — use those to compute tomorrow / next Monday / etc. FOR-SOMEONE-ELSE RULE (Round B commit 37): if the user creates a reminder FOR another family member ("remind Anna to X", "reminder for Anna to X", "Anna needs to X"), set for_member to that family member\'s first name. This auto-marks the reminder as SHARED so the recipient sees it in their own list. When the reminder is for the current user themselves, omit for_member.', input_schema:{ type:'object', properties:{ title:{type:'string',description:'What to remember — WITHOUT time/date words. e.g. "Pick up Gab" (NOT "Pick up Gab 3:30pm tomorrow"), "pay soccer registration", "call plumber back".'}, notes:{type:'string',description:'Optional detail — extra context if useful'}, remind_at:{type:'string',description:'Brisbane local wall-clock time as "YYYY-MM-DDTHH:MM:SS" — NO Z, NO offset. Example: "2026-08-15T09:00:00" for 9am Brisbane on 15 Aug. For "tomorrow at X" use TOMORROW\'s YYYY-MM-DD, not today\'s.'}, remind_on:{type:'string',description:'YYYY-MM-DD if user wants a date-only reminder (no specific time). Use this OR remind_at, not both. For "tomorrow" use TOMORROW\'s date (today+1), not today.'}, repeat:{type:'string',enum:['none','daily','weekdays','weekly','fortnightly','monthly'],description:'Recurring? Default none. Generates instances for ~12 months.'}, for_member:{type:'string',description:'Family member first name if the reminder is FOR someone else (not the current user). e.g. "Anna", "Gab", "Poppy". Auto-sets visibility to shared so the recipient sees it in their own list. Omit if the reminder is for the current user themselves.'} }, required:['title'] } },
+  { name:'add_reminder', description:'Add a reminder. Three shapes: timed (remind_at set — fires a push notification to the creator at that instant), date-only (remind_on set — shows on that day, no push), undated (both omitted — "someday" bucket). Reminders can be personal (creator only sees) OR shared (whole family sees). Notifications always go only to the person who created them. Use for personal to-remember things, NOT for calendar events (use add_calendar_event for shared events with a time). CRITICAL TITLE-vs-TIME RULE: title is the WHAT (the action to remember). remind_at / remind_on is the WHEN. NEVER leave time or date words ("tomorrow", "today", "3pm", "3:30pm", "9am", "Monday", "next week", "tonight", "in 10 min", etc.) INSIDE the title — extract them and put them in remind_at or remind_on. CRITICAL PREFACE-STRIPPING RULE: NEVER leave conversational prefaces inside the title. Strip ALL of: "can you remind me to", "please remind me to", "can you add a reminder to", "set a reminder for me to", "remind me to", "remind me about", "don\'t forget to", "i need to", "make sure I", "nudge me to". Example: user says "Can you remind me to order hair product at 9am?" → title="Order hair product" (NOT "Can you remind me to order hair product at 9am?"), remind_at="<today>T09:00:00" (or tomorrow if 9am has already passed today). Example: user says "Please remind me to feed the cat at 8pm" → title="Feed the cat", remind_at="<today>T20:00:00". Example: user says "Pick up Gab 3:30pm tomorrow" → title="Pick up Gab", remind_at="<tomorrow>T15:30:00" (use TOMORROW\'s date, not today\'s). Example: user says "Take out the bins Sat 10pm" → title="Take out the bins", remind_at="<coming Saturday>T22:00:00". Example: user says "Call plumber tomorrow" → title="Call plumber", remind_on="<tomorrow YYYY-MM-DD>". IMPLICIT-TODAY RULE: when the user says "at 9am" / "at 3pm" / "at 8:30pm" WITHOUT a day word, that means TODAY at that time — unless that time has already passed today, in which case use TOMORROW. Set remind_at, never leave time-only strings undated. CRITICAL TIME RULE: remind_at MUST be Brisbane wall-clock time (family is in AEST/UTC+10), format "YYYY-MM-DDTHH:MM:SS" with NO Z suffix and NO timezone offset. "Tomorrow" means CURRENT_TIME\'s date + 1 day — never today\'s date. Never convert to UTC yourself. The user\'s CURRENT_TIME + today\'s date are provided in the system context — use those to compute tomorrow / next Monday / etc. FOR-SOMEONE-ELSE RULE (Round B commit 37): if the user creates a reminder FOR another family member ("remind Anna to X", "reminder for Anna to X", "Anna needs to X"), set for_member to that family member\'s first name. This auto-marks the reminder as SHARED so the recipient sees it in their own list. When the reminder is for the current user themselves, omit for_member.', input_schema:{ type:'object', properties:{ title:{type:'string',description:'What to remember — WITHOUT time/date words. e.g. "Pick up Gab" (NOT "Pick up Gab 3:30pm tomorrow"), "pay soccer registration", "call plumber back".'}, notes:{type:'string',description:'Optional detail — extra context if useful'}, remind_at:{type:'string',description:'Brisbane local wall-clock time as "YYYY-MM-DDTHH:MM:SS" — NO Z, NO offset. Example: "2026-08-15T09:00:00" for 9am Brisbane on 15 Aug. For "tomorrow at X" use TOMORROW\'s YYYY-MM-DD, not today\'s.'}, remind_on:{type:'string',description:'YYYY-MM-DD if user wants a date-only reminder (no specific time). Use this OR remind_at, not both. For "tomorrow" use TOMORROW\'s date (today+1), not today.'}, repeat:{type:'string',enum:['none','daily','weekdays','weekly','fortnightly','monthly'],description:'Recurring? Default none. Generates instances for ~12 months.'}, for_member:{type:'string',description:'Family member first name if the reminder is FOR someone else (not the current user). e.g. "Anna", "Gab", "Poppy". Auto-sets visibility to shared so the recipient sees it in their own list. Omit if the reminder is for the current user themselves.'} }, required:['title'] } },
 ];
 
 async function executeTool(name: string, input: any): Promise<string> {
@@ -2395,11 +2395,68 @@ async function executeTool(name: string, input: any): Promise<string> {
         notes: input.notes ? '<present>' : undefined,
       }));
 
-      const title = typeof input.title === 'string' ? input.title.trim() : '';
+      let title = typeof input.title === 'string' ? input.title.trim() : '';
       if (!title) {
         console.log('[add_reminder/tool] EARLY FAIL \u2014 empty title');
         return `TOOL_FAILED: add_reminder needs a title.`;
       }
+
+      // Build 54 (Session 36) \u2014 defence-in-depth against title contamination.
+      // Rich's Session 35 "hair product" bug: Sonnet passed the raw user
+      // prompt as title ("Can you remind me to order hair product at 9am?")
+      // AND omitted remind_at \u2192 undated reminder landed in the To-dos tab
+      // showing the whole prompt. Root cause was prompt clarity; this is the
+      // belt-and-braces so it can NEVER regress silently again.
+      //
+      // Two client-side cleanups (mirror parseWithSonnet in the mic path):
+      //   1. Strip conversational prefaces ("can you remind me to", "please
+      //      remind me to", "don't forget to", etc.) from the title.
+      //   2. If title still has "at Xam/pm" pattern AND Sonnet didn't set
+      //      remind_at/remind_on, infer remind_at from that pattern
+      //      (today if the time is still in the future today, else tomorrow).
+      let inferredRemindAt: string | undefined = typeof input.remind_at === 'string' ? input.remind_at : undefined;
+      const inferredRemindOn: string | undefined = typeof input.remind_on === 'string' ? input.remind_on : undefined;
+      const PREFACE_PATTERNS = [
+        /^can you (please )?(add a |set a )?(?:reminder|remind me) (?:to|about) /i,
+        /^please (add a |set a )?(?:reminder|remind me) (?:to|about) /i,
+        /^(please )?set a reminder (?:for me )?(?:to|about) /i,
+        /^remind me (?:to|about) /i,
+        /^don'?t forget (?:to )?/i,
+        /^i need to /i,
+        /^make sure (?:i |to )/i,
+        /^nudge me (?:to )?/i,
+      ];
+      const beforeStrip = title;
+      for (const pat of PREFACE_PATTERNS) {
+        title = title.replace(pat, '');
+      }
+      title = title.replace(/\?$/, '').trim();
+      if (title.length > 0) title = title.charAt(0).toUpperCase() + title.slice(1);
+      if (title !== beforeStrip) {
+        console.log('[add_reminder/tool] preface stripped:', JSON.stringify({ before: beforeStrip, after: title }));
+      }
+      // Infer implicit-today remind_at if title still has an "at Xam/pm" pattern
+      // AND no time was extracted by Sonnet.
+      if (!inferredRemindAt && !inferredRemindOn) {
+        const timeMatch = title.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+        if (timeMatch) {
+          let hour = parseInt(timeMatch[1], 10);
+          const minute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+          const ampm = timeMatch[3].toLowerCase();
+          if (ampm === 'pm' && hour < 12) hour += 12;
+          if (ampm === 'am' && hour === 12) hour = 0;
+          const nowD = new Date();
+          const target = new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate(), hour, minute, 0);
+          if (target.getTime() < nowD.getTime()) target.setDate(target.getDate() + 1);
+          const pad = (n:number) => String(n).padStart(2, '0');
+          inferredRemindAt = `${target.getFullYear()}-${pad(target.getMonth()+1)}-${pad(target.getDate())}T${pad(hour)}:${pad(minute)}:00`;
+          // Strip the "at Xam/pm" fragment from title too
+          const cleaned = title.replace(/\s+at\s+\d{1,2}(?::\d{2})?\s*(am|pm)\b/i, '').trim();
+          console.log('[add_reminder/tool] inferred implicit-today remind_at from title:', JSON.stringify({ inferredRemindAt, titleBefore: title, titleAfter: cleaned }));
+          title = cleaned;
+        }
+      }
+
       const repeat = (input.repeat as any) || 'none';
 
       // Round B commit 37 \u2014 auto-shared when the reminder is FOR another
@@ -2425,14 +2482,14 @@ async function executeTool(name: string, input: any): Promise<string> {
         }
       }
 
-      if (repeat !== 'none' && input.remind_at) {
+      if (repeat !== 'none' && inferredRemindAt) {
         try {
           const saved = await (async () => {
             const { saveReminderSeries } = await import('../../lib/reminders');
             return await saveReminderSeries({
               title,
               notes: input.notes,
-              firstOccurrenceISO: input.remind_at,
+              firstOccurrenceISO: inferredRemindAt,
               rule: repeat,
               visibility: reminderVisibility,
             });
@@ -2454,8 +2511,8 @@ async function executeTool(name: string, input: any): Promise<string> {
         r = await saveReminder({
           title,
           notes: input.notes,
-          remindAt: input.remind_at,
-          remindOn: input.remind_on,
+          remindAt: inferredRemindAt,
+          remindOn: inferredRemindOn,
           repeatRule: repeat,
           status: 'active',
           visibility: reminderVisibility,
@@ -2633,7 +2690,7 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
     * Extract the message text literally from the user's request — keep it conversational, first-person, don't add "Rich says:" or paraphrase heavily.
     * Use ["family"] as a shorthand when the user says "everyone" / "the family" / "them" (fans out to all other adults with notifications on).
     * Do NOT use this tool for calendar events — for scheduling use add_calendar_event, then the user gets a "Notify [Name]" chip on the confirm card.
-    * Do NOT use this to remind yourself of something — use add_todo instead.
+    * Do NOT use this to remind yourself of something — use add_reminder instead (it has proper time/push handling).
 
   ABSOLUTE HONESTY RULES for this tool (CRITICAL):
     * NEVER claim you have sent / notified / told / texted / messaged a family member unless the send_family_message tool was actually called AND returned a "✅ Sent" or "⚠ Sent" response in that same turn.
@@ -2656,6 +2713,13 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
   // as external, since the new two-way sync path stores iCal events with
   // that marker in the events table (see lib/calendar-sync.ts).
   const isExternal = !!ev._external || ev.source === 'apple-ical';
+  const isImportedIcal = ev.source === 'apple-ical';
+  // Build 54 (Session 36) — track share state locally for optimistic toggle.
+  // Server row's privacy_scope is either 'personal' or 'shared'. Default is
+  // 'personal' (only importer sees). Toggling to 'shared' means all family
+  // adults can see it via RLS.
+  const [sharedWithFamily, setSharedWithFamily] = useState<boolean>(ev.privacy_scope === 'shared');
+  const [shareBusy, setShareBusy] = useState(false);
   const members = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
   const borderColor = isExternal
     ? (ev._calendarColour || 'rgba(0,0,0,0.15)')
@@ -2669,6 +2733,41 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
     await cancelEventAlert(ev.id).catch(() => {});
     await supabase.from('events').delete().eq('id', ev.id);
     onDeleted?.();
+  }
+
+  // Build 54 (Session 36) — manual share toggle for imported iCal events.
+  // Flips events.privacy_scope between 'personal' (creator only via RLS)
+  // and 'shared' (whole family). Optimistic UI + fire-and-forget DB write;
+  // on error, reverts + logs. No EventKit-side change — this only affects
+  // Zaeli visibility. The event stays in the user's iPhone Calendar
+  // regardless. iCal sync re-imports may reset local state (edge case:
+  // user shares → iCal sync re-imports the row → privacy_scope stays
+  // 'shared' because we only INSERT new rows, existing rows keep their
+  // scope on update).
+  async function toggleShareWithFamily() {
+    if (shareBusy) return;
+    const nextShared = !sharedWithFamily;
+    setShareBusy(true);
+    setSharedWithFamily(nextShared);  // optimistic
+    try {
+      const { error } = await supabase
+        .from('events')
+        .update({ privacy_scope: nextShared ? 'shared' : 'personal' })
+        .eq('id', ev.id);
+      if (error) {
+        console.log('[share-ical] update failed:', error.message);
+        setSharedWithFamily(!nextShared);  // revert
+      } else {
+        console.log('[share-ical] event', ev.id, 'privacy_scope →', nextShared ? 'shared' : 'personal');
+        // Reflect in the passed-in event object so re-expand shows correct state
+        ev.privacy_scope = nextShared ? 'shared' : 'personal';
+      }
+    } catch (e:any) {
+      console.log('[share-ical] update threw:', e?.message);
+      setSharedWithFamily(!nextShared);
+    } finally {
+      setShareBusy(false);
+    }
   }
 
   return (
@@ -2711,12 +2810,50 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
       {/* Expanded actions — only visible on tap. External Apple Calendar
           events are read-only from Zaeli's perspective, so hide Edit/Delete
           entirely and show a plain-language hint pointing users to iPhone
-          Calendar. */}
+          Calendar. Build 54 adds the "Share with family" toggle for
+          imported iCal events (privacy_scope flip). */}
       {expanded && isExternal && (
         <View style={{ marginTop:12, paddingTop:12, borderTopWidth:0.5, borderTopColor:'rgba(0,0,0,0.08)' }}>
           <Text style={{ fontFamily:'Poppins_500Medium', fontSize:13, color:'rgba(0,0,0,0.45)', lineHeight:18 }}>
             From iPhone Calendar. Edit or delete this event in the iPhone Calendar app.
           </Text>
+          {isImportedIcal && (
+            <TouchableOpacity
+              onPress={toggleShareWithFamily}
+              activeOpacity={0.75}
+              disabled={shareBusy}
+              style={{
+                marginTop:12, flexDirection:'row', alignItems:'center', gap:10,
+                backgroundColor: sharedWithFamily ? 'rgba(184,237,208,0.35)' : 'rgba(0,0,0,0.04)',
+                borderWidth:1,
+                borderColor: sharedWithFamily ? 'rgba(45,122,82,0.35)' : 'rgba(0,0,0,0.10)',
+                borderRadius:12, paddingVertical:11, paddingHorizontal:14,
+              }}
+            >
+              <View style={{
+                width:22, height:22, borderRadius:11,
+                backgroundColor: sharedWithFamily ? '#2D7A52' : 'rgba(0,0,0,0.15)',
+                alignItems:'center', justifyContent:'center',
+              }}>
+                {sharedWithFamily && (
+                  <Text style={{ fontSize:12, color:'#fff', fontFamily:'Poppins_700Bold' }}>✓</Text>
+                )}
+              </View>
+              <View style={{ flex:1 }}>
+                <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:14, color: sharedWithFamily ? '#1A5236' : 'rgba(0,0,0,0.75)' }}>
+                  {sharedWithFamily ? 'Shared with family' : 'Share with family'}
+                </Text>
+                <Text style={{ fontFamily:'Poppins_400Regular', fontSize:11, color:'rgba(0,0,0,0.45)', marginTop:1, lineHeight:14 }}>
+                  {sharedWithFamily
+                    ? "The whole family can see this event in Zaeli. Tap to make it personal again."
+                    : "Only you see this event. Tap to let the whole family see it."}
+                </Text>
+              </View>
+              {shareBusy && (
+                <Text style={{ fontSize:11, color:'rgba(0,0,0,0.35)' }}>…</Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       )}
       {expanded && !isExternal && (
@@ -4851,8 +4988,20 @@ BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Nev
       // Build family context from live Supabase data
       const ctx = await buildBriefContext();
 
+      // Build 54 (Session 36) — per-user briefs. Pass current user's id so
+      // the cache is keyed per-user (each adult in the family gets their
+      // own personalised brief that includes their personal iCal events).
+      const meUid = getProfile()?.id;
+      if (!meUid) {
+        console.log('[brief] skipping generate — no profile.id yet (roster/profile still loading)');
+        setMessages(prev => prev.filter(m => m.id !== placeholderId));
+        briefFireInFlightRef.current = false;
+        return;
+      }
+
       const payload = await generateBrief({
         familyId: getFamilyId(),
+        userId: meUid,
         window: win,
         dateKey: todayDate,
         context: ctx,

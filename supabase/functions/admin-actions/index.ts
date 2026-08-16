@@ -168,19 +168,26 @@ async function sendEmailInline(
     templateId: 'welcome' | 'testflight-invite';
     email: string;
     userId?: string | null;
-    triggeredBy: 'grant' | 'invite' | 'manual';
+    triggeredBy: 'grant' | 'invite' | 'manual' | 'resend';
+    // Build 54 (Session 36) — bypass dedup for explicit resend actions.
+    // Normal grant/invite flow keeps dedup so an accidental double-click
+    // never double-sends. Admin console "Resend welcome" MUST bypass — it
+    // exists precisely to fire a template that has already been sent.
+    force?: boolean;
   },
 ): Promise<{ ok: boolean; error?: string; skipped?: boolean }> {
   const tpl = INLINE_TEMPLATES[opts.templateId];
   if (!tpl) return { ok: false, error: `unknown template: ${opts.templateId}` };
 
-  // Dedup — CHEAP, do inline
-  let dedupQuery = admin.from('email_log').select('id').eq('template_id', opts.templateId).limit(1);
-  if (opts.userId) dedupQuery = dedupQuery.eq('recipient_user_id', opts.userId);
-  else dedupQuery = dedupQuery.eq('recipient_email', opts.email);
-  const { data: existing } = await dedupQuery;
-  if (existing?.length) {
-    return { ok: true, skipped: true };
+  // Dedup — CHEAP, do inline. Skipped when force=true (explicit resend).
+  if (!opts.force) {
+    let dedupQuery = admin.from('email_log').select('id').eq('template_id', opts.templateId).limit(1);
+    if (opts.userId) dedupQuery = dedupQuery.eq('recipient_user_id', opts.userId);
+    else dedupQuery = dedupQuery.eq('recipient_email', opts.email);
+    const { data: existing } = await dedupQuery;
+    if (existing?.length) {
+      return { ok: true, skipped: true };
+    }
   }
 
   const password = Deno.env.get('ZOHO_APP_PASSWORD');
@@ -438,6 +445,16 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'resend_welcome') {
+      // Build 54 (Session 36) — CRITICAL bug fix. The old code called
+      // `beta-notify`, which sends the "You're on the Zaeli beta list" email
+      // (the pre-install signup confirmation). NOT the post-install welcome.
+      // Kara received the beta-list email a second time at 7:31pm on 16 Aug
+      // when Rich clicked "Resend welcome" — completely wrong template.
+      //
+      // Fix: call sendEmailInline directly with templateId='welcome'. Adds
+      // an email_log row so future runs know the welcome landed (audit
+      // trail). Uses force=true to bypass dedup (that's the whole point of
+      // a manual resend action).
       const userId = String(body?.user_id || '').trim();
       if (!userId) return json(400, { error: 'missing user_id' });
       const { data: prof, error: rErr } = await admin.from('profiles')
@@ -446,6 +463,40 @@ Deno.serve(async (req) => {
       if (!prof) return json(404, { error: 'user not found' });
       if (!prof.email) return json(400, { error: 'user has no email' });
 
+      const result = await sendEmailInline(admin, {
+        templateId: 'welcome',
+        email: prof.email,
+        userId: prof.id,
+        triggeredBy: 'resend',
+        force: true,
+      });
+      if (!result.ok) {
+        console.error('[admin-actions] resend_welcome sendEmailInline failed:', result.error);
+        return json(500, { error: result.error || 'send failed' });
+      }
+      console.log(`[admin-actions] ${callerEmail} → resend_welcome → ${prof.email}${result.skipped ? ' (skipped—already sent)' : ''}`);
+      return json(200, { ok: true, user_id: prof.id, email: prof.email, action, skipped: result.skipped });
+    }
+
+    // Build 54 (Session 36) — separate action for the RARE case where the
+    // admin actually wants to re-send the "You're on the beta list"
+    // signup-confirmation email. Kept distinct from resend_welcome so the
+    // two intents can't be confused. Delivery via beta-notify (unchanged).
+    if (action === 'resend_beta_list_confirmation') {
+      const userId = String(body?.user_id || '').trim();
+      const emailInput = String(body?.email || '').trim().toLowerCase();
+      let email = emailInput;
+      let name: string | null = null;
+      if (userId) {
+        const { data: prof, error: rErr } = await admin.from('profiles')
+          .select('email, name').eq('id', userId).maybeSingle();
+        if (rErr) throw rErr;
+        if (!prof?.email) return json(404, { error: 'user not found or has no email' });
+        email = prof.email;
+        name = prof.name || null;
+      }
+      if (!email) return json(400, { error: 'missing user_id or email' });
+
       const fnRes = await fetch(`${SUPABASE_URL}/functions/v1/beta-notify`, {
         method: 'POST',
         headers: {
@@ -453,15 +504,15 @@ Deno.serve(async (req) => {
           'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
           'apikey': SERVICE_ROLE_KEY,
         },
-        body: JSON.stringify({ email: prof.email, name: prof.name || null }),
+        body: JSON.stringify({ email, name }),
       });
       const fnBody = await fnRes.json().catch(() => ({}));
       if (!fnRes.ok || !fnBody?.ok) {
-        console.error('[admin-actions] resend_welcome beta-notify failed:', fnBody);
+        console.error('[admin-actions] resend_beta_list_confirmation failed:', fnBody);
         return json(500, { error: fnBody?.error || `beta-notify HTTP ${fnRes.status}` });
       }
-      console.log(`[admin-actions] ${callerEmail} → resend_welcome → ${prof.email}`);
-      return json(200, { ok: true, user_id: prof.id, email: prof.email, action });
+      console.log(`[admin-actions] ${callerEmail} → resend_beta_list_confirmation → ${email}`);
+      return json(200, { ok: true, email, action });
     }
 
     if (action === 'admin_whitelist_add') {

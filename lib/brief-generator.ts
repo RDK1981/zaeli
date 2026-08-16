@@ -400,20 +400,25 @@ function parseSonnetResponse(raw: string): { text: string; chips: BriefChip[] } 
 // ── Main ─────────────────────────────────────────────────────────────────
 export async function generateBrief(args: {
   familyId: string;
+  userId: string;  // Build 54 (Session 36) — per-user briefs. See
+                   // supabase-zaeli-briefs-per-user.sql for the schema swap.
+                   // Each adult gets a personalised brief that includes their
+                   // own personal iCal events + family shared. Cache is per-user.
   window: BriefWindow;
   dateKey: string; // YYYY-MM-DD local
   context: FamilyContext;
 }): Promise<BriefPayload> {
   const signature = computeSignature(args.context);
 
-  // 1. Check cache
+  // 1. Check cache (per-user)
   const { data: cached } = await supabase
     .from('zaeli_briefs')
     .select('brief_text, chips, win_banner, data_signature')
     .eq('family_id', args.familyId)
+    .eq('user_id', args.userId)
     .eq('date_key', args.dateKey)
     .eq('time_window', args.window)
-    .single();
+    .maybeSingle();
 
   if (cached && cached.data_signature === signature) {
     return {
@@ -468,9 +473,10 @@ export async function generateBrief(args: {
   const inputTokens = response?.usage?.input_tokens ?? 0;
   const outputTokens = response?.usage?.output_tokens ?? 0;
 
-  // 3. Upsert cache
+  // 3. Upsert cache (per-user)
   await supabase.from('zaeli_briefs').upsert({
     family_id: args.familyId,
+    user_id: args.userId,
     date_key: args.dateKey,
     time_window: args.window,
     brief_text: parsed.text,
@@ -481,7 +487,7 @@ export async function generateBrief(args: {
     output_tokens: outputTokens,
     data_signature: signature,
     generated_at: new Date().toISOString(),
-  }, { onConflict: 'family_id,date_key,time_window' });
+  }, { onConflict: 'family_id,user_id,date_key,time_window' });
 
   return {
     text: parsed.text,

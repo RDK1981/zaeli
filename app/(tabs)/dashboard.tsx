@@ -501,17 +501,41 @@ export default function DashboardScreen({
               {eventCountToday === 0 ? "Nothing on today." : `${eventCountToday} event${eventCountToday === 1 ? '' : 's'} on today.`}
             </Text>
             {todayEvents.map(ev => {
+              // Build 54 (Session 36) — "?" avatar fix. Three cases:
+              //   1. External iCal event (source='apple-ical'): assignees=[]
+              //      by design (Rich's rule — don't stamp "R" on every work
+              //      meeting). Render a small iPhone icon in the avatar slot,
+              //      not a "?" letter.
+              //   2. Zaeli event but roster hasn't hydrated yet (cold-start
+              //      race): render a subtle placeholder dot, not "?".
+              //   3. Zaeli event, roster loaded, but assignee UUID is stale
+              //      (from a duplicate-family_members cleanup — the row was
+              //      patched but historical events still reference the old
+              //      id): render circle in default colour, no letter. Never
+              //      paint "?" — it looks broken and leaks identity concerns.
+              const isExternal = ev.source === 'apple-ical';
+              const rosterLoaded = roster.length > 0;
               const mem = memberById((ev.assignees ?? [])[0] ?? '');
               const c = mem?.color ?? T.rich;
-              const initial = (mem?.name ?? '?').charAt(0).toUpperCase();
+              const dotC = isExternal ? 'rgba(255,255,255,0.35)' : c;
               return (
                 <View key={ev.id} style={s.calRow}>
                   <Text style={[s.calTime, { color: 'rgba(255,255,255,0.75)' }]}>{fmtTime(ev.start_time) || 'all day'}</Text>
-                  <View style={[s.calDot, { backgroundColor: c }]}/>
+                  <View style={[s.calDot, { backgroundColor: dotC }]}/>
                   <Text style={[s.calTitle, { color: 'rgba(255,255,255,0.92)' }]} numberOfLines={1}>{ev.title}</Text>
-                  <View style={[s.avat, { backgroundColor: c }]}>
-                    <Text style={s.avatTxt}>{initial}</Text>
-                  </View>
+                  {isExternal ? (
+                    <View style={[s.avat, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
+                      <Text style={{ fontSize: 11 }}>📱</Text>
+                    </View>
+                  ) : mem ? (
+                    <View style={[s.avat, { backgroundColor: c }]}>
+                      <Text style={s.avatTxt}>{mem.name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                  ) : !rosterLoaded ? (
+                    <View style={[s.avat, { backgroundColor: 'rgba(255,255,255,0.14)' }]}/>
+                  ) : (
+                    <View style={[s.avat, { backgroundColor: 'rgba(255,255,255,0.18)' }]}/>
+                  )}
                 </View>
               );
             })}

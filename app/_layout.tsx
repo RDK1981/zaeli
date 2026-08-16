@@ -183,6 +183,15 @@ export default function RootLayout() {
   // TO 'active' from a non-active state (background/inactive), so navigating
   // between apps within iOS doesn't hammer supabase.
   const appStateRef = useRef<AppStateStatus>(AppState.currentState)
+  // Build 54 (Session 36) — debounce foreground syncs. Every background→
+  // active transition previously fired syncNow. Control Centre swipes,
+  // Notification Centre pulls, Camera dismisses — all triggered redundant
+  // syncs with no debounce, stacking concurrent runs. Combined with the
+  // (now-fixed) unsafe delete-stale step, this caused Rich's iCal flicker.
+  // 5 second window collapses rapid multi-toggles to one sync. In-flight
+  // guard in calendar-sync.ts is the second layer of protection.
+  const lastForegroundSyncRef = useRef<number>(0)
+  const FOREGROUND_SYNC_DEBOUNCE_MS = 5000
   useEffect(() => {
     const sub = AppState.addEventListener('change', async (next) => {
       const prev = appStateRef.current
@@ -194,6 +203,18 @@ export default function RootLayout() {
         // Rich reported switching from iPhone Calendar → Zaeli didn't
         // reflect a time edit until he force-quit + reopened. Fires the
         // sync silently in the background so switching apps just works.
+        //
+        // Build 54 debounce: skip if we synced in the last 5 seconds. A
+        // sync typically completes in ~1s; this window collapses bursts of
+        // background→active transitions (Control Centre, Notification
+        // Centre, camera dismiss, share sheet dismiss) to one sync.
+        const nowMs = Date.now()
+        if (nowMs - lastForegroundSyncRef.current < FOREGROUND_SYNC_DEBOUNCE_MS) {
+          console.log('[foreground] sync debounced (last was', nowMs - lastForegroundSyncRef.current, 'ms ago)')
+          return
+        }
+        lastForegroundSyncRef.current = nowMs
+
         try {
           const profile = getProfile()
           if (profile?.id && profile?.family_id) {

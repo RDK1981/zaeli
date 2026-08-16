@@ -1236,12 +1236,18 @@
             <div class="panel-h">
               <div><h3>Admin utilities</h3><div class="panel-sub">Per-user overrides</div></div>
             </div>
-            <label class="field-label">Resend welcome email</label>
+            <label class="field-label">Resend "You're in — welcome to Zaeli" email</label>
             <div style="display: flex; gap: 8px;">
               <input class="field-input" id="util-resend-email" placeholder="user@example.com" style="flex: 1;">
-              <button class="btn btn-secondary btn-sm" id="util-resend-btn">Resend</button>
+              <button class="btn btn-secondary btn-sm" id="util-resend-btn">Resend welcome</button>
             </div>
-            <p style="font-size: 11px; color: var(--ink3); margin-top: 6px;">Sends the same welcome email as `beta-notify`. User must already have a profile row.</p>
+            <p style="font-size: 11px; color: var(--ink3); margin-top: 6px;">Sends the post-install welcome (day-0 of the drip). Writes to email_log with triggered_by='resend'. Bypasses dedup — will re-send even if the user has already had it.</p>
+            <label class="field-label" style="margin-top: 16px;">Resend "You're on the Zaeli beta list" email</label>
+            <div style="display: flex; gap: 8px;">
+              <input class="field-input" id="util-resend-betalist-email" placeholder="user@example.com" style="flex: 1;">
+              <button class="btn btn-secondary btn-sm" id="util-resend-betalist-btn">Resend beta-list</button>
+            </div>
+            <p style="font-size: 11px; color: var(--ink3); margin-top: 6px;">Only for the pre-install signup confirmation. RARE — you almost never want this. If the user is already installed and you want to send the welcome, use the button above.</p>
           </div>
         </div>
 
@@ -3525,10 +3531,24 @@
       }
       if (!matches?.length) throw new Error(`No profile found with email ${email}`);
       await callAdminAction('resend_welcome', { user_id: matches[0].id });
-      showToast(`Welcome email re-sent to ${matches[0].email}`, 'ok');
+      showToast(`"You're in" welcome email re-sent to ${matches[0].email}`, 'ok');
       $('#util-resend-email').value = '';
     } catch (e) { showToast(e.message, 'err'); }
-    finally { btn.disabled = false; btn.textContent = 'Resend'; }
+    finally { btn.disabled = false; btn.textContent = 'Resend welcome'; }
+  });
+
+  // Build 54 (Session 36) — separate handler for the rare beta-list resend.
+  $('#util-resend-betalist-btn').addEventListener('click', async () => {
+    const email = $('#util-resend-betalist-email').value.trim().toLowerCase();
+    if (!email) { showToast('Enter an email', 'err'); return; }
+    const btn = $('#util-resend-betalist-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      await callAdminAction('resend_beta_list_confirmation', { email });
+      showToast(`"You're on the beta list" email re-sent to ${email}`, 'ok');
+      $('#util-resend-betalist-email').value = '';
+    } catch (e) { showToast(e.message, 'err'); }
+    finally { btn.disabled = false; btn.textContent = 'Resend beta-list'; }
   });
 
   $('#settings-refresh').addEventListener('click', () => {
