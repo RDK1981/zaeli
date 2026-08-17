@@ -1,5 +1,7 @@
 # Zaeli — New Chat Handover
-*17 August 2026 — Session 36 ✅ · **BUILD 54 BUG BASH — 6 REAL BUG FIXES BUNDLED, WIDGETS DEFERRED TO BUILD 55.** Rich pivoted Build 54 from widgets to bug rectification after Session 35's iCal ship uncovered a real-user-facing bug cluster. Three parallel investigation agents nailed root causes before touching code. Six fixes shipped end-to-end all root-cause not band-aid: (1) Reminders regression — "Can you remind me to order hair product at 9am?" landed in To-dos tab with raw prompt as title. Fixed via expanded tool description + defence-in-depth executeTool preface-strip + implicit-today remind_at inference; (2) iCal event flicker — concurrent syncs racing through the DELETE-stale step. Fixed via `_syncInFlight` module guard + per-calendar `readSucceeded` tracking (skip delete if any read failed) + 5s AppState debounce; (3) "?" avatar on Zaeli + imported iCal events. Fixed via avatar-render branches (iPhone icon for external, subtle placeholder when roster loading, never paint "?") + NEW `supabase-repair-stale-assignees.sql` dry-run first then apply; (4) Welcome email `resend_welcome` sending wrong template (Kara received "You're on beta list" AGAIN 16 Aug 7:31pm). Fixed via rewire to `sendEmailInline({templateId:'welcome', force:true})` + separate `resend_beta_list_confirmation` action for the rare case + admin console UI split into two clearly-labelled buttons + NEW `supabase-kara-email-backfill.sql` to plug Kara's email_log; (5) Per-user briefs (Phase 85 promoted from queued) — brief-scheduler was family-scoped, missed personal iCal events → "clear day ahead" when iPhone screamed otherwise. Migrated to per-user briefs: NEW `supabase-zaeli-briefs-per-user.sql` (adds user_id column + swaps unique constraint) + brief-scheduler rewritten to iterate profiles not families + `lib/brief-generator.ts` updated to per-user cache + push sends to single user's token. Bonus caught silent server-side upsert bug (was writing to `text:` when schema is `brief_text` — server briefs never landed in cache for weeks); (6) Manual share iCal event toggle — CalSheetEventCard expanded view for imported events has new "Share with family" toggle that flips `privacy_scope` between personal/shared. Also fixed `lib/calendar-sync.ts` UPDATE path to preserve `privacy_scope` on subsequent iCal syncs (previously reset to 'personal' every sync, blowing away user's manual share) · **Rich hand-off**: run `supabase-zaeli-briefs-per-user.sql` + review-then-apply `supabase-repair-stale-assignees.sql` + run `supabase-kara-email-backfill.sql` + `supabase functions deploy admin-actions` + `supabase functions deploy brief-scheduler` + push admin console to Netlify + EAS production build for Build 54 + `eas submit --platform ios --profile production --latest`. Widget work back in queue for Build 55 (fresh session, foundation packages already installed) · **Prior Session 35 same-week** — Full iCal two-way sync live (Builds 49→52), Home tiles instant-load (Build 53), api_logs RLS unblocked, website updated. Session 34 shipped Builds 47 + 48. Session 32 v2 trio vision pivot. Pricing A$6.99/mo tax-inclusive.*
+*17 August 2026 late — Session 37 ✅ · **CHAT BRIEF KILLED · HOME CHATTILE + CHAT EMPTY-STATE GREETING SHIPPED · MARKETING KICK-OFF · COST INVESTIGATION → BUILD 60 BACKLOG.** Rich pivoted brief architecture after two compounding UX issues: (a) evening brief still showing "clear day" at 10pm Monday when Tuesday was busy (stale-cache), (b) morning brief still visible at 3:30pm (moment-in-time push doesn't belong on a persistent tile). Realisation: the brief was DESIGNED as a lockscreen push moment. Chat is for INPUT, not for reading briefs. Full pivot in one session — kill client brief pipeline, replace Home BriefTile with time-of-day ChatTile that taps into Chat, add chat empty-state greeting so users never land on blank screen · **Chat brief killed (Build 57, commit `b52c5c0`)** — removed 4 `tryFireBrief` call sites in `app/(tabs)/index.tsx` + 5-min interval. Server-side `brief-scheduler` unchanged — still fires lockscreen pushes at each user's scheduled brief times · **Home ChatTile Variation B (Build 58, commit `83da3bf`)** — 5 time-of-day windows with palette tokens already in the app (morning peach ☀️ · midday sky 💬 · afternoon mint 👋 · evening lavender 🌙 · late slate 💤). Tap → Chat. Zero AI cost per render. Killed `latestBrief` state, `briefRes` fetch, `briefLatest` cache key. Mockup `zaeli-chat-tile-mockups.html` (3 options shown, B picked) · **Old brief messages stripped from persistence (Build 59, commit `8ea41dc`)** — post-install, briefs still in chat feed because AsyncStorage file held old brief bubbles. New `stripBriefs()` filter on hydrate + save (`m.isBrief || m.id?.startsWith('brief-')`) · **Chat empty-state greeting (Build 59, commits `bb2bb8e` + `c81a25e`)** — Rich: "chat can't have a blank screen." When messages empty → render matching greeting card at top of feed. Same 5-window palette as Home ChatTile. Font sizes 17/26 (matching chat message spec, not tile spec). Instant disappearance on first message · **Session 37 hotfix (created + reverted, commits `3ad3a96` + `48182fa`)** — brief-scheduler drift-regen shipped before pivot decision; reverted after because no client reads the brief row live anymore · **Cost investigation — Andy usage → imgCtx cache breakage → Build 60 backlog** — Andy back for one session (3 photo-heavy messages → A$0.25 AUD → ~A$0.08/message, too high). Diagnosed via api_logs token analysis: cache works within message pairs but breaks between messages when photos change (imgCtx lives inside cached prefix at `app/(tabs)/index.tsx:6064`, ~2000 tokens per photo, changes → cache miss → repay full cache_creation cost). **Build 60 deferred by Rich — cost-only, invisible to users**: (1) move imgCtx to uncached tail (~30% off photo sessions), (2) Sonnet 4.6 → Sonnet 5 intro pricing (~33% always), (3) add cache_read + cache_creation columns to api_logs (observability blind spot), (4) trim CAPABILITY_RULES ~5000→3000 tokens, (5) optional Sonnet followup → Haiku 4.5. Combined target: A$5.86/mo Rich baseline → A$2.10/mo (70% margin at A$6.99) · **Marketing kick-off — IG + FB pages + 4-week content calendar** — @zaeli.app on both. NEW `zaeli-fb-cover-generator.html` (browser Canvas PNG generator). NEW `zaeli-4week-content-calendar.html` — 12 posts × 3 platforms × 4 weeks, **Mum POV** (Rich course-corrected — mums are buyers), Australian-generic, mental-load themes. Weeks: Recognition → Curiosity → Reveal → Invite. Mon/Thu/Sun cadence starting Aug 25. FB Groups strategy for stranger reach · **Andy engagement** — back briefly 17 Aug 9-10pm Brisbane, server evening brief fired for him, Nadia invite from 14 Aug still pending 3 days later (named "Family" — fat-fingered). Rich needs personal nudge · **Prior Session 36 work still current** — Build 54 six-fix bug bash. Pricing A$6.99/mo tax-inclusive.*
+
+*Legacy Session 36 header (kept for context): 17 August 2026 — Session 36 ✅ · **BUILD 54 BUG BASH — 6 REAL BUG FIXES BUNDLED, WIDGETS DEFERRED TO BUILD 55.** Rich pivoted Build 54 from widgets to bug rectification after Session 35's iCal ship uncovered a real-user-facing bug cluster. Three parallel investigation agents nailed root causes before touching code. Six fixes shipped end-to-end all root-cause not band-aid: (1) Reminders regression — "Can you remind me to order hair product at 9am?" landed in To-dos tab with raw prompt as title. Fixed via expanded tool description + defence-in-depth executeTool preface-strip + implicit-today remind_at inference; (2) iCal event flicker — concurrent syncs racing through the DELETE-stale step. Fixed via `_syncInFlight` module guard + per-calendar `readSucceeded` tracking (skip delete if any read failed) + 5s AppState debounce; (3) "?" avatar on Zaeli + imported iCal events. Fixed via avatar-render branches (iPhone icon for external, subtle placeholder when roster loading, never paint "?") + NEW `supabase-repair-stale-assignees.sql` dry-run first then apply; (4) Welcome email `resend_welcome` sending wrong template (Kara received "You're on beta list" AGAIN 16 Aug 7:31pm). Fixed via rewire to `sendEmailInline({templateId:'welcome', force:true})` + separate `resend_beta_list_confirmation` action for the rare case + admin console UI split into two clearly-labelled buttons + NEW `supabase-kara-email-backfill.sql` to plug Kara's email_log; (5) Per-user briefs (Phase 85 promoted from queued) — brief-scheduler was family-scoped, missed personal iCal events → "clear day ahead" when iPhone screamed otherwise. Migrated to per-user briefs: NEW `supabase-zaeli-briefs-per-user.sql` (adds user_id column + swaps unique constraint) + brief-scheduler rewritten to iterate profiles not families + `lib/brief-generator.ts` updated to per-user cache + push sends to single user's token. Bonus caught silent server-side upsert bug (was writing to `text:` when schema is `brief_text` — server briefs never landed in cache for weeks); (6) Manual share iCal event toggle — CalSheetEventCard expanded view for imported events has new "Share with family" toggle that flips `privacy_scope` between personal/shared. Also fixed `lib/calendar-sync.ts` UPDATE path to preserve `privacy_scope` on subsequent iCal syncs (previously reset to 'personal' every sync, blowing away user's manual share) · **Rich hand-off**: run `supabase-zaeli-briefs-per-user.sql` + review-then-apply `supabase-repair-stale-assignees.sql` + run `supabase-kara-email-backfill.sql` + `supabase functions deploy admin-actions` + `supabase functions deploy brief-scheduler` + push admin console to Netlify + EAS production build for Build 54 + `eas submit --platform ios --profile production --latest`. Widget work back in queue for Build 55 (fresh session, foundation packages already installed) · **Prior Session 35 same-week** — Full iCal two-way sync live (Builds 49→52), Home tiles instant-load (Build 53), api_logs RLS unblocked, website updated. Session 34 shipped Builds 47 + 48. Session 32 v2 trio vision pivot. Pricing A$6.99/mo tax-inclusive.*
 
 *Legacy Session 35 header (kept for context): 15 August 2026 late — Session 35 ✅ · **ICAL TWO-WAY SYNC LIVE (Builds 49→52) + HOME TILES INSTANT-LOAD (Build 53) + WEBSITE UPDATED WITH CALENDAR SYNC SECTION + API_LOGS RLS UNBLOCKED (3 days silent) + BUILD 54 WIDGETS SCOPED + DEFERRED.** Sprint day — 6 EAS production builds shipped through 47→48→49→50→51→52→53. Andy asked for iPhone Calendar sync Session 34 → we shipped the full two-way roadmap in one day. Rich holding Build 54 (widgets + long-press icon shortcuts + share personal event manually) for tomorrow to give the native Swift/SwiftUI/WidgetKit work proper focus. Andy dormant since 14 Aug 21:14 last api_log (but api_logs was broken for 3 days from ~12 Aug so real usage may be higher); Rich sent re-engagement text with iPhone Calendar sync screenshot. Damien Android never installed the sideload APK. Nadia invite pending 2 days unaccepted · **⭐⭐⭐ Full iCal two-way sync SHIPPED (Builds 49→52)** — Build 49 = foundation + read-in: `supabase-calendar-sync.sql` added `events.source/external_id/external_calendar_id/imported_by_user_id/privacy_scope/synced_at` columns + new `calendar_sync_config` table + RLS enforces `privacy_scope='personal'` only visible to `imported_by_user_id`. NEW `lib/calendar-sync.ts` — permission gate, per-calendar picker, syncNow. NEW Settings CalendarSyncView — full opt-in-per-calendar picker + Sync now + disconnect. Build 50 = write-back: `supabase-calendar-writeback.sql` added `events.mirrored_apple_id`, NEW `ensureZaeliCalendar()` creates a "Zaeli" EventKit calendar (loose iCloud source matching — strict CALDAV+name failed silently), NEW `mirrorZaeliEventsToEventKit()` full reconciliation INSERT/UPDATE/DELETE. Build 51 = timezone HOTFIX — Postgres +00 UTC timestamps parsed literally by iOS, mirroring events +10 hours off (7am Brisbane → 5pm iPhone). Fix in `parseIsoAsDate` (mirror of reminders' `parseLocalIsoAsDate`): strip tz suffix, construct Date from local components. Build 52 = onboarding step + update/delete propagation + white-on-white DateTimePicker fix + auto-remediation via `MIRROR_SCHEMA_VERSION` (bumps → forces one-time full re-mirror on app open). Real cross-family leak fix along the way: dropped 4 old duplicate events RLS policies from Session 21 that were permissive OR'd against Build 48 additions · **⭐⭐ api_logs RLS INSERT missing — 3 days of blind flying FIXED** — Session 33 admin console SQL enabled RLS on api_logs but only created SELECT policy for admins. Since ~12 Aug, EVERY logApiCall silently rejected. Discovered when checking "did Andy use app today?" and admin console showed zero rows. Fix: `CREATE POLICY "api_logs insert authenticated" ON public.api_logs FOR INSERT WITH CHECK (family_id = public.current_family_id())`. Cost visibility restored. Same Session 21 lesson · **⭐ Home tiles instant-load (Build 53)** — 2-3 sec blank tile flash on cold-start fixed with cache-then-refresh. NEW `lib/home-cache.ts` — per-family per-tile AsyncStorage cache. Dashboard hydrates from cache in ~50ms on mount, fetches fresh in background, silently updates if changed. `saveLastFamilyId()` after every fetch (profile isn't loaded during Session 30 splash-latency flow). Cache cleared on sign-out via `onAuthChange`. AppState listener triggers foreground sync (returning from Safari/Notes → fresh data + iCal re-sync) · **⭐ Family_members duplicate cleanup + name-match guard** — Build 47's `ensureOwnMembership()` was INSERTing new rows when it couldn't find by auth.uid, but existing name-match rows already existed → duplicates (Richard+Richard, Anna+Anna). Fix: name-match check before INSERT, patches existing row's id to auth.uid instead. Idempotent · **⭐ Website homepage — iPhone Calendar sync as headline feature** — `zaeli-app-links-template/public/index.html` NEW Section 3.5 between Lockscreen briefs and Reminders (phone mockup + calendar picker + Sync now UI + "Zaeli events appear in iPhone. iPhone events appear in Zaeli." headline). Privacy page updated with iPhone Calendar events disclosure. Cloudflare Pages auto-deployed · **⭐ Build 54 SCOPED (deferred to fresh session)** — locked scope: (1) Small Home widget = mic launcher. (2) Medium Home widget = today's events + next reminder. (3) Lock Screen circular = Zaeli logo tap-to-open. (4) Lock Screen inline = one-line today text. Long-press Zaeli icon → 4-action menu (voice / today / shopping / quick add) via Info.plist UIApplicationShortcutItems + zaeli:// URL scheme. Share personal event manually via privacy_scope toggle in event edit sheet. Foundation packages installed tonight: `@bacons/apple-targets` (Expo config plugin for native iOS widget target) + `react-native-shared-group-preferences` (swapped from expo-shared-preferences which was Android-only). Rich chose to defer over pushing through tired legs · **Prior Session 34 (same day, earlier)** — Build 47 + 48: Andy's Add Event RLS fix, Option C Our Family editing, cross-family name leak fix, ensureOwnMembership auto-heal, anti-snowball CALENDAR HONESTY rules, admin-announce SMTP fix, brief-scheduler fresh-signup exemption, iCal sync scope decisions locked (per-user, opt-in-per-calendar, full two-way, 3-build plan). Session 35 shipped the entire iCal roadmap Session 34 scoped · **Prior Session 32 v2 vision pivot** — trio + Reminders as 4th pillar, Home is front door, Kids Hub/Tutor/Travel/My Space/Meals in `app/_hidden/`, server-side brief scheduler on lockscreen, sheet-over-Home. Pricing A$6.99/mo tax-inclusive.*
 
@@ -16,35 +18,159 @@ Zaeli is an iOS-first family productivity app built in React Native / Expo — w
 Read **CLAUDE.md** before starting — full stack, architecture, colours, ALL specs.
 Then **ZAELI-PRODUCT.md** for product vision and full project plan.
 
-**Session 36 (17 August) pivoted Build 54 from widgets to a bug bash.** Session 35's iCal two-way sync ship (Builds 49→52) uncovered a cluster of real UX bugs during real beta usage. Rather than push through with tired-legs native iOS widget work, Rich called an audible: fix the annoying bugs first, widgets in Build 55. Three parallel investigation agents (reminders routing, iCal flicker + avatar, welcome email path) surfaced root causes before any code was touched. Every fix is root-cause not band-aid.
+**Session 37 (17 August late) pivoted the brief architecture.** Chat brief killed after a chain of realisations: evening brief showing "clear day" at 10pm Monday when Tuesday was busy, morning brief still visible at 3:30pm, the whole thing was a moment-in-time push being force-fit into a persistent tile. Chat is for INPUT, not for reading briefs. Full pivot in one session — kill client brief pipeline, add time-of-day ChatTile on Home (5 windows: peach/sky/mint/lavender/slate), add chat empty-state greeting so users never land on blank screen. Also: marketing kick-off (IG + FB pages + 4-week content calendar) + cost investigation (Andy's usage exposed imgCtx cache breakage → Build 60 backlog).
 
 **What Rich needs to do next (in order):**
-1. **Supabase SQL Studio** — run 3 migrations in this order:
-   - `supabase-zaeli-briefs-per-user.sql` (adds user_id column, backfills, swaps unique constraint)
-   - `supabase-repair-stale-assignees.sql` (DRY RUN FIRST — reviews the count + samples in the SELECT queries; if reasonable, uncomment the UPDATE block near the bottom and re-run)
-   - `supabase-kara-email-backfill.sql` (plugs Kara's missing email_log welcome row)
-2. **Supabase CLI** — deploy the two changed Edge Functions:
-   ```
-   supabase functions deploy admin-actions
-   supabase functions deploy brief-scheduler
-   ```
-3. **Netlify** — push the admin console update (from local zaeli-app-links repo). Auto-deploys on push.
-4. **EAS build** — `eas build --platform ios --profile production` + `eas submit --platform ios --profile production --latest`
-5. Once Build 54 lands on TestFlight — verify with Andy: (a) reminders route correctly with a time-based ask, (b) iCal events no longer flicker on multiple opens, (c) avatars no longer show "?", (d) his morning brief includes his iPhone calendar events.
-6. **Manual test** — try the admin console "Resend welcome" button on a test account. Verify it sends the actual welcome (check email_log for a `triggered_by='resend'` row).
+1. **EAS build** — `eas build --platform ios --profile production` + `eas submit --platform ios --profile production --latest` for **Build 59** (currently on Rich's plate — commits `b52c5c0` → `83da3bf` → `8ea41dc` → `bb2bb8e` → `c81a25e`).
+2. Once Build 59 lands on TestFlight — verify:
+   - Home tile at top shows time-of-day ChatTile (not the old brief tile)
+   - Tap tile → routes into Chat
+   - Chat with no messages → shows matching greeting card at top of feed (same 5-window palette)
+   - Chat with old briefs → briefs are gone (stripped on hydrate)
+   - Server evening brief still fires as lockscreen push at your scheduled time
+3. **Marketing** — Aug 25 (Mon) is post day 1. Content brief in `zaeli-4week-content-calendar.html`. Prepare post 1 (Recognition week — the "mental load" carrying-a-thousand-things post). Facebook cover PNG already downloaded (upload via FB page settings).
+4. **Personal nudge to Andy** — "great to see you back last night! did you get Nadia set up? saw an invite still pending from a few days ago — want me to resend?" — soft, actionable. He came back for one session but Nadia never joined.
 
 **Next session priorities** (order):
-1. **Build 55 — widgets + long-press icon shortcuts.** Widget foundation packages already installed (`@bacons/apple-targets` + `react-native-shared-group-preferences` from Session 35). Full scope: small Home mic widget, medium Home info widget, Lock Screen circular Zaeli logo, Lock Screen inline text, 4-action long-press menu. Expect 1-2 EAS iteration cycles for widget bring-up (native Swift/SwiftUI).
-2. **Monitor Andy + Nadia engagement.** With per-user briefs live, Andy should see his iCal events in tomorrow's morning brief. That's the trust-builder.
-3. **Kara's day-3 checkin email** should fire around 19 Aug — verify it lands (independent of the welcome fix — different template_id).
-4. **Sonnet 5 migration** — still queued for post-beta stability.
-5. **Damien APK** if/when he asks.
-6. **Website testimonial section** once real users say something quotable.
+1. **Build 60 — cost fix batch (all in one commit)**. Suggested scope:
+   - Move `imgCtx` OUT of `staticCached` INTO `dynamicUncached` in `app/(tabs)/index.tsx:6064` (~30% off photo-heavy sessions)
+   - Sonnet 4.6 → Sonnet 5 (`claude-sonnet-4-6` → `claude-sonnet-5`) — free ~33% via intro pricing $2/$10 through Aug 2026
+   - NEW `supabase-api-logs-cache-cols.sql` — add `cache_read_tokens` + `cache_creation_tokens` columns + update `lib/api-logger.ts` to persist them (currently we can't measure cache hit rate — big blind spot)
+   - Trim `CAPABILITY_RULES` from ~5000 tokens to ~3000 (audit for redundant ABSOLUTE HONESTY blocks)
+   - OPTIONAL: Sonnet follow-up call → Haiku 4.5 for the reflection turn only (~25-30% more off, but persona quality trade-off — needs discussion)
+2. **Widgets — Build 61+** (pushed back from Build 55). Foundation packages still installed (`@bacons/apple-targets` + `react-native-shared-group-preferences` from Session 35). Full scope in prior Session 35 notes.
+3. **Marketing content posts** — actually execute Mon/Thu/Sun cadence starting Aug 25. First post = Recognition. Watch what lands.
+4. **Andy + Nadia engagement watch** — if Andy stays quiet 48h after the personal nudge, next escalation is a check-in call from Rich.
+5. **Kara** — day-3 checkin email should fire around 19 Aug. Verify it lands (independent of the Session 36 welcome fix — different template_id).
+6. **Damien APK** if/when he asks.
+7. **Website testimonial section** once real users say something quotable.
 
 ---
 
 ## ══════════════════════════════════
-## CURRENT STATE — SESSION 36 · BUILD 54 BUG BASH ✅
+## CURRENT STATE — SESSION 37 · CHAT BRIEF KILLED + CHATTILE + COST DIAGNOSIS ✅
+## ══════════════════════════════════
+
+### NEW THIS SESSION (Session 37 — 17 August late, all committed + pushed)
+
+**A. Chat brief killed ⭐⭐⭐** (Build 57, commit `b52c5c0`).
+- Removed all 4 `tryFireBrief` call sites in `app/(tabs)/index.tsx`:
+  - Mount effect (line ~4398)
+  - `isActive` re-check (line ~5414)
+  - Voice/photo callback path (line ~7880)
+  - 5-min `heldBriefCheckTimerRef` interval (lines ~4358-4364)
+- `tryFireBrief`, `buildBriefContext`, `generateBrief` functions left in place as dead code. Harmless, low-priority cleanup.
+- **Server-side `brief-scheduler` unchanged** — still fires lockscreen pushes at each user's scheduled brief times. Only client generation removed.
+
+**B. Home ChatTile — Variation B ⭐⭐⭐** (Build 58, commit `83da3bf`).
+- Replaced my initial Session 37 BriefTile attempt (which had all the stale-cache problems). New tile is a time-of-day greeting card at top of Home:
+  - **Morning** (5am–11:59am) ☀️ peach `#FDF1E5` "Morning 👋 What's on your mind?"
+  - **Midday** (12pm–3:59pm) 💬 sky `#E8F4FD` "Hey — anything I can help with?"
+  - **Afternoon** (4pm–6:59pm) 👋 mint `#E6F7EF` "Afternoon 👋 What can I sort?"
+  - **Evening** (7pm–11:59pm) 🌙 lavender `#F0EBFF` "Evening — anything to knock off?"
+  - **Late** (12am–4:59am) 💤 slate `rgba(45,55,72,0.06)` "Still up? I'm here."
+- Tap → routes to Chat via existing `openChat` helper.
+- Zero AI cost per render. All tokens already in the app palette.
+- Killed `latestBrief` + `briefExpanded` state.
+- Removed `briefRes` fetch from `loadData` Promise.all.
+- Removed `cachedBrief` hydration in mount effect.
+- Removed `briefLatest` cache key from `lib/home-cache.ts` CACHE_KEYS.
+- Mockup: NEW `zaeli-chat-tile-mockups.html` (3 variations shown — Rich picked B).
+
+**C. Session 37 hotfix — brief-scheduler drift regen (created + reverted)** (commits `3ad3a96` + `48182fa`).
+- First shipped a `data_signature` check in `supabase/functions/brief-scheduler/index.ts` — computed djb2 hash of LIVE DATA shape, stored in existing `data_signature` column (was hardcoded string), triggered silent regen on drift without re-pushing the lockscreen notification.
+- Made sense while the Home BriefTile was still going to display the row.
+- After ChatTile pivot (no client reads the row live), drift regen serves no purpose. Reverted the whole commit clean.
+- **Scheduler back to Build 54 behavior**: fire-once-per-day idempotent, no drift check.
+
+**D. Old brief messages stripped from persisted chat history ⭐** (Build 59, commit `8ea41dc`).
+- After Rich installed Build 58, briefs were still visible in the chat feed. Root cause: `useChatPersistence` hydrates from an AsyncStorage file with 24hr TTL — briefs saved BEFORE Session 37 kill were still on disk. File TTL only fires after 24h of NO chat activity (any use refreshes savedAt), so the briefs weren't going to age out organically.
+- Fix in `lib/use-chat-persistence.ts`:
+  - NEW `stripBriefs(msgs)` helper — filters `m.isBrief || m.id?.startsWith('brief-')`
+  - Applied on **hydrate** (first read after user id resolves): one-shot clears stale briefs from prior builds on first chat open post-install
+  - Applied on **save** (debounced write): defence in depth — if a regression ever starts producing brief-shaped messages again, they don't reach disk
+  - Added `isBrief?: boolean` to `PersistedMsg` type so the filter has a typed field to check
+- Non-brief chat history preserved. Users keep their normal message history — just the brief bubbles disappear.
+
+**E. Chat empty-state greeting ⭐** (Build 59, commits `bb2bb8e` + `c81a25e`).
+- Rich's call: chat screen must never be blank. Whether user taps the Home ChatTile or swipes right to Chat, they should see a warm time-of-day greeting.
+- `renderMessages()` in `app/(tabs)/index.tsx` now returns a greeting card when the deduped messages array is empty. Same 5-window palette + emoji + text as Home ChatTile → visual continuity whether user tapped tile or swiped right.
+- Sub-line under the greeting: "Type below or tap the mic to talk."
+- Behaviour: renders only when `messages[]` is empty. Instantly disappears when the first message lands. No state, no persistence, no cleanup — just a stateless fallback in the render path. Triggers for fresh installs, cleared history, and the brief-strip case.
+- **Font sizes bumped in follow-up commit `c81a25e`** — first pass was 16/22 (Home tile size, wrong for chat feed). Bumped to 17/26 to match chat message spec (`zaeliMsgText` / `userMsgText`).
+
+**F. Cost investigation — Andy re-engagement → imgCtx cache breakage identified → Build 60 backlog ⭐⭐**.
+- Andy came back 17 Aug 9pm-10pm Brisbane for one solid session — first activity since 14 Aug 21:14. Pattern: 3 user messages with photos (probably school newsletter multi-event add), server evening brief fired for him.
+- Cost for the hour: **A$0.30 AUD total** (6 home_chat calls A$0.25 + 3 chat_vision + 1 home_brief). Per-message avg **A$0.08** — too high.
+- Diagnosis via api_logs token-level query (with real column names — the schema is missing `cache_read_tokens` + `cache_creation_tokens`, which is a big observability blind spot):
+  - 6 Sonnet 4.6 calls all within 2:20 minutes — 3 pairs of (initial + follow-up) triggered by 3 user messages
+  - Follow-ups cost A$0.012 each (cache reads worked)
+  - Initials cost A$0.043 each (cache MISSED — pays to write ~8,700-token prefix each time)
+- Root cause at `app/(tabs)/index.tsx:6064`:
+  ```typescript
+  const staticCached = `${staticSystem}${imgCtx}\n\n${CAPABILITY_RULES}`;
+  ```
+  `imgCtx` (image description ~2000 tokens per photo, populated from `lastImageDesc.current`) lives INSIDE the cached prefix. New photo → different `imageDescription` → different `imgCtx` → different `staticCached` bytes → Anthropic cache miss → pays to write ~8,700-token prefix again on every photo change.
+- **Build 60 backlog (deferred by Rich — cost-only, invisible to users, no urgency at beta scale):**
+  1. Move `imgCtx` OUT of `staticCached` INTO `dynamicUncached` (~30% off photo-heavy sessions, wash on text-only). Small edit at line 6064.
+  2. Sonnet 4.6 → Sonnet 5 (model string `'claude-sonnet-4-6'` → `'claude-sonnet-5'`). Intro pricing $2/$10 through Aug 2026 = ~33% off always. Independent of #1, low risk.
+  3. NEW `supabase-api-logs-cache-cols.sql` migration — add `cache_read_tokens integer` + `cache_creation_tokens integer` columns. Update `lib/api-logger.ts` `logApiCall` to persist them (values are already extracted in `send()` at lines 6133-6134 — just not saved). Observability we're flying blind without.
+  4. Trim `CAPABILITY_RULES` (currently ~5000 tokens starting line 2626) to ~3000. Some ABSOLUTE HONESTY blocks are redundant.
+  5. OPTIONAL: Sonnet follow-up call → Haiku 4.5 for the reflection turn only. The "confirm the tool ran" turn doesn't need Sonnet-quality persona. Haiku 4.5 at $1/$5 = ~66% cheaper for that half. ~25-30% overall reduction but needs discussion re persona quality.
+- Combined: A$5.86/mo Rich testing baseline → target A$2.10/mo (70% margin at A$6.99) achievable.
+- **Honest math correction**: earlier claimed 10× reduction from cache fix. WRONG. Real math: ~30% on photo-heavy sessions, 0% on text-only. Cache IS hitting in most cases — only breaks on photo-change turns. Documented for future — verify cache behaviour with real data before extrapolating.
+
+**G. Marketing kick-off — Instagram + Facebook pages, FB cover generator, 4-week content calendar** ⭐.
+- Rich set up @zaeli.app IG + Facebook Page (auth via personal accounts, page-level identity).
+- NEW `zaeli-fb-cover-generator.html` — browser Canvas PNG generator, 820×312 + @2x, tagline + explainer variants. Rich generated + downloaded the tagline PNGs (`zaeli-fb-cover-tagline.png` + `@2x`) ready to upload as FB Page cover.
+- NEW `zaeli-4week-content-calendar.html` — 12 posts × 3 platforms (IG/TT/FB Groups) × 4 weeks. Content strategy:
+  - **Mum POV throughout** (Rich course-corrected — initial "family POV" pivot rejected because mums are the acquisition wedge, not families as a unit)
+  - Australian-generic references (not Brisbane — Rich flagged that would date-stamp the brand)
+  - Mental-load themes (the "carrying a thousand things" opening idea)
+  - **Weeks: Recognition → Curiosity → Reveal → Invite**
+  - **Starts Aug 25 (Monday)**, Mon/Thu/Sun cadence
+  - **FB Groups strategy** for stranger reach (bypass friends being weird about it)
+  - Bonus tabs: timing guide, hashtag library, FB groups list
+- This is the first structured push to grow beyond warm network.
+
+**H. Andy engagement — briefly back, Nadia still not joined**.
+- Andy came back 17 Aug 9pm-10pm Brisbane for one solid session (3 messages + 3 photo uploads).
+- Server evening brief fired for him.
+- Nadia invite from 14 Aug (named "Family" — probably fat-fingered) still pending 3 days later.
+- Rich needs personal nudge: "great to see you back — did you get Nadia set up?" (Soft, actionable.)
+
+### Files touched Session 37
+
+**NEW:**
+- `zaeli-chat-tile-mockups.html` — 3 variations of ChatTile design (Variation B picked)
+- `zaeli-fb-cover-generator.html` — browser-based FB cover PNG generator
+- `zaeli-fb-cover-tagline.png` + `zaeli-fb-cover-tagline@2x.png` — Rich's downloaded FB cover
+- `zaeli-4week-content-calendar.html` — 4-week marketing content calendar
+- `zaeli-home-brief-tile-mockups.html` (from earlier Session 37 attempt at BriefTile — superseded but kept)
+- `zaeli-social-tease-8-posts.html` (superseded by 4-week calendar)
+
+**MODIFIED:**
+- `app/(tabs)/index.tsx` — killed 4 `tryFireBrief` call sites + 5-min interval + added empty-state greeting in `renderMessages()`
+- `app/(tabs)/dashboard.tsx` — replaced BriefTile with ChatTile Variation B, removed brief-related state/fetch/cache
+- `lib/home-cache.ts` — removed `briefLatest` cache key
+- `lib/use-chat-persistence.ts` — added `stripBriefs()` filter on hydrate + save
+- `supabase/functions/brief-scheduler/index.ts` — no net change (Session 37 hotfix `3ad3a96` reverted by `48182fa`)
+
+### Commits pushed to origin/main this session
+
+1. `ad78b02` — Marketing assets (4-week calendar + FB cover generator + brief tile mockups + social tease)
+2. `b52c5c0` — Session 37: kill client chat brief + add Variation B Home tile (initial BriefTile attempt)
+3. `3ad3a96` — Session 37 hotfix: brief-scheduler data-signature regen (superseded)
+4. `48182fa` — REVERT of `3ad3a96` (data-signature regen)
+5. `83da3bf` — Session 37 pivot: replace Home BriefTile with time-of-day ChatTile
+6. `8ea41dc` — Session 37 hotfix: strip old brief messages from persisted chat history
+7. `bb2bb8e` — Chat empty-state greeting — matches Home ChatTile 5 windows
+8. `c81a25e` — Bump chat empty-state greeting to match chat message font sizes (17/26)
+
+---
+
+## ══════════════════════════════════
+## PRIOR STATE — SESSION 36 · BUILD 54 BUG BASH ✅
 ## ══════════════════════════════════
 
 ### NEW THIS SESSION (Session 36 — 17 August, uncommitted pending push)
