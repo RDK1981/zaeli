@@ -13,7 +13,7 @@ import { supabase } from './supabase';
 import { callClaude } from './api-logger';
 import { BriefWindow, hashString } from './brief-firing';
 
-const SONNET = 'claude-sonnet-4-6';
+const SONNET = 'claude-sonnet-5';
 
 // Round B — render event assignees as names so Zaeli can see who each event
 // belongs to. Falls back to raw IDs if we can't match; the important thing is

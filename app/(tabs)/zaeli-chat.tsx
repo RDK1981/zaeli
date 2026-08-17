@@ -495,7 +495,7 @@ export default function ZaeliChat() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': claudeKey, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6', max_tokens: 400,
+          model: 'claude-sonnet-5', max_tokens: 400,
           messages: [{ role: 'user', content: [
             { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
             { type: 'text', text: 'Describe this image concisely in 2-4 sentences. Focus on what is shown, any text visible, and what the person might want help with. Be factual and specific.' },

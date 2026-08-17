@@ -8,18 +8,23 @@
 import { supabase } from './supabase';
 import { callAnthropic } from './ai-proxy';
 
-// ── Pricing per model — USD per token (Session 29 audit) ─────
-// Verified 13 Jul 2026 against Anthropic's pricing docs. Haiku 4.5 was
-// previously listed at $0.25/$1.25 which was 4× too low — real pricing
-// is $1.00/$5.00 per M tokens.
+// ── Pricing per model — USD per token ────────────────────────
+// Verified 13 Jul 2026 against Anthropic's pricing docs.
+// Sonnet 5 (Build 60 migration): regular $3/$15 per M tokens. Intro pricing
+// $2/$10 was available through Aug 2026 — after that reverts to $3/$15
+// which matches Sonnet 4.6 pricing exactly. Kept the $3/$15 rate for
+// post-Aug simplicity (would need to update this line before Aug 31 if
+// we wanted the intro discount reflected in cost logs).
+// Sonnet 4.6 kept as backwards-compat fallback for any lingering call site.
 const PRICING: Record<string, { input: number; output: number }> = {
+  'claude-sonnet-5':            { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
   'claude-sonnet-4-6':          { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },
-  'claude-sonnet-5':            { input: 3.00 / 1_000_000, output: 15.00 / 1_000_000 },  // intro pricing $2/$10 through Aug 2026
   'claude-haiku-4-5-20251001':  { input: 1.00 / 1_000_000, output:  5.00 / 1_000_000 },
   'claude-haiku-4-5':           { input: 1.00 / 1_000_000, output:  5.00 / 1_000_000 },
   'claude-opus-4-8':            { input: 5.00 / 1_000_000, output: 25.00 / 1_000_000 },
+  'claude-opus-5':              { input: 5.00 / 1_000_000, output: 25.00 / 1_000_000 },
 };
-const DEFAULT_PRICING = PRICING['claude-sonnet-4-6'];
+const DEFAULT_PRICING = PRICING['claude-sonnet-5'];
 
 // Session 30 Phase 5 — Anthropic key is NO LONGER bundled in the client.
 // callClaude routes through lib/ai-proxy.callAnthropic() which posts to the
@@ -192,14 +197,20 @@ function logUsage({
     console.log(`[api-logger] Cache hit: ${cacheRead} cached, ${inputTokens} uncached, ${cacheWrite} written, saved $${savedUsd.toFixed(5)}`);
   }
 
+  // Build 60 — persist cache_read + cache_creation tokens so we can measure
+  // cache hit rate over time. Columns added by supabase-api-logs-cache-cols.sql.
+  // Null-safe: sends null when the caller didn't provide cache data (GPT calls,
+  // non-cached Sonnet calls). Older rows show null for historical background.
   supabase.from('api_logs').insert({
-    family_id:     familyId,
-    account_id:    accountId ?? null,
+    family_id:              familyId,
+    account_id:             accountId ?? null,
     feature,
-    model:         model ?? 'claude-sonnet-4-6',
-    input_tokens:  inputTokens,
-    output_tokens: outputTokens,
-    cost_usd:      parseFloat(costUsd.toFixed(6)),
+    model:                  model ?? 'claude-sonnet-5',
+    input_tokens:           inputTokens,
+    output_tokens:          outputTokens,
+    cache_read_tokens:      cacheRead > 0 ? cacheRead : null,
+    cache_creation_tokens:  cacheWrite > 0 ? cacheWrite : null,
+    cost_usd:               parseFloat(costUsd.toFixed(6)),
   }).then(({ error }) => {
     if (error) console.warn('[api-logger] Failed to log usage:', error.message);
   });

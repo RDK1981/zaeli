@@ -19,7 +19,7 @@ import { callClaude } from './api-logger';
 import { getFamilyId } from './family';
 
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
-const SONNET = 'claude-sonnet-4-6';
+const SONNET = 'claude-sonnet-5';
 
 // ══════════════════════════════════════════════════
 // SESSION SUMMARY — auto-generated when session ends

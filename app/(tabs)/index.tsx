@@ -810,9 +810,17 @@ const CLAUDE_OUT_PER_M = 15.00;
 async function logApiCall(params: {
   family_id: string; feature: string; model: string;
   input_tokens: number; output_tokens: number; cost_usd: number;
+  // Build 60 — optional cache observability. Null when call had no
+  // caching involved (GPT, non-cached Sonnet paths).
+  cache_read_tokens?: number | null;
+  cache_creation_tokens?: number | null;
 }) {
   try {
-    await supabase.from('api_logs').insert({ ...params, created_at: new Date().toISOString() });
+    const row: any = { ...params, created_at: new Date().toISOString() };
+    // Coerce 0/undefined → null so a clean "no cache" reads consistently.
+    row.cache_read_tokens     = (params.cache_read_tokens     ?? 0) > 0 ? params.cache_read_tokens     : null;
+    row.cache_creation_tokens = (params.cache_creation_tokens ?? 0) > 0 ? params.cache_creation_tokens : null;
+    await supabase.from('api_logs').insert(row);
   } catch {}
 }
 
@@ -843,7 +851,7 @@ function logWhisper(durationSeconds: number) {
 }
 function logVision(inputTokens: number, outputTokens: number) {
   const cost = (inputTokens / 1_000_000 * CLAUDE_IN_PER_M) + (outputTokens / 1_000_000 * CLAUDE_OUT_PER_M);
-  logApiCall({ family_id:getFamilyId(), feature:'chat_vision', model:'claude-sonnet-4-6', input_tokens:inputTokens, output_tokens:outputTokens, cost_usd:cost });
+  logApiCall({ family_id:getFamilyId(), feature:'chat_vision', model:'claude-sonnet-5', input_tokens:inputTokens, output_tokens:outputTokens, cost_usd:cost });
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -5877,7 +5885,7 @@ Otherwise focus on any text, dates, times, names, or event details visible. Pref
           // truncate (e.g. 8-event school newsletter needs ~50-80 tokens per
           // event × 8 = ~500 + header/spacing, safely under 1500).
           const descJson = await callAnthropic({
-            model: 'claude-sonnet-4-6',
+            model: 'claude-sonnet-5',
             max_tokens: 1500,
             messages: [{ role: 'user', content }],
           });
@@ -6053,16 +6061,29 @@ Only include events directly relevant to the question. Max 5 events.`;
         // Session 30 Phase 5 — key lives server-side; no client-side check needed
 
         // Batch 6 — two-block system for cache discipline:
-        //   Block 1 (staticCached): staticSystem + CAPABILITY_RULES + imgCtx.
+        //   Block 1 (staticCached): staticSystem + CAPABILITY_RULES.
         //     Stable content that Anthropic caches. cache_control marks the
         //     end of the cacheable prefix. Tools schema (auto-included by API)
         //     lives BEFORE this block in the request, so it caches too.
-        //   Block 2 (dynamicUncached): dynamicSystem — LIVE DATA + memory.
-        //     Changes turn-to-turn, never cached, billed at full input rate.
-        //     Kept tight in buildContext (pantry gated, 4-day calendar, etc).
+        //   Block 2 (dynamicUncached): imgCtx + dynamicSystem — image context +
+        //     LIVE DATA + memory. Changes turn-to-turn, never cached, billed
+        //     at full input rate. Kept tight in buildContext.
         // Also — history capped at last 4 turns (was 6) to reduce turn context.
-        const staticCached = `${staticSystem}${imgCtx}\n\n${CAPABILITY_RULES}`;
-        const dynamicUncached = dynamicSystem;
+        //
+        // Session 37 investigation → Build 60 fix: imgCtx MOVED OUT of
+        // staticCached into dynamicUncached. Diagnosed via Andy's 17 Aug
+        // photo-heavy session — cache was breaking between messages when
+        // photos changed (imgCtx string differed → cache key differed →
+        // Anthropic wrote ~8700 tokens of cache_creation on every photo turn).
+        // Now: staticCached stays byte-identical across an entire session's
+        // Sonnet calls, cache hits after msg 1 first-fire regardless of photo
+        // uploads. Cost tradeoff: imgCtx tokens (~2000 per photo) now paid at
+        // full input rate every call ($3/M) instead of cache_read rate
+        // ($0.30/M) once cached. Net win when the SAME imgCtx would have
+        // cached; net loss only if a single unchanging imgCtx would have hit
+        // cache on 3+ turns (rare — most photo sessions are one-shot).
+        const staticCached = `${staticSystem}\n\n${CAPABILITY_RULES}`;
+        const dynamicUncached = `${imgCtx ? imgCtx + '\n\n' : ''}${dynamicSystem}`;
         const apiMessages: any[] = [];
         history.slice(-4).forEach(m => {
           if (m.role === 'user') {
@@ -6096,7 +6117,7 @@ Only include events directly relevant to the question. Max 5 events.`;
         // Session 30 Phase 5 — routed through anthropic-proxy Edge Function.
         // betaHeaders forwards the prompt-caching header server-side.
         const data = await callAnthropic({
-          model: 'claude-sonnet-4-6',
+          model: 'claude-sonnet-5',
           max_tokens: 2000,
           // Batch 6 — two-block system for cache discipline (see comment above).
           // cache_control on block 1 → Anthropic caches TOOLS schema + block 1.
@@ -6145,7 +6166,7 @@ Only include events directly relevant to the question. Max 5 events.`;
         // home_chat rows in api_logs incomparable to home_brief rows — SQL
         // analytics gave misleading "13k avg input" when actual uncached was
         // often 1-2k with 10k cached.
-        logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:claudeCost });
+        logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-5', input_tokens:inTok, output_tokens:outTok, cost_usd:claudeCost, cache_read_tokens:cacheRead, cache_creation_tokens:cacheWrite });
 
         const toolUses = (data.content||[]).filter((b:any) => b.type==='tool_use');
         if (toolUses.length > 0) {
@@ -6162,7 +6183,7 @@ Only include events directly relevant to the question. Max 5 events.`;
           // written seconds earlier — near-guaranteed cache read.
           // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
           const followData = await callAnthropic({
-            model: 'claude-sonnet-4-6',
+            model: 'claude-sonnet-5',
             max_tokens: 1500,
             // Batch 6 — two-block system (same as initial call). Cache reads
             // the same prefix written seconds earlier — near-guaranteed hit.
@@ -6187,7 +6208,7 @@ Only include events directly relevant to the question. Max 5 events.`;
             + (fOutTok     / 1_000_000 * CLAUDE_OUT_PER_M);
           // Batch 6 — uncached-only logging (see note on initial call)
           if (fCacheRead > 0) console.log('[send] Followup cache hit:', fCacheRead, 'read,', fInTok, 'uncached');
-          logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-4-6', input_tokens:fInTok, output_tokens:fOutTok, cost_usd:followCost });
+          logApiCall({ family_id:getFamilyId(), feature:'home_chat', model:'claude-sonnet-5', input_tokens:fInTok, output_tokens:fOutTok, cost_usd:followCost, cache_read_tokens:fCacheRead, cache_creation_tokens:fCacheWrite });
           const followText = followData.content?.find((b:any) => b.type==='text')?.text ?? toolResults.join('\n');
 
           // For add_calendar_event — fetch the newly created event and inject as inline card
@@ -6637,7 +6658,7 @@ Only include events directly relevant to the question. Max 5 events.`;
       const nowIso = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
       const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
       const data = await callAnthropic({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         max_tokens: 200,
         system: `You extract structured reminders from natural language. Output JSON only, no prose.
 CURRENT_TIME (Brisbane local): ${nowIso}
@@ -7251,7 +7272,7 @@ Output format: {"title": "...", "remind_at": "...", "remind_on": "..."} — omit
       }
       // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
       const json = await callAnthropic({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         max_tokens: 1500,
         messages: [{ role: 'user', content: [
           ...imageContents,
@@ -7574,13 +7595,13 @@ Rules:
 
       // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
       const scanJson = await callAnthropic({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         max_tokens: 2000,
         messages: [{ role: 'user', content }],
       });
       const inTok = scanJson?.usage?.input_tokens ?? 0;
       const outTok = scanJson?.usage?.output_tokens ?? 0;
-      logApiCall({ family_id:getFamilyId(), feature: mode === 'receipt' ? 'receipt_scan' : 'pantry_scan', model:'claude-sonnet-4-6', input_tokens:inTok, output_tokens:outTok, cost_usd:(inTok/1_000_000*3)+(outTok/1_000_000*15) });
+      logApiCall({ family_id:getFamilyId(), feature: mode === 'receipt' ? 'receipt_scan' : 'pantry_scan', model:'claude-sonnet-5', input_tokens:inTok, output_tokens:outTok, cost_usd:(inTok/1_000_000*3)+(outTok/1_000_000*15) });
 
       console.log('[scan] error:', scanJson?.error?.message || 'none');
       if (scanJson?.error) {

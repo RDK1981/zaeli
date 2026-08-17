@@ -246,7 +246,7 @@ export async function detectAndSavePatterns(
 
     // Ask Claude to identify patterns — Session 30 Phase 5 via anthropic-proxy
     const d = await callAnthropic({
-      model:      'claude-sonnet-4-6',
+      model:      'claude-sonnet-5',
       max_tokens: 500,
       system: `You are analysing a family's activity log to find meaningful patterns.
 Return a JSON array of insights. Each insight has:
@@ -344,7 +344,7 @@ export async function detectInsightsFromConversations(
 
     // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
     const d = await callAnthropic({
-      model:      'claude-sonnet-4-6',
+      model:      'claude-sonnet-5',
       max_tokens: 400,
       system: `You analyse a family's chat with their assistant to extract DURABLE facts worth remembering long-term.
 Return a JSON array. Each item: { "category": "routine|preference", "subject": "person's name or 'family'", "insight": "one clear sentence" }

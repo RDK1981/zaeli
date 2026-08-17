@@ -1632,7 +1632,7 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
 
       // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
       const data = await callAnthropic({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         max_tokens: 1024,
         system: systemPrompt,
         tools: TOOLS,
@@ -1651,7 +1651,7 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
         }));
         // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
         const followData = await callAnthropic({
-          model: 'claude-sonnet-4-6',
+          model: 'claude-sonnet-5',
           max_tokens: 300,
           system: systemPrompt,
           tools: TOOLS,
@@ -1672,7 +1672,7 @@ Voice: warm, specific, Australian. Plain text only — no asterisks or markdown.
         await supabase.from('api_logs').insert({
           family_id: getFamilyId(),
           feature: 'calendar_chat',
-          model: 'claude-sonnet-4-6',
+          model: 'claude-sonnet-5',
           input_tokens: it,
           output_tokens: ot,
           cost_usd: cost,

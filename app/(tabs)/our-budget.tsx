@@ -347,7 +347,7 @@ Never invent variable category names outside the existing list — put those in 
       setScanning(true);
       // Session 30 Phase 5 — routed through anthropic-proxy Edge Function
       const data = await callAnthropic({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         max_tokens: 3000,
         messages: [{ role: 'user', content: contentBlocks }],
       });

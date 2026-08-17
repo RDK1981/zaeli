@@ -54,7 +54,7 @@ const supabaseAdmin = createClient(
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
-const SONNET_MODEL = 'claude-sonnet-4-6';
+const SONNET_MODEL = 'claude-sonnet-5';
 
 // Fixed to Brisbane for v1 — swap to per-profile timezone later.
 const TZ = 'Australia/Brisbane';
