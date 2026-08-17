@@ -501,21 +501,36 @@ export default function DashboardScreen({
               {eventCountToday === 0 ? "Nothing on today." : `${eventCountToday} event${eventCountToday === 1 ? '' : 's'} on today.`}
             </Text>
             {todayEvents.map(ev => {
-              // Build 54 (Session 36) — "?" avatar fix. Three cases:
+              // Build 54 (Session 36) — "?" avatar fix. Four cases:
               //   1. External iCal event (source='apple-ical'): assignees=[]
               //      by design (Rich's rule — don't stamp "R" on every work
               //      meeting). Render a small iPhone icon in the avatar slot,
               //      not a "?" letter.
               //   2. Zaeli event but roster hasn't hydrated yet (cold-start
               //      race): render a subtle placeholder dot, not "?".
-              //   3. Zaeli event, roster loaded, but assignee UUID is stale
-              //      (from a duplicate-family_members cleanup — the row was
-              //      patched but historical events still reference the old
-              //      id): render circle in default colour, no letter. Never
-              //      paint "?" — it looks broken and leaks identity concerns.
+              //   3. Zaeli event, roster loaded, but ALL assignee UUIDs are
+              //      stale (from a duplicate-family_members cleanup — the
+              //      row was patched but historical events still reference
+              //      the old id): render circle in default colour, no
+              //      letter. Never paint "?" — leaks identity concerns.
+              //   4. NORMAL — at least one assignee resolves. Show that
+              //      one's tinted letter avatar.
+              //
+              // Session 36 hotfix — Build 54.1: iterate the whole assignees
+              // array instead of only checking [0]. Rich hit the case where
+              // Soccer Training has assignees=[stale-rich, valid-duke,
+              // valid-gab] — [0] is stale so old code fell to placeholder
+              // even though Duke + Gab were both fine. New code finds first
+              // resolvable member. Sheet renderer already does this via
+              // .filter(Boolean); this brings Home tile in line.
               const isExternal = ev.source === 'apple-ical';
               const rosterLoaded = roster.length > 0;
-              const mem = memberById((ev.assignees ?? [])[0] ?? '');
+              const assigneeIds: string[] = Array.isArray(ev.assignees) ? ev.assignees : [];
+              let mem = null as ReturnType<typeof memberById> | null;
+              for (const id of assigneeIds) {
+                const m = memberById(id);
+                if (m) { mem = m; break; }
+              }
               const c = mem?.color ?? T.rich;
               const dotC = isExternal ? 'rgba(255,255,255,0.35)' : c;
               return (

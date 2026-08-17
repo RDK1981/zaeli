@@ -2720,6 +2720,16 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
   // adults can see it via RLS.
   const [sharedWithFamily, setSharedWithFamily] = useState<boolean>(ev.privacy_scope === 'shared');
   const [shareBusy, setShareBusy] = useState(false);
+  // Session 36 hotfix (Build 54.1) — sync local state with prop changes.
+  // useState only reads its initializer on mount. When parent re-fetches
+  // events and passes a fresh ev object (privacy_scope may have changed
+  // server-side, or via optimistic re-render), we need to reflect it. Rich's
+  // "toggle flashes then reverts" bug was caused by this sync missing +
+  // the calendar sheet SELECT previously not including privacy_scope
+  // (now added at line 6533/6534/6563).
+  useEffect(() => {
+    setSharedWithFamily(ev.privacy_scope === 'shared');
+  }, [ev.privacy_scope, ev.id]);
   const members = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
   const borderColor = isExternal
     ? (ev._calendarColour || 'rgba(0,0,0,0.15)')
@@ -2750,17 +2760,28 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
     setShareBusy(true);
     setSharedWithFamily(nextShared);  // optimistic
     try {
-      const { error } = await supabase
+      // Session 36 hotfix (Build 54.1) — use .select('id').maybeSingle() so
+      // we detect silent RLS blocks. Supabase returns {error:null, data:null}
+      // if the WHERE matches nothing OR if RLS blocks (Session 28 pattern).
+      // Original code checked only `error` → false-positive success, then
+      // parent re-render loaded stale privacy_scope → visual reverted.
+      // Better: verify a row came back with an id after the update.
+      const { data, error } = await supabase
         .from('events')
         .update({ privacy_scope: nextShared ? 'shared' : 'personal' })
-        .eq('id', ev.id);
+        .eq('id', ev.id)
+        .select('id, privacy_scope')
+        .maybeSingle();
       if (error) {
-        console.log('[share-ical] update failed:', error.message);
+        console.log('[share-ical] update failed:', error.message, '· event=', ev.id);
         setSharedWithFamily(!nextShared);  // revert
+      } else if (!data?.id) {
+        console.log('[share-ical] update matched 0 rows — silent RLS block? · event=', ev.id, '· user=', getProfile()?.id);
+        setSharedWithFamily(!nextShared);
       } else {
-        console.log('[share-ical] event', ev.id, 'privacy_scope →', nextShared ? 'shared' : 'personal');
+        console.log('[share-ical] event', ev.id, 'privacy_scope →', data.privacy_scope);
         // Reflect in the passed-in event object so re-expand shows correct state
-        ev.privacy_scope = nextShared ? 'shared' : 'personal';
+        ev.privacy_scope = data.privacy_scope;
       }
     } catch (e:any) {
       console.log('[share-ical] update threw:', e?.message);
@@ -6530,8 +6551,8 @@ Only include events directly relevant to the question. Max 5 events.`;
     const rangeEnd   = new Date(today + 'T00:00:00');
     rangeEnd.setDate(rangeEnd.getDate() + 2); // today + tomorrow
     const [todRes, tomRes, appleEvs] = await Promise.all([
-      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes,source,external_calendar_id').eq('family_id', getFamilyId()).eq('date', today).order('start_time').limit(20),
-      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes,source,external_calendar_id').eq('family_id', getFamilyId()).eq('date', tomorrow).order('start_time').limit(20),
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes,source,external_calendar_id,privacy_scope').eq('family_id', getFamilyId()).eq('date', today).order('start_time').limit(20),
+      supabase.from('events').select('id,title,date,start_time,end_time,assignees,notes,repeat_rule,reminder_minutes,source,external_calendar_id,privacy_scope').eq('family_id', getFamilyId()).eq('date', tomorrow).order('start_time').limit(20),
       AppleCal.fetchEvents(rangeStart, rangeEnd),
     ]);
     // Merge Zaeli + Apple, sort by start_time so mixed lists read chronologically.
@@ -6560,7 +6581,7 @@ Only include events directly relevant to the question. Max 5 events.`;
     next.setDate(next.getDate() + 1);
     const nextStr = `${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}-${String(next.getDate()).padStart(2,'0')}`;
     const { data } = await supabase.from('events')
-      .select('id,title,date,start_time,end_time,assignees,notes')
+      .select('id,title,date,start_time,end_time,assignees,notes,source,external_calendar_id,privacy_scope')
       .eq('family_id', getFamilyId())
       .gte('date', dateStr).lt('date', nextStr)
       .order('start_time').limit(20);
