@@ -3066,7 +3066,12 @@
       icon: '📲',
       title: 'TestFlight install nudge',
       desc: 'Soft check-in for people invited but still awaiting install. Signed from Zaeli (automated feel).',
-      subject: 'Zaeli — install link when you\'re ready 🏡',
+      // Session 36 hotfix — subject stays pure ASCII (matches all other
+      // templates). Zoho's SMTP encoding of em-dash + emoji produced
+      // malformed RFC 2047 encoded-words that some mail clients displayed
+      // raw (=?utf-8?Q?...?= wrapper visible in Rich's Sent folder). Kept
+      // emoji in the BODY where HTML handles it fine.
+      subject: 'Zaeli install link - when you are ready',
       body: installBumpHtml(),
     },
     {
