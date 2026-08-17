@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Zaeli — 8-Post Social Tease Sequence</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --warm: #FAF8F5;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.55);
+    --ink3: rgba(10,10,10,0.30);
+    --sky: #A8D8F0;
+    --coral: #FF4545;
+    --mint: #B8EDD0;
+    --mintD: #2D7A52;
+    --peach: #FAC8A8;
+    --lav: #D8CCFF;
+    --slate: #2D3748;
+    --gold: #F0DC80;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #F2F0EA;
+    color: var(--ink);
+    line-height: 1.5;
+    padding: 40px 20px;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding: 40px 20px;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+  }
+  h1 {
+    font-weight: 800;
+    font-size: 40px;
+    letter-spacing: -1.5px;
+    margin-bottom: 8px;
+  }
+  h1 .a { color: var(--sky); }
+  .subtitle {
+    color: var(--ink2);
+    font-weight: 500;
+    font-size: 16px;
+  }
+
+  /* Cadence card */
+  .cadence {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px 28px;
+    margin-bottom: 32px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .cadence h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .cadence p { color: var(--ink2); font-size: 14px; margin-bottom: 6px; }
+  .cadence strong { color: var(--ink); }
+
+  /* Post cards */
+  .post {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 32px;
+    background: #fff;
+    border-radius: 20px;
+    padding: 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+    align-items: start;
+  }
+  @media (max-width: 780px) {
+    .post { grid-template-columns: 1fr; }
+    .post-image { max-width: 360px; margin: 0 auto; }
+  }
+
+  /* The IG-post image mockup (1:1 square, scaled to 360px preview) */
+  .post-image {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+    background: var(--warm);
+  }
+
+  /* Post content side */
+  .post-week {
+    display: inline-block;
+    background: rgba(168,216,240,0.28);
+    color: #0A4A6A;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+  .post-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 4px;
+    letter-spacing: -0.4px;
+  }
+  .post-angle {
+    color: var(--ink2);
+    font-size: 13px;
+    font-weight: 500;
+    font-style: italic;
+    margin-bottom: 16px;
+  }
+  .post-caption {
+    background: rgba(10,10,10,0.03);
+    border-left: 3px solid var(--sky);
+    padding: 14px 16px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    line-height: 1.55;
+    white-space: pre-line;
+  }
+  .post-hashtags {
+    font-size: 12px;
+    color: var(--ink3);
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+  .post-notes {
+    background: rgba(240,220,128,0.25);
+    border-left: 3px solid #8B6914;
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #6B520F;
+    line-height: 1.5;
+  }
+  .post-notes strong { color: #4A3908; }
+
+  /* ═════════════════════════════════════════════════════════════
+     Individual post image styles
+     Each mockup uses CSS to approximate what the real IG post would look
+     Rich can recreate these in Canva/Figma at 1080×1080 for the real post
+     ═════════════════════════════════════════════════════════════ */
+
+  /* Shared orbs — subtle background decoration */
+  .orbs::before, .orbs::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(24px);
+    opacity: 0.55;
+  }
+
+  /* Post 1 — atmospheric text-only */
+  .post1 {
+    background: var(--warm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px;
+  }
+  .post1::before { top: 20px; left: 30px; width: 120px; height: 120px; background: var(--peach); }
+  .post1::after  { bottom: 30px; right: 20px; width: 100px; height: 100px; background: var(--mint); }
+  .post1 .quote {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 22px;
+    line-height: 1.35;
+    color: var(--ink);
+    position: relative;
+    z-index: 2;
+    font-style: italic;
+  }
+  .post1 .signature {
+    margin-top: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--ink3);
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Post 2 — wordmark reveal */
+  .post2 {
+    background: var(--warm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px;
+  }
+  .post2::before { top: 30px; left: 30px; width: 100px; height: 100px; background: var(--peach); }
+  .post2::after  { bottom: 30px; right: 30px; width: 100px; height: 100px; background: var(--sky); }
+  .wm {
+    font-weight: 800;
+    color: var(--ink);
+    letter-spacing: -2.5px;
+    position: relative;
+    z-index: 2;
+    line-height: 1;
+  }
+  .wm .a { color: var(--sky); }
+  .post2 .wm { font-size: 84px; margin-bottom: 20px; }
+  .post2 .tag {
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--ink);
+    position: relative;
+    z-index: 2;
+  }
+  .post2 .tag .chaos { color: var(--coral); }
+
+  /* Post 3 — origin story, warm quote card */
+  .post3 {
+    background: linear-gradient(135deg, var(--warm) 0%, #F3EEE5 100%);
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .post3::before { top: -20px; right: -20px; width: 150px; height: 150px; background: var(--lav); }
+  .post3 .story {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 20px;
+    line-height: 1.4;
+    color: var(--ink);
+    position: relative;
+    z-index: 2;
+  }
+  .post3 .brisbane {
+    margin-top: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: var(--ink3);
+    text-transform: uppercase;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Post 4 — lockscreen brief mockup */
+  .post4 {
+    background: #1c2330;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+  }
+  .lockscreen {
+    width: 100%;
+    max-width: 260px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 20px;
+    padding: 20px;
+    color: #fff;
+    position: relative;
+  }
+  .lockscreen .time {
+    font-size: 40px;
+    font-weight: 300;
+    text-align: center;
+    letter-spacing: -1px;
+  }
+  .lockscreen .date {
+    font-size: 12px;
+    color: rgba(255,255,255,0.7);
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  .lockscreen .notif {
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(20px);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .lockscreen .icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--warm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 12px;
+    color: var(--ink);
+    letter-spacing: -1px;
+    flex-shrink: 0;
+  }
+  .lockscreen .icon .a { color: var(--sky); font-size: 12px; }
+  .lockscreen .notif-body {
+    font-size: 10.5px;
+    line-height: 1.4;
+  }
+  .lockscreen .notif-title { font-weight: 700; margin-bottom: 2px; font-size: 11px; }
+
+  /* Post 5 — Home tile mockup */
+  .post5 {
+    background: var(--warm);
+    padding: 30px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .post5::before { top: 30px; left: 20px; width: 100px; height: 100px; background: var(--peach); }
+  .post5::after { bottom: 30px; right: 20px; width: 100px; height: 100px; background: var(--sky); }
+  .tile {
+    background: var(--slate);
+    color: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    width: 100%;
+    max-width: 260px;
+    position: relative;
+    z-index: 2;
+  }
+  .tile-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.6px;
+    margin-bottom: 8px;
+  }
+  .tile-headline {
+    font-size: 22px;
+    font-weight: 800;
+    margin-bottom: 14px;
+    line-height: 1.15;
+  }
+  .tile-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+  .tile-time { color: rgba(255,255,255,0.75); }
+  .tile-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .tile-title { color: rgba(255,255,255,0.92); flex: 1; }
+  .tile-avat { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #fff; }
+
+  /* Post 6 — Chat conversation */
+  .post6 {
+    background: var(--warm);
+    padding: 30px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .post6::before { top: 20px; left: 30px; width: 80px; height: 80px; background: var(--mint); }
+  .chat-mock {
+    width: 100%;
+    max-width: 260px;
+    position: relative;
+    z-index: 2;
+  }
+  .msg {
+    padding: 11px 14px;
+    border-radius: 16px;
+    font-size: 12px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    max-width: 85%;
+  }
+  .msg-user {
+    background: #E8F4FD;
+    border-bottom-right-radius: 6px;
+    margin-left: auto;
+    color: var(--ink);
+  }
+  .msg-zaeli {
+    background: #FDF1E5;
+    border-bottom-left-radius: 6px;
+    color: var(--ink);
+    font-size: 11px;
+  }
+  .msg-zaeli .z-tag {
+    font-size: 10px;
+    font-weight: 700;
+    color: #8A3A00;
+    margin-bottom: 4px;
+    display: block;
+  }
+
+  /* Post 7 — two phones sharing */
+  .post7 {
+    background: linear-gradient(135deg, #E8F4FD 0%, #F5E9D8 100%);
+    padding: 30px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .phone {
+    width: 100px;
+    height: 190px;
+    background: #fff;
+    border-radius: 16px;
+    padding: 14px 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .phone .phone-owner {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--ink3);
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+  .phone .item {
+    background: rgba(184,237,208,0.35);
+    border-left: 2px solid var(--mintD);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 8px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .arrows {
+    color: var(--mintD);
+    font-size: 20px;
+    font-weight: 800;
+  }
+
+  /* Post 8 — CTA / waitlist */
+  .post8 {
+    background: linear-gradient(135deg, var(--warm) 0%, #FAECDB 100%);
+    padding: 40px 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .post8::before { top: 20px; right: 20px; width: 100px; height: 100px; background: var(--mint); }
+  .post8::after { bottom: 20px; left: 20px; width: 100px; height: 100px; background: var(--sky); }
+  .post8 .wm { font-size: 60px; margin-bottom: 16px; }
+  .post8 .cta-heading {
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--ink);
+    margin-bottom: 12px;
+    line-height: 1.3;
+    position: relative;
+    z-index: 2;
+  }
+  .post8 .cta-btn {
+    background: var(--ink);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 700;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Footer */
+  footer {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px;
+    margin-top: 32px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  footer h3 { font-size: 18px; font-weight: 700; margin-bottom: 12px; }
+  footer p, footer li { color: var(--ink2); font-size: 14px; line-height: 1.6; }
+  footer ul { padding-left: 20px; margin-top: 8px; }
+  footer strong { color: var(--ink); }
+
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>z<span class="a">a</span>eli — 8-Post Tease Sequence</h1>
+  <div class="subtitle">Curiosity → identity → story → features → CTA · scroll through to see the arc</div>
+</header>
+
+<div class="cadence">
+  <h2>📅 Cadence recommendation: <strong>1 post per week (8 weeks total)</strong></h2>
+  <p>Ship the sequence over 8 weeks — one post every Tuesday or Wednesday morning around 8-9am Brisbane time (highest weekday engagement for family audience).</p>
+  <p style="margin-top: 10px;"><strong>Why 1/week not 2/week:</strong> gives you breathing room + time to react to comments · content has room to land · sustainable long-term. Once posts 1-3 are live and you feel the rhythm, you can layer in Stories mid-week if energy allows.</p>
+  <p style="margin-top: 10px;"><strong>Cross-post to both Instagram + Facebook Page via Meta Business Suite.</strong> One post, both platforms.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     POST 1
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="post">
+  <div class="post-image post1 orbs">
+    <div>
+      <div class="quote">"Some mornings you're on top of it.<br/>Others, the family group chat is<br/>a war zone by 8am."</div>
+      <div class="signature">— every parent, everywhere</div>
+    </div>
+  </div>
+  <div>
+    <div class="post-week">Week 1 · atmosphere</div>
+    <div class="post-title">The Feeling</div>
+    <div class="post-angle">No wordmark. No product. Just a truth every parent recognises.</div>
+    <div class="post-caption">Some mornings you're on top of it.
+
+Others, the family group chat is a war zone by 8am.
+
+We know that feeling. Something's coming for that. 🏡</div>
+    <div class="post-hashtags">#familylife #mumlife #dadlife #aussiemums #mentalload #familychaos #brisbanemums</div>
+    <div class="post-notes"><strong>Goal:</strong> Curiosity, not push. Zero product mention. People scroll past ads. They stop for feelings they recognise. This is the hook that earns you the next 7 posts.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     POST 2
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="post">
+  <div class="post-image post2 orbs">
+    <div class="wm">z<span class="a">a</span>eli</div>
+    <div class="tag">Less <span class="chaos">chaos</span>. More family.</div>
+  </div>
+  <div>
+    <div class="post-week">Week 2 · name reveal</div>
+    <div class="post-title">Meet Zaeli</div>
+    <div class="post-angle">The name, the tagline, the identity. Nothing else yet.</div>
+    <div class="post-caption">Meet Zaeli. 🏡
+
+Less chaos. More family.
+
+An Aussie-built family app for the everyday. Coming soon to iPhone.
+
+More on the how + why in the coming weeks. If you'd like a heads-up when we open more beta invites, drop your email at zaeli.app.</div>
+    <div class="post-hashtags">#zaeli #familyapp #aussiemade #familytech #brisbane #familyorganiser</div>
+    <div class="post-notes"><strong>Goal:</strong> Introduce the brand identity — name + wordmark + tagline + colours. Still no product screenshots. Let the identity stand alone for a week.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     POST 3
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="post">
+  <div class="post-image post3 orbs">
+    <div>
+      <div class="story">"Built in a Brisbane home<br/>by a dad who was tired<br/>of 12 apps for a family<br/>that just needs one."</div>
+      <div class="brisbane">🇦🇺 Brisbane · 2026</div>
+    </div>
+  </div>
+  <div>
+    <div class="post-week">Week 3 · origin story</div>
+    <div class="post-title">The Why</div>
+    <div class="post-angle">Founder honesty. Human. Australian. No polish.</div>
+    <div class="post-caption">Zaeli started at a kitchen table in Brisbane.
+
+A dad, three kids, a wife, and 12 different apps that all half-worked — Google Calendar for events, WhatsApp for the family chat, one shopping app that never synced, another for reminders that got buried, and a to-do list nobody looked at.
+
+The mental load of it all lived in one person's head.
+
+So we built the app we wished we had.
+
+More on what it actually does over the coming weeks. 🏡</div>
+    <div class="post-hashtags">#founderstory #madeinaustralia #brisbanetech #familybusiness #mentalload #buildinpublic</div>
+    <div class="post-notes"><strong>Goal:</strong> Trust + relatability. People buy from people. This is your "why should we care" post. Keep it honest — no marketing polish. Real Rich voice.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     POST 4
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="post">
+  <div class="post-image post4">
+    <div class="lockscreen">
+      <div class="time">7:14</div>
+      <div class="date">Monday, 17 August</div>
+      <div class="notif">
+        <div class="icon">z<span class="a">a</span></div>
+        <div class="notif-body">
+          <div class="notif-title">☀️ Morning brief from Zaeli</div>
+          <div>Monday, Richard — soccer 4pm for Gab, and Anna's mum's birthday is Wednesday. One quiet stretch this arvo. Take it.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="post-week">Week 4 · feature reveal #1</div>
+    <div class="post-title">The Lockscreen Brief</div>
+    <div class="post-angle">Killer feature. Instantly obvious value.</div>
+    <div class="post-caption">Imagine your morning starting like THIS. 🌤️
+
+Instead of unlocking your phone to 47 notifications, Zaeli sends you a warm, spoken-language brief on the lockscreen every morning + evening.
+
+What's on today. What's coming tomorrow. The one thing that actually matters.
+
+No app-opening required. Just a glance.
+
+More on how she does it (with grace) coming soon. 🏡</div>
+    <div class="post-hashtags">#familylife #morningroutine #mentalload #familyapp #zaeli #ios</div>
+    <div class="post-notes"><strong>Goal:</strong> First feature reveal. Pick the most differentiated feature (lockscreen brief has zero direct competitors). Show, don't list. Screenshot > bullet points.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     POST 5
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="post">
+  <div class="post-image post5 orbs">
+    <div class="tile">
+      <div class="tile-eyebrow">📅 CALENDAR</div>
+      <div class="tile-headline">3 events on today.</div>
+      <div class="tile-row">
+        <span class="tile-time">9:30 am</span>
+        <span class="tile-dot" style="background: #83D754;"></span>
+        <span class="tile-title">1:1 with Kara</span>
+        <span class="tile-avat" style="background: #83D754;">📱</span>
+      </div>
+      <div class="tile-row">
+        <span class="tile-time">4:00 pm</span>
+        <span class="tile-dot" style="background: #F59E0B;"></span>
+        <span class="tile-title">Soccer training</span>
+        <span class="tile-avat" style="background: #F59E0B;">G</span>
+      </div>
+      <div class="tile-row">
+        <span class="tile-time">7:00 pm</span>
+        <span class="tile-dot" style="background: #4D8BFF;"></span>
+        <span class="tile-title">Anna's mum bday</span>
+        <span class="tile-avat" style="background: #FF7B6B;">A</span>
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="post-week">Week 5 · feature reveal #2</div>
+    <div class="post-title">One Calendar. All of it.</div>
+    <div class="post-angle">iCal sync. Family colours. The killer differentiator vs generic calendar apps.</div>
+    <div class="post-caption">Work meetings + soccer training + school pickups + your in-laws' birthdays.
+
+One calendar. All of it. Colour-coded per family member.
+
+Zaeli talks to your iPhone calendar too — so your work stuff lives right next to the kids' stuff. No jumping between apps.
+
+Add anything by voice. "Add Duke's swimming Thursday 4pm." Done. 🏡</div>
+    <div class="post-hashtags">#familycalendar #familyorganiser #kidsactivities #familyapp #zaeli</div>
+    <div class="post-notes"><strong>Goal:</strong> Second differentiator. Family-colour tiles + iPhone Calendar sync = the "actually gets my family" moment. Real screenshot works better than mockup — try to use one from your app.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     POST 6
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="post">
+  <div class="post-image post6 orbs">
+    <div class="chat-mock">
+      <div class="msg msg-user">Remind me to book the plumber Friday morning</div>
+      <div class="msg msg-zaeli">
+        <span class="z-tag">✦ ZAELI</span>
+        Locked in — Friday 9am on your reminders. Anything else on the plumbing front, or good?
+      </div>
+    </div>
+  </div>
+  <div>
+    <div class="post-week">Week 6 · feature reveal #3</div>
+    <div class="post-title">Just Ask</div>
+    <div class="post-angle">Voice + natural language. The AI wedge.</div>
+    <div class="post-caption">"Remind me to book the plumber Friday morning."
+
+That's it. That's the input.
+
+No forms. No fields. No fiddly menus. Just say what's on your mind and Zaeli sorts it — calendar event, reminder, shopping item, note.
+
+Voice or type. Whatever's easier at 6:47am with a toddler on your hip. 🏡</div>
+    <div class="post-hashtags">#voiceassistant #familyai #familytech #mumlife #dadlife #zaeli</div>
+    <div class="post-notes"><strong>Goal:</strong> Position the AI as the seamless input layer. Not a chatbot. A brain-dump interface. This is why families will actually use it — friction removed.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     POST 7
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="post">
+  <div class="post-image post7">
+    <div class="phone">
+      <div class="phone-owner">RICH</div>
+      <div class="item">🛒 Milk, bread, spinach</div>
+      <div class="item">📅 Gab soccer 4pm</div>
+      <div class="item">⏰ Book plumber Fri</div>
+    </div>
+    <div class="arrows">⇋</div>
+    <div class="phone">
+      <div class="phone-owner">ANNA</div>
+      <div class="item">🛒 Milk, bread, spinach</div>
+      <div class="item">📅 Gab soccer 4pm</div>
+      <div class="item">⏰ Book plumber Fri</div>
+    </div>
+  </div>
+  <div>
+    <div class="post-week">Week 7 · feature reveal #4</div>
+    <div class="post-title">One Family. One View.</div>
+    <div class="post-angle">Family sharing. The mental-load fix.</div>
+    <div class="post-caption">The mental load shouldn't live in one person's head.
+
+Zaeli syncs across everyone in the family — shopping list, calendar, reminders. Add something on your phone, it's on your partner's phone too. Instantly.
+
+No more "did you get the milk?" texts. It's on the list. You both saw it.
+
+Real families. One view. 🏡</div>
+    <div class="post-hashtags">#familyshared #mentalload #relationshipgoals #familylife #familyapp #zaeli #partnersincrime</div>
+    <div class="post-notes"><strong>Goal:</strong> The wedge for the "I do everything" parent. This is the post that gets tagged. "@Anna look at this."</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     POST 8
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="post">
+  <div class="post-image post8 orbs">
+    <div class="wm">z<span class="a">a</span>eli</div>
+    <div class="cta-heading">iOS beta is open.<br/>Small waitlist.<br/>Aussie families first.</div>
+    <div class="cta-btn">→ zaeli.app</div>
+  </div>
+  <div>
+    <div class="post-week">Week 8 · the ask</div>
+    <div class="post-title">Join the Beta</div>
+    <div class="post-angle">The CTA. Clear, honest, no urgency games.</div>
+    <div class="post-caption">Zaeli is quietly in iOS beta right now — small waitlist, growing carefully with families we can actually support.
+
+If the last 7 posts landed, and you're an Aussie family who wants less chaos in their pocket, drop your email at zaeli.app.
+
+We'll be in touch when it's your turn.
+
+No hard sell. No fake countdown. Just the app that's coming, and a spot on the list if you want one. 🏡</div>
+    <div class="post-hashtags">#zaeli #beta #familyapp #ios #aussiefamilies #madeinbrisbane #joinus</div>
+    <div class="post-notes"><strong>Goal:</strong> Conversion. Everyone who's stuck through 7 posts now knows enough to raise a hand. Keep it warm, no urgency games — beta is limited, invite feels earned. Link in bio should be zaeli.app.</div>
+  </div>
+</div>
+
+<footer>
+  <h3>💡 A few notes before you start posting</h3>
+  <ul>
+    <li><strong>Recreate each mockup in Canva</strong> at 1080×1080 (Instagram square) — free templates. Use your exact colours (warm bg #FAF8F5, sky #A8D8F0 for the 'a' + 'i', coral #FF4545 for 'chaos'). Poppins ExtraBold for wordmark.</li>
+    <li><strong>Use REAL screenshots</strong> where possible for Posts 4-7 (lockscreen brief, home tile, chat, sharing). Real UI reads more authentic than perfect mockups.</li>
+    <li><strong>Post Tuesday or Wednesday 8-9am Brisbane</strong> — highest engagement window for parenting/family audience on both IG and FB.</li>
+    <li><strong>Reply to every comment</strong> for the first 8 weeks. Even "❤️" and emoji-only. This teaches Instagram's algorithm that your posts drive conversation → more reach.</li>
+    <li><strong>Track waitlist signups</strong> — check <code>beta_signups</code> in Supabase after each post to see which posts drive the most signups. Iterate accordingly.</li>
+    <li><strong>Stories are optional but powerful</strong> — 2-3 Stories per week (mid-week) with behind-the-scenes / dev updates / real family moments can lift feed post reach 20-30%. Do only if sustainable.</li>
+    <li><strong>Don't post 2× per week yet.</strong> Wait until you see genuine engagement on the first 3-4 posts. Then layer in Stories, then a second weekly post if you have the bandwidth.</li>
+  </ul>
+  <h3 style="margin-top: 20px;">🎯 Success metrics per post</h3>
+  <ul>
+    <li><strong>Weeks 1-3 (atmospheric):</strong> Watch saves + shares, not follows. If the post is being saved, it's landing emotionally.</li>
+    <li><strong>Weeks 4-7 (features):</strong> Watch DMs + comments asking "when can I try it?" — these are your hottest waitlist leads. Send them the signup link directly.</li>
+    <li><strong>Week 8 (CTA):</strong> Watch waitlist signup count. If posts 1-7 did their job, you should see a signup surge in the 24h after posting.</li>
+  </ul>
+</footer>
+
+</div>
+</body>
+</html>

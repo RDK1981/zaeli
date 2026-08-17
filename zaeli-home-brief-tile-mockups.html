@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Zaeli · Home brief tile — 3 mockups</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --warm: #FAF8F5;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.55);
+    --ink3: rgba(10,10,10,0.30);
+    --sky: #A8D8F0;
+    --coral: #FF4545;
+    --mint: #B8EDD0;
+    --peach: #FAC8A8;
+    --peachL: #FDF1E5;
+    --lav: #D8CCFF;
+    --lavL: #F0EBFF;
+    --slate: #2D3748;
+    --gold: #F0DC80;
+    --goldL: #FBF5D6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #F2F0EA;
+    color: var(--ink);
+    padding: 40px 20px;
+    line-height: 1.5;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  /* Header */
+  header {
+    text-align: center;
+    padding: 32px;
+    margin-bottom: 32px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+  }
+  h1 {
+    font-weight: 800;
+    font-size: 32px;
+    letter-spacing: -1px;
+    margin-bottom: 6px;
+  }
+  h1 .a { color: var(--sky); }
+  .sub {
+    color: var(--ink2);
+    font-weight: 500;
+    font-size: 14px;
+  }
+
+  /* Variation grid */
+  .variants {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 40px;
+  }
+  @media (max-width: 900px) {
+    .variants { grid-template-columns: 1fr; }
+  }
+
+  .variant {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .variant-label {
+    display: inline-block;
+    background: rgba(168,216,240,0.28);
+    color: #0A4A6A;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+  .variant h2 {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+  .variant-tagline {
+    font-size: 13px;
+    color: var(--ink2);
+    font-style: italic;
+    margin-bottom: 20px;
+  }
+
+  /* Phone frame */
+  .phone-frame {
+    background: var(--warm);
+    border-radius: 20px;
+    padding: 18px 14px;
+    margin: 0 auto 16px;
+    max-width: 320px;
+    border: 2px solid rgba(10,10,10,0.08);
+  }
+  .home-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .wm {
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -1px;
+  }
+  .wm .a { color: var(--sky); }
+  .home-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Poppins', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: rgba(10,10,10,0.72);
+  }
+  .ham {
+    width: 24px;
+    height: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+  }
+  .ham-line {
+    height: 2px;
+    background: var(--ink);
+    border-radius: 2px;
+  }
+
+  /* Existing tiles (dimmed for context) */
+  .tile-dim {
+    background: var(--slate);
+    color: rgba(255,255,255,0.7);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+    opacity: 0.5;
+  }
+  .tile-dim .eyebrow {
+    font-size: 9px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .tile-dim .headline {
+    font-size: 15px;
+    font-weight: 800;
+  }
+
+  /* ═══════ VARIATION A — Full peach card ═══════ */
+  .brief-a {
+    background: var(--peachL);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 10px;
+  }
+  .brief-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--peach);
+    color: #8A3A00;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+  }
+  .brief-pill.evening {
+    background: var(--lav);
+    color: #5020C0;
+  }
+  .brief-text {
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .brief-text p { margin-bottom: 8px; }
+  .brief-text p:last-child { margin-bottom: 0; }
+  .brief-attr {
+    font-size: 10px;
+    color: var(--ink3);
+    font-weight: 500;
+    margin-top: 4px;
+  }
+  .brief-a .chips {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .brief-chip {
+    background: rgba(0,0,0,0.05);
+    border: 1px solid rgba(0,0,0,0.08);
+    padding: 6px 11px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .brief-chip.primary {
+    background: rgba(255,68,68,0.12);
+    border-color: rgba(255,68,68,0.25);
+    color: #B83333;
+    font-weight: 700;
+  }
+
+  /* ═══════ VARIATION B — Compact opener-only ═══════ */
+  .brief-b {
+    background: var(--peachL);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .brief-b-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+  .brief-b-badge {
+    background: var(--peach);
+    color: #8A3A00;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+  }
+  .brief-b-time {
+    font-size: 10px;
+    color: var(--ink3);
+    font-weight: 500;
+    margin-left: auto;
+  }
+  .brief-b-opener {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.4;
+    margin-bottom: 6px;
+  }
+  .brief-b-expand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0,0,0,0.06);
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--ink2);
+    font-weight: 600;
+  }
+  .brief-b-expand .arrow { color: var(--ink3); }
+
+  /* ═══════ VARIATION C — Slim banner ═══════ */
+  .brief-c {
+    background: linear-gradient(90deg, var(--peachL) 0%, var(--peachL) 60%, transparent 100%);
+    border-left: 3px solid var(--peach);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brief-c-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .brief-c-text {
+    flex: 1;
+    font-size: 12.5px;
+    color: var(--ink);
+    font-weight: 500;
+    line-height: 1.35;
+  }
+  .brief-c-text strong {
+    font-weight: 800;
+    color: #8A3A00;
+    font-size: 9px;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .brief-c-arrow {
+    color: var(--ink3);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  /* Notes */
+  .notes {
+    background: rgba(184,237,208,0.20);
+    border-left: 3px solid #2D7A52;
+    padding: 12px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #1A5236;
+    line-height: 1.55;
+  }
+  .notes strong { color: #0A2E1A; }
+  .pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .pros, .cons {
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .pros {
+    background: rgba(184,237,208,0.18);
+    color: #1A5236;
+  }
+  .cons {
+    background: rgba(250,200,168,0.22);
+    color: #8A3A00;
+  }
+  .pros-title, .cons-title {
+    font-weight: 800;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .pros ul, .cons ul {
+    padding-left: 14px;
+    margin: 0;
+  }
+  .pros li, .cons li { margin-bottom: 3px; }
+
+  /* Recommendation footer */
+  .recommendation {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+  }
+  .rec-title {
+    font-weight: 800;
+    font-size: 22px;
+    margin-bottom: 12px;
+    letter-spacing: -0.5px;
+  }
+  .rec-title .pill {
+    display: inline-block;
+    background: var(--mint);
+    color: #1A5236;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+  .rec-body {
+    color: var(--ink2);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .rec-body strong { color: var(--ink); }
+  .rec-body p { margin-bottom: 12px; }
+
+  /* Special: cycling variants — evening version demo */
+  .variant-toggle {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    justify-content: center;
+  }
+  .toggle-btn {
+    background: rgba(10,10,10,0.05);
+    color: var(--ink);
+    border: none;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .toggle-btn.on {
+    background: var(--ink);
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>Home brief tile — 3 variations</h1>
+  <div class="sub">Kill client-side chat brief. Replace with a Home tile that shows the latest server-generated brief. Zero AI cost, brief text from `zaeli_briefs` cache.</div>
+</header>
+
+<div class="variants">
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       VARIATION A — Full peach card
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">Variation A</div>
+    <h2>Full card</h2>
+    <div class="variant-tagline">Same warmth as the old chat brief — just relocated to Home.</div>
+
+    <div class="phone-frame">
+      <div class="home-header">
+        <div class="wm">z<span class="a">a</span>eli</div>
+        <div class="home-header-right">
+          <span>Home</span>
+          <div class="ham"><div class="ham-line"></div><div class="ham-line"></div><div class="ham-line"></div></div>
+        </div>
+      </div>
+
+      <div class="brief-a">
+        <div class="brief-pill">☀️ MORNING</div>
+        <div class="brief-text">
+          <p>Monday morning, Rich — soccer 4pm for Gab and Mum's birthday Wednesday.</p>
+          <p>One quiet stretch this arvo. Take it.</p>
+        </div>
+        <div class="brief-attr">Zaeli · 6:23am</div>
+        <div class="chips">
+          <div class="brief-chip primary">Chat with me</div>
+          <div class="brief-chip">Got it</div>
+        </div>
+      </div>
+
+      <div class="tile-dim">
+        <div class="eyebrow">📅 CALENDAR</div>
+        <div class="headline">4 events on today.</div>
+      </div>
+      <div class="tile-dim" style="background: rgba(216,204,255,0.4); color: var(--ink);">
+        <div class="eyebrow" style="color: rgba(10,10,10,0.6);">🛒 SHOPPING</div>
+        <div class="headline" style="color: var(--ink);">5 items to grab.</div>
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <div class="pros-title">Pros</div>
+        <ul>
+          <li>Full brief visible — no click</li>
+          <li>Same "personality" moment as before</li>
+          <li>Chips still work (Chat with me / Got it)</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <div class="cons-title">Cons</div>
+        <ul>
+          <li>Takes real estate above the fold</li>
+          <li>Redundant if user read lockscreen</li>
+          <li>Same content in 2-3 places (lockscreen, dashboard, notif history)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       VARIATION B — Compact opener + expand
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">Variation B</div>
+    <h2>Compact opener</h2>
+    <div class="variant-tagline">Just the opening line — tap to expand full brief.</div>
+
+    <div class="phone-frame">
+      <div class="home-header">
+        <div class="wm">z<span class="a">a</span>eli</div>
+        <div class="home-header-right">
+          <span>Home</span>
+          <div class="ham"><div class="ham-line"></div><div class="ham-line"></div><div class="ham-line"></div></div>
+        </div>
+      </div>
+
+      <div class="brief-b">
+        <div class="brief-b-row">
+          <div class="brief-b-badge">☀️ MORNING</div>
+          <div class="brief-b-time">6:23am</div>
+        </div>
+        <div class="brief-b-opener">Monday morning, Rich — soccer 4pm for Gab and Mum's birthday Wednesday.</div>
+        <div class="brief-b-expand">
+          <span>Read full brief</span>
+          <span class="arrow">→</span>
+        </div>
+      </div>
+
+      <div class="tile-dim">
+        <div class="eyebrow">📅 CALENDAR</div>
+        <div class="headline">4 events on today.</div>
+      </div>
+      <div class="tile-dim" style="background: rgba(216,204,255,0.4); color: var(--ink);">
+        <div class="eyebrow" style="color: rgba(10,10,10,0.6);">🛒 SHOPPING</div>
+        <div class="headline" style="color: var(--ink);">5 items to grab.</div>
+      </div>
+      <div class="tile-dim" style="background: rgba(240,220,128,0.35); color: var(--ink);">
+        <div class="eyebrow" style="color: rgba(10,10,10,0.6);">⏰ REMINDERS</div>
+        <div class="headline" style="color: var(--ink);">Nothing to remember.</div>
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <div class="pros-title">Pros</div>
+        <ul>
+          <li>Compact — one line visible</li>
+          <li>User chooses whether to expand</li>
+          <li>Consistent size regardless of brief length</li>
+          <li>More room for other tiles above the fold</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <div class="cons-title">Cons</div>
+        <ul>
+          <li>Extra tap to read full brief</li>
+          <li>Some users won't expand</li>
+          <li>Opener needs to be self-contained</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       VARIATION C — Slim banner
+       ═══════════════════════════════════════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">Variation C</div>
+    <h2>Slim banner</h2>
+    <div class="variant-tagline">Tiny presence — Zaeli exists at the top, doesn't compete with tiles.</div>
+
+    <div class="phone-frame">
+      <div class="home-header">
+        <div class="wm">z<span class="a">a</span>eli</div>
+        <div class="home-header-right">
+          <span>Home</span>
+          <div class="ham"><div class="ham-line"></div><div class="ham-line"></div><div class="ham-line"></div></div>
+        </div>
+      </div>
+
+      <div class="brief-c">
+        <div class="brief-c-icon">☀️</div>
+        <div class="brief-c-text">
+          <strong>Morning brief · 6:23am</strong>
+          Soccer 4pm for Gab. One quiet arvo — take it.
+        </div>
+        <div class="brief-c-arrow">→</div>
+      </div>
+
+      <div class="tile-dim">
+        <div class="eyebrow">📅 CALENDAR</div>
+        <div class="headline">4 events on today.</div>
+      </div>
+      <div class="tile-dim" style="background: rgba(216,204,255,0.4); color: var(--ink);">
+        <div class="eyebrow" style="color: rgba(10,10,10,0.6);">🛒 SHOPPING</div>
+        <div class="headline" style="color: var(--ink);">5 items to grab.</div>
+      </div>
+      <div class="tile-dim" style="background: rgba(240,220,128,0.35); color: var(--ink);">
+        <div class="eyebrow" style="color: rgba(10,10,10,0.6);">⏰ REMINDERS</div>
+        <div class="headline" style="color: var(--ink);">Nothing to remember.</div>
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <div class="pros-title">Pros</div>
+        <ul>
+          <li>Minimal footprint</li>
+          <li>Full brief still 1 tap away (opens sheet)</li>
+          <li>Doesn't compete with tiles for attention</li>
+          <li>Feels like a "for your info" ambient thing</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <div class="cons-title">Cons</div>
+        <ul>
+          <li>Text truncated hard — punchier writing required</li>
+          <li>Loses the "personality moment" feel</li>
+          <li>Could feel like an alert vs a warm brief</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     EVENING BRIEF VARIANTS (secondary preview)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="recommendation">
+  <div class="rec-title">Evening variants — same designs, evening voice + lavender palette</div>
+  <div class="rec-body">
+    Every variation flips to lavender for the evening brief (matches the current chat brief evening tint from Session 19). Time-of-day is the ONLY design shift — layout is identical.
+  </div>
+</div>
+
+<div class="variants" style="margin-top: 24px;">
+  <div class="variant">
+    <div class="variant-label">A · evening</div>
+    <div class="phone-frame" style="margin-top: 0;">
+      <div class="home-header">
+        <div class="wm">z<span class="a">a</span>eli</div>
+        <div class="home-header-right">
+          <span>Home</span>
+          <div class="ham"><div class="ham-line"></div><div class="ham-line"></div><div class="ham-line"></div></div>
+        </div>
+      </div>
+      <div class="brief-a" style="background: var(--lavL);">
+        <div class="brief-pill evening">🌙 EVENING</div>
+        <div class="brief-text">
+          <p>Monday done, Rich 🌙</p>
+          <p>Tomorrow's busy — 5 iCal meetings before lunch, then Gab's soccer at 4. Coffee ready would help.</p>
+        </div>
+        <div class="brief-attr">Zaeli · 5:14pm</div>
+        <div class="chips">
+          <div class="brief-chip primary">Chat with me</div>
+          <div class="brief-chip">Got it</div>
+        </div>
+      </div>
+      <div class="tile-dim">
+        <div class="eyebrow">📅 CALENDAR</div>
+        <div class="headline">1 event today.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="variant">
+    <div class="variant-label">B · evening</div>
+    <div class="phone-frame" style="margin-top: 0;">
+      <div class="home-header">
+        <div class="wm">z<span class="a">a</span>eli</div>
+        <div class="home-header-right">
+          <span>Home</span>
+          <div class="ham"><div class="ham-line"></div><div class="ham-line"></div><div class="ham-line"></div></div>
+        </div>
+      </div>
+      <div class="brief-b" style="background: var(--lavL);">
+        <div class="brief-b-row">
+          <div class="brief-b-badge" style="background: var(--lav); color: #5020C0;">🌙 EVENING</div>
+          <div class="brief-b-time">5:14pm</div>
+        </div>
+        <div class="brief-b-opener">Monday done, Rich 🌙 Tomorrow's busy — 5 iCal meetings before lunch.</div>
+        <div class="brief-b-expand"><span>Read full brief</span><span class="arrow">→</span></div>
+      </div>
+      <div class="tile-dim">
+        <div class="eyebrow">📅 CALENDAR</div>
+        <div class="headline">1 event today.</div>
+      </div>
+      <div class="tile-dim" style="background: rgba(216,204,255,0.4); color: var(--ink);">
+        <div class="eyebrow" style="color: rgba(10,10,10,0.6);">🛒 SHOPPING</div>
+        <div class="headline" style="color: var(--ink);">5 items.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="variant">
+    <div class="variant-label">C · evening</div>
+    <div class="phone-frame" style="margin-top: 0;">
+      <div class="home-header">
+        <div class="wm">z<span class="a">a</span>eli</div>
+        <div class="home-header-right">
+          <span>Home</span>
+          <div class="ham"><div class="ham-line"></div><div class="ham-line"></div><div class="ham-line"></div></div>
+        </div>
+      </div>
+      <div class="brief-c" style="background: linear-gradient(90deg, var(--lavL) 0%, var(--lavL) 60%, transparent 100%); border-left-color: var(--lav);">
+        <div class="brief-c-icon">🌙</div>
+        <div class="brief-c-text">
+          <strong style="color: #5020C0;">Evening brief · 5:14pm</strong>
+          Monday done. Tomorrow's busy — 5 meetings before lunch.
+        </div>
+        <div class="brief-c-arrow">→</div>
+      </div>
+      <div class="tile-dim">
+        <div class="eyebrow">📅 CALENDAR</div>
+        <div class="headline">1 event today.</div>
+      </div>
+      <div class="tile-dim" style="background: rgba(216,204,255,0.4); color: var(--ink);">
+        <div class="eyebrow" style="color: rgba(10,10,10,0.6);">🛒 SHOPPING</div>
+        <div class="headline" style="color: var(--ink);">5 items.</div>
+      </div>
+      <div class="tile-dim" style="background: rgba(240,220,128,0.35); color: var(--ink);">
+        <div class="eyebrow" style="color: rgba(10,10,10,0.6);">⏰ REMINDERS</div>
+        <div class="headline" style="color: var(--ink);">Nothing to remember.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     RECOMMENDATION + EDGE CASES
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="recommendation" style="margin-top: 32px;">
+  <div class="rec-title"><span class="pill">My pick</span> Variation B — Compact opener</div>
+  <div class="rec-body">
+    <p><strong>Best balance of Zaeli-voice-moment vs Home-tile-hierarchy.</strong> The opening line ("Monday morning, Rich — soccer 4pm for Gab...") is the payoff sentence anyway — most briefs' first line contains 80% of the actionable info. The "Read full brief →" gives escape hatch for users who want more without punishing users who don't.</p>
+
+    <p><strong>Why not A:</strong> takes too much space above the fold. Home's job is glance. Full-brief-visible pushes Calendar tile down — users have to scroll to see today's events. Wrong hierarchy.</p>
+
+    <p><strong>Why not C:</strong> loses Zaeli's warmth. She reads like a system notification, not a friend. The peach/lavender tint helps but truncated to one micro-line feels alerty. The whole reason we keep this tile is to preserve the personality moment — C sacrifices that for space.</p>
+
+    <p><strong>Bonus for B:</strong> if user taps to expand, we can open a sheet with the full brief text + chips (Chat with me / Got it). Expanded sheet = premium moment. Compact tile = ambient presence. Best of both.</p>
+
+    <p><strong>Empty state (before brief-scheduler fires for the day):</strong> tile hides entirely. Cleaner than showing "Waiting for morning brief..." or a placeholder — nothing to see, nothing rendered. Once the server generates the brief and upserts to <code>zaeli_briefs</code>, the tile appears on next Home refresh (which cache-then-refresh handles).</p>
+
+    <p><strong>Empty state (nothing pressing):</strong> if the brief text is genuinely "clear day, nothing pressing", the tile still shows — that's a valuable message ("you can breathe today"). Don't hide the tile just because there are no events. Zaeli's job is competent reassurance, not just information.</p>
+
+    <p><strong>Position on Home:</strong> above Calendar tile. First thing user sees when they open Home. Preserves the "brief is the daily hello" ritual.</p>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
