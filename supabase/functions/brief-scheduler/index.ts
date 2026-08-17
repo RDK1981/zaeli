@@ -140,6 +140,36 @@ Deno.serve(async (req) => {
     }
     console.log(`[brief-scheduler] now_local=${localHM}, profiles_checked=${profiles?.length ?? 0}, candidates=${toBrief.length}`);
 
+    // Build 60 — server-side push token dedup safety net.
+    // If two candidate profiles happen to share the same expo_push_token
+    // (device swap during testing, apple-review overwriting an owner's
+    // token, etc.), we'd push the same window's brief twice to the same
+    // device. Client-side registerPushToken now nulls conflicts before
+    // writing, but this belt-and-braces guarantees no duplicate lockscreen
+    // pushes even if a stale duplicate slips through.
+    //
+    // Rule: for each (pushToken, window) pair, keep only the FIRST candidate
+    // encountered. Iteration order preserved so behavior is deterministic
+    // (profile order from the .in('kind', ...) query — stable enough at
+    // beta scale). Skipped duplicates get a distinct result status.
+    const seenTokenWindows = new Set<string>();
+    const dedupedBrief: UserToBrief[] = [];
+    for (const f of toBrief) {
+      if (!f.pushToken) { dedupedBrief.push(f); continue; }  // let no-token candidates through — they'll no-op on push anyway
+      const key = `${f.pushToken}::${f.window}`;
+      if (seenTokenWindows.has(key)) {
+        results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'skipped_duplicate_token', pushTokenTail: f.pushToken.slice(-8) });
+        continue;
+      }
+      seenTokenWindows.add(key);
+      dedupedBrief.push(f);
+    }
+    if (dedupedBrief.length !== toBrief.length) {
+      console.log(`[brief-scheduler] token-dedup: ${toBrief.length} → ${dedupedBrief.length} candidates (${toBrief.length - dedupedBrief.length} duplicate token skipped)`);
+    }
+    toBrief.length = 0;
+    toBrief.push(...dedupedBrief);
+
     // 2. Compute today's date key
     const todayKey = new Intl.DateTimeFormat('en-CA', {
       timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit'

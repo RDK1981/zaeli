@@ -391,6 +391,23 @@ export async function registerPushToken(): Promise<string | null> {
       return token;
     }
 
+    // Build 60 — null out any OTHER profiles that already have this token
+    // BEFORE writing it to the current user's profile. Prevents the double-
+    // push bug uncovered 18 Aug: Rich signed in as apple-review@zaeli.ai
+    // for App Store review testing, apple-review's registration overwrote
+    // onto Rich's device token → both profiles pointed at the same token →
+    // brief-scheduler pushed Rich's brief AND apple-review's brief to
+    // Rich's lockscreen every morning. This clears out any stale claim on
+    // the token by other profiles so only ONE profile owns it per device.
+    const { error: dedupErr } = await supabase
+      .from('profiles')
+      .update({ expo_push_token: null })
+      .eq('expo_push_token', token)
+      .neq('id', userId);
+    if (dedupErr) {
+      console.log('[push] token dedup update failed (non-fatal):', dedupErr.message);
+    }
+
     const { error } = await supabase
       .from('profiles')
       .update({ expo_push_token: token })
@@ -481,8 +498,11 @@ export async function debugPushToken(): Promise<{
     return { ok: false, step: 'token-format', detail: `Unexpected format: ${token}`, userId, permission, projectId, token, notifTypes };
   }
 
-  // Step 5 — DB write
+  // Step 5 — DB write. Build 60 — dedup other profiles that hold this
+  // same token before writing our own (see registerPushToken for details).
   try {
+    await supabase.from('profiles').update({ expo_push_token: null })
+      .eq('expo_push_token', token).neq('id', userId);
     const { error: writeErr } = await supabase.from('profiles').update({ expo_push_token: token }).eq('id', userId);
     if (writeErr) {
       return { ok: false, step: 'db-write', detail: `Supabase update failed: ${writeErr.message}`, userId, permission, projectId, token, dbWriteOk: false, notifTypes };
