@@ -25,10 +25,24 @@ export interface PersistedMsg {
   isLoading?: boolean;
   quickReplies?: string[];
   imageUri?: string; // used by Calendar channel
+  // Session 37 brief-kill era — messages may carry isBrief because older
+  // builds pushed brief bubbles into the chat feed. We now strip these
+  // on hydrate + save. Field kept in the type only so the filter has
+  // something typed to check.
+  isBrief?: boolean;
 }
 
 const MAX_MESSAGES = 30;
 const TTL_MS       = 24 * 60 * 60 * 1000; // 24 hours
+
+// Session 37 — client chat brief was killed. Any message shaped like a brief
+// (id starts with `brief-` OR isBrief truthy) should never touch the persisted
+// history. Filters both on hydrate (clears stale briefs from pre-Session-37
+// builds on first open) and on save (defence in depth against any future
+// regression that starts producing brief messages again).
+function stripBriefs(msgs: PersistedMsg[]): PersistedMsg[] {
+  return msgs.filter(m => !m.isBrief && !m.id?.startsWith('brief-'));
+}
 
 interface StoredPayload {
   messages: PersistedMsg[];
@@ -84,7 +98,7 @@ export function useChatPersistence(channelKey: string) {
           const payload: StoredPayload = JSON.parse(raw);
           const age = Date.now() - (payload.savedAt || 0);
           if (age < TTL_MS && Array.isArray(payload.messages)) {
-            const clean = payload.messages.filter(m => !m.isLoading);
+            const clean = stripBriefs(payload.messages.filter(m => !m.isLoading));
             setMessagesState(clean);
           } else {
             await FileSystem.deleteAsync(path, { idempotent: true });
@@ -104,7 +118,7 @@ export function useChatPersistence(channelKey: string) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       try {
-        const toSave = messages.filter(m => !m.isLoading).slice(-MAX_MESSAGES);
+        const toSave = stripBriefs(messages.filter(m => !m.isLoading)).slice(-MAX_MESSAGES);
         const path = chatFilePath(scopedKey);
         if (toSave.length === 0) {
           await FileSystem.deleteAsync(path, { idempotent: true });
