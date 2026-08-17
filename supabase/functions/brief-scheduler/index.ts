@@ -276,7 +276,12 @@ async function gatherLiveData(userId: string, familyId: string, dateKey: string)
 
   // Two queries per day (today + tomorrow) — each fetches shared + this-user's-personal
   // in a single call using .or() so we don't double round-trip.
-  const eventFilter = `and(source.is.null),and(privacy_scope.eq.shared),and(source.eq.apple-ical,imported_by_user_id.eq.${userId},privacy_scope.eq.personal)`;
+  //
+  // Session 36 hotfix 3 (Build 54.3) — was 'shared', but the actual schema
+  // convention (supabase-calendar-sync.sql line 32) uses 'family' for the
+  // whole-family visibility scope. 'shared' isn't a valid privacy_scope value.
+  // Fixed brief-scheduler + client toggle to use 'family'.
+  const eventFilter = `and(source.is.null),and(privacy_scope.eq.family),and(source.eq.apple-ical,imported_by_user_id.eq.${userId},privacy_scope.eq.personal)`;
 
   const [evTodayRes, evTmwRes, mealRes, shopRes, tasksRes, membersRes, remRes] = await Promise.all([
     supabaseAdmin.from('events')

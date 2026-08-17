@@ -2715,27 +2715,36 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
   const isExternal = !!ev._external || ev.source === 'apple-ical';
   const isImportedIcal = ev.source === 'apple-ical';
   // Build 54 (Session 36) — track share state locally for optimistic toggle.
-  // Server row's privacy_scope is either 'personal' or 'shared'. Default is
-  // 'personal' (only importer sees). Toggling to 'shared' means all family
-  // adults can see it via RLS.
-  const [sharedWithFamily, setSharedWithFamily] = useState<boolean>(ev.privacy_scope === 'shared');
+  // Server row's privacy_scope is either 'personal' or 'family'. Default is
+  // 'personal' for iCal imports (only importer sees). Toggling to 'family'
+  // means all family adults can see it via RLS.
+  //
+  // Session 36 hotfix 3 (Build 54.3) — was toggling to 'shared', but the
+  // events RLS WITH CHECK from supabase-calendar-sync.sql:173-189 only
+  // allows 'family' or ('personal' AND imported_by_user_id = auth.uid()).
+  // 'shared' failed WITH CHECK silently → 0 rows updated → my silent-RLS
+  // detect correctly reverted → user saw flash-and-revert. Wrong VALUE,
+  // not wrong pattern.
+  const [sharedWithFamily, setSharedWithFamily] = useState<boolean>(ev.privacy_scope === 'family');
   const [shareBusy, setShareBusy] = useState(false);
-  // Session 36 hotfix (Build 54.1) — sync local state with prop changes.
-  // useState only reads its initializer on mount. When parent re-fetches
-  // events and passes a fresh ev object (privacy_scope may have changed
-  // server-side, or via optimistic re-render), we need to reflect it. Rich's
-  // "toggle flashes then reverts" bug was caused by this sync missing +
-  // the calendar sheet SELECT previously not including privacy_scope
-  // (now added at line 6533/6534/6563).
   useEffect(() => {
-    setSharedWithFamily(ev.privacy_scope === 'shared');
+    setSharedWithFamily(ev.privacy_scope === 'family');
   }, [ev.privacy_scope, ev.id]);
   const members = (ev.assignees||[]).map((id:string) => getRoster().find(m=>m.id===id)).filter(Boolean) as any[];
   const borderColor = isExternal
     ? (ev._calendarColour || 'rgba(0,0,0,0.15)')
     : (members.length > 0 ? members[0].color : 'rgba(0,0,0,0.15)');
+  // Session 36 hotfix 3 (Build 54.3) — external iCal events (Teams / Outlook /
+  // Zoom / etc) often stuff auto-generated meeting join URLs, tenant IDs,
+  // thread metadata etc into the notes field. Previously we shoved that
+  // entire text into the meta line as "location" for external events —
+  // Rich's Stuart Drummond Teams meeting rendered as a 20-line wall of
+  // gibberish. Now: external events show ONLY time in the meta line.
+  // Users can tap through to iPhone Calendar for the raw detail.
   const noteParts = (ev.notes||'').split(' | ');
-  const location = noteParts.length > 1 ? noteParts[noteParts.length-1] : (isExternal ? (ev.notes || '') : '');
+  const location = isExternal
+    ? ''
+    : (noteParts.length > 1 ? noteParts[noteParts.length-1] : '');
 
   async function deleteEvent() {
     // Round B commit 29 — cancel scheduled alert before removing the row so
@@ -2768,7 +2777,7 @@ function CalSheetEventCard({ ev, onEditWithZaeli, onManualEdit, onDeleted }: {
       // Better: verify a row came back with an id after the update.
       const { data, error } = await supabase
         .from('events')
-        .update({ privacy_scope: nextShared ? 'shared' : 'personal' })
+        .update({ privacy_scope: nextShared ? 'family' : 'personal' })
         .eq('id', ev.id)
         .select('id, privacy_scope')
         .maybeSingle();
