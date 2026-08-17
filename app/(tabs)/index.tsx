@@ -7937,16 +7937,17 @@ Rules:
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{
             fontFamily: 'Poppins_700Bold',
-            fontSize: 16,
-            lineHeight: 22,
+            fontSize: 17,
+            lineHeight: 26,
             letterSpacing: -0.2,
             color: T.ink,
           }}>{greeting}</Text>
           <Text style={{
-            fontFamily: 'Poppins_500Medium',
-            fontSize: 12,
+            fontFamily: 'Poppins_400Regular',
+            fontSize: 13,
+            lineHeight: 20,
             color: T.ink2,
-            marginTop: 2,
+            marginTop: 4,
           }}>Type below or tap the mic to talk.</Text>
         </View>
       </View>
