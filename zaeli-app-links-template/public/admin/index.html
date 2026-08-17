@@ -3062,6 +3062,14 @@
       body: betaEndingHtml(),
     },
     {
+      id: 'install-bump',
+      icon: '📲',
+      title: 'TestFlight install nudge',
+      desc: 'Soft check-in for people invited but still awaiting install. Signed from Zaeli (automated feel).',
+      subject: 'Zaeli — install link when you\'re ready 🏡',
+      body: installBumpHtml(),
+    },
+    {
       id: 'android-waitlist',
       icon: '🤖',
       title: 'Android waitlist',
@@ -3688,6 +3696,24 @@
       `<p style="margin:0 0 18px;"><strong>Either way &mdash; thank you.</strong> Testing something raw takes patience and I don&#39;t forget it. If you know another family who might get something out of Zaeli, forwarding this email or sharing <a href="https://zaeli.app">zaeli.app</a> is the highest compliment.</p>` +
       `<p style="margin:0 0 4px;">Rich</p>` +
       `<p style="margin:0;color:rgba(10,10,10,0.55);font-size:14px;">Zaeli &middot; <a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></p>`
+    );
+  }
+
+  function installBumpHtml() {
+    return emailShell(
+      `<p style="margin:0 0 18px;">Hi there,</p>` +
+      `<p style="margin:0 0 18px;">Just a quick check-in &mdash; you signed up for Zaeli a few days back and we sent through your TestFlight install link. Wanted to make sure it landed and see if you&#39;d had a chance to get set up.</p>` +
+      `<p style="margin:0 0 18px;">If you haven&#39;t got around to it yet, no drama at all &mdash; happy to hold your spot for as long as you need. Here&#39;s the install link again so you don&#39;t have to dig for it:</p>` +
+      `<p style="margin:0 0 24px;text-align:center;"><a href="https://testflight.apple.com/join/DspnjNvM" style="display:inline-block;background:#0A0A0A;color:#FFFFFF;text-decoration:none;padding:14px 28px;border-radius:10px;font-weight:600;font-size:15px;">Install Zaeli via TestFlight</a></p>` +
+      `<p style="margin:0 0 12px;"><strong>Two quick things:</strong></p>` +
+      `<ol style="margin:0 0 18px;padding-left:22px;">` +
+      `<li style="margin-bottom:8px;">You&#39;ll need Apple&#39;s free <strong>TestFlight</strong> app from the App Store first (if you don&#39;t already have it &mdash; just search TestFlight).</li>` +
+      `<li style="margin-bottom:8px;">Once you tap the link above from your iPhone, Zaeli lands in your TestFlight app. Whole thing takes about 2 minutes.</li>` +
+      `</ol>` +
+      `<p style="margin:0 0 18px;">If you&#39;ve decided it&#39;s not for you, no hard feelings &mdash; just hit reply and we&#39;ll take you off the list. Or if you&#39;re stuck on any step, just tell us where and we&#39;ll get you unstuck.</p>` +
+      `<p style="margin:0 0 4px;">Cheers,</p>` +
+      `<p style="margin:0 0 4px;font-weight:600;">Zaeli 🏡</p>` +
+      `<p style="margin:0;color:rgba(10,10,10,0.55);font-size:14px;"><a href="https://zaeli.app" style="color:rgba(10,10,10,0.55);">zaeli.app</a></p>`
     );
   }
 
