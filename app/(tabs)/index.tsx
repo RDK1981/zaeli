@@ -7875,6 +7875,84 @@ Rules:
     });
   }
 
+  // ── Chat empty-state greeting (Session 37 · matches Home ChatTile) ─────
+  // When the chat feed has no messages (fresh install / post-strip / just
+  // cleared history) we render a time-of-day greeting card so users never
+  // land on a blank screen. Same 5 windows + tint palette as the Home
+  // ChatTile so the experience feels continuous whether they tap the tile
+  // or swipe right. Disappears the instant the first message lands in
+  // messages[] — no state to manage, no persistence.
+  function renderEmptyGreeting() {
+    const hr = new Date().getHours();
+    let greeting: string, emoji: string, bg: string, iconBg: string;
+    if (hr >= 5 && hr < 12) {
+      greeting = "Morning 👋 What's on your mind?";
+      emoji = '☀️';
+      bg = '#FDF1E5';
+      iconBg = '#FAC8A8';
+    } else if (hr >= 12 && hr < 16) {
+      greeting = 'Hey — anything I can help with?';
+      emoji = '💬';
+      bg = '#E8F4FD';
+      iconBg = '#A8D8F0';
+    } else if (hr >= 16 && hr < 19) {
+      greeting = 'Afternoon 👋 What can I sort?';
+      emoji = '👋';
+      bg = '#E6F7EF';
+      iconBg = '#B8EDD0';
+    } else if (hr >= 19 && hr < 24) {
+      greeting = 'Evening — anything to knock off?';
+      emoji = '🌙';
+      bg = '#F0EBFF';
+      iconBg = '#D8CCFF';
+    } else {
+      greeting = "Still up? I'm here.";
+      emoji = '💤';
+      bg = 'rgba(45,55,72,0.06)';
+      iconBg = '#2D3748';
+    }
+    return (
+      <View key="empty-greeting" style={{
+        backgroundColor: bg,
+        borderRadius: 22,
+        paddingVertical: 20,
+        paddingHorizontal: 18,
+        marginTop: 24,
+        marginBottom: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+      }}>
+        <View style={{
+          width: 44,
+          height: 44,
+          borderRadius: 999,
+          backgroundColor: iconBg,
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}>
+          <Text style={{ fontSize: 20 }}>{emoji}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{
+            fontFamily: 'Poppins_700Bold',
+            fontSize: 16,
+            lineHeight: 22,
+            letterSpacing: -0.2,
+            color: T.ink,
+          }}>{greeting}</Text>
+          <Text style={{
+            fontFamily: 'Poppins_500Medium',
+            fontSize: 12,
+            color: T.ink2,
+            marginTop: 2,
+          }}>Type below or tap the mic to talk.</Text>
+        </View>
+      </View>
+    );
+  }
+
   // ── renderMessages ─────────────────────────────────────────────────────────
   function renderMessages() {
     // Deduplicate by id before rendering — prevents React key collision warnings
@@ -7884,6 +7962,13 @@ Rules:
       seen.add(m.id);
       return true;
     });
+    // Session 37 — empty-state greeting when nothing to render. Client chat
+    // brief was killed + old briefs get stripped on hydrate, so a fresh or
+    // brief-only chat history renders empty by default. Show a time-of-day
+    // greeting card instead so users never see a blank screen.
+    if (uniqueMessages.length === 0) {
+      return renderEmptyGreeting();
+    }
     return uniqueMessages.map((msg, i) => {
       // ── Brief message (Option B — time-of-day tint, no card border, no win banner) ──
       if (msg.isBrief) {
