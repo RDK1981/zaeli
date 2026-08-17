@@ -93,6 +93,10 @@ export const CACHE_KEYS = {
   radarTasks:      'radar-tasks',        // top N tasks
   budgetSummary:   'budget-summary',     // headline totals
   mealTonight:     'meal-tonight',       // { name, cooks }
+  // Session 37 — Home BriefTile cache (Variation B).
+  // Shape: { text: string, window: 'morning'|'evening', generatedAt: string }
+  // Read from zaeli_briefs table (server-scheduler writes; client reads only).
+  briefLatest:     'brief-latest',
 } as const;
 
 // Track the last-active family_id in AsyncStorage. Dashboard can't hydrate

@@ -168,6 +168,12 @@ export default function DashboardScreen({
 
   // Reminders (Session 32 v2 Phase 05)
   const [remindItems, setRemindItems] = useState<{ id: string; title: string; whenLabel: string; isMe: boolean; tier: 'personal'|'shared' }[]>([]);
+  // Session 37 — Home BriefTile (Variation B). Reads latest brief from
+  // zaeli_briefs (server-scheduler writes). Client never generates briefs
+  // anymore — this tile just displays what server produced. Zero AI cost
+  // per read.
+  const [latestBrief, setLatestBrief] = useState<{ text: string; window: 'morning' | 'evening'; generatedAt: string } | null>(null);
+  const [briefExpanded, setBriefExpanded] = useState(false);
   const [remindCount, setRemindCount] = useState(0);
   // Round B commit 15 — undated to-do count. Undated items (both remind_at
   // and remind_on null) live in the sheet's To-dos tab. Without a count on
@@ -197,7 +203,7 @@ export default function DashboardScreen({
     const fid = p.family_id;
     const myId = p.id;
 
-    const [evRes, shopRes, allReminders] = await Promise.all([
+    const [evRes, shopRes, allReminders, briefRes] = await Promise.all([
       supabase.from('events')
         .select('id,title,date,start_time,assignees')
         .eq('family_id', fid).eq('date', today)
@@ -214,6 +220,18 @@ export default function DashboardScreen({
       // count mismatches (Rich saw "+4 undated to-dos" on Home while the
       // sheet showed only 1). Now both consume the same filtered list.
       loadReminders(),
+      // Session 37 — latest brief for THIS user for today. Server-scheduler
+      // per-user briefs are keyed by (family_id, user_id, date_key, time_window).
+      // We pull the newest one for today — if no row yet (server hasn't fired),
+      // tile hides. Zero AI cost — we just read what server already wrote.
+      supabase.from('zaeli_briefs')
+        .select('brief_text, time_window, generated_at')
+        .eq('family_id', fid)
+        .eq('user_id', myId)
+        .eq('date_key', today)
+        .order('generated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     const evList = (evRes.data ?? []).slice(0, 3);
@@ -227,6 +245,22 @@ export default function DashboardScreen({
     // Build 53 — save to cache so next cold-start paints instantly.
     saveTile(fid, CACHE_KEYS.eventsToday, { items: evList, count: evCount });
     saveTile(fid, CACHE_KEYS.shoppingSummary, { items: shopList, count: shopCnt });
+
+    // Session 37 — brief tile: use latest row for today (any window). Server
+    // may write morning first then evening; we always show the freshest.
+    const briefRow = briefRes?.data;
+    if (briefRow?.brief_text) {
+      const briefState = {
+        text: String(briefRow.brief_text),
+        window: (briefRow.time_window === 'evening' ? 'evening' : 'morning') as 'morning' | 'evening',
+        generatedAt: String(briefRow.generated_at ?? ''),
+      };
+      setLatestBrief(briefState);
+      saveTile(fid, CACHE_KEYS.briefLatest, briefState);
+    } else {
+      setLatestBrief(null);
+      // Don't cache null — leave previous cache so cold-start still shows something.
+    }
 
     // Round B — home tile shows DATED items in the primary "up next" list.
     // Undated to-dos surface as a small count in the sub-line (see todoCount)
@@ -287,10 +321,11 @@ export default function DashboardScreen({
     (async () => {
       const fid = await getLastFamilyId();
       if (!fid) return;
-      const [cachedEvents, cachedShop, cachedRems] = await Promise.all([
+      const [cachedEvents, cachedShop, cachedRems, cachedBrief] = await Promise.all([
         loadTile<{ items: EventLite[]; count: number }>(fid, CACHE_KEYS.eventsToday),
         loadTile<{ items: ShopItem[]; count: number }>(fid, CACHE_KEYS.shoppingSummary),
         loadTile<{ items: any[]; count: number; todoCount: number }>(fid, CACHE_KEYS.remindersSummary),
+        loadTile<{ text: string; window: 'morning' | 'evening'; generatedAt: string }>(fid, CACHE_KEYS.briefLatest),
       ]);
       if (cachedEvents) {
         setTodayEvents(cachedEvents.items ?? []);
@@ -305,6 +340,8 @@ export default function DashboardScreen({
         setRemindCount(cachedRems.count ?? 0);
         setTodoCount(cachedRems.todoCount ?? 0);
       }
+      // Session 37 — brief tile hydration. Same pattern as other tiles.
+      if (cachedBrief?.text) setLatestBrief(cachedBrief);
     })();
   }, []);
 
@@ -487,6 +524,131 @@ export default function DashboardScreen({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+
+          {/* ── ZAELI BRIEF TILE (Session 37 · Variation B) ──────────────
+              Reads the latest server-generated brief from zaeli_briefs.
+              Compact opener + expand-to-full inline. Zero AI cost — server
+              already produced this brief for the lockscreen push. Client-side
+              chat brief pipeline has been killed (tryFireBrief removed).
+              Tile hides entirely if no brief exists for today yet — cleaner
+              than a placeholder. Reappears after brief-scheduler fires. */}
+          {latestBrief && (() => {
+            const isEvening = latestBrief.window === 'evening';
+            const bg = isEvening ? T.lavTint : T.peachTint;
+            const pillBg = isEvening ? T.lavender : T.peach;
+            const pillFg = isEvening ? T.lavDeep : '#8A3A00';
+            const pillLabel = isEvening ? '🌙 EVENING' : '☀️ MORNING';
+            // Parse brief into paragraphs — opener + rest.
+            const paras = String(latestBrief.text).split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+            const opener = paras[0] ?? latestBrief.text;
+            const restParas = paras.slice(1);
+            const hasRest = restParas.length > 0;
+            // Format generatedAt as "6:23am" etc.
+            let timeLabel = '';
+            try {
+              if (latestBrief.generatedAt) {
+                const d = new Date(latestBrief.generatedAt);
+                const h = d.getHours();
+                const m = d.getMinutes();
+                const h12 = ((h + 11) % 12) + 1;
+                const ampm = h < 12 ? 'am' : 'pm';
+                const mm = m > 0 ? `:${String(m).padStart(2, '0')}` : '';
+                timeLabel = `${h12}${mm}${ampm}`;
+              }
+            } catch {}
+            return (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setBriefExpanded(v => !v)}
+                style={{
+                  backgroundColor: bg,
+                  borderRadius: 18,
+                  padding: 16,
+                  marginBottom: 14,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                  <View style={{
+                    backgroundColor: pillBg,
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: 100,
+                  }}>
+                    <Text style={{
+                      fontFamily: 'Poppins_800ExtraBold',
+                      fontSize: 10,
+                      letterSpacing: 0.6,
+                      color: pillFg,
+                    }}>{pillLabel}</Text>
+                  </View>
+                  {timeLabel !== '' && (
+                    <Text style={{
+                      marginLeft: 'auto',
+                      fontFamily: 'Poppins_500Medium',
+                      fontSize: 11,
+                      color: T.ink3,
+                    }}>{timeLabel}</Text>
+                  )}
+                </View>
+                <Text style={{
+                  fontFamily: 'Poppins_500Medium',
+                  fontSize: 15,
+                  lineHeight: 22,
+                  color: T.ink,
+                }}>{opener}</Text>
+                {briefExpanded && restParas.map((p, i) => (
+                  <Text
+                    key={i}
+                    style={{
+                      fontFamily: 'Poppins_400Regular',
+                      fontSize: 14,
+                      lineHeight: 22,
+                      color: T.ink2,
+                      marginTop: 10,
+                    }}
+                  >{p}</Text>
+                ))}
+                {briefExpanded && (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    <TouchableOpacity
+                      onPress={(e) => { e.stopPropagation?.(); openChat(); }}
+                      activeOpacity={0.75}
+                      style={{
+                        backgroundColor: 'rgba(255,68,68,0.12)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(255,68,68,0.28)',
+                        paddingVertical: 8,
+                        paddingHorizontal: 14,
+                        borderRadius: 100,
+                      }}
+                    >
+                      <Text style={{ fontFamily: 'Poppins_700Bold', fontSize: 12, color: '#B83333' }}>Chat with me</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={(e) => { e.stopPropagation?.(); setBriefExpanded(false); }}
+                      activeOpacity={0.75}
+                      style={{
+                        backgroundColor: 'rgba(10,10,10,0.05)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(10,10,10,0.1)',
+                        paddingVertical: 8,
+                        paddingHorizontal: 14,
+                        borderRadius: 100,
+                      }}
+                    >
+                      <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: T.ink }}>Got it</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {!briefExpanded && hasRest && (
+                  <View style={{ marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)' }}>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 11, color: T.ink2 }}>Read full brief</Text>
+                    <Text style={{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: T.ink3 }}>→</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })()}
 
           {/* ── CALENDAR TILE (slate) — Round A big-text ──────────────── */}
           <TouchableOpacity

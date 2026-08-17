@@ -4354,14 +4354,10 @@ function HomeScreen({
   // ── Mount → load cards (brief fires AFTER persistence restore, see below) ─
   useEffect(() => {
     loadCardData();
-    // Background 5-min timer — checks if a held brief is now due after inactivity.
-    // (60s was too aggressive; 5 min is plenty for held-brief recovery.)
-    heldBriefCheckTimerRef.current = setInterval(() => {
-      tryFireBrief({ appJustOpened: false });
-    }, 5 * 60 * 1000);
-    return () => {
-      if (heldBriefCheckTimerRef.current) clearInterval(heldBriefCheckTimerRef.current);
-    };
+    // Session 37 — 5-min held-brief-check interval removed. Chat surface no
+    // longer generates client-side briefs. Server-side brief-scheduler now
+    // owns the brief pipeline (lockscreen push). Home tile shows latest
+    // server brief via BriefTile component. Chat = communication only.
   }, []);
 
   // Brief fires AFTER persistence has restored. This prevents double-fire on
@@ -4392,14 +4388,11 @@ function HomeScreen({
             ts: nowTs(),
           };
           setMessages(prev => [...prev, welcome]);
-          // Skip tryFireBrief for this first session. Tour offer + heads-up
-          // (won't fire for invitee anyway) still go below.
-        } else {
-          tryFireBrief({ appJustOpened: true });
         }
-      } catch {
-        tryFireBrief({ appJustOpened: true });
-      }
+        // Session 37 — else branch removed. Owners no longer get a client-side
+        // brief on chat open. Brief lives on Home tile now (BriefTile component
+        // reads latest server-generated brief from zaeli_briefs cache).
+      } catch {}
     })();
     maybeFireTourOffer();
     maybeFireTourResume();
@@ -5409,9 +5402,8 @@ BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Nev
     prevIsActive.current = isActive;
     console.log('CHAT: isActive =', isActive, 'justBecameActive =', justBecameActive);
     if (!justBecameActive) return;
-    // Brief check on isActive — only fires if window has changed since last brief.
-    // The duplicate guard + shouldFireBrief() will no-op if same window already fired.
-    if (briefMountFiredRef.current) tryFireBrief({ appJustOpened: false });
+    // Session 37 — brief-on-isActive check removed. Brief now lives on Home
+    // tile (server-generated). Chat isActive = just handle chat intents below.
 
     // ── Chat intent from Dashboard chat bar (Session 32 v2 Phase 04c) ──
     // Fast-lane: user tapped mic/camera/text on Dashboard, wants to land
@@ -7877,7 +7869,9 @@ Rules:
               .finally(() => setLoading(false));
           });
         }, 100);
-      } else { tryFireBrief({ appJustOpened: true }); }
+      }
+      // Session 37 — else-branch tryFireBrief removed. Brief lives on Home
+      // tile now (no client-side chat brief generation).
     });
   }
 
