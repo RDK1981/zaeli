@@ -304,16 +304,58 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
     let allReadsSucceeded = true;
     const failedCalendars: string[] = [];
 
+    // Session 36 hotfix 2 (Build 54.2) — CHUNK the date range into 30-day
+    // windows. Root cause of Rich's "iCal events flash then disappear":
+    // iOS EventKit silently truncates or throws when asked for a large
+    // range with lots of recurring event instances. Rich's Aatroxcomm work
+    // calendar has 30+ "Monthly 1:1 Catch Up" recurring series which
+    // materialise as hundreds of instances over the -30/+90 day window.
+    // iOS returns partial results (or throws), we get ~1 event when the
+    // iPhone has 15+ for the same day.
+    //
+    // Fix: fetch per calendar in 30-day chunks, dedupe by event.id
+    // (recurring instances can appear at chunk boundaries). Small enough
+    // per-call to avoid EventKit's truncation limits; overhead is
+    // negligible (a few extra async calls per sync).
+    const CHUNK_DAYS = 30;
+    const chunks: Array<{ start: Date; end: Date }> = [];
+    {
+      let cs = new Date(start);
+      while (cs < end) {
+        const ce = new Date(cs);
+        ce.setDate(ce.getDate() + CHUNK_DAYS);
+        if (ce > end) ce.setTime(end.getTime());
+        chunks.push({ start: new Date(cs), end: new Date(ce) });
+        cs = new Date(ce);
+      }
+    }
+    console.log(`[calendar-sync] fetching ${enabledCals.length} calendars × ${chunks.length} × ${CHUNK_DAYS}-day chunks`);
+
     for (const cal of enabledCals) {
       let iosEvents: Calendar.Event[] = [];
-      try {
-        iosEvents = await Calendar.getEventsAsync([cal.id], start, end);
-      } catch (e: any) {
-        console.log(`[calendar-sync] getEventsAsync for ${cal.title} threw:`, e?.message);
-        allReadsSucceeded = false;
-        failedCalendars.push(cal.title);
-        continue;
+      let chunkFailures = 0;
+      const seen = new Set<string>();
+      for (const chunk of chunks) {
+        try {
+          const chunkEvents = await Calendar.getEventsAsync([cal.id], chunk.start, chunk.end);
+          for (const e of chunkEvents) {
+            if (!e?.id || seen.has(e.id)) continue;
+            seen.add(e.id);
+            iosEvents.push(e);
+          }
+        } catch (e: any) {
+          console.log(`[calendar-sync] getEventsAsync chunk failed for ${cal.title} (${chunk.start.toISOString().slice(0,10)} → ${chunk.end.toISOString().slice(0,10)}):`, e?.message);
+          chunkFailures++;
+        }
       }
+      if (chunkFailures > 0) {
+        // ANY chunk failure for this calendar marks the whole calendar unreliable
+        // for this sync — skip delete-stale so we don't wipe rows the failed
+        // chunk would have returned.
+        allReadsSucceeded = false;
+        failedCalendars.push(`${cal.title} (${chunkFailures}/${chunks.length} chunks failed)`);
+      }
+      console.log(`[calendar-sync] ${cal.title}: fetched ${iosEvents.length} unique events (${chunkFailures} chunk failures)`);
       perCalendar.push({ id: cal.id, title: cal.title, count: iosEvents.length });
 
       // Upsert each event to Supabase

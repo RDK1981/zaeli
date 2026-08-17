@@ -544,6 +544,32 @@ export default function SettingsScreen() {
               Alert.alert('Direct test threw', e?.message ?? String(e));
             }
           }}
+          onDiagnoseCalendarSync={async () => {
+            // Session 36 hotfix — on-device diagnostic for iCal sync.
+            // Runs a fresh syncNow (bypassing the in-flight guard by
+            // waiting a bit) and shows per-calendar event counts + any
+            // chunk failures. Tells us at a glance whether Aatroxcomm et
+            // al. are actually returning events from iOS EventKit.
+            try {
+              const me = getProfile();
+              if (!me?.id || !me?.family_id) { Alert.alert('Not signed in', 'Profile not loaded.'); return; }
+              Alert.alert('Diagnosing...', 'Running full sync — this may take 10-20 seconds. Result will appear.');
+              const CS = await import('../../lib/calendar-sync');
+              const res = await CS.syncNow(me.id, me.family_id);
+              const lines: string[] = [];
+              lines.push(`ok: ${res.ok}`);
+              if (res.error) lines.push(`error: ${res.error}`);
+              lines.push(`inserted: ${res.inserted}  updated: ${res.updated}  deleted: ${res.deleted}`);
+              lines.push('');
+              lines.push('Per calendar:');
+              for (const c of res.perCalendar) {
+                lines.push(`  ${c.title}: ${c.count}`);
+              }
+              Alert.alert(res.ok ? '✅ Sync complete' : '⚠ Sync failed', lines.join('\n'));
+            } catch (e: any) {
+              Alert.alert('Diagnostic threw', e?.message ?? String(e));
+            }
+          }}
           onTestReminderSave={async () => {
             // Round B commit 4 — diagnose why the manual reminder-add path
             // is still failing after the visibility SQL migration. Runs the
@@ -785,6 +811,7 @@ function MainView(p: {
   onTestCheckout: () => void;
   onRegisterPushToken: () => void;
   onDirectPushTest: () => void;
+  onDiagnoseCalendarSync: () => void;
   onTestReminderSave: () => void;
   // Round B commit 28 — schedules a real 30s notification via the same
   // trigger-API path saveReminder uses (verifies commit 24 end-to-end).
@@ -1033,6 +1060,14 @@ function MainView(p: {
              title="Test family push (direct)"
              sub="Bypasses Sonnet — hits Edge Function directly"
              onPress={p.onDirectPushTest}/>
+        {/* Session 36 hotfix 2 — iCal sync diagnostic. Fires a fresh
+            syncNow + shows per-calendar event counts + chunk failures.
+            Tells us at a glance whether Aatroxcomm et al. are actually
+            returning events from iOS EventKit. */}
+        <Row icon="🔧" iconBg="rgba(168,216,240,0.35)" iconFg="#0A4A6A"
+             title="Diagnose iCal sync"
+             sub="Runs full sync + shows per-calendar event counts"
+             onPress={p.onDiagnoseCalendarSync}/>
         {/* Round B commit 4 — reminder save diagnostic. Runs raw INSERT +
             saveReminder helper + SELECT-back and shows each step's result
             in an Alert so we can nail why manual add is failing. */}
