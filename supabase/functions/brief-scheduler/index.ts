@@ -171,25 +171,40 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Per-user idempotency check
+      // Gather LIVE DATA for this user (personal events + family shared).
+      // Session 37 change — moved BEFORE the existing-row check so we can
+      // compute a data_signature and compare against the cached row. Prevents
+      // stale briefs sticking around when iCal sync brings in events AFTER
+      // the initial brief was generated at the user's scheduled time. Was
+      // costing users trust ("says quiet day, my Sunday is packed").
+      const liveData = await gatherLiveData(f.userId, f.familyId, todayKey);
+      const currentSignature = computeSignature(liveData);
+
+      // Per-user idempotency + signature check
       const { data: existing } = await supabaseAdmin
         .from('zaeli_briefs')
-        .select('id')
+        .select('id, data_signature')
         .eq('family_id', f.familyId)
         .eq('user_id', f.userId)
         .eq('date_key', todayKey)
         .eq('time_window', f.window)
         .maybeSingle();
+
+      let isSilentRefresh = false;
       if (existing?.id) {
-        results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'skipped_cached' });
-        continue;
+        if (existing.data_signature === currentSignature) {
+          // Content unchanged — skip (matches pre-Session-37 behaviour).
+          results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'skipped_cached' });
+          continue;
+        }
+        // Signature drifted — regenerate. Mark as silent so we don't re-push
+        // the lockscreen notification (user already got one at their scheduled
+        // time). Home BriefTile will pick up the fresh row on next open.
+        isSilentRefresh = true;
       }
 
-      // Gather LIVE DATA for this user (personal events + family shared)
-      const liveData = await gatherLiveData(f.userId, f.familyId, todayKey);
-
       if (dryRun) {
-        results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'dry_run', liveData });
+        results.push({ userId: f.userId, familyId: f.familyId, window: f.window, status: 'dry_run', liveData, isSilentRefresh, currentSignature, priorSignature: existing?.data_signature ?? null });
         continue;
       }
       if (!ANTHROPIC_API_KEY) {
@@ -215,7 +230,7 @@ Deno.serve(async (req) => {
           time_window:    f.window,
           brief_text:     briefText,
           chips:          [],
-          data_signature: 'server-scheduled',
+          data_signature: currentSignature,
           generated_at:   new Date().toISOString(),
         }, { onConflict: 'family_id,user_id,date_key,time_window' });
       if (upErr) {
@@ -223,7 +238,20 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Send lockscreen push to THIS user only
+      // Silent refresh — Home tile updated, no lockscreen re-ping. User
+      // already got the first-of-the-day push at their scheduled brief time.
+      if (isSilentRefresh) {
+        results.push({
+          userId: f.userId,
+          familyId: f.familyId,
+          window: f.window,
+          status: 'refreshed_silently',
+          briefLen: briefText.length,
+        });
+        continue;
+      }
+
+      // First generation for this (user, window, day) — send lockscreen push.
       const bodyPara = extractBodyParagraph(briefText);
       const pushResult = await sendUserPush(f.pushToken, f.window, bodyPara || briefText.slice(0, 300));
       results.push({
@@ -255,6 +283,21 @@ function parseHM(hm: string): number {
   const m = hm.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return 0;
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+function computeSignature(shape: Record<string, any>): string {
+  // Stable string hash of the LIVE DATA shape. Used to detect when tomorrow's
+  // events, shopping items, tasks etc changed since the brief was last
+  // generated — triggers a silent regenerate (Home tile refresh, no push).
+  // djb2 hash — good enough for change detection at beta scale, no crypto
+  // needed. Returns a short hex string so it fits in the data_signature TEXT
+  // column and is easy to eyeball in logs.
+  const s = JSON.stringify(shape);
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  }
+  return `sig-${(h >>> 0).toString(16)}`;
 }
 
 async function gatherLiveData(userId: string, familyId: string, dateKey: string) {
