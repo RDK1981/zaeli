@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Zaeli · ChatTile mockups — replaces BriefTile on Home</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --warm: #FAF8F5;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.55);
+    --ink3: rgba(10,10,10,0.30);
+    --sky: #A8D8F0;
+    --skyD: #0A4A6A;
+    --skyL: #E8F4FD;
+    --coral: #FF4545;
+    --mint: #B8EDD0;
+    --mintD: #2D7A52;
+    --mintL: #E6F7EF;
+    --peach: #FAC8A8;
+    --peachD: #8A3A00;
+    --peachL: #FDF1E5;
+    --lav: #D8CCFF;
+    --lavD: #5020C0;
+    --lavL: #F0EBFF;
+    --slate: #2D3748;
+    --slateL: #F2F0F5;
+    --gold: #F0DC80;
+    --goldL: #FBF5D6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #F2F0EA;
+    color: var(--ink);
+    padding: 40px 20px;
+    line-height: 1.5;
+  }
+  .container { max-width: 1240px; margin: 0 auto; }
+
+  /* Header */
+  header {
+    text-align: center;
+    padding: 32px;
+    margin-bottom: 32px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+  }
+  h1 {
+    font-weight: 800;
+    font-size: 32px;
+    letter-spacing: -1px;
+    margin-bottom: 6px;
+  }
+  h1 .a { color: var(--sky); }
+  .sub {
+    color: var(--ink2);
+    font-weight: 500;
+    font-size: 14px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  /* Variant panel */
+  .variant {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    margin-bottom: 28px;
+  }
+  .variant-hdr {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .variant-label {
+    display: inline-block;
+    background: rgba(168,216,240,0.28);
+    color: var(--skyD);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 999px;
+  }
+  .variant-title {
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+  }
+  .variant-desc {
+    color: var(--ink2);
+    font-size: 13px;
+    margin-bottom: 20px;
+    max-width: 720px;
+  }
+
+  /* Row of 5 tiles (one per time window) */
+  .tile-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 1100px) { .tile-row { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px)  { .tile-row { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px)  { .tile-row { grid-template-columns: 1fr; } }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .col-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--ink3);
+    padding: 0 4px;
+  }
+  .col-time {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--ink3);
+    padding: 0 4px;
+  }
+
+  /* Tile itself — matches Home tile shape */
+  .tile {
+    background: var(--warm);
+    border-radius: 22px;
+    padding: 18px 18px 16px 18px;
+    min-height: 118px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .tile:hover { transform: translateY(-2px); }
+  .tile-hint {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--ink3);
+    letter-spacing: 0.2px;
+  }
+  .tile-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+  .tile-text {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.2px;
+    color: var(--ink);
+    line-height: 1.3;
+  }
+  .tile-cta {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink2);
+    margin-top: 6px;
+  }
+  .tile-cta .arr { color: var(--coral); font-weight: 700; }
+
+  /* ── Variation A — Static neutral (recommended) ── */
+  .A .tile {
+    background: var(--warm);
+    border: 1px solid rgba(10,10,10,0.06);
+  }
+  .A .tile-icon {
+    background: var(--sky);
+    color: #fff;
+  }
+
+  /* ── Variation B — Time-tinted background (subtle) ── */
+  .B .morning  .tile { background: var(--peachL); }
+  .B .midday   .tile { background: var(--skyL); }
+  .B .afternoon .tile { background: var(--mintL); }
+  .B .evening  .tile { background: var(--lavL); }
+  .B .late     .tile { background: var(--slateL); }
+  .B .morning  .tile-icon { background: var(--peach); }
+  .B .midday   .tile-icon { background: var(--sky); }
+  .B .afternoon .tile-icon { background: var(--mint); color: var(--mintD); }
+  .B .evening  .tile-icon { background: var(--lav); color: var(--lavD); }
+  .B .late     .tile-icon { background: var(--slate); color: #fff; }
+
+  /* ── Variation C — Bold accent (border + strong icon) ── */
+  .C .tile {
+    background: #fff;
+    border: 1.5px solid rgba(10,10,10,0.08);
+  }
+  .C .morning  .tile { border-left: 4px solid var(--peach); }
+  .C .midday   .tile { border-left: 4px solid var(--sky); }
+  .C .afternoon .tile { border-left: 4px solid var(--mintD); }
+  .C .evening  .tile { border-left: 4px solid var(--lav); }
+  .C .late     .tile { border-left: 4px solid var(--slate); }
+  .C .morning  .tile-icon { background: var(--peach); }
+  .C .midday   .tile-icon { background: var(--sky); }
+  .C .afternoon .tile-icon { background: var(--mintD); color: #fff; }
+  .C .evening  .tile-icon { background: var(--lav); color: var(--lavD); }
+  .C .late     .tile-icon { background: var(--slate); color: #fff; }
+
+  /* In-context Home preview */
+  .context {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    margin-bottom: 28px;
+  }
+  .context-title {
+    font-weight: 800;
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+  .context-sub {
+    color: var(--ink2);
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .phone {
+    max-width: 360px;
+    margin: 0 auto;
+    background: var(--warm);
+    border-radius: 32px;
+    padding: 20px 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+  }
+  .phone-hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 8px 16px 8px;
+  }
+  .phone-hdr .zaeli {
+    font-weight: 800;
+    font-size: 24px;
+    letter-spacing: -1px;
+  }
+  .phone-hdr .zaeli .a { color: var(--sky); }
+  .phone-hdr .label {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(10,10,10,0.72);
+  }
+  .home-tile {
+    background: var(--warm);
+    border: 1px solid rgba(10,10,10,0.06);
+    border-radius: 22px;
+    padding: 18px;
+    margin-bottom: 10px;
+    min-height: 90px;
+  }
+  .home-tile .h {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: var(--ink3);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .home-tile .headline {
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+  }
+  .home-tile .sub {
+    color: var(--ink2);
+    font-size: 13px;
+    margin-top: 4px;
+  }
+  .home-tile.chattile {
+    background: var(--peachL);
+    padding: 22px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .home-tile.chattile .icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    background: var(--peach);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .home-tile.chattile .body {
+    flex: 1;
+    min-width: 0;
+  }
+  .home-tile.chattile .greeting {
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: -0.2px;
+    line-height: 1.3;
+  }
+  .home-tile.chattile .cta {
+    font-size: 12px;
+    color: var(--ink2);
+    margin-top: 2px;
+  }
+  .home-tile.chattile .arr {
+    color: var(--coral);
+    font-weight: 700;
+    margin-left: 4px;
+  }
+
+  /* Notes at bottom */
+  .notes {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .notes-title {
+    font-weight: 800;
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+  .notes ul {
+    list-style: none;
+    padding: 0;
+  }
+  .notes li {
+    padding: 8px 0;
+    color: var(--ink2);
+    font-size: 13px;
+    line-height: 1.6;
+    border-bottom: 1px solid rgba(10,10,10,0.05);
+  }
+  .notes li:last-child { border-bottom: none; }
+  .notes li strong { color: var(--ink); font-weight: 700; }
+  .pill-inline {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    margin: 0 3px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>zaeli · Ch<span class="a">a</span>tT<span class="a">i</span>le</h1>
+    <p class="sub">Replaces the BriefTile on Home. Warm time-of-day greeting → taps into Chat. Brief lives on the lockscreen only (moment-in-time as it was designed).</p>
+  </header>
+
+  <!-- Variation A -->
+  <section class="variant A">
+    <div class="variant-hdr">
+      <span class="variant-label">Variation A</span>
+      <span class="variant-title">Static neutral</span>
+    </div>
+    <p class="variant-desc">Same warm bg + sky <em>a+i</em> icon accent all day. Only the greeting text changes. Cleanest, quietest — sits alongside other Home tiles without drawing attention.</p>
+    <div class="tile-row">
+      <div class="col">
+        <span class="col-label">Morning</span>
+        <span class="col-time">5am – 11:59am</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">👋</div>
+            <div class="tile-text">Morning 👋 What's on your mind?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col">
+        <span class="col-label">Midday</span>
+        <span class="col-time">12pm – 3:59pm</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">💬</div>
+            <div class="tile-text">Hey — anything I can help with?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col">
+        <span class="col-label">Afternoon</span>
+        <span class="col-time">4pm – 6:59pm</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">👋</div>
+            <div class="tile-text">Afternoon 👋 What can I sort?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col">
+        <span class="col-label">Evening</span>
+        <span class="col-time">7pm – 11:59pm</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">🌙</div>
+            <div class="tile-text">Evening — anything to knock off?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col">
+        <span class="col-label">Late</span>
+        <span class="col-time">12am – 4:59am</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">💤</div>
+            <div class="tile-text">Still up? I'm here.</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Variation B -->
+  <section class="variant B">
+    <div class="variant-hdr">
+      <span class="variant-label">Variation B ★ Recommended</span>
+      <span class="variant-title">Time-tinted background (subtle)</span>
+    </div>
+    <p class="variant-desc">Bg tint shifts through the day — sunrise peach, midday sky, afternoon mint, evening lavender, late slate. Same tokens already used elsewhere in the app (morning brief bubble, weather tile, budget accent, evening brief bubble). Feels alive without shouting.</p>
+    <div class="tile-row">
+      <div class="col morning">
+        <span class="col-label">Morning</span>
+        <span class="col-time">5am – 11:59am</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">☀️</div>
+            <div class="tile-text">Morning 👋 What's on your mind?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col midday">
+        <span class="col-label">Midday</span>
+        <span class="col-time">12pm – 3:59pm</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">💬</div>
+            <div class="tile-text">Hey — anything I can help with?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col afternoon">
+        <span class="col-label">Afternoon</span>
+        <span class="col-time">4pm – 6:59pm</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">👋</div>
+            <div class="tile-text">Afternoon 👋 What can I sort?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col evening">
+        <span class="col-label">Evening</span>
+        <span class="col-time">7pm – 11:59pm</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">🌙</div>
+            <div class="tile-text">Evening — anything to knock off?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col late">
+        <span class="col-label">Late</span>
+        <span class="col-time">12am – 4:59am</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">💤</div>
+            <div class="tile-text">Still up? I'm here.</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Variation C -->
+  <section class="variant C">
+    <div class="variant-hdr">
+      <span class="variant-label">Variation C</span>
+      <span class="variant-title">Bold accent (white bg + coloured left border)</span>
+    </div>
+    <p class="variant-desc">White tile with a coloured left border + coloured icon. Feels more like a UI element than an ambient greeting. Stronger visual contrast — might fight for attention against other Home tiles.</p>
+    <div class="tile-row">
+      <div class="col morning">
+        <span class="col-label">Morning</span>
+        <span class="col-time">5am – 11:59am</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">☀️</div>
+            <div class="tile-text">Morning 👋 What's on your mind?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col midday">
+        <span class="col-label">Midday</span>
+        <span class="col-time">12pm – 3:59pm</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">💬</div>
+            <div class="tile-text">Hey — anything I can help with?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col afternoon">
+        <span class="col-label">Afternoon</span>
+        <span class="col-time">4pm – 6:59pm</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">👋</div>
+            <div class="tile-text">Afternoon 👋 What can I sort?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col evening">
+        <span class="col-label">Evening</span>
+        <span class="col-time">7pm – 11:59pm</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">🌙</div>
+            <div class="tile-text">Evening — anything to knock off?</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <div class="col late">
+        <span class="col-label">Late</span>
+        <span class="col-time">12am – 4:59am</span>
+        <div class="tile">
+          <span class="tile-hint">Chat →</span>
+          <div>
+            <div class="tile-icon">💤</div>
+            <div class="tile-text">Still up? I'm here.</div>
+          </div>
+          <div class="tile-cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- In-context preview -->
+  <section class="context">
+    <div class="context-title">In context — how it sits on Home (Variation B, morning)</div>
+    <div class="context-sub">Above Calendar / Shopping / Reminders / Budget tiles. First thing you see under the header.</div>
+    <div class="phone">
+      <div class="phone-hdr">
+        <div class="zaeli">z<span class="a">a</span>el<span class="a">i</span></div>
+        <div class="label">Home</div>
+      </div>
+      <!-- ChatTile -->
+      <div class="home-tile chattile">
+        <div class="icon">☀️</div>
+        <div class="body">
+          <div class="greeting">Morning 👋 What's on your mind?</div>
+          <div class="cta">Chat with me <span class="arr">→</span></div>
+        </div>
+      </div>
+      <!-- Calendar tile placeholder -->
+      <div class="home-tile" style="background:#2D3748;color:#fff;">
+        <div class="h" style="color:rgba(255,255,255,0.6)">TODAY · MON 17 AUG</div>
+        <div class="headline" style="color:#fff;">3 events on today.</div>
+        <div class="sub" style="color:rgba(255,255,255,0.7)">Soccer training · Groceries · Andy call</div>
+      </div>
+      <!-- Shopping tile placeholder -->
+      <div class="home-tile" style="background:#D8CCFF;">
+        <div class="h">SHOPPING</div>
+        <div class="headline">4 items to grab.</div>
+        <div class="sub">Milk · Bread · Butter · Salmon</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Notes -->
+  <section class="notes">
+    <div class="notes-title">Design notes</div>
+    <ul>
+      <li><strong>Tile shape</strong> — matches existing Home tile radius (22px) + padding (18px). Same click-to-navigate pattern as Calendar / Shopping / Reminders tiles.</li>
+      <li><strong>Tap</strong> — routes straight to Chat (no intent — just opens chat with input focused). If you want mic-primed, that's a second variant.</li>
+      <li><strong>Icon</strong> — emoji chosen per window (☀️ 💬 👋 🌙 💤). Could swap for a single mic/chat-bubble icon that stays constant — greeting text carries the time signal.</li>
+      <li><strong>"Late" tone</strong> — softened your original "Late night — what's up?" to "Still up? I'm here." — feels less like Zaeli's watching, more like she's around. Reversible.</li>
+      <li><strong>Bg tint tokens (Variation B)</strong>
+        <span class="pill-inline" style="background:var(--peachL);color:var(--peachD);">morning peach</span>
+        <span class="pill-inline" style="background:var(--skyL);color:var(--skyD);">midday sky</span>
+        <span class="pill-inline" style="background:var(--mintL);color:var(--mintD);">afternoon mint</span>
+        <span class="pill-inline" style="background:var(--lavL);color:var(--lavD);">evening lav</span>
+        <span class="pill-inline" style="background:var(--slateL);color:var(--slate);">late slate</span>
+        — all already in the app palette.</li>
+      <li><strong>Brief lives on lockscreen only</strong> — server-scheduler still fires push at each user's scheduled morning + evening times. Row still written to <code>zaeli_briefs</code> for possible future "what was in my morning brief?" chat retrieval. Just not displayed on Home.</li>
+      <li><strong>Revert Session 37 hotfix <code>3ad3a96</code></strong> — data-signature drift regen becomes pointless if nobody reads the row live. Brief-scheduler goes back to fire-once-per-day idempotent behaviour.</li>
+    </ul>
+  </section>
+
+</div>
+</body>
+</html>
