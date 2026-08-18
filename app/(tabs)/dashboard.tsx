@@ -93,25 +93,42 @@ function fmtTime(iso: string | null | undefined): string {
 }
 
 // ── SVG icons — matching those in index.tsx for visual continuity ──────
-function IcoMic({ color = T.ink, size = 22 }: { color?: string; size?: number }) {
+// Build 64 — icon SVGs synced to match the Chat interface's inline bar
+// (index.tsx line 8755+). Previous Dashboard mic used a rounded-rectangle
+// body (Material feel); Chat used a closed-curve body (traditional mic
+// look). Rich noticed the mismatch — since the Dashboard bar is meant to
+// feel like the Chat bar, they should render identically.
+//
+// Changes vs pre-Build-64:
+//   * IcoMic body path: Rect → closed curved shape (matches chat)
+//   * IcoMic viewBox: 24x26 → 24x24 (matches chat)
+//   * IcoMic default size: 22 → 24 (matches chat bar size)
+//   * IcoCamera stroke width: 1.6 → 1.8 (matches chat)
+//   * IcoCamera default size: 22 → 24 (matches chat bar size)
+//   * IcoSend default size: 18 → 22 (matches chat bar size)
+//
+// The tile mics on Home (Calendar/Shopping/Reminders "Add" pills) also
+// use IcoMic — they'll pick up the new shape too. Consistency across
+// every mic icon in the app is a win.
+function IcoMic({ color = T.ink, size = 24 }: { color?: string; size?: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 26" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <Rect x="9" y="2" width="6" height="11" rx="3"/>
-      <Path d="M5 10a7 7 0 0014 0"/>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+      <Path d="M19 10v2a7 7 0 01-14 0v-2"/>
       <Line x1="12" y1="19" x2="12" y2="23"/>
       <Line x1="8" y1="23" x2="16" y2="23"/>
     </Svg>
   );
 }
-function IcoCamera({ color = T.coral, size = 22 }: { color?: string; size?: number }) {
+function IcoCamera({ color = T.coral, size = 24 }: { color?: string; size?: number }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <Path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
       <Circle cx="12" cy="13" r="4"/>
     </Svg>
   );
 }
-function IcoSend({ color = '#fff', size = 18 }: { color?: string; size?: number }) {
+function IcoSend({ color = '#fff', size = 22 }: { color?: string; size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <Line x1="12" y1="19" x2="12" y2="5"/>
