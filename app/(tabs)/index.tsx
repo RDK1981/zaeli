@@ -665,6 +665,34 @@ function isCalendarAddIntent(text: string): boolean {
   return CALENDAR_ADD_NOUNS.some(n => lower.includes(n));
 }
 
+// Build 62 — calendar-UPDATE intent. Detects "change/move/update/reschedule
+// X to Y" style patterns so we can force tool_choice on update_calendar_event
+// and get one-turn agentic behaviour. Without this, Sonnet 5 was splitting
+// the request into find_calendar_events on turn 1 + waiting for user
+// confirmation before actually calling update on turn 2. Rich hit this on
+// 18 Aug (Build 60/61): "Can you change the open home to 12pm" → Sonnet
+// only found the event, waited. User "Did you change it?" → Sonnet "Done"
+// (with the actual update finally happening on turn 2).
+//
+// Force pattern mirrors calendarAddIntent. The update_calendar_event tool
+// already handles finding-by-title internally (ilike match), so Sonnet
+// doesn't need a prior find call — she can go straight to update.
+const CALENDAR_UPDATE_VERBS = ['change ', 'move ', 'reschedule ', 'shift ', 'push ', 'bring forward ', 'update ', 'switch ', 'swap ', 'edit ', 'amend ', 'set '];
+const CALENDAR_UPDATE_HINTS = [' to ', ' at ', ' from ', ' back to ', ' forward to ', ' earlier', ' later'];
+function isCalendarUpdateIntent(text: string): boolean {
+  const lower = ' ' + text.toLowerCase() + ' ';
+  const hasVerb = CALENDAR_UPDATE_VERBS.some(v => lower.includes(v));
+  if (!hasVerb) return false;
+  // Add intent wins over update intent — we don't want "add the appointment
+  // to my calendar at 2pm" to look like an update because of the " to "
+  // and " at " hints. The nouns from CALENDAR_ADD_NOUNS make it clearly an
+  // add ("to my calendar", "to the calendar", etc).
+  if (isCalendarAddIntent(text)) return false;
+  // Must have a "to <time>" or similar directional hint. Filters out
+  // "change how I feel about X" style noise (rare but real).
+  return CALENDAR_UPDATE_HINTS.some(h => lower.includes(h));
+}
+
 // Session 30 — calendar-lookup queries that need find_calendar_events, NOT
 // the today/tomorrow intercept card. "When is X in the calendar?" / "do we
 // have anything called Y?" / "is Poppy's dance still going in September?"
@@ -810,16 +838,34 @@ const CLAUDE_OUT_PER_M = 15.00;
 async function logApiCall(params: {
   family_id: string; feature: string; model: string;
   input_tokens: number; output_tokens: number; cost_usd: number;
-  // Build 60 — optional cache observability. Null when call had no
-  // caching involved (GPT, non-cached Sonnet paths).
+  // Build 60 — optional cache observability. Only sent when values > 0.
   cache_read_tokens?: number | null;
   cache_creation_tokens?: number | null;
 }) {
   try {
-    const row: any = { ...params, created_at: new Date().toISOString() };
-    // Coerce 0/undefined → null so a clean "no cache" reads consistently.
-    row.cache_read_tokens     = (params.cache_read_tokens     ?? 0) > 0 ? params.cache_read_tokens     : null;
-    row.cache_creation_tokens = (params.cache_creation_tokens ?? 0) > 0 ? params.cache_creation_tokens : null;
+    // Build 62 — defensive: only include cache columns in the INSERT
+    // payload when they have real values. Prevents the class of bug
+    // uncovered 19 Aug where Build 60 added new columns to api_logs
+    // schema, migration didn't run, and EVERY insert silently failed
+    // (PostgREST rejects unknown columns → try/catch swallows → zero
+    // rows land, invisible to users, only surfaces when someone checks
+    // api_logs directly).
+    //
+    // With conditional spread below, calls that don't have cache data
+    // (GPT calls, older Sonnet paths without cache_control) omit the
+    // cache columns entirely from the row. If the migration hasn't
+    // run, cache-free inserts still succeed. Only inserts that TRY to
+    // write to cache columns will fail — those we want to see fail
+    // (surfaces the missed migration).
+    const { cache_read_tokens, cache_creation_tokens, ...base } = params;
+    const cacheRead  = (cache_read_tokens     ?? 0) > 0 ? cache_read_tokens     : null;
+    const cacheWrite = (cache_creation_tokens ?? 0) > 0 ? cache_creation_tokens : null;
+    const row: any = {
+      ...base,
+      created_at: new Date().toISOString(),
+      ...(cacheRead  != null ? { cache_read_tokens:     cacheRead  } : {}),
+      ...(cacheWrite != null ? { cache_creation_tokens: cacheWrite } : {}),
+    };
     await supabase.from('api_logs').insert(row);
   } catch {}
 }
@@ -2661,6 +2707,22 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
       [after ✅ tool_result]
       You: "Done — 'doWorkout' is on for today at 12:30 pm. ✓"
     If you catch yourself about to write a success confirmation and you have NOT called the tool in this turn, STOP and call the tool first.
+
+- UPDATE AGENTIC — CRITICAL (Build 62): When the user says "change/move/reschedule/shift/switch/update X to Y" and the intent is clear (title + new time OR new date), call update_calendar_event IMMEDIATELY in the same turn. Do NOT split into "find_calendar_events on turn 1 + wait for user confirmation + update on turn 2" — that turns one clear directive into a two-turn back-and-forth. The update_calendar_event tool searches by title internally — you do not need a prior find. Trust the tool: if it can't match the title, it returns "Couldn't find an event matching X" and you can report that honestly. The user's request IS the confirmation.
+    Failure example (do NOT do this):
+      User: "Can you change the open home inspection to 12pm."
+      You: [call find_calendar_events with query="open home"]  ← WRONG (extra turn)
+      Tool: "Found 1 event: 2026-08-22 11:00 — Open Home Inspection"
+      You: "Found it — want me to change it?"  ← WRONG (user already asked)
+    Correct pattern:
+      User: "Can you change the open home inspection to 12pm."
+      You: [call update_calendar_event with search_title="open home", new_start_time="2026-08-22T12:00:00"]
+      [after ✅ tool_result]
+      You: "Done — Open Home Inspection moved to 12pm. ✓"
+
+- CONFIRM-THEN-UPDATE — CRITICAL (Build 62, mirrors CONFIRM-THEN-ADD): If a two-turn pattern DOES happen (you found the event on turn 1 and asked "want me to change it?") and the user responds with a SHORT confirmation — "Yep", "Yes", "Do it", "Go ahead", "Please", "Yes please", "Confirm", "Sure", "OK", "Yeah do it", "Change it", etc. — you MUST call update_calendar_event in THIS SAME TURN. It is NEVER acceptable to reply "Done" or "Updated" or "Set for..." without also making a tool call in the same turn. Same rule as CONFIRM-THEN-ADD; different tool.
+
+- UPDATE HONESTY — ABSOLUTE (Build 62, same shape as CALENDAR HONESTY for adds): NEVER claim an event has been "changed", "moved", "updated", "rescheduled", "set to X", or "now at Y" unless an update_calendar_event tool call was actually made in this turn AND returned a "✅" response. If you called find_calendar_events but not update_calendar_event, no update happened yet — say so honestly ("Found it, but I haven't moved it yet — want me to?") rather than pretending it's done.
 
 - REMINDER HONESTY — ABSOLUTE (same rule as calendar + send_family_message):
     * NEVER claim a reminder has been "added", "saved", "set", "on your list", "in your reminders", or ANY equivalent phrase unless an add_reminder tool call was actually made in THIS TURN AND returned a "✅" response (never "TOOL_FAILED", never nothing).
@@ -6055,8 +6117,13 @@ Only include events directly relevant to the question. Max 5 events.`;
       // Session 30 — calendar-add intent forces tool_choice add_calendar_event so
       // Sonnet can't fabricate "Yep — added" without actually invoking the tool.
       const calendarAddIntent = isCalendarAddIntent(text);
+      // Build 62 — detect "change/move/reschedule X to Y" so we force
+      // tool_choice on update_calendar_event. Fixes 18 Aug bug where Sonnet
+      // was splitting update requests into find-then-wait-then-update
+      // across two turns.
+      const calendarUpdateIntent = isCalendarUpdateIntent(text);
       const reminderAddIntent = isReminderAddIntent(text);
-      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext || messageIntent || calendarLookupIntent || calendarAddIntent || reminderAddIntent) {
+      if (isActionQuery(text) || imageUri || pendingCalendarAdd.current || isShoppingContext || messageIntent || calendarLookupIntent || calendarAddIntent || calendarUpdateIntent || reminderAddIntent) {
         pendingCalendarAdd.current = false; // clear flag — one-shot
         // Session 30 Phase 5 — key lives server-side; no client-side check needed
 
@@ -6135,12 +6202,19 @@ Only include events directly relevant to the question. Max 5 events.`;
           // Priority order matters: calendarAddIntent wins over messageIntent
           // when both fire (e.g. "add calendar entry for Anna" — that's a
           // calendar add, not a message).
-          // Priority: calendar-add > message > reminder-add > free choice.
+          // Priority: calendar-add > calendar-update > message > reminder-add > free choice.
           // Calendar wins when both fire (e.g. "add calendar entry for Anna" —
           // that's a calendar add, not a reminder). Reminder-add force-chooses
           // add_reminder to block the "Done" fabrication pattern (Aug 2026 fix).
+          // Build 62 — calendarUpdateIntent added. "Change the open home to
+          // 12pm" now force-calls update_calendar_event in the same turn,
+          // instead of Sonnet 5's conservative find-then-wait-then-update
+          // two-turn pattern. The update tool has its own internal find-by-
+          // title so Sonnet doesn't need a prior find_calendar_events call.
           ...(calendarAddIntent
             ? { tool_choice: { type: 'tool', name: 'add_calendar_event' } }
+            : calendarUpdateIntent
+            ? { tool_choice: { type: 'tool', name: 'update_calendar_event' } }
             : messageIntent
             ? { tool_choice: { type: 'tool', name: 'send_family_message' } }
             : reminderAddIntent
@@ -6287,6 +6361,87 @@ Only include events directly relevant to the question. Max 5 events.`;
                 setLoading(false);
                 setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 150);
                 return;
+              }
+            } catch { /* fallback to normal flow */ }
+          }
+
+          // Build 62 — For update_calendar_event → same treatment as add:
+          // fetch the updated event, inject as inline card, attach Notify
+          // chip. Rich hit this bug 18 Aug: "Change open home to 12pm" →
+          // Sonnet updated the event correctly but no card, no chip
+          // rendered — just plain text "Done" in the chat feed. Family
+          // couldn't be notified of the change from the reply.
+          const updTool = toolUses.find((tu:any) => tu.name === 'update_calendar_event');
+          if (updTool && !toolResults[toolUses.indexOf(updTool)].startsWith('TOOL_FAILED')) {
+            try {
+              // Prefer new_title if provided (rename case), else search_title
+              // (time/date/assignee change case). Then find the freshest
+              // matching event ≥ today — mirrors the update tool's own
+              // internal find logic so we get the exact event that was updated.
+              const searchTitle = updTool.input.new_title || updTool.input.search_title;
+              if (searchTitle) {
+                const today = localDateStr();
+                let evQuery = supabase.from('events')
+                  .select('id,title,date,start_time,end_time,assignees,notes')
+                  .eq('family_id', getFamilyId())
+                  .ilike('title', `%${searchTitle}%`)
+                  .gte('date', today)
+                  .order('date').limit(1);
+                let { data: updEvData } = await evQuery;
+                // Fallback for past-only events that got their date shifted
+                if (!updEvData || updEvData.length === 0) {
+                  const { data: anyData } = await supabase.from('events')
+                    .select('id,title,date,start_time,end_time,assignees,notes')
+                    .eq('family_id', getFamilyId())
+                    .ilike('title', `%${searchTitle}%`)
+                    .order('date', { ascending: false }).limit(1);
+                  updEvData = anyData;
+                }
+                if (updEvData && updEvData.length > 0) {
+                  const ev0 = updEvData[0];
+                  const tomorrowStr = localDatePlusDays(1);
+                  const confirmInline: InlineData = ev0.date === today
+                    ? { type: 'calendar', items: [ev0], tomorrowItems: [], showPortalPill: true }
+                    : ev0.date === tomorrowStr
+                    ? { type: 'calendar', items: [], tomorrowItems: [ev0], initialTab: 'tomorrow', showPortalPill: true }
+                    : { type: 'calendar', items: [ev0], tomorrowItems: [], showPortalPill: true,
+                        dateLabelOverride: new Date(ev0.date + 'T00:00:00')
+                          .toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }).toUpperCase() };
+                  const myFirstName = (getProfile()?.name ?? '').split(/\s+/)[0] || 'Someone';
+                  const evTitle = ev0.title || 'Event';
+                  const dateLabel = ev0.date === today ? 'today' : ev0.date === tomorrowStr ? 'tomorrow'
+                    : new Date(ev0.date + 'T00:00:00').toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+                  const timeLabel = ev0.start_time ? ' at ' + fmtTime(ev0.start_time) : '';
+                  const notifyPayload: Msg['notifyPayload'] = {
+                    recipientUserIds: [],
+                    // Distinct notification copy from the add-path so family
+                    // members can tell an update from a fresh add on their
+                    // lockscreen. "updated" vs "added" is the clarity signal.
+                    title: `🗓 ${myFirstName} updated: ${evTitle}`,
+                    body:  `${dateLabel}${timeLabel}. Tap to see the details.`,
+                    data:  { type: 'calendar_update', event_id: ev0.id, event_date: ev0.date },
+                  };
+                  const notifyChip = 'Notify family';
+                  const confirmCard: Msg = {
+                    id: uid(), role: 'zaeli', text: '', ts: nowTs(),
+                    inlineData: confirmInline,
+                    quickReplies: [notifyChip, 'All good'],
+                    notifyPayload,
+                    notifyState: 'idle',
+                  };
+                  setMessages(prev => {
+                    return prev.map(m => m.id === replyId
+                      ? { ...m, text: followText, isLoading: false }
+                      : m
+                    ).concat([confirmCard]);
+                  });
+                  captureMemory(text, followText);
+                  loadCardData();
+                  refreshCalendarEvents();
+                  setLoading(false);
+                  setTimeout(() => scrollRef.current?.scrollToEnd({ animated:true }), 150);
+                  return;
+                }
               }
             } catch { /* fallback to normal flow */ }
           }

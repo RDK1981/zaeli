@@ -199,19 +199,26 @@ function logUsage({
 
   // Build 60 — persist cache_read + cache_creation tokens so we can measure
   // cache hit rate over time. Columns added by supabase-api-logs-cache-cols.sql.
-  // Null-safe: sends null when the caller didn't provide cache data (GPT calls,
-  // non-cached Sonnet calls). Older rows show null for historical background.
-  supabase.from('api_logs').insert({
-    family_id:              familyId,
-    account_id:             accountId ?? null,
+  //
+  // Build 62 — defensive: only include cache columns when they have real
+  // values. If the migration hasn't run (Rich missed step 1 of the Build
+  // 60 deploy checklist on 18 Aug — every insert silently failed for a day
+  // before we noticed), cache-free inserts still succeed and we don't lose
+  // ALL logging over one missing schema change. Cache-carrying inserts
+  // will still fail if the column is missing, which is what surfaces the
+  // missed migration.
+  const row: any = {
+    family_id:     familyId,
+    account_id:    accountId ?? null,
     feature,
-    model:                  model ?? 'claude-sonnet-5',
-    input_tokens:           inputTokens,
-    output_tokens:          outputTokens,
-    cache_read_tokens:      cacheRead > 0 ? cacheRead : null,
-    cache_creation_tokens:  cacheWrite > 0 ? cacheWrite : null,
-    cost_usd:               parseFloat(costUsd.toFixed(6)),
-  }).then(({ error }) => {
+    model:         model ?? 'claude-sonnet-5',
+    input_tokens:  inputTokens,
+    output_tokens: outputTokens,
+    cost_usd:      parseFloat(costUsd.toFixed(6)),
+  };
+  if (cacheRead  > 0) row.cache_read_tokens     = cacheRead;
+  if (cacheWrite > 0) row.cache_creation_tokens = cacheWrite;
+  supabase.from('api_logs').insert(row).then(({ error }) => {
     if (error) console.warn('[api-logger] Failed to log usage:', error.message);
   });
 }
