@@ -101,7 +101,8 @@
         {
           "calendarPermission": "Zaeli syncs with your iPhone Calendar so you see all your events in one place — and your Zaeli events appear on your iPhone Calendar too."
         }
-      ]
+      ],
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true,

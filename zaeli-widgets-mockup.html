@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Zaeli · Widgets + Long-press mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --warm: #FAF8F5;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.55);
+    --ink3: rgba(10,10,10,0.30);
+    --sky: #A8D8F0;
+    --skyD: #0A4A6A;
+    --skyL: #E8F4FD;
+    --coral: #FF4545;
+    --mint: #B8EDD0;
+    --mintD: #2D7A52;
+    --mintL: #E6F7EF;
+    --peach: #FAC8A8;
+    --peachD: #8A3A00;
+    --peachL: #FDF1E5;
+    --lav: #D8CCFF;
+    --lavD: #5020C0;
+    --lavL: #F0EBFF;
+    --gold: #F0DC80;
+    --goldL: #FBF5D6;
+    --slate: #2D3748;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #E5E2DA;
+    color: var(--ink);
+    padding: 40px 20px;
+    line-height: 1.5;
+  }
+  .container { max-width: 1240px; margin: 0 auto; }
+
+  /* Header */
+  header {
+    text-align: center;
+    padding: 32px;
+    margin-bottom: 32px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.06);
+  }
+  h1 {
+    font-weight: 800;
+    font-size: 32px;
+    letter-spacing: -1px;
+    margin-bottom: 6px;
+  }
+  h1 .a { color: var(--sky); }
+  .sub {
+    color: var(--ink2);
+    font-weight: 500;
+    font-size: 14px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  /* Section shell */
+  section.piece {
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .piece-hdr {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .piece-pill {
+    display: inline-block;
+    background: rgba(168,216,240,0.28);
+    color: var(--skyD);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 999px;
+  }
+  .piece-priority {
+    display: inline-block;
+    background: rgba(255,68,68,0.10);
+    color: #B83333;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    border-radius: 999px;
+  }
+  .piece-title {
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+  }
+  .piece-desc {
+    color: var(--ink2);
+    font-size: 14px;
+    margin-bottom: 24px;
+    max-width: 780px;
+  }
+
+  /* Two-col layout: mockup left, notes right */
+  .split {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .split { grid-template-columns: 1fr; }
+  }
+
+  /* ── iPhone Lock Screen mock ────────────────────────────── */
+  .lockscreen {
+    width: 360px;
+    height: 720px;
+    background: linear-gradient(180deg, #1a2540 0%, #2d3f6b 55%, #4a5f8f 100%);
+    border-radius: 44px;
+    padding: 60px 20px 40px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.25);
+  }
+  .lockscreen::before {
+    /* Dynamic Island */
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 32px;
+    background: #000;
+    border-radius: 20px;
+  }
+  .ls-topbar {
+    display: flex;
+    justify-content: space-between;
+    color: rgba(255,255,255,0.9);
+    font-size: 12px;
+    margin-bottom: 20px;
+    padding: 0 4px;
+  }
+  .ls-widget-inline {
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px auto 16px;
+    justify-self: center;
+    width: fit-content;
+  }
+  .ls-inline-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 4px 0 12px;
+  }
+  .ls-inline-highlight {
+    outline: 2px dashed rgba(255,235,0,0.55);
+    outline-offset: 4px;
+    border-radius: 14px;
+  }
+  .ls-time {
+    color: #fff;
+    font-size: 82px;
+    font-weight: 200;
+    letter-spacing: -3px;
+    text-align: center;
+    line-height: 1;
+    margin: 4px 0;
+    font-family: 'Helvetica Neue', -apple-system, sans-serif;
+  }
+  .ls-date {
+    text-align: center;
+    color: rgba(255,255,255,0.85);
+    font-size: 15px;
+    font-weight: 500;
+    margin-bottom: 32px;
+  }
+  .ls-widgets-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 40px;
+  }
+  .ls-circle-widget {
+    width: 68px;
+    height: 68px;
+    background: var(--warm);
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    position: relative;
+  }
+  .ls-circle-widget.zaeli-brand {
+    background: var(--warm);
+  }
+  .ls-circle-widget .wordmark {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.8px;
+    color: var(--ink);
+  }
+  .ls-circle-widget .wordmark .a {
+    color: var(--sky);
+  }
+  .ls-circle-widget.other {
+    background: rgba(255,255,255,0.15);
+    backdrop-filter: blur(20px);
+    color: #fff;
+    font-size: 24px;
+  }
+  .ls-highlight {
+    outline: 3px dashed rgba(255,235,0,0.7);
+    outline-offset: 6px;
+    border-radius: 999px;
+  }
+
+  /* ── iPhone Home Screen mock ────────────────────────────── */
+  .homescreen {
+    width: 380px;
+    height: 720px;
+    background: linear-gradient(160deg, #FDF1E5 0%, #E8F4FD 45%, #F0EBFF 100%);
+    border-radius: 44px;
+    padding: 60px 24px 100px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.25);
+  }
+  .homescreen::before {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 32px;
+    background: #000;
+    border-radius: 20px;
+  }
+  .hs-topbar {
+    display: flex;
+    justify-content: space-between;
+    color: rgba(0,0,0,0.75);
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    padding: 0 4px;
+  }
+  .hs-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px 14px;
+  }
+  .hs-cell {
+    aspect-ratio: 1;
+    background: rgba(255,255,255,0.6);
+    backdrop-filter: blur(10px);
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    color: rgba(10,10,10,0.55);
+    position: relative;
+  }
+  .hs-cell.icon-zaeli {
+    background: var(--warm);
+    padding: 6px;
+    font-size: 0;
+    align-items: flex-end;
+    justify-content: flex-end;
+  }
+  .hs-cell.icon-zaeli .icon-orbs {
+    position: absolute;
+    inset: 0;
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .hs-cell.icon-zaeli .orb {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(1px);
+    opacity: 0.9;
+  }
+  .hs-cell.icon-zaeli .za {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 26px;
+    letter-spacing: -1.5px;
+    color: var(--ink);
+    z-index: 2;
+  }
+  .hs-cell.icon-zaeli .za .a { color: var(--sky); }
+
+  /* Small widget (2x2 = spans 2 columns, 2 rows) */
+  .hs-widget-small {
+    grid-column: span 2;
+    grid-row: span 2;
+    background: var(--warm);
+    border-radius: 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    position: relative;
+  }
+  .hs-widget-small .mic {
+    width: 52px;
+    height: 52px;
+    background: var(--coral);
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 26px;
+    box-shadow: 0 6px 14px rgba(255,68,68,0.35);
+  }
+  .hs-widget-small .lbl {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .hs-widget-small .wm {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: -0.6px;
+    color: var(--ink);
+    position: absolute;
+    top: 8px;
+    left: 12px;
+  }
+  .hs-widget-small .wm .a { color: var(--sky); }
+
+  /* Medium widget (4x2 = spans 4 columns, 2 rows) */
+  .hs-widget-medium {
+    grid-column: span 4;
+    grid-row: span 2;
+    background: var(--warm);
+    border-radius: 22px;
+    padding: 14px 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .hs-widget-medium .hdr {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .hs-widget-medium .wm {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: -0.6px;
+    color: var(--ink);
+  }
+  .hs-widget-medium .wm .a { color: var(--sky); }
+  .hs-widget-medium .day {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--ink3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .hs-widget-medium .headline {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    color: var(--ink);
+    margin-top: 2px;
+  }
+  .hs-widget-medium ul {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0 0;
+    font-size: 12px;
+    color: var(--ink2);
+    line-height: 1.5;
+  }
+  .hs-widget-medium ul li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+  }
+  .hs-widget-medium ul li .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--peach);
+    flex-shrink: 0;
+  }
+  .hs-widget-medium ul li:nth-child(2) .dot { background: var(--sky); }
+  .hs-widget-medium ul li:nth-child(3) .dot { background: var(--mint); }
+  .hs-widget-medium .foot {
+    margin-top: auto;
+    font-size: 10px;
+    color: var(--ink3);
+    padding-top: 4px;
+    border-top: 1px solid rgba(0,0,0,0.06);
+  }
+  .hs-highlight {
+    outline: 3px dashed rgba(255,68,68,0.55);
+    outline-offset: 4px;
+  }
+
+  /* ── Long-press menu mock ───────────────────────────────── */
+  .longpress-scene {
+    position: relative;
+    width: 380px;
+    height: 640px;
+    background: linear-gradient(160deg, #FDF1E5 0%, #E8F4FD 45%, #F0EBFF 100%);
+    border-radius: 44px;
+    padding: 60px 24px 100px;
+    overflow: hidden;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.25);
+  }
+  .longpress-scene::before {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 32px;
+    background: #000;
+    border-radius: 20px;
+  }
+  .longpress-scene::after {
+    /* Blur overlay */
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 1;
+  }
+  .lp-icon-highlighted {
+    position: absolute;
+    top: 200px;
+    left: 60px;
+    width: 68px;
+    height: 68px;
+    background: var(--warm);
+    border-radius: 18px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.35);
+  }
+  .lp-icon-highlighted .za {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 28px;
+    letter-spacing: -1.6px;
+    color: var(--ink);
+  }
+  .lp-icon-highlighted .za .a { color: var(--sky); }
+  .lp-icon-highlighted .icon-label {
+    position: absolute;
+    top: 76px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .lp-menu {
+    position: absolute;
+    top: 300px;
+    left: 44px;
+    width: 260px;
+    background: rgba(240,240,240,0.85);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-radius: 14px;
+    z-index: 2;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  }
+  .lp-menu-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 0.5px solid rgba(0,0,0,0.15);
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .lp-menu-row:last-child { border-bottom: none; }
+  .lp-menu-row .icn {
+    font-size: 18px;
+    color: rgba(0,0,0,0.75);
+  }
+
+  /* ── Notes column ───────────────────────────────────────── */
+  .notes {
+    padding: 4px 0;
+  }
+  .notes h4 {
+    font-weight: 800;
+    font-size: 15px;
+    margin-top: 22px;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+  .notes h4:first-of-type { margin-top: 0; }
+  .notes p {
+    color: var(--ink2);
+    font-size: 13px;
+    line-height: 1.65;
+    margin-bottom: 8px;
+  }
+  .notes code {
+    background: rgba(10,10,10,0.06);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: 'SF Mono', Consolas, monospace;
+    font-size: 12px;
+  }
+  .notes .risk {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 6px;
+  }
+  .risk.low { background: rgba(45,122,82,0.15); color: var(--mintD); }
+  .risk.med { background: rgba(240,220,128,0.35); color: #7a5a00; }
+  .risk.high { background: rgba(255,68,68,0.15); color: #B83333; }
+  .notes ul {
+    padding-left: 18px;
+    color: var(--ink2);
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .notes ul li { margin-bottom: 4px; }
+
+  .device-caption {
+    text-align: center;
+    color: var(--ink3);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 700;
+    margin-top: 14px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>zaeli · widgets + long-press mockup</h1>
+    <p class="sub">Five discrete pieces from Session 35's locked widget scope. Yellow-dashed highlight = the piece each mockup is illustrating. Coral-dashed = Home Screen widgets. Priority order for build sits in the right column.</p>
+  </header>
+
+  <!-- ── Widget 5 · Long-press menu ─────────────────────── -->
+  <section class="piece">
+    <div class="piece-hdr">
+      <span class="piece-pill">Widget #5</span>
+      <span class="piece-priority">Priority 1 — Do first</span>
+      <span class="piece-title">Long-press app icon → 4-action menu</span>
+    </div>
+    <p class="piece-desc">User long-presses the Zaeli app icon on their Home Screen → iOS pops a quick-action menu with 4 rows. Each row deep-links straight into the relevant app surface, saving the user 2-3 taps vs opening the app cold.</p>
+    <div class="split">
+      <div>
+        <div class="longpress-scene">
+          <div class="lp-icon-highlighted">
+            <span class="za">z<span class="a">a</span></span>
+            <span class="icon-label">zaeli</span>
+          </div>
+          <div class="lp-menu">
+            <div class="lp-menu-row">Start with voice <span class="icn">🎤</span></div>
+            <div class="lp-menu-row">Today's events <span class="icn">📅</span></div>
+            <div class="lp-menu-row">Shopping list <span class="icn">🛒</span></div>
+            <div class="lp-menu-row">Quick add <span class="icn">✍</span></div>
+          </div>
+        </div>
+        <div class="device-caption">iPhone Home Screen — long-pressed</div>
+      </div>
+      <div class="notes">
+        <h4>What it does</h4>
+        <p>4 shortcuts, each routes to a specific surface:</p>
+        <ul>
+          <li><strong>Start with voice</strong> → open Chat with mic already recording</li>
+          <li><strong>Today's events</strong> → open Home with Calendar sheet already expanded</li>
+          <li><strong>Shopping list</strong> → open Home with Shopping sheet already open</li>
+          <li><strong>Quick add</strong> → open Chat with input focused, ready to type</li>
+        </ul>
+
+        <h4>Technical <span class="risk low">Low risk</span></h4>
+        <p>Requires: <code>expo-quick-actions</code> package install + <code>UIApplicationShortcutItems</code> in Info.plist (via app.json) + a small listener in <code>_layout.tsx</code> that reads the tapped shortcut on cold-start AND catches subsequent taps while app is running.</p>
+        <p>No Swift code. No widget target. No data pipeline. Pure JS + Info.plist.</p>
+
+        <h4>Build cycles estimate</h4>
+        <p>1-2 EAS builds. If first build shows the shortcuts but routing doesn't work, second build fixes the listener wiring.</p>
+
+        <h4>Ships as</h4>
+        <p>Build 61 candidate #1.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Widget 3 · Lock Screen circular ─────────────────── -->
+  <section class="piece">
+    <div class="piece-hdr">
+      <span class="piece-pill">Widget #3</span>
+      <span class="piece-priority">Priority 2</span>
+      <span class="piece-title">Lock Screen circular — Zaeli logo, tap to open</span>
+    </div>
+    <p class="piece-desc">A small circular widget below the Lock Screen clock. Just the Zaeli wordmark <code>za</code> in the app's warm palette. Tap → unlocks + opens app to Home. First widget the user meets — brand moment on the Lock Screen.</p>
+    <div class="split">
+      <div>
+        <div class="lockscreen">
+          <div class="ls-topbar"><span>7:08</span><span>🔋 100%</span></div>
+          <div class="ls-inline-wrap">
+            <div class="ls-widget-inline">🌡 22° · Partly cloudy</div>
+          </div>
+          <div class="ls-time">7:08</div>
+          <div class="ls-date">Tuesday, 19 August</div>
+          <div class="ls-widgets-row">
+            <div class="ls-circle-widget other">☁</div>
+            <div class="ls-circle-widget zaeli-brand ls-highlight">
+              <span class="wordmark">z<span class="a">a</span></span>
+            </div>
+            <div class="ls-circle-widget other">🎵</div>
+            <div class="ls-circle-widget other">📷</div>
+          </div>
+        </div>
+        <div class="device-caption">iPhone Lock Screen — Zaeli widget highlighted</div>
+      </div>
+      <div class="notes">
+        <h4>What it does</h4>
+        <p>Static circular widget. Shows the Zaeli wordmark. Tap → deep-link to open app.</p>
+        <p>No dynamic data. Just a brand touchpoint + one-tap entry.</p>
+
+        <h4>Technical <span class="risk med">Low-medium risk</span></h4>
+        <p>Requires: <code>@bacons/apple-targets</code> widget target config in <code>app.json</code> + a minimal SwiftUI widget file (~20 lines: static Image + widgetURL). First widget target for the project — some scaffolding pain first time.</p>
+        <p>No App Group needed (no data). No timeline provider (static). No refresh logic.</p>
+
+        <h4>Build cycles estimate</h4>
+        <p>2-3 EAS builds. Widget target config is fiddly first time — expect config typos + missing entitlements to eat one iteration.</p>
+
+        <h4>Ships as</h4>
+        <p>Build 62 candidate. Or bundled with #5 as Build 61 if we're feeling brave.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Widget 4 · Lock Screen inline text ──────────────── -->
+  <section class="piece">
+    <div class="piece-hdr">
+      <span class="piece-pill">Widget #4</span>
+      <span class="piece-priority">Priority 3</span>
+      <span class="piece-title">Lock Screen inline text — one-line today summary</span>
+    </div>
+    <p class="piece-desc">Text widget that sits ABOVE the Lock Screen clock. Shows one line describing today's family shape. Refreshes ~4x an hour when iOS asks.</p>
+    <div class="split">
+      <div>
+        <div class="lockscreen">
+          <div class="ls-topbar"><span>7:08</span><span>🔋 100%</span></div>
+          <div class="ls-inline-wrap">
+            <div class="ls-widget-inline ls-inline-highlight">☀ 3 events · Soccer 4pm</div>
+          </div>
+          <div class="ls-time">7:08</div>
+          <div class="ls-date">Tuesday, 19 August</div>
+          <div class="ls-widgets-row">
+            <div class="ls-circle-widget other">☁</div>
+            <div class="ls-circle-widget zaeli-brand"><span class="wordmark">z<span class="a">a</span></span></div>
+            <div class="ls-circle-widget other">🎵</div>
+            <div class="ls-circle-widget other">📷</div>
+          </div>
+        </div>
+        <div class="device-caption">iPhone Lock Screen — inline widget highlighted</div>
+      </div>
+      <div class="notes">
+        <h4>What it does</h4>
+        <p>One-line text: "☀ 3 events · Soccer 4pm" or "🌙 Bins night" or "🎂 Poppy's birthday". Adapts to time of day + what's on.</p>
+        <p>Same data shape as the Home tiles headlines — pulled from the family's calendar + reminders for today.</p>
+
+        <h4>Technical <span class="risk med">Medium risk</span></h4>
+        <p>First widget that needs a JS → Swift data pipeline. Uses <code>react-native-shared-group-preferences</code> (already installed Session 35): JS writes JSON to Shared App Group UserDefaults whenever Home data refreshes, Swift widget reads from same UserDefaults on its timeline refresh.</p>
+        <p>Timeline provider needs to declare a refresh cadence (iOS ultimately decides). Aim for hourly refresh or "on-demand from app" via WidgetCenter.reloadAllTimelines() when data changes.</p>
+
+        <h4>Build cycles estimate</h4>
+        <p>3-4 EAS builds. First iteration: get widget rendering static text. Second: wire the App Group read. Third: wire JS writes. Fourth: refresh cadence tuning.</p>
+
+        <h4>Ships as</h4>
+        <p>Build 63 candidate.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Widget 1 · Small Home mic launcher ──────────────── -->
+  <section class="piece">
+    <div class="piece-hdr">
+      <span class="piece-pill">Widget #1</span>
+      <span class="piece-priority">Priority 4</span>
+      <span class="piece-title">Small Home widget — one-tap mic launcher</span>
+    </div>
+    <p class="piece-desc">A 2×2 widget on the Home Screen. Big coral mic circle. Tap → opens Chat with mic already recording. Same speed as an Apple Watch complication — glance, tap, talk.</p>
+    <div class="split">
+      <div>
+        <div class="homescreen">
+          <div class="hs-topbar"><span>7:08</span><span>🔋 100%</span></div>
+          <div class="hs-grid">
+            <div class="hs-widget-small hs-highlight">
+              <div class="wm">z<span class="a">a</span>eli</div>
+              <div class="mic">🎤</div>
+              <div class="lbl">Say it</div>
+            </div>
+            <div class="hs-cell">📷</div>
+            <div class="hs-cell">🗺</div>
+            <div class="hs-cell">🎵</div>
+            <div class="hs-cell">💬</div>
+            <div class="hs-cell">📷</div>
+            <div class="hs-cell">🎮</div>
+            <div class="hs-cell">📖</div>
+            <div class="hs-cell icon-zaeli">
+              <div class="icon-orbs">
+                <div class="orb" style="width:32px;height:32px;background:var(--peach);top:8px;right:6px;"></div>
+                <div class="orb" style="width:22px;height:22px;background:var(--mint);bottom:14px;left:8px;"></div>
+                <div class="orb" style="width:18px;height:18px;background:var(--lav);top:22px;left:14px;"></div>
+              </div>
+              <div class="za">z<span class="a">a</span></div>
+            </div>
+            <div class="hs-cell">⚙</div>
+            <div class="hs-cell">📝</div>
+            <div class="hs-cell">📧</div>
+          </div>
+        </div>
+        <div class="device-caption">iPhone Home Screen — small widget top-left, app icon bottom-right</div>
+      </div>
+      <div class="notes">
+        <h4>What it does</h4>
+        <p>Big mic button. Tap → deep-link into Chat with the microphone permission already engaged + recording. Skips the manual "open app → swipe to chat → tap mic" flow.</p>
+        <p>Rich's original reason for wanting it: fastest possible path from "I need to remember this" thought to "Zaeli's captured it."</p>
+
+        <h4>Technical <span class="risk med">Medium risk</span></h4>
+        <p>Widget target with static layout (no data). Deep-links via <code>zaeli://chat?mic=1</code> URL scheme. Chat screen already exists; needs a query-param handler to auto-start mic on mount.</p>
+
+        <h4>Build cycles estimate</h4>
+        <p>2-3 EAS builds. Half the effort is the widget target boilerplate (same shape as #3), the other half is the deep-link + mic-auto-start plumbing on the Chat side.</p>
+
+        <h4>Ships as</h4>
+        <p>Build 64 candidate.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Widget 2 · Medium Home widget ───────────────────── -->
+  <section class="piece">
+    <div class="piece-hdr">
+      <span class="piece-pill">Widget #2</span>
+      <span class="piece-priority">Priority 5 — Save for last</span>
+      <span class="piece-title">Medium Home widget — today at a glance</span>
+    </div>
+    <p class="piece-desc">A 4×2 rectangular widget on Home Screen. Shows today's events + next reminder in one glance without opening the app. Essentially: the Home ChatTile + Calendar tile compressed into widget form.</p>
+    <div class="split">
+      <div>
+        <div class="homescreen">
+          <div class="hs-topbar"><span>7:08</span><span>🔋 100%</span></div>
+          <div class="hs-grid">
+            <div class="hs-widget-medium hs-highlight">
+              <div class="hdr">
+                <span class="wm">z<span class="a">a</span>eli</span>
+                <span class="day">TUE 19 AUG</span>
+              </div>
+              <div class="headline">3 events on today.</div>
+              <ul>
+                <li><span class="dot"></span>Soccer training · 4pm · Gab</li>
+                <li><span class="dot"></span>Andy call · 5:30pm</li>
+                <li><span class="dot"></span>Groceries pickup · 6pm</li>
+              </ul>
+              <div class="foot">Next reminder — Bins out at 8pm</div>
+            </div>
+            <div class="hs-cell">📷</div>
+            <div class="hs-cell">🗺</div>
+            <div class="hs-cell">🎵</div>
+            <div class="hs-cell">💬</div>
+            <div class="hs-cell">📷</div>
+            <div class="hs-cell">🎮</div>
+            <div class="hs-cell icon-zaeli">
+              <div class="icon-orbs">
+                <div class="orb" style="width:32px;height:32px;background:var(--peach);top:8px;right:6px;"></div>
+                <div class="orb" style="width:22px;height:22px;background:var(--mint);bottom:14px;left:8px;"></div>
+                <div class="orb" style="width:18px;height:18px;background:var(--lav);top:22px;left:14px;"></div>
+              </div>
+              <div class="za">z<span class="a">a</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="device-caption">iPhone Home Screen — medium widget top row (4 columns wide)</div>
+      </div>
+      <div class="notes">
+        <h4>What it does</h4>
+        <p>Header: "3 events on today." — same headline as the Home Calendar tile.</p>
+        <p>List: top 3 events with time + assignee dot (colour-coded per family member).</p>
+        <p>Footer: next non-event reminder ("Bins out at 8pm") if one falls today.</p>
+        <p>Tap → deep-link to Home with Calendar sheet expanded (matches tile behaviour).</p>
+
+        <h4>Technical <span class="risk high">Medium-high risk</span></h4>
+        <p>Full data pipeline: JS writes events + reminders shape to App Group whenever Home data refreshes, Swift widget reads on timeline refresh. Layout is more complex than Lock Screen widgets (multiple text lines, colour dots, foot row).</p>
+        <p>Family colour palette needs to sync to Swift — could hardcode initial palette in the widget, revisit if family customises.</p>
+
+        <h4>Build cycles estimate</h4>
+        <p>4-5 EAS builds. Biggest chunk of native work. Ideal to tackle only after #4 has proved the data pipeline works.</p>
+
+        <h4>Ships as</h4>
+        <p>Build 65+ candidate.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Build order summary ──────────────────────────────── -->
+  <section class="piece">
+    <div class="piece-hdr">
+      <span class="piece-title">Recommended build order + timeline</span>
+    </div>
+    <p class="piece-desc">Each widget ships as its own EAS build. Between widgets, we ship + test on TestFlight before starting the next. Total: 4-5 focused build cycles.</p>
+    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 12px;">
+      <div style="background: var(--peachL); border-radius: 14px; padding: 14px;">
+        <div style="font-size: 10px; font-weight: 800; color: var(--peachD); letter-spacing: 0.5px;">BUILD 61</div>
+        <div style="font-weight: 800; font-size: 15px; margin: 4px 0;">#5 Long-press</div>
+        <div style="font-size: 12px; color: var(--ink2);">Info.plist shortcuts + expo-quick-actions + listener. 1-2 iterations.</div>
+      </div>
+      <div style="background: var(--skyL); border-radius: 14px; padding: 14px;">
+        <div style="font-size: 10px; font-weight: 800; color: var(--skyD); letter-spacing: 0.5px;">BUILD 62</div>
+        <div style="font-weight: 800; font-size: 15px; margin: 4px 0;">#3 Lock circular</div>
+        <div style="font-size: 12px; color: var(--ink2);">First widget target. Static SwiftUI. 2-3 iterations.</div>
+      </div>
+      <div style="background: var(--mintL); border-radius: 14px; padding: 14px;">
+        <div style="font-size: 10px; font-weight: 800; color: var(--mintD); letter-spacing: 0.5px;">BUILD 63</div>
+        <div style="font-weight: 800; font-size: 15px; margin: 4px 0;">#4 Lock inline</div>
+        <div style="font-size: 12px; color: var(--ink2);">First data pipeline. App Group + timeline. 3-4 iterations.</div>
+      </div>
+      <div style="background: var(--lavL); border-radius: 14px; padding: 14px;">
+        <div style="font-size: 10px; font-weight: 800; color: var(--lavD); letter-spacing: 0.5px;">BUILD 64</div>
+        <div style="font-weight: 800; font-size: 15px; margin: 4px 0;">#1 Small mic</div>
+        <div style="font-size: 12px; color: var(--ink2);">Widget target + deep-link + mic auto-start. 2-3 iterations.</div>
+      </div>
+      <div style="background: rgba(240,220,128,0.30); border-radius: 14px; padding: 14px;">
+        <div style="font-size: 10px; font-weight: 800; color: #7a5a00; letter-spacing: 0.5px;">BUILD 65+</div>
+        <div style="font-weight: 800; font-size: 15px; margin: 4px 0;">#2 Medium home</div>
+        <div style="font-size: 12px; color: var(--ink2);">Full events + reminder layout. Biggest data + design pass. 4-5 iterations.</div>
+      </div>
+    </div>
+    <p class="piece-desc" style="margin-top: 24px;">Realistically: 12-17 EAS builds across all 5 widget pieces. At your Starter plan (14 iOS builds/mo), that's 1-1.5 months of widget-focused work spread across sessions. Non-widget bug fixes still ship in parallel between them.</p>
+  </section>
+
+</div>
+</body>
+</html>
