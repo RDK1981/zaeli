@@ -22,6 +22,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import DashboardScreen from './dashboard';
 import { HomeScreen as ChatScreen } from './index';
+import { subscribeChatFocus, getChatFocusRequestVersion, hasChatIntent } from '../../lib/navigation-store';
 
 // First-run flag for the "Swipe for your Dashboard →" hint — one-shot.
 const SWIPE_HINT_KEY = 'swipe_hint_seen';
@@ -61,11 +62,30 @@ export default function SwipeWorld() {
   // to x=0 lands users on Dashboard. Chat is at index 1 — user swipes LEFT
   // with finger to reveal it on the right. Matches iOS convention (arrow
   // points at content location: → for right-side content).
+  //
+  // Build 63 — Lock Screen mic widget: if a chat intent OR chat-focus
+  // request is pending at mount time (widget tapped from Lock Screen,
+  // cold-starting the app), land on Chat instead of Dashboard so the mic
+  // starts recording without an extra swipe.
   useEffect(() => {
     const t = setTimeout(() => {
-      scrollRef.current?.scrollTo({ x: PAGE_DASHBOARD * W, animated: false });
+      const wantsChat = hasChatIntent() || getChatFocusRequestVersion() > 0;
+      const initialPage = wantsChat ? PAGE_CHAT : PAGE_DASHBOARD;
+      scrollRef.current?.scrollTo({ x: initialPage * W, animated: false });
+      setActivePage(initialPage);
     }, 80);
     return () => clearTimeout(t);
+  }, []);
+
+  // Build 63 — subscribe to chat-focus requests (warm-start path: app is
+  // already open on Dashboard when user taps Lock Screen mic widget). When
+  // the counter bumps, animate-scroll to Chat.
+  useEffect(() => {
+    const unsub = subscribeChatFocus(() => {
+      scrollRef.current?.scrollTo({ x: PAGE_CHAT * W, animated: true });
+      setActivePage(PAGE_CHAT);
+    });
+    return unsub;
   }, []);
 
   // Landing splash — Option C (Session 27):

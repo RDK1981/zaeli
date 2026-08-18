@@ -17,6 +17,7 @@ import { invalidateRosterCache, loadRoster, ensureOwnMembership, getRoster } fro
 import { clearAllHomeCache } from '../lib/home-cache'
 import { getCurrentFamilyId } from '../lib/auth'
 import { requestNotificationPermission, cancelBriefNotifications, registerPushToken } from '../lib/notifications'
+import { setChatIntent, requestChatFocus } from '../lib/navigation-store'
 
 SplashScreen.preventAutoHideAsync()
 // Set the RN root view background color to warm bg immediately at module
@@ -239,18 +240,48 @@ export default function RootLayout() {
     return () => sub.remove()
   }, [authed])
 
-  // ── Deep link debug listener ────────────────────────────────────────
-  // Logs every URL the OS hands us (initial cold-start URL + URLs while
-  // running). Helps verify the `zaeli://invite/<token>` scheme is firing
-  // correctly when the QR is scanned from a second device. Expo Router
-  // handles the actual routing automatically based on `scheme` in app.json.
+  // ── Deep link handler ────────────────────────────────────────────────
+  // Handles two classes of incoming URLs:
+  //   * `zaeli://invite/<token>` — invite deep-link (Expo Router auto-
+  //     routes based on the `scheme` field in app.json → /invite/[token]).
+  //   * `zaeli://chat?mic=1` — Build 63 Lock Screen mic widget. Sets a
+  //     chat intent + requests swipe-world focus Chat. Cold start: the
+  //     initial URL is processed once on mount. Warm start: subsequent
+  //     Linking events also processed (widget tapped while app open in
+  //     background).
   useEffect(() => {
-    Linking.getInitialURL().then(url => {
-      if (url) console.log('[link] initial URL:', url)
-    })
-    const sub = Linking.addEventListener('url', ({ url }) => {
-      console.log('[link] incoming URL:', url)
-    })
+    // Simple parser for zaeli://path?a=1&b=2 form. Uses string manipulation
+    // rather than `new URL()` because iOS custom schemes aren't URL-spec-
+    // shaped consistently across every RN url-polyfill combo.
+    function parseZaeliURL(url: string): { path: string; params: Record<string, string> } {
+      const stripped = url.replace(/^zaeli:\/\/\/?/, '')
+      const [pathPart, queryPart = ''] = stripped.split('?')
+      const params: Record<string, string> = {}
+      queryPart.split('&').filter(Boolean).forEach(kv => {
+        const [k, v = ''] = kv.split('=')
+        params[decodeURIComponent(k)] = decodeURIComponent(v)
+      })
+      return { path: pathPart.replace(/\/$/, ''), params }
+    }
+
+    function handleURL(url: string) {
+      console.log('[link] URL:', url)
+      if (!url.startsWith('zaeli://')) return
+      const { path, params } = parseZaeliURL(url)
+      // Widget mic deep-link — set intent + focus Chat. The setChatIntent
+      // is consumed by chat's isActive effect (which starts recording).
+      // requestChatFocus bumps swipe-world's counter → scrolls to Chat.
+      if (path === 'chat' && params.mic === '1') {
+        console.log('[link] mic widget → chat + mic')
+        setChatIntent({ kind: 'mic' })
+        requestChatFocus()
+      }
+      // (Invite links + any other zaeli:// paths continue to be routed
+      // automatically by Expo Router based on the app.json scheme.)
+    }
+
+    Linking.getInitialURL().then(url => { if (url) handleURL(url) })
+    const sub = Linking.addEventListener('url', ({ url }) => handleURL(url))
     return () => { sub.remove() }
   }, [])
 

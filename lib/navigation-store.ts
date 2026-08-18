@@ -107,6 +107,24 @@ export function consumeChatIntent(): ChatIntent {
 }
 export function hasChatIntent(): boolean { return _chatIntent !== null; }
 
+// ── Chat-focus request (Build 63 — Lock Screen mic widget) ──────────────
+// The widget deep-link `zaeli://chat?mic=1` needs to scroll swipe-world
+// from Dashboard (default page) to Chat, in addition to setting the mic
+// intent. On COLD start, swipe-world mounts fresh and can read this flag.
+// On WARM start (app already open, showing Dashboard), swipe-world's
+// version subscriber sees the bump and scrolls to Chat.
+let _chatFocusRequest = 0;
+const _chatFocusSubscribers = new Set<(v: number) => void>();
+export function requestChatFocus(): void {
+  _chatFocusRequest++;
+  _chatFocusSubscribers.forEach(fn => fn(_chatFocusRequest));
+}
+export function getChatFocusRequestVersion(): number { return _chatFocusRequest; }
+export function subscribeChatFocus(fn: (v: number) => void): () => void {
+  _chatFocusSubscribers.add(fn);
+  return () => { _chatFocusSubscribers.delete(fn); };
+}
+
 // ── Home refresh trigger (Round B commit 3) ─────────────────────────────
 // Home tiles cache their own state (reminders / calendar / shopping /
 // tasks / budget). When the user mutates state via a sheet (which lives

@@ -103,14 +103,58 @@ struct ZaeliLockWidget: Widget {
   }
 }
 
+// MARK: - Mic widget (Build 63)
+//
+// Second Lock Screen circular widget — one-tap voice launcher. The user
+// adds this next to the ZaeliLockWidget branded circle. Tap flow:
+//   1. Tap widget on Lock Screen
+//   2. iOS prompts FaceID / passcode → unlocks
+//   3. App opens via widgetURL "zaeli://chat?mic=1"
+//   4. _layout.tsx's Linking handler parses the URL, sets ChatIntent
+//      { kind: 'mic' } via lib/navigation-store, calls requestChatFocus()
+//   5. swipe-world scrolls straight to Chat page (skipping Dashboard)
+//   6. Chat's isActive effect consumes the mic intent, calls
+//      startRecording() — user is talking within ~2 seconds of tapping
+//
+// SF Symbol mic.fill renders in system vibrant white on Lock Screen —
+// matches the iOS visual language for control-style widgets (Home,
+// Music, Camera all use SF Symbols the same way). Cleaner than a text
+// glyph for a launcher-style widget.
+
+struct ZaeliMicView: View {
+  var body: some View {
+    ZStack {
+      AccessoryWidgetBackground()
+      Image(systemName: "mic.fill")
+        .font(.system(size: 22, weight: .semibold))
+        .foregroundColor(.primary)
+    }
+    .widgetURL(URL(string: "zaeli://chat?mic=1"))
+  }
+}
+
+struct ZaeliMicWidget: Widget {
+  let kind: String = "ZaeliMicWidget"
+
+  var body: some WidgetConfiguration {
+    StaticConfiguration(kind: kind, provider: ZaeliProvider()) { _ in
+      ZaeliMicView()
+    }
+    .configurationDisplayName("Zaeli Mic")
+    .description("Tap to start talking to Zaeli.")
+    .supportedFamilies([.accessoryCircular])
+  }
+}
+
 // MARK: - Bundle
 
 // A WidgetBundle groups all widgets exposed by this extension. Adding
 // more widgets later (Lock Screen inline text, Home Screen mic, Home
-// medium) means adding them to `body` here alongside ZaeliLockWidget.
+// medium) means adding them to `body` here alongside the existing ones.
 @main
 struct ZaeliWidgetBundle: WidgetBundle {
   var body: some Widget {
     ZaeliLockWidget()
+    ZaeliMicWidget()
   }
 }
