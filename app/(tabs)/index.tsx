@@ -53,7 +53,7 @@ import TourBanner from '../components/TourBanner';
 import { currentWindow as getCurrentWindow, currentBucket as getCurrentBucket, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
 import { generateBrief, FamilyContext } from '../../lib/brief-generator';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
-import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, consumeChatIntent, bumpHomeRefresh, consumeTourResumePending } from '../../lib/navigation-store';
+import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, consumeChatIntent, bumpHomeRefresh, consumeTourResumePending, subscribeChatFocus } from '../../lib/navigation-store';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
@@ -5467,6 +5467,66 @@ BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Nev
 
   // ── isActive context check (fires when swipe-world scrolls to chat page) ──
   const prevIsActive = useRef(false);
+  // ── Chat intent handler (Session 32 v2 Phase 04c) ────────────────────
+  // Consumes a pending ChatIntent and dispatches based on kind. Small
+  // 250ms delay so any swipe-to-Chat animation finishes cleanly before
+  // we start recording / focus input / open camera picker.
+  //
+  // Called from BOTH:
+  //   1. The isActive-becomes-true useEffect below (Dashboard chat bar
+  //      taps that trigger a swipe from Dashboard → Chat)
+  //   2. The chat-focus subscription useEffect below (Build 63 Lock
+  //      Screen mic widget deep-link — fires even when Chat is ALREADY
+  //      the active page, so the isActive path wouldn't re-run)
+  //
+  // consumeChatIntent() is one-shot — first caller wins, second gets
+  // null. So even if both paths fire, no double-firing on startRecording.
+  function fireChatIntent() {
+    const intent = consumeChatIntent();
+    if (!intent) return;
+    setTimeout(() => {
+      if (intent.kind === 'mic') {
+        Keyboard.dismiss();
+        startRecording();
+      } else if (intent.kind === 'mic-reminder') {
+        // Round B commit 8 — Reminders tile mic direct-add path.
+        // Setting the flag routes stopRecording's transcript to
+        // saveReminder direct (see line ~5787) instead of Sonnet.
+        dashboardReminderMicMode.current = true;
+        Keyboard.dismiss();
+        startRecording();
+      } else if (intent.kind === 'camera') {
+        openSheet();
+      } else if (intent.kind === 'focus') {
+        inputRef.current?.focus();
+      } else if (intent.kind === 'seed') {
+        setInput(intent.text);
+        setTimeout(() => inputRef.current?.focus(), 50);
+      }
+    }, 250);
+  }
+
+  // Build 64 — subscribe to chat-focus requests (Lock Screen mic widget).
+  // The isActive-triggered path below only fires when Chat WASN'T active
+  // and became active. But if the user is already on Chat when they tap
+  // the mic widget on their Lock Screen, isActive stays true — no change,
+  // no fire, mic never starts. This subscription is independent of
+  // isActive so it works from any state.
+  //
+  // Also fires on cold-start after swipe-world's chat-focus subscriber
+  // has scrolled the ScrollView to Chat page. In that case the isActive
+  // path ALSO fires (isActive false → true), but consumeChatIntent is
+  // one-shot so only the first arrival gets the intent. Harmless race.
+  useEffect(() => {
+    const unsub = subscribeChatFocus(() => {
+      // Small extra delay for the cold-start case where swipe-world's
+      // scroll-to-chat animation is still mid-flight when this fires.
+      // 300ms > swipe-world's own scroll animation ~250ms.
+      setTimeout(() => { fireChatIntent(); }, 100);
+    });
+    return unsub;
+  }, []);
+
   useEffect(() => {
     const justBecameActive = isActive && !prevIsActive.current;
     prevIsActive.current = isActive;
@@ -5478,30 +5538,7 @@ BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Nev
     // ── Chat intent from Dashboard chat bar (Session 32 v2 Phase 04c) ──
     // Fast-lane: user tapped mic/camera/text on Dashboard, wants to land
     // straight in that mode without extra taps.
-    const intent = consumeChatIntent();
-    if (intent) {
-      // Small delay so the swipe-to-Chat animation finishes cleanly first
-      setTimeout(() => {
-        if (intent.kind === 'mic') {
-          Keyboard.dismiss();
-          startRecording();
-        } else if (intent.kind === 'mic-reminder') {
-          // Round B commit 8 — Reminders tile mic direct-add path.
-          // Setting the flag routes stopRecording's transcript to
-          // saveReminder direct (see line ~5787) instead of Sonnet.
-          dashboardReminderMicMode.current = true;
-          Keyboard.dismiss();
-          startRecording();
-        } else if (intent.kind === 'camera') {
-          openSheet();
-        } else if (intent.kind === 'focus') {
-          inputRef.current?.focus();
-        } else if (intent.kind === 'seed') {
-          setInput(intent.text);
-          setTimeout(() => inputRef.current?.focus(), 50);
-        }
-      }, 250);
-    }
+    fireChatIntent();
 
     const ctx = getPendingChatContext();
     console.log('CHAT: pending context =', ctx.type);
