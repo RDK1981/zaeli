@@ -5511,6 +5511,14 @@ BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Nev
     // to decide whether to skip. Immune to iOS timer suspension on
     // backgrounding — which was the Build 66 regression cause.
     lastWidgetDispatchAtRef.current = Date.now();
+    // Build 70 — mic actions on WARM-start need extra breathing room. iOS
+    // takes 300-500ms after foreground activation to fully wake the audio
+    // subsystem. 250ms was fine for cold-start (audio session brand new)
+    // but too tight on warm-start (session in intermediate state where
+    // Audio.Recording.createAsync silently throws). 600ms gives iOS + our
+    // swipe-to-Chat animation a stable window before the audio session
+    // reset in startRecording kicks in.
+    const dispatchDelay = (intent.kind === 'mic' || intent.kind === 'mic-reminder') ? 600 : 250;
     setTimeout(() => {
       if (intent.kind === 'mic') {
         Keyboard.dismiss();
@@ -5530,7 +5538,7 @@ BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Nev
         setInput(intent.text);
         setTimeout(() => inputRef.current?.focus(), 50);
       }
-    }, 250);
+    }, dispatchDelay);
   }
 
   // Build 64 — subscribe to chat-focus requests (Lock Screen mic widget).
@@ -6671,6 +6679,19 @@ Only include events directly relevant to the question. Max 5 events.`;
       Keyboard.dismiss();
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) return;
+      // Build 70 — audio session recovery for widget mic warm-start.
+      // Session 38 root cause: after iOS backgrounds the app, the audio
+      // session is deactivated. On warm-start via widget, fireChatIntent
+      // calls startRecording but Audio.Recording.createAsync silently
+      // throws because the session hasn't been fully re-activated yet.
+      // Force a deactivate → brief pause → reactivate cycle to guarantee
+      // the audio engine wakes up cleanly. Cold-start had a fresh session
+      // so didn't hit this. 50ms is enough for iOS to process the state
+      // change (empirically — shorter can miss on older devices).
+      try {
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+        await new Promise(r => setTimeout(r, 50));
+      } catch { /* ignore — the reactivate below is what matters */ }
       await Audio.setAudioModeAsync({ allowsRecordingIOS:true, playsInSilentModeIOS:true });
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       recordingRef.current = recording;
@@ -6688,7 +6709,18 @@ Only include events directly relevant to the question. Max 5 events.`;
       );
       waveLoopRef.current = Animated.parallel(loops);
       waveLoopRef.current.start();
-    } catch (e) { console.error('startRecording:', e); }
+    } catch (e: any) {
+      console.error('startRecording:', e);
+      // Build 70 — surface the failure to Rich only (email-gated) so the
+      // next widget-mic-warm-start test tells us exactly what iOS said if
+      // the audio session recovery above didn't fully fix it. Was
+      // console.error which is invisible on TestFlight — silent failure
+      // was the entire diagnostic blocker.
+      const profile = getProfile();
+      if (profile?.email === 'richarddekretser@gmail.com') {
+        Alert.alert('🎤 startRecording failed', e?.message ?? String(e));
+      }
+    }
   }
   async function stopRecording(cancel = false) {
     try {

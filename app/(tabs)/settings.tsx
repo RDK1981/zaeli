@@ -46,6 +46,14 @@ import * as AppleCal from '../../lib/apple-calendar';
 
 const { height: H } = Dimensions.get('window');
 
+// Build 70 — hardcoded BUILD_NUMBER for reliable version display.
+// Build 69's attempt using Constants.nativeBuildVersion + expoConfig.ios
+// .buildNumber both returned undefined at runtime — version rendered as
+// just "1.0.0" with no build number, so we couldn't tell which build was
+// actually installed. Hardcoded constant is 100% reliable. Manual bump
+// per production build (I bump this each time I ship a new build).
+const BUILD_NUMBER = '70';
+
 // ── Colour tokens ──────────────────────────────────────────────────────────
 const BG      = '#FAF8F5';
 const CARD    = '#FFFFFF';
@@ -1234,17 +1242,12 @@ function MainView(p: {
              onPress={() => Linking.openURL('https://zaeli.app/terms.html').catch(() => {})}/>
         <Row icon="ℹ️" iconBg="rgba(10,10,10,0.06)" iconFg={INK}
              title="Version" value={(() => {
-               // Build 69 — Constants.expoConfig?.ios?.buildNumber was
-               // returning empty at runtime even after EAS autoIncrement,
-               // so version rendered as just "1.0.0" — impossible to tell
-               // which build was actually installed. Session 38 diagnostic
-               // was blocked by this. nativeBuildVersion reads iOS's
-               // actual CFBundleVersion from the binary — always accurate.
+               // Build 70 — hardcoded BUILD_NUMBER (see top of file).
+               // Runtime detection via Constants.* was returning undefined
+               // for buildNumber, so we couldn't tell installed build.
+               // Manual bump per production build = 100% reliable.
                const v = Constants.expoConfig?.version ?? '1.0.0';
-               const b = (Constants as any).nativeBuildVersion
-                      ?? Constants.expoConfig?.ios?.buildNumber
-                      ?? '';
-               return b ? `${v} (${b})` : v;
+               return `${v} (${BUILD_NUMBER})`;
              })()} last/>
       </View>
 

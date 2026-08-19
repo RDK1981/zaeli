@@ -349,7 +349,27 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
     for (const cal of enabledCals) {
       let iosEvents: Calendar.Event[] = [];
       let chunkFailures = 0;
+      // Build 70 — CRITICAL RECURRING EVENT FIX. iOS EventKit returns every
+      // instance of a recurring event with the SAME event.id (that's the
+      // master calendar item identifier) — only startDate differs per
+      // occurrence. Session 38 Engine Room bug root cause: `seen` Set was
+      // keyed on ev.id alone, so the first Engine Room instance returned
+      // (Aug 12) claimed the id and every subsequent instance (Aug 19, 26,
+      // Sep 2, etc) was silently dropped as "already seen". Rich's Raw
+      // EventKit dev row confirmed iOS DOES return Aug 19 Engine Room
+      // in a targeted per-day query — the dedupe was the leak.
+      //
+      // Fix: composite key of (ev.id + startDate). Each occurrence gets its
+      // own row in Supabase, own external_id, own everything. Storage of the
+      // composite in external_id also means the unique constraint
+      // (imported_by_user_id, external_id) permits multiple instances.
+      // Existing rows using the old plain-ev.id format auto-migrate via the
+      // delete-stale step: they don't appear in the new-format
+      // allExternalIds set, so they get pruned, and fresh rows insert with
+      // the new format.
       const seen = new Set<string>();
+      // Helper: composite key for one iOS event object.
+      const compositeIdFor = (e: any): string => `${e.id}|${normaliseIsoLocal(e.startDate)}`;
       for (const chunk of chunks) {
         const chunkStartStr = chunk.start.toISOString().slice(0,10);
         const chunkEndStr = chunk.end.toISOString().slice(0,10);
@@ -361,8 +381,10 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
           // missing from our upsert loop).
           console.log(`[calendar-sync] ${cal.title} chunk ${chunkStartStr}→${chunkEndStr}: ${chunkEvents.length} events returned`);
           for (const e of chunkEvents) {
-            if (!e?.id || seen.has(e.id)) continue;
-            seen.add(e.id);
+            if (!e?.id) continue;
+            const key = compositeIdFor(e);
+            if (seen.has(key)) continue;
+            seen.add(key);
             iosEvents.push(e);
           }
         } catch (e: any) {
@@ -395,8 +417,12 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
         try {
           const dayEvents = await Calendar.getEventsAsync([cal.id], dayStart, dayEnd);
           for (const e of dayEvents) {
-            if (!e?.id || seen.has(e.id)) continue;
-            seen.add(e.id);
+            if (!e?.id) continue;
+            // Build 70 — composite key so recurring instances aren't
+            // deduped away (see the chunk loop above for the full story).
+            const key = compositeIdFor(e);
+            if (seen.has(key)) continue;
+            seen.add(key);
             iosEvents.push(e);
             hotZoneRecovered++;
           }
@@ -423,10 +449,14 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
 
       // Upsert each event to Supabase
       for (const ev of iosEvents) {
-        allExternalIds.add(ev.id);
         const startIso = normaliseIsoLocal(ev.startDate);
         const endIso = normaliseIsoLocal(ev.endDate);
         const dateOnly = startIso.split('T')[0];
+        // Build 70 — composite external_id lets recurring instances live
+        // as separate rows without hitting the (imported_by_user_id,
+        // external_id) unique constraint. Format: `<ev.id>|<local-iso>`.
+        const externalIdComposite = `${ev.id}|${startIso}`;
+        allExternalIds.add(externalIdComposite);
 
         // Build 66 — per-event log. Grep-able for a specific event that
         // isn't landing in Supabase (e.g. Engine Room investigation Session
@@ -446,7 +476,7 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
           timezone: ev.timeZone || 'Australia/Brisbane',
           assignees,
           source: 'apple-ical' as const,
-          external_id: ev.id,
+          external_id: externalIdComposite,
           external_calendar_id: cal.id,
           imported_by_user_id: userId,
           privacy_scope: 'personal' as const,
@@ -454,13 +484,14 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
         };
 
         // Upsert on (imported_by_user_id, external_id) — the partial unique
-        // index we added in supabase-calendar-sync.sql. If already exists,
-        // update; else insert.
+        // index we added in supabase-calendar-sync.sql. Now that
+        // external_id includes startDate, each recurring instance gets its
+        // own lookup + insert/update independently.
         const { data: existing } = await supabase
           .from('events')
           .select('id')
           .eq('imported_by_user_id', userId)
-          .eq('external_id', ev.id)
+          .eq('external_id', externalIdComposite)
           .maybeSingle();
 
         // Build 67 — Common trace entry we'll append after upsert result.
