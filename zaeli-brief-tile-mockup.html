@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Zaeli — Home brief tile fallback</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAF8F5;
+    --ink: #0A0A0A;
+    --ink2: rgba(10,10,10,0.72);
+    --ink3: rgba(10,10,10,0.55);
+    --ink4: rgba(10,10,10,0.35);
+    --coral: #FF4545;
+    --sky: #A8D8F0;
+    --peach: #FAC8A8;
+    --peach-tint: #FDF1E5;
+    --mint: #B8EDD0;
+    --mint-tint: #E6F7EF;
+    --lavender: #D8CCFF;
+    --lavender-tint: #F0EBFF;
+    --lavender-deep: #E8DCFF;
+    --periwinkle-tint: #E5E4F2;
+    --gold: #F0DC80;
+    --slate: #2D3748;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: #EFEAE3;
+    padding: 40px 20px 80px;
+    color: var(--ink);
+  }
+  h1 {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .lede {
+    font-size: 14px;
+    color: var(--ink3);
+    text-align: center;
+    margin-bottom: 40px;
+    max-width: 640px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.5;
+  }
+  .row {
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    flex-wrap: wrap;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .frame {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--ink3);
+  }
+  .caption {
+    font-size: 12px;
+    color: var(--ink4);
+    max-width: 320px;
+    text-align: center;
+    line-height: 1.5;
+  }
+  .phone {
+    width: 340px;
+    height: 720px;
+    border-radius: 40px;
+    background: var(--bg);
+    padding: 12px 14px 20px;
+    border: 6px solid #0f0f10;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    overflow: hidden;
+    position: relative;
+  }
+  .statusbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 14px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 10px 14px;
+  }
+  .wordmark {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 800;
+    font-size: 32px;
+    letter-spacing: -1.2px;
+    line-height: 1;
+  }
+  .wordmark .accent { color: var(--sky); }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--ink2);
+    font-weight: 700;
+    padding-bottom: 4px;
+  }
+  .hamburger {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(10,10,10,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .hamburger span {
+    width: 15px;
+    height: 2px;
+    background: var(--ink2);
+    border-radius: 1px;
+  }
+  .content {
+    padding: 0 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* BRIEF CARD — the new addition */
+  .brief-card {
+    border-radius: 18px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    position: relative;
+  }
+  .brief-card.morning { background: var(--peach-tint); }
+  .brief-card.evening { background: var(--lavender-deep); }
+  .brief-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 16px;
+  }
+  .brief-card.morning .brief-avatar { background: var(--peach); }
+  .brief-card.evening .brief-avatar { background: var(--lavender); }
+  .brief-body { flex: 1; min-width: 0; }
+  .brief-eyebrow {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .brief-card.morning .brief-eyebrow { color: #8A3A00; }
+  .brief-card.evening .brief-eyebrow { color: #5020C0; }
+  .brief-eyebrow .time {
+    color: var(--ink4);
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    text-transform: none;
+  }
+  .brief-text {
+    font-size: 15px;
+    line-height: 1.45;
+    color: var(--ink);
+    font-weight: 400;
+  }
+  .brief-dismiss {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(10,10,10,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: var(--ink3);
+  }
+
+  /* CHAT TILE — the existing greeting tile (peach/mint/lavender/sky per time) */
+  .chat-tile {
+    background: var(--mint-tint);
+    border-radius: 18px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .chat-tile .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    background: var(--mint);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+  .chat-tile .body { flex: 1; }
+  .chat-tile .title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .chat-tile .sub {
+    font-size: 12px;
+    color: var(--ink3);
+    margin-top: 2px;
+  }
+
+  /* CALENDAR TILE — sneak peek */
+  .cal-tile {
+    background: var(--slate);
+    border-radius: 22px;
+    padding: 16px;
+    color: #fff;
+  }
+  .tile-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    color: rgba(255,255,255,0.65);
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .tile-eyebrow .full-hint {
+    color: rgba(255,255,255,0.55);
+    font-weight: 500;
+  }
+  .tile-headline {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.2;
+    color: #fff;
+    margin-bottom: 10px;
+    letter-spacing: -0.3px;
+  }
+  .cal-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+  }
+  .cal-row .time {
+    font-size: 12px;
+    color: rgba(255,255,255,0.75);
+    width: 58px;
+    flex-shrink: 0;
+  }
+  .cal-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+  }
+  .cal-row .title {
+    flex: 1;
+    font-size: 14px;
+    color: rgba(255,255,255,0.92);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cal-row .avat {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .notes {
+    max-width: 900px;
+    margin: 48px auto 0;
+    padding: 20px 24px;
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid rgba(10,10,10,0.08);
+  }
+  .notes h2 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    letter-spacing: -0.2px;
+  }
+  .notes ul { list-style: none; padding: 0; }
+  .notes li {
+    font-size: 13px;
+    color: var(--ink2);
+    line-height: 1.7;
+    padding-left: 22px;
+    position: relative;
+  }
+  .notes li::before {
+    content: "•";
+    position: absolute;
+    left: 8px;
+    color: var(--coral);
+    font-weight: 700;
+  }
+  .notes code {
+    background: rgba(10,10,10,0.06);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Brief tile — Home fallback</h1>
+<p class="lede">
+  When a user opens the app and there's a fresh brief for the current window they haven't seen yet, a tinted card sits at the top of Home above the ChatTile. Tap to dismiss + mark seen. Time-gated so a morning brief never shows past 12pm and evening never before 4pm. Push notifications still fire for users who see previews — this catches users who don't.
+</p>
+
+<div class="row">
+
+  <!-- FRAME 1: Morning brief card visible -->
+  <div class="frame">
+    <div class="label">A · Morning · fresh unread brief</div>
+    <div class="phone">
+      <div class="statusbar">
+        <span>7:42</span>
+        <span>●●● ●● 87%</span>
+      </div>
+      <div class="header">
+        <div class="wordmark">z<span class="accent">a</span>el<span class="accent">i</span></div>
+        <div class="header-right">
+          <span>Home</span>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+
+        <!-- NEW: Brief card at top -->
+        <div class="brief-card morning">
+          <div class="brief-avatar">☀️</div>
+          <div class="brief-body">
+            <div class="brief-eyebrow">
+              <span>MORNING BRIEF</span>
+              <span class="time">Zaeli · 7:30 am</span>
+            </div>
+            <div class="brief-text">
+              Big Thursday — Anna's Sunrise Beach 9am, Poppy dancing 3:30pm. Leotard packed?
+            </div>
+          </div>
+          <div class="brief-dismiss">✕</div>
+        </div>
+
+        <!-- Existing ChatTile stays below -->
+        <div class="chat-tile">
+          <div class="avatar">👋</div>
+          <div class="body">
+            <div class="title">Morning 👋 What's on your mind?</div>
+            <div class="sub">Type below or tap the mic to talk.</div>
+          </div>
+        </div>
+
+        <!-- Calendar tile peek -->
+        <div class="cal-tile">
+          <div class="tile-eyebrow">
+            <span>📅 CALENDAR</span>
+            <span class="full-hint">Full calendar →</span>
+          </div>
+          <div class="tile-headline">3 events on today.</div>
+          <div class="cal-row">
+            <span class="time">9:00 am</span>
+            <span class="cal-dot" style="background:#FF7B6B"></span>
+            <span class="title">Anna Work Sunrise Beach</span>
+            <div class="avat" style="background:#FF7B6B">A</div>
+          </div>
+          <div class="cal-row">
+            <span class="time">12:00 pm</span>
+            <span class="cal-dot" style="background:#4D8BFF"></span>
+            <span class="title">Workout</span>
+            <div class="avat" style="background:#4D8BFF">R</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <p class="caption">User just opened the app at 7:42am. Server brief was cached at 7:30am. If they tapped the notification earlier the card is already gone. If they never saw the notif, it's right here.</p>
+  </div>
+
+  <!-- FRAME 2: Evening brief card visible -->
+  <div class="frame">
+    <div class="label">B · Evening · fresh unread brief</div>
+    <div class="phone">
+      <div class="statusbar">
+        <span>8:12</span>
+        <span>●●● ●● 41%</span>
+      </div>
+      <div class="header">
+        <div class="wordmark">z<span class="accent">a</span>el<span class="accent">i</span></div>
+        <div class="header-right">
+          <span>Home</span>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+
+        <!-- Evening brief card -->
+        <div class="brief-card evening">
+          <div class="brief-avatar">🌙</div>
+          <div class="brief-body">
+            <div class="brief-eyebrow">
+              <span>EVENING BRIEF</span>
+              <span class="time">Zaeli · 8:00 pm</span>
+            </div>
+            <div class="brief-text">
+              Tomorrow's mostly clear until Poppy's dance at 3:30pm. Good chance to lock in Friday's dinner idea before the week goes.
+            </div>
+          </div>
+          <div class="brief-dismiss">✕</div>
+        </div>
+
+        <!-- Chat tile — evening variant lavender -->
+        <div class="chat-tile" style="background: var(--lavender-tint);">
+          <div class="avatar" style="background: var(--lavender);">🌙</div>
+          <div class="body">
+            <div class="title">Evening — anything to knock off?</div>
+            <div class="sub">Type below or tap the mic to talk.</div>
+          </div>
+        </div>
+
+        <div class="cal-tile">
+          <div class="tile-eyebrow">
+            <span>📅 CALENDAR</span>
+            <span class="full-hint">Full calendar →</span>
+          </div>
+          <div class="tile-headline">1 event tomorrow.</div>
+          <div class="cal-row">
+            <span class="time">3:30 pm</span>
+            <span class="cal-dot" style="background:#A855F7"></span>
+            <span class="title">Dancing</span>
+            <div class="avat" style="background:#A855F7">P</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <p class="caption">Same pattern for evening. Lavender tint matches the current evening chat-tile palette so it feels like a consistent time-of-day mood — not a foreign popup.</p>
+  </div>
+
+  <!-- FRAME 3: No fresh brief -->
+  <div class="frame">
+    <div class="label">C · No fresh brief (dismissed OR out of window)</div>
+    <div class="phone">
+      <div class="statusbar">
+        <span>2:14</span>
+        <span>●●● ●● 62%</span>
+      </div>
+      <div class="header">
+        <div class="wordmark">z<span class="accent">a</span>el<span class="accent">i</span></div>
+        <div class="header-right">
+          <span>Home</span>
+          <div class="hamburger"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="content">
+
+        <!-- No brief card. ChatTile just sits at top as before -->
+        <div class="chat-tile" style="background: #E8F4FD;">
+          <div class="avatar" style="background: #A8D8F0;">💬</div>
+          <div class="body">
+            <div class="title">Hey — anything I can help with?</div>
+            <div class="sub">Type below or tap the mic to talk.</div>
+          </div>
+        </div>
+
+        <div class="cal-tile">
+          <div class="tile-eyebrow">
+            <span>📅 CALENDAR</span>
+            <span class="full-hint">Full calendar →</span>
+          </div>
+          <div class="tile-headline">2 events on today.</div>
+          <div class="cal-row">
+            <span class="time">2:30 pm</span>
+            <span class="cal-dot" style="background:#4D8BFF"></span>
+            <span class="title">Mitel & eComms call</span>
+            <div class="avat" style="background:#4D8BFF">R</div>
+          </div>
+          <div class="cal-row">
+            <span class="time">3:30 pm</span>
+            <span class="cal-dot" style="background:#A855F7"></span>
+            <span class="title">Dancing</span>
+            <div class="avat" style="background:#A855F7">P</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <p class="caption">Midday: morning brief already dismissed (or window closed). No card renders. Home reverts to today's ChatTile as normal. Same fallback if user opens app between 12pm–4pm (no active window).</p>
+  </div>
+
+</div>
+
+<div class="notes">
+  <h2>Build notes</h2>
+  <ul>
+    <li><strong>SQL migration</strong>: add <code>viewed_at TIMESTAMPTZ</code> column to <code>zaeli_briefs</code>. Set when user taps dismiss OR opens Chat from the card.</li>
+    <li><strong>Time gate</strong>: morning card only renders 5am–11:59am; evening only 4pm–11:59pm. Same brief windows the server-side scheduler uses.</li>
+    <li><strong>Freshness</strong>: only shows the LATEST brief for the current window with <code>viewed_at IS NULL</code>. Previous windows' briefs never resurface.</li>
+    <li><strong>Load</strong>: dashboard fetches on mount + on <code>bumpHomeRefresh</code>. Cache to home-cache like other tiles for cold-start paint.</li>
+    <li><strong>Interaction</strong>: tap card body → mark viewed + open Chat with the brief seeded as Zaeli's opener. Tap ✕ → mark viewed + card fades out.</li>
+    <li><strong>Push stays</strong>: server-side scheduler + lockscreen push unchanged. This is a PARALLEL fallback for users who miss the notification.</li>
+    <li><strong>Ordering</strong>: brief card sits ABOVE ChatTile. ChatTile stays as the always-on chat entry point.</li>
+  </ul>
+</div>
+
+</body>
+</html>

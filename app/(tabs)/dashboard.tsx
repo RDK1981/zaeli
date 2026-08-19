@@ -202,6 +202,14 @@ export default function DashboardScreen({
   // Round A — MoreSheet state (hamburger now opens this, not direct-to-Settings)
   const [moreOpen, setMoreOpen] = useState(false);
 
+  // Build 75 — fresh unviewed brief for Home tile fallback (Session 38).
+  // Users with iOS lockscreen previews DISABLED only see "Zaeli" in the
+  // notification — the brief text is hidden. This card ensures they always
+  // see the brief on next app open. Server-side push still fires in parallel
+  // for users who DO see previews. Time-gated on client (morning card only
+  // 5-11:59am, evening 4pm-11:59pm) so stale briefs never resurface.
+  const [freshBrief, setFreshBrief] = useState<{ id: string; text: string; window: 'morning' | 'evening'; generatedAt: string } | null>(null);
+
   // ── Data loaders — leaner than Phase 01, only what tiles need ─────────
   const loadData = useCallback(async () => {
     // Round B commit 8 — bail if profile not loaded yet. Previously
@@ -250,6 +258,47 @@ export default function DashboardScreen({
     // Build 53 — save to cache so next cold-start paints instantly.
     saveTile(fid, CACHE_KEYS.eventsToday, { items: evList, count: evCount });
     saveTile(fid, CACHE_KEYS.shoppingSummary, { items: shopList, count: shopCnt });
+
+    // Build 75 — fresh unviewed brief for Home tile fallback. Time-gated so
+    // a morning brief doesn't reappear in the evening. Skip window entirely
+    // in the midday gap (12-4pm) — no card renders. Fetch only the LATEST
+    // brief for the current user + window + today, only if viewed_at IS NULL.
+    try {
+      const hrNow = new Date().getHours();
+      const activeWindow: 'morning' | 'evening' | null =
+        (hrNow >= 5 && hrNow < 12) ? 'morning' :
+        (hrNow >= 16 && hrNow < 24) ? 'evening' :
+        null;
+      if (activeWindow && myId) {
+        const dateKey = today;
+        const { data: briefRow } = await supabase
+          .from('zaeli_briefs')
+          .select('id, brief_text, generated_at, time_window')
+          .eq('family_id', fid)
+          .eq('user_id', myId)
+          .eq('date_key', dateKey)
+          .eq('time_window', activeWindow)
+          .is('viewed_at', null)
+          .order('generated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (briefRow?.id && briefRow?.brief_text) {
+          setFreshBrief({
+            id: briefRow.id,
+            text: briefRow.brief_text,
+            window: activeWindow,
+            generatedAt: briefRow.generated_at,
+          });
+        } else {
+          setFreshBrief(null);
+        }
+      } else {
+        setFreshBrief(null);
+      }
+    } catch (e: any) {
+      console.log('[dashboard] freshBrief fetch failed:', e?.message);
+      setFreshBrief(null);
+    }
 
     // Round B — home tile shows DATED items in the primary "up next" list.
     // Undated to-dos surface as a small count in the sub-line (see todoCount)
@@ -510,6 +559,90 @@ export default function DashboardScreen({
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+
+          {/* ── FRESH BRIEF CARD (Build 75 · Session 38 fallback) ────────
+              Server-side scheduler fires a lockscreen push at the user's
+              brief time. Users with iOS notification previews DISABLED
+              only see the app name — brief text hidden. This card is the
+              fallback: shows the brief when the user opens the app inside
+              the relevant window, IF viewed_at IS NULL. Tap to open Chat
+              seeded with the brief. ✕ to dismiss + mark viewed. */}
+          {freshBrief && (() => {
+            const isMorning = freshBrief.window === 'morning';
+            const bg = isMorning ? T.peachTint : '#E8DCFF';
+            const avatarBg = isMorning ? T.peach : T.lavender;
+            const eyebrowColor = isMorning ? '#8A3A00' : T.lavDeep;
+            const emoji = isMorning ? '☀️' : '🌙';
+            const label = isMorning ? 'MORNING BRIEF' : 'EVENING BRIEF';
+            const genTime = new Date(freshBrief.generatedAt).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+
+            async function markViewed() {
+              try {
+                await supabase.from('zaeli_briefs').update({ viewed_at: new Date().toISOString() }).eq('id', freshBrief!.id);
+              } catch (e: any) { console.log('[dashboard] markViewed failed:', e?.message); }
+              setFreshBrief(null);
+            }
+
+            return (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => {
+                  // Tap card body → mark viewed + open Chat (Zaeli's greeting
+                  // in chat is separate — user just lands in chat).
+                  markViewed();
+                  openChat();
+                }}
+                style={{
+                  backgroundColor: bg,
+                  borderRadius: 18,
+                  paddingVertical: 14,
+                  paddingHorizontal: 16,
+                  marginBottom: 12,
+                  flexDirection: 'row',
+                  alignItems: 'flex-start',
+                  gap: 12,
+                  position: 'relative',
+                }}
+              >
+                <View style={{
+                  width: 34, height: 34, borderRadius: 999,
+                  backgroundColor: avatarBg,
+                  alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <Text style={{ fontSize: 16 }}>{emoji}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0, paddingRight: 20 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <Text style={{
+                      fontFamily: 'Poppins_700Bold', fontSize: 10, letterSpacing: 0.6,
+                      color: eyebrowColor,
+                    }}>{label}</Text>
+                    <Text style={{
+                      fontFamily: 'Poppins_500Medium', fontSize: 10,
+                      color: T.ink4,
+                    }}>Zaeli · {genTime}</Text>
+                  </View>
+                  <Text style={{
+                    fontFamily: 'Poppins_400Regular', fontSize: 15,
+                    lineHeight: 21, color: T.ink,
+                  }}>{freshBrief.text}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={(e) => { e.stopPropagation?.(); markViewed(); }}
+                  hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                  style={{
+                    position: 'absolute', top: 10, right: 12,
+                    width: 22, height: 22, borderRadius: 999,
+                    backgroundColor: 'rgba(10,10,10,0.06)',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  <Text style={{ fontSize: 11, color: T.ink3 }}>✕</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
+            );
+          })()}
 
           {/* ── ZAELI CHAT TILE (Session 37 · Variation B) ────────────────
               Replaces the earlier BriefTile. Warm time-of-day greeting that
