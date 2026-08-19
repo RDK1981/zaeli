@@ -6677,17 +6677,28 @@ Only include events directly relevant to the question. Max 5 events.`;
   async function startRecording() {
     try {
       Keyboard.dismiss();
+      // Build 71 — REAL FIX for widget mic warm-start. Build 70's audio
+      // session reset addressed the wrong symptom. Rich's Build 70 error
+      // Alert revealed the actual iOS complaint:
+      //   "Only one Recording object can be prepared at a given time."
+      // iOS is refusing because a previous Recording object is still
+      // "prepared" (in iOS's internal state), even if we thought we
+      // stopped it. Happens on warm-start when the previous recording
+      // (from cold-start) wasn't fully released before backgrounding,
+      // or if user backgrounded mid-recording, or if handleEntryMicStart
+      // (which uses the same recordingRef) left state behind. Explicit
+      // cleanup here belts-and-braces any of those cases — try stop and
+      // unload, ignore errors (may already be stopped), then null the
+      // ref so we start clean.
+      if (recordingRef.current) {
+        try { await recordingRef.current.stopAndUnloadAsync(); } catch { /* already stopped is fine */ }
+        recordingRef.current = null;
+      }
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) return;
-      // Build 70 — audio session recovery for widget mic warm-start.
-      // Session 38 root cause: after iOS backgrounds the app, the audio
-      // session is deactivated. On warm-start via widget, fireChatIntent
-      // calls startRecording but Audio.Recording.createAsync silently
-      // throws because the session hasn't been fully re-activated yet.
-      // Force a deactivate → brief pause → reactivate cycle to guarantee
-      // the audio engine wakes up cleanly. Cold-start had a fresh session
-      // so didn't hit this. 50ms is enough for iOS to process the state
-      // change (empirically — shorter can miss on older devices).
+      // Build 70 — audio session recovery kept as belt-and-braces even
+      // though the "one Recording at a time" was the actual bug. Doesn't
+      // hurt to reset the audio mode too.
       try {
         await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
         await new Promise(r => setTimeout(r, 50));
