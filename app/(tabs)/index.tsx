@@ -1839,7 +1839,7 @@ function EventDetailModal({ event, onClose, onDeleted, onReload }: {
 // ── Tool execution ─────────────────────────────────────────────────────────
 const TOOLS = [
   { name:'add_calendar_event', description:'Add a new calendar event. Supports recurring events via repeat + repeat_days.', input_schema:{ type:'object', properties:{ title:{type:'string'}, start_time:{type:'string',description:'ISO datetime local'}, end_time:{type:'string'}, notes:{type:'string'}, assignees:{type:'array',items:{type:'string'},description:'Family member first names, e.g. ["Rich","Gab"]. Omit to default to the current user.'}, repeat:{type:'string',enum:['none','daily','weekdays','weekly','fortnightly','monthly'],description:'Recurrence. Use "weekly" with repeat_days for things like "every Mon/Tue/Fri". Default none.'}, repeat_days:{type:'array',items:{type:'string'},description:'For repeat="weekly" — weekday names, e.g. ["mon","tue","fri"]. Omit for a single weekday (uses start_time\'s day).'} }, required:['title','start_time'] } },
-  { name:'update_calendar_event', description:'Update an existing event. Set update_all:true to apply title/notes/assignees changes to a whole recurring series.', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, search_date:{type:'string'}, new_title:{type:'string'}, new_start_time:{type:'string'}, new_end_time:{type:'string'}, new_date:{type:'string'}, new_notes:{type:'string'}, new_assignees:{type:'array',items:{type:'string'},description:'Family member first names to add, e.g. ["Rich","Gab"].'}, update_all:{type:'boolean',description:'true = apply to ALL instances of a recurring series (e.g. "add me to all of Gab\'s soccer"). Use for assignee/title/notes changes on recurring events.'} }, required:['search_title'] } },
+  { name:'update_calendar_event', description:'Update an existing event. Set update_all:true to apply changes to a whole recurring series — supports title, notes, assignees, AND time-of-day changes (new_start_time / new_end_time) across every future instance. Each instance keeps its own date; only the clock time changes.', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, search_date:{type:'string'}, new_title:{type:'string'}, new_start_time:{type:'string'}, new_end_time:{type:'string'}, new_date:{type:'string'}, new_notes:{type:'string'}, new_assignees:{type:'array',items:{type:'string'},description:'Family member first names to add, e.g. ["Rich","Gab"].'}, update_all:{type:'boolean',description:'true = apply to ALL future instances of a recurring series. Use for title/notes/assignees changes OR time-of-day changes (new_start_time / new_end_time). When changing time across a series, send full ISO datetime — the date part is ignored, only HH:MM:SS is applied to each instance.'} }, required:['search_title'] } },
   { name:'delete_calendar_event', description:'Delete a calendar event. Set delete_all:true to remove a whole recurring series.', input_schema:{ type:'object', properties:{ search_title:{type:'string'}, date:{type:'string'}, delete_all:{type:'boolean',description:'true = delete all upcoming events with this title (the whole recurring series)'} }, required:['search_title'] } },
   { name:'extend_recurring_event', description:'Roll a recurring event series on by another ~12 months from where it currently ends. Use when a series is running out or the user asks to extend/keep it going.', input_schema:{ type:'object', properties:{ search_title:{type:'string'} }, required:['search_title'] } },
   { name:'find_calendar_events', description:'Search the calendar for events by title keyword and/or date range. USE THIS WHEN the user asks about anything not in the LIVE DATA today/tomorrow window — "when is X?", "what\'s on next month?", "are we away in September?", "what did we have planned for Poppy\'s birthday?". Returns up to 20 matching events with date + time. Prefer this over saying "not in the calendar" — the calendar data goes months ahead but only today+tomorrow are pre-loaded.', input_schema:{ type:'object', properties:{ title_contains:{type:'string',description:'Case-insensitive keyword in the event title, e.g. "broken head" or "soccer" or "birthday". Optional if from_date/to_date narrow enough.'}, from_date:{type:'string',description:'Start of date window, YYYY-MM-DD. Defaults to today if omitted.'}, to_date:{type:'string',description:'End of date window, YYYY-MM-DD. Defaults to +365 days if omitted.'} } } },
@@ -2038,9 +2038,34 @@ async function executeTool(name: string, input: any): Promise<string> {
       const t = matched[0];
 
       // ── Series update (Session 23) — "add me to ALL of Gab's soccer" ──
-      // Applies title/notes/assignees across every instance. Date/time are
-      // per-instance so they're intentionally excluded from a series update.
+      // Applies title/notes/assignees across every instance. Build 74
+      // extends this to time-of-day changes (new_start_time / new_end_time)
+      // — Rich's "change all Dancing sessions to end at 6:15pm" flow. Each
+      // instance keeps its own date; only the clock time changes.
       if (input.update_all) {
+        // Helper — extract HH:MM:SS from an ISO datetime string. Sonnet
+        // sends "2026-08-22T18:15:00" but for a series time change the
+        // date part is meaningless; we just want the time-of-day to apply
+        // to each instance's own date.
+        const extractTimeOfDay = (iso: string): string | null => {
+          if (!iso) return null;
+          const bare = iso.replace('Z', '').split('+')[0].split('-').slice(0, 3).join('-');
+          // Fallback if the tz-stripped string still has a T
+          const cleaned = iso.replace('Z', '').split('+')[0];
+          const t = cleaned.includes('T') ? cleaned.split('T')[1] : cleaned;
+          const parts = t.split(':');
+          if (parts.length < 2) return null;
+          const hh = String(Number(parts[0])).padStart(2, '0');
+          const mm = String(Number(parts[1])).padStart(2, '0');
+          const ss = parts[2] ? String(Number(parts[2].split('.')[0])).padStart(2, '0') : '00';
+          return `${hh}:${mm}:${ss}`;
+        };
+
+        const newStartTod = input.new_start_time ? extractTimeOfDay(input.new_start_time) : null;
+        const newEndTod   = input.new_end_time   ? extractTimeOfDay(input.new_end_time)   : null;
+
+        // Non-time fields (title, notes, assignees) — applied uniformly
+        // across all instances via a single UPDATE.
         const uAll: any = {};
         if (input.new_title) uAll.title = input.new_title;
         if (input.new_notes) uAll.notes = input.new_notes;
@@ -2054,30 +2079,59 @@ async function executeTool(name: string, input: any): Promise<string> {
             uAll.assignees = Array.from(new Set([...existing, ...mapped]));
           }
         }
-        if (Object.keys(uAll).length === 0) {
+
+        // Nothing to update at all?
+        if (Object.keys(uAll).length === 0 && !newStartTod && !newEndTod) {
           if (unresolvedNames.length > 0) {
             const rosterNames = getRoster().map(m => m.name).join(', ');
             return `TOOL_FAILED: Couldn't match ${unresolvedNames.join(', ')} to any family member. Family roster: ${rosterNames}.`;
           }
-          return `TOOL_FAILED: Nothing to update across the series (no new title/notes/assignees supplied).`;
+          return `TOOL_FAILED: Nothing to update across the series (no new title/notes/assignees/times supplied).`;
         }
+
         const today = localDateStr();
-        let idsQuery: any = supabase.from('events').select('id').eq('family_id', getFamilyId()).gte('date', today);
-        if (t.repeat_group_id) idsQuery = idsQuery.eq('repeat_group_id', t.repeat_group_id);
-        else idsQuery = idsQuery.ilike('title', `%${input.search_title}%`);
-        const { data: idRows } = await idsQuery;
-        const ids = (idRows || []).map((e:any) => e.id);
-        if (ids.length === 0) return `Couldn't find the series for "${input.search_title}".`;
-        let { error } = await supabase.from('events').update(uAll).in('id', ids);
-        if (error && (error.message?.includes('assignees') || error.code==='42703')) {
-          const { assignees:_a, ...slim } = uAll;
-          if (Object.keys(slim).length) { const r2 = await supabase.from('events').update(slim).in('id', ids); error = r2.error; }
-          else error = null;
+        // Build 74 — need date + start_time + end_time for time-change path,
+        // not just id. Select everything we might need up front.
+        let seriesQuery: any = supabase.from('events').select('id,date,start_time,end_time').eq('family_id', getFamilyId()).gte('date', today);
+        if (t.repeat_group_id) seriesQuery = seriesQuery.eq('repeat_group_id', t.repeat_group_id);
+        else seriesQuery = seriesQuery.ilike('title', `%${input.search_title}%`);
+        const { data: seriesRows } = await seriesQuery;
+        const rows: any[] = seriesRows || [];
+        if (rows.length === 0) return `Couldn't find the series for "${input.search_title}".`;
+        const ids = rows.map(r => r.id);
+
+        // Non-time fields — single UPDATE covers all rows.
+        if (Object.keys(uAll).length > 0) {
+          let { error } = await supabase.from('events').update(uAll).in('id', ids);
+          if (error && (error.message?.includes('assignees') || error.code === '42703')) {
+            const { assignees:_a, ...slim } = uAll;
+            if (Object.keys(slim).length) { const r2 = await supabase.from('events').update(slim).in('id', ids); error = r2.error; }
+            else error = null;
+          }
+          if (error) throw error;
         }
-        if (error) throw error;
+
+        // Build 74 — time-of-day changes. Each instance keeps its own date;
+        // we swap in the new HH:MM:SS. Parallel per-row updates (batched to
+        // avoid overwhelming the connection pool with very large series).
+        // Postgres can't do this in one UPDATE without an rpc function
+        // because the new value depends on each row's existing `date`
+        // column. Batching keeps 400-event series well under a second.
+        if (newStartTod || newEndTod) {
+          const BATCH = 25;
+          for (let i = 0; i < rows.length; i += BATCH) {
+            const batch = rows.slice(i, i + BATCH);
+            await Promise.all(batch.map(async (r: any) => {
+              const rowUpdate: any = {};
+              if (newStartTod) rowUpdate.start_time = `${r.date}T${newStartTod}`;
+              if (newEndTod)   rowUpdate.end_time   = `${r.date}T${newEndTod}`;
+              try { await supabase.from('events').update(rowUpdate).eq('id', r.id); }
+              catch (e) { console.log('[update_all time] row failed:', r.id, e); }
+            }));
+          }
+        }
+
         // Round B commit 29 — reschedule alerts for the updated series.
-        // Refetch id + alert-relevant fields; scheduleEventAlert cancels any
-        // prior notif per event and schedules a fresh one if alert_rule set.
         try {
           const { data: refetch } = await supabase.from('events')
             .select('id,title,date,start_time,alert_rule,reminder_minutes')
@@ -2086,7 +2140,26 @@ async function executeTool(name: string, input: any): Promise<string> {
             Promise.all(refetch.map(r => scheduleEventAlert(r as any).catch(() => {}))).catch(() => {});
           }
         } catch {}
-        return `✅ Updated all ${ids.length} upcoming "${input.new_title || t.title}" events.`;
+
+        // Build 74 — brief, honest confirmation. Never list individual
+        // dates — Rich's Session 38 feedback: 18-event list was noise.
+        // Compose the message based on WHAT changed.
+        const bits: string[] = [];
+        if (input.new_title) bits.push(`renamed to "${input.new_title}"`);
+        if (input.new_notes) bits.push('notes updated');
+        if (uAll.assignees) bits.push('assignees updated');
+        if (newStartTod && newEndTod) {
+          const fmt = (t: string) => { const [h, m] = t.split(':').map(Number); const suffix = h >= 12 ? 'pm' : 'am'; const h12 = ((h + 11) % 12) + 1; return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2,'0')}${suffix}`; };
+          bits.push(`time set to ${fmt(newStartTod)}–${fmt(newEndTod)}`);
+        } else if (newStartTod) {
+          const [h, m] = newStartTod.split(':').map(Number); const suffix = h >= 12 ? 'pm' : 'am'; const h12 = ((h + 11) % 12) + 1;
+          bits.push(`start time set to ${m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2,'0')}${suffix}`}`);
+        } else if (newEndTod) {
+          const [h, m] = newEndTod.split(':').map(Number); const suffix = h >= 12 ? 'pm' : 'am'; const h12 = ((h + 11) % 12) + 1;
+          bits.push(`end time set to ${m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2,'0')}${suffix}`}`);
+        }
+        const changeSummary = bits.length ? bits.join(', ') : 'updated';
+        return `✅ Updated all ${ids.length} upcoming "${input.new_title || t.title}" events — ${changeSummary}.`;
       }
 
       const u: any = {};
@@ -2724,6 +2797,10 @@ const CAPABILITY_RULES = `CRITICAL TOOL RULES:
 - CONFIRM-THEN-UPDATE — CRITICAL (Build 62, mirrors CONFIRM-THEN-ADD): If a two-turn pattern DOES happen (you found the event on turn 1 and asked "want me to change it?") and the user responds with a SHORT confirmation — "Yep", "Yes", "Do it", "Go ahead", "Please", "Yes please", "Confirm", "Sure", "OK", "Yeah do it", "Change it", etc. — you MUST call update_calendar_event in THIS SAME TURN. It is NEVER acceptable to reply "Done" or "Updated" or "Set for..." without also making a tool call in the same turn. Same rule as CONFIRM-THEN-ADD; different tool.
 
 - UPDATE HONESTY — ABSOLUTE (Build 62, same shape as CALENDAR HONESTY for adds): NEVER claim an event has been "changed", "moved", "updated", "rescheduled", "set to X", or "now at Y" unless an update_calendar_event tool call was actually made in this turn AND returned a "✅" response. If you called find_calendar_events but not update_calendar_event, no update happened yet — say so honestly ("Found it, but I haven't moved it yet — want me to?") rather than pretending it's done.
+
+- SERIES UPDATE BREVITY (Build 74): When update_calendar_event with update_all:true succeeds, respond with ONE brief sentence — the tool's ✅ reply already contains the count and change summary; relay it in a natural way. Example GOOD: "All 18 Dancing sessions now end at 6:15pm ✓". Example BAD (never do this): listing every individual instance date + time. The user asked for one change, they want one confirmation. Enumerating dates is noise.
+
+- NEVER SHOW "TOOL_FAILED:" TO THE USER (Build 74): If any tool response starts with "TOOL_FAILED:", that is INTERNAL error text — never paste it verbatim into your reply. Translate it into plain English about what went wrong AND offer a next step. Example: tool returns "TOOL_FAILED: Nothing to update across the series (no new title/notes/assignees/times supplied)." — your reply should be something like: "Nothing to change on that series yet — want me to try again with a new time, title, or someone to add?" NEVER just paste the raw TOOL_FAILED string. Users see it as broken code leaking through.
 
 - REMINDER HONESTY — ABSOLUTE (same rule as calendar + send_family_message):
     * NEVER claim a reminder has been "added", "saved", "set", "on your list", "in your reminders", or ANY equivalent phrase unless an add_reminder tool call was actually made in THIS TURN AND returned a "✅" response (never "TOOL_FAILED", never nothing).
@@ -7810,6 +7887,11 @@ Output format: {"title": "...", "remind_at": "...", "remind_on": "..."} — omit
   function handleSheetEditWithZaeli(ev: any) {
     setCalSheetOpen(false);
     setTimeout(() => {
+      // Build 74 — Rich's Session 38 report: tapping "Edit with Zaeli"
+      // from the Calendar sheet was landing users on Home instead of
+      // Chat. handleSheetAddWithZaeli already calls onNavigateChat here
+      // — this handler was missing that same swipe. Now consistent.
+      onNavigateChat?.();
       pendingCalendarAdd.current = true;
       const focusedCard: Msg = {
         id: uid(), role: 'zaeli', text: '', ts: nowTs(),

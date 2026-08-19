@@ -144,6 +144,12 @@ interface EventLite {
   date: string;
   start_time: string | null;
   assignees: string[] | null;
+  // Build 74 — Session 38: source + privacy_scope needed for the "📱 iPhone"
+  // badge render on external iCal events. Prior SELECT omitted both, so the
+  // existing (Session 36) isExternal check was always false and every
+  // external event fell through to the blank-dot fallback. Rich flagged.
+  source?: string | null;
+  privacy_scope?: string | null;
 }
 interface ShopItem {
   id: string;
@@ -216,7 +222,7 @@ export default function DashboardScreen({
 
     const [evRes, shopRes, allReminders] = await Promise.all([
       supabase.from('events')
-        .select('id,title,date,start_time,assignees')
+        .select('id,title,date,start_time,assignees,source,privacy_scope')
         .eq('family_id', fid).eq('date', today)
         .order('start_time').limit(6),
       supabase.from('shopping_items')
@@ -630,6 +636,7 @@ export default function DashboardScreen({
               // resolvable member. Sheet renderer already does this via
               // .filter(Boolean); this brings Home tile in line.
               const isExternal = ev.source === 'apple-ical';
+              const isShared = ev.privacy_scope === 'shared';
               const rosterLoaded = roster.length > 0;
               const assigneeIds: string[] = Array.isArray(ev.assignees) ? ev.assignees : [];
               let mem = null as ReturnType<typeof memberById> | null;
@@ -645,8 +652,18 @@ export default function DashboardScreen({
                   <View style={[s.calDot, { backgroundColor: dotC }]}/>
                   <Text style={[s.calTitle, { color: 'rgba(255,255,255,0.92)' }]} numberOfLines={1}>{ev.title}</Text>
                   {isExternal ? (
-                    <View style={[s.avat, { backgroundColor: 'rgba(255,255,255,0.14)' }]}>
-                      <Text style={{ fontSize: 11 }}>📱</Text>
+                    // Build 74 — Session 38: swap the tiny circular avatar for
+                    // a full "📱 iPhone" pill that matches the Calendar sheet
+                    // badge style. Rich's feedback: blank/translucent dot
+                    // wasn't obvious as "this is an iPhone-synced event".
+                    // Shared events (privacy_scope='shared') get an added
+                    // "· Shared" so at-a-glance you can see which imported
+                    // events you've manually opted-in to share with family.
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor:'rgba(255,255,255,0.14)', borderRadius:8, paddingHorizontal:6, paddingVertical:2 }}>
+                      <Text style={{ fontSize: 10 }}>📱</Text>
+                      <Text style={{ fontFamily:'Poppins_600SemiBold', fontSize:9, color:'rgba(255,255,255,0.75)', letterSpacing:0.2 }}>
+                        {isShared ? 'iPhone · Shared' : 'iPhone'}
+                      </Text>
                     </View>
                   ) : mem ? (
                     <View style={[s.avat, { backgroundColor: c }]}>
