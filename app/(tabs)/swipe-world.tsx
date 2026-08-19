@@ -88,36 +88,14 @@ export default function SwipeWorld() {
     return unsub;
   }, []);
 
-  // Landing splash — Option C (Session 27):
-  //   - First time ever (fresh install): always fire, mark seen.
-  //   - Subsequent launches: fire only during natural check-in windows
-  //     (6-9am / 12-2pm / 5-8pm) so it lands at the times the user is
-  //     actually opening to see "what's on".
-  // Also only once per app session — the module-level flag prevents re-fire
-  // on swipe-world re-mount within the same JS bundle lifetime.
+  // Build 69 — splash KILLED per Rich's directive: "we want to be able to
+  // go straight into home when launching zaeli from widget or from general
+  // iphone app screen". Time-windowed splash (6-9am / 12-2pm / 5-8pm) was
+  // interfering with widget mic UX + generally not wanted. Splash render
+  // code kept intact below in case we want to revive as a first-run-only
+  // welcome moment later — but the trigger is disabled so it never fires.
   useEffect(() => {
-    if (_splashShownThisSession) return;
-    if (LANDING_TEST_MODE) { setShowLanding(true); _splashShownThisSession = true; return; }
-    (async () => {
-      try {
-        const SEEN_KEY = 'splash_first_install_seen_v1';
-        const seen = await AsyncStorage.getItem(SEEN_KEY);
-        if (!seen) {
-          // First install ever — fire regardless of time so the user meets
-          // Zaeli's brand before hitting Chat.
-          setShowLanding(true);
-          _splashShownThisSession = true;
-          await AsyncStorage.setItem(SEEN_KEY, 'true');
-          return;
-        }
-      } catch {}
-      // Seen before — respect the time-of-day windows.
-      const h = new Date().getHours();
-      if ((h >= 6 && h < 9) || (h >= 12 && h < 14) || (h >= 17 && h < 20)) {
-        setShowLanding(true);
-        _splashShownThisSession = true;
-      }
-    })();
+    _splashShownThisSession = true; // mark as shown so nothing else re-triggers
   }, []);
 
   // First-run swipe hint — show once ever. Triggers after a short delay so it

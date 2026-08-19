@@ -17,7 +17,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
-  Dimensions, Alert, Platform, Linking, TextInput,
+  Dimensions, Alert, Platform, Linking, TextInput, AppState,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -692,19 +692,61 @@ export default function SettingsScreen() {
               Alert.alert('❌ Failed to schedule', res.error ?? 'Unknown error');
             }
           }}
-          onDumpWidgetState={async () => {
-            // Build 68 — widget state dump for debugging future mic
-            // widget failures. Reads the AsyncStorage widget intent key
-            // WITHOUT consuming it (uses raw AsyncStorage.getItem, not
-            // consumePersistedWidgetChatIntent which deletes on read).
-            // Also shows the AppState value. Rich taps this after a
-            // failed widget tap to see whether the URL flow wrote 'mic'
-            // to AsyncStorage.
+          onRawEventKitTest={async () => {
+            // Build 69 — direct iOS EventKit query bypassing our sync
+            // pipeline entirely. Session 38: sync's per-day hot-zone
+            // fetch (Build 68) returned zero new events for Engine Room's
+            // Aug 19+ instances, but Rich confirmed Engine Room is
+            // visible in iPhone Calendar. This test proves whether iOS
+            // itself is dropping the event (bypass fix impossible) or
+            // our sync filter drops it (client-side fix possible).
             try {
-              const AS = (await import('@react-native-async-storage/async-storage')).default;
-              const raw = await AS.getItem('zaeli_widget_chat_intent_v1');
-              const { AppState: RNAppState } = await import('react-native');
-              const state = RNAppState.currentState;
+              const Calendar = await import('expo-calendar');
+              const cals = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+              const now = new Date();
+              const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const todayEnd = new Date(todayStart);
+              todayEnd.setDate(todayEnd.getDate() + 1);
+              const lines: string[] = [];
+              lines.push(`Query: ${todayStart.toISOString().slice(0,10)} 00:00 → 24:00`);
+              lines.push(`iOS calendars: ${cals.length}`);
+              lines.push('');
+              let totalEvents = 0;
+              let engineFound = false;
+              for (const cal of cals) {
+                try {
+                  const events = await Calendar.getEventsAsync([cal.id], todayStart, todayEnd);
+                  if (events.length > 0) {
+                    lines.push(`${cal.title} (${events.length}):`);
+                    for (const ev of events) {
+                      const t = (ev.title || 'Untitled').slice(0, 40);
+                      const time = ev.startDate ? new Date(ev.startDate).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) : '?';
+                      lines.push(`  • ${time} ${t}`);
+                      if (t.toLowerCase().includes('engine')) engineFound = true;
+                      totalEvents++;
+                    }
+                  }
+                } catch (calErr: any) {
+                  lines.push(`${cal.title}: FETCH ERROR — ${calErr?.message?.slice(0,40) ?? 'unknown'}`);
+                }
+              }
+              lines.push('');
+              lines.push(`Total events returned by iOS: ${totalEvents}`);
+              lines.push(engineFound ? '✅ Engine Room IS in raw iOS data' : '❌ Engine Room NOT in raw iOS data');
+              Alert.alert('🔬 Raw EventKit', lines.join('\n'));
+            } catch (e: any) {
+              Alert.alert('Raw EventKit threw', e?.message ?? String(e));
+            }
+          }}
+          onDumpWidgetState={async () => {
+            // Build 69 — widget state dump. Was crashing in Build 68 because
+            // I used dynamic imports for AsyncStorage + AppState which
+            // Hermes rejected. Now uses the static imports at the top of
+            // this file. Reads the AsyncStorage widget intent key WITHOUT
+            // consuming it so we can see the raw state.
+            try {
+              const raw = await AsyncStorage.getItem('zaeli_widget_chat_intent_v1');
+              const state = AppState.currentState;
               const lines: string[] = [];
               lines.push(`AsyncStorage 'zaeli_widget_chat_intent_v1': ${raw ?? '(null — no intent stored)'}`);
               lines.push('');
@@ -884,6 +926,11 @@ function MainView(p: {
   // (Session 38). Reads AsyncStorage widget intent key + Chat's last
   // dispatch timestamp so Rich can screenshot after a failed widget tap.
   onDumpWidgetState: () => void;
+  // Build 69 — raw EventKit test. Bypasses the sync pipeline entirely,
+  // queries iOS EventKit directly for today's events across all
+  // calendars. If Engine Room isn't in this raw list, iOS is dropping
+  // it at the source — no client-side sync fix can recover.
+  onRawEventKitTest: () => void;
 }) {
   // Round B commit 36 — dynamic family names for the Our Family row sub.
   // Was hardcoded "Anna, Poppy, Gab, Duke" which leaked Rich's family to
@@ -1158,7 +1205,17 @@ function MainView(p: {
         <Row icon="🎤" iconBg="rgba(255,68,68,0.1)" iconFg="#B83333"
              title="Widget state dump"
              sub="AsyncStorage intent + last dispatch — for debugging"
-             onPress={p.onDumpWidgetState} last/>
+             onPress={p.onDumpWidgetState}/>
+        {/* Build 69 — RAW EventKit test. Bypasses sync pipeline entirely,
+            queries iOS EventKit directly for today's events across all
+            calendars. If Engine Room isn't in this raw list, iOS is
+            silently dropping it at source and no client-side sync fix
+            can recover. If it IS in this raw list, our sync pipeline
+            has a filter bug we can fix client-side. */}
+        <Row icon="🔬" iconBg="rgba(107,53,217,0.15)" iconFg="#6B35D9"
+             title="Raw EventKit today test"
+             sub="Direct iOS query for today's events — bypasses sync"
+             onPress={p.onRawEventKitTest} last/>
       </View>
       </>
       )}
@@ -1177,11 +1234,16 @@ function MainView(p: {
              onPress={() => Linking.openURL('https://zaeli.app/terms.html').catch(() => {})}/>
         <Row icon="ℹ️" iconBg="rgba(10,10,10,0.06)" iconFg={INK}
              title="Version" value={(() => {
-               // Session 30 — read from Expo config so the number matches
-               // whatever EAS baked in at build time (autoIncrement bumps
-               // ios.buildNumber on every production build).
+               // Build 69 — Constants.expoConfig?.ios?.buildNumber was
+               // returning empty at runtime even after EAS autoIncrement,
+               // so version rendered as just "1.0.0" — impossible to tell
+               // which build was actually installed. Session 38 diagnostic
+               // was blocked by this. nativeBuildVersion reads iOS's
+               // actual CFBundleVersion from the binary — always accurate.
                const v = Constants.expoConfig?.version ?? '1.0.0';
-               const b = Constants.expoConfig?.ios?.buildNumber ?? '';
+               const b = (Constants as any).nativeBuildVersion
+                      ?? Constants.expoConfig?.ios?.buildNumber
+                      ?? '';
                return b ? `${v} (${b})` : v;
              })()} last/>
       </View>
