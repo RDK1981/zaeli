@@ -242,7 +242,20 @@ type SyncNowResult = {
   inserted: number;
   updated: number;
   deleted: number;
-  perCalendar: Array<{ id: string; title: string; count: number }>;
+  perCalendar: Array<{ id: string; title: string; count: number; chunkFailures: number }>;
+  // Build 67 — per-event trace so on-device diagnostic Alert can show
+  // exactly what iOS handed us + what upsert did with each event. TestFlight
+  // builds hide console.log so this trace surfaces from the dev row's Alert.
+  // Kept lean (max 100 events cap in caller) so it doesn't blow up the Alert.
+  trace?: Array<{
+    calendarTitle: string;
+    title: string;
+    date: string;           // YYYY-MM-DD
+    externalId: string;     // last 12 chars only for compact display
+    tz: string | null;
+    result: 'inserted' | 'updated' | 'insert_failed' | 'update_failed' | 'no_row_returned';
+    error?: string;         // truncated error message when result is *_failed
+  }>;
   error?: string;
 };
 
@@ -290,7 +303,9 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
     end.setDate(end.getDate() + WINDOW_FORWARD_DAYS);
 
     let allExternalIds: Set<string> = new Set();
-    const perCalendar: Array<{ id: string; title: string; count: number }> = [];
+    const perCalendar: Array<{ id: string; title: string; count: number; chunkFailures: number }> = [];
+    // Build 67 — per-event trace for on-device diagnostic Alert.
+    const trace: NonNullable<SyncNowResult['trace']> = [];
     let inserted = 0;
     let updated = 0;
     // Build 54 (Session 36) — track per-calendar read success. If ANY calendar
@@ -363,7 +378,7 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
         failedCalendars.push(`${cal.title} (${chunkFailures}/${chunks.length} chunks failed)`);
       }
       console.log(`[calendar-sync] ${cal.title}: fetched ${iosEvents.length} unique events (${chunkFailures} chunk failures)`);
-      perCalendar.push({ id: cal.id, title: cal.title, count: iosEvents.length });
+      perCalendar.push({ id: cal.id, title: cal.title, count: iosEvents.length, chunkFailures });
 
       // Upsert each event to Supabase
       for (const ev of iosEvents) {
@@ -407,6 +422,15 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
           .eq('external_id', ev.id)
           .maybeSingle();
 
+        // Build 67 — Common trace entry we'll append after upsert result.
+        const traceBase = {
+          calendarTitle: cal.title,
+          title: (ev.title || 'Untitled').slice(0, 60),
+          date: dateOnly,
+          externalId: ev.id.slice(-12),
+          tz: ev.timeZone || null,
+        };
+
         if (existing?.id) {
           // Build 54 (Session 36) — DON'T reset privacy_scope on update.
           // If the user has manually shared this imported event with the
@@ -418,15 +442,18 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
             .from('events')
             .update(updateRow)
             .eq('id', existing.id);
-          if (!upErr) updated++;
-          else console.log(`[calendar-sync] update FAILED for "${ev.title}" ext=${ev.id.slice(-12)}:`, JSON.stringify(upErr));
+          if (!upErr) {
+            updated++;
+            trace.push({ ...traceBase, result: 'updated' });
+          } else {
+            console.log(`[calendar-sync] update FAILED for "${ev.title}" ext=${ev.id.slice(-12)}:`, JSON.stringify(upErr));
+            trace.push({ ...traceBase, result: 'update_failed', error: (upErr.message || 'unknown').slice(0, 120) });
+          }
         } else {
           // Build 66 — Session 28 pattern: .select('id') on insert +
           // verify data.id came back. Bare .insert() can return
           // { error: null, data: null } on silent RLS block (WITH CHECK
           // evaluated as null → row silently dropped, no error surfaced).
-          // If Engine Room-style events are landing in the "insert failed"
-          // silent bucket, this log will name them.
           const { data: insData, error: insErr } = await supabase
             .from('events')
             .insert(row)
@@ -434,10 +461,13 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
             .maybeSingle();
           if (insErr) {
             console.log(`[calendar-sync] insert FAILED for "${ev.title}" ext=${ev.id.slice(-12)}:`, JSON.stringify(insErr));
+            trace.push({ ...traceBase, result: 'insert_failed', error: (insErr.message || 'unknown').slice(0, 120) });
           } else if (!insData?.id) {
             console.log(`[calendar-sync] insert returned NO ROW for "${ev.title}" ext=${ev.id.slice(-12)} (silent RLS block? malformed row?)`);
+            trace.push({ ...traceBase, result: 'no_row_returned' });
           } else {
             inserted++;
+            trace.push({ ...traceBase, result: 'inserted' });
           }
         }
       }
@@ -525,7 +555,7 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
     });
 
     console.log(`[calendar-sync] done. IN +${inserted} ~${updated} -${deleted} across ${enabledCals.length} cals · OUT +${mirroredIn} ~${mirroredUpd} -${mirroredDel}`);
-    return { ok: true, inserted, updated, deleted, perCalendar };
+    return { ok: true, inserted, updated, deleted, perCalendar, trace };
   } catch (e: any) {
     console.log('[calendar-sync] syncNow threw:', e?.message);
     return { ok: false, inserted: 0, updated: 0, deleted: 0, perCalendar: [], error: e?.message ?? 'unknown' };

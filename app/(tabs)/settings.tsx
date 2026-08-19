@@ -545,11 +545,14 @@ export default function SettingsScreen() {
             }
           }}
           onDiagnoseCalendarSync={async () => {
-            // Session 36 hotfix — on-device diagnostic for iCal sync.
-            // Runs a fresh syncNow (bypassing the in-flight guard by
-            // waiting a bit) and shows per-calendar event counts + any
-            // chunk failures. Tells us at a glance whether Aatroxcomm et
-            // al. are actually returning events from iOS EventKit.
+            // Session 36 hotfix / Build 67 — on-device diagnostic for iCal sync.
+            // Runs a fresh syncNow and shows per-calendar counts + any events
+            // matching an interest keyword (default "engine" for Engine Room
+            // debugging). Per-event trace (Build 67) tells us whether a
+            // specific event was fetched from iOS AND whether its upsert
+            // succeeded. If the event NEVER appears in the trace at all,
+            // EventKit dropped it. If it appears with result='insert_failed'
+            // or 'no_row_returned', the DB write is the problem.
             try {
               const me = getProfile();
               if (!me?.id || !me?.family_id) { Alert.alert('Not signed in', 'Profile not loaded.'); return; }
@@ -563,8 +566,35 @@ export default function SettingsScreen() {
               lines.push('');
               lines.push('Per calendar:');
               for (const c of res.perCalendar) {
-                lines.push(`  ${c.title}: ${c.count}`);
+                const cf = c.chunkFailures > 0 ? ` (${c.chunkFailures} chunk fails)` : '';
+                lines.push(`  ${c.title}: ${c.count}${cf}`);
               }
+              // Build 67 — pull out events matching "engine" from the trace so
+              // we see whether Engine Room was fetched + how it was handled.
+              // Also surface any failed/no-row-returned entries as a heads-up.
+              const trace = res.trace ?? [];
+              const engineMatches = trace.filter(t => t.title.toLowerCase().includes('engine'));
+              const failures = trace.filter(t => t.result === 'insert_failed' || t.result === 'update_failed' || t.result === 'no_row_returned');
+              if (engineMatches.length > 0) {
+                lines.push('');
+                lines.push('Engine Room matches:');
+                for (const t of engineMatches) {
+                  lines.push(`  ${t.date} · ${t.title}`);
+                  lines.push(`    → ${t.result}${t.error ? ' · ' + t.error : ''}`);
+                }
+              } else {
+                lines.push('');
+                lines.push('No "engine" match in trace — iOS did NOT return the event.');
+              }
+              if (failures.length > 0) {
+                lines.push('');
+                lines.push(`Failed upserts (${failures.length}):`);
+                for (const t of failures.slice(0, 5)) {
+                  lines.push(`  ${t.title.slice(0, 30)} → ${t.result}`);
+                }
+              }
+              lines.push('');
+              lines.push(`Total trace entries: ${trace.length}`);
               Alert.alert(res.ok ? '✅ Sync complete' : '⚠ Sync failed', lines.join('\n'));
             } catch (e: any) {
               Alert.alert('Diagnostic threw', e?.message ?? String(e));
