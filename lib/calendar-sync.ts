@@ -370,6 +370,47 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
           chunkFailures++;
         }
       }
+
+      // Build 68 — HOT ZONE per-day sweep. Session 38 discovered iOS
+      // EventKit silently drops specific recurring event instances from
+      // 30-day chunk queries (Rich's "Engine Room Pulse Check" — Aug 12
+      // instance returned, Aug 19 + Aug 26 dropped from the same series).
+      // Not a chunk failure, no error, just missing. Workaround: for
+      // today - 3 days through today + 21 days, ALSO fetch per-day. Small
+      // date ranges usually get expanded correctly by iOS. Anything the
+      // 30-day chunks missed but the per-day query returns gets deduped
+      // in via `seen`. Extra cost: ~25 API calls per calendar per sync.
+      // Sync goes from ~1s to ~3-5s. Acceptable for correctness.
+      const hotStart = new Date();
+      hotStart.setHours(0, 0, 0, 0);
+      hotStart.setDate(hotStart.getDate() - 3);
+      const hotEnd = new Date();
+      hotEnd.setHours(0, 0, 0, 0);
+      hotEnd.setDate(hotEnd.getDate() + 21);
+      let hotZoneRecovered = 0;
+      for (let d = new Date(hotStart); d < hotEnd; d.setDate(d.getDate() + 1)) {
+        const dayStart = new Date(d);
+        const dayEnd = new Date(d);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+        try {
+          const dayEvents = await Calendar.getEventsAsync([cal.id], dayStart, dayEnd);
+          for (const e of dayEvents) {
+            if (!e?.id || seen.has(e.id)) continue;
+            seen.add(e.id);
+            iosEvents.push(e);
+            hotZoneRecovered++;
+          }
+        } catch (e: any) {
+          // Per-day failure is non-fatal — the chunk fetch already ran,
+          // this is just defensive extra coverage. Don't mark the whole
+          // calendar as failed if a single day query throws.
+          console.log(`[calendar-sync] ${cal.title} hot-zone per-day fetch failed for ${dayStart.toISOString().slice(0,10)}:`, e?.message);
+        }
+      }
+      if (hotZoneRecovered > 0) {
+        console.log(`[calendar-sync] ${cal.title}: hot-zone sweep recovered ${hotZoneRecovered} extra events iOS 30-day chunks missed`);
+      }
+
       if (chunkFailures > 0) {
         // ANY chunk failure for this calendar marks the whole calendar unreliable
         // for this sync — skip delete-stale so we don't wipe rows the failed

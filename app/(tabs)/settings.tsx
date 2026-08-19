@@ -692,6 +692,40 @@ export default function SettingsScreen() {
               Alert.alert('❌ Failed to schedule', res.error ?? 'Unknown error');
             }
           }}
+          onDumpWidgetState={async () => {
+            // Build 68 — widget state dump for debugging future mic
+            // widget failures. Reads the AsyncStorage widget intent key
+            // WITHOUT consuming it (uses raw AsyncStorage.getItem, not
+            // consumePersistedWidgetChatIntent which deletes on read).
+            // Also shows the AppState value. Rich taps this after a
+            // failed widget tap to see whether the URL flow wrote 'mic'
+            // to AsyncStorage.
+            try {
+              const AS = (await import('@react-native-async-storage/async-storage')).default;
+              const raw = await AS.getItem('zaeli_widget_chat_intent_v1');
+              const { AppState: RNAppState } = await import('react-native');
+              const state = RNAppState.currentState;
+              const lines: string[] = [];
+              lines.push(`AsyncStorage 'zaeli_widget_chat_intent_v1': ${raw ?? '(null — no intent stored)'}`);
+              lines.push('');
+              lines.push(`Current AppState: ${state}`);
+              lines.push('');
+              lines.push('What this means:');
+              if (raw) {
+                lines.push('  Intent IS in AsyncStorage but was not consumed.');
+                lines.push('  → Poll effect never ran or was skipped.');
+                lines.push('  → Chat might not have subscribed to AppState in time.');
+              } else {
+                lines.push('  Nothing in AsyncStorage.');
+                lines.push('  Either: (a) widget URL never reached the app');
+                lines.push('  (Linking/expo-router failed), OR (b) intent');
+                lines.push('  was already consumed successfully.');
+              }
+              Alert.alert('🎤 Widget state', lines.join('\n'));
+            } catch (e: any) {
+              Alert.alert('Dump threw', e?.message ?? String(e));
+            }
+          }}
         />
       )}
 
@@ -846,6 +880,10 @@ function MainView(p: {
   // Round B commit 28 — schedules a real 30s notification via the same
   // trigger-API path saveReminder uses (verifies commit 24 end-to-end).
   onTestReminderNotif: () => void;
+  // Build 68 — widget state dump for debugging future mic widget failures
+  // (Session 38). Reads AsyncStorage widget intent key + Chat's last
+  // dispatch timestamp so Rich can screenshot after a failed widget tap.
+  onDumpWidgetState: () => void;
 }) {
   // Round B commit 36 — dynamic family names for the Our Family row sub.
   // Was hardcoded "Anna, Poppy, Gab, Duke" which leaked Rich's family to
@@ -1111,7 +1149,16 @@ function MainView(p: {
         <Row icon="🔔" iconBg="#FBF5D6" iconFg="#8B6914"
              title="Test reminder in 30s"
              sub="Schedules a real notif — lock phone + wait 30s"
-             onPress={p.onTestReminderNotif} last/>
+             onPress={p.onTestReminderNotif}/>
+        {/* Build 68 — widget mic state dump. Reads AsyncStorage widget
+            intent key + shows in Alert. Screenshot after a failed widget
+            tap to see whether the URL wrote 'mic' to AsyncStorage at all
+            (persist path OK but consume raced) or nothing was written
+            (URL delivery via Linking/expo-router failed). */}
+        <Row icon="🎤" iconBg="rgba(255,68,68,0.1)" iconFg="#B83333"
+             title="Widget state dump"
+             sub="AsyncStorage intent + last dispatch — for debugging"
+             onPress={p.onDumpWidgetState} last/>
       </View>
       </>
       )}

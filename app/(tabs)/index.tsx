@@ -5569,49 +5569,47 @@ BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Nev
   useEffect(() => {
     let cancelled = false;
 
-    async function checkOnce(reason: string) {
-      if (cancelled) return;
-      const kind = await consumePersistedWidgetChatIntent();
-      if (!kind || cancelled) return;
-      const sinceLastMs = Date.now() - lastWidgetDispatchAtRef.current;
-      if (sinceLastMs < 2000) {
-        console.log(`[chat] widget intent (${reason}): ${kind} — fast path dispatched ${sinceLastMs}ms ago, skip`);
-      } else {
-        console.log(`[chat] widget intent (${reason}): ${kind} — dispatching`);
-        setChatIntent({ kind } as any);
-        fireChatIntent();
-      }
-    }
-
-    // (a) Mount poll — 10 × 200ms = 2 seconds
-    let tries = 0;
-    async function mountPoll() {
-      if (cancelled) return;
-      const kind = await consumePersistedWidgetChatIntent();
-      if (kind && !cancelled) {
-        const sinceLastMs = Date.now() - lastWidgetDispatchAtRef.current;
-        if (sinceLastMs < 2000) {
-          console.log(`[chat] widget intent (mount): ${kind} — fast path dispatched ${sinceLastMs}ms ago, skip`);
-        } else {
-          console.log(`[chat] widget intent (mount): ${kind} — dispatching`);
-          setChatIntent({ kind } as any);
-          fireChatIntent();
+    // Build 68 — BURST poll instead of Build 67's single checkOnce. Reason:
+    // on warm-start, iOS may deliver the URL AFTER our AppState 'active'
+    // event fires. If we check AsyncStorage once at t+200ms and the URL
+    // event lands at t+400ms writing 'mic', we miss it. Burst polls every
+    // 200ms for 2 seconds so any URL-write arriving in that window gets
+    // caught. Same pattern that already works on cold-start mount.
+    function pollBurst(reason: string) {
+      let tries = 0;
+      const MAX_TRIES = 10; // 10 × 200ms = 2 seconds
+      async function pollOnce() {
+        if (cancelled) return;
+        const kind = await consumePersistedWidgetChatIntent();
+        if (kind) {
+          const sinceLastMs = Date.now() - lastWidgetDispatchAtRef.current;
+          if (sinceLastMs < 2000) {
+            console.log(`[chat] widget intent (${reason} #${tries + 1}): ${kind} — fast path dispatched ${sinceLastMs}ms ago, skip`);
+          } else {
+            console.log(`[chat] widget intent (${reason} #${tries + 1}): ${kind} — dispatching`);
+            setChatIntent({ kind } as any);
+            fireChatIntent();
+          }
+          return; // one-shot per burst
         }
-        return;
+        tries++;
+        if (tries < MAX_TRIES && !cancelled) {
+          setTimeout(pollOnce, 200);
+        }
       }
-      tries++;
-      if (tries < 10 && !cancelled) {
-        setTimeout(mountPoll, 200);
-      }
+      pollOnce();
     }
-    mountPoll();
 
-    // (b) AppState listener — re-check on every foreground transition.
-    // Small 200ms delay so iOS has time to deliver the URL and any
-    // Linking handlers to write AsyncStorage before we read.
+    // (a) Mount burst — catches cold-start where Chat mounts AFTER the
+    //     widget URL's chat.tsx AsyncStorage write.
+    pollBurst('mount');
+
+    // (b) AppState burst — catches warm-start where Chat is already
+    //     mounted (mount poll never re-runs) and iOS delivers the URL
+    //     any time in the ~2s after activation.
     const sub = AppState.addEventListener('change', (next) => {
       if (next === 'active') {
-        setTimeout(() => { checkOnce('foreground'); }, 200);
+        pollBurst('foreground');
       }
     });
 
