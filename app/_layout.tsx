@@ -17,7 +17,7 @@ import { invalidateRosterCache, loadRoster, ensureOwnMembership, getRoster } fro
 import { clearAllHomeCache } from '../lib/home-cache'
 import { getCurrentFamilyId } from '../lib/auth'
 import { requestNotificationPermission, cancelBriefNotifications, registerPushToken } from '../lib/notifications'
-import { setChatIntent, requestChatFocus } from '../lib/navigation-store'
+import { setChatIntent, requestChatFocus, persistWidgetChatIntent } from '../lib/navigation-store'
 
 SplashScreen.preventAutoHideAsync()
 // Set the RN root view background color to warm bg immediately at module
@@ -271,9 +271,14 @@ export default function RootLayout() {
       // Widget mic deep-link — set intent + focus Chat. The setChatIntent
       // is consumed by chat's isActive effect (which starts recording).
       // requestChatFocus bumps swipe-world's counter → scrolls to Chat.
+      //
+      // Build 66 — also write intent to AsyncStorage so Chat's mount
+      // effect can poll for it. Belt AND braces for the cold-start race
+      // where in-memory intent lands before Chat mounts + subscribes.
       if (path === 'chat' && params.mic === '1') {
         console.log('[link] mic widget → chat + mic')
         setChatIntent({ kind: 'mic' })
+        persistWidgetChatIntent('mic') // fire-and-forget
         requestChatFocus()
       }
       // (Invite links + any other zaeli:// paths continue to be routed

@@ -125,6 +125,44 @@ export function subscribeChatFocus(fn: (v: number) => void): () => void {
   return () => { _chatFocusSubscribers.delete(fn); };
 }
 
+// ── Persistent widget chat intent (Build 66) ─────────────────────────────
+// Widget cold-start race problem (Build 65 aftermath): the Lock Screen mic
+// widget's URL flow (zaeli://chat?mic=1) races against Chat's mount
+// lifecycle. On cold-start, chat.tsx runs BEFORE Chat is mounted, so its
+// in-memory setChatIntent + requestChatFocus land in a subscriber-less
+// void. By the time Chat mounts + subscribes, the intent may already have
+// been consumed elsewhere or the requestChatFocus counter bump is old news.
+//
+// AsyncStorage is a reliable back-channel independent of React mount
+// timing: chat.tsx + _layout.tsx write the intent kind synchronously to
+// disk; Chat's mount effect polls AsyncStorage for up to 2 seconds and
+// dispatches whatever it finds. Belt AND braces (persistence + polling)
+// eliminates every race identified so far — mount order doesn't matter,
+// subscription timing doesn't matter, activePage transition doesn't matter.
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const PERSISTED_WIDGET_INTENT_KEY = 'zaeli_widget_chat_intent_v1';
+
+export async function persistWidgetChatIntent(kind: 'mic' | 'camera' | 'focus'): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PERSISTED_WIDGET_INTENT_KEY, kind);
+  } catch (e: any) {
+    console.log('[nav-store] persistWidgetChatIntent threw:', e?.message);
+  }
+}
+
+export async function consumePersistedWidgetChatIntent(): Promise<'mic' | 'camera' | 'focus' | null> {
+  try {
+    const v = await AsyncStorage.getItem(PERSISTED_WIDGET_INTENT_KEY);
+    if (v) await AsyncStorage.removeItem(PERSISTED_WIDGET_INTENT_KEY);
+    if (v === 'mic' || v === 'camera' || v === 'focus') return v;
+    return null;
+  } catch (e: any) {
+    console.log('[nav-store] consumePersistedWidgetChatIntent threw:', e?.message);
+    return null;
+  }
+}
+
 // ── Home refresh trigger (Round B commit 3) ─────────────────────────────
 // Home tiles cache their own state (reminders / calendar / shopping /
 // tasks / budget). When the user mutates state via a sheet (which lives

@@ -53,7 +53,7 @@ import TourBanner from '../components/TourBanner';
 import { currentWindow as getCurrentWindow, currentBucket as getCurrentBucket, shouldFireBrief, windowLabel, BriefWindow } from '../../lib/brief-firing';
 import { generateBrief, FamilyContext } from '../../lib/brief-generator';
 import { useChatPersistence } from '../../lib/use-chat-persistence';
-import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, consumeChatIntent, bumpHomeRefresh, consumeTourResumePending, subscribeChatFocus } from '../../lib/navigation-store';
+import { getPendingChatContext, clearPendingChatContext, setPendingChatContext, consumeChatIntent, setChatIntent, bumpHomeRefresh, consumeTourResumePending, subscribeChatFocus, consumePersistedWidgetChatIntent } from '../../lib/navigation-store';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 // Phase 2a — backend pass: family_id resolves at query time via getFamilyId()
@@ -5467,6 +5467,19 @@ BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Nev
 
   // ── isActive context check (fires when swipe-world scrolls to chat page) ──
   const prevIsActive = useRef(false);
+  // Build 66 — coordinate the three widget-intent entry points so a single
+  // widget tap doesn't fire startRecording twice on cold-start.
+  //   1. subscribeChatFocus (in-memory, from requestChatFocus)
+  //   2. isActive true (in-memory)
+  //   3. AsyncStorage poll (persisted, Build 66)
+  // All three race on cold-start. consumeChatIntent() naturally guards 1+2
+  // (one-shot in-memory). But the persist poll reads from AsyncStorage, so
+  // it can find + set a fresh in-memory intent even after 1+2 fired. This
+  // ref is flipped by fireChatIntent the moment it wins the race — poll
+  // sees it and skips dispatch (still clears the AsyncStorage key so it
+  // doesn't leak to next mount). Reset after 3s so a follow-up widget tap
+  // in the same session can still fire.
+  const widgetIntentDispatchedRef = useRef(false);
   // ── Chat intent handler (Session 32 v2 Phase 04c) ────────────────────
   // Consumes a pending ChatIntent and dispatches based on kind. Small
   // 250ms delay so any swipe-to-Chat animation finishes cleanly before
@@ -5478,12 +5491,17 @@ BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Nev
   //   2. The chat-focus subscription useEffect below (Build 63 Lock
   //      Screen mic widget deep-link — fires even when Chat is ALREADY
   //      the active page, so the isActive path wouldn't re-run)
+  //   3. The AsyncStorage poll useEffect below (Build 66 — cold-start
+  //      widget race fix)
   //
   // consumeChatIntent() is one-shot — first caller wins, second gets
   // null. So even if both paths fire, no double-firing on startRecording.
   function fireChatIntent() {
     const intent = consumeChatIntent();
     if (!intent) return;
+    // Build 66 — mark that we've claimed a dispatch so the poll can skip.
+    widgetIntentDispatchedRef.current = true;
+    setTimeout(() => { widgetIntentDispatchedRef.current = false; }, 3000);
     setTimeout(() => {
       if (intent.kind === 'mic') {
         Keyboard.dismiss();
@@ -5525,6 +5543,54 @@ BACKGROUND KNOWLEDGE (likes, routines, patterns — NOT the calendar/todos). Nev
       setTimeout(() => { fireChatIntent(); }, 100);
     });
     return unsub;
+  }, []);
+
+  // Build 66 — AsyncStorage-backed widget intent poll. The reliability
+  // fix for the Lock Screen mic widget cold-start race.
+  //
+  // Failure mode being fixed: on cold-start via widget tap, chat.tsx (the
+  // redirect route) fires setChatIntent + requestChatFocus BEFORE Chat is
+  // mounted. In-memory intent + subscribeChatFocus have no readers yet.
+  // By the time Chat mounts + subscribes, either:
+  //   * the intent has been consumed by something else, or
+  //   * the requestChatFocus counter bump has already resolved to a value
+  //     equal to swipe-world's saved version → no scroll triggered
+  //
+  // Fix: chat.tsx + _layout.tsx ALSO write the intent kind to
+  // AsyncStorage. This effect polls AsyncStorage every 200ms for up to 2
+  // seconds after Chat mounts. Whenever the persisted intent lands, we
+  // set the in-memory intent (so fireChatIntent's consumeChatIntent()
+  // finds it) and dispatch. Independent of mount / subscription /
+  // isActive timing — pure disk read on a timer.
+  useEffect(() => {
+    let cancelled = false;
+    let tries = 0;
+    const MAX_TRIES = 10; // 10 × 200ms = 2 seconds
+    async function poll() {
+      if (cancelled) return;
+      const kind = await consumePersistedWidgetChatIntent();
+      if (kind && !cancelled) {
+        // Coordinate with the two in-memory fast paths (subscribeChatFocus
+        // + isActive true). Whichever wins the race flips
+        // widgetIntentDispatchedRef. If a fast path already dispatched,
+        // clearing AsyncStorage is enough — don't re-dispatch or we'll
+        // startRecording twice.
+        if (widgetIntentDispatchedRef.current) {
+          console.log('[chat] widget intent from AsyncStorage:', kind, '— fast path won, key cleared');
+        } else {
+          console.log('[chat] widget intent from AsyncStorage:', kind, '— dispatching');
+          setChatIntent({ kind } as any);
+          fireChatIntent();
+        }
+        return; // one-shot, stop polling
+      }
+      tries++;
+      if (tries < MAX_TRIES && !cancelled) {
+        setTimeout(poll, 200);
+      }
+    }
+    poll();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -8796,8 +8862,13 @@ Rules:
                   onPress={() => { isRecording ? stopRecording() : startRecording(); }}
                   activeOpacity={0.7}
                 >
+                  {/* Build 66 — mic stroke is now solid #0A0A0A (matches
+                      Home bar's IcoMic T.ink). Was rgba(10,10,10,0.55)
+                      which read as a lighter grey vs Home's black on
+                      swipe. Rich's directive: Home bar is canonical,
+                      Chat must match for seamless swipe. */}
                   <Svg width={24} height={24} viewBox="0 0 24 24" fill="none"
-                    stroke={isRecording ? '#FF4545' : 'rgba(10,10,10,0.55)'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                    stroke={isRecording ? '#FF4545' : '#0A0A0A'} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
                     <Path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
                     <Path d="M19 10v2a7 7 0 01-14 0v-2"/>
                     <Line x1="12" y1="19" x2="12" y2="23"/>
@@ -8831,9 +8902,13 @@ Rules:
                     <Circle cx="12" cy="13" r="4"/>
                   </Svg>
                 </TouchableOpacity>
-                {/* Send — onTouchStart preserved. Allows photo-only sends (single or multi). */}
+                {/* Send — onTouchStart preserved. Allows photo-only sends (single or multi).
+                    Build 66 — opacity gate REMOVED. Rich wants Home ↔ Chat swipe to look
+                    identical. Home's send is always full coral because it's a nav trigger,
+                    not a real send. Chat's disabled state now matches. Tap when empty
+                    is a silent no-op (guarded by the trim/pendingImages check below). */}
                 <View
-                  style={[s.barSendV2, !input.trim() && pendingImages.length === 0 && { opacity:0.3 }]}
+                  style={s.barSendV2}
                   onTouchStart={() => {
                     const t = input;
                     if (t.trim() || pendingImages.length > 0) {

@@ -336,15 +336,22 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
       let chunkFailures = 0;
       const seen = new Set<string>();
       for (const chunk of chunks) {
+        const chunkStartStr = chunk.start.toISOString().slice(0,10);
+        const chunkEndStr = chunk.end.toISOString().slice(0,10);
         try {
           const chunkEvents = await Calendar.getEventsAsync([cal.id], chunk.start, chunk.end);
+          // Build 66 — per-chunk fetch log. Was only logging on failure.
+          // Now log success too so we can see coverage (grep for the
+          // specific date range if an event on a particular day is
+          // missing from our upsert loop).
+          console.log(`[calendar-sync] ${cal.title} chunk ${chunkStartStr}→${chunkEndStr}: ${chunkEvents.length} events returned`);
           for (const e of chunkEvents) {
             if (!e?.id || seen.has(e.id)) continue;
             seen.add(e.id);
             iosEvents.push(e);
           }
         } catch (e: any) {
-          console.log(`[calendar-sync] getEventsAsync chunk failed for ${cal.title} (${chunk.start.toISOString().slice(0,10)} → ${chunk.end.toISOString().slice(0,10)}):`, e?.message);
+          console.log(`[calendar-sync] getEventsAsync chunk FAILED for ${cal.title} (${chunkStartStr} → ${chunkEndStr}):`, e?.message);
           chunkFailures++;
         }
       }
@@ -364,6 +371,14 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
         const startIso = normaliseIsoLocal(ev.startDate);
         const endIso = normaliseIsoLocal(ev.endDate);
         const dateOnly = startIso.split('T')[0];
+
+        // Build 66 — per-event log. Grep-able for a specific event that
+        // isn't landing in Supabase (e.g. Engine Room investigation Session
+        // 38). If the event appears in this log but isn't in the events
+        // table afterward, it's an upsert failure (see verify below). If it
+        // NEVER appears here, iOS EventKit didn't hand it to us — probably
+        // a recurring-instance materialisation issue in getEventsAsync.
+        console.log(`[calendar-sync] · ${cal.title} · "${(ev.title || 'Untitled').slice(0,60)}" · ${dateOnly} · ext=${ev.id.slice(-12)} · tz=${ev.timeZone || 'none'}`);
 
         const row = {
           family_id: familyId,
@@ -404,11 +419,26 @@ async function _syncNowImpl(userId: string, familyId: string): Promise<SyncNowRe
             .update(updateRow)
             .eq('id', existing.id);
           if (!upErr) updated++;
-          else console.log('[calendar-sync] update failed:', upErr.message);
+          else console.log(`[calendar-sync] update FAILED for "${ev.title}" ext=${ev.id.slice(-12)}:`, JSON.stringify(upErr));
         } else {
-          const { error: insErr } = await supabase.from('events').insert(row);
-          if (!insErr) inserted++;
-          else console.log('[calendar-sync] insert failed:', insErr.message);
+          // Build 66 — Session 28 pattern: .select('id') on insert +
+          // verify data.id came back. Bare .insert() can return
+          // { error: null, data: null } on silent RLS block (WITH CHECK
+          // evaluated as null → row silently dropped, no error surfaced).
+          // If Engine Room-style events are landing in the "insert failed"
+          // silent bucket, this log will name them.
+          const { data: insData, error: insErr } = await supabase
+            .from('events')
+            .insert(row)
+            .select('id')
+            .maybeSingle();
+          if (insErr) {
+            console.log(`[calendar-sync] insert FAILED for "${ev.title}" ext=${ev.id.slice(-12)}:`, JSON.stringify(insErr));
+          } else if (!insData?.id) {
+            console.log(`[calendar-sync] insert returned NO ROW for "${ev.title}" ext=${ev.id.slice(-12)} (silent RLS block? malformed row?)`);
+          } else {
+            inserted++;
+          }
         }
       }
     }
