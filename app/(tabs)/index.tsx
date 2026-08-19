@@ -6674,37 +6674,57 @@ Only include events directly relevant to the question. Max 5 events.`;
   }
 
   // ── Recording ─────────────────────────────────────────────────────────────
+  //
+  // Build 72 — NUCLEAR audio reset. Build 71's stopAndUnloadAsync + audio
+  // mode toggle wasn't enough — Rich's warm-start still failed with iOS
+  // "Only one Recording object can be prepared at a given time." expo-av's
+  // stopAndUnloadAsync releases OUR JS reference but doesn't fully tear
+  // down iOS's underlying AVAudioRecorder. Audio.setIsEnabledAsync(false)
+  // → true forces expo-av to reinitialize its entire audio state, which
+  // does clear iOS-level prepared recorders. Belt-and-braces retry once
+  // if the first createAsync still errors — some edge cases may need the
+  // audio subsystem an extra beat.
+  async function _resetAudioSystem() {
+    if (recordingRef.current) {
+      try { await recordingRef.current.stopAndUnloadAsync(); } catch { /* already stopped is fine */ }
+      recordingRef.current = null;
+    }
+    try { await Audio.setIsEnabledAsync(false); } catch { /* ignore */ }
+    await new Promise(r => setTimeout(r, 200));
+    try { await Audio.setIsEnabledAsync(true); } catch { /* ignore */ }
+    await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+  }
+
   async function startRecording() {
     try {
       Keyboard.dismiss();
-      // Build 71 — REAL FIX for widget mic warm-start. Build 70's audio
-      // session reset addressed the wrong symptom. Rich's Build 70 error
-      // Alert revealed the actual iOS complaint:
-      //   "Only one Recording object can be prepared at a given time."
-      // iOS is refusing because a previous Recording object is still
-      // "prepared" (in iOS's internal state), even if we thought we
-      // stopped it. Happens on warm-start when the previous recording
-      // (from cold-start) wasn't fully released before backgrounding,
-      // or if user backgrounded mid-recording, or if handleEntryMicStart
-      // (which uses the same recordingRef) left state behind. Explicit
-      // cleanup here belts-and-braces any of those cases — try stop and
-      // unload, ignore errors (may already be stopped), then null the
-      // ref so we start clean.
-      if (recordingRef.current) {
-        try { await recordingRef.current.stopAndUnloadAsync(); } catch { /* already stopped is fine */ }
-        recordingRef.current = null;
-      }
       const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) return;
-      // Build 70 — audio session recovery kept as belt-and-braces even
-      // though the "one Recording at a time" was the actual bug. Doesn't
-      // hurt to reset the audio mode too.
+      // Build 72 — nuclear reset to guarantee clean iOS AVAudioRecorder
+      // state before createAsync. Session 38 warm-start "Only one
+      // Recording" fix.
+      await _resetAudioSystem();
+      let recording: Audio.Recording;
       try {
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-        await new Promise(r => setTimeout(r, 50));
-      } catch { /* ignore — the reactivate below is what matters */ }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS:true, playsInSilentModeIOS:true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        const res = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        recording = res.recording;
+      } catch (firstErr: any) {
+        // Build 72 — retry-once with a longer reset window if the first
+        // createAsync still hits "Only one Recording". Some warm-start
+        // edge cases need iOS an extra ~400ms to fully release.
+        const msg = firstErr?.message ?? String(firstErr);
+        if (/Only one Recording/i.test(msg)) {
+          console.log('[startRecording] first attempt failed, retrying with longer reset:', msg);
+          try { await Audio.setIsEnabledAsync(false); } catch {}
+          await new Promise(r => setTimeout(r, 400));
+          try { await Audio.setIsEnabledAsync(true); } catch {}
+          await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+          const res = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+          recording = res.recording;
+        } else {
+          throw firstErr;
+        }
+      }
       recordingRef.current = recording;
       setIsRecording(true);
       setMicTimer(0);
