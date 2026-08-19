@@ -103,48 +103,30 @@ struct ZaeliLockWidget: Widget {
   }
 }
 
-// MARK: - Mic widget (Build 63)
+// MARK: - Mic widget REMOVED (Build 73, Session 38)
 //
-// Second Lock Screen circular widget — one-tap voice launcher. The user
-// adds this next to the ZaeliLockWidget branded circle. Tap flow:
-//   1. Tap widget on Lock Screen
-//   2. iOS prompts FaceID / passcode → unlocks
-//   3. App opens via widgetURL "zaeli://chat?mic=1"
-//   4. _layout.tsx's Linking handler parses the URL, sets ChatIntent
-//      { kind: 'mic' } via lib/navigation-store, calls requestChatFocus()
-//   5. swipe-world scrolls straight to Chat page (skipping Dashboard)
-//   6. Chat's isActive effect consumes the mic intent, calls
-//      startRecording() — user is talking within ~2 seconds of tapping
+// The mic widget (widgetURL "zaeli://chat?mic=1") consistently failed on
+// WARM-start with the iOS error "Only one Recording object can be prepared
+// at a given time." Root cause: expo-av's stopAndUnloadAsync + setIsEnabled
+// Async(false) don't fully release iOS's underlying AVAudioRecorder after
+// app backgrounding. Multiple JS-level fixes attempted (Builds 66-72,
+// including nuclear audio system reset + retry-once) all failed the same
+// way. A working fix would require ~5 seconds of retry delay (unacceptable
+// UX for a "tap to talk" widget) OR native Swift changes to force-tear-down
+// AVAudioSession.
 //
-// SF Symbol mic.fill renders in system vibrant white on Lock Screen —
-// matches the iOS visual language for control-style widgets (Home,
-// Music, Camera all use SF Symbols the same way). Cleaner than a text
-// glyph for a launcher-style widget.
-
-struct ZaeliMicView: View {
-  var body: some View {
-    ZStack {
-      AccessoryWidgetBackground()
-      Image(systemName: "mic.fill")
-        .font(.system(size: 22, weight: .semibold))
-        .foregroundColor(.primary)
-    }
-    .widgetURL(URL(string: "zaeli://chat?mic=1"))
-  }
-}
-
-struct ZaeliMicWidget: Widget {
-  let kind: String = "ZaeliMicWidget"
-
-  var body: some WidgetConfiguration {
-    StaticConfiguration(kind: kind, provider: ZaeliProvider()) { _ in
-      ZaeliMicView()
-    }
-    .configurationDisplayName("Zaeli Mic")
-    .description("Tap to start talking to Zaeli.")
-    .supportedFamilies([.accessoryCircular])
-  }
-}
+// Rich's call: better to remove the mic widget entirely than ship it with
+// broken warm-start behaviour. Users who added the mic widget to their
+// Lock Screen will see a "no longer available" placeholder — safe to
+// manually remove. The branded ZaeliLockWidget stays (works fine — just
+// opens the app).
+//
+// Related dead code kept intact for future revival if we tackle the
+// native-side fix:
+//   * app/chat.tsx — redirect route for zaeli://chat?mic=1
+//   * app/(tabs)/index.tsx — startRecording's audio session reset + retry
+//   * lib/navigation-store.ts — persistWidgetChatIntent + poll
+// All harmless with no widget calling them.
 
 // MARK: - Bundle
 
@@ -155,6 +137,5 @@ struct ZaeliMicWidget: Widget {
 struct ZaeliWidgetBundle: WidgetBundle {
   var body: some Widget {
     ZaeliLockWidget()
-    ZaeliMicWidget()
   }
 }
