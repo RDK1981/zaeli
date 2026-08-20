@@ -4946,13 +4946,13 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
     const timeStr = now.toLocaleTimeString('en-AU', { hour:'2-digit', minute:'2-digit' });
 
     try {
-      // Build 75 — first-of-month for receipts query. Session 38 gap:
-      // Zaeli had no visibility on Our Budget data. Ask "how much have we
-      // spent on shopping in August?" got "spend tracking isn't something
-      // I've got visibility on" — technically correct but useless. Now
-      // pulls budget_expenses + income_streams + this-month receipts +
-      // savings_goals so she can answer real budget questions.
-      const monthStart = (() => { const d = new Date(now); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; })();
+      // Build 75/77 — receipts window: last 180 days (~6 months) so Zaeli
+      // can answer "how much in July/June/May" not just this month.
+      // Session 38 real-user gap: month-to-month was too tight.
+      const receiptsWindowStart = (() => {
+        const d = new Date(now); d.setDate(d.getDate() - 180);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      })();
 
       const [
         { count: shopCount },
@@ -4979,19 +4979,17 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         // 99% of queries. Newest last_bought first, so recent purchases surface.
         supabase.from('pantry_items').select('name,last_bought').eq('family_id',getFamilyId()).order('last_bought',{ascending:false,nullsFirst:false}).limit(50),
         supabase.from('recipes').select('title,prep_mins,tags').eq('family_id',getFamilyId()).contains('tags',['favourite']).limit(8),
-        // Build 75 — budget context. All optional/silent-fail so a family
-        // that never uses Our Budget doesn't error the chat path.
-        // Build 76 — column names corrected: monthly_amount not amount (both
-        // tables use monthly_amount per supabase-budget-*.sql migrations).
-        // income_streams has no frequency column — values are already
-        // stored as monthly. savings_goals uses `saved` + `target` (not
-        // current_amount / target_amount). Session 38 real-user bug: Rich
-        // had $11,006 income but Zaeli reported $0 because query returned
-        // null for `amount` (wrong column) and my reduce silently summed 0.
-        supabase.from('budget_expenses').select('name,monthly_amount,type').eq('family_id',getFamilyId()).limit(40),
-        supabase.from('income_streams').select('name,monthly_amount').eq('family_id',getFamilyId()).limit(10),
-        supabase.from('receipts').select('store,total_amount,purchase_date').eq('family_id',getFamilyId()).gte('purchase_date',monthStart).limit(50),
-        supabase.from('savings_goals').select('name,saved,target').eq('family_id',getFamilyId()).limit(10),
+        // Build 75/76/77 — budget context. Build 77 fixes:
+        //   * income_streams uses `label` not `name` (real DB schema drifted
+        //     from migration file — verified via information_schema query).
+        //   * receipts widened to last 180 days for multi-month spend Qs.
+        //   * savings_goals now includes monthly_contribution so Zaeli can
+        //     answer "how much am I saving each month?".
+        //   * receipts limit bumped 50→300 to fit 6 months of daily-ish scans.
+        supabase.from('budget_expenses').select('name,monthly_amount,type').eq('family_id',getFamilyId()).limit(50),
+        supabase.from('income_streams').select('label,monthly_amount,type').eq('family_id',getFamilyId()).limit(10),
+        supabase.from('receipts').select('store,total_amount,purchase_date').eq('family_id',getFamilyId()).gte('purchase_date',receiptsWindowStart).order('purchase_date',{ascending:false}).limit(300),
+        supabase.from('savings_goals').select('name,saved,target,monthly_contribution').eq('family_id',getFamilyId()).limit(10),
       ]);
 
       const shopNames = shopItems?.map((i:any) => i.name).join(', ') || '';
@@ -5004,22 +5002,64 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         ? familyRegulars.map((r:any) => r.prep_mins ? `${r.title} (${r.prep_mins} min)` : r.title).join(', ')
         : 'none saved yet';
 
-      // Build 75/76 — format budget lines. Compact so context stays lean.
-      // Values already monthly (income_streams + budget_expenses both use
-      // monthly_amount column). No frequency normalisation needed.
-      const monthName = now.toLocaleDateString('en-AU', { month: 'long' });
+      // Build 75/76/77 — Our Budget context. Values already monthly.
+      // Comprehensive per Session 38 real-user feedback: Zaeli should
+      // answer income Qs, biggest-expense Qs, per-month spend Qs, savings
+      // progress Qs, and "can we afford X?" Qs — needs all this in context.
+
+      // Income (Build 77 — column is `label` not `name`)
       const monthlyIncome = (incomeStreams ?? []).reduce((s: number, r: any) => s + (Number(r.monthly_amount) || 0), 0);
+      const incomeDetail = (incomeStreams ?? []).length
+        ? (incomeStreams ?? []).map((r: any) => `${r.label || 'unnamed'} A$${Number(r.monthly_amount||0).toFixed(0)}`).join(', ')
+        : 'none';
+
+      // Expenses — Build 77 adds INDIVIDUAL expense breakdown so Zaeli can
+      // answer "what's my biggest bill?", "how much for insurance?" etc.
       const fixedExp = (budgetExpenses ?? []).filter((e: any) => e.type === 'fixed').reduce((s: number, e: any) => s + (Number(e.monthly_amount) || 0), 0);
       const variableExp = (budgetExpenses ?? []).filter((e: any) => e.type === 'variable').reduce((s: number, e: any) => s + (Number(e.monthly_amount) || 0), 0);
       const plannedTotal = fixedExp + variableExp;
-      const spendThisMonth = (monthReceipts ?? []).reduce((s: number, r: any) => s + (Number(r.total_amount) || 0), 0);
-      const receiptCount = (monthReceipts ?? []).length;
-      const budgetLine = (monthlyIncome > 0 || plannedTotal > 0 || spendThisMonth > 0)
-        ? `Income A$${monthlyIncome.toFixed(0)}/mo · Planned A$${plannedTotal.toFixed(0)}/mo (fixed A$${fixedExp.toFixed(0)}, variable A$${variableExp.toFixed(0)}) · Actual spend ${monthName}: A$${spendThisMonth.toFixed(2)} across ${receiptCount} receipt${receiptCount===1?'':'s'}`
-        : 'no budget data yet';
+      const expenseDetail = (budgetExpenses ?? []).length
+        ? (budgetExpenses ?? [])
+            .slice()
+            .sort((a: any, b: any) => (Number(b.monthly_amount)||0) - (Number(a.monthly_amount)||0))
+            .map((e: any) => `${e.name} A$${Number(e.monthly_amount||0).toFixed(0)} (${e.type})`)
+            .join(', ')
+        : 'none';
+
+      // Savings — Build 77 adds monthly_contribution
+      const totalSavingsContribution = (savingsGoals ?? []).reduce((s: number, g: any) => s + (Number(g.monthly_contribution) || 0), 0);
       const savingsLine = (savingsGoals ?? []).length
-        ? (savingsGoals ?? []).map((g: any) => `${g.name} A$${Number(g.saved||0).toFixed(0)}/A$${Number(g.target||0).toFixed(0)}`).join(', ')
+        ? (savingsGoals ?? []).map((g: any) => `${g.name} A$${Number(g.saved||0).toFixed(0)}/A$${Number(g.target||0).toFixed(0)} (A$${Number(g.monthly_contribution||0).toFixed(0)}/mo)`).join(', ')
         : 'none set';
+
+      // Surplus (Build 77) — free-to-spend after planned expenses + savings
+      const surplus = monthlyIncome - plannedTotal - totalSavingsContribution;
+
+      // Receipts — Build 77 per-month rollup for last 6 months so Zaeli
+      // can answer "how much in July / June / etc". Groups by YYYY-MM.
+      const receiptsByMonth = new Map<string, { total: number; count: number }>();
+      for (const r of (monthReceipts ?? [])) {
+        const d = String(r.purchase_date || '').slice(0, 7); // YYYY-MM
+        if (!d) continue;
+        const cur = receiptsByMonth.get(d) || { total: 0, count: 0 };
+        cur.total += Number(r.total_amount) || 0;
+        cur.count += 1;
+        receiptsByMonth.set(d, cur);
+      }
+      const spendMonthly = Array.from(receiptsByMonth.entries())
+        .sort((a, b) => b[0].localeCompare(a[0])) // newest first
+        .map(([ym, v]) => {
+          const [y, m] = ym.split('-').map(Number);
+          const label = new Date(y, m - 1, 1).toLocaleDateString('en-AU', { month: 'short', year: '2-digit' });
+          return `${label} A$${v.total.toFixed(0)} (${v.count})`;
+        })
+        .join(' · ');
+      const actualSpendLine = spendMonthly || 'no receipts scanned in the last 6 months';
+
+      // Compose one line summarising the plan (headline) — detailed lines follow
+      const budgetLine = (monthlyIncome > 0 || plannedTotal > 0 || totalSavingsContribution > 0)
+        ? `Income A$${monthlyIncome.toFixed(0)}/mo · Planned expenses A$${plannedTotal.toFixed(0)}/mo (fixed A$${fixedExp.toFixed(0)}, variable A$${variableExp.toFixed(0)}) · Savings contributions A$${totalSavingsContribution.toFixed(0)}/mo · Surplus A$${surplus.toFixed(0)}/mo`
+        : 'no budget data yet';
       const mealToday = meals?.find((m:any) => m.planned_date===td || m.day_key===td)?.meal_name ?? null;
       const dinnerRule = h < 19
         ? mealToday ? `Dinner sorted — ${mealToday} tonight.` : "No dinner planned — do NOT nudge to plan. If asked for ideas, suggest from Family regulars first."
@@ -5065,12 +5105,18 @@ PANTRY RULES:
 - If X is NOT in the Pantry line, say so honestly: "not seeing it in the pantry — want me to add it to the shopping list?"
 - Never confabulate pantry contents.
 
-BUDGET RULES (Build 75):
-- The BUDGET line + SAVINGS line in LIVE DATA below cover income, planned monthly expenses, actual spend this month from scanned receipts, and savings goals. When asked about money — "how much have we spent?", "what's our biggest expense?", "how are we tracking?", "can we afford X?" — check BUDGET first.
-- ACTUAL SPEND (from receipts scanned this month) and PLANNED SPEND (budget_expenses target) are different — don't confuse them. If the user asks "how much have we spent on shopping", they mean actual spend from receipts.
-- If BUDGET says "no budget data yet", the family hasn't set up Our Budget yet — say so gently and offer to help them get started (they can add expenses in the Budget section).
-- NEVER say "I don't have visibility on that" or "spend tracking isn't something I've got" — if the data is in BUDGET line, USE IT. Session 38 real gap.
-- Round dollar amounts naturally in replies — "about A$340 this month" beats "A$342.87".
+BUDGET RULES (Build 75/77):
+- LIVE DATA below has FIVE budget-related lines: BUDGET (headline totals + surplus), INCOMES (individual income streams), EXPENSES (individual expenses, largest first, with type=fixed/variable), SAVINGS (goals with progress + monthly contribution), and ACTUAL SPEND (per-month receipt rollups for the last ~6 months).
+- Use them per question type:
+   * "Total income" / "how much do we bring in" → INCOMES line + BUDGET headline.
+   * "Biggest expense" / "how much for mortgage/insurance/X" → EXPENSES line (sorted largest first).
+   * "How much did we spend in July/June/May" / "shopping spend last month" → ACTUAL SPEND line (per-month totals from real receipts).
+   * "Are we on track" / "can we afford X" / "how much left" → BUDGET headline (surplus figure = Income − Planned − Savings contribution).
+   * "How much to Bali fund" / savings progress → SAVINGS line.
+- ACTUAL SPEND (real receipts) and PLANNED EXPENSES (budget_expenses target) are different concepts — don't confuse them. "How much have we spent" almost always means ACTUAL, not PLANNED.
+- If a line says "no budget data yet" or "none set", the family hasn't set that section up — say so gently and offer to help. Never fake numbers.
+- NEVER say "I don't have visibility on that" or "spend tracking isn't something I've got" — if the data is in these lines, USE IT.
+- Round dollar amounts naturally — "about A$340 this month" beats "A$342.87". Whole dollars for anything > A$100.
 
 FORMAT: 2–5 sentences by default; expand when explaining, comparing options, or discussing something that genuinely needs more space (budget breakdowns, meal ideas, family logistics). Natural prose. No bullet points, no lists, no asterisks. Never start with "I". Never say "mate". Never say "Of course!" or any hollow affirmation.
 WARMTH + EMOJIS: Sprinkle emojis to give the chat colour — aim for 1-3 per reply so it feels like a real person, not a robot. Lean in on wins, family moments, encouragement, or reactions (✨🎉💛🙌👋☀️🌙🥳). Pull back to 0-1 on pure tool confirmations ("Added 🛒" is enough — don't stack). Never spray them. Emojis are punctuation for the vibe, not decoration.
@@ -5113,7 +5159,10 @@ LIVE DATA:
 - Family regulars: ${regularsStr}
 - To-dos: ${todoCount??0} open
 - Budget: ${budgetLine}
+- Incomes: ${incomeDetail}
+- Expenses (largest first): ${expenseDetail}
 - Savings goals: ${savingsLine}
+- Actual spend (last 6 months, receipts): ${actualSpendLine}
 - ${dinnerRule}`;
 
       // Memory recall — appended to dynamic (changes as insights extract over time)
