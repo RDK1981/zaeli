@@ -769,7 +769,13 @@ export default function DashboardScreen({
               // resolvable member. Sheet renderer already does this via
               // .filter(Boolean); this brings Home tile in line.
               const isExternal = ev.source === 'apple-ical';
-              const isShared = ev.privacy_scope === 'shared';
+              // Build 76 — Session 36 hotfix 3 established the schema
+              // convention: privacy_scope='family' for whole-family
+              // visibility, 'personal' for private. Build 74's initial
+              // Home tile badge check used 'shared' which never matched
+              // (Rich toggled Doctors Appointment to shared but the tile
+              // still showed plain "iPhone", not "iPhone · Shared").
+              const isShared = ev.privacy_scope === 'family';
               const rosterLoaded = roster.length > 0;
               const assigneeIds: string[] = Array.isArray(ev.assignees) ? ev.assignees : [];
               let mem = null as ReturnType<typeof memberById> | null;

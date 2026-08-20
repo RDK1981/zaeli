@@ -52,7 +52,7 @@ const { height: H } = Dimensions.get('window');
 // just "1.0.0" with no build number, so we couldn't tell which build was
 // actually installed. Hardcoded constant is 100% reliable. Manual bump
 // per production build (I bump this each time I ship a new build).
-const BUILD_NUMBER = '75';
+const BUILD_NUMBER = '76';
 
 // ── Colour tokens ──────────────────────────────────────────────────────────
 const BG      = '#FAF8F5';

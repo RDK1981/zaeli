@@ -761,6 +761,12 @@ function isShoppingViewQuery(text: string): boolean {
   const lower = text.toLowerCase();
   if (isActionQuery(lower)) return false;
   if (isMessageIntent(text)) return false;
+  // Build 76 — Session 38 bug: bare "shopping" keyword matched "spent on
+  // shopping in July", routing spend queries to the shopping-list card
+  // instead of letting Sonnet answer with actual receipt totals. Any
+  // money-related word in the message means the user wants a spend answer,
+  // NOT the shopping list view. Route through to Sonnet.
+  if (/\b(spend|spent|spending|cost|costs|money|budget|expenses?|receipts?|paid|price|prices|dollars?|a\$|\$\d)\b/.test(lower)) return false;
   return SHOPPING_VIEW_KEYWORDS.some(kw => lower.includes(kw));
 }
 function isMealsViewQuery(text: string): boolean {
@@ -4975,10 +4981,17 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         supabase.from('recipes').select('title,prep_mins,tags').eq('family_id',getFamilyId()).contains('tags',['favourite']).limit(8),
         // Build 75 — budget context. All optional/silent-fail so a family
         // that never uses Our Budget doesn't error the chat path.
-        supabase.from('budget_expenses').select('name,amount,type').eq('family_id',getFamilyId()).limit(40),
-        supabase.from('income_streams').select('name,amount,frequency').eq('family_id',getFamilyId()).limit(10),
+        // Build 76 — column names corrected: monthly_amount not amount (both
+        // tables use monthly_amount per supabase-budget-*.sql migrations).
+        // income_streams has no frequency column — values are already
+        // stored as monthly. savings_goals uses `saved` + `target` (not
+        // current_amount / target_amount). Session 38 real-user bug: Rich
+        // had $11,006 income but Zaeli reported $0 because query returned
+        // null for `amount` (wrong column) and my reduce silently summed 0.
+        supabase.from('budget_expenses').select('name,monthly_amount,type').eq('family_id',getFamilyId()).limit(40),
+        supabase.from('income_streams').select('name,monthly_amount').eq('family_id',getFamilyId()).limit(10),
         supabase.from('receipts').select('store,total_amount,purchase_date').eq('family_id',getFamilyId()).gte('purchase_date',monthStart).limit(50),
-        supabase.from('savings_goals').select('name,target_amount,current_amount').eq('family_id',getFamilyId()).limit(10),
+        supabase.from('savings_goals').select('name,saved,target').eq('family_id',getFamilyId()).limit(10),
       ]);
 
       const shopNames = shopItems?.map((i:any) => i.name).join(', ') || '';
@@ -4991,19 +5004,13 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         ? familyRegulars.map((r:any) => r.prep_mins ? `${r.title} (${r.prep_mins} min)` : r.title).join(', ')
         : 'none saved yet';
 
-      // Build 75 — format budget lines. Compact so context stays lean.
+      // Build 75/76 — format budget lines. Compact so context stays lean.
+      // Values already monthly (income_streams + budget_expenses both use
+      // monthly_amount column). No frequency normalisation needed.
       const monthName = now.toLocaleDateString('en-AU', { month: 'long' });
-      const monthlyIncome = (incomeStreams ?? []).reduce((sum: number, s: any) => {
-        const amt = Number(s.amount) || 0;
-        const freq = String(s.frequency || 'monthly').toLowerCase();
-        // Normalise to monthly. weekly * ~4.33, fortnightly * ~2.17.
-        if (freq.startsWith('week')) return sum + amt * 4.33;
-        if (freq.startsWith('fort')) return sum + amt * 2.17;
-        if (freq.startsWith('year') || freq.startsWith('annual')) return sum + amt / 12;
-        return sum + amt; // monthly / default
-      }, 0);
-      const fixedExp = (budgetExpenses ?? []).filter((e: any) => e.type === 'fixed').reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
-      const variableExp = (budgetExpenses ?? []).filter((e: any) => e.type === 'variable').reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
+      const monthlyIncome = (incomeStreams ?? []).reduce((s: number, r: any) => s + (Number(r.monthly_amount) || 0), 0);
+      const fixedExp = (budgetExpenses ?? []).filter((e: any) => e.type === 'fixed').reduce((s: number, e: any) => s + (Number(e.monthly_amount) || 0), 0);
+      const variableExp = (budgetExpenses ?? []).filter((e: any) => e.type === 'variable').reduce((s: number, e: any) => s + (Number(e.monthly_amount) || 0), 0);
       const plannedTotal = fixedExp + variableExp;
       const spendThisMonth = (monthReceipts ?? []).reduce((s: number, r: any) => s + (Number(r.total_amount) || 0), 0);
       const receiptCount = (monthReceipts ?? []).length;
@@ -5011,7 +5018,7 @@ Return ONLY JSON: {"line":"...","chips":["chip1","chip2","chip3"]}`;
         ? `Income A$${monthlyIncome.toFixed(0)}/mo · Planned A$${plannedTotal.toFixed(0)}/mo (fixed A$${fixedExp.toFixed(0)}, variable A$${variableExp.toFixed(0)}) · Actual spend ${monthName}: A$${spendThisMonth.toFixed(2)} across ${receiptCount} receipt${receiptCount===1?'':'s'}`
         : 'no budget data yet';
       const savingsLine = (savingsGoals ?? []).length
-        ? (savingsGoals ?? []).map((g: any) => `${g.name} A$${Number(g.current_amount||0).toFixed(0)}/A$${Number(g.target_amount||0).toFixed(0)}`).join(', ')
+        ? (savingsGoals ?? []).map((g: any) => `${g.name} A$${Number(g.saved||0).toFixed(0)}/A$${Number(g.target||0).toFixed(0)}`).join(', ')
         : 'none set';
       const mealToday = meals?.find((m:any) => m.planned_date===td || m.day_key===td)?.meal_name ?? null;
       const dinnerRule = h < 19
